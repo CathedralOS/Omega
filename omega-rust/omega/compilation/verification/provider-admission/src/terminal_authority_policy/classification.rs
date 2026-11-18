@@ -7,8 +7,9 @@ table, deriving the runtime builtin count from the catalog so source-only
 declarations do not acquire provider authority or require a second roster.
 
 `classify_compiler_intrinsic` assigns each intrinsic's host-authority classes:
-static interrupt installation and privileged register/descriptor operations
-require `MachineControl`, port I/O builtins require `PortIo`, hosted exit/write/
+CLI/STI require `InterruptControl`; general flags restoration, static interrupt
+installation and privileged register/descriptor operations require `MachineControl`.
+Port I/O builtins require `PortIo`, hosted exit/write/
 read builtins require `ProcessTermination`/`ProcessOutput`/`ProcessInput`, and
 storage, lifecycle, address-observation, caller-RAM accessor, and arithmetic
 intrinsics exercise no host authority class.
@@ -184,9 +185,10 @@ fn classify_named_float_negation(format: FloatFormat) -> TerminalAuthorityDispos
 
 fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisposition {
     match function {
+        BuiltinFunction::AsmDisableInterrupts | BuiltinFunction::AsmEnableInterrupts => {
+            disposition([TerminalAuthorityClass::InterruptControl])
+        }
         BuiltinFunction::AsmHlt
-        | BuiltinFunction::AsmDisableInterrupts
-        | BuiltinFunction::AsmEnableInterrupts
         | BuiltinFunction::AsmRestoreFlags
         | BuiltinFunction::AsmReadMsr
         | BuiltinFunction::AsmWriteMsr
