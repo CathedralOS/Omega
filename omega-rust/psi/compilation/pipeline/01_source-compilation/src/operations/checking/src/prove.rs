@@ -320,6 +320,21 @@ struct Bound {
     proof: ProofNode,
 }
 
+/// Keep the fact's origin until its endpoint can improve the bound. Expanding
+/// a discarded candidate would copy its entire supporting proof for nothing.
+#[derive(Clone, Copy)]
+enum CompoundOrder {
+    Relation { fact: usize, strict: bool },
+    Equality { fact: usize },
+    ReversedEquality { fact: usize },
+}
+
+impl CompoundOrder {
+    fn strict(self) -> bool {
+        matches!(self, Self::Relation { strict: true, .. })
+    }
+}
+
 #[derive(Debug, Clone)]
 enum Slot {
     Unknown,
@@ -569,6 +584,9 @@ pub struct ProofSearchActivity {
     /// Nodes emitted for the candidate fact, excluding the opposite search.
     #[cfg(test)]
     refutation_fact_nodes: usize,
+    /// Fact nodes materialized for compound order candidates.
+    #[cfg(test)]
+    compound_order_fact_nodes: usize,
     #[cfg(test)]
     bound_value_searches: usize,
     #[cfg(test)]
@@ -603,6 +621,9 @@ impl ProofSearchActivity {
             self.refutation_fact_nodes = self
                 .refutation_fact_nodes
                 .saturating_add(other.refutation_fact_nodes);
+            self.compound_order_fact_nodes = self
+                .compound_order_fact_nodes
+                .saturating_add(other.compound_order_fact_nodes);
             self.bound_value_searches = self
                 .bound_value_searches
                 .saturating_add(other.bound_value_searches);
@@ -3320,7 +3341,34 @@ impl<'a> Prover<'a> {
                         }
                     })
             }
-            _ => self.compound_bound_from_fact(index, subject, integer, direction),
+            _ => self.compound_bound_from_fact(index, subject, integer, direction, current),
+        }
+    }
+
+    fn compound_order_fact(&mut self, index: usize) -> ProofNode {
+        #[cfg(test)]
+        {
+            let mut work = crate::checking::known::FactProofWork::default();
+            let proof = self.facts[index].proof_with_work(&self.facts, &mut work);
+            self.activity.compound_order_fact_nodes = self
+                .activity
+                .compound_order_fact_nodes
+                .saturating_add(work.nodes);
+            proof
+        }
+        #[cfg(not(test))]
+        {
+            self.facts[index].proof(&self.facts)
+        }
+    }
+
+    fn compound_order_proof(&mut self, order: CompoundOrder) -> Option<ProofNode> {
+        match order {
+            CompoundOrder::Relation { fact, .. } => Some(self.compound_order_fact(fact)),
+            CompoundOrder::Equality { fact } => weaken(self.compound_order_fact(fact)).ok(),
+            CompoundOrder::ReversedEquality { fact } => {
+                flip(self.compound_order_fact(fact)).and_then(weaken).ok()
+            }
         }
     }
 
@@ -3333,6 +3381,7 @@ impl<'a> Prover<'a> {
         subject: &ScalarTerm,
         integer: IntegerType,
         direction: Direction,
+        current: Option<IntegerValue>,
     ) -> Option<Bound> {
         if integer.carrier() != IntegerCarrier::Fixed || integer.is_address() {
             return None;
@@ -3352,7 +3401,10 @@ impl<'a> Prover<'a> {
                     orders.push((
                         left.clone(),
                         right.clone(),
-                        self.facts[index].proof(&self.facts),
+                        CompoundOrder::Relation {
+                            fact: index,
+                            strict: matches!(proposition, Proposition::LessThan(..)),
+                        },
                     ));
                 }
             }
@@ -3363,30 +3415,37 @@ impl<'a> Prover<'a> {
             {
                 // Orient so `subject` stands on the bounded side (`left` for an
                 // upper bound, `right` for a lower bound).
-                let proof = self.facts[index].proof(&self.facts);
                 match direction {
                     Direction::Upper => {
-                        if term_mentions(left, subject)
-                            && let Ok(weakened) = weaken(proof.clone())
-                        {
-                            orders.push((left.clone(), right.clone(), weakened));
+                        if term_mentions(left, subject) {
+                            orders.push((
+                                left.clone(),
+                                right.clone(),
+                                CompoundOrder::Equality { fact: index },
+                            ));
                         }
-                        if term_mentions(right, subject)
-                            && let Ok(weakened) = flip(proof).and_then(weaken)
-                        {
-                            orders.push((right.clone(), left.clone(), weakened));
+                        if term_mentions(right, subject) {
+                            orders.push((
+                                right.clone(),
+                                left.clone(),
+                                CompoundOrder::ReversedEquality { fact: index },
+                            ));
                         }
                     }
                     Direction::Lower => {
-                        if term_mentions(right, subject)
-                            && let Ok(weakened) = weaken(proof.clone())
-                        {
-                            orders.push((left.clone(), right.clone(), weakened));
+                        if term_mentions(right, subject) {
+                            orders.push((
+                                left.clone(),
+                                right.clone(),
+                                CompoundOrder::Equality { fact: index },
+                            ));
                         }
-                        if term_mentions(left, subject)
-                            && let Ok(weakened) = flip(proof).and_then(weaken)
-                        {
-                            orders.push((right.clone(), left.clone(), weakened));
+                        if term_mentions(left, subject) {
+                            orders.push((
+                                right.clone(),
+                                left.clone(),
+                                CompoundOrder::ReversedEquality { fact: index },
+                            ));
                         }
                     }
                 }
@@ -3395,18 +3454,13 @@ impl<'a> Prover<'a> {
         }
         orders
             .into_iter()
-            .filter_map(|(left, right, order_proof)| {
+            .filter_map(|(left, right, order)| {
                 let (open_side, limit_side) = match direction {
                     Direction::Upper => (&left, &right),
                     Direction::Lower => (&right, &left),
                 };
                 let (m_val, le_proof) = self.compound_limit_as_le(
-                    open_side,
-                    limit_side,
-                    order_proof,
-                    subject,
-                    integer,
-                    direction,
+                    open_side, limit_side, order, subject, integer, direction, current,
                 )?;
                 if open_side == subject {
                     return Some(Bound {
@@ -3437,18 +3491,34 @@ impl<'a> Prover<'a> {
             })
     }
 
-    /// Turns `order_proof` (`open_side R limit_side` for `Upper`, or
+    /// Turns the selected order (`open_side R limit_side` for `Upper`, or
     /// `limit_side R open_side` for `Lower`) into a non-strict literal order
     /// `open_side <= m` or `m <= open_side`.
     fn compound_limit_as_le(
         &mut self,
         open_side: &ScalarTerm,
         limit_side: &ScalarTerm,
-        order_proof: ProofNode,
+        order: CompoundOrder,
         subject: &ScalarTerm,
         integer: IntegerType,
         direction: Direction,
+        current: Option<IntegerValue>,
     ) -> Option<(IntegerValue, ProofNode)> {
+        // A direct endpoint needs no later offset or monotone projection.
+        // Settle the original queries first; only its unused proof is omitted.
+        let improves_direct = |literal: IntegerValue, strict: bool| {
+            if open_side != subject {
+                return true;
+            }
+            let literal = if strict {
+                step(literal, direction == Direction::Lower)
+            } else {
+                Some(literal)
+            };
+            literal.is_some_and(|literal| {
+                current.is_none_or(|current| direction.prefers(integer.compare(literal, current)))
+            })
+        };
         let step_strict =
             |value: IntegerValue, proof: ProofNode| -> Option<(IntegerValue, ProofNode)> {
                 if !matches!(proof.conclusion, Proposition::LessThan(..)) {
@@ -3471,6 +3541,11 @@ impl<'a> Prover<'a> {
                 ))
             };
         if limit_side.integer_value().is_some() {
+            let (_, raw) = limit_side.integer_value()?;
+            if !improves_direct(raw, order.strict()) {
+                return None;
+            }
+            let order_proof = self.compound_order_proof(order)?;
             let (raw, at_plain) = self.literal_endpoint(order_proof, limit_side, direction)?;
             return step_strict(raw, at_plain);
         }
@@ -3488,8 +3563,16 @@ impl<'a> Prover<'a> {
                 if upper == *subject {
                     return None;
                 }
+                let literal = self.bound_literal(id, Direction::Upper)?;
+                let strict = order.strict()
+                    || step_out
+                        .as_ref()
+                        .is_some_and(|proof| matches!(proof.conclusion, Proposition::LessThan(..)));
+                if !improves_direct(literal, strict) {
+                    return None;
+                }
                 let upper_bound = self.bound(id, Direction::Upper)?;
-                let mut chained = order_proof;
+                let mut chained = self.compound_order_proof(order)?;
                 if let Some(step_out) = step_out {
                     chained = chain(chained, step_out).ok()?;
                 }
@@ -3500,13 +3583,17 @@ impl<'a> Prover<'a> {
                 let mut candidates = Vec::new();
                 if let ScalarTerm::Value { id, .. } = limit_side {
                     if limit_side != subject
+                        && let Some(literal) = self.bound_literal(*id, Direction::Lower)
+                        && improves_direct(literal, order.strict())
                         && let Some(lower_bound) = self.bound(*id, Direction::Lower)
-                        && let Ok(chained) = chain(lower_bound.proof, order_proof.clone())
+                        && let Some(order_proof) = self.compound_order_proof(order)
+                        && let Ok(chained) = chain(lower_bound.proof, order_proof)
                         && let Some(candidate) = step_strict(lower_bound.literal, chained)
                     {
                         candidates.push(candidate);
                     }
                 } else {
+                    let mut order_proof = None;
                     let mut leaves = Vec::new();
                     limit_side.visit_value_ids(|id| {
                         if !leaves.contains(&id) {
@@ -3525,11 +3612,23 @@ impl<'a> Prover<'a> {
                         let Some(leaf_to_limit) = self.below_compound(&leaf, limit_side) else {
                             continue;
                         };
+                        let Some(literal) = self.bound_literal(id, Direction::Lower) else {
+                            continue;
+                        };
+                        let strict = matches!(leaf_to_limit.conclusion, Proposition::LessThan(..))
+                            || order.strict();
+                        if !improves_direct(literal, strict) {
+                            continue;
+                        }
                         let Some(lower_bound) = self.bound(id, Direction::Lower) else {
                             continue;
                         };
+                        if order_proof.is_none() {
+                            order_proof = Some(self.compound_order_proof(order)?);
+                        }
+                        let proof = order_proof.as_ref()?;
                         if let Ok(first) = chain(lower_bound.proof, leaf_to_limit)
-                            && let Ok(chained) = chain(first, order_proof.clone())
+                            && let Ok(chained) = chain(first, proof.clone())
                             && let Some(candidate) = step_strict(lower_bound.literal, chained)
                         {
                             candidates.push(candidate);
