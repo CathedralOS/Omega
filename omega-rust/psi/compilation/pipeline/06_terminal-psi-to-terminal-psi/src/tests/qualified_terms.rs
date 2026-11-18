@@ -207,11 +207,9 @@ fn explicit_domain_removal_keeps_the_call_precondition_and_value_fact() {
     );
 }
 
-#[test]
-fn a_boundary_formal_keeps_its_domain_and_independent_requirement() {
-    let source = |actual| {
-        format!(
-            r#"
+fn boundary_consumer(actual: i64) -> String {
+    format!(
+        r#"
 {DOMAIN}
 boundary trait Probe {{
     machine consume(handle: i64 in Classified) -> i64
@@ -221,19 +219,118 @@ boundary trait Probe {{
 }}
 machine entry() -> i64 {{ Probe::consume(issue({actual})) }}
 "#
-        )
+    )
+}
+
+#[test]
+fn a_boundary_formal_keeps_its_domain_and_independent_requirement() {
+    let elaboration = invocation(&boundary_consumer(7)).unwrap();
+    let [boundary] = elaboration.module.boundary_machines.as_slice() else {
+        panic!("the source calls one qualified scalar boundary");
     };
-    let accepted = judge(invocation(&source(7))).unwrap();
+    let [domain] = elaboration.module.scalar_qualifications.domains.as_slice() else {
+        panic!("the source retains its one routed scalar domain");
+    };
+    let [required] = boundary.scalar_domain_requirements.as_slice() else {
+        panic!("the boundary retains one exact scalar input domain");
+    };
+    assert_eq!(
+        boundary.parameter_order,
+        [terminal_psi::BoundaryParameterKind::Scalar]
+    );
+    assert_eq!(boundary.scalar_parameters, [domain.carrier]);
+    assert_eq!(required.argument_index, 0);
+    assert_eq!(required.domain, domain.id);
+    assert!(boundary.structural_parameters.is_empty());
+    assert!(boundary.requires.is_empty());
+    assert!(boundary.normal_qualifications.is_empty());
+    assert!(boundary.reference_outputs.is_empty());
+    assert!(boundary.content_guarantees.is_empty());
+    assert!(boundary.result_reference_regions.is_empty());
+    assert!(boundary.program_local_root_introductions.is_empty());
+    assert!(matches!(&boundary.result,
+        terminal_psi::BoundaryMachineResult::Scalar(result) if result.qualifications.is_empty()));
+    assert!(!boundary.scalar_requires.is_empty());
+    // Membership validation precedes publication; the nonzero clause still
+    // needs its own call proof, which the zero twin below cannot supply.
+    terminal_semantics::scalar_qualifications::validate(&elaboration.module).unwrap();
+    let accepted = judge(Ok(elaboration)).unwrap();
     assert!(
         matches!(accepted, RouteVerdict::Accepted(_)),
         "{accepted:?}"
     );
-    let refused = judge(invocation(&source(0))).unwrap();
+    let refused = judge(invocation(&boundary_consumer(0))).unwrap();
     assert!(
         matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
             if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
         "{refused:?}"
     );
+}
+
+#[test]
+fn a_boundary_call_rejects_an_unqualified_actual_with_the_same_carrier() {
+    let mut elaboration = invocation(&boundary_consumer(7)).unwrap();
+    // Establish the original boundary call before testing its altered actual.
+    let accepted = judge(Ok(elaboration.clone())).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let boundary = elaboration.module.boundary_machines[0].id;
+    let carrier = elaboration.module.boundary_machines[0].scalar_parameters[0];
+    let caller = elaboration
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine.operations().any(|operation| {
+                matches!(operation.kind,
+                    terminal_psi::OperationKind::BoundaryCall { boundary: called, .. }
+                    if called == boundary)
+            })
+        })
+        .unwrap();
+    let bare = caller
+        .operations()
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerConstant { .. }
+            )
+        })
+        .filter_map(|operation| operation.result.scalar_ref())
+        .find(|value| value.scalar_type == carrier && value.qualifications.is_empty())
+        .unwrap()
+        .id;
+    let arguments = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            terminal_psi::OperationKind::BoundaryCall {
+                boundary: called,
+                arguments,
+                ..
+            } if *called == boundary => Some(arguments),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(arguments.len(), 1);
+    assert_ne!(arguments[0], bare);
+    arguments[0] = bare;
+
+    let expected = "boundary scalar argument does not preserve its complete declared type";
+    let refused =
+        terminal_semantics::scalar_qualifications::validate(&elaboration.module).unwrap_err();
+    assert!(
+        matches!(&refused,
+        terminal_semantics::scalar_qualifications::ScalarQualificationError::MalformedStructuralFoundation(detail)
+        if *detail == expected),
+        "{refused:?}"
+    );
+    let refused = judge(Ok(elaboration)).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert!(refused.detail.contains(expected), "{refused:?}");
 }
 
 #[test]
@@ -253,7 +350,7 @@ machine entry() -> i64 {{ Probe::consume(issue(7), 0) }}
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
-        "contract domain membership while reading the body of `entry`"
+        "contract routed contract membership needs its exact normal result subject while reading the body of `entry`"
     );
 }
 
