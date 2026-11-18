@@ -579,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Compiler repair plan</h1>
       <p class="lede">The observed architecture problems, their proposed repairs, and the contracts the replacement must preserve.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas"><code>dc44883d30f1</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/plans/foundation-and-backend.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas"><code>f20ddd821003</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/plans/foundation-and-backend.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 <details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
     </header>
@@ -640,13 +640,12 @@ PRs. Source settlement, provider selection, generated code, physical resources,
 representations, runtimes and validators must agree before the new route replaces
 the old one. Internal work has dependencies and can be divided among agents;
 partial routes are not separately rolled out.</p>
-<p>The current task is <strong>plan first</strong>. No compiler migration is implemented by this
-document. The six <a href="rulings.html">owner rulings</a> remain authoritative and unchanged.
-The destination below is a concrete recommendation applying them. Proposed
-boundaries and names are <strong>judgment</strong>; feasibility obligations are <strong>unverified</strong>
-until the named evidence is supplied. Those obligations must be settled in this
-plan before implementation starts. A new folder name is not evidence that a
-contract is possible.</p>
+<p>Implementation is underway on the compiler branch. The <a href="#implementation-checkpoint">implementation
+checkpoint</a> traces which handoffs have actual
+callers and which still need acceptance runs. The plan applies the six
+<a href="rulings.html">owner rulings</a>. The proposed boundaries and names are
+<strong>judgment</strong>. Feasibility obligations remain <strong>unverified</strong> until the named
+evidence is supplied.</p>
 <p><strong>Reading the map?</strong> Start with <a href="#start-with-the-extra-arrows">the extra-arrow repair list</a>
 and the <a href="#why-handlers-leave-and-return">handler detour</a>. The remaining sections
 give the contracts and evidence for the same coordinated migration.</p>
@@ -687,9 +686,9 @@ commands and artifact contracts must still work after the Rust compiler cutover.
 </tr>
 </tbody>
 </table></div>
-<p><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/counts.json">Counts</a>, <a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/graph.json">graph</a>,
-<a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/usage.json">usage</a> and <a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/usage_be.json">backend usage</a>
-are pinned by the <a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/manifest.json">manifest</a>. Counts include tests;
+<p><a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/evidence/data/counts.json">Counts</a>, <a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/evidence/data/graph.json">graph</a>,
+<a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/evidence/data/usage.json">usage</a> and <a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/evidence/data/usage_be.json">backend usage</a>
+are pinned by the <a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/evidence/data/manifest.json">manifest</a>. Counts include tests;
 <code>src_rs_lines</code> is a path scope, not production-only code. The backend has 221,538
 lines under <code>src/</code>. Dependencies are declarations: 1,318 normal, 1 build and
 160 dev. Neither a Cargo edge nor a text reference proves a production call.
@@ -2315,20 +2314,61 @@ architecture checks, and the old route is deleted at the single cutover. A page
 build, a smaller crate count, a renamed stage or a partially connected native
 example does not establish that outcome.</p>
 <h3 id="implementation-checkpoint">Implementation checkpoint</h3>
-<p>The branch at <code>2ff15fbb385</code> contains numbered owners 00–10. Its source
-owner lexes and parses each activated file into a syntax page and recycles the
-token buffers. Retained syntax can be reused for the same bytes. A later
-lexical failure still takes precedence over a syntax failure according to the
-existing diagnostic contract. <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L75-L132">Per-file stream</a></p>
-<p>Stage 03 closes the callback roster from retained target operations. Stage 04
-orders handler dependencies and produces the physical bodies. Stage 05
-compares the complete handler demand with each installation before granting
-it authority. The ordering tests cover a shared handler, an unreachable cycle,
-a demanded cycle and a chain of 50,000 installations. <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/callable_planning.rs#L153">Body roster</a>,
-<a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs">handler order and tests</a>, <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/05_installation-binding/src/lib.rs#L41">installation checks</a></p>
-<p>The workspace and its test targets type-checked at this checkpoint. The
-whole-migration acceptance in §10 is still <strong>unverified</strong>, including the
-release-mode dependency graph, runtime consumers and end-to-end program runs.</p>
+<p>The <a href="architecture.html">full map</a> keeps its original compiler
+snapshot in <strong>Current</strong>. The following routes were traced in the migration
+branch at <code>788ecf2489d</code>. Select the named operations in <strong>Proposed</strong> to
+inspect their code.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>
+<thead>
+<tr>
+<th>Route</th>
+<th>What the compiler hands forward</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>01 · Lex one file → Parse that file</td>
+<td>Each worker lexes one file, immediately parses those tokens into its syntax page, then recycles the token storage. Package assembly reuses a discovered file’s parse only if its bytes match. If a later file has a lexical error it still takes precedence over an earlier syntax error. <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/packages/package-compilation/src/source/source_assembly.rs#L1386-L1399">Package entry point</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L91-L133">Per-file stream</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L281-L304">Reuse check</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L53-L74">Error precedence</a></td>
+</tr>
+<tr>
+<td>01 · Finish source choices → 02 · Seal publication</td>
+<td>Source target preparation identifies the actual entry, follows its chosen bodies, and associates the reached native bindings with their source declarations. For an unscoped request it records the actual root machines. Stage 02 verifies the issuing judgment and target before using those finished choices. <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs#L15-L33">Normal target capture</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs#L61-L110">Source worklist</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/provider_supply/demand.rs#L32-L46">Issuer check</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs#L73-L104">Publication</a></td>
+</tr>
+<tr>
+<td>02 · Seal publication → 03 · Join provider selections</td>
+<td>The normal compiler publishes the reached requirements, chosen checked bodies and the calls that scalar evaluation of the entry can reach. The target planner receives these records, computes calling conventions and checks the native plans against the exact bodies. Substituting a body refuses the build. <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/execution_settlement.rs#L145-L176">Normal compiler caller</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs#L73-L104">Publication</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/execution.rs#L30-L75">Target planning</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/provider_execution_inputs.rs#L288-L310">Calling policies</a></td>
+</tr>
+<tr>
+<td>03 · Finish the executable entry</td>
+<td>When a target provider contributes to a folded constant, native planning records the selected plan in a target-specific copy of the program. The original source publication keeps its identity and source evidence. A received copy must reproduce the exact dependencies for that program and target. <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L438-L456">Executable request</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/selected_execution.rs#L96-L124">Entry binding</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/folded_entry.rs#L12-L53">Derived program</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/target_supply/realized_supply.rs#L450-L478">Independent readback</a></td>
+</tr>
+<tr>
+<td>04 · Measure handlers → 05 · Bind installations</td>
+<td>Physical planning measures the handler body, its bridge and its CPU state. Installation binding matches the installer’s guard to the handler at that exact placement and checks the physical instructions and frame before issuing authority. <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/installed_handlers.rs#L55-L110">Physical measurement</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/05_installation-binding/src/lib.rs#L54-L91">Binding</a></td>
+</tr>
+<tr>
+<td>04 · Plan entries → 06 · Encode → 09 · Place</td>
+<td>For supported hosted entries and physical firmware entries, the driver requests a physical plan, encodes it, and supplies that result to image placement. Stage 09 joins the entry to the actual placed bodies. <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L140-L178">Hosted planning</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L206-L255">Physical planning and encoding</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/09_image-construction/native-artifact/src/fragment_object_publication.rs#L65-L132">Entry placement</a></td>
+</tr>
+<tr>
+<td>08 · Form objects → 09 · Place objects</td>
+<td>Stage 08 publishes the object plan, text placement, native layouts, body evidence and an identity receipt. Stage 09 reads this publication. A request to retain the original container carries it separately for checking. <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/08_object-construction/src/fragment_container.rs#L225-L251">Object publication</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L459-L476">Ordinary and retained inputs</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/09_image-construction/image-emission/src/object_input.rs#L17-L54">Image reader</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>The earlier branch checkpoint at <code>2ff15fbb385</code> traced 03 closing the callback
+roster from retained target operations, 04 ordering handlers ahead of their
+installers, and 05 comparing complete handler demand with the installation.
+Its ordering tests include a shared handler, an unreachable cycle and a
+demanded cycle. <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/callable_planning.rs#L153">Body roster</a> · <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs">Handler order and tests</a> · <a href="https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/05_installation-binding/src/lib.rs#L41">Installation checks</a></p>
+<p><strong>Unverified.</strong> End-to-end independent component support remains open. The
+ordinary product request refuses a standalone component when it reaches this
+branch, and a native build that selects independent composition requires a
+verified component product. There is separate code for preparing exports and
+checking emitted component images. A successful run through the ordinary
+project route still needs evidence. The complete cross-target and release
+checks in §10 are also open. <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L405-L426">Component request</a> ·
+<a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/compiler/src/product_execution.rs#L349-L366">Native composition</a> · <a href="https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/native-compiler/src/components.rs#L101-L141">Export emission</a></p>
 <h2 id="11-decisions-still-to-settle">11. Decisions still to settle</h2>
 <p><a href="questions.html">Questions</a> keeps Q-A/B/C/D/F/G aligned with this design. The
 recommendation is explicit: narrow host support; no source custody in leaves;
@@ -2358,7 +2398,7 @@ piecemeal migration.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/f20ddd8210034e0b51d91218d359a6bdc55a9b0e/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -2665,7 +2705,7 @@ piecemeal migration.</p></main>
       const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
       if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Open contract: '+chosen.gate;detail.append(gate);}
       if(chosen.evidence){
-        const sources=document.createElement('p');sources.textContent='Current compiler';
+        const sources=document.createElement('p');sources.textContent='Pinned compiler source';
         for(const [label,url] of chosen.evidence){sources.append(' · ');link(label,url,sources);}
         detail.append(sources);
       }
