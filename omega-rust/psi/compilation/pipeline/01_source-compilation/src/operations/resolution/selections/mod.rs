@@ -147,8 +147,7 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     normalize_trait_machine_requirement_arguments(&mut lowerer.symbol_resolved_trees)
         .map_err(|diagnostic| vec![diagnostic])?;
     evidence_forwardings::bind_evidence_forwarding_owners(&mut lowerer.symbol_resolved_trees);
-    let (pending_machine_service_reaches, pending_signature_service_reaches) =
-        lowerer.pending_service_reaches()?;
+    let pending_signature_reaches = lowerer.pending_signature_reaches()?;
     let machine_ordinals =
         conformance_blocks::normalize_closed_conformance_blocks(&mut lowerer.symbol_resolved_trees)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -170,25 +169,19 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     finalize_conformance_reference_selections(&mut lowerer.symbol_resolved_trees)
         .map_err(|diagnostic| vec![diagnostic])?;
     let seed = lowerer.seed.take();
+    let predecessor = seed.as_ref().map(|seed| seed.source.as_ref());
     domain_establishment::normalize_domain_establishment_routes(
         &mut lowerer.symbol_resolved_trees,
-        seed.as_ref().map(|seed| seed.source.as_ref()),
+        predecessor,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    match seed {
-        None => service_reaches::normalize_service_reaches(
-            &mut lowerer.symbol_resolved_trees,
-            &pending_machine_service_reaches,
-            &pending_signature_service_reaches,
-        ),
-        Some(seed) => service_reaches::normalize_service_reaches_with_retained_tables(
-            &mut lowerer.symbol_resolved_trees,
-            &pending_machine_service_reaches,
-            &pending_signature_service_reaches,
-            seed.source.service_reaches.clone(),
-            seed.source.service_reach_rows.clone(),
-        ),
-    }
+    service_reaches::normalize_service_reaches(
+        &mut lowerer.symbol_resolved_trees,
+        &machine_ordinals,
+        &lowerer.pending_machine_service_reaches,
+        &pending_signature_reaches,
+        predecessor,
+    )
     .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())
 }

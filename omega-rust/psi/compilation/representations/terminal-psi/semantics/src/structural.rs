@@ -2532,6 +2532,11 @@ pub(crate) mod primitive_place {
                 .declares_leaf(carrier)
                 .then_some(carrier.id);
         }
+        if let Some(expected) = expected {
+            return (expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+                && expected.scalar_restriction.is_none())
+            .then_some(expected.id);
+        }
         let mut matching = declarations.filter(|declaration| {
             declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar)
                 && declaration.scalar_restriction.is_none()
@@ -2779,6 +2784,7 @@ pub(crate) mod primitive_place {
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
+        expected: Option<StructuralTypeId>,
     ) -> Option<StructuralTypeId> {
         if let Some(selected) = runtime_structural_path_tip(declarations.clone(), root, path) {
             return Some(selected.id);
@@ -2795,7 +2801,7 @@ pub(crate) mod primitive_place {
             return crate::structural_declaration(declarations, carrier.id).map(|row| row.id);
         }
         let scalar =
-            borrowed_primitive_projection_declaration(declarations.clone(), root, path, None)?;
+            borrowed_primitive_projection_declaration(declarations.clone(), root, path, expected)?;
         crate::structural_declaration(declarations, scalar).map(|row| row.id)
     }
 

@@ -726,7 +726,9 @@ pub use structural::structural_effect::{
     ElementViewLeaf, element_view_leaf, element_view_write_goal,
 };
 
-pub use scalars::scalar_observations::structural_read_scalar_type;
+pub use scalars::scalar_observations::{
+    scalar_application_read_equation, structural_read_scalar_type,
+};
 
 pub use access::access_ram_origins::{
     AccessRamFormation, AccessRamOrigin, AccessRamOriginAnalysis,

@@ -13,32 +13,39 @@ pub(super) struct ApplicationArguments<'source> {
     pub(super) types: Vec<ValueType>,
     pub(super) references: Option<Vec<crate::source_state::types::TypeReferenceHandle>>,
     pub(super) values: Vec<ScalarTerm>,
+    pub(super) const_sources: Vec<(
+        SymbolHandle,
+        crate::source_state::types::TypeReferenceHandle,
+    )>,
     pub(super) callables: Vec<(
         SymbolHandle,
         &'source crate::source_state::expression::StaticMachineArgument,
     )>,
 }
 
+/// Source-only authentication is shared with static partition discovery,
+/// which runs before any checking machine or scalar input is allocated.
+pub(super) struct ApplicationBindings<'source> {
+    pub(super) parameters: arena::RootRows<'source, crate::source_state::data::TypeParameter>,
+    pub(super) inherited: bool,
+    pub(super) bindings:
+        symbols::SymbolMap<&'source crate::source_state::static_applications::StaticMachineBinding>,
+}
+
 impl<'source> Program<'source> {
-    /// Authenticate the whole tuple once, then read each argument by its binder kind.
-    /// Types select a checking instance; scalar consts become its explicit inputs.
-    /// Record consts retain their complete source-only schema account.
-    pub(super) fn application_arguments(
-        &mut self,
+    pub(super) fn application_bindings(
+        &self,
         id: MachineId,
+        caller: SymbolHandle,
         target: SymbolHandle,
         application: crate::source_state::static_applications::StaticMachineApplicationHandle,
         authored: &[crate::source_state::expression::StaticMachineArgument],
-    ) -> Checked<ApplicationArguments<'source>> {
+    ) -> Checked<ApplicationBindings<'source>> {
         let unavailable = |reason| super::services::unavailable(id, reason);
         let typed = self.typed;
         let machine = typed
             .machine_by_symbol(target)
             .ok_or_else(|| unavailable("generic application has no actual callee"))?;
-        let caller = *self
-            .symbols
-            .get(id)
-            .ok_or_else(|| unavailable("generic application has no source caller"))?;
         let parameters = typed.machine_type_parameters(machine);
         let source = if application.is_valid() {
             if !typed
@@ -60,14 +67,19 @@ impl<'source> Program<'source> {
                     .machine_by_own_or_state_symbol(source.registration_operation)
                     .map(|machine| machine.symbol)
                     != Some(target)
-                || !source.selected_machine_arguments.is_empty()
+            {
+                return Err(unavailable(
+                    "generic application has another source owner or declaration",
+                ));
+            }
+            if !source.selected_machine_arguments.is_empty()
                 || !source.input_selections.is_empty()
                 || !source.lifetime_bindings.is_empty()
                 || source.conformance_selection.is_some()
                 || source.callable_contract_source.is_valid()
             {
                 return Err(unavailable(
-                    "generic application changed its caller or target, or has another static feature",
+                    "generic application has another static feature",
                 ));
             }
             Some(source)
@@ -84,6 +96,13 @@ impl<'source> Program<'source> {
                 .expression_table
                 .static_machine_application_bindings(application)
         });
+        if source.is_some_and(|source| {
+            arguments.len() != source.arguments.len() || bindings.len() != source.bindings.len()
+        }) {
+            return Err(unavailable(
+                "generic application has a stale argument or binding span",
+            ));
+        }
         if !authored.is_empty() && authored != arguments {
             return Err(unavailable(
                 "generic actuals differ from their retained source tuple",
@@ -156,9 +175,44 @@ impl<'source> Program<'source> {
                 return Err(unavailable("generic application repeats a retained binder"));
             }
         }
+        if !inherited
+            && parameters
+                .iter()
+                .any(|parameter| !retained.contains_key(&parameter.symbol))
+        {
+            return Err(unavailable("generic application lost a declared binder"));
+        }
+        Ok(ApplicationBindings {
+            parameters,
+            inherited,
+            bindings: retained,
+        })
+    }
+
+    /// Authenticate the whole tuple once, then read each argument by its binder kind.
+    /// Types select a checking instance; scalar consts become its explicit inputs.
+    /// Record consts retain their complete source-only schema account.
+    pub(super) fn application_arguments(
+        &mut self,
+        id: MachineId,
+        target: SymbolHandle,
+        application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        authored: &[crate::source_state::expression::StaticMachineArgument],
+    ) -> Checked<ApplicationArguments<'source>> {
+        let unavailable = |reason| super::services::unavailable(id, reason);
+        let typed = self.typed;
+        let caller = *self
+            .symbols
+            .get(id)
+            .ok_or_else(|| unavailable("generic application has no source caller"))?;
+        let prepared = self.application_bindings(id, caller, target, application, authored)?;
+        let parameters = prepared.parameters;
+        let inherited = prepared.inherited;
+        let retained = prepared.bindings;
         let mut types = Vec::new();
         let mut references = Vec::new();
         let mut values = Vec::new();
+        let mut const_sources = Vec::new();
         let mut callables = Vec::new();
         for parameter in parameters {
             if let crate::source_state::data::TypeParameterKind::Machine { contract } =
@@ -277,6 +331,9 @@ impl<'source> Program<'source> {
                     ));
                 }
             } else {
+                if let Some(reference) = reference {
+                    const_sources.push((parameter.symbol, reference));
+                }
                 let scalar_type = self.scalar_type(id, type_reference)?;
                 values.push(if let Some(reference) = reference {
                     self.bound_scalar_value(id, scalar_type, reference, true)?
@@ -300,6 +357,7 @@ impl<'source> Program<'source> {
             types,
             references: (!inherited).then_some(references),
             values,
+            const_sources,
             callables,
         })
     }

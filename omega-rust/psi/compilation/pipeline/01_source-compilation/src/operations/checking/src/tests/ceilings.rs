@@ -726,6 +726,77 @@ terminates
 }
 
 #[test]
+fn an_open_callback_does_not_hide_independent_helper_bounds() {
+    let source = typed(
+        r#"
+machine entry<machine Callback>() -> u32
+requires machine Callback();
+{
+    relay();
+    helper()
+    machine relay() { Callback(); }
+    machine helper() -> u32 { 7u32 }
+}
+"#,
+    );
+    let form = crate::lowering::elaborate_generic(&source, entry(&source))
+        .expect("an open callback permits independent helper inference");
+    let named = |name: &str| {
+        let symbol = source
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap()
+            .symbol;
+        form.machines
+            .iter()
+            .find_map(|(id, actual)| (*actual == symbol).then_some(id))
+            .unwrap()
+    };
+    let helper = named("helper");
+    let relay = named("relay");
+    let helper_envelope = form.module.callables.machine_envelope(helper).or_else(|| {
+        form.check_form_envelopes
+            .iter()
+            .find(|row| row.machine == helper)
+            .map(|row| &row.envelope)
+    });
+    let helper_envelope = helper_envelope.expect("the independent body has a complete envelope");
+    assert!(!helper_envelope.suspends && !helper_envelope.blocks);
+    assert!(helper_envelope.service_reach.is_empty());
+    assert!(form.module.callables.machine_envelope(relay).is_none());
+    let relay_bounds = form.requirement_ceilings.get(relay).unwrap();
+    assert_eq!(relay_bounds.suspension, Some(false));
+    assert_eq!(relay_bounds.blocking, Some(false));
+    let requirement = form.requirements[0];
+    assert!(
+        form.module
+            .callables
+            .machine_envelope(requirement)
+            .is_none()
+    );
+    assert!(matches!(
+        form.requirement_ceilings.get(requirement).unwrap().reaches,
+        terminal_check_tables::contracts::Ceiling::Inferred
+    ));
+    assert!(crate::checking::ceilings::judge(&form).unwrap().is_empty());
+
+    // Losing the relay's inferred bound must still prevent its caller from
+    // claiming calls cannot suspend. The independent helper stays complete.
+    let mut unknown = form.clone();
+    unknown
+        .requirement_ceilings
+        .get_mut(relay)
+        .unwrap()
+        .suspension = None;
+    let refused = crate::checking::ceilings::judge(&unknown).unwrap_err();
+    assert_eq!(
+        refused.detail,
+        "abstract callable has no closed suspension, blocking or progress envelope"
+    );
+}
+
+#[test]
 fn an_open_callback_does_not_hide_module_helper_bounds() {
     const SOURCE: &str = r#"
 public machine entry<machine Callback>() -> u32

@@ -2376,10 +2376,11 @@ mod transfers {
                 parameter.access,
             ) && accessible(source.structural_type, source.multiplicity, source.access))
             .then_some(source.structural_type)
-        } else if live.address_joins.contains(&argument.place) {
+        } else if live.address_joins.contains(&argument.place)
+            || live.block_views.contains(&argument.place)
+        {
             function
-                .block_structural_parameters()
-                .find(|source| source.place == argument.place)
+                .block_structural_parameter(argument.place)
                 .filter(|source| {
                     abstract_operations::control_flow::address_joins::loan_access_permitted(
                         structural_types.values().copied(),
@@ -2411,6 +2412,7 @@ mod transfers {
                 root,
                 &argument.path,
                 argument.access,
+                Some(parameter.structural_type),
             )
         }) == Some(parameter.structural_type)
     }

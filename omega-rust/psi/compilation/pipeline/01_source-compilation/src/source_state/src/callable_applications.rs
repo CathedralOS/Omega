@@ -9560,6 +9560,23 @@ impl TypedTrees {
         for (declaration, machine, state, first_expression, expression_count) in entries {
             application.region_scope = declaration;
             machine.invokes = application.invocations(self, machine.invokes)?;
+            // Definitions belong to the copied declaration just like its
+            // written contract. Apply both sides through the same type copier.
+            if !machine.declared_type_equations.is_empty() {
+                let original = self
+                    .declared_type_equations
+                    .span_or_empty(machine.declared_type_equations)
+                    .to_vec();
+                let mut equations = Vec::with_capacity(original.len());
+                for equation in original {
+                    equations.push(crate::source_state::machine::DeclaredTypeEquation {
+                        parameter: application.type_reference(self, equation.parameter)?,
+                        definition: application.type_reference(self, equation.definition)?,
+                    });
+                }
+                machine.declared_type_equations =
+                    self.declared_type_equations.insert_many(equations);
+            }
             let rows = self
                 .expression_table
                 .iter_expressions_from(first_expression)

@@ -693,6 +693,7 @@ fn a_retained_type_parameter_stays_open_and_keeps_its_selected_declaration() {
             ..Default::default()
         },
         &selected,
+        relay.machine,
     )
     .unwrap_or_else(|_| panic!("an open type parameter can be passed to another generic body"));
     assert!(operand.is_open(&program));
@@ -710,7 +711,7 @@ fn a_retained_type_parameter_stays_open_and_keeps_its_selected_declaration() {
 
     let mut changed = selected.clone();
     changed.symbol = boolean;
-    assert!(super::named_type(&mut program, &changed).is_err());
+    assert!(super::named_type(&mut program, &changed, relay.machine).is_err());
     let parameters = program
         .machine_by_symbol(relay.machine)
         .unwrap()
@@ -723,7 +724,7 @@ fn a_retained_type_parameter_stays_open_and_keeps_its_selected_declaration() {
         type_reference: carrier,
     };
     assert!(
-        super::named_type(&mut program, &selected).is_err(),
+        super::named_type(&mut program, &selected, relay.machine).is_err(),
         "a const parameter cannot be passed as a type"
     );
 }
@@ -1649,7 +1650,7 @@ fn an_already_bound_tuple_keeps_even_an_unused_parameter() {
         .iter()
         .zip(&actual)
         .map(|(parameter, argument)| {
-            super::Operand::read(&mut program, parameter, argument)
+            super::Operand::read(&mut program, parameter, argument, owner)
                 .unwrap_or_else(|_| panic!("closed argument"))
         })
         .collect::<Vec<_>>();
@@ -2550,6 +2551,7 @@ fn copied_invocation_rows_rebind_only_owned_targets() {
             ..Default::default()
         },
         &argument(source.byte, "u8"),
+        source.relay.machine,
     )
     .unwrap();
     let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
@@ -2621,6 +2623,7 @@ fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
                 ..Default::default()
             },
             &argument(source.byte, "u8"),
+            source.relay.machine,
         )
         .unwrap();
         let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
@@ -2686,6 +2689,7 @@ fn copied_statement_applications_rewrite_structural_type_operands() {
             ..Default::default()
         },
         &argument(source.byte, "u8"),
+        source.relay.machine,
     )
     .unwrap();
     let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
@@ -2969,4 +2973,74 @@ fn open_callback_applications_retain_the_whole_binding_tuple() {
         selected.application.as_ref().unwrap().arguments[0].symbol,
         source.forward.parameter
     );
+}
+
+#[test]
+fn constructed_type_arguments_keep_their_supplying_binders_open() {
+    let Source {
+        mut program,
+        forward,
+        relay,
+        main,
+        ..
+    } = source();
+    let element = named(&mut program, relay.parameter, "T");
+    let slice = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice {
+            element_type: element,
+        });
+    let borrowed = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: slice,
+            access: language_core::ReferenceAccess::Mutable,
+            lifetime: None,
+        });
+    let parameters = program
+        .machine_type_parameters(program.machine_by_symbol(forward.machine).unwrap())
+        .to_vec();
+    for reference in [slice, borrowed] {
+        let mut arguments = [StaticMachineArgument {
+            type_reference: reference,
+            ..Default::default()
+        }];
+        let application = program.expression_table.retain_static_machine_application(
+            forward.machine,
+            Identifier::generated("forward"),
+            &arguments,
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .lexical_owner = relay.machine;
+        let mut generated = super::GeneratedMachines::default();
+        assert!(
+            matches!(
+                super::specialize_application(
+                    &mut program,
+                    forward.machine,
+                    &parameters,
+                    application,
+                    &mut arguments,
+                    &mut generated
+                ),
+                Ok(None)
+            ),
+            "a constructed type keeps its enclosing binder instead of generating an open body"
+        );
+        assert!(generated.rows.is_empty());
+        let bindings = program
+            .expression_table
+            .static_machine_application_bindings(application);
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(
+            bindings[0].value,
+            StaticMachineBindingValue::Type(reference)
+        );
+        assert!(
+            matches!(super::named_type(&mut program, &arguments[0], main), Err(super::Stop::Unserved(reason)) if reason == "open operands do not close a requirement instance"),
+            "an unrelated machine cannot supply another declaration's type binder"
+        );
+    }
 }

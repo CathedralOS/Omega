@@ -30,6 +30,7 @@ pub mod artifacts;
 pub mod boundary;
 mod call_contexts;
 pub mod callable_values;
+pub mod generic_calls;
 pub use call_contexts::{
     CallAcknowledgement, CallFormation, CallOrigin, CallSite, InvocationOwner,
 };

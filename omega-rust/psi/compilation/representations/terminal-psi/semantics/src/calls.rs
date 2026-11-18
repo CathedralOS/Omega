@@ -3815,16 +3815,107 @@ pub fn const_array_argument_matches(
     actual: semantic_vocabulary::StructuralTypeId,
     expected: semantic_vocabulary::StructuralTypeId,
 ) -> bool {
+    dependent_argument_matches(module, caller, callee, arguments, actual, expected, false)
+}
+
+/// A checked source correspondence supplies nominal equality; the lowered
+/// representation still supplies and checks access, fields and array geometry.
+pub fn nominal_argument_matches(
+    module: &terminal_psi::TerminalModule,
+    caller: &terminal_psi::TerminalMachine,
+    callee: &terminal_psi::TerminalMachine,
+    arguments: &[semantic_vocabulary::ValueId],
+    row: &terminal_psi::generic_calls::NominalCallArgument,
+) -> bool {
+    if row.caller != caller.id
+        || row.callee != callee.id
+        || row.actual_application.is_absent()
+        || row.actual_application != row.expected_application
+        || row.declaration.is_absent()
+        || row.const_arguments.is_empty()
+    {
+        return false;
+    }
+    let constructor = |mut ty| {
+        let mut remaining = module.structural_types.len();
+        while remaining > 0 {
+            remaining -= 1;
+            let declaration = module.structural_type(ty)?;
+            if !declaration.declaration_identity.is_absent() {
+                return Some(ty);
+            }
+            ty = match declaration.shape {
+                terminal_psi::StructuralTypeShape::Reference { referent, .. } => referent,
+                _ => return None,
+            };
+        }
+        None
+    };
+    if constructor(row.actual) != Some(row.actual_constructor)
+        || constructor(row.expected) != Some(row.expected_constructor)
+        || module
+            .identities
+            .text(row.actual_application)
+            .is_none_or(str::is_empty)
+    {
+        return false;
+    }
+    for constructor in [row.actual_constructor, row.expected_constructor] {
+        if !module
+            .structural_type(constructor)
+            .is_some_and(|ty| ty.declaration_identity == row.declaration)
+        {
+            return false;
+        }
+    }
+    let expressions = crate::descriptor_results::TerminalScalarExpressions::new(caller);
+    let mut previous = None;
+    for binding in &row.const_arguments {
+        if previous.is_some_and(|previous| previous >= binding.parameter) {
+            return false;
+        }
+        previous = Some(binding.parameter);
+        let Some(actual) = arguments.get(binding.parameter as usize) else {
+            return false;
+        };
+        let Some(formal) = callee.parameters.get(binding.parameter as usize) else {
+            return false;
+        };
+        if formal.scalar_type != binding.actual.scalar_type()
+            || expressions.expression(*actual).as_ref() != Some(&binding.actual)
+        {
+            return false;
+        }
+    }
+    dependent_argument_matches(
+        module,
+        caller,
+        callee,
+        arguments,
+        row.actual,
+        row.expected,
+        true,
+    )
+}
+
+fn dependent_argument_matches(
+    module: &terminal_psi::TerminalModule,
+    caller: &terminal_psi::TerminalMachine,
+    callee: &terminal_psi::TerminalMachine,
+    arguments: &[semantic_vocabulary::ValueId],
+    actual: semantic_vocabulary::StructuralTypeId,
+    expected: semantic_vocabulary::StructuralTypeId,
+    nominal: bool,
+) -> bool {
     use terminal_psi::{ArrayExtent, StructuralTypeShape};
     if arguments.len() != callee.parameters.len() {
         return false;
     }
     let mut pending = vec![(actual, expected)];
-    let mut visited = Vec::new();
+    let mut visited = std::collections::BTreeSet::new();
     while let Some((actual, expected)) = pending.pop() {
-        match visited.binary_search(&(actual, expected)) {
-            Ok(_) => continue,
-            Err(position) => visited.insert(position, (actual, expected)),
+        if !visited.insert((actual, expected)) {
+            continue;
         }
         let identical = actual == expected;
         let (Some(actual), Some(expected)) = (
@@ -3880,10 +3971,82 @@ pub fn const_array_argument_matches(
                 || expected.quotient_carrier.is_some()
                 || actual.scalar_restriction.is_some()
                 || expected.scalar_restriction.is_some()
-                || !actual.requires.is_empty()
-                || !expected.requires.is_empty())
+                || actual.requires != expected.requires)
         {
             return false;
+        }
+        if nominal {
+            if let (
+                StructuralTypeShape::Reference {
+                    referent: left,
+                    access: la,
+                },
+                StructuralTypeShape::Reference {
+                    referent: right,
+                    access: ra,
+                },
+            ) = (&actual.shape, &expected.shape)
+            {
+                if la != ra {
+                    return false;
+                }
+                pending.push((*left, *right));
+                continue;
+            }
+            let same_shape = match (&actual.shape, &expected.shape) {
+                (
+                    StructuralTypeShape::Record { storage: left, .. },
+                    StructuralTypeShape::Record { storage: right, .. },
+                ) => left == right,
+                (StructuralTypeShape::Sum { .. }, StructuralTypeShape::Sum { .. })
+                | (StructuralTypeShape::Mixed { .. }, StructuralTypeShape::Mixed { .. }) => true,
+                _ => false,
+            };
+            if same_shape {
+                if actual.declaration_identity.is_absent()
+                    || actual.shape.cases().len() != expected.shape.cases().len()
+                    || actual.shape.cases().iter().zip(expected.shape.cases()).any(
+                        |(left, right)| {
+                            left.identity != right.identity
+                                || left.declaration_identity != right.declaration_identity
+                                || left.fields.len() != right.fields.len()
+                        },
+                    )
+                {
+                    return false;
+                }
+                let mut left = actual.shape.fields();
+                let mut right = expected.shape.fields();
+                loop {
+                    match (left.next(), right.next()) {
+                        (None, None) => break,
+                        (Some(left), Some(right)) => {
+                            if left.identity != right.identity
+                                || left.declaration_identity != right.declaration_identity
+                                || left.relevance != right.relevance
+                                || left.storage != right.storage
+                            {
+                                return false;
+                            }
+                            match (&left.field_type, &right.field_type) {
+                                (
+                                    terminal_psi::StructuralFieldType::Structural(left),
+                                    terminal_psi::StructuralFieldType::Structural(right),
+                                ) => pending.push((*left, *right)),
+                                (left, right) if left == right => {}
+                                _ => return false,
+                            }
+                            match (left.inline_carrier, right.inline_carrier) {
+                                (Some(left), Some(right)) => pending.push((left, right)),
+                                (None, None) => {}
+                                _ => return false,
+                            }
+                        }
+                        _ => return false,
+                    }
+                }
+                continue;
+            }
         }
         let (
             StructuralTypeShape::FixedArray {

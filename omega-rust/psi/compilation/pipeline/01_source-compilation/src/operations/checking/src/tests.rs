@@ -9,8 +9,8 @@ use crate::lowering::{
 };
 use arena::{IdTable, NumericId};
 use proof_admission::{
-    AcceptedFactRoute, EvidenceRoute, MathematicalCoreDecision, Obligation, ObligationClass,
-    verify_obligation,
+    AcceptedFactRoute, CertificateEnvelope, EvidenceRoute, MathematicalCoreDecision, Obligation,
+    ObligationClass, verify_obligation,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, Proposition,
@@ -57,6 +57,7 @@ mod hosted_primitives;
 mod indexed_contracts;
 mod inferred_bounds;
 mod inferred_locals;
+mod layout_queries;
 mod lifetime_elision;
 mod lifetime_generics;
 mod loan_regions;
@@ -350,7 +351,7 @@ fn assert_kernel_accepted(
             .map(|(value, row)| (value, row.scalar_type)),
     )
     .unwrap();
-    let decide = |goal: &Proposition, certificate| {
+    let decide = |goal: &Proposition, certificate: &CertificateEnvelope| {
         verify_obligation(
             &context,
             &Obligation {
@@ -360,19 +361,19 @@ fn assert_kernel_accepted(
             },
             &resolve(&evidence.assumptions),
             &resolve(&evidence.axioms),
-            EvidenceRoute::CertificateDerived(certificate),
+            EvidenceRoute::CertificateDerived(certificate.as_ref()),
         )
     };
     // The mathematical core judged it too; a `Refused` core decision would
     // mean only the rule checker saw this certificate.
-    let fact = decide(&evidence.goal, evidence.certificate.clone()).unwrap();
+    let fact = decide(&evidence.goal, &evidence.certificate).unwrap();
     let AcceptedFactRoute::CertificateDerived { acceptance, .. } = &fact.route else {
         panic!("certificate route");
     };
     let core = acceptance.mathematical_core.clone();
     let mut tampered = evidence.certificate.clone();
     tampered.proof.conclusion = Proposition::Falsehood;
-    assert!(decide(&evidence.goal, tampered).is_err());
+    assert!(decide(&evidence.goal, &tampered).is_err());
     core
 }
 

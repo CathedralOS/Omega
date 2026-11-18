@@ -2580,6 +2580,148 @@ machine entry() { repeat(0); }
     }
 
     #[test]
+    fn anonymous_callable_occurrences_keep_distinct_source_identity() {
+        const TEXT: &str = r#"
+trait Pick {
+    machine pick(value: u64) -> u64 reaches none crashes none
+    requires value <= 100 ensures result <= value;
+}
+Identity satisfies Pick {
+    machine pick(value: u64) -> u64 reaches none crashes none
+    requires value <= 100 ensures result <= value { value }
+}
+machine apply(operation: machine(value: u64) -> u64 reaches none crashes none
+    requires value <= 100 ensures result <= value, input: u64) -> u64
+reaches none crashes none requires input <= 100 ensures result <= input {
+    operation(input)
+}
+machine entry() -> u64 reaches none crashes none {
+    let selected: machine(amount: u64) -> u64 reaches none crashes none
+    requires amount <= 100 ensures result <= amount = Identity::pick;
+    apply(selected, 7)
+}
+"#;
+        let source = accepted_source(TEXT, &[]);
+        let typed = source.source();
+        let occurrences = typed
+            .runtime_callable_contracts
+            .iter()
+            .filter_map(|(handle, contract)| {
+                let symbol = contract.signature.symbol;
+                if typed.symbols.get(symbol).kind != SymbolKind::CallableContract {
+                    return None;
+                }
+                let parameters = typed.state_signature_parameters(&contract.signature);
+                let [formal] = parameters.as_array()?;
+                matches!(formal.name.as_str(), "value" | "amount").then_some((
+                    symbol,
+                    (handle, formal.symbol, formal.name.as_str().to_owned()),
+                ))
+            })
+            .collect::<HashMap<_, _>>();
+        assert_eq!(occurrences.len(), 2);
+        let mut occurrences = occurrences.into_iter();
+        let (first, (first_contract, first_formal, first_name)) = occurrences.next().unwrap();
+        let (second, (second_contract, second_formal, second_name)) = occurrences.next().unwrap();
+        assert_ne!(first, second);
+        assert_ne!(first_formal, second_formal);
+        assert_ne!(first_name, second_name);
+        assert_ne!(
+            typed.symbols.symbol_provenance_source_span(first).unwrap(),
+            typed.symbols.symbol_provenance_source_span(second).unwrap()
+        );
+        let identities = [first, second]
+            .map(|symbol| typed.normalized_hermetic_symbol_identity(symbol).unwrap());
+        assert_ne!(identities[0], identities[1]);
+        let meanings = [first_contract, second_contract].map(|contract| {
+            typed
+                .runtime_callable_contract_identity(contract, &[])
+                .unwrap()
+        });
+        assert_eq!(meanings[0], meanings[1]);
+
+        // Adding a comment after the types must leave their identities unchanged.
+        let revised_text = format!("{TEXT}\n// An unrelated trailing source comment.\n");
+        let revised = accepted_source(&revised_text, &[]);
+        let revised_typed = revised.source();
+        let revised_occurrences = revised_typed
+            .runtime_callable_contracts
+            .iter()
+            .filter_map(|(handle, contract)| {
+                let symbol = contract.signature.symbol;
+                if revised_typed.symbols.get(symbol).kind != SymbolKind::CallableContract {
+                    return None;
+                }
+                let parameters = revised_typed.state_signature_parameters(&contract.signature);
+                let [formal] = parameters.as_array()?;
+                if !matches!(formal.name.as_str(), "value" | "amount") {
+                    return None;
+                }
+                Some((
+                    formal.name.as_str().to_owned(),
+                    (
+                        revised_typed
+                            .normalized_hermetic_symbol_identity(symbol)
+                            .unwrap(),
+                        revised_typed
+                            .runtime_callable_contract_identity(handle, &[])
+                            .unwrap(),
+                    ),
+                ))
+            })
+            .collect::<HashMap<_, _>>();
+        assert_eq!(revised_occurrences.len(), 2);
+        for (name, identity, meaning) in [
+            (&first_name, &identities[0], &meanings[0]),
+            (&second_name, &identities[1], &meanings[1]),
+        ] {
+            let (revised_identity, revised_meaning) = revised_occurrences.get(name).unwrap();
+            assert_eq!(identity, revised_identity);
+            assert_eq!(meaning, revised_meaning);
+        }
+
+        let module = source.module();
+        assert!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| operation.kind.callable_invocation().is_some()),
+            "the source must retain a runtime call through its callable parameter"
+        );
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let rows = identities.each_ref().map(|identity| {
+            let rows = prepared
+                .questions
+                .declarations
+                .iter()
+                .filter(|(_, row)| row.identity.as_str() == identity.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(rows.len(), 1);
+            rows[0]
+        });
+        assert_ne!(rows[0].0, rows[1].0);
+        assert_eq!(rows[0].1.callable_identity.as_ref(), Some(&meanings[0]));
+        assert_eq!(rows[1].1.callable_identity.as_ref(), Some(&meanings[1]));
+        let mut duplicate = prepared.questions.clone();
+        duplicate.declarations.get_mut(rows[1].0).unwrap().identity = identities[0].clone();
+        assert!(
+            terminal_installation::selection_questions::validate_selection_questions(
+                module, &duplicate,
+            )
+            .unwrap_err()
+            .contains("source selection dictionary repeats a declaration in one purpose"),
+            "equal callable meaning must not permit a duplicated source declaration"
+        );
+    }
+
+    #[test]
     fn domain_declarations_keep_their_subjects_without_splitting_their_meaning() {
         let source = accepted_source_with_publication(
             r#"

@@ -3048,6 +3048,31 @@ impl<'a> Lowering<'a> {
                 );
             }
         }
+        let view = self.element_view_projection(at.root, &at.path)?;
+        if let Some((descriptor, _, _)) = &view {
+            window = true;
+            exclusive_path &= match self.record_type(descriptor.record)?.shape {
+                StorageShape::ElementView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                    ..
+                }
+                | StorageShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::MutableBorrow),
+                    }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView {
+                        access: Some(StructuralAccess::MutableBorrow),
+                        ..
+                    },
+                ) => true,
+                StorageShape::ElementView { access: None, .. }
+                | StorageShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView { access: None, .. },
+                ) => self.exclusive_roots.contains(&at.root),
+                _ => false,
+            };
+        }
         // ownership.md, "Borrowed-storage invariant windows": "An owned move
         // out of a place reached through `&mut` may temporarily leave that
         // place unestablished." The move below vacates exactly that place;
@@ -3064,6 +3089,11 @@ impl<'a> Lowering<'a> {
             ));
         }
         self.name_contents(at.place, value_type)?;
+        // Whole records still select an element. Retain this descriptor's
+        // current length immediately before the indexed copy or move.
+        if let Some((descriptor, _, _)) = &view {
+            self.measured_view(descriptor, source)?;
+        }
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
         let (root, exact) = self.produce(

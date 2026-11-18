@@ -32,6 +32,7 @@ pub fn prepare_replay<'source>(
     elaboration: &'source mut terminal_check_tables::program::Elaboration,
     activity: &mut crate::checking::ProofSearchActivity,
 ) -> Checked<ReplayScope<'source>> {
+    crate::checking::nominal_calls::validate(elaboration)?;
     let requirements = elaboration
         .requirements
         .iter()
@@ -115,9 +116,14 @@ pub fn prepare_replay<'source>(
 #[derive(Clone, Copy)]
 pub(crate) struct FormedModule<'a> {
     module: &'a TerminalModule,
+    nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
 }
 
 impl<'a> FormedModule<'a> {
+    pub(crate) fn nominal_calls(self) -> &'a [terminal_psi::generic_calls::NominalCallArgument] {
+        self.nominal_calls
+    }
+
     pub(crate) fn source(self) -> &'a TerminalModule {
         self.module
     }
@@ -130,6 +136,7 @@ impl ReplayScope<'_> {
     pub(crate) fn formed(&self) -> FormedModule<'_> {
         FormedModule {
             module: &self.elaboration.module,
+            nominal_calls: &self.elaboration.nominal_calls,
         }
     }
 
@@ -200,6 +207,7 @@ impl ReplayScope<'_> {
         (
             FormedModule {
                 module: &self.elaboration.module,
+                nominal_calls: &self.elaboration.nominal_calls,
             },
             &self.elaboration.domains,
             &mut self.elaboration.tables,

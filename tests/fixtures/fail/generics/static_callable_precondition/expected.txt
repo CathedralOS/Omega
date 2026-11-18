@@ -1,1 +1,1 @@
-`picked` does not satisfy the callback binder of `apply::Callback`: it declares a precondition on its inputs that the binder does not publish
+constant `EXPECTED` evaluation: cannot prove requires contract for call picked from apply: value <= 8 (needs fact `value <= 8` here

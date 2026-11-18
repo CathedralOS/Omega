@@ -172,6 +172,7 @@ pub(crate) mod address_join_input {
             root,
             &argument.path,
             argument.access,
+            Some(parameter.structural_type),
         ) != Some(parameter.structural_type)
         {
             return None;
@@ -381,14 +382,23 @@ pub(crate) mod address_join_input {
             {
                 return permits(parameter).then_some(parameter.structural_type);
             }
-            return source
-                .structural
-                .as_ref()?
-                .parameters
-                .iter()
-                .find(|parameter| parameter.semantic.place == place)
-                .filter(|parameter| permits(&parameter.semantic))
-                .map(|parameter| parameter.semantic.structural_type);
+            let parameter =
+                crate::instruction_selection::selection::arrival_parameter_input::parameter(
+                    source, place,
+                )?;
+            let signature = source.structural.as_ref()?;
+            let declared = signature.structural_place(place)?;
+            let is_input = matches!(
+                declared.kind,
+                semantic_vocabulary::StructuralPlaceKind::Parameter { .. }
+            );
+            return ((is_input
+                || native_vocabulary::address_joins::is_descriptor_join_in(
+                    parameter,
+                    source.geometry(),
+                ))
+                && permits(parameter))
+            .then_some(parameter.structural_type);
         }
         // View descriptors have their own stored value, independently of their
         // backing. Reuse the declared descriptor classifier for byte and element

@@ -3,6 +3,7 @@
 //! field declarations or a nominal schema.
 
 use crate::lowering::body::Qualification;
+use crate::source_state::SourceTypeApplication;
 use crate::source_state::expression::{ExpressionHandle, TableIndexedExpression};
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle};
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, StructuralTypeId};
@@ -20,73 +21,38 @@ use crate::lowering::{
 // Retain the same scoped type/region identity used by byte views. A bare
 // sequence is affine; an explicit shared loan is unrestricted. Neither kind
 // supplies elements or backing merely by appearing in a declaration.
+pub(super) struct SourceSequenceView {
+    pub access: Option<terminal_psi::StructuralAccess>,
+    pub identity: String,
+}
+
 pub(super) fn source_sequence_view(
     typed: &crate::source_state::TypedTrees,
-    reference: TypeReferenceHandle,
+    application: &SourceTypeApplication,
+    view: &crate::source_state::SourceSliceApplication,
     lexical_owner: SymbolHandle,
     machine: MachineId,
-) -> Checked<
-    Option<(
-        TypeReferenceHandle,
-        Option<terminal_psi::StructuralAccess>,
-        String,
-    )>,
-> {
-    use crate::source_state::types::TypeReferenceNode;
+) -> Checked<Option<SourceSequenceView>> {
     let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
-    if !typed
-        .type_reference_table
-        .contains_type_reference(reference)
-    {
-        return Err(fail("sequence lost its retained type reference"));
+    // Non-byte qualification needs its own predicate owner. Keep the existing
+    // refusal instead of dropping a domain while selecting an element view.
+    if view.referent.reference != view.slice.reference {
+        return Ok(None);
     }
-    let (slice, access) = match typed.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Slice { .. } => (reference, None),
-        TypeReferenceNode::Reference {
-            referee, access, ..
-        } => {
-            if !typed.type_reference_table.contains_type_reference(*referee) {
-                return Err(fail("sequence loan lost its retained referent"));
-            }
-            if !matches!(
-                typed.type_reference_table.type_reference(*referee),
-                TypeReferenceNode::Slice { .. }
-            ) {
-                return Ok(None);
-            }
-            if super::bytes::source_byte_view(typed, reference, lexical_owner, machine)?.is_some() {
-                return Ok(None);
-            }
-            // A declared view type describes access; it does not create a
-            // permission. Mutable formation and every transfer must still
-            // establish their actual exclusive backing through ordinary loans.
-            let access = match access {
-                language_core::ReferenceAccess::Shared => {
-                    terminal_psi::StructuralAccess::SharedBorrow
-                }
-                language_core::ReferenceAccess::Mutable => {
-                    terminal_psi::StructuralAccess::MutableBorrow
-                }
-                language_core::ReferenceAccess::WriteOnly => {
-                    return Err(fail("write-only typed sequence"));
-                }
-            };
-            (*referee, Some(access))
+    let access = match view.access {
+        None => None,
+        Some(language_core::ReferenceAccess::Shared) => {
+            Some(terminal_psi::StructuralAccess::SharedBorrow)
         }
-        _ => return Ok(None),
+        Some(language_core::ReferenceAccess::Mutable) => {
+            Some(terminal_psi::StructuralAccess::MutableBorrow)
+        }
+        Some(language_core::ReferenceAccess::WriteOnly) => {
+            return Err(fail("write-only typed sequence"));
+        }
     };
-    let TypeReferenceNode::Slice { element_type } =
-        typed.type_reference_table.type_reference(slice)
-    else {
-        return Err(fail("sequence lost its exact slice declaration"));
-    };
-    if !typed
-        .type_reference_table
-        .contains_type_reference(*element_type)
-    {
-        return Err(fail("sequence lost its retained element type"));
-    }
     let identity = if access.is_some() {
+        let reference = view.reference.reference;
         let retained = typed.type_reference_table.operand_lifetime_owner(reference);
         let owner = if retained.is_valid() {
             retained
@@ -94,21 +60,16 @@ pub(super) fn source_sequence_view(
             lexical_owner
         };
         super::places::reference_lifetime_declared(typed, machine, reference, owner)?;
-        crate::source_state::type_identity::applied_type_identity_in_region_scope(
-            typed,
-            reference,
-            owner,
-            owner,
-            &[],
-            &[],
-        )
-        .and_then(|identity| typed.type_identity_text(identity))
+        application
+            .scope
+            .type_identity_in_region_scope(typed, application.reference, owner)
+            .and_then(|identity| typed.type_identity_text(identity))
     } else {
-        typed.type_identity_text(typed.normalized_type_identity(reference))
+        typed.type_identity_text(application.type_identity(typed))
     }
     .filter(|identity| !identity.is_empty())
     .ok_or_else(|| fail("sequence has no complete owned type/region identity"))?;
-    Ok(Some((*element_type, access, identity)))
+    Ok(Some(SourceSequenceView { access, identity }))
 }
 
 impl Program<'_> {
@@ -544,15 +505,19 @@ impl Program<'_> {
             StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access: Some(StructuralAccess::SharedBorrow),
             }) => {
-                let byte = super::bytes::source_byte_view(
+                let view = super::source_views::source_view(
                     self.typed,
-                    reference,
+                    self.storage_source_application(reference),
                     self.lifetime_owner,
                     machine,
                 )?
                 .ok_or_else(|| unavailable("collection recast lost its byte element"))?;
-                let value = self.value_type(machine, byte.element_type)?;
-                self.storage_type(machine, byte.element_type, value)?
+                if !matches!(view.kind, super::source_views::SourceViewKind::Bytes(_)) {
+                    return Err(unavailable("collection recast changed its byte carrier"));
+                }
+                let element = view.slice.element.reference;
+                let value = self.value_type(machine, element)?;
+                self.storage_type(machine, element, value)?
             }
             _ => {
                 return Err(unavailable(
@@ -856,38 +821,78 @@ impl Program<'_> {
     pub(super) fn sequence_type(
         &mut self,
         machine: MachineId,
-        reference: TypeReferenceHandle,
-        element: TypeReferenceHandle,
+        view: super::source_views::SourceView,
     ) -> Checked<ValueType> {
-        let Some((declared, access, identity)) =
-            source_sequence_view(self.typed, reference, self.lifetime_owner, machine)?
+        let super::source_views::SourceViewKind::Elements(SourceSequenceView { access, identity }) =
+            view.kind
         else {
             return Err(refuse(
                 machine,
                 Construct::Machine,
-                Unserved::Type("sequence without its source declaration"),
+                Unserved::Type("element view changed its selected carrier"),
             ));
         };
-        if declared != element {
-            return Err(refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("sequence selects another element occurrence"),
-            ));
-        }
+        let application = view.source;
+        let reference = application.reference;
         let mut tuple = Vec::new();
         if access.is_some() {
             tuple.push(self.borrowed_view_region(
                 machine,
-                reference,
+                view.slice.reference.reference,
                 self.lifetime_owner,
                 &identity,
             )?);
         }
-        let value = self.value_type(machine, element)?;
-        tuple.extend_from_slice(self.region_tuple(value.regions()));
+        // A supplied descriptor already retains its exact element carrier.
+        // Borrow that type, rather than rereading a caller's binder as a new
+        // binder of the receiving machine.
+        let (element, qualification, element_regions) = if access.is_some() {
+            let crate::source_state::types::TypeReferenceNode::Reference { referee, .. } = self
+                .typed
+                .type_reference_table
+                .type_reference(view.slice.reference.reference)
+            else {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("sequence loan lost its source reference"),
+                ));
+            };
+            let value = self.value_type(machine, *referee)?;
+            let ValueType::Record(record, _, _) = value else {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("sequence loan lost its element descriptor"),
+                ));
+            };
+            let StorageShape::ElementView {
+                element,
+                qualification,
+                access: None,
+            } = self.data_type(machine, record)?.shape
+            else {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("sequence loan requires its exact unborrowed slice type"),
+                ));
+            };
+            (element, qualification, value.regions())
+        } else {
+            let element = view.slice.element;
+            let outer = std::mem::replace(&mut self.source_scope, element.scope.clone());
+            let read: Checked<_> = (|| {
+                let value = self.value_type(machine, element.reference)?;
+                let (storage, qualification) =
+                    self.collection_element_storage(machine, element.reference, value)?;
+                Ok((storage, qualification, value.regions()))
+            })();
+            self.source_scope = outer;
+            read?
+        };
+        tuple.extend_from_slice(self.region_tuple(element_regions));
         let regions = self.intern_regions(tuple);
-        let (element, qualification) = self.collection_element_storage(machine, element, value)?;
         let shape = StorageShape::ElementView {
             element,
             qualification,
@@ -896,6 +901,8 @@ impl Program<'_> {
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, regions));
         }
+        let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
+        let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
         let id = self.records.push(RecordType {
             multiplicity: crate::lowering::body::source_multiplicity(
                 self.typed.stored_value_multiplicity(reference),
@@ -906,7 +913,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
         });
-        let mut source = physical_source(reference);
+        let mut source = physical_source_application(application);
+        source.constant_input_owner = constant_input_owner;
         source.region_owner = self.lifetime_owner;
         self.record_sources.push(source);
         Ok(ValueType::Record(id, Qualification::NONE, regions))
@@ -983,10 +991,13 @@ impl Program<'_> {
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
-        let multiplicity = crate::lowering::body::source_multiplicity(
-            self.typed.stored_value_multiplicity(reference),
-        );
-        let identity = self.storage_identity(machine, reference)?;
+        // The supplied element owns these permissions. The authored element
+        // may still name a parameter whose default bound is more restrictive.
+        let multiplicity = self.data_type(machine, element)?.multiplicity;
+        let application = self.storage_source_application(reference);
+        let identity = self.storage_identity(machine, &application)?;
+        let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
+        let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
         let id = self.records.push(RecordType {
             multiplicity,
             cleanup: None,
@@ -995,7 +1006,9 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
         });
-        self.record_sources.push(physical_source(reference));
+        let mut source = physical_source_application(application);
+        source.constant_input_owner = constant_input_owner;
+        self.record_sources.push(source);
         // The row is the element's carrier; the regions its elements hold
         // belong to the array value's type, as a record's do (`regions`).
         Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
@@ -1065,7 +1078,10 @@ impl Program<'_> {
         }) {
             return Ok(id);
         }
-        let identity = self.storage_identity(machine, reference)?;
+        // A scalar reached through a type parameter has the actual argument's
+        // identity. Keep the same substitutions for the row and its source.
+        let application = self.storage_source_application(reference);
+        let identity = self.storage_identity(machine, &application)?;
         let id = self.records.push(RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
@@ -1077,37 +1093,53 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
         });
-        self.record_sources.push(physical_source(reference));
+        self.record_sources
+            .push(physical_source_application(application));
         Ok(id)
     }
 
     fn storage_identity(
         &self,
         machine: MachineId,
-        reference: TypeReferenceHandle,
+        application: &SourceTypeApplication,
     ) -> Checked<String> {
         self.typed
-            .type_identity_text(self.typed.normalized_type_identity(reference))
+            .type_identity_text(application.type_identity(self.typed))
             .filter(|identity| !identity.is_empty())
             .ok_or_else(|| {
                 refuse(
                     machine,
                     Construct::Machine,
-                    Unserved::Spelling("array storage type identity"),
+                    Unserved::Spelling("storage type identity"),
                 )
             })
+    }
+
+    pub(super) fn storage_source_application(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> SourceTypeApplication {
+        SourceTypeApplication {
+            reference,
+            substitutions: Vec::new(),
+            scope: self.source_scope.clone(),
+        }
     }
 }
 
 pub(super) fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
+    physical_source_application(SourceTypeApplication {
+        reference,
+        ..Default::default()
+    })
+}
+
+fn physical_source_application(application: SourceTypeApplication) -> RecordSource {
     RecordSource {
+        constant_input_owner: None,
         declaration: SymbolHandle::invalid(),
         cleanup: None,
-        application: Some(crate::source_state::SourceTypeApplication {
-            reference,
-            substitutions: Vec::new(),
-            scope: Default::default(),
-        }),
+        application: Some(application),
         region_owner: SymbolHandle::invalid(),
         fields: Vec::new(),
         cases: Vec::new(),
@@ -1165,13 +1197,11 @@ mod sequence_source_tests {
         });
         let machine = MachineId::new(1).unwrap();
         let mut program = Program::new(&typed, false);
-        let ValueType::Record(first_row, _, _) =
-            program.sequence_type(machine, first, unsigned).unwrap()
+        let Some(ValueType::Record(first_row, _, _)) = program.view_type(machine, first).unwrap()
         else {
             unreachable!()
         };
-        let ValueType::Record(second_row, _, _) =
-            program.sequence_type(machine, second, signed).unwrap()
+        let Some(ValueType::Record(second_row, _, _)) = program.view_type(machine, second).unwrap()
         else {
             unreachable!()
         };

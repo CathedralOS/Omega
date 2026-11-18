@@ -99,25 +99,19 @@ pub(crate) struct PendingSignatureServiceReach {
 */
 pub(crate) fn normalize_service_reaches(
     program: &mut SymbolResolvedTrees,
-    machine_service_reaches: &[(symbols::SymbolHandle, PendingAuthoredServiceReach)],
+    machine_ordinals: &[Option<usize>],
+    machine_service_reaches: &[PendingAuthoredServiceReach],
     signature_service_reaches: &[PendingSignatureServiceReach],
+    predecessor: Option<&SymbolResolvedTrees>,
 ) -> Result<(), Diagnostic> {
-    normalize_service_reaches_with_retained_tables(
-        program,
-        machine_service_reaches,
-        signature_service_reaches,
-        ServiceReachTable::default(),
-        ServiceReachRowTable::default(),
-    )
-}
-
-pub(crate) fn normalize_service_reaches_with_retained_tables(
-    program: &mut SymbolResolvedTrees,
-    machine_service_reaches: &[(symbols::SymbolHandle, PendingAuthoredServiceReach)],
-    signature_service_reaches: &[PendingSignatureServiceReach],
-    mut services: ServiceReachTable,
-    mut rows: ServiceReachRowTable,
-) -> Result<(), Diagnostic> {
+    let (mut services, mut rows) = predecessor
+        .map(|base| {
+            (
+                base.service_reaches.clone(),
+                base.service_reach_rows.clone(),
+            )
+        })
+        .unwrap_or_default();
     let mut boundary_traits = program
         .traits
         .iter()
@@ -152,38 +146,40 @@ pub(crate) fn normalize_service_reaches_with_retained_tables(
 
     rows.intern(Vec::new());
 
-    let machine_rows = program
-        .machines
-        .iter()
-        .map(|machine| {
-            let pending = machine_service_reaches
-                .iter()
-                .find(|(symbol, _)| *symbol == machine.symbol)
-                .map(|(_, reaches)| reaches)
-                .expect("surviving resolved machine retains its pending authored service row");
-            if let PendingAuthoredServiceReach::Authored {
-                keyword_source_spans,
-                authored,
-            } = pending
-            {
-                validate_machine_service_reaches(
-                    program,
-                    &services,
-                    machine,
-                    authored,
-                    !keyword_source_spans.is_empty(),
-                )?;
-            }
-            let (row, authored) = pending.resolve(
-                &program.symbols,
+    // Lowering records one pending reach per original machine. Conformance
+    // selection keeps their order and supplies the final ordinal of each survivor.
+    assert_eq!(machine_service_reaches.len(), machine_ordinals.len());
+    let mut authored_machine_rows = Vec::new();
+    for (&ordinal, pending) in machine_ordinals.iter().zip(machine_service_reaches) {
+        let Some(ordinal) = ordinal else { continue };
+        let machine = &program.machines[ordinal];
+        if let PendingAuthoredServiceReach::Authored {
+            keyword_source_spans,
+            authored,
+        } = pending
+        {
+            validate_machine_service_reaches(
+                program,
                 &services,
-                &mut rows,
-                machine.symbol,
-                machine.service_reach_is_installation_bound,
+                machine,
+                authored,
+                !keyword_source_spans.is_empty(),
             )?;
-            Ok((machine.symbol, row, authored))
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
+        }
+        let (row, authored) = pending.resolve(
+            &program.symbols,
+            &services,
+            &mut rows,
+            machine.symbol,
+            machine.service_reach_is_installation_bound,
+        )?;
+        if machine.service_reach_row != row {
+            program.machines[ordinal].service_reach_row = row;
+        }
+        if let Some(authored) = authored {
+            authored_machine_rows.push(authored);
+        }
+    }
 
     let signature_rows = program
         .traits
@@ -211,14 +207,6 @@ pub(crate) fn normalize_service_reaches_with_retained_tables(
             Ok((signature.symbol, row, authored))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-
-    program.machines.for_each_mut(|machine| {
-        machine.service_reach_row = machine_rows
-            .iter()
-            .find(|(symbol, _, _)| *symbol == machine.symbol)
-            .map(|(_, row, _)| *row)
-            .unwrap_or(ServiceReachRowTable::EMPTY_ROW);
-    });
 
     let signature_spans = program
         .traits
@@ -271,9 +259,8 @@ pub(crate) fn normalize_service_reaches_with_retained_tables(
 
     program.service_reaches = services;
     program.service_reach_rows = rows;
-    program.authored_service_reach_rows = machine_rows
+    program.authored_service_reach_rows = authored_machine_rows
         .into_iter()
-        .filter_map(|(_, _, row)| row)
         .chain(signature_rows.into_iter().filter_map(|(_, _, row)| row))
         .chain(parameter_authored_rows)
         .collect();
@@ -541,4 +528,57 @@ fn service_for_name(
         name.source_span(),
     )?;
     services.id_for_symbol(symbol)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::frontend_fixture::{Lexer, parse_syntax_trees};
+    use crate::resolution::{ResolutionRequest, resolve};
+    use crate::source_resolved::trait_definition::ConformanceRowSource;
+
+    #[test]
+    fn overriding_one_default_preserves_the_next_machines_reach() {
+        // Both defaults are synthesized. The explicit read removes the first
+        // default and the inherited write moves into its place.
+        let text = r#"
+            public boundary trait Input {}
+            public boundary trait Output {}
+            trait Device {
+                machine read() -> u64 reaches Input { 1u64 }
+                machine write() -> u64 reaches Output { 2u64 }
+            }
+            Driver satisfies Device {
+                machine read() -> u64 reaches Input { 3u64 }
+            }
+        "#;
+        let tokens = Lexer::new(text).tokenize().unwrap();
+        let trees = resolve(ResolutionRequest::new(parse_syntax_trees(&tokens).unwrap())).unwrap();
+        let driver = trees.conformances.iter().next().unwrap();
+        assert_eq!(driver.rows.len(), 2);
+        for (requirement, source, service) in [
+            ("read", ConformanceRowSource::Inline, "Input"),
+            ("write", ConformanceRowSource::TraitDefault, "Output"),
+        ] {
+            let row = driver
+                .rows
+                .iter()
+                .find(|row| row.requirement_name.as_str() == requirement)
+                .unwrap();
+            assert_eq!(row.source, source);
+            let machine = trees.machine(row.realization_machine).unwrap();
+            let expected = trees.service_reaches.id_for_name(service).unwrap();
+            assert_eq!(
+                trees.service_reach_rows.services(machine.service_reach_row),
+                &[expected]
+            );
+            let authored = trees
+                .authored_service_reach_rows_for(machine.symbol)
+                .collect::<Vec<_>>();
+            assert_eq!(authored.len(), 1);
+            assert_eq!(
+                authored[0].targets[0].service,
+                trees.service_reaches.definition(expected).unwrap().symbol
+            );
+        }
+    }
 }

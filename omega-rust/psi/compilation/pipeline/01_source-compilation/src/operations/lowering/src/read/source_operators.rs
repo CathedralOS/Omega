@@ -85,6 +85,17 @@ impl Program<'_> {
         Ok(truth)
     }
 
+    /// A formed equality between types keeps its intrinsic source meaning
+    /// when its remaining const-index obligations become scalar predicates.
+    pub(super) fn complete_type_equation(
+        &mut self,
+        machine: MachineId,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Checked<()> {
+        self.complete_operator(machine, owner, expression, &[None, None], true)
+    }
+
     pub(super) fn complete_anonymous_operators(
         &mut self,
         machine: MachineId,
@@ -208,7 +219,7 @@ impl Program<'_> {
             super::bytes::byte_view_matches_carrier(
                 self.typed,
                 machine,
-                reference,
+                &self.storage_source_application(reference),
                 self.lifetime_owner,
                 carrier,
                 &row.identity,

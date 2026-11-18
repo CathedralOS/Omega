@@ -1,8 +1,4 @@
-// Two aliased `Build::dependency` product edges on the same dependency directory are
-// legal: each edge is a distinct dependency occurrence under its own
-// alias, so `k1::main` and `k2::main` both import the same package and
-// agree on its declarations — the product-side mirror of
-// `build_dup_build_edge`.
+// Register the same local source in Product scope under distinct aliases.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "build_dup_product_edge");
@@ -12,5 +8,4 @@ machine build(builder: &mut Build) {
     let mut k2_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
     dependency::with_alias(&mut k2_dependency, "k2");
     let k2_registration: DependencyRegistration = Build::dependency(builder, k2_dependency);
-    builder.freestanding = true;
 }

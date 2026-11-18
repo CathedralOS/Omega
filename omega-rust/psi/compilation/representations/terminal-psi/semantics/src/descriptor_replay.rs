@@ -1331,6 +1331,20 @@ pub(crate) mod analysis {
             })
         }
 
+        pub(crate) fn call_result_contents(
+            &self,
+            identity: MachineId,
+            at: DescriptorPosition,
+            operation: semantic_vocabulary::OperationId,
+        ) -> Option<Vec<DescriptorResultSlot>> {
+            let machine = self.replay.machine(identity)?;
+            let call = crate::exactly_one::exactly_one(machine.calls_at(at).iter(), |call| {
+                call.owner == DescriptorInvocationOwner::Operation(operation)
+            })?;
+            let summary = self.replay.cached_invocation_summary(call)?;
+            Some(summary.result.contents().to_vec())
+        }
+
         /// A helper can update referenced storage while leaving its descriptor
         /// unchanged. Every normal return must retain the invocation's original
         /// descriptor; facts about the stored data still need invalidation.
@@ -2006,6 +2020,13 @@ pub(crate) mod analysis {
                         continue;
                     }
                     for origin in &packet.origins {
+                        if let DescriptorStoredOrigin::ProducedContents(produced) = origin {
+                            if produced.structural_type != expected {
+                                return Err(incomplete_step());
+                            }
+                            outputs.push((destination.clone(), std::slice::from_ref(origin), true));
+                            continue;
+                        }
                         let DescriptorStoredOrigin::IncomingSlot {
                             position: parameter,
                             path,
@@ -2099,10 +2120,18 @@ pub(crate) mod analysis {
                     .map(|origin| (origin, true))
                     .collect::<Vec<_>>();
                 while let Some((origin, spatial)) = pending.pop() {
-                    if let DescriptorStoredOrigin::Provider(provider) = origin {
+                    let dependencies = match origin {
+                        DescriptorStoredOrigin::Provider(provider) => {
+                            Some(&provider.lifetime_dependencies)
+                        }
+                        DescriptorStoredOrigin::ProducedContents(contents) => {
+                            Some(&contents.lifetime_dependencies)
+                        }
+                        _ => None,
+                    };
+                    if let Some(dependencies) = dependencies {
                         pending.extend(
-                            provider
-                                .lifetime_dependencies
+                            dependencies
                                 .iter()
                                 .map(|dependency| (&dependency.origin, false)),
                         );
@@ -2114,6 +2143,7 @@ pub(crate) mod analysis {
                         | DescriptorStoredOrigin::Empty
                         | DescriptorStoredOrigin::Carried { .. }
                         | DescriptorStoredOrigin::Provider(_)
+                        | DescriptorStoredOrigin::ProducedContents(_)
                         | DescriptorStoredOrigin::AccessFormation { .. } => {
                             continue;
                         }
@@ -2958,6 +2988,7 @@ pub(crate) mod case_flow {
                     realizations: vec![],
                     extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                     results: vec![],
+                    contents: Vec::new(),
                     invalidates_contents: false,
                 };
                 let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
@@ -5089,6 +5120,7 @@ pub(crate) mod engine {
         Backing(DescriptorCallOrigin),
         Incoming(DescriptorLocation),
         IncomingContents(DescriptorContentsQuery, Projection),
+        ProducedContents(ProducedContents<Origin>),
         Storage(DescriptorLocation),
         /// A borrowed header captures an address account, not a fresh lookup
         /// through a descriptor that may subsequently be replaced.
@@ -5273,12 +5305,13 @@ pub(crate) mod engine {
             }),
             DescriptorInvocationTarget::Public {
                 results,
+                contents,
                 invalidates_contents,
                 ..
             } => Some(Summary {
                 result: ResultObservations::Observed {
                     slots: Some(results.clone()),
-                    contents: Vec::new(),
+                    contents: contents.clone(),
                     unknown: Vec::new(),
                 },
                 result_cases: Default::default(),
@@ -6908,6 +6941,7 @@ pub(crate) mod engine {
                 .as_ref()?
                 .iter()
                 .map(|origin| match origin {
+                    Origin::ProducedContents(_) => None,
                     Origin::CapturedStorage(account) => {
                         let values = self.project(
                             machine,
@@ -7035,6 +7069,7 @@ pub(crate) mod engine {
             value?
                 .into_iter()
                 .map(|origin| match origin {
+                    Origin::ProducedContents(_) => None,
                     Origin::CapturedStorage(account) => {
                         let reason = account.unavailable().or_else(|| {
                             projection.has_captured_reference_crossing().unwrap_or(true).then_some(
@@ -7526,8 +7561,10 @@ pub(crate) mod engine {
             depth: usize,
             case_storage: &super::case_flow::Storage,
             reads: &DescriptorReadDepth<'_>,
-        ) -> Option<()> {
-            let summary = self.invocation_summary(call, depth + 1)?;
+        ) -> Result<(), &'static str> {
+            let summary = self
+                .invocation_summary(call, depth + 1)
+                .ok_or("the callee's borrowed-storage summary is unavailable")?;
             after.contents_invalidated |= summary.invalidates_contents;
             if summary.invalidates_contents {
                 after.cases = Arc::default();
@@ -7559,8 +7596,13 @@ pub(crate) mod engine {
                 // Ordinary observed calls keep canonical definition/contract
                 // handling. This account has no normal observation to refill
                 // the retired result, including when a loop reuses its home.
-                let ty = *machine.place_types.get(&result.root)?;
-                self.slot_kind.owned_slots(self.types, result.root, ty)?;
+                let ty = *machine
+                    .place_types
+                    .get(&result.root)
+                    .ok_or("the call result has no declared storage type")?;
+                self.slot_kind
+                    .owned_slots(self.types, result.root, ty)
+                    .ok_or("the call result's borrowed fields cannot be identified")?;
                 after
                     .slots_mut()
                     .retain(|stored, _| !result.contains(stored));
@@ -7573,24 +7615,26 @@ pub(crate) mod engine {
             let mut replacements = match &summary.effects {
                 EffectObservations::Observed(_) => BTreeMap::new(),
                 EffectObservations::Unobserved(writes) => {
-                    let unknown = self.unobserved_effect_replacements(
-                        machine,
-                        before,
-                        call,
-                        writes,
-                        reads,
-                        |query| {
-                            super::case_flow::retire_query(
-                                self,
-                                machine,
-                                before,
-                                after,
-                                query,
-                                case_storage,
-                                reads,
-                            );
-                        },
-                    )?;
+                    let unknown = self
+                        .unobserved_effect_replacements(
+                            machine,
+                            before,
+                            call,
+                            writes,
+                            reads,
+                            |query| {
+                                super::case_flow::retire_query(
+                                    self,
+                                    machine,
+                                    before,
+                                    after,
+                                    query,
+                                    case_storage,
+                                    reads,
+                                );
+                            },
+                        )
+                        .ok_or("cannot locate a write through a borrowed call argument")?;
                     if unknown.keys().any(|target| {
                         matches!(
                             target,
@@ -7600,7 +7644,7 @@ pub(crate) mod engine {
                             }
                         )
                     }) {
-                        return None;
+                        return Err("a call write targets an earlier result");
                     }
                     unknown
                 }
@@ -7619,8 +7663,9 @@ pub(crate) mod engine {
                 {
                     continue;
                 }
-                let destination =
-                    self.actual_contents(machine, call, effect.parameter, &effect.steps)?;
+                let destination = self
+                    .actual_contents(machine, call, effect.parameter, &effect.steps)
+                    .ok_or("a callee write has no corresponding caller argument")?;
                 super::case_flow::retire_query(
                     self,
                     machine,
@@ -7630,8 +7675,9 @@ pub(crate) mod engine {
                     case_storage,
                     reads,
                 );
-                let targets =
-                    self.contents_targets_with_depth(machine, before, &destination, reads)?;
+                let targets = self
+                    .contents_targets_with_depth(machine, before, &destination, reads)
+                    .ok_or("cannot locate the storage a borrowed call argument writes")?;
                 if targets.iter().any(|target| {
                     matches!(
                         target,
@@ -7641,7 +7687,7 @@ pub(crate) mod engine {
                         }
                     )
                 }) {
-                    return None;
+                    return Err("a call write targets an earlier result");
                 }
                 let strong = targets.len() == 1
                     && matches!(
@@ -7663,7 +7709,7 @@ pub(crate) mod engine {
                                     && (location.contains(previous) || previous.contains(&location))
                             },
                         ) {
-                            return None;
+                            return Err("two call writes overlap in the caller");
                         }
                         destinations.push((location, strong));
                     }
@@ -7676,7 +7722,11 @@ pub(crate) mod engine {
                         None if effect.keeps_incoming_slot(origin) => {
                             dropped_retired_incoming = true;
                         }
-                        None => return None,
+                        None => {
+                            return Err(
+                                "a reference written by the callee has no source in this call",
+                            );
+                        }
                     }
                 }
                 if origins.is_empty() && dropped_retired_incoming {
@@ -7689,15 +7739,22 @@ pub(crate) mod engine {
                     Some(origins),
                     &mut replacements,
                     reads,
-                )?;
+                )
+                .ok_or("cannot record the references written by the callee")?;
             }
             if let Some(result) = &call.result {
-                let result_type = *machine.place_types.get(&result.root)?;
+                let result_type = *machine
+                    .place_types
+                    .get(&result.root)
+                    .ok_or("the call result has no declared storage type")?;
                 let empty = Vec::new();
                 let slots = if summary.result.is_unobserved() {
                     &empty
                 } else {
-                    summary.result.slots()?
+                    summary
+                        .result
+                        .slots()
+                        .ok_or("the callee has no account of its returned references")?
                 };
                 for slot in slots {
                     slot.visit(
@@ -7742,18 +7799,39 @@ pub(crate) mod engine {
                             Ok::<(), ()>(())
                         },
                     )
-                    .ok()?;
+                    .map_err(
+                        |()| "a returned reference does not match the result's declared type",
+                    )?;
                 }
                 for packet in summary.result.contents() {
                     let mut destination = result.clone();
                     destination.path.extend_from_slice(&packet.path);
-                    self.unknown_contents_type(machine, &destination)?;
+                    let expected = self
+                        .unknown_contents_type(machine, &destination)
+                        .ok_or("borrowed contents do not match the result's declared type")?;
                     let mut origins = BTreeSet::new();
                     for origin in &packet.origins {
+                        if let DescriptorStoredOrigin::ProducedContents(produced) = origin {
+                            if produced.structural_type != expected {
+                                return Err("returned contents changed their generic value type");
+                            }
+                            let dependencies = self
+                                .substitute_lifetime_dependencies(
+                                    machine,
+                                    before,
+                                    call,
+                                    &produced.lifetime_dependencies,
+                                    reads,
+                                )
+                                .ok_or("returned contents do not retain their input loans")?;
+                            origins.insert(Origin::ProducedContents(
+                                produced.with_dependencies(dependencies),
+                            ));
+                            continue;
+                        }
                         origins.extend(
-                            self.substitute_result_with_depth(
-                                machine, before, call, origin, reads,
-                            )?,
+                            self.substitute_result_with_depth(machine, before, call, origin, reads)
+                                .ok_or("returned borrowed contents have no source in this call")?,
                         );
                     }
                     if origins.is_empty() {
@@ -7761,7 +7839,9 @@ pub(crate) mod engine {
                             .result_cases
                             .excludes_payload(result_type, &packet.path)
                         {
-                            return None;
+                            return Err(
+                                "a reachable result contains borrowed storage with no source",
+                            );
                         }
                         // Absence supplies no contents or access. The result's
                         // case facts below keep this payload unreachable.
@@ -7773,7 +7853,8 @@ pub(crate) mod engine {
                 }
                 let unknown = if summary.result.is_unobserved() {
                     self.slot_kind
-                        .owned_slots(self.types, result.root, result_type)?
+                        .owned_slots(self.types, result.root, result_type)
+                        .ok_or("the call result's borrowed fields cannot be identified")?
                         .into_iter()
                         .map(|slot| slot.path)
                         .collect::<Vec<_>>()
@@ -7788,9 +7869,12 @@ pub(crate) mod engine {
             }
             Self::install_contents(after, replacements);
             if let Some(result) = &call.result {
-                summary.result_cases.install(self, machine, after, result)?;
+                summary
+                    .result_cases
+                    .install(self, machine, after, result)
+                    .ok_or("the callee's returned cases do not match the call result")?;
             }
-            Some(())
+            Ok(())
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -7845,7 +7929,8 @@ pub(crate) mod engine {
                     depth,
                     case_storage,
                     &reads,
-                )?;
+                )
+                .ok()?;
                 current = after;
             }
             Some(current)
@@ -8076,12 +8161,7 @@ pub(crate) mod engine {
                     }
                     if let Some(call) = machine.direct_call(position)
                         && call.argument_contents.iter().all(Option::is_some)
-                    {
-                        *failure = incomplete(
-                            Some(position),
-                            "descriptor invocation state cannot be reconstructed",
-                        );
-                        let applied = self.apply_invocation(
+                        && let Err(detail) = self.apply_invocation(
                             machine,
                             &before,
                             &mut after,
@@ -8089,11 +8169,12 @@ pub(crate) mod engine {
                             depth,
                             &case_storage,
                             &reads,
-                        );
-                        if applied.is_none() {
-                            *failure = self.failed_invocation_preparation(call).unwrap_or(*failure);
-                            return None;
-                        }
+                        )
+                    {
+                        *failure = self
+                            .failed_invocation_preparation(call)
+                            .unwrap_or_else(|| incomplete(Some(position), detail));
+                        return None;
                     }
                     after
                 };
@@ -8449,7 +8530,8 @@ pub(crate) mod engine {
                         projection: projection.clone(),
                     },
                 )])),
-                DescriptorStoredOrigin::Provider(_) => None,
+                DescriptorStoredOrigin::Provider(_)
+                | DescriptorStoredOrigin::ProducedContents(_) => None,
                 DescriptorStoredOrigin::AccessFormation {
                     machine,
                     operation,
@@ -8764,6 +8846,21 @@ pub(crate) mod engine {
             origin: &Origin,
         ) -> Option<DescriptorStoredOrigin> {
             match origin {
+                Origin::ProducedContents(produced) => {
+                    let dependencies = produced
+                        .lifetime_dependencies
+                        .iter()
+                        .map(|debt| {
+                            Some(DescriptorLifetimeDebt {
+                                origin: self.exported(machine, &debt.origin)?,
+                                access: debt.access,
+                            })
+                        })
+                        .collect::<Option<_>>()?;
+                    Some(DescriptorStoredOrigin::ProducedContents(
+                        produced.with_dependencies(dependencies),
+                    ))
+                }
                 Origin::CapturedStorage(account) => {
                     self.exported(machine, &self.legacy_storage_origin(account)?)
                 }
@@ -9181,6 +9278,7 @@ pub(crate) mod engine {
                     Origin::IncomingContents(query, projection) => {
                         Some(DescriptorSourceOrigin::IncomingContents { query, projection })
                     }
+                    Origin::ProducedContents(_) => None,
                 })
                 .collect()
         }
@@ -10430,6 +10528,7 @@ pub(crate) mod engine {
                         } else {
                             Vec::new()
                         },
+                        contents: Vec::new(),
                         invalidates_contents: false,
                     },
                     arguments: actuals,
@@ -10605,6 +10704,7 @@ pub(crate) mod engine {
                         realizations: vec![],
                         extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
                         results: vec![],
+                        contents: Vec::new(),
                         invalidates_contents: false,
                     },
                     arguments: vec![Some(parameter.clone())],
@@ -12474,21 +12574,24 @@ pub(crate) mod provider {
     }
 
     impl Replay<'_> {
-        pub(crate) fn substitute_provider_with_depth(
+        pub(crate) fn substitute_lifetime_dependencies(
             &self,
             machine: &DescriptorMachine,
             state: &State,
             call: &DescriptorInvocation,
-            provider: &DescriptorProviderOrigin<DescriptorStoredOrigin>,
+            stored: &[DescriptorLifetimeDebt<DescriptorStoredOrigin>],
             reads: &DescriptorReadDepth<'_>,
-        ) -> Value {
+        ) -> Option<Vec<DescriptorLifetimeDebt<Origin>>> {
             let mut dependencies = BTreeSet::new();
-            for dependency in &provider.lifetime_dependencies {
+            for dependency in stored {
                 for captured in
                     self.substitute_with_depth(machine, state, call, &dependency.origin, reads)?
                 {
                     match captured {
                         Origin::Provider(previous) => {
+                            dependencies.extend(previous.lifetime_dependencies);
+                        }
+                        Origin::ProducedContents(previous) => {
                             dependencies.extend(previous.lifetime_dependencies);
                         }
                         ordinary => {
@@ -12500,6 +12603,24 @@ pub(crate) mod provider {
                     }
                 }
             }
+            Some(dependencies.into_iter().collect())
+        }
+
+        pub(crate) fn substitute_provider_with_depth(
+            &self,
+            machine: &DescriptorMachine,
+            state: &State,
+            call: &DescriptorInvocation,
+            provider: &DescriptorProviderOrigin<DescriptorStoredOrigin>,
+            reads: &DescriptorReadDepth<'_>,
+        ) -> Value {
+            let lifetime_dependencies = self.substitute_lifetime_dependencies(
+                machine,
+                state,
+                call,
+                &provider.lifetime_dependencies,
+                reads,
+            )?;
             let mut invocations = vec![DescriptorInvocationSite {
                 machine: machine.id,
                 owner: call.owner,
@@ -12511,7 +12632,7 @@ pub(crate) mod provider {
                     output: provider.output.clone(),
                     invocations,
                     projection: provider.projection.clone(),
-                    lifetime_dependencies: dependencies.into_iter().collect(),
+                    lifetime_dependencies,
                 },
             )]))
         }
@@ -12634,6 +12755,31 @@ pub struct DescriptorResultContents {
     pub(crate) case_facts: case_flow::ResultCases,
 }
 
+/// The owned contents supplied by a completed call whose result type is
+/// still generic. The producing call and field identify the value without
+/// giving the caller a reference to its hidden backing.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ProducedContents<Dependency> {
+    pub(crate) producer: DescriptorInvocationSite,
+    pub(crate) path: Vec<DescriptorPathSegment>,
+    pub(crate) structural_type: StructuralTypeId,
+    pub(crate) lifetime_dependencies: Vec<DescriptorLifetimeDebt<Dependency>>,
+}
+
+impl<Dependency> ProducedContents<Dependency> {
+    fn with_dependencies<Mapped>(
+        &self,
+        lifetime_dependencies: Vec<DescriptorLifetimeDebt<Mapped>>,
+    ) -> ProducedContents<Mapped> {
+        ProducedContents {
+            producer: self.producer.clone(),
+            path: self.path.clone(),
+            structural_type: self.structural_type,
+            lifetime_dependencies,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum DescriptorStoredOrigin {
     Invocation {
@@ -12662,6 +12808,7 @@ pub enum DescriptorStoredOrigin {
         steps: Vec<DescriptorContentsStep>,
         projection: Projection,
     },
+    ProducedContents(ProducedContents<DescriptorStoredOrigin>),
     Literal {
         machine: MachineId,
         place: PlaceId,
@@ -12805,6 +12952,7 @@ fn result_origin(
         }),
         DescriptorStoredOrigin::AccessFormation { .. }
         | DescriptorStoredOrigin::Provider(_)
+        | DescriptorStoredOrigin::ProducedContents(_)
         | DescriptorStoredOrigin::Carried { .. } => None,
         DescriptorStoredOrigin::Empty => Some(DescriptorResultOrigin::Empty),
         DescriptorStoredOrigin::Parameter {

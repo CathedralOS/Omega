@@ -552,32 +552,14 @@ impl Lowerer {
         trees
     }
 
-    /*
-        Pair every root machine and pending signature with its authored
-        service-reach names once their symbols exist.
-    */
-    pub(crate) fn pending_service_reaches(
+    // Signatures acquire their symbols after their pending reach is recorded.
+    pub(crate) fn pending_signature_reaches(
         &self,
     ) -> Result<
-        (
-            Vec<(symbols::SymbolHandle, PendingAuthoredServiceReach)>,
-            Vec<crate::resolution::selections::service_reaches::PendingSignatureServiceReach>,
-        ),
+        Vec<crate::resolution::selections::service_reaches::PendingSignatureServiceReach>,
         Vec<Diagnostic>,
     > {
-        assert_eq!(
-            self.symbol_resolved_trees.machines.len(),
-            self.pending_machine_service_reaches.len(),
-            "each initially resolved root machine has one pending authored service row"
-        );
-        let pending_machine_service_reaches = self
-            .symbol_resolved_trees
-            .machines
-            .iter()
-            .zip(&self.pending_machine_service_reaches)
-            .map(|(machine, reaches)| (machine.symbol, reaches.clone()))
-            .collect::<Vec<_>>();
-        let pending_signature_service_reaches = self
+        self
         .pending_signature_service_reaches
         .iter()
         .map(|pending| {
@@ -609,11 +591,7 @@ impl Lowerer {
                 reaches: pending.reaches.clone(),
             })
         })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        Ok((
-            pending_machine_service_reaches,
-            pending_signature_service_reaches,
-        ))
+        .collect()
     }
 }
 

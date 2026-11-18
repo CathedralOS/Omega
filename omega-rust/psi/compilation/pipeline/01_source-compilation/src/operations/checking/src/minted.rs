@@ -184,11 +184,21 @@ pub(crate) fn width_questions_are_minted(
             let Some(callee) = elaboration.module.machine(callee) else {
                 continue;
             };
-            for (actual, formal) in call
+            for (ordinal, (actual, formal)) in call
                 .structural_arguments
                 .iter()
                 .zip(&callee.structural_parameters)
+                .enumerate()
             {
+                if elaboration
+                    .nominal_calls
+                    .binary_search_by_key(&(caller.id, operation.id, ordinal as u32), |row| {
+                        (row.caller, row.operation, row.argument)
+                    })
+                    .is_ok()
+                {
+                    continue;
+                }
                 if !contains_parameter_extent(&elaboration.module, formal.structural_type) {
                     continue;
                 }

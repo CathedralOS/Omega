@@ -50,12 +50,19 @@ mod type_equations {
         let requires_argument_recovery = equations
             .iter()
             .any(crate::resolution::declarations::type_equations::TypeEquation::requires_argument_recovery);
-        let mut lowered = Vec::with_capacity(equations.len());
+        let binders = parameters
+            .iter()
+            .map(|parameter| &parameter.name)
+            .chain(&machine.lifetime_parameters)
+            .map(|name| name.as_str(syntax).to_owned())
+            .collect::<Vec<_>>();
+        let mut definitions = Vec::with_capacity(equations.len());
         for equation in equations {
             equation.validate_kind("machine")?;
-            let Some((parameter, definition)) = equation.structural_definition() else {
-                continue;
-            };
+            equation.structural_definitions(syntax, &binders, &mut definitions);
+        }
+        let mut lowered = Vec::with_capacity(definitions.len());
+        for (parameter, definition) in definitions {
             lowered.push(DeclaredTypeEquation {
                 parameter: TypeReference::Named {
                     supplied_operand_owner: Default::default(),

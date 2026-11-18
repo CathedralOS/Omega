@@ -99,7 +99,7 @@ pub(crate) mod admission {
             obligation: &Obligation,
             assumptions: &[Proposition],
             semantic_axioms: &[Proposition],
-            route: EvidenceRoute,
+            route: EvidenceRoute<&crate::ProofNode>,
         ) -> Result<AcceptedFact, EvidenceError> {
             verify_obligation_with_machine_parameters(
                 context,
@@ -117,7 +117,7 @@ pub(crate) mod admission {
             assumptions: &[Proposition],
             semantic_axioms: &[Proposition],
             machine_parameter_values: &BTreeSet<semantic_vocabulary::ValueId>,
-            route: EvidenceRoute,
+            route: EvidenceRoute<&crate::ProofNode>,
         ) -> Result<AcceptedFact, EvidenceError> {
             context
                 .validate(&obligation.proposition)
@@ -135,7 +135,7 @@ pub(crate) mod admission {
                         assumptions,
                         semantic_axioms,
                         machine_parameter_values,
-                        &certificate.proof,
+                        certificate.proof,
                     )
                     .map_err(EvidenceError::Certificate)?;
                     AcceptedFactRoute::CertificateDerived {
@@ -209,6 +209,56 @@ pub(crate) mod admission {
                 verify_obligation,
             };
             use semantic_vocabulary::{ProfileDecisionId, PropositionId};
+            #[test]
+            fn borrowed_certificates_keep_identity_and_check_the_actual_premises() {
+                let context = PropositionContext::default();
+                let goal = Proposition::Atom(PropositionId::new(6).unwrap());
+                let owned = EvidenceRoute::CertificateDerived(super::CertificateEnvelope {
+                    identity: EvidenceIdentity::new(7).unwrap(),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: crate::ProofNode {
+                        conclusion: goal.clone(),
+                        rule: crate::ProofRule::Assumption { index: 0 },
+                    },
+                });
+                let EvidenceRoute::CertificateDerived(stored) = &owned else {
+                    unreachable!()
+                };
+                let borrowed = stored.as_ref();
+                assert!(std::ptr::eq(borrowed.proof, &stored.proof));
+                assert_eq!(borrowed.identity, stored.identity);
+                assert_eq!(borrowed.proof_system_marker, stored.proof_system_marker);
+                let query = obligation(goal.clone(), ObligationClass::Derivable);
+                let assumptions = std::slice::from_ref(&goal);
+                let through_route =
+                    verify_obligation(&context, &query, assumptions, &[], owned.as_ref()).unwrap();
+                let through_envelope = verify_obligation(
+                    &context,
+                    &query,
+                    assumptions,
+                    &[],
+                    EvidenceRoute::CertificateDerived(borrowed),
+                )
+                .unwrap();
+                assert_eq!(through_route, through_envelope);
+                let super::AcceptedFactRoute::CertificateDerived { acceptance, .. } =
+                    &through_route.route
+                else {
+                    unreachable!()
+                };
+                assert!(matches!(
+                    acceptance.mathematical_core,
+                    crate::MathematicalCoreDecision::Judged(_)
+                ));
+                let wrong = [Proposition::Atom(PropositionId::new(8).unwrap())];
+                assert!(matches!(
+                    verify_obligation(&context, &query, &wrong, &[], owned.as_ref()),
+                    Err(EvidenceError::Certificate(
+                        crate::ProofError::AssumptionConclusionMismatch(0)
+                    ))
+                ));
+            }
+
             fn obligation(proposition: Proposition, class: ObligationClass) -> Obligation {
                 Obligation {
                     id: ObligationId::new(1).expect("obligation identity"),

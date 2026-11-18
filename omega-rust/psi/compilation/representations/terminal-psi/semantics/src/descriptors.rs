@@ -1308,10 +1308,28 @@ pub mod descriptor_lifetimes {
                     .push((*position, edge));
             }
         }
-        let mut established = steps
-            .keys()
-            .map(|position| (*position, BTreeSet::new()))
-            .collect::<BTreeMap<_, _>>();
+        let mut established = if may {
+            steps
+                .keys()
+                .map(|position| (*position, BTreeSet::new()))
+                .collect::<BTreeMap<_, _>>()
+        } else {
+            // Must transport descends from the possible names at each cut.
+            // Starting at empty loses unchanged authority at every loop join.
+            // The possible names come only from this genuine formation, so
+            // disconnected cycles gain nothing. Empty incoming paths still
+            // participate in the intersection below; possibility never
+            // substitutes for a path's retained authority.
+            transported_locations(
+                steps,
+                birth,
+                descriptor,
+                at_entry,
+                invalidate_containers,
+                true,
+                arrival,
+            )
+        };
         if at_entry {
             established.insert(birth, BTreeSet::from([descriptor.clone()]));
         }
@@ -1495,6 +1513,64 @@ pub mod descriptor_lifetimes {
                 parameters: Vec::new(),
                 bindings: Vec::new(),
             }
+        }
+
+        #[test]
+        fn a_loop_keeps_entry_authority_only_while_every_backedge_keeps_it() {
+            let mut steps = BTreeMap::from([
+                (
+                    position(0),
+                    DescriptorFlowStep {
+                        successors: vec![edge(1)],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    position(1),
+                    DescriptorFlowStep {
+                        inputs: vec![(Some(root(1)), None)],
+                        successors: vec![edge(2), edge(3)],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    position(2),
+                    DescriptorFlowStep {
+                        successors: vec![edge(1)],
+                        ..Default::default()
+                    },
+                ),
+                (position(3), DescriptorFlowStep::default()),
+                (
+                    position(4),
+                    DescriptorFlowStep {
+                        successors: vec![edge(5)],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    position(5),
+                    DescriptorFlowStep {
+                        successors: vec![edge(4)],
+                        ..Default::default()
+                    },
+                ),
+            ]);
+            let lifetime = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            for cut in [position(1), position(2)] {
+                assert_eq!(lifetime.authorized[&cut], BTreeSet::from([root(1)]));
+                assert_eq!(lifetime.surviving[&cut], BTreeSet::from([root(1)]));
+            }
+            assert!(lifetime.authorized[&position(4)].is_empty());
+            assert!(lifetime.authorized[&position(5)].is_empty());
+            steps
+                .get_mut(&position(2))
+                .unwrap()
+                .definitions
+                .push(root(1));
+            let retired = descriptor_entry_lifetime(&steps, position(0), &root(1));
+            assert!(retired.authorized[&position(1)].is_empty());
+            assert_eq!(retired.surviving[&position(1)], BTreeSet::from([root(1)]));
         }
 
         #[test]
@@ -14734,6 +14810,7 @@ pub mod descriptor_results {
             machine: &terminal_psi::TerminalMachine,
             operation: &terminal_psi::Operation,
             scalar_expressions: &super::payload_predicates::TerminalScalarExpressions<'_>,
+            nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
         ) -> Option<TerminalPostconditions> {
             use terminal_psi::{
                 OperationKind, OperationResult, StructuralAccess, TerminalMachineResult,
@@ -14804,10 +14881,11 @@ pub mod descriptor_results {
                 bindings.push((formal.id, scalar_expressions.expression(*actual)?));
             }
             let mut storage = Vec::new();
-            for (formal, actual) in callee
+            for (ordinal, (formal, actual)) in callee
                 .structural_parameters
                 .iter()
                 .zip(structural_arguments)
+                .enumerate()
             {
                 let root_type = machine.structural_place_type(actual.place)?;
                 let selected = runtime_structural_path_tip(
@@ -14818,6 +14896,20 @@ pub mod descriptor_results {
                 if actual.access != formal.access
                     || (!selected.is_some_and(|selected| {
                         selected.id == formal.structural_type
+                            || nominal_calls
+                                .binary_search_by_key(
+                                    &(machine.id, operation.id, ordinal as u32),
+                                    |row| (row.caller, row.operation, row.argument),
+                                )
+                                .ok()
+                                .is_some_and(|position| {
+                                    let row = &nominal_calls[position];
+                                    row.actual == selected.id
+                                        && row.expected == formal.structural_type
+                                        && crate::calls::nominal_argument_matches(
+                                            module, machine, callee, arguments, row,
+                                        )
+                                })
                             || crate::calls::const_array_argument_matches(
                                 module,
                                 machine,
@@ -15353,6 +15445,7 @@ pub mod descriptor_results {
                     realizations,
                     extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
                     results,
+                    contents: Vec::new(),
                     invalidates_contents,
                 },
                 arguments,
@@ -15914,6 +16007,7 @@ pub mod descriptor_results {
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
+            nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
         ) -> Result<DescriptorMachine, super::DescriptorGraphError> {
             // Setup failures have no operation. Reuse the same typed error
             // as the reader advances, so a later failure keeps its real site.
@@ -15930,6 +16024,7 @@ pub mod descriptor_results {
                 slot_kind,
                 selected_calls,
                 selector_graph,
+                nominal_calls,
                 &mut failure,
             )
             .ok_or(failure)
@@ -15942,6 +16037,7 @@ pub mod descriptor_results {
             slot_kind: DescriptorSlotKind,
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
+            nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
             failure: &mut super::DescriptorGraphError,
         ) -> Option<DescriptorMachine> {
             let super::DescriptorGraphError::IncompleteMachine {
@@ -16061,6 +16157,7 @@ pub mod descriptor_results {
                         machine,
                         operation,
                         &scalar_expressions,
+                        nominal_calls,
                     ) {
                         graph
                             .payload_scalar_postconditions
@@ -17359,10 +17456,105 @@ pub mod descriptor_results {
                                     }
                                 }
                                 if let DescriptorInvocationTarget::Public {
-                                    effects_machine, ..
+                                    effects_machine,
+                                    contents,
+                                    ..
                                 } = &mut call.target
                                 {
                                     *effects_machine = (complete && implemented).then_some(callee);
+                                    if !implemented
+                                        && slot_kind.tracks_references()
+                                        && let Some(result) = result
+                                    {
+                                        let inventory = slot_kind.owned_inventory(
+                                            &module.structural_types,
+                                            result.place,
+                                            result.structural_type,
+                                        )?;
+                                        let mut lifetime_dependencies = Vec::new();
+                                        if !inventory.unknown_contents.is_empty() {
+                                            for (position, formal) in public
+                                                .as_ref()?
+                                                .contract()
+                                                .structural_parameters
+                                                .iter()
+                                                .enumerate()
+                                            {
+                                                let ty = module
+                                                    .structural_type(formal.structural_type)?;
+                                                if formal.access != StructuralAccess::Owned
+                                                    && !ty.shape.is_view_descriptor()
+                                                {
+                                                    lifetime_dependencies.push(DescriptorLifetimeDebt {
+                                                        origin: DescriptorStoredOrigin::Parameter {
+                                                            position,
+                                                            projection: Projection::new(&[]),
+                                                        },
+                                                        access: formal.access,
+                                                    });
+                                                }
+                                                if formal.access
+                                                    == StructuralAccess::WriteOnlyBorrow
+                                                {
+                                                    continue;
+                                                }
+                                                let inputs = DescriptorSlotKind::BorrowedStorage
+                                                    .owned_inventory(
+                                                        &module.structural_types,
+                                                        formal.place,
+                                                        formal.structural_type,
+                                                    )?;
+                                                let locations = inputs.slots.into_iter().chain(
+                                                    inputs
+                                                        .unknown_contents
+                                                        .into_iter()
+                                                        .map(|packet| packet.location),
+                                                );
+                                                for location in locations {
+                                                    lifetime_dependencies
+                                                        .push(DescriptorLifetimeDebt {
+                                                        origin:
+                                                            DescriptorStoredOrigin::IncomingSlot {
+                                                                position,
+                                                                path: location.path,
+                                                            },
+                                                        access: formal.access,
+                                                    });
+                                                }
+                                            }
+                                        }
+                                        for packet in inventory.unknown_contents {
+                                            let path = packet.location.path;
+                                            let (last, prefix) = path.split_last()?;
+                                            if *last != DescriptorPathSegment::UnknownContents {
+                                                return None;
+                                            }
+                                            let structural_type = descriptor_location_type(
+                                                &module.structural_types,
+                                                result.structural_type,
+                                                prefix,
+                                            )?;
+                                            let produced =
+                                                crate::descriptor_replay::ProducedContents {
+                                                    producer: DescriptorInvocationSite {
+                                                        machine: machine.id,
+                                                        owner: call.owner,
+                                                    },
+                                                    path: path.clone(),
+                                                    structural_type,
+                                                    lifetime_dependencies: lifetime_dependencies
+                                                        .clone(),
+                                                };
+                                            contents.push(DescriptorResultSlot {
+                                                path,
+                                                origins: vec![
+                                                    DescriptorStoredOrigin::ProducedContents(
+                                                        produced,
+                                                    ),
+                                                ],
+                                            });
+                                        }
+                                    }
                                 }
                                 insert_invocation(&mut graph.calls, position, call)?;
                             } else {
@@ -18999,6 +19191,7 @@ pub mod descriptor_results {
             realizations: Vec<MachineId>,
             extent: semantic_vocabulary::ReferenceOriginExtent,
             results: Vec<DescriptorResultSlot>,
+            contents: Vec<DescriptorResultSlot>,
             invalidates_contents: bool,
         },
     }
@@ -19299,6 +19492,23 @@ pub mod descriptor_results {
         )
     }
 
+    pub fn terminal_borrowed_storage_graph_with_nominal_calls(
+        module: &TerminalModule,
+        roots: impl IntoIterator<Item = MachineId>,
+        selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+        nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    ) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
+        terminal_graph_rows_with_nominal_calls(
+            module,
+            roots,
+            DescriptorSlotKind::BorrowedStorage,
+            selected_calls,
+            nominal_calls,
+        )
+        .into_iter()
+        .collect()
+    }
+
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum DescriptorGraphError {
         MissingOrAmbiguousMachine(MachineId),
@@ -19588,6 +19798,16 @@ pub mod descriptor_results {
         kind: DescriptorSlotKind,
         selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
+        terminal_graph_rows_with_nominal_calls(module, roots, kind, selected_calls, &[])
+    }
+
+    fn terminal_graph_rows_with_nominal_calls(
+        module: &TerminalModule,
+        roots: impl IntoIterator<Item = MachineId>,
+        kind: DescriptorSlotKind,
+        selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+        nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
         let machines = match terminal_machine_roster(module) {
             Ok(machines) => machines,
             Err(error) => return vec![Err(error)],
@@ -19605,14 +19825,21 @@ pub mod descriptor_results {
                 );
                 continue;
             };
-            let graph =
-                match terminal_flow::adapt(module, &machines, body, kind, selected_calls, None) {
-                    Ok(graph) => graph,
-                    Err(error) => {
-                        reached.insert(identity, Err(error));
-                        continue;
-                    }
-                };
+            let graph = match terminal_flow::adapt(
+                module,
+                &machines,
+                body,
+                kind,
+                selected_calls,
+                None,
+                nominal_calls,
+            ) {
+                Ok(graph) => graph,
+                Err(error) => {
+                    reached.insert(identity, Err(error));
+                    continue;
+                }
+            };
             for (_, call) in graph.known_invocations() {
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -19674,6 +19901,7 @@ pub mod descriptor_results {
                 kind,
                 selected_calls,
                 Some(&initial),
+                nominal_calls,
             ));
         }
         rows.extend(failures);
@@ -19719,7 +19947,8 @@ pub mod descriptor_results {
             .machines
             .iter()
             .map(|machine| {
-                terminal_flow::adapt(module, &machines, machine, kind, selected_calls, None).ok()
+                terminal_flow::adapt(module, &machines, machine, kind, selected_calls, None, &[])
+                    .ok()
             })
             .collect::<Option<Vec<_>>>()?;
         if !module.machines.iter().any(|machine| {
@@ -19740,6 +19969,7 @@ pub mod descriptor_results {
                     kind,
                     selected_calls,
                     Some(&initial),
+                    &[],
                 )
                 .ok()
             })
