@@ -1,0 +1,9 @@
+{
+  "source_inputs": [
+    ".gitignore",
+    "README.md",
+    "build.omg",
+    "main.omg",
+    "sub"
+  ]
+}
