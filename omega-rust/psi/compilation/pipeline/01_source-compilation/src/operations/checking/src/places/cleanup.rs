@@ -182,7 +182,7 @@ impl<'a> Storage<'a> {
             let ends = cleanup_write_ends(asked, watched, &written);
             if write.content == Content::Vacated {
                 // A payload vacancy does not change its enclosing sum's tag.
-                if !matches!(asked, Asked::Case(_)) || ends {
+                if !matches!(asked, Asked::Case(..)) || ends {
                     return Ok(Some(Reached::Unestablished));
                 }
             }
@@ -267,7 +267,7 @@ impl<'a> Storage<'a> {
             let ends = cleanup_write_ends(asked, watched, &written);
             if write.content == Content::Vacated {
                 // A payload vacancy does not change its enclosing sum's tag.
-                if !matches!(asked, Asked::Case(_)) || ends {
+                if !matches!(asked, Asked::Case(..)) || ends {
                     return Ok(Some(Reached::Unestablished));
                 }
             }
@@ -296,7 +296,7 @@ fn cleanup_write_ends(asked: Asked<'_>, watched: &Backing, written: &Backing) ->
     match asked {
         Asked::Contents(_) => true,
         // A write proved strictly below the sum changes its payload, not its tag.
-        Asked::Case(_) => {
+        Asked::Case(..) => {
             !watched.definitely_contains(written) || written.definitely_contains(watched)
         }
         Asked::Window { .. } => written.definitely_contains(watched),
