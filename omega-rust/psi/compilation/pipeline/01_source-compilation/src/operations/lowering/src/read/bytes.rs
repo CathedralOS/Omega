@@ -374,6 +374,7 @@ impl Program<'_> {
             kind: ExpressionKind::ByteElement {
                 base: Box::new(base),
                 index: Box::new(index),
+                element: self.plain_scalar_storage(machine, scalar(8))?,
             },
             result: Some(ValueType::plain(scalar(8))),
             source,

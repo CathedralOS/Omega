@@ -151,7 +151,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
                 expression(machine, operand)?;
             }
         }
-        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index, .. } => {
             expression(machine, base)?;
             expression(machine, index)?;
         }

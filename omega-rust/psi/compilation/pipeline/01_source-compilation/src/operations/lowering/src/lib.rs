@@ -1262,7 +1262,7 @@ fn finish_reading_into<'source>(
         &checking_envelopes,
         &mut elaboration,
     )
-    .map_err(declaration_error)?;
+    .map_err(|error| error.into_refusal(diagnostic, &program))?;
     let mut requirements = elaboration.requirements.clone();
     requirements.sort_unstable();
     for slot in &mut elaboration.module.callables.machine_envelopes {

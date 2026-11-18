@@ -435,20 +435,22 @@ impl Program<'_> {
             place,
             |capture| captures.resolve(capture),
             |projection, descriptor| {
-                if matches!(
-                    projection.kind,
-                    crate::lowering::ExpressionKind::Referent(_)
-                ) {
-                    let Some(ValueType::Record(row, _, _)) = descriptor.result else {
-                        return Err(refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Type("reference crossing without its declared descriptor"),
-                        ));
-                    };
-                    let StorageShape::Reference { access, .. } =
-                        self.data_type(machine, row)?.shape
-                    else {
+                let crossing = match projection.kind {
+                    crate::lowering::ExpressionKind::Referent(_) => true,
+                    crate::lowering::ExpressionKind::Index { .. }
+                    | crate::lowering::ExpressionKind::ByteElement { .. } => false,
+                    _ => return Ok(()),
+                };
+                let Some(ValueType::Record(row, _, _)) = descriptor.result else {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("permission crossing without its declared descriptor"),
+                    ));
+                };
+                let shape = &self.data_type(machine, row)?.shape;
+                let access = if crossing {
+                    let StorageShape::Reference { access, .. } = shape else {
                         return Err(refuse(
                             machine,
                             Construct::Machine,
@@ -457,6 +459,55 @@ impl Program<'_> {
                             ),
                         ));
                     };
+                    Some(*access)
+                } else {
+                    match shape {
+                        StorageShape::ElementView { access, .. }
+                        | StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+                        ) => match access {
+                            Some(access) => Some(*access),
+                            None => {
+                                let crate::lowering::ExpressionKind::Slot(slot) = descriptor.kind
+                                else {
+                                    return Err(refuse(
+                                        machine,
+                                        Construct::Machine,
+                                        Unserved::Type(
+                                            "indexed view has no retained source access",
+                                        ),
+                                    ));
+                                };
+                                let borrowed = slots
+                                    .get(slot)
+                                    .and_then(|slot| slot.borrowed)
+                                    .ok_or_else(|| {
+                                        refuse(
+                                            machine,
+                                            Construct::Machine,
+                                            Unserved::Type(
+                                                "indexed view has no retained source access",
+                                            ),
+                                        )
+                                    })?;
+                                Some(match borrowed {
+                                    language_core::ReferenceAccess::Shared => {
+                                        StructuralAccess::SharedBorrow
+                                    }
+                                    language_core::ReferenceAccess::Mutable => {
+                                        StructuralAccess::MutableBorrow
+                                    }
+                                    language_core::ReferenceAccess::WriteOnly => {
+                                        StructuralAccess::WriteOnlyBorrow
+                                    }
+                                })
+                            }
+                        },
+                        _ => None,
+                    }
+                };
+                if let Some(access) = access {
                     // loans.md, "Reborrow lineage and access": a `Read`
                     // parent rejects a mutable and a write-only child, and a
                     // `Write-only` parent a shared and a mutable one. So a

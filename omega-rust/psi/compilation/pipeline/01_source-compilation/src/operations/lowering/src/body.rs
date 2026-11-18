@@ -1109,6 +1109,9 @@ pub enum ExpressionKind {
     ByteElement {
         base: Box<Expression>,
         index: Box<Expression>,
+        /// The actual byte carrier, retained for address formation as well
+        /// as value reads. A callee cannot choose this storage identity.
+        element: StructuralTypeId,
     },
     /// A new descriptor over the same shared backing. Missing endpoints
     /// mean zero and the captured descriptor's own length, respectively.

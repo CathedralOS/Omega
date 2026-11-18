@@ -27,6 +27,15 @@ use crate::lowering::canonical::{self, Repeated};
 use crate::lowering::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source_text::SourceSpan;
 
+/// A declared contract and a callback binder are different abstract targets,
+/// even when they promise the same complete signature. Record-member targets
+/// belong to their existing receiver/member account instead of this family.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum RequirementHeaderOrigin {
+    Declared(SymbolHandle),
+    CallableParameter(SymbolHandle),
+}
+
 #[derive(Clone, Copy)]
 enum RequirementValues<'a> {
     Bound(&'a [semantic_vocabulary::ScalarTerm]),
@@ -961,7 +970,11 @@ impl<'t> Program<'t> {
     /// contract is judged for every admitted application (generics.md,
     /// "Publication and assumptions").
     pub(crate) fn generic_requirement(&mut self, declared: &StateSignature) -> Checked<MachineId> {
-        self.requirement_form(declared.symbol, declared, RequirementValues::Rigid)
+        self.requirement_form(
+            RequirementHeaderOrigin::Declared(declared.symbol),
+            declared,
+            RequirementValues::Rigid,
+        )
     }
 
     pub(super) fn requirement(
@@ -970,7 +983,7 @@ impl<'t> Program<'t> {
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<MachineId> {
         self.requirement_form(
-            declared.symbol,
+            RequirementHeaderOrigin::Declared(declared.symbol),
             declared,
             RequirementValues::Bound(arguments),
         )
@@ -984,15 +997,23 @@ impl<'t> Program<'t> {
         declared: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<MachineId> {
-        self.requirement_form(parameter, declared, RequirementValues::Bound(arguments))
+        self.requirement_form(
+            RequirementHeaderOrigin::CallableParameter(parameter),
+            declared,
+            RequirementValues::Bound(arguments),
+        )
     }
 
     fn requirement_form(
         &mut self,
-        symbol: SymbolHandle,
+        origin: RequirementHeaderOrigin,
         declared: &StateSignature,
         values: RequirementValues<'_>,
     ) -> Checked<MachineId> {
+        let symbol = match origin {
+            RequirementHeaderOrigin::Declared(symbol)
+            | RequirementHeaderOrigin::CallableParameter(symbol) => symbol,
+        };
         let (arguments, parameters) = match values {
             RequirementValues::Bound(arguments) => (arguments, 0),
             RequirementValues::Rigid => (
@@ -1001,9 +1022,9 @@ impl<'t> Program<'t> {
                     .len(),
             ),
         };
-        for position in 1..=self.symbols.len() as u64 {
-            let id = MachineId::new(position).expect("positions start at 1");
-            if self.symbols.get(id) == Some(&symbol)
+        for &(known, id) in &self.requirement_headers {
+            if known == origin
+                && self.symbols.get(id) == Some(&symbol)
                 && self.value_arguments.get(id).map(Vec::as_slice) == Some(arguments)
                 && self.value_parameters.get(id) == Some(&parameters)
                 && self.scopes.get(id) == Some(&self.scope)
@@ -1035,6 +1056,7 @@ impl<'t> Program<'t> {
         self.source_scopes.push(self.source_scope.clone());
         self.const_scopes.push(Vec::new());
         self.requirements.push(id);
+        self.requirement_headers.push((origin, id));
         Ok(id)
     }
 
@@ -4310,7 +4332,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(operand, binder, out);
             }
         }
-        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index, .. } => {
             spans(base, binder, out);
             spans(index, binder, out);
         }

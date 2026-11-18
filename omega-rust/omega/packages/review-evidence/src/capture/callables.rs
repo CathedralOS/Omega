@@ -507,7 +507,7 @@ impl PolicySource<'_> {
                         let application = typed
                             .runtime_membership_domain_identity(
                                 membership,
-                                self.compilation().sources().exact_toolchain_sources(),
+                                self.sources().exact_toolchain_sources(),
                                 &[],
                                 &[],
                             )

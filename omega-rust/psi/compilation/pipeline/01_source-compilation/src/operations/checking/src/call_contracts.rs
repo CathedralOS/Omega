@@ -496,6 +496,8 @@ pub(crate) fn invocation<'a>(
             // A formal's own domains are its type, judged with every call's
             // structural arguments. Additional provider obligations still
             // need their independent proof and publication.
+            // Formation checks scalar input domains against exact actual
+            // types; scalar requires remain ordinary call obligations below.
             if boundary
                 .structural_parameters
                 .iter()
@@ -514,7 +516,6 @@ pub(crate) fn invocation<'a>(
                 &boundary.structural_parameters,
                 &boundary.requires,
             ) || !boundary.normal_qualifications.is_empty()
-                || !boundary.scalar_domain_requirements.is_empty()
                 || !boundary.reference_outputs.is_empty()
                 || !boundary.content_guarantees.is_empty()
                 || !boundary.result_reference_regions.is_empty()

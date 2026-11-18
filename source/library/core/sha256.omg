@@ -82,7 +82,7 @@ machine sha256_round_k(i: u64 in Wrapping) -> u32 in Wrapping {
             1955562222, 2024104815, 2227730452, 2361852424,
             2428436474, 2756734187, 3204031479, 3329325298
         ];
-        table[i]
+        table[i as u64]
     }
     machine bad() -> u32 in Wrapping {
         0
@@ -121,7 +121,7 @@ machine Sha256::stage_block(sha256: &mut Sha256) {
         }
     }
     machine apply(sha256: &mut Sha256) {
-        sha256.block[sha256.q0] = sha256.msg[sha256.p0];
+        sha256.block[sha256.q0 as u64] = sha256.msg[sha256.p0 as u64];
         sha256.i = sha256.i + 1;
         transition { _ -> copy(sha256) }
     }
@@ -155,10 +155,10 @@ machine Sha256::compress(sha256: &mut Sha256) {
         }
     }
     machine apply_w(sha256: &mut Sha256) {
-        sha256.w[sha256.w0] = ((sha256.block[sha256.j0] as u32 in Wrapping) << 24)
-            | ((sha256.block[sha256.j1] as u32 in Wrapping) << 16)
-            | ((sha256.block[sha256.j2] as u32 in Wrapping) << 8)
-            | (sha256.block[sha256.j3] as u32 in Wrapping);
+        sha256.w[sha256.w0 as u64] = ((sha256.block[sha256.j0 as u64] as u32 in Wrapping) << 24)
+            | ((sha256.block[sha256.j1 as u64] as u32 in Wrapping) << 16)
+            | ((sha256.block[sha256.j2 as u64] as u32 in Wrapping) << 8)
+            | (sha256.block[sha256.j3 as u64] as u32 in Wrapping);
         sha256.i = sha256.i + 1;
         transition { _ -> load_w(sha256) }
     }
@@ -184,11 +184,11 @@ machine Sha256::compress(sha256: &mut Sha256) {
         }
     }
     machine apply_e(sha256: &mut Sha256) {
-        let x: u32 in Wrapping = sha256.w[sha256.e2];
-        let y: u32 in Wrapping = sha256.w[sha256.e3];
+        let x: u32 in Wrapping = sha256.w[sha256.e2 as u64];
+        let y: u32 in Wrapping = sha256.w[sha256.e3 as u64];
         let s0: u32 in Wrapping = ((x >> 7) | (x << 25)) ^ ((x >> 18) | (x << 14)) ^ (x >> 3);
         let s1: u32 in Wrapping = ((y >> 17) | (y << 15)) ^ ((y >> 19) | (y << 13)) ^ (y >> 10);
-        sha256.w[sha256.w0] = sha256.w[sha256.e0] + s0 + sha256.w[sha256.e1] + s1;
+        sha256.w[sha256.w0 as u64] = sha256.w[sha256.e0 as u64] + s0 + sha256.w[sha256.e1 as u64] + s1;
         sha256.i = sha256.i + 1;
         transition { _ -> extend_loop(sha256) }
     }
@@ -221,7 +221,7 @@ machine Sha256::compress(sha256: &mut Sha256) {
         let s1: u32 in Wrapping = ((sha256.e >> 6) | (sha256.e << 26))
             ^ ((sha256.e >> 11) | (sha256.e << 21)) ^ ((sha256.e >> 25) | (sha256.e << 7));
         let ch: u32 in Wrapping = sha256.g ^ (sha256.e & (sha256.f ^ sha256.g));
-        let t1: u32 in Wrapping = sha256.hh + s1 + ch + sha256_round_k(sha256.w0) + sha256.w[sha256.w0];
+        let t1: u32 in Wrapping = sha256.hh + s1 + ch + sha256_round_k(sha256.w0) + sha256.w[sha256.w0 as u64];
         let s0: u32 in Wrapping = ((sha256.a >> 2) | (sha256.a << 30))
             ^ ((sha256.a >> 13) | (sha256.a << 19)) ^ ((sha256.a >> 22) | (sha256.a << 10));
         let maj: u32 in Wrapping = (sha256.a & sha256.b) ^ (sha256.a & sha256.c) ^ (sha256.b & sha256.c);
@@ -290,7 +290,7 @@ machine Sha256::digest(sha256: &mut Sha256) {
         }
     }
     machine apply_t(sha256: &mut Sha256) {
-        sha256.tail[sha256.q2] = sha256.msg[sha256.p0];
+        sha256.tail[sha256.q2 as u64] = sha256.msg[sha256.p0 as u64];
         sha256.i = sha256.i + 1;
         transition { _ -> tail_copy(sha256) }
     }
@@ -309,7 +309,7 @@ machine Sha256::digest(sha256: &mut Sha256) {
         }
     }
     machine apply_mark(sha256: &mut Sha256) {
-        sha256.tail[sha256.q2] = 128;
+        sha256.tail[sha256.q2 as u64] = 128;
         sha256.i = sha256.i + 1;
         transition { _ -> tail_zero(sha256) }
     }
@@ -327,7 +327,7 @@ machine Sha256::digest(sha256: &mut Sha256) {
         }
     }
     machine apply_z(sha256: &mut Sha256) {
-        sha256.tail[sha256.q2] = 0;
+        sha256.tail[sha256.q2 as u64] = 0;
         sha256.i = sha256.i + 1;
         transition { _ -> tail_zero(sha256) }
     }
@@ -365,7 +365,7 @@ machine Sha256::digest(sha256: &mut Sha256) {
         }
     }
     machine apply_l(sha256: &mut Sha256) {
-        sha256.tail[sha256.q0] = narrow_u64_to_u8_wrapping((sha256.bit_len >> sha256.q2) as u64);
+        sha256.tail[sha256.q0 as u64] = narrow_u64_to_u8_wrapping((sha256.bit_len >> sha256.q2) as u64);
         sha256.i = sha256.i + 1;
         transition { _ -> write_len_loop(sha256) }
     }
@@ -388,7 +388,7 @@ machine Sha256::digest(sha256: &mut Sha256) {
         }
     }
     machine apply_f(sha256: &mut Sha256) {
-        sha256.block[sha256.q0] = sha256.tail[sha256.q2];
+        sha256.block[sha256.q0 as u64] = sha256.tail[sha256.q2 as u64];
         sha256.i = sha256.i + 1;
         transition { _ -> stage_first(sha256) }
     }
@@ -418,7 +418,7 @@ machine Sha256::digest(sha256: &mut Sha256) {
         }
     }
     machine apply_s(sha256: &mut Sha256) {
-        sha256.block[sha256.q0] = sha256.tail[sha256.q2];
+        sha256.block[sha256.q0 as u64] = sha256.tail[sha256.q2 as u64];
         sha256.i = sha256.i + 1;
         transition { _ -> stage_second_loop(sha256) }
     }
@@ -448,11 +448,11 @@ machine Sha256::digest(sha256: &mut Sha256) {
         }
     }
     machine apply_o(sha256: &mut Sha256) {
-        let word: u32 in Wrapping = sha256.h[sha256.w0];
-        sha256.out32[sha256.o0] = narrow_u32_to_u8_wrapping((word >> 24) as u32);
-        sha256.out32[sha256.o1] = narrow_u32_to_u8_wrapping((word >> 16) as u32);
-        sha256.out32[sha256.o2] = narrow_u32_to_u8_wrapping((word >> 8) as u32);
-        sha256.out32[sha256.o3] = narrow_u32_to_u8_wrapping(word as u32);
+        let word: u32 in Wrapping = sha256.h[sha256.w0 as u64];
+        sha256.out32[sha256.o0 as u64] = narrow_u32_to_u8_wrapping((word >> 24) as u32);
+        sha256.out32[sha256.o1 as u64] = narrow_u32_to_u8_wrapping((word >> 16) as u32);
+        sha256.out32[sha256.o2 as u64] = narrow_u32_to_u8_wrapping((word >> 8) as u32);
+        sha256.out32[sha256.o3 as u64] = narrow_u32_to_u8_wrapping(word as u32);
         sha256.i = sha256.i + 1;
         transition { _ -> write_loop(sha256) }
     }

@@ -292,6 +292,8 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **SAMPLE-CORPUS.** (covers **CANARY-CORPUS**, **SQUALR-HEADLESS**, **MACOS-APPLICATION-PUBLICATION**) Close `samples/`, [Squalr](samples/apps/README.md), and macOS `.app` bundles ([macos_application.md](wiki/spec/build/macos_application.md)) under the [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
 
+  - Restore the pinned Squalr geometry run through its normal package graph. From `samples/apps/squalr`, run `python3 tools/verify.py native --timeout 600 --omega <absolute-omega-path>` on the target host. At Squalr `cf18e1c` and Omega `2a0af45cd1b` on macOS arm64, the first refusal is the retired `Build::depend` at `squalr-tests/build.omg:4`. Migrating all 17 package Builds and selecting the matching Git revision of std gets as far as the nested machine header in `memory_freeze_request.omg`. Reusing the product-source fixes from Squalr's `7e9a6ad` then reaches the retired `dyn SymbolicStructResolverHooks<HookProvider>` field in `symbolic_struct_resolver.omg`. Preserve the seven resolver operations and their provider state under the [machine-value contract](wiki/spec/language/machine_values.md). Keep the four target bindings and the 12 geometry checks. A native run must print `Squalr geometry: PASS` and exit 0 before recording geometry as passing on that host.
+
 ## P1 - Authority, roots, and entry
 
 <a id="process-exit-contract"></a>
