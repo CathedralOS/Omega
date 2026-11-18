@@ -1537,6 +1537,7 @@ mod catalogs {
             &machines,
             boundary_machines.values().copied(),
             &unit.dynamic_dispatch,
+            &unit.callables,
             &structural_types,
         );
         let reference_graph = unit
@@ -9112,6 +9113,7 @@ pub(crate) mod function_structure {
                     &unit.boundary_machines,
                     &unit.structural_types,
                     &unit.dynamic_dispatch,
+                    &unit.callables,
                 )?;
                 let mappings = terminal_semantics::bind_reference_call_results(
                     unit.structural_types.iter(),
@@ -9942,6 +9944,7 @@ pub(crate) mod function_structure {
             structural_types,
             &unit.dynamic_dispatch,
             &unit.callables,
+            &unit.structural_types,
         )?;
         byte_concatenation::validate(
             function,
@@ -13178,6 +13181,7 @@ pub(crate) mod operation_contracts {
                 boundaries.values().copied(),
                 &types,
                 dynamic_dispatch,
+                call_accesses.callables,
                 |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
             ) else {
                 return false;
@@ -15572,6 +15576,7 @@ pub(crate) mod references {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         dynamic_dispatch: &TerminalDynamicDispatchCatalog,
         callables: &terminal_psi::TerminalCallableCatalog,
+        declared_types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(), OptimizationUnitValidationError> {
         let invalid = || catalog_mismatch(function);
         let is_reference = |structural_type| {
@@ -15736,6 +15741,7 @@ pub(crate) mod references {
                 types,
                 dynamic_dispatch,
                 callables,
+                declared_types,
             )?;
         }
         let mut sources = BTreeMap::new();
@@ -15805,6 +15811,7 @@ pub(crate) mod references {
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         dynamic_dispatch: &TerminalDynamicDispatchCatalog,
         callables: &terminal_psi::TerminalCallableCatalog,
+        declared_types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(), OptimizationUnitValidationError> {
         let invalid = || catalog_mismatch(function);
         let mut pending = vec![(function.machine, false)];
@@ -15854,7 +15861,15 @@ pub(crate) mod references {
                             // bodies cannot strengthen the public contract.
                             terminal_semantics::bind_reference_call_results(
                                 types.values().copied(),
-                                terminal_semantics::ReferenceCallContract::Callable(contract),
+                                terminal_semantics::ReferenceCallContract::Callable(
+                                    terminal_semantics::references::callable_reference_result(
+                                        declared_types,
+                                        contract,
+                                    )
+                                    .map_err(
+                                        OptimizationUnitValidationError::CallableValueProvenance,
+                                    )?,
+                                ),
                                 structural_arguments,
                             )
                             .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;

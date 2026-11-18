@@ -12,8 +12,9 @@ use semantic_vocabulary::{ContractId, MachineId, StructuralTypeId};
 use terminal_psi::{
     BoundaryLifetimeDependency, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
     DeclaredResultLifetime, MachineContract, ReferenceResultShape, StructuralAccess,
-    StructuralPathSegment, StructuralTypeShape, TerminalDynamicReferenceOrigin,
-    TerminalDynamicReferenceRegion, TerminalMachineResult, TerminalModule,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalCallableContract, TerminalDynamicReferenceOrigin, TerminalDynamicReferenceRegion,
+    TerminalMachineResult, TerminalModule,
 };
 
 mod definition;
@@ -21,7 +22,7 @@ mod definition;
 /// A call's public reference result: the declared lifetime groups of the
 /// contract it invokes, validated against that contract's result frontier.
 pub struct DeclaredReferenceResult<'module> {
-    module: &'module TerminalModule,
+    types: &'module [StructuralTypeDeclaration],
     contract: &'module MachineContract,
     groups: &'module [DeclaredResultLifetime],
     leaves: usize,
@@ -77,7 +78,7 @@ pub fn selected_reference_result(
                 && schema.realization_identity == dispatch.realization_identity
         })
         .ok_or("selected reference result lost its original public definition")?;
-    let declared = declared_reference_result(module, contract)?;
+    let declared = declared_reference_result(&module.structural_types, contract)?;
     if definition::result_lifetimes(module, contract, schema)? != declared.groups {
         return Err("selected result lifetimes differ from the original public definition");
     }
@@ -97,7 +98,7 @@ pub fn requirement_reference_result(
     if !machine.blocks.is_empty() {
         return Ok(None);
     }
-    let declared = declared_reference_result(module, &machine.contract)?;
+    let declared = declared_reference_result(&module.structural_types, &machine.contract)?;
     if let Some(result) = machine.contract.result.structural()
         && crate::borrowed_result_leaves(
             module.structural_types.iter(),
@@ -114,7 +115,7 @@ pub fn requirement_reference_result(
 }
 
 fn declared_reference_result<'module>(
-    module: &'module TerminalModule,
+    types: &'module [StructuralTypeDeclaration],
     contract: &'module MachineContract,
 ) -> Result<DeclaredReferenceResult<'module>, &'static str> {
     let groups = match contract.result_lifetimes.as_deref() {
@@ -125,7 +126,7 @@ fn declared_reference_result<'module>(
             // borrowed result still refuses instead of fabricating origins.
             if let Some(result) = contract.result.structural() {
                 crate::borrowed_result_leaves(
-                    module.structural_types.iter(),
+                    types.iter(),
                     result.structural_type,
                     result.multiplicity,
                     0,
@@ -136,13 +137,34 @@ fn declared_reference_result<'module>(
     };
     let leaves = validate_result_lifetime_groups(groups)?;
     let declared = DeclaredReferenceResult {
-        module,
+        types,
         contract,
         groups,
         leaves,
     };
     declared.validate()?;
     Ok(declared)
+}
+
+/// A runtime callable uses the same declared result account as an ordinary
+/// public header. Its duplicate shape columns must agree, and the retired
+/// spatial-only origins cannot replace the declared lifetime groups.
+pub fn callable_reference_result<'module>(
+    types: &'module [StructuralTypeDeclaration],
+    callable: &'module TerminalCallableContract,
+) -> Result<DeclaredReferenceResult<'module>, &'static str> {
+    if callable.parameter_order != callable.proof.parameter_order
+        || callable.scalar_parameters != callable.proof.parameters
+        || callable.structural_parameters != callable.proof.structural_parameters
+        || callable.proof_result != callable.proof.result
+        || !callable
+            .result
+            .matches_machine_result(&callable.proof_result)
+        || !callable.result_reference_regions.is_empty()
+    {
+        return Err("runtime result differs from its one declared lifetime account");
+    }
+    declared_reference_result(types, &callable.proof)
 }
 
 /// A declared lifetime names static leaves or a whole family of elements.
@@ -216,7 +238,7 @@ impl DeclaredReferenceResult<'_> {
             .structural()
             .ok_or("selected reference body has no structural public result")?;
         let leaves = super::reference_origins::reference_leaves(
-            self.module.structural_types.iter(),
+            self.types.iter(),
             result.structural_type,
             mappings.len(),
         )
@@ -261,7 +283,7 @@ impl DeclaredReferenceResult<'_> {
                         access: region.access,
                     };
                     if super::reference_origins::reference_origin_is_covered(
-                        self.module.structural_types.iter(),
+                        self.types.iter(),
                         root,
                         actual,
                         std::slice::from_ref(&allowed),
@@ -280,6 +302,50 @@ impl DeclaredReferenceResult<'_> {
         Ok(())
     }
 
+    /// Check a selected body's actual returned storage against the declared
+    /// input regions. Descriptor copying does not authorize another input.
+    pub fn validate_actual_result(
+        &self,
+        parameters: &[terminal_psi::StructuralParameterDeclaration],
+        result: &terminal_psi::StructuralResultDeclaration,
+        contents: &crate::descriptor_results::DescriptorResultContents,
+    ) -> Result<(), &'static str> {
+        let expected = self
+            .contract
+            .result
+            .structural()
+            .ok_or("callable body has no structural public result")?;
+        if result.structural_type != expected.structural_type
+            || result.multiplicity != expected.multiplicity
+        {
+            return Err("callable body changes the declared result carrier");
+        }
+        if terminal_psi::structural_type_contains_reference_by(
+            |id| self.types.iter().find(|ty| ty.id == id),
+            result.structural_type,
+        ) {
+            let mappings = super::reference_origins::reference_result_contents(
+                self.types, parameters, result, contents,
+            )?;
+            self.validate_actual_sources(parameters, &mappings)?;
+        }
+        let mut regions = Vec::new();
+        for group in self.groups {
+            for path in &group.results {
+                for region in self.reference_regions(path) {
+                    regions.push(region?.into_owned());
+                }
+            }
+        }
+        super::reference_origins::descriptor_regions::validate_descriptor_result_regions(
+            self.types,
+            parameters,
+            result,
+            &regions,
+            &contents.slots,
+        )
+    }
+
     fn validate(&self) -> Result<(), &'static str> {
         let Some(result) = self.contract.result.structural() else {
             return if self.groups.is_empty() {
@@ -295,7 +361,7 @@ impl DeclaredReferenceResult<'_> {
             return Err("public reference result replaces declared lifetimes with body origins");
         }
         let leaves = crate::borrowed_result_leaves(
-            self.module.structural_types.iter(),
+            self.types.iter(),
             result.structural_type,
             result.multiplicity,
             self.leaves,
@@ -324,7 +390,7 @@ impl DeclaredReferenceResult<'_> {
             for input in &group.inputs {
                 let region = self.region(input, &leaf.path)?;
                 super::reference_origins::result_regions::validate_input_region(
-                    self.module.structural_types.iter(),
+                    self.types.iter(),
                     self.contract.structural_parameters[region_argument(&region)?].structural_type,
                     self.contract.structural_parameters[region_argument(&region)?].access,
                     &region.source_path,
@@ -340,7 +406,7 @@ impl DeclaredReferenceResult<'_> {
         input: &BoundaryLifetimeDependency,
         path: &[StructuralPathSegment],
     ) -> Result<TerminalDynamicReferenceRegion, &'static str> {
-        declared_region(self.module, self.contract, input, path)
+        declared_region(self.types, self.contract, input, path)
     }
 }
 
@@ -348,7 +414,7 @@ impl DeclaredReferenceResult<'_> {
 /// The region names storage the formal can supply at the leaf's access; it
 /// is a public bound, never the storage a body actually returned.
 fn declared_region(
-    module: &TerminalModule,
+    types: &[StructuralTypeDeclaration],
     contract: &MachineContract,
     input: &BoundaryLifetimeDependency,
     path: &[StructuralPathSegment],
@@ -357,12 +423,8 @@ fn declared_region(
         .result
         .structural()
         .ok_or("selected result lifetime has no structural result")?;
-    let leaf = crate::runtime_structural_path_tip(
-        module.structural_types.iter(),
-        result.structural_type,
-        path,
-    )
-    .ok_or("selected lifetime output path has no canonical borrowed carrier")?;
+    let leaf = crate::runtime_structural_path_tip(types.iter(), result.structural_type, path)
+        .ok_or("selected lifetime output path has no canonical borrowed carrier")?;
     let access = match leaf.shape {
         StructuralTypeShape::Reference { access, .. } => access,
         StructuralTypeShape::ElementView {
@@ -408,7 +470,7 @@ fn declared_region(
         }
         BoundaryLifetimeDependency::Stored { .. } => {
             let source = crate::runtime_structural_path_tip(
-                module.structural_types.iter(),
+                types.iter(),
                 parameter.structural_type,
                 &source_path,
             )

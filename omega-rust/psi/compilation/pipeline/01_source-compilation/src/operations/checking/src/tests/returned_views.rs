@@ -250,6 +250,44 @@ machine entry() reaches Fs invokes Fs {{
     assert_eq!(verdict(&program(write, "")), "rejected: 1 conflicts");
 }
 
+/// The helper receives both views, so the indirect call must retain their
+/// actual input loans. Construction still owes the selected body's promised
+/// first-input origin; the second view has its own independent lifetime.
+#[test]
+fn a_stored_callable_keeps_its_first_inputs_returned_view() {
+    let source = r#"
+machine first_view<'first, 'second>(first: &'first [u8], second: &'second [u8]) -> &'first [u8] {
+    first
+}
+machine second_view<'first, 'second>(first: &'first [u8], second: &'second [u8]) -> &'second [u8] {
+    second
+}
+machine see(bytes: &[u8]) {}
+machine use_selected(
+    select: machine<'left, 'right>(left: &'left [u8], right: &'right [u8]) -> &'left [u8]
+        reaches none crashes none,
+    first: &[u8], second: &[u8]
+) {
+    let view: &[u8] = select(first, second);
+    see(view);
+}
+machine entry() {
+    let select: machine<'left, 'right>(left: &'left [u8], right: &'right [u8]) -> &'left [u8]
+        reaches none crashes none = first_view;
+    use_selected(select, "first", "second");
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let wrong_input = source.replace("crashes none = first_view;", "crashes none = second_view;");
+    assert_ne!(source, wrong_input);
+    let refused = verdict(&wrong_input);
+    assert_eq!(
+        refused,
+        "dynamic row returned view exceeds its public input regions in machine `second_view`",
+        "the selected body cannot return the independently borrowed second input: {refused}"
+    );
+}
+
 /// The provider may keep its bytes outside `Token`; its declared lifetime
 /// still keeps that token borrowed until the returned view's last use.
 #[test]

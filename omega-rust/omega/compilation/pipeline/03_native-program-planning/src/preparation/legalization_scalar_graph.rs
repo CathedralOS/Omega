@@ -2352,6 +2352,7 @@ pub(crate) mod byte_views {
                                 &unit.boundary_machines,
                                 unit.geometry(),
                                 &unit.dynamic_dispatch,
+                                &unit.callables,
                                 |function, node| {
                                     super::call_origin::selected_boundary_operation(
                                         node, function, native, plan,
@@ -4611,6 +4612,7 @@ pub(crate) mod normalized_foreign {
                 &unit.boundary_machines,
                 types,
                 &unit.dynamic_dispatch,
+                &unit.callables,
                 |caller, node| {
                     super::call_origin::selected_boundary_operation(node, caller, native, plan)
                         .ok()

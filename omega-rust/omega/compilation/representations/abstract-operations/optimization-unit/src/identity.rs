@@ -1215,6 +1215,7 @@ pub(crate) mod structural_encoding {
             EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
             MachineContract, OutcomeSpecificCallEvidence,
         };
+        use super::encode_result_lifetimes;
 
         use super::super::proposition_encoding::{encode_proposition, encode_runtime_membership};
 
@@ -1321,6 +1322,7 @@ pub(crate) mod structural_encoding {
             contract: &MachineContract,
         ) {
             bytes.id(contract.id);
+            encode_result_lifetimes(bytes, contract.result_lifetimes.as_deref());
             bytes.slice(&contract.crash_routes, encode_crash_route_bucket);
             bytes.slice(&contract.erased_scalar_formals, |bytes, formal| {
                 bytes.id(formal.id);
@@ -1520,15 +1522,7 @@ pub(crate) mod structural_encoding {
             encode_structural_parameter,
         );
         encode_boundary_result(bytes, &declaration.result);
-        bytes.boolean(declaration.result_lifetimes.is_some());
-        if let Some(groups) = &declaration.result_lifetimes {
-            bytes.slice(groups, |bytes, group| {
-                bytes.slice(&group.inputs, encode_boundary_lifetime_dependency);
-                bytes.slice(&group.results, |bytes, path| {
-                    bytes.slice(path, encode_structural_path_segment);
-                });
-            });
-        }
+        encode_result_lifetimes(bytes, declaration.result_lifetimes.as_deref());
         bytes.slice(&declaration.membership_ensures, encode_runtime_membership);
         bytes.slice(&declaration.requires, encode_domain_requirement);
         bytes.slice(
@@ -1562,6 +1556,21 @@ pub(crate) mod structural_encoding {
             |bytes, service| bytes.id(*service),
         );
         encode_ids(bytes, &declaration.published_service_ceiling);
+    }
+
+    fn encode_result_lifetimes(
+        bytes: &mut CanonicalBytes,
+        groups: Option<&[terminal_psi::DeclaredResultLifetime]>,
+    ) {
+        bytes.boolean(groups.is_some());
+        if let Some(groups) = groups {
+            bytes.slice(groups, |bytes, group| {
+                bytes.slice(&group.inputs, encode_boundary_lifetime_dependency);
+                bytes.slice(&group.results, |bytes, path| {
+                    bytes.slice(path, encode_structural_path_segment);
+                });
+            });
+        }
     }
 
     fn encode_boundary_lifetime_dependency(
@@ -2660,7 +2669,7 @@ pub(crate) mod unit_encoding {
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v59\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v60\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {
