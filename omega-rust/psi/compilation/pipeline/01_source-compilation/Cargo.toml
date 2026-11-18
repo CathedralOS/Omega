@@ -177,3 +177,9 @@ name = "source_parsing"
 path = "benchmarks/source_parsing.rs"
 harness = false
 required-features = ["test-support"]
+
+[[bench]]
+name = "resolver_timing"
+path = "src/operations/resolution/benchmarks/resolver_timing.rs"
+harness = false
+required-features = ["test-support"]

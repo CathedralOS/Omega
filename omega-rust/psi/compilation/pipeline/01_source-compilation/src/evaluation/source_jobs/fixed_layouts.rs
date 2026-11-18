@@ -17,6 +17,7 @@ use crate::evaluation::{
     BuildTimeSelectionAuthority, BuildTimeValue, InvocationTarget, SourceCompletionAccounting,
 };
 
+pub(super) mod placements;
 mod reflection;
 mod schema;
 mod validation;
@@ -113,7 +114,8 @@ pub(super) fn evaluate(
     }
     // Keep one immutable source owner for all policy calls. Installing an
     // earlier result cannot change the program used to judge a later policy.
-    let program = PreparedBuildMachineProgram::prepare_for(typed, authority, purpose, consent)?;
+    let mut program = PreparedBuildMachineProgram::prepare_for(typed, authority, purpose, consent)?;
+    program.publication = terminal_codec::TerminalPublication::LayoutPolicyInvocation;
     for (scope_index, _, requester, storage) in requests {
         let scope = &scopes[scope_index];
         if let Some(plan) = typed.plan_laid_layout_for_type(storage.application)
@@ -221,7 +223,8 @@ fn evaluate_application(
     {
         return Err("layout policy result lost its original source declaration".into());
     }
-    let result = entry.invoke_recorded(
+    let result = entry.invoke_operations_recorded(
+        Arc::new(entry.produce_invocation()?),
         InvocationTarget {
             name: Some(&scope.target),
             layout_target: Some(facts),
@@ -230,12 +233,22 @@ fn evaluate_application(
         },
         accounting,
     )?;
-    let geometry = PlanLaidGeometry {
-        validated_layout: validation::record_plan(typed, data, &fields, result.value())?,
-        private_callback_demands: Vec::new(),
-    };
+    let validated_layout = validation::record_plan(typed, data, &fields, result.value().value())?;
     let data_symbol = data.symbol;
     let data_name = data.name.to_string();
+    let geometry = PlanLaidGeometry {
+        validated_layout,
+        private_callback_demands: placements::close(
+            typed,
+            &entry,
+            result.value().private_layout_placements(),
+            requester,
+            &policy,
+            storage.semantic_type,
+            &program.exact_toolchain_sources,
+        )?,
+    };
+    placements::validate(&geometry, &fields, facts)?;
     let retired = retired
         .into_iter()
         .map(|identity| PlanLaidRetiredFieldIdentity { identity })

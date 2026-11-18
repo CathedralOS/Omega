@@ -400,6 +400,57 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
     }
 }
 
+#[test]
+fn an_indexed_record_write_keeps_its_stored_scalar_for_domain_checking() {
+    let source = r#"
+data Placement requires count <= 16 { count: u64; }
+data Metadata [copy] { tag: u64; }
+data Plan { placements: [Placement; 2]; metadata: Metadata; }
+machine read_tag(metadata: &Metadata) -> u64 { metadata.tag }
+machine root(plan: &mut Plan, index: u64) -> u64
+requires index < 2 {
+    plan.placements[index].count = 1;
+    read_tag(&plan.metadata)
+}
+"#;
+    assert_eq!(
+        verdict(source, &["root"]),
+        "accepted",
+        "the selected count remains 1, so its <= 16 requirement still holds"
+    );
+    let invalid = source.replace("count = 1;", "count = 17;");
+    let verdicts = judged(&invalid, &["root"]);
+    let [
+        Ok(RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        }),
+    ] = verdicts.as_slice()
+    else {
+        panic!("the out-of-domain count must be refused: {verdicts:?}");
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty(),
+        "{verdicts:?}"
+    );
+    assert!(
+        !unproved.is_empty()
+            && unproved.iter().all(|failure| matches!(
+                failure.kind,
+                terminal_check_tables::obligations::ObligationKind::DataDomain { .. }
+            )),
+        "the original count bound must cause the refusal: {unproved:?}"
+    );
+}
+
 // A public helper's written fields are operational contract information.
 // The caller keeps the other field's entry identity without an authored
 // guarantee for that untouched field or a private result-summary premise.

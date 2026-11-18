@@ -79,10 +79,10 @@ pub(crate) mod production;
 #[path = "operations/production/src/lib.rs"]
 pub mod production;
 #[cfg(not(any(test, feature = "test-support")))]
-#[path = "operations/resolution/src/lib.rs"]
+#[path = "operations/resolution/resolver.rs"]
 pub(crate) mod resolution;
 #[cfg(any(test, feature = "test-support"))]
-#[path = "operations/resolution/src/lib.rs"]
+#[path = "operations/resolution/resolver.rs"]
 pub mod resolution;
 #[cfg(not(any(test, feature = "test-support")))]
 #[path = "operations/typing/src/lib.rs"]

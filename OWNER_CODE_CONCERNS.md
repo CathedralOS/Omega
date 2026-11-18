@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Source preparation scans unchanged declarations twice
+- Category: Re-deriving
+- Where: [request preparation](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L457), [continuation completion](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L1276)
+- Saw: `evaluate_or_defer_recorded` inventories all source-evaluation requests, constructs empty accounting, then calls `evaluate`, which immediately inventories them again. Recording refusal rows changes neither scan's inputs. `complete_authored` repeats this for each retained continuation; each inventory also visits operand owners when requests exist.
+- Cost: Source preparation repeats whole-program walks without new source to inspect. A short sample of the original Console compilation caught this path; its share of the total run time is unmeasured. Prepare the inventory once per typed-source revision and pass it to the existing consumers, preserving authority checks and refusal of unevaluated work. Body completion changes the source and needs a fresh inventory.
+- Reported: 2026-11-17, Codex, while tracing the original Console compilation before its indexed-count failure
+
 ### Capture comparisons leave their time scope implicit
 - Category: A verdict with nothing behind it
 - Where: [address comparisons](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/backing.rs#L78), [captured path comparison](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2551)
