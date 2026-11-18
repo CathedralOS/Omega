@@ -417,7 +417,7 @@ Made by Jarod on 2026-11-18, with Zac on two of them.
 | 1 | Is there an `if` statement? | V1 retired it 2026-07-02 ("'if isn't a thing'"); the spec's one example is rot. | "obviously not" | **No.** |
 | 2 | What ends an arm? | With no separator, the next pattern can read as a call, an index or a subtraction on the previous result; the spec's own example does. A clause is ended by the next clause word; an arm has nothing like it. | Jarod and Zac weighed newline against comma. "rewrites don't matter, it's v2" | **A comma.** Newlines never matter. |
 | 3 | Tuples in both `match` and `transition`? | The spec: they "use the same pattern vocabulary". | "match and transition are identical, only differing in that transition is at the end" | **One grammar.** |
-| 4 | After `requires`, before a body? | 775 of 794 such clauses in V1's source end with nothing. A comma would not save the parser any work. | "whitespace is possibly fine" | **Nothing.** |
+| 4 | After `requires`, before a body? | 775 of 794 such clauses in V1's source end with nothing. A comma would not save the parser any work. | Jarod: "whitespace is possibly fine". Zac, after seeing why a comma would not save the parser work: "earned on match, unearned on clauses" | **Nothing.** |
 | 5 | Which words are reserved? | V1 reserves none in effect. | `self` matters only in data and domain predicates. | **None.** |
 | 6 | Operator precedence? | V1's table, checked in its code. | "same as it was" | **V1's table.** |
 | 7 | Generic arguments or less-than? | A parser cannot know what a name refers to, so in an expression the two start alike. | Jarod: "`::` would resolve it?" Zac: "yeah we can do `::`" | **`::<` in expressions.** |
