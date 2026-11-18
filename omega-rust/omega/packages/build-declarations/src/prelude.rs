@@ -214,13 +214,10 @@ public data OutputCompletion {
     case Sealed(receipt: OutputReceipt);
     case Retry(obligation: RequiredOutput, file: BuildPath);
 }
-// Authored granular privileged-service admission evidence
-// (wiki/spec/build/permissions.md#privileged-services): each flag admits
-// exactly one mediated privileged class for the produced image's assembly
-// authority discharge — `port_io` admits port I/O, `interrupt_table` admits
-// interrupt-table publication. They compose independently; machine-owner
-// authority has no granular grant and stays `freestanding`-only, and
-// `freestanding = true` already covers both classes.
+// Legacy privileged-service settings retained in the Build value.
+// Hardware authority belongs to each output's selected target and provider
+// contracts under wiki/spec/build/permissions.md#freestanding-machine-owner-authority.
+// These Booleans do not establish the caller's scoped authority.
 public data PrivilegedServices {
     port_io: bool;
     interrupt_table: bool;
