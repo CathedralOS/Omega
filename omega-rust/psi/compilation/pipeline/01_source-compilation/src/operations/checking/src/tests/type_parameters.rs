@@ -2339,3 +2339,54 @@ machine main() crashes Trap {
         observed[2]
     );
 }
+
+#[test]
+fn a_const_generic_call_keeps_the_guard_on_its_actual_record_fields() {
+    let source = r#"// Expected exit: 0. A guarded field fact survives a const-generic borrowed call.
+data Buffer<Element, const N: u64> { before: u64; items: [Element; N]; length: u64; after: u64; }
+machine inspect<Element, const N: u64>(value: &Buffer<Element, N>) -> u64
+requires Element == u8 || Element == u16
+{
+    transition value.length <= value.items.len {
+        true -> live(value)
+        false -> 0u64
+    }
+    machine live(value: &Buffer<Element, N>) -> u64
+    requires (Element == u8 || Element == u16) && value.length <= value.items.len
+    { value.length }
+}
+machine main() crashes Trap {
+    let live: Buffer<u8, 4> = Buffer { before: 17u64, items: [1u8, 2u8, 3u8, 4u8], length: 2u64, after: 91u64 };
+    let invalid: Buffer<u8, 4> = Buffer { before: 19u64, items: [5u8, 6u8, 7u8, 8u8], length: 5u64, after: 93u64 };
+    let a: u64 = inspect<u8, 4>(&live);
+    let b: u64 = inspect<u8, 4>(&invalid);
+    transition a == 2u64 && b == 0u64
+        && live.before == 17u64 && live.after == 91u64 && invalid.before == 19u64 && invalid.after == 93u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+"#;
+    let accepted = judge_prepared_source(source);
+    assert!(
+        !accepted.is_empty()
+            && accepted
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "the guarded record must keep its exact field facts in every check form: {accepted:?}"
+    );
+    let invalid = source.replace(
+        "transition value.length <= value.items.len {",
+        "transition value.length >= 0u64 {",
+    );
+    assert_ne!(source, invalid);
+    let rejected = judge_prepared_source(&invalid);
+    assert!(rejected.iter().any(|verdict| matches!(
+        verdict,
+        Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::CallRequirement { .. })
+                && failure.statement.contains("cannot prove requires contract for call live from inspect"))
+    )), "removing only the length guard must refuse the helper contract: {rejected:?}");
+}

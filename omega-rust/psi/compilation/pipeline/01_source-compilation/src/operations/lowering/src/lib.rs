@@ -1322,8 +1322,6 @@ fn finish_reading_into<'source>(
     }
     suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
-    source.records = program.source_record_correspondence(diagnostic)?;
-    program.publish_source_declarations(diagnostic, &source.records, &mut elaboration.module)?;
     elaboration.nominal_types = program.nominal_type_inputs();
     elaboration.nominal_calls =
         program.publish_nominal_calls(&source.calls, &mut elaboration.module)?;
@@ -1646,6 +1644,11 @@ fn lower_program<'source>(
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
+    let mut source_records = Vec::new();
+    if let Some(program) = declarations {
+        source_records = program.source_record_correspondence(diagnostic)?;
+        program.publish_source_declarations(diagnostic, &source_records, &mut module)?;
+    }
     let mut tables = CheckTables::default();
     let mut qualifications = qualifications::Qualifications::declare(
         diagnostic,
@@ -1745,7 +1748,10 @@ fn lower_program<'source>(
                 )?);
         }
     }
-    let mut source = SourceFormCorrespondence::default();
+    let mut source = SourceFormCorrespondence {
+        records: source_records,
+        ..SourceFormCorrespondence::default()
+    };
     let mut static_reach_applications = Vec::new();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {

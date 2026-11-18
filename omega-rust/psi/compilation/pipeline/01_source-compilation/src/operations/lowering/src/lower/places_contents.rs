@@ -18,7 +18,14 @@ use terminal_semantics::substitution::clauses::{ClauseBindings, substitute_claus
 use super::Lowering;
 
 struct Named {
-    leaves: Vec<(PlaceId, Vec<Segment>, ScalarType)>,
+    leaves: Vec<Observation>,
+}
+
+struct Observation {
+    root: PlaceId,
+    path: Vec<CanonicalStructuralPathSegment>,
+    extent: bool,
+    scalar_type: ScalarType,
 }
 
 #[derive(Default)]
@@ -48,15 +55,13 @@ impl ElementDemands {
     }
 }
 
-fn path(path: &[CanonicalStructuralPathSegment]) -> Result<Vec<Segment>, &'static str> {
-    path.iter()
-        .map(|segment| match segment {
-            CanonicalStructuralPathSegment::Field(field) => Ok(Segment::Field(*field)),
-            CanonicalStructuralPathSegment::Case(case) => Ok(Segment::Case(*case)),
-            CanonicalStructuralPathSegment::FixedIndex(index) => Ok(Segment::FixedIndex(*index)),
-            CanonicalStructuralPathSegment::Referent => Ok(Segment::Referent),
-        })
-        .collect()
+fn projection(segment: CanonicalStructuralPathSegment) -> Segment {
+    match segment {
+        CanonicalStructuralPathSegment::Field(field) => Segment::Field(field),
+        CanonicalStructuralPathSegment::Case(case) => Segment::Case(case),
+        CanonicalStructuralPathSegment::FixedIndex(index) => Segment::FixedIndex(index),
+        CanonicalStructuralPathSegment::Referent => Segment::Referent,
+    }
 }
 
 impl ClauseBindings for Named {
@@ -73,7 +78,12 @@ impl ClauseBindings for Named {
         selected: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Self::Error> {
-        self.leaves.push((root, path(selected)?, scalar_type));
+        self.leaves.push(Observation {
+            root,
+            path: selected.to_vec(),
+            extent: false,
+            scalar_type,
+        });
         match scalar_type {
             ScalarType::Integer(scalar_type) => Ok(ScalarTerm::IntegerField {
                 version,
@@ -97,10 +107,12 @@ impl ClauseBindings for Named {
         selected: &[CanonicalStructuralPathSegment],
         scalar_type: IntegerType,
     ) -> Result<ScalarTerm, Self::Error> {
-        let mut steps = path(selected)?;
-        steps.push(Segment::Extent);
-        self.leaves
-            .push((root, steps, ScalarType::Integer(scalar_type)));
+        self.leaves.push(Observation {
+            root,
+            path: selected.to_vec(),
+            extent: true,
+            scalar_type: ScalarType::Integer(scalar_type),
+        });
         Ok(ScalarTerm::ViewExtent {
             root,
             path: selected.to_vec(),
@@ -140,21 +152,58 @@ impl Lowering<'_> {
         bindings: &[(PlaceId, ExactPlaceId)],
         result: Option<PlaceId>,
     ) -> Checked<()> {
+        self.name_call_clause_contents(clause, bindings, result, &[])
+    }
+
+    pub(in crate::lowering::lower) fn name_call_clause_contents(
+        &mut self,
+        clause: &Proposition,
+        bindings: &[(PlaceId, ExactPlaceId)],
+        result: Option<PlaceId>,
+        argument_types: &[Option<(StructuralTypeId, StructuralTypeId)>],
+    ) -> Checked<()> {
         let mut named = Named { leaves: Vec::new() };
         let _ = substitute_clause(clause, &mut named);
-        for (root, path, scalar_type) in named.leaves {
+        for Observation {
+            root,
+            mut path,
+            extent,
+            scalar_type,
+        } in named.leaves
+        {
             // The declared output is not an invocation input. Its actual
             // returned storage is observed at the exit, not named as an
             // entry snapshot of an unavailable result.
             if Some(root) == result {
                 continue;
             }
-            let Some((_, mut leaf)) = bindings.iter().find(|(formal, _)| *formal == root).copied()
+            let Some((position, &(_, mut leaf))) = bindings
+                .iter()
+                .enumerate()
+                .find(|(_, (formal, _))| *formal == root)
             else {
                 return Err(self.internal("a contract observation has no structural subject"));
             };
+            if let Some(Some((formal_type, actual_type))) = argument_types.get(position)
+                && formal_type != actual_type
+            {
+                path = crate::call_projection::translate(
+                    self.structural_types,
+                    *formal_type,
+                    *actual_type,
+                    &path,
+                )
+                .ok_or_else(|| {
+                    self.internal(
+                        "a call contract projection is absent from the actual storage type",
+                    )
+                })?;
+            }
             for segment in path {
-                leaf = self.project(leaf, segment)?;
+                leaf = self.project(leaf, projection(segment))?;
+            }
+            if extent {
+                leaf = self.project(leaf, Segment::Extent)?;
             }
             self.initial_content(leaf, scalar_type)?;
         }
@@ -198,11 +247,7 @@ impl Lowering<'_> {
                 let clause = requirements
                     .clause(&required)
                     .map_err(|error| self.internal(error.detail))?;
-                inventory.push((
-                    required.root,
-                    path(&selected).map_err(|detail| self.internal(detail))?,
-                    clause,
-                ));
+                inventory.push((required.root, selected, clause));
             }
             inventory
         };
@@ -211,7 +256,7 @@ impl Lowering<'_> {
         for (root, selected, clause) in inventory {
             let mut exact = self.exact_root(root)?;
             for segment in selected {
-                exact = self.project(exact, segment)?;
+                exact = self.project(exact, projection(segment))?;
             }
             self.name_clause_contents(&clause, &[(subject, exact)], None)?;
         }

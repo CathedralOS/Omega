@@ -96,6 +96,7 @@ pub use source_roster::{
     SourceProgramEntryInput,
 };
 
+mod call_projection;
 mod product_descriptions;
 mod root_bindings;
 mod source_checking;
