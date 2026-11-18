@@ -126,5 +126,4 @@ pub use lowerer::seeded_continuation::{
 };
 
 #[cfg(test)]
-#[path = "../../../../../../../../../tests/support/frontend.rs"]
-mod frontend_fixture;
+use crate::frontend_fixture;

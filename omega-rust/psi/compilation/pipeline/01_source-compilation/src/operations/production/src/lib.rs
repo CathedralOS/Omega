@@ -236,5 +236,4 @@ impl<O: PsiCompilationObserver> terminal_installation::application::EntryReceipt
 }
 
 #[cfg(test)]
-#[path = "../../../../../../../../../tests/support/frontend.rs"]
-mod frontend_fixture;
+use crate::frontend_fixture;

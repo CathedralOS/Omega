@@ -29,10 +29,12 @@ pub(crate) fn matches_entry(
         let (branch, closing) = remaining.split_at(4);
         let word = u32::from_le_bytes(branch.try_into().expect("four-byte AArch64 branch"));
         let words_match = |actual: &[u8], expected: &[u32]| {
-            actual
-                .chunks_exact(4)
-                .zip(expected)
-                .all(|(bytes, word)| bytes == word.to_le_bytes())
+            let (words, remainder) = actual.as_chunks::<4>();
+            remainder.is_empty()
+                && words
+                    .iter()
+                    .copied()
+                    .eq(expected.iter().map(|word| word.to_le_bytes()))
         };
         // Sign-extend imm26 before scaling to bytes.
         let displacement = i64::from(((word << 6) as i32) >> 6) * 4;

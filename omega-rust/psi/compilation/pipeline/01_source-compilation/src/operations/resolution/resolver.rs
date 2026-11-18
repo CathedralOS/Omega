@@ -386,7 +386,6 @@ fn finish_resolved_tables(
 }
 
 #[cfg(test)]
-#[path = "../../../../../../../../tests/support/frontend.rs"]
-mod frontend_fixture;
+use crate::frontend_fixture;
 #[cfg(test)]
 mod tests;

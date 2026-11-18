@@ -2635,5 +2635,4 @@ pub fn derive_contract_obligation(
 }
 
 #[cfg(test)]
-#[path = "../../../../../../../../../tests/support/frontend.rs"]
-mod frontend_fixture;
+use crate::frontend_fixture;
