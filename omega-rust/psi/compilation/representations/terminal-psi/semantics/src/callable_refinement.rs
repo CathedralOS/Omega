@@ -657,7 +657,7 @@ pub fn validate_descriptor_refinement_evidence(
             retained_ids.insert(position, id);
             accepted.push(proof_admission::verify_obligation(&context,
                 &proof_admission::Obligation { id, proposition: goal.proposition, class: proof_admission::ObligationClass::Derivable },
-                &[], &[], proof_admission::EvidenceRoute::CertificateDerived(certificate.clone()))
+                &[], &[], proof_admission::EvidenceRoute::CertificateDerived(certificate.as_ref()))
                 .map_err(|_| "descriptor contract refinement certificate does not establish its reconstructed goal")?);
         }
     }

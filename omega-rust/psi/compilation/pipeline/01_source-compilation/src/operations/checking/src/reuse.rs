@@ -227,7 +227,7 @@ pub fn reverify_at_call(
         EvidenceRoute::CertificateDerived(CertificateEnvelope {
             identity: saved.identity,
             proof_system_marker: saved.proof_system_marker,
-            proof,
+            proof: &proof,
         }),
     )
     .map_err(|error| {

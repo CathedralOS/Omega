@@ -233,7 +233,7 @@ fn verdict(
         EvidenceRoute::CertificateDerived(CertificateEnvelope {
             identity: EvidenceIdentity::new(1).expect("identity"),
             proof_system_marker: ProofSystemMarker::CURRENT,
-            proof: proof.clone(),
+            proof,
         }),
     )?;
     let AcceptedFactRoute::CertificateDerived { acceptance, .. } = fact.route else {
