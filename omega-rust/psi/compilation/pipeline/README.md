@@ -16,7 +16,7 @@ and must be recovered from history.
 | --- | --- | --- |
 | 00 — source loading and lexing | [lexer.rs](00_source-files-to-tokens/lexer.rs) | [tokens](../representations/tokens/) |
 | 01 — parsing | [parser.rs](01_tokens-to-syntax-trees/parser.rs) | [syntax trees](../representations/syntax-trees/) |
-| 02 — resolution | [resolution.rs](02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
+| 02 — resolution | [resolver.rs](01_source-compilation/src/operations/resolution/resolver.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
 | 04 — typed preparation (one ordered pass list) | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
 | 05 — structural lowering | [prepare_compilation](05_typed-trees-to-terminal-psi/src/compilation.rs) | [complete Terminal checking input](../representations/terminal-psi/check-tables/src/compilation.rs) |
@@ -735,10 +735,10 @@ also inspected with `--machine combat::damage`), `qualified_constant_indices`,
 `comparison_machine_indices`, `boolean_equality_indices` and
 `aggregate_machine_indices`.
 
-[Resolution](02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration
+[Resolution](01_source-compilation/src/operations/resolution/resolver.rs) owns declaration
 identity and exact lexical lookup, not type compatibility, borrow legality,
 proof discharge or runtime support. Its private
-[generic-data normalization](02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs)
+[generic-data normalization](01_source-compilation/src/operations/resolution/declarations/generic_data/mod.rs)
 closes eligible data applications before stamping names. Templates, pending
 substitutions and evaluation scratch are not new public representations.
 Known-builtin anonymous remainder formation is checked before reduction; an

@@ -23,7 +23,7 @@ This note maps its Rust implementation. Limits on which appended cohorts
   dependency bundles keep source bytes, logical paths and producer records.
   `GeneratedSourceExtension::parse` attaches to the exact base and produces
   separate syntax forests through Psi 00/01 before this stage resolves them.
-- [seeded resolution](../02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
+- [seeded resolution](../resolution/resolver.rs)
   appends the new declarations and rebases only the extension's selections.
 - [typed continuation](src/lowerer.rs)
   checks appended cohorts and leaves the base unchanged. It reads the

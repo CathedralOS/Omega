@@ -335,6 +335,7 @@ mod operator_declarations;
 mod product_and_trait_declarations;
 pub use evidence_and_inspection::{evidence, inspection};
 pub mod opaque_representations;
+mod private_callback_slots;
 pub mod type_identity;
 pub mod type_system;
 pub mod values;

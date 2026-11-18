@@ -25,6 +25,8 @@ pub enum CoreVocabulary {
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
     OpaqueRepresentation,
+    PrivateCallbackSlot,
+    FixedLayoutPlan,
     /// The `MachineControl` service in core `assembly.omg`.
     MachineControlService,
     /// The `PortIo` service in core `assembly.omg`.
@@ -294,6 +296,18 @@ const ROWS: &[CoreVocabularyRow] = &[
         "OpaqueRepresentation",
         core_source!("representation.omg"),
         CoreVocabulary::OpaqueRepresentation,
+    ),
+    row(
+        "layout.omg",
+        "PrivateCallbackSlot",
+        LAYOUT,
+        CoreVocabulary::PrivateCallbackSlot,
+    ),
+    row(
+        "layout.omg",
+        "FixedLayout::plan",
+        LAYOUT,
+        CoreVocabulary::FixedLayoutPlan,
     ),
     row(
         "layout.omg",

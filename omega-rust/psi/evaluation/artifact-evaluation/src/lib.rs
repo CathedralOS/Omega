@@ -30,6 +30,7 @@ pub struct InvocationInput<'input> {
     pub inputs: &'input Arc<[BuildTimeValue]>,
     pub supplies: &'input TerminalRuntimeSupplies,
     pub scalars: Option<&'input AdmittedScalarApplications>,
+    pub observed_calls: &'input [terminal_interpreter::TerminalCallObservation],
 }
 
 /// One invocation, including its actual account. Execution accepts no replacement
@@ -96,8 +97,8 @@ impl InvocationReceipt {
 }
 
 /// A failed execution returns its actual charges and the same bound invocation.
-pub struct InvocationOutcome {
-    pub value: Result<BuildTimeValue, String>,
+pub struct InvocationOutcome<T> {
+    pub value: Result<T, String>,
     pub receipt: InvocationReceipt,
 }
 
@@ -133,7 +134,12 @@ impl<'input> ArtifactInvocation<'input> {
         Ok(Self { input, meter })
     }
 
-    pub fn execute(mut self) -> InvocationOutcome {
+    pub fn execute(
+        mut self,
+    ) -> InvocationOutcome<(
+        BuildTimeValue,
+        Vec<terminal_interpreter::ObservedTerminalCall>,
+    )> {
         let value = self.run();
         let input = &self.input;
         // bind established the entry; execution cannot change this immutable code.
@@ -151,7 +157,15 @@ impl<'input> ArtifactInvocation<'input> {
         InvocationOutcome { value, receipt }
     }
 
-    fn run(&mut self) -> Result<BuildTimeValue, String> {
+    fn run(
+        &mut self,
+    ) -> Result<
+        (
+            BuildTimeValue,
+            Vec<terminal_interpreter::ObservedTerminalCall>,
+        ),
+        String,
+    > {
         let view = self.input.code;
         let meter = &mut *self.meter;
         let program = TerminalProgram::borrow(view);
@@ -226,23 +240,32 @@ impl<'input> ArtifactInvocation<'input> {
             .structural()
             .map(|result| result.structural_type);
         let account = meter.invocation_account().cloned();
-        let mut instance = program
-            .instantiate(TerminalInstantiation {
-                account: account.as_ref(),
-                installation: Some(self.input.supplies),
-                scalar_admission: self.input.scalars,
-                structural_inputs: terminal_interpreter::TerminalStructuralInputs {
-                    arguments: &inputs,
-                    contents: &contents,
-                    ..Default::default()
-                },
+        let request = TerminalInstantiation {
+            account: account.as_ref(),
+            installation: Some(self.input.supplies),
+            scalar_admission: self.input.scalars,
+            structural_inputs: terminal_interpreter::TerminalStructuralInputs {
+                arguments: &inputs,
+                contents: &contents,
                 ..Default::default()
-            })
-            .map_err(|error| format!("source invocation preparation: {error:?}"))?;
+            },
+            ..Default::default()
+        };
+        let mut instance = if self.input.observed_calls.is_empty() {
+            program.instantiate(request)
+        } else {
+            program.instantiate_compiler_evaluation(request, self.input.admission)
+        }
+        .map_err(|error| format!("source invocation preparation: {error:?}"))?;
+        if !self.input.observed_calls.is_empty() {
+            instance
+                .observe_calls(self.input.admission, self.input.observed_calls)
+                .map_err(|error| format!("layout placement observation: {error:?}"))?;
+        }
         let status = instance
             .invoke(meter)
             .map_err(|error| format!("source invocation execution: {error:?}"))?;
-        match status {
+        let value = match status {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
                 Ok(crate::BuildTimeValue::Unit)
             }
@@ -261,7 +284,8 @@ impl<'input> ArtifactInvocation<'input> {
             other => Err(format!(
                 "source invocation did not complete normally: {other:?}"
             )),
-        }
+        }?;
+        Ok((value, instance.take_call_observations()))
     }
 }
 
