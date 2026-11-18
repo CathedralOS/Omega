@@ -175,9 +175,15 @@ Psi to native code) are not planned yet.
 
 - **Spec owners:** none as a single document. The spec has no grammar; syntax
   is carried by examples spread across `wiki/spec/language/`.
-- **First task:** derive a grammar from the spec's examples and prose, write
-  it down as the layer's contract, and have Jarod confirm it. That grammar
-  becomes a V2 document, since the spec does not have one.
+- **Draft grammar:** [layers/01-parser/GRAMMAR.md](layers/01-parser/GRAMMAR.md),
+  derived from the spec's prose and all 132 examples, each form citing the
+  examples that show it. Not confirmed, and no parser code exists.
+- **What it found:** four places where the spec disagrees with itself, and
+  seven spec examples that V1's parser, as read, would refuse. The largest:
+  the spec shows an `if` statement that V1 retired, and writes `match` arms
+  in a way V1 cannot parse.
+- **What it needs:** ten decisions, listed at the end of that document with
+  the options and a leaning for each. Fixtures and code wait on them.
 
 ### L2 to L4
 
@@ -481,7 +487,8 @@ before the layer that depends on it is signed off.
 
 | # | Gap | Evidence | Affects | Decision |
 | --- | --- | --- | --- | --- |
-| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Open |
+| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Draft grammar written in `layers/01-parser/GRAMMAR.md`; ten decisions pending |
+| 10 | The spec's examples disagree with each other and with V1's parser. | A `requires` before a body is punctuated three ways in one file; an `if` statement appears once and is defined nowhere; `match` is shown with tuple patterns V1 does not parse. Full list in the grammar draft. | L1 | Open, decided with the grammar |
 | 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Accepted with L0 sign-off (G2): `//` and nesting `/* */` |
 | 5 | No list of reserved words. | The spec gives only the shape of an identifier and says "no identifier is reserved for builtin types". | L0, L1 | Accepted with L0 sign-off (G1): the lexer has none; L1 decides |
 | 6 | Float literal spelling is not defined. | No prose; examples use `1.0e-48` style only. | L0 | Accepted with L0 sign-off (G3): digits on both sides of the dot |
