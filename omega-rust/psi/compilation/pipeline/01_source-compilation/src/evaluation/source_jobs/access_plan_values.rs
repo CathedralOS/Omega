@@ -208,11 +208,12 @@ fn query_schema(
     if graph.authority() != &authority {
         return Err("schema image has another actual lexical query scope".into());
     }
-    let expected = crate::source_state::reflection::construction::construct_semantic_schema_graph_for_type(
-        source,
-        operand.type_reference,
-        authority,
-    )?;
+    let expected =
+        crate::source_state::reflection::construction::construct_semantic_schema_graph_for_type(
+            source,
+            operand.type_reference,
+            authority,
+        )?;
     if graph != expected {
         return Err("schema image differs from its complete selected type application".into());
     }
@@ -445,8 +446,10 @@ pub(crate) fn normalize(
         return Err("semantic plan and query belong to different invocation targets".into());
     }
     let (graph, owner) = query_schema(query)?;
-    let revision =
-        crate::source_state::reflection::construction::schema_subject_revision(query.source(), owner)?;
+    let revision = crate::source_state::reflection::construction::schema_subject_revision(
+        query.source(),
+        owner,
+    )?;
     normalize_for_schema(plan, graph, materialized(query)?, &revision)
 }
 

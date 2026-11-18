@@ -272,7 +272,8 @@ fn subject_schema(
             definition.target_type,
             authority,
         )?;
-    let revision = crate::source_state::reflection::construction::schema_subject_revision(typed, subject)?;
+    let revision =
+        crate::source_state::reflection::construction::schema_subject_revision(typed, subject)?;
     // Ordinary result snapshots use the canonical record identity, not its
     // short source name. Construct the input with that same identity so the
     // complete returned value can be compared without discarding its type.

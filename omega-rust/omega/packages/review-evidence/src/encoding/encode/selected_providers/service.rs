@@ -6,10 +6,10 @@ use crate::encoding::encode::{
 };
 use crate::record::PackagePolicyServiceMethod;
 use declaration_contracts::DomainPredicatePresence;
+use declaration_contracts::service_surface::ServiceResultProjection;
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
-use declaration_contracts::service_surface::ServiceResultProjection;
 use semantic_vocabulary::BoundaryCompletion;
 
 pub(in crate::encoding::encode) fn method(

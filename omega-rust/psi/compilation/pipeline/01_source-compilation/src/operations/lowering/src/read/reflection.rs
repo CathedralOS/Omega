@@ -365,9 +365,10 @@ impl Program<'_> {
                 "a schema query lost its exact selected type application",
             ));
         }
-        let subject =
-            crate::source_state::reflection::construction::schema_subject_symbol(self.typed, reference)
-                .map_err(|reason| invalid(machine, reason))?;
+        let subject = crate::source_state::reflection::construction::schema_subject_symbol(
+            self.typed, reference,
+        )
+        .map_err(|reason| invalid(machine, reason))?;
         let author = application.lexical_owner(self.typed);
         let span = self
             .typed

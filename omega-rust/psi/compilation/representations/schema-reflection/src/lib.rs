@@ -879,7 +879,9 @@ mod primitive_schema_tests {
             carry: None,
             type_parameters: Vec::new(),
             lifetime_parameters: Vec::new(),
-            application_identity: Some(application_identity::type_identity::builtin_type_identity(atom)),
+            application_identity: Some(application_identity::type_identity::builtin_type_identity(
+                atom,
+            )),
             members: Vec::new(),
             retired_identities: Vec::new(),
         }

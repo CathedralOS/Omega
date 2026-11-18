@@ -130,7 +130,8 @@ impl Program<'_> {
                 .with(domain)
                 .ok_or_else(|| unavailable("runtime membership domain roster"))?,
         };
-        let at = crate::lowering::SourceOrigin::of(typed.expression_table.source_span(membership.value));
+        let at =
+            crate::lowering::SourceOrigin::of(typed.expression_table.source_span(membership.value));
         let (subject, clauses) =
             if let Some((root, path, actual @ ValueType::Record(carrier, _, _))) =
                 self.projected(id, scope, membership.value)?
@@ -174,7 +175,10 @@ impl Program<'_> {
         if nominal {
             let result_subject = match (&subject, scope.result) {
                 (
-                    crate::lowering::body::RuntimeMembershipSubject::Scalar(ScalarTerm::Value { id, .. }),
+                    crate::lowering::body::RuntimeMembershipSubject::Scalar(ScalarTerm::Value {
+                        id,
+                        ..
+                    }),
                     ResultTerm::Named(result, ..),
                 ) => *id == result,
                 (

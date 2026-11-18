@@ -23,8 +23,10 @@ use declaration_contracts::service_surface::ServiceResultClaim;
 use declaration_contracts::service_surface::ServiceSurface;
 use declaration_contracts::service_surface::identities::ProviderIdentityId;
 use declaration_contracts::service_surface::identities::ProviderIdentityTable;
+use declaration_contracts::service_surface::{
+    ServiceNormalResultMembership, ServiceResultProjection,
+};
 use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
-use declaration_contracts::service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
 use std::sync::Arc;
 use terminal_psi::{
     TerminalProgramEntryContract, TerminalProviderSelection, TerminalSealedNativeIntrinsic,

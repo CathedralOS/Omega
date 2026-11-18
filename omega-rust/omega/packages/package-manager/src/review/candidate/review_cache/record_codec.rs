@@ -13,6 +13,9 @@ use crate::digest_encoder::content_identity;
 use build_record_codec::{recover_observation_summary, recover_restricted_build_request};
 use declaration_contracts::CarryPolicy;
 use declaration_contracts::DomainPredicatePresence;
+use declaration_contracts::service_surface::{
+    ServiceNormalResultMembership, ServiceResultProjection,
+};
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ProviderIdentityTable,
     ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,
@@ -23,7 +26,6 @@ use effects::provider_plan::{
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
-use declaration_contracts::service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
 use package_compilation::build_execution::build_record_codec;
 use package_compilation::native_output_codec::{decode, encode};
 use package_compilation::provider_selection_codec::decode_package_provider_selections;

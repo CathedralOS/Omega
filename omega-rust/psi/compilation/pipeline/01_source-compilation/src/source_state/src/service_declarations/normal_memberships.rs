@@ -5,7 +5,9 @@
 use std::cell::OnceCell;
 
 use arena::HandleSpan;
-use declaration_contracts::service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
+use declaration_contracts::service_surface::{
+    ServiceNormalResultMembership, ServiceResultProjection,
+};
 use symbols::SymbolHandle;
 
 use crate::source_state::TypedTrees;

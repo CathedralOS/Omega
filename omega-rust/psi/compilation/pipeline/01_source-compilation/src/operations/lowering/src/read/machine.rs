@@ -3178,7 +3178,8 @@ impl<'t> Program<'t> {
                 }
                 SignatureContractKind::Ensures => {
                     for fact in facts {
-                        if let crate::source_state::domain::ProofFact::Membership(membership) = fact {
+                        if let crate::source_state::domain::ProofFact::Membership(membership) = fact
+                        {
                             let (membership, clause) =
                                 self.runtime_membership(id, &exit, membership)?;
                             if let Some(membership) = membership {
