@@ -32,7 +32,7 @@
 //! render for it (`Region::Fixed`): it stands for one region that no substitution
 //! names, so a view of it is a value only of a place of that same region.
 //! Storage owned by this invocation instead retains its exact
-//! machine and root symbol: it cannot establish one of that machine's universal
+//! machine and storage root: it cannot establish one of that machine's universal
 //! result lifetimes, even when the borrowed window is empty.
 
 use crate::source_state::type_identity::LifetimeParameterIdentity;
@@ -56,11 +56,17 @@ pub(crate) enum Region {
     /// from the backing a reference descriptor stored there may denote.
     Storage {
         machine: MachineId,
-        root: SymbolHandle,
+        root: OwnedStorageRoot,
     },
     /// A region not yet decided, by its position in
     /// `Program::region_variables` (`Elision::Variables`).
     Variable(u32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OwnedStorageRoot {
+    Binding(SymbolHandle),
+    Temporary(crate::source_state::expression::ExpressionHandle),
 }
 
 /// One region variable. Undecided, it is some region no rule has pinned

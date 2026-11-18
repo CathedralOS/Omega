@@ -33,6 +33,7 @@ pub(super) fn walk<'a, E>(
             },
             ExpressionKind::Atomic(_)
             | ExpressionKind::Slot(_)
+            | ExpressionKind::OwnedTemporary { .. }
             | ExpressionKind::Borrow { .. }
             | ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
@@ -116,7 +117,9 @@ pub(super) fn names_storage(place: &Expression) -> bool {
     match root {
         Ok(root) => matches!(
             root.kind,
-            ExpressionKind::Slot(_) | ExpressionKind::SavedSubject(_)
+            ExpressionKind::Slot(_)
+                | ExpressionKind::SavedSubject(_)
+                | ExpressionKind::OwnedTemporary { .. }
         ),
         Err(never) => match never {},
     }

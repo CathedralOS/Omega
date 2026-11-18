@@ -399,21 +399,28 @@ impl Program<'_> {
             })?;
             return Ok(self.intern_regions(vec![outer]));
         }
-        let crate::lowering::ExpressionKind::Slot(root) = root.kind else {
-            return Err(refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Expression("reference formation without an exact storage root"),
-            ));
+        use super::regions::{OwnedStorageRoot, Region};
+        use crate::lowering::ExpressionKind;
+        let root = match root.kind {
+            ExpressionKind::Slot(root) => {
+                let slot = &slots[root];
+                if slot.borrowed.is_some() {
+                    return Ok(slot.borrowed_regions);
+                }
+                OwnedStorageRoot::Binding(slot.symbol)
+            }
+            ExpressionKind::OwnedTemporary { occurrence, .. } => {
+                OwnedStorageRoot::Temporary(occurrence)
+            }
+            _ => {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Expression("reference formation without an exact storage root"),
+                ));
+            }
         };
-        let slot = &slots[root];
-        if slot.borrowed.is_some() {
-            return Ok(slot.borrowed_regions);
-        }
-        let region = super::regions::Region::Storage {
-            machine,
-            root: slot.symbol,
-        };
+        let region = Region::Storage { machine, root };
         Ok(self.intern_regions(vec![region]))
     }
 

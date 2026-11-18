@@ -275,9 +275,20 @@ fn region_key(region: Region) -> (u8, u64, u32, u32, usize) {
         ),
         Region::Fixed(index) => (1, 0, index, 0, 0),
         Region::Variable(index) => (2, 0, index, 0, 0),
-        Region::Storage { machine, root } => {
-            (3, machine.get(), root.arena_index(), root.generation(), 0)
-        }
+        Region::Storage {
+            machine,
+            root: super::OwnedStorageRoot::Binding(root),
+        } => (3, machine.get(), root.arena_index(), root.generation(), 0),
+        Region::Storage {
+            machine,
+            root: super::OwnedStorageRoot::Temporary(occurrence),
+        } => (
+            4,
+            machine.get(),
+            occurrence.arena_index(),
+            occurrence.generation(),
+            0,
+        ),
     }
 }
 
