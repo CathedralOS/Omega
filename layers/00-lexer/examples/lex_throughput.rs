@@ -122,6 +122,27 @@ fn main() {
         joined_seconds.push(started.elapsed().as_secs_f64());
     }
 
+    // :PredictableInput
+    // The same 4 KB chunk lexed over and over: one line of ordinary code repeated a hundred times.
+    // A branch predictor learns a pattern this regular almost perfectly, which real source never
+    // lets it do. The per-token cost here against the per-token cost on real files therefore
+    // shows how much of the lexer's time is branches being guessed wrong.
+    let repeated_chunk = b"    counter.value = offset + width * 2;\n".repeat(100);
+    let repetition_count = (total_byte_count / repeated_chunk.len()).max(1);
+    let mut repeated_seconds = Vec::with_capacity(pass_count);
+    let mut repeated_token_count = 0usize;
+    for _ in 0..pass_count {
+        let started = Instant::now();
+        let mut pass_token_count = 0usize;
+        for _ in 0..repetition_count {
+            pass_token_count += lex(black_box(&repeated_chunk))
+                .map(|tokens| black_box(tokens).len())
+                .unwrap_or(0);
+        }
+        repeated_seconds.push(started.elapsed().as_secs_f64());
+        repeated_token_count = pass_token_count;
+    }
+
     let mut file_byte_counts: Vec<usize> = sources.iter().map(Vec::len).collect();
     file_byte_counts.sort_unstable();
 
@@ -149,16 +170,23 @@ fn main() {
         joined_source.len(),
     );
 
+    print_measurement(
+        "lex, one line repeated",
+        &mut repeated_seconds,
+        repetition_count * repeated_chunk.len(),
+    );
+
     let fastest_per_file_seconds = per_file_seconds.first().copied().unwrap_or(0.0);
-    let fastest_joined_seconds = joined_seconds.first().copied().unwrap_or(0.0);
+    let fastest_repeated_seconds = repeated_seconds.first().copied().unwrap_or(0.0);
     println!();
     println!(
         "per token (file by file, fastest):  {:.1} ns",
         fastest_per_file_seconds * 1e9 / total_token_count.max(1) as f64
     );
+    // :PredictableInput
     println!(
-        "per file fixed cost, estimated:     {:.0} ns",
-        (fastest_per_file_seconds - fastest_joined_seconds).max(0.0) * 1e9 / sources.len() as f64
+        "per token (one line repeated):      {:.1} ns",
+        fastest_repeated_seconds * 1e9 / repeated_token_count.max(1) as f64
     );
 
     print_token_mix(&joined_source, total_byte_count);

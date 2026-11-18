@@ -175,6 +175,91 @@ valid lexer and was reverted; it only measures what storage costs.
   remaining time is neither reading bytes nor storing tokens. It is the
   scanner's own decision work: about 4 of the 5.8 ns per token.
 
+## 4. The real path, and reusing the token list (2026-11-18): kept
+
+**The question.** Jarod's target is the drive, not a percentage: the source
+is on a Samsung 9100 PRO, an NVMe drive rated for sequential reads far above
+anything measured here, and the lexer should not be what holds a compile
+below it. So this experiment measures the whole path from files to tokens,
+with a new tool:
+
+    cargo run --release -p omega-lexer --example lex_pipeline -- <directories>
+
+It times finding the files, reading them, lexing them from memory, and
+reading then lexing each file on one thread, each on 1 thread and on all 32
+hardware threads (16 cores). Reads come from a warm file cache, which is the
+best case for reading.
+
+**Baseline, before any change.** Fastest of 5 passes:
+
+| Step | Threads | Time | MB/s |
+| --- | --- | --- | --- |
+| Find the files | 1 | 1,211 ms | |
+| Read | 1 | 748 ms | 35 |
+| Read | 32 | 265 ms | 100 |
+| Lex from memory | 1 | 45 ms | 589 |
+| Lex from memory | 32 | 23 ms | 1,142 |
+| Read then lex | 1 | 736 ms | 36 |
+| Read then lex | 32 | 275 ms | 96 |
+
+Two things stood out.
+
+- **The lexer is not the bottleneck.** Lexing is 45 ms of a 736 ms path on
+  one thread. Opening 19,442 small files is the cost, and it tops out near
+  100 MB/s even from a warm cache on 32 threads. The drive's speed is not
+  involved at all; this is the cost of opening files, not of moving bytes.
+- **Lexing did not scale.** 32 threads were only twice as fast as one.
+
+**Hypothesis for the scaling.** `lex` returned a new token list for every
+file. With every thread allocating and freeing a list per file, the threads
+queue for the memory allocator. Reusing one list per thread should restore
+scaling. Under 2 GB/s on 32 threads would have rejected it.
+
+**Change.** `lex_into(source, &mut tokens)` empties and refills a list the
+caller owns. `lex` is now a thin wrapper around it. On a refusal the list is
+left empty. Two tests cover the reuse and the refusal.
+
+A flaw in the tool was fixed at the same time: the directory walk asked the
+file system about every entry twice. That is why "find the files" drops below.
+
+**Result.** Two runs, fastest of 5 passes each; the in-memory lexing steps go
+over the files 20 times per pass so that they last long enough to time.
+
+| Step | Threads | Time | MB/s |
+| --- | --- | --- | --- |
+| Find the files | 1 | 330 ms | |
+| Read | 1 | 571 to 624 ms | 42 to 46 |
+| Read | 32 | 263 ms | 100 |
+| Lex, new list per file | 1 | 44 to 46 ms | 579 to 597 |
+| Lex, new list per file | 32 | 24 to 25 ms | 1,047 to 1,092 |
+| Lex, one list per thread | 1 | 42 ms | 630 |
+| Lex, one list per thread | 32 | 2.7 ms | 9,636 to 9,770 |
+| Read then lex | 1 | 616 to 648 ms | 41 to 43 |
+| Read then lex | 32 | 255 to 267 ms | 99 to 104 |
+
+- **On all threads, lexing went from about 1.07 to about 9.7 GB/s**, nine
+  times faster, and now scales 15 times from 1 thread to 16 cores.
+- **On one thread it gained about 5 percent**, 597 to 630 MB/s.
+- **The real path did not move**: about 100 MB/s on 32 threads, because it
+  was never waiting for the lexer.
+
+**Same output.** `lex` and `lex_into` are compared token for token in the
+tests; all 50 tests pass.
+
+**Decision.** Kept. This is the change that lets the lexer use the machine.
+
+**What limits the path now.** Reading: 263 ms to open and read 19,442 files
+on 32 threads against 2.7 ms to lex them. To get anywhere near the drive, the
+work is in how source files are found and loaded, which is the step before
+this layer:
+
+- Most of a small file's cost is opening it. Whether antivirus scanning is
+  part of that on this machine is not measured; an exclusion for the source
+  tree, or a Dev Drive, would show it.
+- A project's sources could be read from one packed file, or the listing and
+  contents cached between builds, so that a build opens a handful of files
+  and not thousands.
+- The cold case, straight from the drive, is not measured at all.
 ## How the estimates have done
 
 | Experiment | Estimated | Measured |
@@ -182,6 +267,7 @@ valid lexer and was reverted; it only measures what storage costs.
 | 1. First-byte dispatch | 4 to 6 times | 6.7 times |
 | 2. Larger reservation | 5 to 15 percent file by file | under 5 percent, unresolved |
 | 3. Punctuation match | 15 to 30 percent | about 9 percent |
+| 4. Reuse the token list | over 2 GB/s on 32 threads | about 9.7 GB/s |
 
 Estimates of small gains have run high. Read the guesses below with that in
 mind.

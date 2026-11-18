@@ -143,8 +143,9 @@ Psi to native code) are not planned yet.
     token lexes to itself when taken alone.
   - All 19,442 `.omg` files in V1's `source`, `samples` and `tests/fixtures`
     lex with no refusals: 26 MB and 7.8 million tokens. Throughput is about
-    585 MB/s, 5.8 ns per token, after three measured changes took it from
-    about 78 MB/s; see
+    630 MB/s on one thread and 9.7 GB/s on all 32, up from about 78 MB/s
+    at first. On the real path the lexer is not the limit: opening the
+    files is, at about 100 MB/s. See
     [layers/00-lexer/EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md). Run with
     `cargo run --release -p omega-lexer --example lex_tree -- <directory>`.
     None of those files is lexically invalid, so this checks what V2

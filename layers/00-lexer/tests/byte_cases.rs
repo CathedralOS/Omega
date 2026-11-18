@@ -66,6 +66,37 @@ fn empty_source_has_no_tokens() {
     expect_kinds(b"", &[]);
 }
 
+#[test]
+fn lex_into_reuses_the_list_and_matches_lex() {
+    let mut reused_tokens = Vec::new();
+    for source_bytes in [
+        &b"let a = 1; // first"[..],
+        b"",
+        b"x",
+        b"machine main() { return 0x10u8 +! 2; }",
+    ] {
+        omega_lexer::lex_into(source_bytes, &mut reused_tokens).expect("valid source");
+        assert_eq!(reused_tokens, lex(source_bytes).expect("valid source"));
+    }
+}
+
+#[test]
+fn lex_into_leaves_the_list_empty_on_a_refusal() {
+    let mut reused_tokens = lex(b"left over from an earlier file").expect("valid source");
+    let error = omega_lexer::lex_into(b"let a = @;", &mut reused_tokens)
+        .expect_err("`@` is not Omega syntax");
+    assert_eq!(error.kind, LexErrorKind::UnknownCharacter);
+    assert!(
+        reused_tokens.is_empty(),
+        "tokens scanned before the error must not be left behind"
+    );
+
+    let utf8_error =
+        omega_lexer::lex_into(b"ok \xFF", &mut reused_tokens).expect_err("invalid UTF-8");
+    assert_eq!(utf8_error.kind, LexErrorKind::InvalidUtf8);
+    assert!(reused_tokens.is_empty());
+}
+
 // R3
 
 #[test]

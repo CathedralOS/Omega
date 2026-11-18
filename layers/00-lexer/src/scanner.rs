@@ -19,11 +19,13 @@ impl<'source> Scanner<'source> {
         }
     }
 
-    pub(crate) fn scan_all(mut self) -> Result<Vec<Token>, LexError> {
+    /// Appends every token of the source to `tokens`, which the caller has already emptied.
+    pub(crate) fn scan_all(mut self, tokens: &mut Vec<Token>) -> Result<(), LexError> {
         // Measured on 26 MB of Omega source: one token per 3.4 bytes, because whitespace and
         // punctuation are tokens and are mostly one byte long. Reserving a token per 3 bytes
-        // covers the typical file without the list having to grow and copy itself.
-        let mut tokens = Vec::with_capacity(self.source_bytes.len() / 3 + 16);
+        // covers the typical file without the list having to grow and copy itself. A list that
+        // is being reused usually has the room already, and then this does nothing.
+        tokens.reserve(self.source_bytes.len() / 3 + 16);
 
         while let Some(first_byte) = self.peek(0) {
             let token_start = self.offset;
@@ -34,7 +36,7 @@ impl<'source> Scanner<'source> {
             });
         }
 
-        Ok(tokens)
+        Ok(())
     }
 
     /// Scans the token that begins at `token_start`, leaving `offset` one past its last byte.

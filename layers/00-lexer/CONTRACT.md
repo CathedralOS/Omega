@@ -6,6 +6,7 @@ each is a proposal that sign-off either ratifies or changes.
 ## What the layer is
 
     lex(source bytes) -> tokens, or one error
+    lex_into(source bytes, token list) -> the same, into a list the caller reuses
 
 - **Input:** the bytes of one source file.
 - **Output:** a list of tokens. Each token is a kind plus a byte range.

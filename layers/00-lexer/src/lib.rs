@@ -113,6 +113,34 @@ pub use token_dump::{dump_error, dump_tokens};
 /// assert_eq!(tokens[2].kind, TokenKind::Word);
 /// ```
 pub fn lex(source_bytes: &[u8]) -> Result<Vec<Token>, LexError> {
+    let mut tokens = Vec::new();
+    lex_into(source_bytes, &mut tokens)?;
+    Ok(tokens)
+}
+
+/// Does what `lex` does, but writes the tokens into a list the caller already owns.
+///
+/// `tokens` is emptied first and keeps its storage, so a caller lexing many files can hand the
+/// same list back in for each one and never allocate after the first few. That matters far more
+/// than it sounds: with every hardware thread lexing its own files, a fresh list per file makes
+/// the threads queue for the memory allocator, and lexing stops getting faster as threads are
+/// added. See experiment 4 in EXPERIMENTS.md.
+///
+/// On a refusal `tokens` is left empty. The output of this layer is exactly right or absent.
+///
+/// ```
+/// use omega_lexer::lex_into;
+///
+/// let mut tokens = Vec::new();
+/// for source_bytes in [&b"let a = 1;"[..], b"b", b"machine main() {}"] {
+///     lex_into(source_bytes, &mut tokens).expect("each source is lexically valid");
+///     // Use the tokens here, before the next call empties the list.
+///     assert_eq!(tokens.last().map(|token| token.span.end), Some(source_bytes.len()));
+/// }
+/// ```
+pub fn lex_into(source_bytes: &[u8], tokens: &mut Vec<Token>) -> Result<(), LexError> {
+    tokens.clear();
+
     if let Err(utf8_error) = std::str::from_utf8(source_bytes) {
         let invalid_start = utf8_error.valid_up_to();
         // `error_len` is None when the file ends in the middle of a character; then the rest is the error.
@@ -127,5 +155,9 @@ pub fn lex(source_bytes: &[u8]) -> Result<Vec<Token>, LexError> {
         ));
     }
 
-    scanner::Scanner::new(source_bytes).scan_all()
+    let scan_result = scanner::Scanner::new(source_bytes).scan_all(tokens);
+    if scan_result.is_err() {
+        tokens.clear();
+    }
+    scan_result
 }
