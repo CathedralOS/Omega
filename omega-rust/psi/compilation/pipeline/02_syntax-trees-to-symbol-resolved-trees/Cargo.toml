@@ -7,7 +7,7 @@ version.workspace = true
 
 [lib]
 name = "syntax_trees_to_symbol_resolved_trees"
-path = "src/lib.rs"
+path = "resolver.rs"
 
 [dependencies]
 compiler-storage = { path = "../../../foundation/compiler-storage" }
