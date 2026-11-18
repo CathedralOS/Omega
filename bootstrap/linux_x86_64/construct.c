@@ -201,11 +201,20 @@ static void prepare_source(void) {
 
 int construct(long argc, const char *argv[]) {
     operation = "startup";
-    if (argc != 3) fail("usage: bootstrap SOURCE_ROOT NEW_OUTPUT_DIRECTORY");
+    if (argc != 3 && argc != 4)
+        fail("usage: bootstrap SOURCE_ROOT NEW_OUTPUT_DIRECTORY [GAMMA_SOURCE]");
+    int customer = argc == 4 ? open_input(AT_FDCWD, argv[3]) : -1;
     repository = checked(kernel(__NR_openat, AT_FDCWD, argv[1],
                                 O_RDONLY | O_DIRECTORY | O_CLOEXEC), "cannot open source root");
     checked(kernel(__NR_mkdir, argv[2], 0700), "cannot create new output directory");
     checked(kernel(__NR_chdir, argv[2]), "cannot enter output directory");
+
+    if (customer >= 0) {
+        int snapshot = create("program.gamma");
+        copy(customer, snapshot);
+        close_file(customer);
+        close_file(snapshot);
+    }
 
     int fd = create("admitted-beta.tape");
     write_all(fd, beta_root, (uintptr_t)beta_end - (uintptr_t)beta_root);
@@ -226,5 +235,7 @@ int construct(long argc, const char *argv[]) {
     run("./gamma1", open_input(AT_FDCWD, "compiler.gamma"), "gamma2", 1);
     require_equal("gamma1", "gamma2");
     checked(kernel(__NR_rename, "gamma2", "gamma-compiler"), "cannot publish compiler");
+    if (argc == 4)
+        run("./gamma-compiler", open_input(AT_FDCWD, "program.gamma"), "program", 1);
     return 0;
 }

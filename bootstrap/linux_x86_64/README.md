@@ -13,6 +13,28 @@ for the stage files, permission to execute programs in the new directory,
 and the virtual memory provision of the Alpha seed. The first compiler that
 can build Omega and the subsequent Omega self-build remain open.
 
+### Build a supplied Gamma program in the same command
+
+A third argument supplies one complete Gamma source file. The driver snapshots
+its bytes in `program.gamma` before constructing the compilers, then runs
+`gamma-compiler` on that snapshot. Successful compilation publishes the native
+`program` executable. An invalid program leaves the rebuilt Gamma compiler
+available and returns the producer's failure status.
+
+The Delta compiler is one such input. Its constructor consumes the existing
+ordered Gamma source stream comprising the canonical entry and all manifested
+implementation members. Supply that materialized file as the third argument.
+
+```sh
+bootstrap/linux_x86_64/bootstrap . /tmp/omega-delta /path/to/delta.gamma
+```
+
+Source membership, byte checks and order for that file belong to the existing
+Delta source materializer. A build from separate repository members still
+needs that packing step before this invocation. With a previously constructed
+Gamma compiler, `gamma-compiler < delta.gamma > delta` emits the same bytes.
+[Delta source ownership](../interpreted/3_delta/README.md#selected-staged-delta-compiler)
+
 ## Follow the construction
 
 1. The binary carries the audited Linux Alpha executable and the admitted
@@ -63,7 +85,10 @@ gcc -std=c11 -Os -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-ta
 cmp /tmp/omega-bootstrap bootstrap/linux_x86_64/bootstrap
 ```
 
-The Linux test supplies only the five source files, checks every stamped image
+For a function-labeled disassembly, omit `,-s` from the linker option and run
+`objdump -d /tmp/omega-bootstrap`. Its `.text` bytes match the stripped build.
+
+The Linux test supplies the five compiler source files, checks every stamped image
 against the audited seed, checks each static executable, compiles two changed
 Gamma programs, runs both on changed bytes and exercises malformed inputs.
 Run `python3 tests/bootstrap/linux-seed-construction.py`.

@@ -38,7 +38,9 @@ def check(work):
         shutil.copyfile(ROOT / name, dest)
 
     out = work / "built"
-    run = invoke([BOOTSTRAP, source, out])
+    caller_source = work / "customer input.gamma"
+    caller_source.write_bytes(b"(def main () Int (+ (read 0) 7))")
+    run = invoke([BOOTSTRAP, source, out, caller_source])
     assert (run.returncode, run.stdout, run.stderr) == (0, b"", b""), run
     beta = (ROOT / BETA.with_name("beta_compiler_bytecode.tape")).read_bytes()
     gamma = (ROOT / GAMMA.with_name("gamma_evaluator_bytecode.tape")).read_bytes()
@@ -60,6 +62,13 @@ def check(work):
     assert not (out / "stage.partial").exists()
     check_native(BOOTSTRAP)
     check_native(compiler)
+    check_native(out / "program")
+    assert (out / "program.gamma").read_bytes() == caller_source.read_bytes()
+    direct = invoke([compiler], caller_source.read_bytes())
+    assert (direct.returncode, direct.stdout, direct.stderr) == (
+        0, (out / "program").read_bytes(), b""), direct
+    result = invoke([out / "program"], bytes([35]))
+    assert (result.returncode, result.stdout, result.stderr) == (0, b"*", b""), result
     for increment in (7, 19):
         source_text = f"(def main () Int (+ (read 0) {increment}))".encode()
         made = invoke([compiler], source_text)
@@ -75,6 +84,16 @@ def check(work):
     invalid = invoke([compiler], b"(def main () Int undefined)")
     assert (invalid.returncode, invalid.stdout) == (249, b""), invalid
 
+    bad_customer = work / "invalid-customer"
+    caller_source.write_bytes(b"(def main () Int undefined)")
+    invalid_stage = invoke([BOOTSTRAP, source, bad_customer, caller_source])
+    assert (invalid_stage.returncode, invalid_stage.stdout) == (249, b""), invalid_stage
+    assert (bad_customer / "gamma-compiler").read_bytes() == image
+    assert not (bad_customer / "program").exists()
+
+    missing_out = work / "missing-input"
+    missing = invoke([BOOTSTRAP, source, missing_out, work / "absent.gamma"])
+    assert missing.returncode and not missing_out.exists()
     again = invoke([BOOTSTRAP, source, out])
     assert again.returncode and compiler.read_bytes() == image
     for label, changed, code in [("different", b"halt r0\n", 1),
