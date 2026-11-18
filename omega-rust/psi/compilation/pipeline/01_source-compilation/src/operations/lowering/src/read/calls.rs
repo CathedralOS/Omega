@@ -260,10 +260,10 @@ impl<'t> Program<'t> {
                             | crate::source_state::data::TypeParameterKind::Const { .. }
                             | crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Machine {
-                                contract:
-                                    crate::source_state::data::MachineParameterContract::Structural(
-                                        _
-                                    ),
+                                contract: crate::source_state::data::MachineParameterContract::Structural(
+                                    _
+                                )
+                                    | crate::source_state::data::MachineParameterContract::Nominal { .. },
                             }
                     )
                 })
@@ -2036,7 +2036,7 @@ impl<'t> Program<'t> {
             })?;
             let outer = std::mem::replace(&mut self.scope, scope);
             let outer_source = std::mem::replace(&mut self.source_scope, source_scope);
-            let read = self.requirement(required, &[]);
+            let read = self.binder_requirement(parameter, required, &[]);
             self.source_scope = outer_source;
             self.scope = outer;
             let requirement = read?;
@@ -2396,12 +2396,20 @@ impl<'t> Program<'t> {
             match self.typed.evidence_requirement_declaration(target) {
                 Ok(Some(requirement)) => requirement,
                 Ok(None) => {
-                    let Some(crate::source_state::data::MachineParameterContractView::Structural(
-                        requirement,
-                    )) = self.typed.retained_static_machine_contract(target)
-                    else {
+                    let Some(contract) = self.typed.retained_static_machine_contract(target) else {
                         return Ok(None);
                     };
+                    if let crate::source_state::data::MachineParameterContractView::Nominal {
+                        trait_definition,
+                        ..
+                    } = contract
+                        && trait_definition.is_boundary
+                    {
+                        return Err(unserved(
+                            "a boundary callback needs its selected boundary entry",
+                        ));
+                    }
+                    let requirement = contract.signature();
                     let owner = self
                         .symbols
                         .get(id)
@@ -2445,6 +2453,12 @@ impl<'t> Program<'t> {
         )?;
         let callee = if let Some((receiver, position, _)) = record.as_ref() {
             self.record_requirement(*receiver, *position, requirement, &value_arguments)?
+        } else if self
+            .typed
+            .retained_static_machine_contract(target)
+            .is_some()
+        {
+            self.binder_requirement(target, requirement, &value_arguments)?
         } else {
             self.requirement(requirement, &value_arguments)?
         };

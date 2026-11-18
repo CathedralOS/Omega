@@ -314,7 +314,8 @@ impl Program<'_> {
         let completion =
             crate::source_state::boundary_completions::boundary_requirement_completion(self.typed, target);
         let (signature, _) = self.boundary_signature(context, declared)?;
-        self.admitted_declarations.include(owner.symbol);
+        // The boundary and service retain their declaring owner below. A read
+        // of this member does not select its siblings' source contract clauses.
         self.admitted_declarations.include(target);
         let id = self.boundaries.rows.push(BoundarySource {
             source: target,

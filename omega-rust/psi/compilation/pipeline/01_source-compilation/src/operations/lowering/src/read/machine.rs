@@ -957,7 +957,7 @@ impl<'t> Program<'t> {
     /// contract is judged for every admitted application (generics.md,
     /// "Publication and assumptions").
     pub(crate) fn generic_requirement(&mut self, declared: &StateSignature) -> Checked<MachineId> {
-        self.requirement_form(declared, RequirementValues::Rigid)
+        self.requirement_form(declared.symbol, declared, RequirementValues::Rigid)
     }
 
     pub(super) fn requirement(
@@ -965,15 +965,30 @@ impl<'t> Program<'t> {
         declared: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<MachineId> {
-        self.requirement_form(declared, RequirementValues::Bound(arguments))
+        self.requirement_form(
+            declared.symbol,
+            declared,
+            RequirementValues::Bound(arguments),
+        )
+    }
+
+    /// Two callback parameters may promise the same requirement. Keep each
+    /// parameter as the identity of its call in the generic body.
+    pub(super) fn binder_requirement(
+        &mut self,
+        parameter: SymbolHandle,
+        declared: &StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<MachineId> {
+        self.requirement_form(parameter, declared, RequirementValues::Bound(arguments))
     }
 
     fn requirement_form(
         &mut self,
+        symbol: SymbolHandle,
         declared: &StateSignature,
         values: RequirementValues<'_>,
     ) -> Checked<MachineId> {
-        let symbol = declared.symbol;
         let (arguments, parameters) = match values {
             RequirementValues::Bound(arguments) => (arguments, 0),
             RequirementValues::Rigid => (
@@ -1004,7 +1019,9 @@ impl<'t> Program<'t> {
                     .map(|parameter| parameter.symbol),
             );
         }
-        self.admitted_declarations.include(symbol);
+        // The binder identifies this abstract call target. Its published
+        // checks and declaration selections belong to the requirement.
+        self.admitted_declarations.include(declared.symbol);
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
@@ -1344,7 +1361,9 @@ impl<'t> Program<'t> {
                         crate::source_state::data::TypeParameterKind::Implementation
                         | crate::source_state::data::TypeParameterKind::Const { .. }
                         | crate::source_state::data::TypeParameterKind::Machine {
-                            contract: crate::source_state::data::MachineParameterContract::Structural(_),
+                            contract:
+                                crate::source_state::data::MachineParameterContract::Structural(_)
+                                | crate::source_state::data::MachineParameterContract::Nominal { .. },
                         } => {}
                         crate::source_state::data::TypeParameterKind::Type => {}
                         _ => {
@@ -1364,19 +1383,19 @@ impl<'t> Program<'t> {
                         parameter.kind == crate::source_state::data::TypeParameterKind::Type
                     })
                     .count()
-                    != arguments.len()
-                    || parameters.iter().any(|parameter| {
-                        !matches!(
-                            parameter.kind,
-                            crate::source_state::data::TypeParameterKind::Type
-                                | crate::source_state::data::TypeParameterKind::Const { .. }
-                                | crate::source_state::data::TypeParameterKind::Machine {
-                                    contract:
-                                        crate::source_state::data::MachineParameterContract::Structural(_)
-                                }
-                        )
-                    })
-                {
+                    != arguments.len() || parameters.iter().any(|parameter| {
+                    !matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Type
+                            | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Machine {
+                                contract: crate::source_state::data::MachineParameterContract::Structural(
+                                    _
+                                )
+                                    | crate::source_state::data::MachineParameterContract::Nominal { .. }
+                            }
+                    )
+                }) {
                     return unserved_parameters(
                         "application differs from its complete type and const binder roster",
                     );

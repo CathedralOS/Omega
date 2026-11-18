@@ -631,6 +631,407 @@ fn logged(tables: &MachineTables) -> Vec<WriteRow> {
     tables.writes.values().copied().collect()
 }
 
+/// Explicit scalar binds supply the old zero-name slots. The writer itself
+/// emits no such names, so compatibility does not test its own output shape.
+fn zeroed_point(preceding: &[u128]) -> Elaboration {
+    let mut statements = preceding
+        .iter()
+        .enumerate()
+        .map(|(slot, value)| bind(slot, unsigned(*value)))
+        .collect::<Vec<_>>();
+    statements.push(declare(preceding.len(), point()));
+    statements.push(returns(read(place(preceding.len(), point()), 0)));
+    let mut locals = vec![u32_type().into(); preceding.len()];
+    locals.push(point());
+    elaborate_over(
+        vec![Shaped {
+            parameters: Vec::new(),
+            locals,
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements,
+        }],
+        &records(),
+    )
+}
+
+fn zero_aliases(elaboration: &mut Elaboration, aliases: &[(u64, ValueId)]) {
+    let paths = aliases
+        .iter()
+        .map(|(field, value)| (vec![Segment::Field(id(*field))], *value))
+        .collect::<Vec<_>>();
+    zero_paths(elaboration, &paths);
+}
+
+fn zero_paths(elaboration: &mut Elaboration, aliases: &[(Vec<Segment>, ValueId)]) {
+    let (operation, root) = elaboration.module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::EstablishZeroedStructural {}))
+        .map(|operation| {
+            (
+                operation.id,
+                operation.result.as_structural().unwrap().place,
+            )
+        })
+        .unwrap();
+    let tables = entry_tables(elaboration);
+    let exact = *tables.roots.get(root).unwrap();
+    let extra = aliases
+        .iter()
+        .map(|(path, value)| {
+            let mut place = exact;
+            for segment in path {
+                place = terminal_check_tables::bindings::intern_projection(
+                    id(1),
+                    &mut tables.places,
+                    place,
+                    *segment,
+                )
+                .unwrap();
+            }
+            WriteRow {
+                place,
+                at: ProgramPoint::AfterOperation(operation),
+                content: Content::Value(*value),
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut rows = logged(tables);
+    let after = rows
+        .iter()
+        .position(|row| row.at == ProgramPoint::AfterOperation(operation))
+        .unwrap()
+        + 1;
+    rows.splice(after..after, extra);
+    relog(tables, rows);
+}
+
+#[test]
+fn compact_zero_and_complete_filtered_legacy_names_both_check() {
+    for preceding in [[0, 0], [0, 7]] {
+        let mut compact = zeroed_point(&preceding);
+        let read = field_reads(&compact)[0];
+        discharge(&mut compact, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+        let tables = compact.tables.machines.get(id(1)).unwrap();
+        assert_eq!(read_equals(tables, read), None);
+        assert_read_equation(tables, read, number(0));
+
+        let mut legacy = zeroed_point(&preceding);
+        let values = constants(&legacy);
+        assert_eq!(values.len(), 2);
+        let mut aliases = vec![(1, values[0])];
+        if preceding[1] == 0 {
+            aliases.push((2, values[1]));
+        }
+        zero_aliases(&mut legacy, &aliases);
+        let read = field_reads(&legacy)[0];
+        discharge(&mut legacy, &mut crate::checking::ProofSearchActivity::default()).unwrap();
+        assert_eq!(
+            read_equals(legacy.tables.machines.get(id(1)).unwrap(), read),
+            Some(values[0])
+        );
+    }
+}
+
+#[test]
+fn partial_duplicate_and_reordered_legacy_zero_groups_are_refused() {
+    for fields in [vec![1], vec![2], vec![1, 1], vec![2, 1], vec![1, 2, 2]] {
+        let mut program = zeroed_point(&[0, 0]);
+        let values = constants(&program);
+        let aliases = fields
+            .into_iter()
+            .map(|field| (field, values[field as usize - 1]))
+            .collect::<Vec<_>>();
+        zero_aliases(&mut program, &aliases);
+        let refusal = judge(Ok(program)).unwrap_err();
+        assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    }
+}
+
+fn zeroed_array(length: u64, dynamic: bool, bound: u128) -> Elaboration {
+    zeroed_array_after(length, dynamic, bound, &[])
+}
+
+fn zeroed_array_after(length: u64, dynamic: bool, bound: u128, preceding: &[u128]) -> Elaboration {
+    use crate::lowering::{Qualification, StorageShape};
+    let record = |identity: &str, shape| RecordType {
+        authored_layout: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        cleanup: None,
+        identity: identity.into(),
+        shape,
+        requires: Vec::new(),
+    };
+    let mut types = IdTable::default();
+    types.push(record(
+        "element",
+        StorageShape::PrimitiveScalar {
+            scalar_type: u32_type(),
+            policy: None,
+        },
+    ));
+    types.push(record(
+        "array",
+        StorageShape::FixedArray {
+            element: id(1),
+            qualification: Qualification::NONE,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        },
+    ));
+    let home = usize::from(dynamic) + preceding.len();
+    let selector = if dynamic {
+        slot(0, u32_type())
+    } else {
+        unsigned(u128::from(length - 1))
+    };
+    let mut locals = vec![u32_type().into(); preceding.len()];
+    locals.push(data(2));
+    let mut statements = preceding
+        .iter()
+        .enumerate()
+        .map(|(slot, value)| bind(usize::from(dynamic) + slot, unsigned(*value)))
+        .collect::<Vec<_>>();
+    statements.extend([
+        declare(home, data(2)),
+        returns(of_type(
+            ExpressionKind::Index {
+                base: Box::new(place(home, data(2))),
+                index: Box::new(selector),
+            },
+            u32_type().into(),
+        )),
+    ]);
+    elaborate_over(
+        vec![Shaped {
+            parameters: if dynamic {
+                vec![u32_type().into()]
+            } else {
+                Vec::new()
+            },
+            locals,
+            result: u32_type().into(),
+            requires: if dynamic {
+                vec![at_most(1, bound)]
+            } else {
+                Vec::new()
+            },
+            statements,
+        }],
+        &types,
+    )
+}
+
+#[test]
+fn legacy_array_names_keep_filtered_positions_and_exact_scalar_ids() {
+    let mut program = zeroed_array_after(3, false, 0, &[0, 7, 0]);
+    let values = constants(&program);
+    zero_paths(
+        &mut program,
+        &[
+            (vec![Segment::FixedIndex(0)], values[0]),
+            (vec![Segment::FixedIndex(2)], values[2]),
+        ],
+    );
+    let read = field_reads(&program)[0];
+    discharge(&mut program, &mut Default::default()).unwrap();
+    assert_eq!(
+        read_equals(program.tables.machines.get(id(1)).unwrap(), read),
+        Some(values[2])
+    );
+}
+
+#[test]
+fn zeroed_array_naming_follows_observed_paths_not_array_extent() {
+    let mut counts = Vec::new();
+    for length in [2, 8192] {
+        let program = zeroed_array(length, false, 0);
+        let tables = program.tables.machines.get(id(1)).unwrap();
+        let operations = program.module.machines[0]
+            .blocks
+            .iter()
+            .map(|block| block.operations.len())
+            .sum::<usize>();
+        counts.push((
+            operations,
+            tables.places.len(),
+            tables.writes.len(),
+            tables.values.len(),
+        ));
+        assert!(operations < 8);
+        assert!(matches!(
+            judge(Ok(program)).unwrap(),
+            RouteVerdict::Accepted(_)
+        ));
+    }
+    assert_eq!(counts[0], counts[1]);
+}
+
+#[test]
+fn a_runtime_index_of_zeroed_array_keeps_its_actual_bounds_obligation() {
+    assert!(matches!(
+        judge(Ok(zeroed_array(8, true, 7))).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    assert!(
+        matches!(judge(Ok(zeroed_array(8, true, 8))).unwrap(), RouteVerdict::Rejected { unproved, .. } if !unproved.is_empty())
+    );
+}
+
+#[test]
+fn a_zero_fact_does_not_survive_a_write_but_its_sibling_stays_zero() {
+    for field in [0, 1] {
+        let mut program = elaborate_places(vec![Shaped {
+            parameters: Vec::new(),
+            locals: vec![point()],
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![
+                declare(0, point()),
+                store(0, &[0], unsigned(3)),
+                returns(read(place(0, point()), field)),
+            ],
+        }]);
+        let read = field_reads(&program)[0];
+        let three = constants(&program)[0];
+        let result = discharge(&mut program, &mut Default::default()).unwrap();
+        assert_eq!(uses(&result), [Ok(())]);
+        let tables = program.tables.machines.get(id(1)).unwrap();
+        if field == 0 {
+            assert_eq!(read_equals(tables, read), Some(three));
+            let zero = Proposition::Equal(ScalarTerm::value(read.1, u32_type()), number(0));
+            assert!(!tables.knowledge.values().any(|row| row.justification
+                == Justification::OperationSemantics(read.0)
+                && tables.propositions.get(row.proposition) == Some(&zero)));
+        } else {
+            assert_read_equation(tables, read, number(0));
+        }
+    }
+}
+
+#[test]
+fn a_borrowed_zero_read_uses_its_actual_backing_and_keeps_later_writes() {
+    for field in ["y", "x"] {
+        let text = format!(
+            r#"
+            data Pair {{ x: u32; y: u32; }}
+            machine check(pair: &Pair) -> u32 requires pair.{field} == 0u32 {{ pair.{field} }}
+            machine entry() -> u32 {{ let mut pair: Pair; pair.x = 3u32; check(&pair) }}
+        "#
+        );
+        let compilation = calling_policies::prepared(
+            boundary_calls::typed(&text),
+            &["entry"],
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        let verdicts = crate::checking::judge_compilation(compilation);
+        assert!(!verdicts.is_empty());
+        if field == "y" {
+            assert!(
+                verdicts
+                    .iter()
+                    .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "{verdicts:?}"
+            );
+        } else {
+            assert!(
+                verdicts.iter().any(|verdict| matches!(verdict,
+                Ok(RouteVerdict::Rejected { unproved, .. }) if !unproved.is_empty())),
+                "{verdicts:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_legacy_float_name_requires_the_actual_positive_zero_bits() {
+    use semantic_vocabulary::IeeeFloatValue;
+    for value in [
+        IeeeFloatValue::Binary32(0),
+        IeeeFloatValue::Binary32(0x8000_0000),
+        IeeeFloatValue::Binary32(0x7fc0_0000),
+        IeeeFloatValue::Binary64(0),
+        IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+        IeeeFloatValue::Binary64(0x7ff8_0000_0000_0000),
+    ] {
+        let scalar = ScalarType::IeeeFloat(value.format());
+        let mut types = IdTable::default();
+        types.push(RecordType {
+            authored_layout: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            cleanup: None,
+            identity: "FloatCell".into(),
+            shape: crate::lowering::StorageShape::Record(vec![RecordField {
+                id: id(1),
+                identity: "value".into(),
+                value_type: scalar.into(),
+                byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
+            }]),
+            requires: Vec::new(),
+        });
+        let program = || {
+            elaborate_over(
+                vec![Shaped {
+                    parameters: Vec::new(),
+                    locals: vec![scalar.into(), data(1)],
+                    result: scalar.into(),
+                    requires: Vec::new(),
+                    statements: vec![
+                        bind(0, of_type(ExpressionKind::Float(value), scalar.into())),
+                        declare(1, data(1)),
+                        returns(of_type(
+                            ExpressionKind::Field {
+                                base: Box::new(place(1, data(1))),
+                                field: 0,
+                            },
+                            scalar.into(),
+                        )),
+                    ],
+                }],
+                &types,
+            )
+        };
+        let mut compact = program();
+        let read = field_reads(&compact)[0];
+        discharge(&mut compact, &mut Default::default()).unwrap();
+        let zero = match value.format() {
+            semantic_vocabulary::IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
+            semantic_vocabulary::IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
+        };
+        assert_read_equation(
+            compact.tables.machines.get(id(1)).unwrap(),
+            read,
+            ScalarTerm::IeeeFloatLiteral(zero),
+        );
+        let mut program = program();
+        let constant = program.module.machines[0].blocks[0]
+            .operations
+            .iter()
+            .find(|operation| matches!(operation.kind, OperationKind::IeeeFloatConstant { .. }))
+            .unwrap()
+            .result
+            .as_scalar()
+            .unwrap()
+            .id;
+        zero_aliases(&mut program, &[(1, constant)]);
+        if matches!(
+            value,
+            IeeeFloatValue::Binary32(0) | IeeeFloatValue::Binary64(0)
+        ) {
+            assert!(matches!(
+                judge(Ok(program)).unwrap(),
+                RouteVerdict::Accepted(_)
+            ));
+        } else {
+            assert_refused(
+                judge(Ok(program)),
+                "a write row states a store its operation does not make",
+            );
+        }
+    }
+}
+
 #[test]
 fn a_write_row_that_logs_another_value_is_refused() {
     // `paired`: the construction stores `v` into `value`, and `1 <= value`
@@ -782,13 +1183,14 @@ fn a_zeroed_leaf_logged_as_another_constant_is_refused() {
             vec![
                 Shaped {
                     parameters: Vec::new(),
-                    locals: vec![u32_type().into(), data(BOUNDED)],
+                    locals: vec![u32_type().into(), u32_type().into(), data(BOUNDED)],
                     result: u32_type().into(),
                     requires: Vec::new(),
                     statements: vec![
                         bind(0, unsigned(3)),
-                        declare(1, data(BOUNDED)),
-                        returns(call(2, vec![read(place(1, data(BOUNDED)), 0)])),
+                        bind(1, unsigned(0)),
+                        declare(2, data(BOUNDED)),
+                        returns(call(2, vec![read(place(2, data(BOUNDED)), 0)])),
                     ],
                 },
                 Shaped {
@@ -799,7 +1201,13 @@ fn a_zeroed_leaf_logged_as_another_constant_is_refused() {
             &constrained(),
         )
     };
-    let verdict = with_fault(program, |elaboration| {
+    let legacy = || {
+        let mut elaboration = program();
+        let zero = constants(&elaboration)[1];
+        zero_aliases(&mut elaboration, &[(1, zero)]);
+        elaboration
+    };
+    let verdict = with_fault(legacy, |elaboration| {
         let (_, three) = first_constant(elaboration);
         let mut rows = logged(entry_tables(elaboration));
         let zeroed = rows

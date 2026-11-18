@@ -453,6 +453,9 @@ enum Reached {
     Cycle,
     /// The one value every path supplies.
     Value(ValueId),
+    /// An authenticated zero establishment supplies this scalar's zero,
+    /// without inventing a scalar identity or structural availability.
+    Zero(ScalarType),
     /// An extent defined by this exact reaching descriptor producer.
     Extent(OperationId),
     /// Asked of a sum: the one case every path establishes it as.
@@ -1120,7 +1123,7 @@ impl<'a> Storage<'a> {
         // Entry observations occupy position zero. Install them before the
         // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(references, tables)?;
-        storage.log = storage.stores(references, value_types)?;
+        storage.log = storage.stores(references, value_types, tables)?;
         storage.cleanup_writes = crate::checking::owned_cleanup::writes(module, lowered, references)?;
         storage.log_is_stated(tables)?;
         storage.cleanup_log_is_stated(tables)?;
@@ -1261,6 +1264,75 @@ impl<'a> Storage<'a> {
             }
         }
         first(self, beneath.len())
+    }
+
+    /// Only runtime scalar storage is zero. Extents, reference crossings and
+    /// representation views have their own meanings, even when shape() gives
+    /// them a scalar type. Every sum prefix must select its zero case.
+    fn zero_scalar(
+        &self,
+        root: PlaceId,
+        beneath: &[Segment],
+        concerns: Construct,
+    ) -> Checked<Option<ScalarType>> {
+        let shape = self.shape_with(root, beneath, concerns, |at, segment| {
+            Ok(match (at, segment) {
+                (_, Segment::Field(_)) => true,
+                (Shape::Typed(owner), Segment::Case(case)) => {
+                    matches!(&self.declaration(*owner, concerns)?.shape,
+                        StructuralTypeShape::Sum { cases } if cases.first().is_some_and(|first| first.id == *case))
+                }
+                (Shape::Typed(owner), Segment::FixedIndex(_) | Segment::RuntimeIndex { .. }) => {
+                    matches!(self.declaration(*owner, concerns)?.shape, StructuralTypeShape::FixedArray { .. })
+                }
+                _ => false,
+            })
+        })?;
+        Ok(match shape {
+            Some(Shape::Scalar(scalar_type)) if !matches!(scalar_type, ScalarType::Callable(_)) => {
+                Some(scalar_type)
+            }
+            _ => None,
+        })
+    }
+
+    /// Translate only an already established scalar result. This supplies
+    /// literal facts, never a made-up ValueId for custody or backing queries.
+    fn reached_scalar_term(
+        &self,
+        tables: &MachineTables,
+        reached: Reached,
+        concerns: Construct,
+    ) -> Checked<Option<(ScalarTerm, ScalarType)>> {
+        Ok(match reached {
+            Reached::Value(value) => {
+                let scalar_type =
+                    terminal_check_tables::row(&tables.values, value, self.machine, concerns)?
+                        .scalar_type;
+                Some((ScalarTerm::value(value, scalar_type), scalar_type))
+            }
+            Reached::Zero(scalar_type) => {
+                let term = match scalar_type {
+                    ScalarType::Boolean => ScalarTerm::Boolean(false),
+                    ScalarType::Integer(integer) => ScalarTerm::Integer {
+                        scalar_type: integer,
+                        value: semantic_vocabulary::IntegerValue::for_sign(integer.sign(), 0)
+                            .map_err(|_| self.foreign(concerns, "zero has no integer carrier"))?,
+                    },
+                    ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatLiteral(match format {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                            semantic_vocabulary::IeeeFloatValue::Binary32(0)
+                        }
+                        semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                            semantic_vocabulary::IeeeFloatValue::Binary64(0)
+                        }
+                    }),
+                    ScalarType::Callable(_) => return Ok(None),
+                };
+                Some((term, scalar_type))
+            }
+            _ => None,
+        })
     }
 
     /// Checks that every operation's owed clauses each have exactly one
@@ -1859,15 +1931,30 @@ impl<'a> Storage<'a> {
     /// the type the previous segment reached. A `Case` segment must name a
     /// declared case of the exact sum it is applied to.
     fn shape(&self, place: &Lineage, concerns: Construct) -> Checked<Shape<'a>> {
+        self.shape_with(place.root, &place.segments, concerns, |_, _| Ok(true))?
+            .ok_or_else(|| self.foreign(concerns, "an unfiltered shape omitted a segment"))
+    }
+
+    /// Resolve each typed segment once. A consumer may restrict the meanings
+    /// it observes, after the ordinary step is validated; zero cannot turn an
+    /// extent or a reference into scalar contents merely by sharing its type.
+    fn shape_with(
+        &self,
+        root: PlaceId,
+        segments: &[Segment],
+        concerns: Construct,
+        mut accepts: impl FnMut(&Shape<'a>, &Segment) -> Checked<bool>,
+    ) -> Checked<Option<Shape<'a>>> {
         // A root of a primitive type (a scalar home, a borrowed scalar
         // formal) is itself a scalar leaf.
-        let root = self.root_type(place.root, concerns)?;
+        let root = self.root_type(root, concerns)?;
         let mut at = match &self.declaration(root, concerns)?.shape {
             StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(*cell),
             StructuralTypeShape::PrimitiveScalar(scalar_type) => Shape::Scalar(*scalar_type),
             _ => Shape::Typed(root),
         };
-        for segment in &place.segments {
+        for segment in segments {
+            let accepted = accepts(&at, segment)?;
             at = match (at, segment) {
                 (
                     Shape::Typed(_) | Shape::Scalar(_),
@@ -2043,8 +2130,11 @@ impl<'a> Storage<'a> {
                     ));
                 }
             };
+            if !accepted {
+                return Ok(None);
+            }
         }
-        Ok(at)
+        Ok(Some(at))
     }
 
     /// Every leaf at or beneath `place`, as lineages: each scalar, and each
@@ -2709,11 +2799,15 @@ impl<'a> Storage<'a> {
                 // discriminator, or a payload of another case.
                 (Stored::Case(_), _) => Reached::Unknown,
                 // A zero establishment holds the first declared case of every
-                // sum of the zero value.
+                // sum of the zero value. The zero operation's fresh destination
+                // supplies its type; the checked backing suffix supplies the
+                // queried path, independently of a borrowed logical subject.
                 (Stored::Zeroed, Asked::Case(_)) => self
-                    .zero_case(row.backing.place.root, beneath, concerns)?
+                    .zero_case(row.destination.root, beneath, concerns)?
                     .map_or(Reached::Unknown, Reached::Case),
-                (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
+                (Stored::Zeroed, Asked::Contents(_)) => self
+                    .zero_scalar(row.destination.root, beneath, concerns)?
+                    .map_or(Reached::Unknown, Reached::Zero),
                 (Stored::Established, Asked::Contents(_))
                     if beneath == [Segment::Extent]
                         && matches!(
@@ -3597,11 +3691,9 @@ impl<'a> Storage<'a> {
         if let Reached::Extent(producer) = reached {
             return self.extent_equation(references, tables, operation, producer, &budget);
         }
-        let Reached::Value(held) = reached else {
+        let Some((held, held_type)) = self.reached_scalar_term(tables, reached, concerns)? else {
             return Ok(None);
         };
-        let held_type =
-            terminal_check_tables::row(&tables.values, held, self.machine, concerns)?.scalar_type;
         if held_type != result.scalar_type {
             return Err(self.unsupported(
                 concerns,
@@ -3615,7 +3707,7 @@ impl<'a> Storage<'a> {
         }
         Ok(Some(Proposition::Equal(
             ScalarTerm::value(result.id, result.scalar_type),
-            ScalarTerm::value(held, held_type),
+            held,
         )))
     }
 
@@ -3762,6 +3854,7 @@ impl<'a> Storage<'a> {
                 }
             }
             Reached::Case(_)
+            | Reached::Zero(_)
             | Reached::Extent(_)
             | Reached::Unestablished
             | Reached::Cycle
@@ -3877,20 +3970,18 @@ impl<'a> Storage<'a> {
         let mut equations = Vec::new();
         for bound in self.bound_payloads(block)? {
             let mut budget = self.snapshot_budget();
-            let Reached::Value(held) = self.reaching(
+            let reached = self.reaching(
                 references,
                 tables,
                 Asked::Contents(&bound.leaf),
                 (block.id, usize::MAX),
                 &mut budget,
                 concerns,
-            )?
+            )?;
+            let Some((held, held_type)) = self.reached_scalar_term(tables, reached, concerns)?
             else {
                 continue;
             };
-            let held_type =
-                terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
-                    .scalar_type;
             if held_type != bound.parameter.scalar_type {
                 return Err(self.unsupported(
                     concerns,
@@ -3904,7 +3995,7 @@ impl<'a> Storage<'a> {
                 bound.edge,
                 Proposition::Equal(
                     ScalarTerm::value(bound.parameter.id, bound.parameter.scalar_type),
-                    ScalarTerm::value(held, held_type),
+                    held,
                 ),
             ));
         }
@@ -6867,21 +6958,20 @@ impl Held<'_, '_> {
                     "the descriptor's extent has no current endpoint correspondence",
                 ));
         }
-        let Reached::Value(held) = reached else {
+        let Some((held, held_type)) = storage
+            .reached_scalar_term(self.tables, reached, self.concerns)
+            .map_err(crate::checking::Unbound::Refused)?
+        else {
             return Err(crate::checking::Unbound::Unproved(
                 "the clause's observation has no reaching value identity",
             ));
         };
-        let held_type =
-            terminal_check_tables::row(&self.tables.values, held, storage.machine, self.concerns)
-                .map_err(crate::checking::Unbound::Refused)?
-                .scalar_type;
         if held_type != scalar_type {
             return Err(crate::checking::Unbound::Unsupported(
                 "a clause's observation holds a value of another type than its term",
             ));
         }
-        Ok(ScalarTerm::value(held, scalar_type))
+        Ok(held)
     }
 
     fn extent_of(
@@ -7015,6 +7105,7 @@ impl crate::checking::Bindings for Held<'_, '_> {
         {
             Reached::Case(held) => Ok(held == case),
             Reached::Value(_)
+            | Reached::Zero(_)
             | Reached::Extent(_)
             | Reached::Established(_)
             | Reached::Unknown

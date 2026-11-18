@@ -784,22 +784,43 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
     use crate::source_state::types::TypeReferenceNode;
 
     fn fixture(valid_predicate: bool) -> (TypedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
-        header_fixture(valid_predicate, false)
+        header_fixture(valid_predicate, false, false)
     }
 
     fn header_fixture(
         valid_predicate: bool,
         linear: bool,
+        sibling: bool,
     ) -> (TypedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
-        let mut builder = SymbolTableBuilder::new();
+        let mut sources = crate::source_inputs::SourceMap::default();
+        let source = sibling.then(|| {
+            sources
+                .add_with_metadata(
+                    "headers/main.omg".into(),
+                    "Raw Other Token clause_helper reaches none".into(),
+                    "headers".into(),
+                    semantic_vocabulary::PackageKeyIdentity::from_digest([37; 32]),
+                    source_admission::SourceOrigin::User,
+                )
+                .source_id
+        });
+        let name = |start, end, fallback| {
+            source.map_or(SymbolNameRef::Static(fallback), |source| {
+                SymbolNameRef::Source(source_text::SourceSpan::new(
+                    source,
+                    source_text::Span::new(start, end),
+                ))
+            })
+        };
+        let mut builder = SymbolTableBuilder::with_sources(sibling.then(|| Arc::new(sources)));
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = builder.insert_children(
             root,
             builtin_type_symbols().into_iter().chain([
-                (SymbolKind::Trait, SymbolNameRef::Static("Raw")),
-                (SymbolKind::Trait, SymbolNameRef::Static("Other")),
-                (SymbolKind::Data, SymbolNameRef::Static("Token")),
-                (SymbolKind::Machine, SymbolNameRef::Static("clause_helper")),
+                (SymbolKind::Trait, name(0, 3, "Raw")),
+                (SymbolKind::Trait, name(4, 9, "Other")),
+                (SymbolKind::Data, name(10, 15, "Token")),
+                (SymbolKind::Machine, name(16, 29, "clause_helper")),
             ]),
         );
         let owner = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
@@ -807,9 +828,13 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
             .handles()
             .nth(symbols::BUILTIN_TYPE_COUNT + 1)
             .unwrap();
-        let requirement = builder
-            .insert_children(owner, [(SymbolKind::State, SymbolNameRef::Static("read"))])
-            .start();
+        let mut members = vec![(SymbolKind::State, SymbolNameRef::Static("read"))];
+        if sibling {
+            members.push((SymbolKind::State, SymbolNameRef::Static("selected")));
+        }
+        let members = builder.insert_children(owner, members);
+        let requirement = members.handle_at(0);
+        let selected = sibling.then(|| members.handle_at(1));
         let parameters = builder.insert_children(
             requirement,
             [
@@ -1054,7 +1079,7 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
             ..Default::default()
         }]);
         let no_services = typed.service_reach_rows.intern(Vec::new());
-        let machines = typed.trait_machine_signatures.insert_many([StateSignature {
+        let mut signatures = vec![StateSignature {
             symbol: requirement,
             name: "read".into(),
             parameters: formals,
@@ -1063,7 +1088,61 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
             service_reach_row: no_services,
             declares_no_crash_route: true,
             ..Default::default()
-        }]);
+        }];
+        if let Some(selected) = selected {
+            for owner in [requirement, selected] {
+                typed.authored_service_reach_rows.push(
+                    crate::source_state::signature::AuthoredServiceReachRow {
+                        owner,
+                        keyword_source_spans: vec![source_text::SourceSpan::new(
+                            source.unwrap(),
+                            source_text::Span::new(30, 37),
+                        )],
+                        targets: Vec::new(),
+                        installation_bound: false,
+                    },
+                );
+            }
+            let falsity = typed
+                .expression_table
+                .insert(ExpressionNode::Boolean(false));
+            let predicate =
+                typed
+                    .expression_table
+                    .insert(ExpressionNode::Unary(TableUnaryExpression {
+                        operator: UnaryOperator::LogicalNot,
+                        operand: falsity,
+                    }));
+            let occurrence = typed
+                .record_late_bound_authored_declaration_selection(
+                    Default::default(),
+                    Exposure::PublicInterface,
+                    Kind::Operator,
+                    Binding::CheckedOperator,
+                )
+                .unwrap();
+            typed
+                .expression_table
+                .attach_authored_selection_occurrences(predicate, [occurrence]);
+            let facts = typed
+                .proof_facts
+                .insert_many([ProofFact::Expression(predicate)]);
+            let contracts = typed.signature_contracts.insert_many([SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts,
+                ..Default::default()
+            }]);
+            signatures.push(StateSignature {
+                symbol: selected,
+                name: "selected".into(),
+                return_type: unit,
+                contracts,
+                service_reach_row: no_services,
+                declares_no_crash_route: true,
+                ..Default::default()
+            });
+        }
+        let machines = typed.trait_machine_signatures.insert_many(signatures);
         for (symbol, name, machines) in [
             (owner, "Raw", machines),
             (other, "Other", Default::default()),
@@ -1080,8 +1159,90 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
     }
 
     #[test]
+    fn a_selected_boundary_header_does_not_admit_its_unread_sibling() {
+        for valid_predicate in [true, false] {
+            let (typed, owner, _, unread) = header_fixture(valid_predicate, false, true);
+            let declaration = typed.trait_definition_by_symbol(owner).unwrap();
+            let selected = typed
+                .trait_machine_signatures
+                .span(declaration.machines)
+                .unwrap()[1]
+                .symbol;
+            let context = MachineId::new(1).unwrap();
+            let mut program = Program::new(&typed, false);
+            let (boundary, signature) = program
+                .read_boundary_declaration(context, selected)
+                .expect("the selected sibling has a valid checked contract")
+                .expect("the selected sibling is an ordinary boundary requirement");
+            assert!(!signature.requires.is_empty());
+            let row = program.boundaries.row(boundary).unwrap();
+            assert_eq!(row.source, selected);
+            assert_eq!(row.owner, owner);
+            assert_eq!(
+                row.declaration.owner,
+                typed
+                    .type_identity_text(typed.exact_owner_nominal_identity(owner, &[]).unwrap())
+                    .unwrap()
+            );
+            let (registered, parents) = program.services.get(row.owning_service.unwrap()).unwrap();
+            assert_eq!(registered.declaration.symbol, owner);
+            assert!(parents.is_empty());
+            assert_eq!(program.admitted_signature_views.len(), 1);
+            assert_eq!(program.admitted_signature_views[0].symbol, selected);
+            assert!(program.admitted_declarations.contains(selected));
+            assert!(!program.admitted_declarations.contains(unread));
+
+            // A real boundary read owns this member's source, while its
+            // declaring service supplies identity rather than sibling clauses.
+            let captured = crate::lowering::capture_source_questions(&mut program, context)
+                .expect("the unrelated unread header must not require operator completions");
+            assert!(captured.declarations.contains(&selected));
+            assert!(!captured.declarations.contains(&unread));
+            assert!(captured.questions.iter().any(|question| {
+                question.lexical_owner == selected
+                    && question.target
+                        == crate::lowering::selection_questions::RawSelectionTarget::Intrinsic(
+                            crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                        )
+            }));
+            assert!(
+                program
+                    .admitted_bodies
+                    .explicit_symbols()
+                    .unwrap()
+                    .is_empty()
+            );
+
+            // Demanding the sibling itself still owes its complete contract.
+            let requested = program.read_boundary_declaration(context, unread);
+            if valid_predicate {
+                assert!(!requested.unwrap().unwrap().1.requires.is_empty());
+                assert_eq!(program.admitted_signature_views.len(), 2);
+                let captured = crate::lowering::capture_source_questions(&mut program, context)
+                    .expect("both requested headers now have real reader completions");
+                assert!(captured.questions.iter().any(|question| {
+                    question.lexical_owner == unread
+                        && question.target
+                            == crate::lowering::selection_questions::RawSelectionTarget::Intrinsic(
+                                crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                            )
+                }));
+            } else {
+                let refused = requested.expect_err("a demanded unsupported header must refuse");
+                assert_eq!(
+                    refused.reason,
+                    terminal_check_tables::RefusalReason::Unsupported
+                );
+                assert_eq!(program.boundaries.rows.len(), 1);
+                assert_eq!(program.admitted_signature_views.len(), 1);
+                assert!(!program.admitted_declarations.contains(unread));
+            }
+        }
+    }
+
+    #[test]
     fn queued_calling_header_describes_linear_qualified_inputs_and_checks_its_clauses() {
-        let (typed, owner, _, requirement) = header_fixture(true, true);
+        let (typed, owner, _, requirement) = header_fixture(true, true, false);
         let scope = AppliedTraitScope::new(
             &typed,
             typed.trait_definition_by_symbol(owner).unwrap(),
@@ -1154,7 +1315,7 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
 
     #[test]
     fn queued_linear_calling_header_refuses_an_unformed_clause_at_its_source() {
-        let (typed, owner, _, requirement) = header_fixture(false, true);
+        let (typed, owner, _, requirement) = header_fixture(false, true, false);
         let scope = AppliedTraitScope::new(
             &typed,
             typed.trait_definition_by_symbol(owner).unwrap(),
@@ -1277,6 +1438,95 @@ use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding as Bin
                     2
                 }
             );
+        }
+    }
+
+    #[test]
+    fn service_identity_does_not_admit_unread_boundary_headers() {
+        for valid_predicate in [true, false] {
+            let (typed, owner, _, requirement) = fixture(valid_predicate);
+            let declaration = typed.trait_definition_by_symbol(owner).unwrap();
+            let scope = AppliedTraitScope::new(
+                &typed,
+                declaration,
+                TraitApplicationArguments {
+                    lexical_owner: owner,
+                    enclosing_data_applications: &[],
+                    arguments: &[],
+                    lifetimes: &[],
+                },
+            )
+            .unwrap();
+            let expected_identity = scope.portable_application_identity(&typed).unwrap();
+            let context = MachineId::new(1).unwrap();
+            let mut program = Program::new(&typed, false);
+            let service = program.declared_service(context, declaration).unwrap();
+            let (registered, parents) = program.services.get(service).unwrap();
+            assert_eq!(registered.declaration.symbol, owner);
+            assert_eq!(
+                registered.portable_application_identity(&typed),
+                Some(expected_identity)
+            );
+            assert!(parents.is_empty());
+            assert_eq!(program.services.len(), 1);
+            assert!(program.admitted_signature_views.is_empty());
+            assert!(program.signatures.is_empty());
+            assert!(program.boundaries.rows.is_empty());
+            assert!(program.fixed_inputs.is_empty());
+
+            // Use the production capture path. Registering a canonical service
+            // identity does not select its members' source contract clauses.
+            let metadata = crate::lowering::capture_source_questions(&mut program, context)
+                .expect("service identity alone must not require unread header operators");
+            assert!(!metadata.declarations.contains(&owner));
+            assert!(metadata.questions.is_empty());
+
+            // An actual header request still owes the ordinary reader's full
+            // contract validation and exact operator completions.
+            let header = program.read_calling_requirement_header(context, &scope, requirement);
+            if valid_predicate {
+                assert!(!header.unwrap().requires.is_empty());
+                assert_eq!(program.admitted_signature_views.len(), 1);
+                let captured = crate::lowering::capture_source_questions(&mut program, context)
+                    .expect("the requested header now has actual checked reader completions");
+                assert!(captured.declarations.contains(&owner));
+                let conjunction = typed
+                    .expression_table
+                    .iter_backing_expressions()
+                    .find_map(|(handle, node)| match node {
+                        ExpressionNode::Binary(binary)
+                            if binary.operator == BinaryOperator::And =>
+                        {
+                            Some(handle)
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                let occurrence = typed
+                    .expression_table
+                    .authored_selection_occurrences(conjunction)
+                    .next()
+                    .unwrap();
+                assert!(captured.questions.iter().any(|question| {
+                    question.lexical_owner == requirement
+                        && question.occurrence == occurrence
+                        && question.target
+                            == crate::lowering::selection_questions::RawSelectionTarget::Intrinsic(
+                                crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                            )
+                }));
+            } else {
+                let refusal =
+                    header.expect_err("identity registration cannot admit an unsupported contract");
+                assert_eq!(
+                    refusal.reason,
+                    terminal_check_tables::RefusalReason::Unsupported
+                );
+                assert!(program.admitted_signature_views.is_empty());
+            }
+            assert!(program.signatures.is_empty());
+            assert!(program.boundaries.rows.is_empty());
+            assert!(program.fixed_inputs.is_empty());
         }
     }
 
