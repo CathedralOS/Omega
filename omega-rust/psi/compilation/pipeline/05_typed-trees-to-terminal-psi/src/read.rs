@@ -216,6 +216,9 @@ pub(crate) struct Program<'t> {
     rigid: bool,
     /// The machines that are a requirement's contract with no body.
     pub requirements: Vec<MachineId>,
+    /// Only the ordinary/callable header reader allocates this family. Record
+    /// member projections retain their separate receiver/member instance key.
+    requirement_headers: Vec<(machine::RequirementHeaderOrigin, MachineId)>,
     /// Entries and selected providers keep their declared input contract.
     pub fixed_inputs: Vec<MachineId>,
     /// Every declaration in these machines' verification subject is rooted;
@@ -474,6 +477,7 @@ impl<'t> Program<'t> {
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),
+            requirement_headers: Vec::new(),
             fixed_inputs: Vec::new(),
             subject_machines: Vec::new(),
             outcome_subjects: None,
