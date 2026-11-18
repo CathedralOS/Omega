@@ -853,7 +853,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             refused.detail,
-            "generic application changed its caller or target, or has another static feature"
+            "generic application has another source owner or declaration"
         );
     }
 

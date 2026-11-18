@@ -20,16 +20,13 @@ by visible satisfiers:
 
 ```omega
 let memory_tests = builder.tests.group<Tests::memory>();
-builder.tests.service<Tests::memory, FilesystemService>();
 ```
 
-`group` and `service` are compiler-owned Build operations on the `tests` facet.
-`group`'s requirement operand, and `service`'s group requirement and service
-slot operands, use the existing
+`group` is a compiler-owned Build operation on the `tests` facet. Its
+requirement operand uses the existing
 [non-executing product-reference rules](scoped_execution.md#selecting-product-declarations-without-executing-them).
-They resolve under the author's product scope to exact declaration applications,
-not host imports, strings, spelling matches, or evaluator table indices. A
-same-named user machine gains no product-selection privilege. Registration is
+It resolves under the author's product scope to an exact declaration application.
+A same-named user machine gains no product-selection privilege. Registration is
 evaluated configuration in the same Build activation, not a new dependency edge.
 Its product references remain inert until the final dependency join.
 
@@ -118,37 +115,36 @@ Configuration may use ordinary admitted build computation and explicit inputs;
 it does not make dependency requests target-dependent or grant ambient environment
 access. This contract introduces no debug/release mode or special CLI profile.
 
-`builder.tests.service<Group, Slot>()` asks the test runner to back one exact
-service slot for every invocation of a group the same Build has already
-registered. It grants no capability. Naming an unregistered group, naming a
-slot twice for one group, or naming a slot the runner does not back rejects
-before any test runs; the runner backs only std's `FilesystemService`, so a
-group that names a raw host slot such as `PosixFilesystemHost` cannot widen
-its backing to the real filesystem. How the runner identifies std's slot
-without trusting a package name is open:
-[`test-runner-filesystem-slot`](../../../OWNER_QUESTIONS.md#test-runner-filesystem-slot).
-Benign captured output and a private
-in-memory filesystem require no approval ceremony, but are explicitly selected
-rather than inferred from names. Disabled groups create no execution
-grant and are reported as disabled, not passed; their declarations remain
-subject to ordinary source checking.
+<a id="test-runner-filesystem-slot"></a>
 
-The private in-memory filesystem is supplied by the test runner of each engine,
-as an operating system supplies the real one; no library provider holds test
-state. It implements every operation of the `FilesystemService` contract,
-including directories, metadata, permissions and enumeration, over private
-state the runner creates empty for each test invocation, so code under test
-behaves as it does on a real filesystem. A group selects it by naming the
-`FilesystemService` slot, and the ordinary filesystem calls reach the runner's
-state the way they reach the host's.
+The test harness uses [ordinary provider selection](provider_selection.md#declaration-and-choice)
+for the test root's exact boundary requirements. Each selection belongs to
+the registered group and target's test product. For a test that calls
+`FilesystemService`, the harness selects a conforming provider and supplies
+the filesystem backing within its actual grant. Selection checks the provider's
+contract. The runner checks the resources delegated to the test separately.
+The application keeps its own provider selections.
+`builder.tests.service<Group, Slot>()` is retired. A matching trait name,
+package name or schema cannot cause the runner to supply a filesystem.
 
-Test execution is governed by the same authority hierarchy as other build-time
-work. The root selects backing services and delegates bounded capabilities;
-descendant package builds and groups can only attenuate them. Selecting a host
-provider in a child cannot replace a root-selected virtual filesystem. Operations
-supported by the delegated virtual interface use that backing; real-only or
-otherwise unavailable operations reject without a host fallback. This applies
-equally to console, network, process, credentials, and other services.
+When the harness selects a private filesystem, the runner arranges for its
+provider to start with an empty filesystem for **each test invocation**, on
+both native and Psi. Setup supplies fresh backing before the test body runs.
+Fixtures and callees share writes within that invocation. Other invocations,
+including parallel tests and the other engine, get independent state. The
+provider implements the selected filesystem contract over this state, including
+directory operations, metadata and errors. Benign private backing and captured
+output require no separate approval. A group that uses no filesystem needs no
+filesystem setup. Disabled groups still undergo ordinary source checking,
+receive no execution grant and are reported as disabled.
+
+[Build attenuation](scoped_execution.md#inputs-and-default-filesystem) applies
+throughout the test's provider and dependency closure. A child can pass on its
+virtual backing or restrict it further. Its ordinary filesystem calls operate
+on that delegated view. Admission rejects a raw host provider that needs an
+ungranted resource before execution. An unsupported operation on an admitted
+virtual view reports the contract's error without falling back to the host.
+The same rule applies to console, network, process and credential services.
 
 Restricted requests from the enabled test closure, including its fixtures and
 providers, enter [install/update review](../packages/acceptance.md#restricted-build-acceptance)
@@ -336,8 +332,11 @@ child attempts to widen virtual authority, and unaccepted live-host requests.
 Run the no-std variant and an ordinary native harness calling a shared test
 machine. Helper tests alone do not deliver this build-to-execution contract.
 Run a pure group and a virtual-filesystem group on both engines, reporting
-separate results and matching deterministic observations. Cover a native-only
-binding with optional and required interpretation, explicit engine exclusion,
-no runnable engine, and a native attempt to escape virtual backing. Inspect
+separate results and matching deterministic observations. Have two tests each
+create the same file exclusively, write a different value and read back their
+own bytes. Both must pass in either order and the host file at that path must
+retain its original contents. Repeat through a child with the delegated view.
+Cover a native-only binding with optional and required interpretation, explicit
+engine exclusion, no runnable engine, and a native attempt to escape virtual backing. Inspect
 both application products for absent test-only roots; a scheduled native test
 failure or budget exhaustion must not turn into a successful optional skip.

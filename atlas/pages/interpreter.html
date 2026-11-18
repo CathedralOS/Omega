@@ -579,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Psi interpreter</h1>
       <p class="lede">How portable Terminal Psi is loaded, supplied with runtime capabilities, and executed.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas"><code>1dcbd517cb9d</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/subsystems/interpreter.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas"><code>dc44883d30f1</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/subsystems/interpreter.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -609,94 +609,94 @@ is Psi. <a href="psi.html">Psi compilation</a> explains how a program is produce
 <a href="build-and-packages.html">Build and packages</a> explains who requests work and
 grants host effects.</p>
 <h2 id="from-produced-code-to-an-instance">From produced code to an instance</h2>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution."><svg viewBox="0.00 0.00 2042.00 75.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution." style="min-width:2042px">
-<title>An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution.</title><defs><marker id="interpreter-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="interpreter-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="interpreter-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="interpreter-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 66)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution."><svg viewBox="0.00 0.00 2171.28 68.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution." style="min-width:2171px">
+<title>An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution.</title><defs><marker id="interpreter-diagram-1-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="interpreter-diagram-1-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="interpreter-diagram-1-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="interpreter-diagram-1-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 59.64)">
 <title>atlas</title>
 
 <g id="interpreter-diagram-1-node1" class="node hub" data-node="A">
 <title>A</title>
-<polygon points="144.18,-51.72 0,-51.72 0,0 144.18,0 144.18,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="72.09" y="-30.01">Produced artifact or</text>
-<text xml:space="preserve" text-anchor="middle" x="72.09" y="-13.51">received bytes</text>
+<polygon points="154,-50 0,-50 0,0 154,0 154,-50" />
+<text text-anchor="middle" x="77" y="-28.6">Produced artifact or</text>
+<text text-anchor="middle" x="77" y="-14.6">received bytes</text>
 </g>
 
 <g id="interpreter-diagram-1-node2" class="node psi" data-node="P">
 <title>P</title>
-<polygon points="459.61,-51.72 281.68,-51.72 281.68,0 459.61,0 459.61,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="370.64" y="-30.01">TerminalProgram loads or</text>
-<text xml:space="preserve" text-anchor="middle" x="370.64" y="-13.51">borrows code</text>
+<polygon points="488,-50 297,-50 297,0 488,0 488,-50" />
+<text text-anchor="middle" x="392.5" y="-28.6">TerminalProgram loads or</text>
+<text text-anchor="middle" x="392.5" y="-14.6">borrows code</text>
 </g>
 
 <g id="interpreter-diagram-1-edge1" class="edge handoff" data-from="A" data-to="P">
 <title>A-&gt;P</title>
-<path d="M144.5,-25.86C185.63,-25.86 237.67,-25.86 281.36,-25.86" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="212.93" y="-30.21">load or borrow</text>
+<path d="M154.29,-25C197.24,-25 251.26,-25 296.89,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="225.5" y="-28.4">load or borrow</text>
 </g>
 
 <g id="interpreter-diagram-1-node3" class="node around" data-node="S">
 <title>S</title>
-<polygon points="769.04,-51.72 620.36,-51.72 620.36,0 769.04,0 769.04,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="694.7" y="-30.01">Admit exact runtime</text>
-<text xml:space="preserve" text-anchor="middle" x="694.7" y="-13.51">supplies</text>
+<polygon points="815,-50 659,-50 659,0 815,0 815,-50" />
+<text text-anchor="middle" x="737" y="-28.6">Admit exact runtime</text>
+<text text-anchor="middle" x="737" y="-14.6">supplies</text>
 </g>
 
 <g id="interpreter-diagram-1-edge2" class="edge handoff" data-from="P" data-to="S">
 <title>P-&gt;S</title>
-<path d="M460.07,-25.86C510.26,-25.86 572.34,-25.86 619.89,-25.86" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="539.98" y="-30.21">match code identity</text>
+<path d="M488.45,-25C542.1,-25 608.31,-25 658.75,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="573.5" y="-28.4">match code identity</text>
 </g>
 
 <g id="interpreter-diagram-1-node4" class="node around" data-node="I">
 <title>I</title>
-<polygon points="1079.22,-51.72 911.04,-51.72 911.04,0 1079.22,0 1079.22,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="995.13" y="-30.01">Instantiate with</text>
-<text xml:space="preserve" text-anchor="middle" x="995.13" y="-13.51">arguments and account</text>
+<polygon points="1146,-50 966,-50 966,0 1146,0 1146,-50" />
+<text text-anchor="middle" x="1056" y="-28.6">Instantiate with</text>
+<text text-anchor="middle" x="1056" y="-14.6">arguments and account</text>
 </g>
 
 <g id="interpreter-diagram-1-edge3" class="edge handoff" data-from="S" data-to="I">
 <title>S-&gt;I</title>
-<path d="M769.47,-25.86C812.28,-25.86 866.32,-25.86 910.68,-25.86" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="840.04" y="-45.96">supply admitted</text>
-<text xml:space="preserve" text-anchor="middle" x="840.04" y="-30.21">inputs</text>
+<path d="M815.14,-25C860.68,-25 918.52,-25 965.99,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="890.5" y="-41.4">supply admitted</text>
+<text text-anchor="middle" x="890.5" y="-28.4">inputs</text>
 </g>
 
 <g id="interpreter-diagram-1-node5" class="node around" data-node="B">
 <title>B</title>
-<polygon points="1389.4,-51.72 1208.47,-51.72 1208.47,0 1389.4,0 1389.4,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1298.93" y="-30.01">Bind checked imports and</text>
-<text xml:space="preserve" text-anchor="middle" x="1298.93" y="-13.51">components</text>
+<polygon points="1474,-50 1282,-50 1282,0 1474,0 1474,-50" />
+<text text-anchor="middle" x="1378" y="-28.6">Bind checked imports and</text>
+<text text-anchor="middle" x="1378" y="-14.6">components</text>
 </g>
 
 <g id="interpreter-diagram-1-edge4" class="edge handoff" data-from="I" data-to="B">
 <title>I-&gt;B</title>
-<path d="M1079.4,-25.86C1119.35,-25.86 1167.29,-25.86 1208.07,-25.86" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1143.84" y="-45.96">bind declared</text>
-<text xml:space="preserve" text-anchor="middle" x="1143.84" y="-30.21">imports</text>
+<path d="M1146.14,-25C1188.39,-25 1238.92,-25 1281.91,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1214" y="-41.4">bind declared</text>
+<text text-anchor="middle" x="1214" y="-28.4">imports</text>
 </g>
 
 <g id="interpreter-diagram-1-node6" class="node around" data-node="E">
 <title>E</title>
-<polygon points="1711.58,-51.06 1538.9,-51.06 1538.9,-0.66 1711.58,-0.66 1711.58,-51.06" />
-<text xml:space="preserve" text-anchor="middle" x="1625.24" y="-21.76">Invoke under WorkMeter</text>
+<polygon points="1819,-50 1632,-50 1632,0 1819,0 1819,-50" />
+<text text-anchor="middle" x="1725.5" y="-21.6">Invoke under WorkMeter</text>
 </g>
 
 <g id="interpreter-diagram-1-edge5" class="edge handoff" data-from="B" data-to="E">
 <title>B-&gt;E</title>
-<path d="M1389.84,-25.86C1436.33,-25.86 1492.78,-25.86 1538.63,-25.86" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1464.15" y="-30.21">invoke or resume</text>
+<path d="M1474.32,-25C1523.46,-25 1583.13,-25 1631.87,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1553" y="-28.4">invoke or resume</text>
 </g>
 
 <g id="interpreter-diagram-1-node7" class="node around" data-node="O">
 <title>O</title>
-<polygon points="2024.76,-51.72 1845.33,-51.72 1845.33,0 2024.76,0 2024.76,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="1935.04" y="-30.01">Completion or suspension</text>
-<text xml:space="preserve" text-anchor="middle" x="1935.04" y="-13.51">or failure</text>
+<polygon points="2154,-50 1962,-50 1962,0 2154,0 2154,-50" />
+<text text-anchor="middle" x="2058" y="-28.6">Completion or suspension</text>
+<text text-anchor="middle" x="2058" y="-14.6">or failure</text>
 </g>
 
 <g id="interpreter-diagram-1-edge6" class="edge handoff" data-from="E" data-to="O">
 <title>E-&gt;O</title>
-<path d="M1711.98,-25.86C1753.43,-25.86 1803.14,-25.86 1845.01,-25.86" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1778.45" y="-30.21">observe status</text>
+<path d="M1819,-25C1863.59,-25 1917.01,-25 1961.93,-25" marker-end="url(#interpreter-diagram-1-arrow-handoff)" />
+<text text-anchor="middle" x="1890.5" y="-28.4">observe status</text>
 </g>
 </g>
 </svg></div><figcaption>An embedding loads code, admits supplies, binds an instance and invokes it under a work meter. Decoding alone does not authorize execution.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
@@ -811,88 +811,88 @@ Its execution does not itself authorize arbitrary register or stack choices.
    <code>validate_calling_policy_result(plan, signature)</code> before returning the
    validated plan and work usage. <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/build-system/build-settings/src/calling_policy_execution.rs#L188">Execution and result checks</a></li>
 </ol>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage."><svg viewBox="0.00 0.00 1395.00 166.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage." style="min-width:1395px">
-<title>A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage.</title><defs><marker id="interpreter-diagram-2-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="interpreter-diagram-2-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="interpreter-diagram-2-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="interpreter-diagram-2-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 157.8)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage."><svg viewBox="0.00 0.00 1479.28 152.28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage." style="min-width:1479px">
+<title>A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage.</title><defs><marker id="interpreter-diagram-2-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="interpreter-diagram-2-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="interpreter-diagram-2-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="interpreter-diagram-2-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 143.64)">
 <title>atlas</title>
 
 <g id="interpreter-diagram-2-node1" class="node psi" data-node="S">
 <title>S</title>
-<polygon points="156.93,-137.72 7.5,-137.72 7.5,-86 156.93,-86 156.93,-137.72" />
-<text xml:space="preserve" text-anchor="middle" x="82.21" y="-116.01">Canonical calling</text>
-<text xml:space="preserve" text-anchor="middle" x="82.21" y="-99.51">signature and target</text>
+<polygon points="167,-131 7,-131 7,-81 167,-81 167,-131" />
+<text text-anchor="middle" x="87" y="-109.6">Canonical calling</text>
+<text text-anchor="middle" x="87" y="-95.6">signature and target</text>
 </g>
 
 <g id="interpreter-diagram-2-node3" class="node around" data-node="I">
 <title>I</title>
-<polygon points="440.11,-83.72 312.43,-83.72 312.43,-32 440.11,-32 440.11,-83.72" />
-<text xml:space="preserve" text-anchor="middle" x="376.27" y="-62.01">Fresh interpreter</text>
-<text xml:space="preserve" text-anchor="middle" x="376.27" y="-45.51">instance</text>
+<polygon points="469,-74 332,-74 332,-24 469,-24 469,-74" />
+<text text-anchor="middle" x="400.5" y="-52.6">Fresh interpreter</text>
+<text text-anchor="middle" x="400.5" y="-38.6">instance</text>
 </g>
 
 <g id="interpreter-diagram-2-edge1" class="edge handoff" data-from="S" data-to="I">
 <title>S-&gt;I</title>
-<path d="M157.19,-94.59C169.28,-91.96 181.68,-89.37 193.43,-87.11 232.68,-79.55 276.95,-72.4 311.99,-67.06" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="238.43" y="-91.46">encode signature</text>
+<path d="M167.04,-87.41C179.06,-84.79 191.34,-82.24 203,-80 245.57,-71.84 293.62,-64.23 331.56,-58.59" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="253" y="-83.4">encode signature</text>
 </g>
 
 <g id="interpreter-diagram-2-node5" class="node around" data-node="C">
 <title>C</title>
-<polygon points="1057.47,-116.72 898.29,-116.72 898.29,-65 1057.47,-65 1057.47,-116.72" />
-<text xml:space="preserve" text-anchor="middle" x="977.88" y="-95.01">Validate result against</text>
-<text xml:space="preserve" text-anchor="middle" x="977.88" y="-78.51">original signature</text>
+<polygon points="1123,-106 955,-106 955,-56 1123,-56 1123,-106" />
+<text text-anchor="middle" x="1039" y="-84.6">Validate result against</text>
+<text text-anchor="middle" x="1039" y="-70.6">original signature</text>
 </g>
 
 <g id="interpreter-diagram-2-edge5" class="edge handoff" data-from="S" data-to="C">
 <title>S-&gt;C</title>
-<path d="M157.3,-114.17C296.82,-117.86 608.05,-122.95 869.29,-104.86 878.59,-104.22 888.32,-103.3 897.96,-102.23" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="506.23" y="-137.76">retain original</text>
-<text xml:space="preserve" text-anchor="middle" x="506.23" y="-122.01">contract</text>
+<path d="M167.26,-107.89C316.14,-110.79 647.67,-114.16 926,-95 935.38,-94.35 945.19,-93.46 954.92,-92.43" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="538.5" y="-125.4">retain original</text>
+<text text-anchor="middle" x="538.5" y="-112.4">contract</text>
 </g>
 
 <g id="interpreter-diagram-2-node2" class="node hub" data-node="A">
 <title>A</title>
-<polygon points="164.43,-51.72 0,-51.72 0,0 164.43,0 164.43,-51.72" />
-<text xml:space="preserve" text-anchor="middle" x="82.21" y="-30.01">Admitted policy artifact</text>
-<text xml:space="preserve" text-anchor="middle" x="82.21" y="-13.51">and supplies</text>
+<polygon points="174,-50 0,-50 0,0 174,0 174,-50" />
+<text text-anchor="middle" x="87" y="-28.6">Admitted policy artifact</text>
+<text text-anchor="middle" x="87" y="-14.6">and supplies</text>
 </g>
 
 <g id="interpreter-diagram-2-edge2" class="edge handoff" data-from="A" data-to="I">
 <title>A-&gt;I</title>
-<path d="M164.6,-19.34C201.17,-18.03 244.72,-18.71 283.43,-25.36 292.85,-26.98 302.58,-29.46 312.04,-32.36" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="238.43" y="-45.46">supply admitted</text>
-<text xml:space="preserve" text-anchor="middle" x="238.43" y="-29.71">policy</text>
+<path d="M174.1,-19.45C213.54,-18.23 260.79,-18.62 303,-24 312.44,-25.2 322.28,-27.04 331.91,-29.19" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="253" y="-40.4">supply admitted</text>
+<text text-anchor="middle" x="253" y="-27.4">policy</text>
 </g>
 
 <g id="interpreter-diagram-2-node4" class="node psi" data-node="V">
 <title>V</title>
-<polygon points="749.54,-84.06 572.36,-84.06 572.36,-33.66 749.54,-33.66 749.54,-84.06" />
-<text xml:space="preserve" text-anchor="middle" x="660.95" y="-54.76">Returned BuildTimeValue</text>
+<polygon points="797,-74 608,-74 608,-24 797,-24 797,-74" />
+<text text-anchor="middle" x="702.5" y="-45.6">Returned BuildTimeValue</text>
 </g>
 
 <g id="interpreter-diagram-2-edge3" class="edge handoff" data-from="I" data-to="V">
 <title>I-&gt;V</title>
-<path d="M440.36,-58.08C479.08,-58.22 529.26,-58.4 571.87,-58.55" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="506.23" y="-62.77">execute policy</text>
+<path d="M469.2,-49C510.16,-49 562.97,-49 607.89,-49" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="538.5" y="-52.4">execute policy</text>
 </g>
 
 <g id="interpreter-diagram-2-edge4" class="edge handoff" data-from="V" data-to="C">
 <title>V-&gt;C</title>
-<path d="M749.93,-61.85C786.88,-63.7 830.26,-66.66 869.29,-71.36 878.62,-72.48 888.36,-73.9 898.01,-75.46" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="823.91" y="-91.46">decode proposed</text>
-<text xml:space="preserve" text-anchor="middle" x="823.91" y="-75.71">result</text>
+<path d="M797.23,-55.67C836.98,-58.74 883.79,-62.66 926,-67 935.36,-67.96 945.14,-69.06 954.87,-70.2" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="876" y="-83.4">decode proposed</text>
+<text text-anchor="middle" x="876" y="-70.4">result</text>
 </g>
 
 <g id="interpreter-diagram-2-node6" class="node native" data-node="P">
 <title>P</title>
-<polygon points="1377.4,-116.72 1182.22,-116.72 1182.22,-65 1377.4,-65 1377.4,-116.72" />
-<text xml:space="preserve" text-anchor="middle" x="1279.81" y="-95.01">ValidatedBoundaryEntryPlan</text>
-<text xml:space="preserve" text-anchor="middle" x="1279.81" y="-78.51">and WorkUsage</text>
+<polygon points="1462,-106 1254,-106 1254,-56 1462,-56 1462,-106" />
+<text text-anchor="middle" x="1358" y="-84.6">ValidatedBoundaryEntryPlan</text>
+<text text-anchor="middle" x="1358" y="-70.6">and WorkUsage</text>
 </g>
 
 <g id="interpreter-diagram-2-edge6" class="edge handoff" data-from="C" data-to="P">
 <title>C-&gt;P</title>
-<path d="M1057.68,-90.86C1095.69,-90.86 1141.64,-90.86 1181.79,-90.86" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="1119.84" y="-95.21">validate plan</text>
+<path d="M1123.29,-81C1163.28,-81 1211.58,-81 1253.87,-81" marker-end="url(#interpreter-diagram-2-arrow-handoff)" />
+<text text-anchor="middle" x="1188.5" y="-84.4">validate plan</text>
 </g>
 </g>
 </svg></div><figcaption>A calling policy returns a proposed value; validation against the original signature produces the calling plan and work usage.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
@@ -962,62 +962,62 @@ completion obligations. Those remain with semantic admission and interpreter
 custody. The private-process design is described in the source; this audit
 did not validate its containment guarantees or platform coverage.
 <a href="https://github.com/CathedralOS/Omega/blob/3f9ce43f0c9d179048911d18faa91ba93f60176d/omega-rust/omega/interpreter/native-provider-runtime/src/lib.rs#L1">Native adapter owner</a></p>
-<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks."><svg viewBox="0.00 0.00 1125.00 92.00" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks." style="min-width:1125px">
-<title>Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks.</title><defs><marker id="interpreter-diagram-3-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="interpreter-diagram-3-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="interpreter-diagram-3-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="interpreter-diagram-3-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 83.49)">
+<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p><div class="diagram-frame" tabindex="0" role="region" aria-label="Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks."><svg viewBox="0.00 0.00 1194.28 80.51" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks." style="min-width:1194px">
+<title>Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks.</title><defs><marker id="interpreter-diagram-3-arrow-handoff" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-handoff" /></marker><marker id="interpreter-diagram-3-arrow-checked" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-checked" /></marker><marker id="interpreter-diagram-3-arrow-bypass" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 L10 5 L0 10 z" class="arrow-bypass" /></marker></defs><g id="interpreter-diagram-3-graph0" class="graph" transform="scale(1 1) rotate(0) translate(8.64 71.87)">
 <title>atlas</title>
 
 <g id="interpreter-diagram-3-node1" class="node around" data-node="H">
 <title>H</title>
-<polygon points="181.68,-66.89 0,-66.89 0,-15.17 181.68,-15.17 181.68,-66.89" />
-<text xml:space="preserve" text-anchor="middle" x="90.84" y="-45.18">Host request and retained</text>
-<text xml:space="preserve" text-anchor="middle" x="90.84" y="-28.68">provisions</text>
+<polygon points="195,-62.23 0,-62.23 0,-12.23 195,-12.23 195,-62.23" />
+<text text-anchor="middle" x="97.5" y="-40.83">Host request and retained</text>
+<text text-anchor="middle" x="97.5" y="-26.83">provisions</text>
 </g>
 
 <g id="interpreter-diagram-3-node2" class="node around" data-node="R">
 <title>R</title>
-<polygon points="467.11,-66.23 293.68,-66.23 293.68,-15.83 467.11,-15.83 467.11,-66.23" />
-<text xml:space="preserve" text-anchor="middle" x="380.39" y="-36.93">Omega terminal-runtime</text>
+<polygon points="498,-62.23 312,-62.23 312,-12.23 498,-12.23 498,-62.23" />
+<text text-anchor="middle" x="405" y="-33.83">Omega terminal-runtime</text>
 </g>
 
 <g id="interpreter-diagram-3-edge1" class="edge handoff" data-from="H" data-to="R">
 <title>H-&gt;R</title>
-<path d="M182.04,-41.03C217.61,-41.03 258.3,-41.03 293.45,-41.03" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="237.68" y="-61.13">exact host</text>
-<text xml:space="preserve" text-anchor="middle" x="237.68" y="-45.38">provisions</text>
+<path d="M195.16,-37.23C232.48,-37.23 274.99,-37.23 311.87,-37.23" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="253.5" y="-53.63">exact host</text>
+<text text-anchor="middle" x="253.5" y="-40.63">provisions</text>
 </g>
 
 <g id="interpreter-diagram-3-node3" class="node around" data-node="I">
 <title>I</title>
-<polygon points="783.29,-66.23 618.86,-66.23 618.86,-15.83 783.29,-15.83 783.29,-66.23" />
-<text xml:space="preserve" text-anchor="middle" x="701.08" y="-36.93">Psi interpreter instance</text>
+<polygon points="833,-62.23 659,-62.23 659,-12.23 833,-12.23 833,-62.23" />
+<text text-anchor="middle" x="746" y="-33.83">Psi interpreter instance</text>
 </g>
 
 <g id="interpreter-diagram-3-edge2" class="edge handoff" data-from="R" data-to="I">
 <title>R-&gt;I</title>
-<path d="M467.21,-41.03C514.22,-41.03 572.17,-41.03 618.5,-41.03" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="542.99" y="-61.13">Admitted supplies</text>
-<text xml:space="preserve" text-anchor="middle" x="542.99" y="-45.38">and adapters</text>
+<path d="M498.19,-37.23C548.28,-37.23 609.84,-37.23 658.95,-37.23" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="578.5" y="-53.63">Admitted supplies</text>
+<text text-anchor="middle" x="578.5" y="-40.63">and adapters</text>
 </g>
 
 <g id="interpreter-diagram-3-node4" class="node native" data-node="N">
 <title>N</title>
-<polygon points="1107.72,-66.89 947.04,-66.89 947.04,-15.17 1107.72,-15.17 1107.72,-66.89" />
-<text xml:space="preserve" text-anchor="middle" x="1027.38" y="-45.18">Private native provider</text>
-<text xml:space="preserve" text-anchor="middle" x="1027.38" y="-28.68">process</text>
+<polygon points="1177,-62.23 1006,-62.23 1006,-12.23 1177,-12.23 1177,-62.23" />
+<text text-anchor="middle" x="1091.5" y="-40.83">Private native provider</text>
+<text text-anchor="middle" x="1091.5" y="-26.83">process</text>
 </g>
 
 <g id="interpreter-diagram-3-edge3" class="edge handoff" data-from="I" data-to="N">
 <title>I-&gt;N</title>
-<path d="M783.63,-42.67C793.29,-42.82 803.01,-42.94 812.29,-43.03 859.29,-43.45 871.04,-43.46 918.04,-43.03 927.35,-42.94 937.11,-42.81 946.8,-42.67" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="865.16" y="-63.45">External call</text>
-<text xml:space="preserve" text-anchor="middle" x="865.16" y="-47.7">through adapter</text>
+<path d="M833.24,-37.23C886,-37.23 953.22,-37.23 1005.72,-37.23" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="919.5" y="-53.63">External call</text>
+<text text-anchor="middle" x="919.5" y="-40.63">through adapter</text>
 </g>
 
 <g id="interpreter-diagram-3-edge4" class="edge handoff" data-from="N" data-to="I">
 <title>N-&gt;I</title>
-<path d="M956.96,-14.71C944.19,-10.89 930.84,-7.57 918.04,-5.53 871.63,1.88 858.72,1.76 812.29,-5.53 798.49,-7.7 784.06,-11.3 770.36,-15.41" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
-<text xml:space="preserve" text-anchor="middle" x="865.16" y="-25.63">Response subject to</text>
-<text xml:space="preserve" text-anchor="middle" x="865.16" y="-9.88">semantic checks</text>
+<path d="M1012.33,-12.18C1000.6,-9.3 988.56,-6.83 977,-5.23 926.37,1.77 912.64,1.69 862,-5.23 850.3,-6.83 838.1,-9.3 826.22,-12.18" marker-end="url(#interpreter-diagram-3-arrow-handoff)" />
+<text text-anchor="middle" x="919.5" y="-21.63">Response subject to</text>
+<text text-anchor="middle" x="919.5" y="-8.63">semantic checks</text>
 </g>
 </g>
 </svg></div><figcaption>Omega host adapters supply a Psi instance and connect external calls to a private native provider process; replies still face semantic checks.</figcaption><details><summary>Diagram source</summary><pre><code>flowchart LR
@@ -1107,7 +1107,7 @@ or execution-safety claim.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/dc44883d30f14b79bcd78311ed564eb02f5ec17a/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;

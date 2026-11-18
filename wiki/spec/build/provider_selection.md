@@ -23,11 +23,12 @@ the compiler derives ProviderPlan; configuration selects it. Requirements do not
 select their own providers. A boundary operator has no provider clause, and there
 is no parallel top-level primitive-provider registry.
 
-[Test groups](testing.md) request providers for separate runner roots, not
-application-wide replacements or new grants. Their selected closures remain
-within root-delegated authority: a child cannot replace virtual filesystem
-backing with host access. Test discovery collects exact checked satisfiers as
-independent invocations; it is not provider selection among competing candidates.
+The test harness selects ordinary providers for its separate [test roots](testing.md#test-runner-filesystem-slot).
+When the harness selects private backing, the runner arranges a fresh instance
+for each invocation. A provider can use only resources delegated to that root.
+A child given a virtual filesystem can reach only its delegated view, even if
+it asks for a host provider. Test discovery still collects exact checked satisfiers as
+independent invocations.
 
 A token-bearing boundary operation is a machine requirement in a boundary
 trait. Its token is an ordinary explicit parameter, not a declaration owner or

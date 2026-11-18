@@ -13,7 +13,7 @@ operations and intermediate forms. Source lexing, parsing, resolution, typing,
 preparation, lowering and checking remain visible. Source/native worklists may
 revisit operations; internal arrows show dependencies, not one-pass execution.
 
-The handler trace starts at 03.5 with the permitted nesting for each installation. Follow it to the pair guards in 03.6, the physical bodies in 04, and the fault checks and stack measurements in 05.
+Trace **Handler round trip** to see how 03 finds the retained callbacks, how 04 measures each handler before selecting its installer’s stack guards, and how 05 checks those measurements against the finished program. In 01, each file goes straight from lexing to parsing. The next file can reuse its token buffers.
 
 The proposed route runs down each column, then across to the next one. Use Stage to jump to its operations, then follow the arrows to its output. Drag in any direction and scroll or pinch to zoom. The minimap shows your position.
 
