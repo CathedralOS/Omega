@@ -153,7 +153,10 @@ def main():
                 page.locator('.connected-detail-close').click()
                 assert page.evaluate('document.documentElement.scrollWidth')<=width+1
                 page.locator('.connected-jump').select_option('native-planning')
-                assert 'Open contract:' in page.locator('.connected-detail').inner_text()
+                assert 'Obligation in the recorded plan.' in page.locator('.connected-detail').inner_text()
+                page.locator('.connected-jump').select_option('object-stage-container')
+                assert 'Implemented on the migration branch.' in page.locator('.connected-detail').inner_text()
+                assert page.locator('.connected-detail').get_by_role('link',name='Root and private objects').count()==1
                 assert page.locator('.connected-detail').get_by_role('link',name='Read proposal',exact=True).count()==1
                 proposed_camera=page.locator('#compiler-overview').get_attribute('data-camera')
                 page.get_by_role('button',name='Current',exact=True).click()

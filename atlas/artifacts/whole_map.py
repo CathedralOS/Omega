@@ -216,7 +216,7 @@ def render_architecture(atlas, prefix):
     return ('<section class="architecture" data-theme="dark" id="architecture" aria-labelledby="architecture-title">'
             '<header class="arch-header"><div class="map-heading"><a class="atlas-mark" href="../index.html" aria-label="Atlas overview">Ω</a><div class="map-heading-text">'
             '<h2 id="architecture-title">Compiler architecture</h2>'
-            f'<span class="arch-badge">Compiler snapshot · {revision[:12]}</span></div></div>'
+            f'<span class="arch-badge">Pre-migration snapshot · {revision[:12]}</span></div></div>'
             f'<a class="map-plan" href="{prefix}foundation-backend-plan.html#start-with-the-extra-arrows">Repair plan <span aria-hidden="true">↗</span></a></header>'
             + render_layers(model, prefix)
             + '<script type="application/json" id="component-catalog">'

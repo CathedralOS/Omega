@@ -29,7 +29,7 @@ DETOUR_REPAIRS = {
     'image': (91, ['physical-planning-generated', 'encoding-bodies', 'image-stage-finish'],
         'Entries and adapters join the physical program in stage 04 and pass through common encoding. The image stage finishes container metadata.'),
     'runtime-layout': (92, [],
-        'Runtime provisions would consume explicit storage-layout records. The plan leaves the producing stage open. Psi-only execution must still work.'),
+        'The recorded plan left ownership of runtime layout open. On the migration branch, select Published products to see how the host checks a completed image and when Psi runs alone.'),
 }
 
 
@@ -46,7 +46,7 @@ def annotate_handler_handoff(nodes):
     annotations={
         'native-planning-target': (
             ['Keep each retained installation’s', 'nesting rules and stack choices.', 'Derive the dedicated-stack pairs.'],
-            'Today admission records each installed entry’s gate and stack. Target lowering identifies which installations survive. For the supported x86-64 delivery rules, any installed entry can arrive first. A non-maskable interrupt (vector 2) and a machine check (vector 18) can then nest, each at most once per history. The proposal carries that rule and the entry placements forward. Stage 04 uses the carried scope to derive dedicated-stack pairs before selecting guards.',
+            'In the pre-migration compiler, admission records each installed entry’s gate and stack. Target lowering identifies which installations survive. For the supported x86-64 delivery rules, any installed entry can arrive first. A non-maskable interrupt (vector 2) and a machine check (vector 18) can then nest, each at most once per history. The proposal carries that rule and the entry placements forward. Stage 04 uses the carried scope to derive dedicated-stack pairs before selecting guards.',
             [('Admitted gates and stack choices',admission+'#L239-L284'),('Delivery assumptions',admission+'#L294-L353'),('Retained installations',driver+'#L123-L159'),('Permitted nesting and pairs',object_code+'#L1115-L1141')]),
         'physical-planning-handler-order': (
             ['Plan shared handlers once.', 'An installer uses each child’s frame.'],
@@ -87,6 +87,8 @@ def annotate_implementation(nodes):
     source = code + 'psi/compilation/pipeline/01_source-compilation/src/'
     omega = code + 'omega/compilation/'
     planning = omega + 'pipeline/03_native-program-planning/src/'
+    implemented = 'https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/'
+    roster = 'https://github.com/CathedralOS/Omega/blob/80cc31a4df809971ed701b6ce5edcbaff6a86603/omega-rust/omega/compilation/native-compiler/src/realization/'
     checkpoints = {
         'source-settlement-lex': (
             'On the migration branch, a worker lexes one file into reusable token storage. The parser reads those tokens before the worker advances to the next file.',
@@ -97,13 +99,18 @@ def annotate_implementation(nodes):
              ('Exact source reuse', source + 'source_parsing.rs#L281-L304'),
              ('Error ordering', source + 'source_parsing.rs#L53-L74')]),
         'seal-seal': (
-            'Stage 01 supplies the completed choices for this target and the native bindings that name their exact source declarations. Stage 02 checks their source and target, adds the boundary calls reachable during scalar evaluation of the entry, and passes the result to native planning.',
-            [('Source choices and roots', source + 'provider_supply/demand.rs#L61-L110'),
-             ('Published demand', omega + 'pipeline/02_portable-publication/src/provider_demand.rs#L73-L104'),
+            'Stage 02 accepts provider facts for the requested source judgment and target. It issues the whole set with a read-only receipt identifying the source that supplied it.',
+            [('Issue provider demand', implemented + 'compilation/pipeline/02_portable-publication/src/provider_demand.rs#L106-L125'),
+             ('Select and retain the receipt', implemented + 'compilation/native-compiler/src/provider_selection.rs#L39-L73'),
+             ('Source choices and roots', source + 'provider_supply/demand.rs#L61-L110'),
+             ('Earlier published demand', omega + 'pipeline/02_portable-publication/src/provider_demand.rs#L73-L104'),
              ('Normal compiler handoff', omega + 'compiler/src/execution_settlement.rs#L145-L176')]),
         'native-planning-providers': (
-            'Native planning joins the published choices to the target. It refuses a native binding that substitutes a different checked body. When an entry depends on a provider to compute a constant, it records that provider in a target-specific copy of the code.',
-            [('Exact body comparison', planning + 'execution.rs#L53-L75'),
+            'Native planning keeps the same source receipt while binding a folded entry and freezing its provider plans. Products checks the source owner and original program before accepting them. Executable entry preparation also checks the selected target. The planner rejects a changed body and records the selected plan when an entry needs a provider to compute a constant.',
+            [('Preserve source receipt', implemented + 'compilation/native-compiler/src/provider_selection.rs#L39-L73'),
+             ('Receive the selected result', implemented + 'compilation/products/src/checked_compilation.rs#L116-L147'),
+             ('Join executable and entry', implemented + 'compilation/products/src/program_entry.rs#L17-L42'),
+             ('Exact body comparison', planning + 'execution.rs#L53-L75'),
              ('Folded entry plans', planning + 'selected_execution.rs#L96-L124'),
              ('Target-specific code', planning + 'folded_entry.rs#L12-L53')]),
         'native-planning-policies': (
@@ -118,19 +125,35 @@ def annotate_implementation(nodes):
             'Stage 04 measures the handler’s stack demand, bridge and CPU state from its physical body. Stage 05 compares the guard with the measurement at that installation and checks the instructions and frame before issuing authority.',
             [('Handler measurement', omega + 'pipeline/04_physical-program-planning/src/installed_handlers.rs#L55-L110'),
              ('Binding the finished frame', omega + 'pipeline/05_installation-binding/src/lib.rs#L54-L91')]),
+        'admission-requests': (
+            'When a package supplies a permission lock, target preparation keeps its accepted rows and captures the declarations it covers. Product completion checks those rows. Without a lock, a runtime product that relies on an assumed binding refuses.',
+            [('Capture for this product', implemented + 'compilation/compiler/src/checked/target_preparation.rs#L39-L68'),
+             ('Check requested consent', implemented + 'compilation/compiler/src/product_execution.rs#L489-L515'),
+             ('Locked and ordinary package test', implemented + 'compilation/compiler/tests/package_review.rs#L3020-L3059')]),
+        'image-stage-finish': (
+            'The completed image supplies each root machine’s linked entry address and code regions. The reader checks that the descriptor belongs to the root and that the entry lies within its declared code.',
+            [('Read the completed image', implemented + 'compilation/pipeline/09_image-construction/native-artifact/src/runtime_image.rs#L19-L58'),
+             ('Validate linked ranges', implemented + 'compilation/pipeline/09_image-construction/native-artifact/src/runtime_image.rs#L105-L141')]),
+        'published': (
+            'The host matches a supplied native image to the Terminal artifact, manifest and target before giving its layout to the interpreter. A Psi-only request can run without an image. A native adapter request reaches a host service that installs only an adapter held in the published product.',
+            [('Host identity and target checks', implemented + 'build-system/orchestration/src/published_terminal.rs#L45-L91'),
+             ('Published adapter installation', implemented + 'host-support/native-provider-sponsor/src/lib.rs#L54-L100'),
+             ('Layout execution and target refusal test', implemented + 'interpreter/terminal-runtime/tests/retained_runtime.rs#L156-L196')]),
         'object-stage-container': (
-            'Stage 08 publishes the object plan, text placement, native layouts, body evidence and an identity receipt. Ordinary compilation hands this publication to image construction. A request to retain the original container carries that value separately for checking.',
-            [('Object publication', omega + 'pipeline/08_object-construction/src/fragment_container.rs#L225-L251'),
+            'Stage 08 constructs objects for the root and every selected private body, including installed handlers. Component compilation also finishes its export objects before handing them to stage 09.',
+            [('Root and private objects', roster + 'object_emission.rs#L304-L321'),
+             ('Component export objects', roster + 'component_exports.rs#L292-L315'),
+             ('Object publication', omega + 'pipeline/08_object-construction/src/fragment_container.rs#L225-L251'),
              ('Normal and retained inputs', omega + 'native-compiler/src/pipeline.rs#L459-L476')]),
         'image-stage-place': (
-            'The image stage reads the published text and frame-applied fragments. It joins encoded entry plans to the placed bodies and checks the resulting image.',
-            [('Image input', omega + 'pipeline/09_image-construction/image-emission/src/object_input.rs#L17-L54'),
-             ('Hosted and physical entry placement', omega + 'pipeline/09_image-construction/native-artifact/src/fragment_object_publication.rs#L65-L132')]),
+            'Stage 09 receives the completed group of objects. If the final private object fails to build, the driver returns that error before it emits the first image fragment.',
+            [('Whole-program handoff', roster + 'object_emission.rs#L304-L321'),
+             ('Late-refusal test', roster + 'object_emission.rs#L353-L386'),
+             ('Hosted and physical entry placement', omega + 'pipeline/09_image-construction/native-artifact/src/fragment_object_publication.rs#L65-L132'),
+             ('Image input', omega + 'pipeline/09_image-construction/image-emission/src/object_input.rs#L17-L54')]),
     }
     for key, (description, evidence) in checkpoints.items():
-        node = nodes[key]
-        node['description'] += ' ' + description
-        node.setdefault('evidence', []).extend(evidence)
+        nodes[key]['implementation'] = dict(description=description, evidence=evidence)
 
 
 def proposed_model():
@@ -195,7 +218,7 @@ def proposed_model():
            for a,b in zip(spine,spine[1:])]
     model=dict(nodes=nodes,edges=edges,spine=spine,view='proposed',status='unverified',plan_revision=PLAN_REVISION,
                badge=f'Proposed 00–10 · plan {PLAN_REVISION[:12]}',
-               intro='Draft stage order. Switch to Current to trace the observed compiler detours. Source and native planning can revisit work.',
+               intro='Recorded plan. Select an operation for implementation evidence and open questions. Current shows the pre-migration compiler.',
                phaseGaps={n['id']:32 for n in nodes if n['role']=='owner'},
                phases=phases,placements=[])
     audit = 'https://github.com/CathedralOS/Omega/blob/9c3100603b816814610190bf73f78814abefb760/' + PLAN_PATH

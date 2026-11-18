@@ -363,8 +363,8 @@ def render_overview(architecture):
     from .proposed import proposed_model
     model = layout_model(overview_model(architecture))
     revision=re.search(r'/blob/([0-9a-f]{40})/',model['nodes'][0]['source']).group(1)
-    model.update(view='current',badge=f'Current · compiler snapshot {revision[:12]}',
-                 intro='Follow the numbered stages across the map. Orange arrows mark the dependencies flagged in the repair plan.')
+    model.update(view='current',badge=f'Current · pre-migration snapshot {revision[:12]}',
+                 intro='Pre-migration compiler. Follow the stage arrows or trace an orange detour. Proposed shows the plan and links to its implemented routes.')
     proposed=layout_model(proposed_model())
     nodes = {n['id']: n for n in model['nodes']}
     esc = html.escape
@@ -385,11 +385,11 @@ def render_overview(architecture):
         if n['role']!='transform':
             parts.append(f'<option value="{n["id"]}">{esc(n["title"])}</option>')
     parts.append('</select></label><button type="button" data-camera="clear">Clear selection</button></div><p class="trace-explanation" hidden></p><div class="connected-workspace"><div class="connected-viewport" tabindex="0" role="region" aria-label="Connected compiler canvas. Drag to pan, scroll to zoom. Arrow keys pan, F fits all, Escape clears selection.">')
-    parts.append(f'<svg class="arch-overview-svg" role="img" width="{model["width"]}" height="{model["height"]}" viewBox="0 0 {model["width"]} {model["height"]}" aria-label="Current compiler architecture"><defs>')
+    parts.append(f'<svg class="arch-overview-svg" role="img" width="{model["width"]}" height="{model["height"]}" viewBox="0 0 {model["width"]} {model["height"]}" aria-label="Compiler architecture before migration"><defs>')
     for name in ('arrow','return','check','service'):
         parts.append(f'<marker id="overview-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker>')
     parts.append('</defs>'+render_scene(model))
-    parts.append('</svg></div><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div>'+footer+'</div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the current drawing to explore it. The source and proposed-contract lists below work without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Current arrows and pinned source</summary><ol>')
+    parts.append('</svg></div><aside class="connected-detail" aria-label="Selected component and source" hidden></aside><div class="connected-minimap" hidden><span>Whole compiler</span><svg role="img" aria-label="Whole compiler minimap"></svg></div>'+footer+'</div><p class="connected-help">Drag to pan · scroll or pinch to zoom · select a connection to follow it · F fits the whole compiler.</p><noscript><p>Scroll inside the current drawing to explore it. The source and proposed-contract lists below work without JavaScript.</p></noscript><details class="arch-arrow-evidence"><summary>Pre-migration arrows and pinned source</summary><ol>')
     for e in model['edges']:
         if e['label']:
             parts.append(f'<li>{esc(nodes[e["start"]]["title"])} → {esc(nodes[e["end"]]["title"])}: {esc(e["label"])} · <a href="{e["source"]}">Source</a></li>')
@@ -402,7 +402,10 @@ def render_overview(architecture):
         if n['id']=='binding-summarize': anchor=' id="proposed-handler-binding"'
         parts.append(f'<dt{anchor}>{esc(n["title"])}</dt><dd><p>{esc(n["description"])}</p>')
         if n['gate']:
-            parts.append(f'<p>Open contract: {esc(n["gate"])}</p>')
+            parts.append(f'<p>Obligation in the recorded plan. {esc(n["gate"])}</p>')
+        if evidence := n.get('implementation'):
+            links = ' · '.join(f'<a href="{esc(url)}">{esc(label)}</a>' for label, url in evidence['evidence'])
+            parts.append(f'<p><strong>Implemented on the migration branch.</strong> {esc(evidence["description"])} · {links}</p>')
         if n.get('evidence'):
             parts.append('<p>Pinned compiler source · '+' · '.join(
                 f'<a href="{esc(url)}">{esc(label)}</a>' for label,url in n['evidence'])+'</p>')

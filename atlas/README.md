@@ -19,7 +19,7 @@ cite pinned source; recommendations are *judgment* and unchecked claims are
 | [Library](subsystems/library.md) | Bundled declarations and target providers. |
 | [Original map](artifacts/pipeline-map/original.html) | Preserved authored presentation, clearly labeled historical. |
 | [Interactive architecture](artifacts/architecture.md) | One connected SVG canvas with shared components and pinned source. |
-| [Reviewed pipeline routes](artifacts/pipeline-map/map.md) | Current routes and marked proposals. |
+| [Reviewed pipeline routes](artifacts/pipeline-map/map.md) | Pre-migration routes and marked proposals. |
 | [Foundation and backend plan](plans/foundation-and-backend.md) | Migration contracts and deletion conditions. |
 | [Extra-arrow audit](plans/foundation-and-backend.md#start-with-the-extra-arrows) | Source-backed detours, required repairs and a handler before/after view; focused recheck at `fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f`. |
 | [Questions](questions.md) | Open decisions and recommendations. |
@@ -37,12 +37,13 @@ The [atlas index](index.html) starts with the compiler map, repair plan and
 subsystem reference. A shared header links those three destinations, a searchable
 All pages menu exposes the full directory, and long pages have local section
 navigation. The [original map](pages/pipeline-map.html) remains a historical page. The
-[interactive architecture](pages/architecture.html) maps current
-implementation with the same boxes, arrows and colors. Psi forms
+[interactive architecture](pages/architecture.html) shows the pre-migration
+compiler at `3f9ce43f0c9d` in **Current**. **Proposed** shows the planned stage
+order and links each verified implementation to its source. Psi forms
 are outlined, native forms filled, checker acceptance green and extra paths red.
 Pan and zoom the connected canvas; select boxes or arrows for their connections and source.
 The grouped footer also reaches all 15 subject pages, including the
-[reviewed current account](pages/pipeline-current.html) and
+[pre-migration pipeline account](pages/pipeline-current.html) and
 [plan](pages/foundation-backend-plan.html). Counts come from generated evidence.
 
 The publishing workflow copies only `index.html`, `pages/` and `design/` to
@@ -167,7 +168,7 @@ The [interactive architecture page](pages/architecture.html) has one connected
 SVG canvas with a **Current / Proposed** toggle. It swaps the active graph and
 remembers the position and zoom on each side of a detour comparison. Trace shows the code in Current and the planned handoffs in Proposed. The proposed graph cites its recorded migration plan, uses its named
 stages numbered 00–10, and exposes unresolved contracts on
-selection. It remains a proposal, separate from the compiler snapshot.
+selection. Operations with pinned implementation evidence show what the migration branch carries across that stage.
 
 In Current, one source compiler and one Psi interpreter serve all their callers.
 Build, source checking and provider selection lead to native and interpreted

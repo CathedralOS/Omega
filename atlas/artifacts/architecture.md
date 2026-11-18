@@ -1,12 +1,9 @@
 # Interactive architecture
 
-In **Current**, orange arrows show where the recorded compiler takes an extra input, returns to earlier work, or produces code late. **Trace** frames a path, explains what crosses it, and links to the code. Dotted gray arrows show supporting calls and data. The teal checker marks its verdict.
+**Current** shows the pre-migration compiler at `3f9ce43f0c9d`. Orange arrows show where that compiler took an extra input, returned to earlier work, or produced code late. **Trace** frames a path, explains what crosses it, and links to the code. Dotted gray arrows show supporting calls and data. The teal checker marks its verdict.
 
 Use **Current / Proposed** above the drawing to compare the observed compiler
-with the recorded migration plan on the same canvas. Choose a detour under Trace and toggle to Proposed to see its planned repair. Select an operation in the repair note to jump to it. Toggling back restores your position and zoom for that detour. Selecting a proposed box opens its contract,
-plan citation and any unresolved planning obligation. Proposed stages are numbered
-00–10. These are draft ordering numbers, not current crate numbers or a claim
-that the migration is implemented. Every proposed handoff moves forward; each
+with the recorded migration plan on the same canvas. Choose a detour under Trace and toggle to Proposed to see its planned repair. Select an operation in the repair note to jump to it. Toggling back restores your position and zoom for that detour. Selecting a box in **Proposed** opens its planned contract. **Implemented on the migration branch** describes the routes traced in pinned Rust code. The detail also records the obligation the plan set for that stage. The recorded plan orders stages 00–10. Every proposed handoff moves forward; each
 representation carries the requests and facts its successors need.
 Every proposed stage is unfolded by default: decimal labels expose its
 operations and intermediate forms. Source lexing, parsing, resolution, typing,
@@ -17,7 +14,11 @@ Trace **Handler round trip** to see how 03 finds the retained callbacks, how 04 
 
 **Migration branch.** Select **01.2 Parse that file** in Proposed to see how fresh files pass straight from lexing to parsing and how package assembly reuses an exact earlier parse. Follow **02.2 Seal publication** to **03.1 Join provider selections** to see which checked body supplies each call. Stage 03 refuses a changed body. If computing a constant needed that provider, the executable records the exact plan while the source keeps its original identity. [Per-file stream][branch-stream] · [Published provider demand][branch-demand] · [Target planning][branch-target]
 
-Follow **05.2 Check + bind installations** to see where a handler’s measured stack meets its installer’s guard. **08.2 Form objects** shows what 09 receives about the actual text and executable bodies. Each operation links to the migration branch at `788ecf2489d`. The [implementation checkpoint](../plans/foundation-and-backend.md#implementation-checkpoint) records the evidence and the standalone component request that still refuses. The full cross-target migration remains *unverified*.
+Follow **05.2 Check + bind installations** to see where a handler’s measured stack meets its installer’s guard. **08.2 Form objects** shows what 09 receives about the actual text and executable bodies. The root, callbacks and installed handlers now finish stage 08 together. If the last object fails, stage 09 emits no fragments. Component exports follow the same order. The [implementation checkpoint](../plans/foundation-and-backend.md#implementation-checkpoint) records each source revision and which execution routes still need verification. Full cross-target acceptance remains *unverified*. [Object-to-image handoff][branch-objects] · [Component exports][branch-exports]
+
+Select **00.2 Admit requests** to see where a package permission lock enters the target. **02.2 Seal publication** and **03.1 Join provider selections** show how the chosen providers retain their source owner even after folding. At **Published products**, the host can run Psi alone or validate linked code ranges from a completed image for that exact program and target. These routes are traced at `0e5d56643021`. [Provider receipt][verified-receive] · [Package consent][verified-consent] · [Runtime image][verified-host]
+
+The [measured CLI checkpoint](../plans/foundation-and-backend.md#measured-public-cli-checkpoint) shows the Linux and Windows execution results and the offline macOS image checks.
 
 The proposed route runs down each column, then across to the next one. Use Stage to jump to its operations, then follow the arrows to its output. Drag in any direction and scroll or pinch to zoom. The minimap shows your position.
 
@@ -48,3 +49,10 @@ historical claims and traces current handoffs.
 [branch-stream]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L91-L133
 [branch-demand]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs#L73-L104
 [branch-target]: https://github.com/CathedralOS/Omega/blob/788ecf2489dabc436e00f4cf97dc5cf28b91604c/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/selected_execution.rs#L96-L124
+
+[branch-objects]: https://github.com/CathedralOS/Omega/blob/80cc31a4df809971ed701b6ce5edcbaff6a86603/omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L304-L321
+[branch-exports]: https://github.com/CathedralOS/Omega/blob/80cc31a4df809971ed701b6ce5edcbaff6a86603/omega-rust/omega/compilation/native-compiler/src/realization/component_exports.rs#L292-L315
+
+[verified-receive]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/products/src/checked_compilation.rs#L116-L147
+[verified-consent]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs#L39-L68
+[verified-host]: https://github.com/CathedralOS/Omega/blob/0e5d56643021b7633553af23cfede3c93021e1d5/omega-rust/omega/build-system/orchestration/src/published_terminal.rs#L45-L91

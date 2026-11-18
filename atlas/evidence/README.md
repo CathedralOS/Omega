@@ -101,3 +101,45 @@ visible and excludes the same test source as the usage scan. Candidates from
 macros, reexports and repeated names still need manual inspection. Focused
 scripts alone do not refresh the manifest; use `regenerate.py` when replacing
 the saved snapshot.
+
+## Compare the two published compiler builds
+
+The [target execution record](checkpoints/target-execution-4650.json) contains the exact compiler SHA-256 values, Git revisions, fixture hashes, toolchain library tree and results for the selected-provider fixture. It compares official build `46502a522a16` with migration build `fcb284a45c40`. The arm64 Mach-O result records offline signature verification. Execution on Darwin remains *unverified*.
+
+To replay, set `BASELINE_OMEGA` and `CANDIDATE_OMEGA` to the absolute paths of those executables. Check their hashes with `sha256sum "$BASELINE_OMEGA" "$CANDIDATE_OMEGA"`. Run the following from a checkout containing the official commit. A new temporary directory gives both compilers the same source root and separate output directories.
+
+```bash
+repo=$(git rev-parse --show-toplevel)
+scratch=$(mktemp -d)
+baseline=46502a522a162975887c11f07a2c6abe02ebdcab
+fixture=tests/fixtures/run/providers/target_selected_implementation
+git -C "$repo" archive "$baseline" source/library "$fixture" | tar -x -C "$scratch"
+export OMEGA_LIBRARY_ROOT="$scratch/source/library" RAYON_NUM_THREADS=1
+cd "$scratch/$fixture"
+
+replay() {
+    "$1" --build-dir "$2" --target linux_x86_64 --target linux_arm64 \
+        --target macos_arm64 --target windows_x86_64 \
+        --build-input build.omg --build-input main.omg main.omg || return
+    for target in linux_x86_64 linux_arm64 macos_arm64 windows_x86_64
+    do
+        "$1" run --engine psi --target "$target" \
+            --build-input build.omg --build-input main.omg main.omg || return
+    done
+}
+replay "$BASELINE_OMEGA" "$scratch/baseline"
+replay "$CANDIDATE_OMEGA" "$scratch/candidate"
+python3 "$repo/atlas/evidence/scripts/check_target_execution.py" \
+    "$scratch/baseline" "$scratch/candidate" --run
+```
+
+For the ordinary dual-engine observation, run `"$BASELINE_OMEGA" run --both --build-input build.omg --build-input main.omg main.omg` from the fixture and repeat with `"$CANDIDATE_OMEGA"`. Each printed native and interpreter exit 0. Adding `--target linux_x86_64` selected compilation only on these builds.
+
+The checker compares both sets of executable bytes with the record and verifies the Mach-O entry point, signed code pages and special slots. It flips the entry byte in memory and checks that the signature refuses it. With `--run`, Linux x86-64 runs directly, Linux arm64 under `qemu-aarch64`, and Windows x86-64 under `wine64`. Pass `--qemu` or `--wine` for a different runner path. Omitting `--run` checks the executable hashes and Mach-O signature only.
+
+The implementation checkpoint also cites the compiler's declaration ledger. To count the records and files at its source revision:
+
+```bash
+git show 0e5d56643021b7633553af23cfede3c93021e1d5:omega-rust/pipeline-contracts.json |
+    python3 -c 'import json, sys; rows = json.load(sys.stdin); print(len(rows["items"]), len(rows["roots"]))'
+```
