@@ -2,6 +2,202 @@ use super::*;
 use semantic_vocabulary::{IntegerSign, OperationId};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
+mod exact_fact_index {
+    use super::*;
+
+    struct CollidingHasher;
+
+    impl std::hash::Hasher for CollidingHasher {
+        fn finish(&self) -> u64 {
+            0
+        }
+
+        fn write(&mut self, _: &[u8]) {}
+    }
+
+    impl BuildHasher for CollidingHasher {
+        type Hasher = Self;
+
+        fn build_hasher(&self) -> Self {
+            Self
+        }
+    }
+
+    struct NoTermHash;
+
+    impl BuildHasher for NoTermHash {
+        type Hasher = CollidingHasher;
+
+        fn build_hasher(&self) -> Self::Hasher {
+            panic!("recursive terms must keep the exact fallback path")
+        }
+    }
+
+    fn integer() -> IntegerType {
+        IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+    }
+
+    fn literal(n: u128) -> ScalarTerm {
+        ScalarTerm::integer(integer(), IntegerValue::Unsigned(n)).unwrap()
+    }
+
+    fn value(id: u64) -> ScalarTerm {
+        ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::Integer(integer()))
+    }
+
+    fn inputs() -> IdTable<ValueId, ValueRow> {
+        IdTable::from_rows((0..2).map(|position| {
+            (
+                ValueId::new(u64::from(position) + 1).unwrap(),
+                ValueRow {
+                    scalar_type: ScalarType::Integer(integer()),
+                    origin: ValueOrigin::MachineParameter { position },
+                    rigid: None,
+                },
+            )
+        }))
+        .unwrap()
+    }
+
+    fn context(values: &IdTable<ValueId, ValueRow>) -> PropositionContext {
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap()
+    }
+
+    #[test]
+    fn collisions_keep_exact_equality_first_ordinal_and_missing_goals() {
+        let values = inputs();
+        let context = context(&values);
+        let first = Proposition::LessOrEqual(value(1), literal(7));
+        let second = Proposition::LessOrEqual(value(2), literal(9));
+        let missing = Proposition::LessOrEqual(value(1), literal(8));
+        let assumptions = [
+            first.clone(),
+            second.clone(),
+            first.clone(),
+            Proposition::Falsehood,
+        ];
+        let axioms = [first.clone()];
+        let known = crate::checking::known::Known::new(&context, &assumptions, &axioms, &values);
+        let index = ExactFacts::with_hasher(&known.facts, CollidingHasher);
+        let mut activity = ProofSearchActivity::default();
+        assert_eq!(index.find(&known.facts, &first, &mut activity), Some(0));
+        assert_eq!(index.find(&known.facts, &second, &mut activity), Some(1));
+        assert_eq!(index.find(&known.facts, &missing, &mut activity), None);
+        assert!(activity.exact_fact_work.miss_comparisons >= known.facts.len());
+    }
+
+    #[test]
+    fn an_exact_goal_precedes_falsehood_and_keeps_its_earliest_proof() {
+        let values = inputs();
+        let context = context(&values);
+        let goal = Proposition::LessOrEqual(value(1), literal(7));
+        let assumptions = [Proposition::Falsehood, goal.clone(), goal.clone()];
+        let axioms = [goal.clone()];
+        let mut activity = ProofSearchActivity::default();
+        let proof = Prover::new(&context, &assumptions, &axioms, &values, &mut activity)
+            .prove(&goal)
+            .unwrap();
+        let expected = node(goal.clone(), ProofRule::Assumption { index: 1 });
+        assert_eq!(format!("{proof:?}"), format!("{expected:?}"));
+        let accepted =
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        assert_eq!(
+            accepted
+                .assumptions
+                .iter()
+                .map(|used| used.index)
+                .collect::<Vec<_>>(),
+            [1]
+        );
+        assert!(accepted.semantic_axioms.is_empty());
+    }
+
+    #[test]
+    fn falsehood_remains_available_but_no_answer_crosses_premise_contexts() {
+        let values = inputs();
+        let context = context(&values);
+        let goal = Proposition::LessOrEqual(value(1), literal(7));
+        let assumptions = [Proposition::Falsehood];
+        let mut activity = ProofSearchActivity::default();
+        let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+            .prove(&goal)
+            .unwrap();
+        proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+        assert!(
+            Prover::new(&context, &[], &[], &values, &mut activity)
+                .prove(&goal)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn transport_truth_keeps_priority_over_a_truth_fact() {
+        let values = inputs();
+        let context = context(&values);
+        let goal = Proposition::Equal(value(1), literal(7));
+        let assumptions = [goal.clone(), Proposition::Truth];
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+        let proof = prover.by_transport(&goal).unwrap();
+        let ProofRule::ValueEqualityTransport { premise, .. } = &proof.rule else {
+            panic!("the exact equality must be carried by its existing transport rule");
+        };
+        assert!(matches!(
+            premise.rule,
+            ProofRule::Primitive(PrimitiveJudgment::Truth)
+        ));
+        let accepted =
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
+                .unwrap();
+        assert_eq!(
+            accepted
+                .assumptions
+                .iter()
+                .map(|used| used.index)
+                .collect::<Vec<_>>(),
+            [0]
+        );
+    }
+
+    #[test]
+    fn recursive_terms_and_deep_logical_facts_use_exact_fallback_without_hashing() {
+        let values = inputs();
+        let context = context(&values);
+        let mut logical = Proposition::Truth;
+        for _ in 0..512 {
+            logical = Proposition::Disjunction(vec![logical]);
+        }
+        let mathematical = Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::Add(
+                Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+                Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(2))),
+            ),
+            IntegerMathTerm::literal(IntegerValue::Unsigned(4)),
+        );
+        let scalar = Proposition::LessOrEqual(
+            ScalarTerm::exact_integer_add(integer(), value(1), literal(1)).unwrap(),
+            literal(9),
+        );
+        let assumptions = [logical, mathematical, scalar];
+        let known = crate::checking::known::Known::new(&context, &assumptions, &[], &values);
+        let index = ExactFacts::with_hasher(&known.facts, NoTermHash);
+        let mut activity = ProofSearchActivity::default();
+        for goal in &assumptions {
+            assert!(!exact_fact_hash_eligible(goal));
+            assert_eq!(
+                index.find(&known.facts, goal, &mut activity),
+                known
+                    .facts
+                    .iter()
+                    .position(|fact| &fact.proposition == goal)
+            );
+        }
+        assert_eq!(activity.exact_fact_work.fallback_lookups, 3);
+    }
+}
+
 mod bound_fact_index {
     use super::*;
     use semantic_vocabulary::PlaceId;
