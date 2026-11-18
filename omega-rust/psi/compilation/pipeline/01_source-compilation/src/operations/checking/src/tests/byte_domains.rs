@@ -884,6 +884,39 @@ fn a_shared_byte_view_join_checks_the_bytes_from_each_branch() {
 }
 
 #[test]
+fn a_byte_read_keeps_ascii_facts_about_its_own_view() {
+    let source = r#"
+domain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);
+
+machine ascii_byte(bytes: &[u8] in Ascii, other: &[u8], index: u64) -> u8
+requires index < bytes.len, index < other.len
+ensures result <= 127
+{
+    (bytes as -Ascii)[index]
+}
+
+machine build_entry() {
+    let byte: u8 = ascii_byte("A1" as +Ascii, "\xff2", 0);
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let other_source = source.replace("(bytes as -Ascii)[index]", "other[index]");
+    let verdict = judge_build(&other_source).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected {
+            formations, violations, unproved, unestablished, conflicts, exceeded,
+        } if formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+            && unproved.len() == 1
+            && unproved[0].statement.contains("result <= 127")),
+        "the other view does not establish the same byte bound: {verdict:?}"
+    );
+}
+
+#[test]
 fn a_variable_byte_store_preserves_the_buffers_utf8_domain() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
