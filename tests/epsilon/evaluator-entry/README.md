@@ -90,3 +90,6 @@ refusal path.
 
 On macOS arm64 the receipt reconstruction and controls took 266.7 seconds at
 the measured revision; that is a host measurement, not a profile bound.
+
+The [whole-source input experiment](LARGE_INPUT.md) measures the frozen Omega
+compiler request at the published 4 MiB limit and a source-built 8 MiB limit.
