@@ -30,6 +30,43 @@ def check_native(program):
     assert 1 in segments and 2 not in segments and 3 not in segments
 
 
+def check_source_producer(work, source, compiler):
+    producer = work / "producer.gamma"
+    producer.write_bytes(b"""(def $application () Int 1)
+(def emit_after_header ((i Int)) Int
+  (if (eq i (input)) (pair 0 1)
+    (let byte Int (write (read i)) (emit_after_header (+ i 1)))))
+(def main () Int (emit_after_header 1))
+""")
+    request = work / "producer input"
+    program = b"(def main () Int (+ (read 0) 19))"
+    request.write_bytes(b"\xff" + program)
+    out = work / "from-producer"
+    result = invoke([BOOTSTRAP, source, out, producer, request])
+    assert (result.returncode, result.stdout, result.stderr) == (0, b"", b""), result
+    assert (out / "program.input").read_bytes() == request.read_bytes()
+    assert (out / "producer.output").read_bytes() == program
+    direct = invoke([compiler], program)
+    assert (direct.returncode, direct.stdout, direct.stderr) == (
+        0, (out / "successor").read_bytes(), b""), direct
+    check_native(out / "successor")
+    for byte in (0, 23):
+        result = invoke([out / "successor"], bytes([byte]))
+        assert (result.returncode, result.stdout, result.stderr) == (
+            0, bytes([byte + 19]), b""), result
+
+    rejected = work / "bad-producer-output"
+    invalid = b"(def main () Int undefined)"
+    request.write_bytes(b"\x00" + invalid)
+    result = invoke([BOOTSTRAP, source, rejected, producer, request])
+    assert result.returncode == 249 and not result.stdout, result
+    assert (rejected / "producer.output").read_bytes() == invalid
+    assert not (rejected / "successor").exists()
+    missing = work / "missing-producer-input"
+    result = invoke([BOOTSTRAP, source, missing, producer, work / "absent.input"])
+    assert result.returncode and not missing.exists()
+
+
 def check(work):
     source = work / "source"
     for name in (BETA, GAMMA, *COMPILER):
@@ -83,6 +120,7 @@ def check(work):
                 0, bytes([byte + increment]), b""), result
     invalid = invoke([compiler], b"(def main () Int undefined)")
     assert (invalid.returncode, invalid.stdout) == (249, b""), invalid
+    check_source_producer(work, source, compiler)
 
     bad_customer = work / "invalid-customer"
     caller_source.write_bytes(b"(def main () Int undefined)")
