@@ -18109,7 +18109,7 @@
       "kind": "definition",
       "meaning": "Implement package policy projection operations on PreparedPolicy.",
       "producer": "package policy projection",
-      "signature": "178ee43bdae07390b0630cc8617310b3dee3a2fc9eab1e37092e8947c824f38a"
+      "signature": "52d8d0b88c25f89f53c573148637b5d64b149c4480de8961b9737ba32748c621"
     },
     {
       "consumers": [
@@ -18121,7 +18121,7 @@
       "kind": "checker",
       "meaning": "Join prepared declarations to the actual native bindings and selected provider shapes and validate the resulting canonical policy.",
       "producer": "package policy projection",
-      "signature": "9fb5224b5689593686bdfff5ba53b2d7607dbf626a572534ec9a0d6bf7ade0d6"
+      "signature": "e1c76623400da01bf78bf97f43b31988ea86b4c608144585d4b5365df82b6f07"
     },
     {
       "consumers": [
@@ -18983,7 +18983,7 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
       "item": "function:service_method_policy#1",
       "kind": "producer",
-      "meaning": "Retain the service method’s complete checked source signature, authority, result claims and exact domain memberships in the package policy, including each membership’s result projection and domain application.",
+      "meaning": "Retain the service method\u2019s complete checked source signature, authority, result claims and exact domain memberships in the package policy, including each membership\u2019s result projection and domain application.",
       "producer": "package review provider contracts",
       "signature": "530a6244e2e5f5a6b36963e1c5ef80cf30585e54a21c7f6542e601594391758a"
     },

@@ -452,18 +452,42 @@ pub struct ServiceResultClaim {
 /// A semantic result selector, relative to the method's exact declared result
 /// application. Field and case identities use the declaration's named or
 /// numbered member identity. Implicit reference traversal adds no selector.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ServiceResultProjection {
-    Field(String),
-    Case(String),
-    FixedIndex(u64),
+pub use semantic_vocabulary::ContentPlaceSegment as ServiceResultProjection;
+
+/// The service contract writes fields, cases and fixed indices in this order.
+fn service_member_tag(member: &ServiceResultProjection) -> u8 {
+    match member {
+        ServiceResultProjection::Field(_) => 1,
+        ServiceResultProjection::Case(_) => 2,
+        ServiceResultProjection::FixedIndex(_) => 3,
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ServiceNormalResultMembership {
     pub path: Vec<ServiceResultProjection>,
     /// Complete canonical declaration/application identity, including indices.
     pub domain: String,
+}
+
+impl Ord for ServiceNormalResultMembership {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        fn member_key(member: &ServiceResultProjection) -> (u8, &ServiceResultProjection) {
+            (service_member_tag(member), member)
+        }
+
+        self.path
+            .iter()
+            .map(member_key)
+            .cmp(other.path.iter().map(member_key))
+            .then_with(|| self.domain.cmp(&other.domain))
+    }
+}
+
+impl PartialOrd for ServiceNormalResultMembership {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl ServiceNormalResultMembership {

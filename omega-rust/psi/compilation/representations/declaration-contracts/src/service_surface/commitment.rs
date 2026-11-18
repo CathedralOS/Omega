@@ -209,17 +209,12 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
         for membership in &method.normal_result_memberships {
             self.len(membership.path.len());
             for projection in &membership.path {
+                self.byte(service_member_tag(projection));
                 match projection {
-                    ServiceResultProjection::Field(field) => {
-                        self.byte(1);
-                        self.string(field);
-                    }
-                    ServiceResultProjection::Case(case) => {
-                        self.byte(2);
-                        self.string(case);
+                    ServiceResultProjection::Field(name) | ServiceResultProjection::Case(name) => {
+                        self.string(name);
                     }
                     ServiceResultProjection::FixedIndex(index) => {
-                        self.byte(3);
                         self.output.service_contract_bytes(&index.to_le_bytes());
                     }
                 }
@@ -272,6 +267,31 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
 
 #[cfg(test)]
 mod declared_type_tests {
+
+    #[test]
+    fn result_memberships_use_service_wire_order_for_shared_place_segments() {
+        use super::{ServiceNormalResultMembership, ServiceResultProjection as Member};
+
+        let membership = |path, domain: &str| ServiceNormalResultMembership {
+            path,
+            domain: domain.to_owned(),
+        };
+        let field = Member::Field("z".into());
+        let case = Member::Case("a".into());
+        let ordered = [
+            membership(vec![], "root"),
+            membership(vec![field.clone()], "a"),
+            membership(vec![field.clone()], "z"),
+            membership(vec![field.clone(), case.clone()], "a"),
+            membership(vec![case], "a"),
+            membership(vec![Member::FixedIndex(2)], "a"),
+            membership(vec![Member::FixedIndex(10)], "a"),
+        ];
+        let mut received = ordered.clone();
+        received.reverse();
+        received.sort();
+        assert_eq!(received, ordered);
+    }
     use super::declared_type_signature;
 
     #[test]

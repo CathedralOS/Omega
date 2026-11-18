@@ -409,7 +409,7 @@ mod tests {
     fn optimized_projection_rejects_duplicate_operations_in_one_machine() {
         let psi = terminal(1);
         let mut plan = final_plan(psi);
-        let duplicate = plan.functions[0].source_occurrences[0].clone();
+        let duplicate = plan.functions[0].source_occurrences[0];
         plan.functions[0].source_occurrences.push(duplicate);
         assert_eq!(
             derive_optimized_scope(authority(psi), &plan, &[], [7; 32]).unwrap_err(),

@@ -251,7 +251,7 @@ impl PreparedPolicy {
             },
             representation: PackagePolicyRepresentation {
                 package,
-                target: source.representation.clone(),
+                target: source.representation,
                 declarations: Vec::new(),
                 producer_availability: Vec::new(),
                 selected_availability: Vec::new(),
