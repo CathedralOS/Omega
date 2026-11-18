@@ -955,6 +955,108 @@ fn mixed_type_and_const_calls_keep_the_complete_tuple_and_contract() {
 }
 
 #[test]
+fn a_guard_after_a_callback_proves_the_call_until_storage_changes() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/lifetime_callback_contracts/main.omg"
+    ));
+    let judge = |source: &str| {
+        let (typed, _) = crate::preparation::prepare_typed_trees(
+            super::boundary_calls::typed(source),
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let entry = super::build_purpose::symbol(&typed, "main");
+        let prepared = crate::lowering::prepare_compilation(
+            &typed,
+            super::build_purpose::roster(
+                &[entry],
+                &[None],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        crate::checking::judge_compilation(prepared.program)
+    };
+    let accepted = judge(source);
+    assert!(
+        !accepted.is_empty()
+            && accepted
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{accepted:?}"
+    );
+
+    // The extra operand writes count after the guard observes it.
+    let invalid = source.replace(
+        "transition context.valid && context.count <= context.storage.len {",
+        "transition context.valid && context.count <= context.storage.len && overwrite(&mut context) {",
+    );
+    assert_ne!(source, invalid);
+    let rejected = judge(&format!(
+        "{invalid}\nmachine overwrite<'input>(context: &mut Context<'input>) -> bool {{ context.count = 4u64; true }}"
+    ));
+    assert!(rejected.iter().any(|verdict| matches!(
+        verdict,
+        Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::CallRequirement { .. })
+                && failure.statement.contains("cannot prove requires contract for call checked_remaining from forward"))
+    )), "{rejected:?}");
+}
+
+#[test]
+fn specialized_calls_keep_independent_input_and_result_lifetimes() {
+    for arguments in ["value, other", "other, value"] {
+        let source = format!(
+            r#"
+            machine choose<'source, 'other, const Count: u64>(
+                value: &'source [u8], other: &'other [u8], spare: &[u8]
+            ) -> &'source [u8]
+            requires Count > 0u64
+            {{ value }}
+            machine entry<'left, 'right, 'spare>(
+                value: &'left [u8], other: &'right [u8], spare: &'spare [u8]
+            ) -> &'left [u8] {{ choose<3u64>({arguments}, spare) }}
+        "#
+        );
+        let (typed, _) = crate::preparation::prepare_typed_trees(
+            super::boundary_calls::typed(&source),
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let entry = super::boundary_calls::entry(&typed);
+        let prepared = crate::lowering::prepare_compilation(
+            &typed,
+            super::build_purpose::roster(
+                &[entry],
+                &[None],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        let verdicts = crate::checking::judge_compilation(prepared.program);
+        if arguments == "value, other" {
+            assert!(
+                !verdicts.is_empty()
+                    && verdicts
+                        .iter()
+                        .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "{verdicts:?}"
+            );
+        } else {
+            assert!(
+                verdicts.iter().any(|verdict| matches!(
+                    verdict,
+                    Ok(RouteVerdict::FallBack(refusal))
+                        if refusal.detail.contains("call that gives one lifetime two regions")
+                )),
+                "the call's result cannot borrow the other input: {verdicts:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn generic_callback_applications_keep_the_selected_contract() {
     for reference in ["&T", "&mut T"] {
         let text = format!(

@@ -1,0 +1,42 @@
+// Expected exit: 0
+// A callback may change the record; the following guard establishes the exact facts used by the borrowed call.
+data Context<'input> { storage: &'input mut [u8]; count: u64; valid: bool; }
+machine plan<'input>(context: &mut Context<'input>) {
+    context.count = 3u64;
+    context.valid = true;
+}
+public machine forward<'input, machine Plan>(storage: &'input mut [u8], steps: u64, next: &mut u64) -> u64
+requires machine Plan(context: &mut Context<'input>);
+requires steps > 0u64
+{
+    let mut context: Context<'input> = Context { storage: storage, count: 0u64, valid: false };
+    Plan(&mut context);
+    transition context.valid && context.count <= context.storage.len {
+        true -> checked_remaining(&mut context, steps, next)
+        false -> 0u64
+    }
+    machine checked_remaining(context: &mut Context<'input>, steps: u64, next: &mut u64) -> u64
+    requires context.count <= context.storage.len && steps > 0u64
+    {
+        let remaining: u64 = context.storage.len - context.count;
+        let prior_step: u64 = steps - 1u64;
+        next = remaining;
+        transition prior_step == 0u64 { true -> remaining _ -> 0u64 }
+    }
+}
+machine main() crashes Trap {
+    let mut storage: [u8; 4] = [11u8, 13u8, 17u8, 19u8];
+    let mut short: [u8; 2] = [23u8, 29u8];
+    let mut next: u64 = 31u64;
+    let remaining: u64 = forward<plan>(&mut storage[..], 1u64, &mut next);
+    let fallback: u64 = forward<plan>(&mut storage[..], 2u64, &mut next);
+    let invalid_count: u64 = forward<plan>(&mut short[..], 1u64, &mut next);
+    transition remaining == 1u64 && fallback == 0u64 && invalid_count == 0u64 && next == 1u64
+        && storage[0u64] == 11u8 && storage[1u64] == 13u8 && storage[2u64] == 17u8 && storage[3u64] == 19u8
+        && short[0u64] == 23u8 && short[1u64] == 29u8 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
