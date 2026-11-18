@@ -993,6 +993,7 @@ fn capture_source_questions(
         &program.completed_operators,
         &program.admitted_signature_views,
         &program.admitted_signature_view_owners,
+        &program.generic_templates,
     )
     .map_err(|error| Refusal {
         source_span: None,
@@ -1210,7 +1211,8 @@ fn finish_reading_into<'source>(
             Unserved::Declaration(reason),
         )
     };
-    elaboration.static_reach_parameters = std::mem::take(&mut program.static_reach_parameters);
+    elaboration.static_reach_parameters =
+        program.static_reach_contexts(&mut elaboration.module, &source.calls)?;
     elaboration
         .static_reach_applications
         .sort_unstable_by_key(|row| (row.caller, row.site));

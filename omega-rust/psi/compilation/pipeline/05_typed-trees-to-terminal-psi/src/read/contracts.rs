@@ -1942,6 +1942,23 @@ impl Program<'_> {
                         "array index in a clause that is not a closed integer",
                     ));
                 };
+                // A closed index can still be arithmetic: `Count - 1` closed at
+                // `Count = 22` is `22 - 1`. Read it as the `u64` clause term it
+                // is, so each operator in it is completed with its actual operand
+                // types; the path keeps the folded position.
+                if matches!(
+                    self.typed.expression_table.expression(indexed.index),
+                    ExpressionNode::Binary(_)
+                ) {
+                    let count = ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .expect("u64 is a carrier"),
+                    );
+                    self.term(id, scope, indexed.index, Some(count))?;
+                }
                 let source =
                     SourceOrigin::of(self.typed.expression_table.source_span(indexed.index));
                 let Some(position) = selected.to_u64().filter(|position| *position < length) else {
