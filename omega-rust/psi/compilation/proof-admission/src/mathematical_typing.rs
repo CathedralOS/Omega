@@ -443,6 +443,43 @@ mod judgments {
     use crate::mathematical_core::conversion::{Budget, weak_head_normalize};
     use crate::mathematical_core::substitution::{shift, substitute};
     use crate::mathematical_core::term::{Level, Sort, Term, TermArena, TermHandle};
+    use std::collections::HashMap;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    struct InferenceScope(usize);
+
+    /// Signature and universe scope stay fixed for one drive. Reuse an
+    /// inferred type only under the complete same binding prefix. Comparison
+    /// continuations also extend contexts, so observe the actual bindings.
+    #[derive(Default)]
+    struct InferredTypes {
+        scopes: HashMap<(InferenceScope, TermHandle), InferenceScope>,
+        active_bindings: Vec<(TermHandle, InferenceScope)>,
+        types: HashMap<(InferenceScope, TermHandle), TermHandle>,
+    }
+
+    impl InferredTypes {
+        fn scope(&mut self, bindings: &[TermHandle]) -> InferenceScope {
+            let mut common = 0;
+            while common < self.active_bindings.len()
+                && common < bindings.len()
+                && self.active_bindings[common].0 == bindings[common]
+            {
+                common += 1;
+            }
+            self.active_bindings.truncate(common);
+            let mut scope = self
+                .active_bindings
+                .last()
+                .map_or(InferenceScope(0), |&(_, scope)| scope);
+            for &binding in &bindings[common..] {
+                let next = InferenceScope(self.scopes.len() + 1);
+                scope = *self.scopes.entry((scope, binding)).or_insert(next);
+                self.active_bindings.push((binding, scope));
+            }
+            scope
+        }
+    }
 
     enum Formation {
         Pi,
@@ -1986,6 +2023,10 @@ mod judgments {
     }
 
     enum Pending<'a> {
+        RememberInference {
+            scope: InferenceScope,
+            term: TermHandle,
+        },
         Compared(Compared),
         ConversionScope {
             prefix: usize,
@@ -2207,6 +2248,7 @@ mod judgments {
     }
 
     enum Operation<'a> {
+        ReusedInference(TermHandle),
         Convert(comparison::Query<'a>),
         Infer(TermHandle),
         Check {
@@ -2303,10 +2345,21 @@ mod judgments {
         budget: &mut Budget,
     ) -> Result<JudgmentValue, CoreError> {
         let mut context = context.clone();
+        let mut inferred_types = InferredTypes::default();
         let mut pending = Vec::new();
         let mut current = operation;
         loop {
+            if let Operation::Infer(term) = &current {
+                let term = *term;
+                let scope = inferred_types.scope(&context.bindings);
+                if let Some(&ty) = inferred_types.types.get(&(scope, term)) {
+                    current = Operation::ReusedInference(ty);
+                } else {
+                    pending.push(Pending::RememberInference { scope, term });
+                }
+            }
             let mut value = match current {
+                Operation::ReusedInference(ty) => JudgmentValue::Inferred(ty),
                 Operation::Convert(query) => {
                     pending.push(Pending::ConversionScope {
                         prefix: context.bindings.len(),
@@ -2574,6 +2627,11 @@ mod judgments {
             };
             loop {
                 match pending.pop() {
+                    Some(Pending::RememberInference { scope, term }) => {
+                        let ty = value.require_inferred();
+                        inferred_types.types.insert((scope, term), ty);
+                        value = JudgmentValue::Inferred(ty);
+                    }
                     Some(Pending::ConversionScope { prefix }) => {
                         let equal = value.require_converted();
                         context.bindings.truncate(prefix);
@@ -3676,7 +3734,8 @@ mod judgments {
                                 current = Operation::Convert(query);
                                 break;
                             }
-                            Pending::Compared(_)
+                            Pending::RememberInference { .. }
+                            | Pending::Compared(_)
                             | Pending::ConversionScope { .. }
                             | Pending::Conversion(_)
                             | Pending::CheckScope { .. }
@@ -3723,4 +3782,149 @@ macro_rules! argument_error_pair_pattern {
     () => {
         $crate::CoreError::TypeMismatch { .. } | $crate::CoreError::ArgumentTypeMismatch { .. }
     };
+}
+
+#[cfg(test)]
+mod inference_reuse_tests {
+    use super::*;
+
+    fn equalities(
+        arena: &mut TermArena,
+        count: u32,
+        outer_index: u32,
+        last_is_zero: bool,
+    ) -> TermHandle {
+        let two = arena.insert(Term::Two);
+        let zero = arena.insert(Term::TwoZero);
+        let mut tail = None;
+        for position in (0..count).rev() {
+            let value = arena.insert(Term::Variable(outer_index + position));
+            let atom = arena.insert(Term::Id {
+                ty: two,
+                left: value,
+                right: if last_is_zero && position + 1 == count {
+                    zero
+                } else {
+                    value
+                },
+            });
+            tail = Some(if let Some(codomain) = tail {
+                arena.insert(Term::Sigma {
+                    domain: atom,
+                    codomain,
+                })
+            } else {
+                atom
+            });
+        }
+        tail.expect("the fixture has at least one field")
+    }
+
+    fn copied_fields(arena: &mut TermArena, count: u32) -> TermHandle {
+        let mut remaining = arena.insert(Term::Variable(0));
+        let mut fields = Vec::new();
+        for _ in 1..count {
+            fields.push(arena.insert(Term::Fst { pair: remaining }));
+            remaining = arena.insert(Term::Snd { pair: remaining });
+        }
+        while let Some(first) = fields.pop() {
+            remaining = arena.insert(Term::Pair {
+                first,
+                second: remaining,
+            });
+        }
+        remaining
+    }
+
+    #[test]
+    fn shared_tuple_fields_do_not_rebuild_projection_types() {
+        const FIELDS: u32 = 64;
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let input = equalities(&mut arena, FIELDS, 0, false);
+        let context = Context::empty().extend(two).extend(input);
+        let expected = equalities(&mut arena, FIELDS, 1, false);
+        let term = copied_fields(&mut arena, FIELDS);
+        let before = arena.len();
+        check_type(&mut arena, &context, term, expected, &mut Budget::default()).unwrap();
+        let growth = arena.len() - before;
+        assert!(
+            growth <= 32 * usize::try_from(FIELDS * FIELDS).unwrap(),
+            "checking {FIELDS} shared fields allocated {growth} extra terms"
+        );
+
+        let changed = equalities(&mut arena, FIELDS, 1, true);
+        assert!(matches!(
+            check_type(&mut arena, &context, term, changed, &mut Budget::default()),
+            Err(CoreError::TypeMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn shared_variables_keep_their_exact_binding_scope() {
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let empty = arena.insert(Term::Empty);
+        let value = arena.insert(Term::Variable(0));
+        let first = arena.insert(Term::Lambda {
+            domain: two,
+            body: value,
+        });
+        let second = arena.insert(Term::Lambda {
+            domain: empty,
+            body: value,
+        });
+        let term = arena.insert(Term::Pair { first, second });
+        let domain = arena.insert(Term::Pi {
+            domain: two,
+            codomain: two,
+        });
+        for (result, accepted) in [(empty, true), (two, false)] {
+            let codomain = arena.insert(Term::Pi {
+                domain: empty,
+                codomain: result,
+            });
+            let expected = arena.insert(Term::Sigma { domain, codomain });
+            let checked = check_type(
+                &mut arena,
+                &Context::empty(),
+                term,
+                expected,
+                &mut Budget::default(),
+            );
+            if accepted {
+                checked.unwrap();
+            } else {
+                assert!(matches!(checked, Err(CoreError::TypeMismatch { .. })));
+            }
+        }
+    }
+
+    #[test]
+    fn failed_inference_and_checking_do_not_supply_reusable_success() {
+        let mut arena = TermArena::new();
+        let two = arena.insert(Term::Two);
+        let zero = arena.insert(Term::TwoZero);
+        let empty = arena.insert(Term::Empty);
+        let function = arena.insert(Term::Lambda {
+            domain: empty,
+            body: zero,
+        });
+        let invalid = arena.insert(Term::Apply {
+            function,
+            argument: zero,
+        });
+        let context = Context::empty();
+        for _ in 0..2 {
+            assert!(matches!(
+                infer_type(&mut arena, &context, invalid, &mut Budget::default()),
+                Err(CoreError::ArgumentTypeMismatch { .. })
+            ));
+            assert!(matches!(
+                check_type(&mut arena, &context, invalid, two, &mut Budget::default()),
+                Err(CoreError::ArgumentTypeMismatch { .. })
+            ));
+            check_type(&mut arena, &context, zero, two, &mut Budget::default()).unwrap();
+        }
+    }
 }
