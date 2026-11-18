@@ -81,6 +81,34 @@ pub(super) enum Member {
 }
 
 impl Program<'_> {
+    pub(crate) fn proved_empty_sum_cases(
+        &mut self,
+        reference: crate::source_state::types::TypeReferenceHandle,
+        owner: SymbolHandle,
+    ) -> Option<Vec<bool>> {
+        if !self.typed.symbols.symbols().nodes().is_valid(owner) {
+            return None;
+        }
+        self.lifetime_owner = owner;
+        let id = self.symbols.push(owner);
+        let ValueType::Record(record, ..) = self.record_at(id, reference).ok()? else {
+            return None;
+        };
+        let cases = self.data_type(id, record).ok()?.cases();
+        let inhabitation = terminal_semantics::inhabitation::Inhabitation::prepare(
+            &crate::lowering::inhabitation::SourceContracts(&self.records),
+        )
+        .ok()?;
+        Some(
+            (0..cases.len())
+                .map(|position| {
+                    inhabitation.case_status(record, position)
+                        == terminal_semantics::inhabitation::Status::ProvedEmpty
+                })
+                .collect(),
+        )
+    }
+
     /// The data declaration a `Named` type's symbol resolves to, when it is
     /// one. A symbol of kind `Data` with no declaration in the typed trees is
     /// not a record this route can read and stays with the scalar route's

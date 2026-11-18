@@ -6,11 +6,23 @@ mod joined_product_execution;
 
 #[test]
 fn active_case_visitors_report_and_update_fields_in_order() {
+    run_visitation("active_case_visitation");
+}
+
+#[test]
+fn active_case_visitors_omit_only_provably_empty_cases() {
+    run_visitation("active_case_uninhabited_payload");
+    rejects_visitation("active_case_uninhabited_payload");
+}
+
+fn run_visitation(name: &str) {
     let Some(target) = target::TargetProfile::host_if_supported() else {
         return;
     };
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/run/reflection/active_case_visitation/main.omg");
+        .join("tests/fixtures/run/reflection")
+        .join(name)
+        .join("main.omg");
     let discovered = fixture_package_inputs::discover_fixture(&fixture, Default::default())
         .unwrap_or_else(|errors| panic!("{errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
@@ -31,44 +43,47 @@ fn active_case_visitors_report_and_update_fields_in_order() {
     let report = orchestration::complete_product(output)
         .and_then(compiler::CompilationOutput::into_report)
         .unwrap_or_else(|error| panic!("{error:?}"));
-    let output = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "active-case-visitation",
-        false,
-    )
-    .unwrap();
+    let output =
+        platform_custody::temporary_directory::TemporaryDirectory::create(name, false).unwrap();
     joined_product_execution::execute_report(report, &output.path().join("native"));
 }
 
 #[test]
 fn active_case_visitors_check_both_callback_contracts() {
-    let fixtures = fixture_package_inputs::repo_root().join("tests/fixtures/fail/reflection");
     for name in [
         "active_case_callback_precondition",
         "active_case_mutable_callback_type",
     ] {
-        let source = fixtures.join(name).join("main.omg");
-        let diagnostics = match fixture_package_inputs::reviewed_repository_fixture_package_inputs(
-            &source,
-            Some("macos_arm64"),
+        rejects_visitation(name);
+    }
+}
+
+fn rejects_visitation(name: &str) {
+    let source = fixture_package_inputs::repo_root()
+        .join("tests/fixtures/fail/reflection")
+        .join(name)
+        .join("main.omg");
+    let diagnostics = match fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &source,
+        Some("macos_arm64"),
+    ) {
+        Err(diagnostics) => diagnostics,
+        Ok(mut prepared) => match fixture_package_inputs::check_fixture(
+            &mut prepared,
+            "macos_arm64",
+            Default::default(),
         ) {
             Err(diagnostics) => diagnostics,
-            Ok(mut prepared) => match fixture_package_inputs::check_fixture(
-                &mut prepared,
-                "macos_arm64",
-                Default::default(),
-            ) {
-                Err(diagnostics) => diagnostics,
-                Ok(_) => panic!("{name} accepted an incompatible callback"),
-            },
-        };
-        let expected = std::fs::read_to_string(source.with_file_name("expected.txt")).unwrap();
-        assert!(
-            diagnostics.iter().any(|diagnostic| {
-                expected
-                    .lines()
-                    .all(|line| diagnostic.message.contains(line))
-            }),
-            "{name}: {diagnostics:#?}"
-        );
-    }
+            Ok(_) => panic!("{name} accepted an incompatible callback"),
+        },
+    };
+    let expected = std::fs::read_to_string(source.with_file_name("expected.txt")).unwrap();
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            expected
+                .lines()
+                .all(|line| diagnostic.message.contains(line))
+        }),
+        "{name}: {diagnostics:#?}"
+    );
 }

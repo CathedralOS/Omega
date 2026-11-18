@@ -100,7 +100,19 @@ pub(super) fn expand(
     };
     let context = context_type(program, state, *context, written_context)?;
     let type_reference = named_type(program, subject, lexical_owner)?;
-    let sum = sum_description(program, type_reference, lexical_owner)?;
+    let mut sum = sum_description(program, type_reference, lexical_owner)?;
+    if let Some(empty) =
+        crate::lowering::proved_empty_sum_cases(program, type_reference, lexical_owner)
+    {
+        if empty.len() != sum.cases.len() {
+            return Err(Stop::Defect(
+                "case coverage uses a different sum declaration",
+            ));
+        }
+        let mut positions = empty.into_iter();
+        sum.cases
+            .retain(|_| !positions.next().expect("one status for each declared case"));
+    }
     let application = sum_application(program, subject, type_reference, lexical_owner)?;
     let case_visitor = callback(program, case_visitor)?;
     let field_visitor = callback(program, field_visitor)?;
@@ -247,6 +259,9 @@ pub(super) fn expand(
             span,
         );
         arms.push(case_arm(program, &sum, &case.variant, subject, visit, span));
+    }
+    if arms.is_empty() {
+        arms.push(empty_dispatch(program, subject, span));
     }
     let entry = dispatcher.entry;
     let target = dispatcher.name.clone();
@@ -519,6 +534,30 @@ impl GeneratedMachine {
             ..Default::default()
         });
     }
+}
+
+fn empty_dispatch(
+    program: &mut TypedTrees,
+    subject: SymbolHandle,
+    span: SourceSpan,
+) -> StatementNode {
+    let subject = binding_name(program, subject, span);
+    let patterns = program
+        .statement_table
+        .insert_transition_patterns([TransitionPattern {
+            is_structural: true,
+            subject,
+            pattern: TableDestructurePattern::default(),
+        }]);
+    let target = program
+        .statement_table
+        .insert_transition_target(TransitionTargetNode::Terminal);
+    StatementNode::Transition(TableTransition {
+        patterns,
+        target,
+        source_span: span,
+        ..Default::default()
+    })
 }
 
 fn case_arm(

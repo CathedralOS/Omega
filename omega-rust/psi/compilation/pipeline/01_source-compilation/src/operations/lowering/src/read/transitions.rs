@@ -5,10 +5,10 @@ over a sum, which stage 01 writes as one guarded transition per case arm.
 */
 
 use crate::lowering::body::Qualification;
-use crate::source_state::expression::ExpressionHandle;
+use crate::source_state::expression::{ExpressionHandle, TableDestructurePattern};
 use crate::source_state::statement::{
     StatementHandle, StatementNode, TableTransition, TransitionExit, TransitionGuardNode,
-    TransitionTargetNode,
+    TransitionPattern, TransitionTargetNode,
 };
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
@@ -172,15 +172,39 @@ impl Program<'_> {
         Ok(condition)
     }
 
-    /// Whether a transition is a case arm: its one pattern has a head.
-    /// Stage 01 gives a value arm no head and an unguarded arm no pattern.
+    /// Whether a transition starts a sum dispatch. A structural transition
+    /// with only a subject asks the checker to rule out every declared case.
     pub(super) fn case_arm(&self, transition: &TableTransition) -> bool {
-        matches!(
-            self.typed
-                .statement_table
-                .transition_patterns(transition.patterns),
-            [pattern] if pattern.pattern.head.is_valid()
-        )
+        let patterns = self
+            .typed
+            .statement_table
+            .transition_patterns(transition.patterns);
+        matches!(patterns, [pattern] if pattern.pattern.head.is_valid())
+            || self.empty_dispatch_subject(transition, patterns).is_some()
+    }
+
+    fn empty_dispatch_subject(
+        &self,
+        transition: &TableTransition,
+        patterns: &[TransitionPattern],
+    ) -> Option<ExpressionHandle> {
+        let table = &self.typed.statement_table;
+        let [pattern] = patterns else {
+            return None;
+        };
+        (pattern.is_structural
+            && pattern.subject.is_valid()
+            && pattern.pattern == TableDestructurePattern::default()
+            && transition.guard == TransitionGuardNode::Always
+            && transition.exit == TransitionExit::Ordinary
+            && transition.proof_selectors.is_empty()
+            && !transition.continuation.is_valid()
+            && table.transition_target_is_valid(transition.target)
+            && matches!(
+                table.transition_target(transition.target),
+                TransitionTargetNode::Terminal
+            ))
+        .then_some(pattern.subject)
     }
 
     /// `transition subject { S::A { .. } -> x  S::B -> y  _ -> z }` over a
@@ -221,6 +245,22 @@ impl Program<'_> {
                 .typed
                 .statement_table
                 .transition_patterns(transition.patterns);
+            if let Some(subject) = self.empty_dispatch_subject(transition, patterns) {
+                if taken != 0 {
+                    break;
+                }
+                let subject = self.expression(id, slots, subject, None)?;
+                let source = SourceOrigin::of(transition.source_span);
+                return Ok((
+                    Statement::Dispatch {
+                        subject,
+                        arms: Vec::new(),
+                        default: None,
+                        source,
+                    },
+                    1,
+                ));
+            }
             let case = match (transition.guard, patterns, &subject) {
                 (TransitionGuardNode::When(guard), [pattern], _)
                     if pattern.pattern.head.is_valid() =>

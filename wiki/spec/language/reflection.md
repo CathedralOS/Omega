@@ -254,8 +254,10 @@ a record can hold a sum in a field alongside its other fields. Apply a sum
 visitor to that field and compose the two visits explicitly when the caller
 needs both the record fields and the active case.
 
-Compile callback applications for every admitted case; execution projects only
-the selected payload after testing the actual discriminator. Semantic case
+Compile callback applications for every admitted case. A case whose payload is
+[proved uninhabited](patterns.md#coverage-and-domain-tests) contributes no
+callback applications. Execution projects only the selected payload after
+testing the actual discriminator. Semantic case
 identity, authored wire numbers, and runtime discriminator values remain distinct;
 the encoding library chooses its wire tags. Active-case evidence stays valid
 while payload loans are live. Retired cases are metadata, not executable cases.
