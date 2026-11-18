@@ -13,7 +13,6 @@ access-vocabulary = { path = "../../access-vocabulary" }
 declaration-contracts = { path = "../../declaration-contracts" }
 schema-reflection = { path = "../../schema-reflection" }
 application-identity = { path = "../../application-identity" }
-storage-access = { path = "../../../../runtime/storage-access" }
 layout-planning = { path = "../../../layout-planning" }
 resource-bounds = { path = "../storage-bounds" }
 numeric-literals = { path = "../../numeric-literals" }
