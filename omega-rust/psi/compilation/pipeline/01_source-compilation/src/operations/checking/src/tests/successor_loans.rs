@@ -347,12 +347,76 @@ machine main() crashes Trap {
         .program
     };
     let direct_field = source.replace("read_value(packet);", "packet.value;");
-    for text in [source, direct_field.as_str()] {
+    let forwarding_cycle = source
+        .replace(
+            "block visit(second, expected, &packet)",
+            "block forward(second, expected, &packet)",
+        )
+        .replace(
+            "    machine visit(",
+            r#"    machine copy_expected(expected: u8) -> u8 {
+        expected
+    }
+
+    machine forward(second: bool, expected: u8, packet: &Packet) {
+        let next_expected: u8 = copy_expected(expected);
+        transition second {
+            true -> block visit(true, next_expected, packet)
+            _ -> block visit(false, next_expected, packet)
+        }
+    }
+
+    machine visit("#,
+        );
+    for (text, forwards) in [
+        (source, false),
+        (direct_field.as_str(), false),
+        (forwarding_cycle.as_str(), true),
+    ] {
         let positive = prepare(text);
         let terminal_check_tables::compilation::TerminalCompilation::Prepared(program) = &positive
         else {
             panic!("the shared borrow cycle must lower");
         };
+        if forwards {
+            let closure = program
+                .closure
+                .as_ref()
+                .expect("the forwarding cycle lowers");
+            let machine = |name| {
+                closure
+                    .names
+                    .iter()
+                    .find_map(|(id, names)| (names.machine == name).then_some(id))
+                    .expect("the cycle declares this machine")
+            };
+            let forward = machine("forward");
+            let visit = machine("visit");
+            assert!(closure.sources.get(forward).unwrap().heads.is_empty());
+            assert!(
+                closure
+                    .module
+                    .machine(forward)
+                    .unwrap()
+                    .blocks
+                    .iter()
+                    .any(|block| block
+                        .operations
+                        .iter()
+                        .any(|operation| matches!(operation.kind,
+                    terminal_psi::OperationKind::CallUnit { callee, .. } if callee == visit)))
+            );
+            let folded_forward = closure
+                .sources
+                .get(visit)
+                .unwrap()
+                .heads
+                .iter()
+                .find_map(|(block, member)| (*member == forward).then_some(*block))
+                .expect("the receiver retains the forwarder's cyclic head");
+            assert!(closure.module.machine(visit).unwrap().blocks.iter().any(|block|
+                matches!(block.terminator, Terminator::Jump { target, .. } if target == folded_forward)));
+        }
         let expected_verdicts = 1 + program.forms.len() + program.witnesses.len();
         let verdicts = crate::checking::judge_compilation(positive);
         assert_eq!(verdicts.len(), expected_verdicts);

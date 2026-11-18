@@ -16,6 +16,13 @@ struct Component {
     reaches_unranked_cycle: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InvocationEntry {
+    LoopHead,
+    Separate,
+    Forward,
+}
+
 pub(crate) struct Components {
     machine_components: Vec<usize>,
     components: Vec<Component>,
@@ -24,8 +31,7 @@ pub(crate) struct Components {
     /// index `m` are `callers[caller_offsets[m]..caller_offsets[m + 1]]`.
     caller_offsets: Vec<usize>,
     callers: Vec<(usize, usize)>,
-    /// Entry bodies whose incoming reference first use stays outside the loop.
-    separate_entries: Vec<bool>,
+    invocation_entries: Vec<InvocationEntry>,
     #[cfg(test)]
     discovery_edge_visits: usize,
 }
@@ -157,7 +163,7 @@ impl Components {
             members,
             caller_offsets: reverse_offsets,
             callers: reverse_calls,
-            separate_entries: vec![false; count],
+            invocation_entries: vec![InvocationEntry::LoopHead; count],
             #[cfg(test)]
             discovery_edge_visits,
         }
@@ -189,11 +195,28 @@ impl Components {
     }
 
     pub(super) fn separate_entry(&mut self, machine: MachineId) {
-        self.separate_entries[index(machine)] = true;
+        self.invocation_entries[index(machine)] = InvocationEntry::Separate;
     }
 
     pub(crate) fn has_separate_entry(&self, machine: MachineId) -> bool {
-        self.separate_entries[index(machine)]
+        self.invocation_entries[index(machine)] == InvocationEntry::Separate
+    }
+
+    pub(super) fn forward_entry(&mut self, machine: MachineId) {
+        let entry = &mut self.invocation_entries[index(machine)];
+        if *entry == InvocationEntry::LoopHead {
+            *entry = InvocationEntry::Forward;
+        }
+    }
+
+    /// The ordinary entry of a forwarder executes in its receiver's component.
+    /// Its copies in other machines still appear in the full member span.
+    pub(crate) fn invocation_members(&self, machine: MachineId) -> Checked<&[MachineId]> {
+        if self.invocation_entries[index(machine)] == InvocationEntry::Forward {
+            Ok(&[])
+        } else {
+            self.members(machine)
+        }
     }
 
     /// Every component's members in `MachineId` order, callees' components
