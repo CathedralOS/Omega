@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Native failure reports discard the instruction context
+- Category: Verifying costs more than writing
+- Where: [operand errors](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/machine_effects.rs#L946), [compile and retention order](omega-rust/omega/application/src/execution/mod.rs#L201)
+- Saw: The stored-machine program failed with only `SelectedInstructionId(4)`. That number is local to a function, but the error drops the function, instruction kind, operands and expected constraint. Failed compilation returns before artifact retention, and the temporary directory is removed.
+- Cost: Finding the failed instruction can require repeating the 175-second compilation. Preserve the available instruction and constraint context in the error, or retain the failed stage input for debugging.
+- Reported: 2026-11-17, Codex, while repairing native calls through stored machines
+
+
 ### Capture comparisons leave their time scope implicit
 - Category: A verdict with nothing behind it
 - Where: [address comparisons](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/backing.rs#L78), [captured path comparison](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2551)
