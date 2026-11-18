@@ -14,8 +14,8 @@
 (def c_max ((a Int) (b Int)) Int (if (lt a b) b a))
 (def c_check ((ok Int) (value Int)) Int (if ok value (p_fail)))
 
-; An AVL tree maps machine label identifiers to byte addresses. Empty trees
-; have height zero; no condition ever inspects a pair as a scalar.
+; An AVL tree maps label identifiers to byte counts measured from the code
+; end. Empty trees have height zero.
 (def m_empty () Int (pair 0 0))
 (def m_height ((t Int)) Int (first t))
 (def m_key ((t Int)) Int (c_a (second t)))

@@ -671,6 +671,31 @@ Both destinations start the call after the input loop. The loop's backward
 jump returns to the read at tape offset `0x3c` or ELF address `0x40013e`.
 See the [Alpha assembler](alpha_backend.gamma) and [native assembler](../independent/native.gamma).
 
+The source-built native compiler with this layout is 1,543,898 bytes,
+SHA-256 `04c864bd27c5ae5fb5870b2fb1339c63d7caf29541d53af3fbb8dc0f2e3eea89`.
+Two native self-rebuilds produced those same bytes. It compiled the
+35,123-byte Alpha-targeting compiler source into a native executable. That
+executable built the 456,334-byte Alpha compiler tape, and the tape rebuilt
+itself byte for byte (SHA-256 `d9620222d49ba7b5604bfd516751fe93b5ddfb78521fc5aff0538c88518e5629`).
+
+Both assemblers reproduced the existing Delta compiler and Epsilon evaluator
+images from the Gamma sources constructed at `b95769558667`. The table gives
+each output size and the peak resident memory Linux reported for its compiler
+process. Each run used an already constructed native compiler executable.
+Both versions compiled the same input bytes on the same host.
+
+| Gamma source | Alpha tape bytes | Peak KiB, old → new | Linux ELF bytes | Peak KiB, old → new |
+| --- | ---: | ---: | ---: | ---: |
+| Delta compiler (151,525 bytes) | 1,219,139 | 101,248 → 66,560 | 3,984,546 | 104,064 → 120,320 |
+| Epsilon evaluator (729,060 bytes) | 7,876,070 | 645,504 → 417,408 | 26,119,826 | 663,552 → 771,584 |
+
+The native assembler often records several fields for one operation. Its
+higher compiler memory use on both sources is a cost of this representation.
+Both Delta images produced the same 3,082-byte receipt. Both Epsilon images
+ran the frozen bootstrap compiler on the Omega fixture, produced the same
+50-byte Alpha program, and that program exited 42. The full product request
+exceeded the evaluator's 4 MiB input limit and returned 253 with empty output.
+
 ## Earlier nominal-case construction interruption
 
 The candidate bootstrap compiler at `501411f37fe18b55b4e068811c36258f318b002b`
