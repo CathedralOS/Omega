@@ -4,7 +4,10 @@ use omega::language::core::byte_observation;
 domain [u8; 16]::Ascii requires byte_observation::ascii_only(&self[..]);
 domain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);
 data TextBuffer requires used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
-machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
+machine live(buffer: &TextBuffer) -> &[u8] in Ascii {
+    let prefix: &[u8] = &(&buffer.storage as -Ascii)[..buffer.used];
+    prefix as +Ascii
+}
 machine copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 16, bytes.len <= 16 - start
 ensures buffer in Ascii
@@ -23,7 +26,7 @@ ensures buffer in Ascii
     requires start <= 16, index < 16, index < bytes.len, start + index < 16
     ensures buffer in Ascii
     {
-        buffer[start + index] = bytes[index];
+        (&mut buffer as -Ascii)[start + index] = (bytes as -Ascii)[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
     machine done() {}
@@ -33,7 +36,10 @@ domain [u8; 4]::Ascii requires byte_observation::ascii_only(&self[..]);
 data Label requires used <= 4 { storage: [u8; 4] in Ascii; used: u64; }
 machine label_live(label: &Label) -> &[u8] in Ascii
 ensures result.len == label.used && result.len <= 4
-{ &label.storage[..label.used] }
+{
+    let prefix: &[u8] = &(&label.storage as -Ascii)[..label.used];
+    prefix as +Ascii
+}
 data Main {
     label: Label;
     text: TextBuffer;

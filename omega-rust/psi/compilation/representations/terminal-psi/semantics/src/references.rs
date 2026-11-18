@@ -15,8 +15,8 @@ pub use boundary_results::{
 };
 pub(crate) use declared_results::validate_result_lifetime_groups;
 pub use declared_results::{
-    DeclaredReferenceResult, declared_lifetime_path_is_static, public_reference_result,
-    requirement_reference_result, selected_reference_result,
+    DeclaredReferenceResult, callable_reference_result, declared_lifetime_path_is_static,
+    public_reference_result, requirement_reference_result, selected_reference_result,
 };
 
 pub(crate) mod reference_completion {
@@ -806,7 +806,8 @@ pub(crate) mod reference_completion {
     fn retain_provider_inputs(
         module: &terminal_psi::TerminalModule,
         result: &terminal_psi::StructuralOperationResult,
-        call: terminal_psi::ModuleInvocationInputs<'_, terminal_psi::TargetMachineCallable>,
+        parameters: &[terminal_psi::StructuralParameterDeclaration],
+        arguments: &[terminal_psi::StructuralArgument],
         slots: &[crate::descriptor_results::DescriptorResultSlot],
         at: crate::descriptor_lifetimes::DescriptorPosition,
         flow: &std::collections::BTreeMap<
@@ -858,7 +859,9 @@ pub(crate) mod reference_completion {
                     if lifetime.live.contains(&at) {
                         return Err("returned provider dependency crosses its own call formation");
                     }
-                    retain_result_dependencies(module, call, pending, &lifetime, retained)?;
+                    retain_result_dependencies(
+                        module, parameters, arguments, pending, &lifetime, retained,
+                    )?;
                     Ok::<(), &'static str>(())
                 },
             )?;
@@ -868,16 +871,14 @@ pub(crate) mod reference_completion {
 
     fn retain_result_dependencies(
         module: &terminal_psi::TerminalModule,
-        call: terminal_psi::ModuleInvocationInputs<'_, terminal_psi::TargetMachineCallable>,
+        parameters: &[terminal_psi::StructuralParameterDeclaration],
+        arguments: &[terminal_psi::StructuralArgument],
         mut pending: Vec<&crate::descriptor_results::DescriptorStoredOrigin>,
         lifetime: &crate::descriptor_lifetimes::DescriptorLifetime,
         retained: &mut Vec<RetainedCallLoan>,
     ) -> Result<(), &'static str> {
         use crate::descriptor_results::DescriptorStoredOrigin;
-        let parameters = module
-            .invocation_structural_parameters(call.callee, call.required_contract)
-            .ok_or("returned value has no retained input contract")?;
-        if parameters.len() != call.structural_arguments.len() {
+        if parameters.len() != arguments.len() {
             return Err("returned value differs from its input contract");
         }
         // Keeping an input live grants no authority to use its loan.
@@ -917,8 +918,7 @@ pub(crate) mod reference_completion {
             let formal = parameters
                 .get(position)
                 .ok_or("returned value dependency names no input formal")?;
-            let argument = call
-                .structural_arguments
+            let argument = arguments
                 .get(position)
                 .ok_or("returned value dependency names no actual argument")?;
             if argument.access != formal.access {
@@ -953,8 +953,7 @@ pub(crate) mod reference_completion {
             }
         }
         for position in inputs {
-            let argument = call
-                .structural_arguments
+            let argument = arguments
                 .get(position)
                 .ok_or("returned value dependency names no actual argument")?;
             retain_call_lifetime(
@@ -997,7 +996,9 @@ pub(crate) mod reference_completion {
         };
 
         let invocation = operation.declared_invocation();
+        let runtime = operation.kind.callable_invocation();
         if invocation.is_none()
+            && runtime.is_none()
             && !matches!(
                 operation.kind,
                 terminal_psi::OperationKind::CallDynamic { .. }
@@ -1026,112 +1027,154 @@ pub(crate) mod reference_completion {
         // An opaque value packet carries its existing loans. It does not
         // form a new reference to the storage that previously held the value.
         let returns_reference = !result_inventory.references.is_empty();
-        let Some(call) = invocation else {
-            return Err(refuse(if returns_reference {
-                "returned dynamic reference needs its admitted completion resource"
-            } else {
-                "returned dynamic view needs its declared lifetime contract"
-            }));
-        };
-        let (declared_parameters, slots, actual, public) = match call.callee {
-            terminal_psi::TargetMachineCallable::Boundary(boundary) => {
-                let declaration = module
-                    .boundary_machine(boundary)
-                    .ok_or_else(|| refuse("returned boundary borrow has no exact declaration"))?;
-                let terminal_psi::BoundaryMachineResult::Structural(expected) = &declaration.result
-                else {
-                    return Err(refuse("returned borrow has no structural boundary result"));
-                };
-                if result.qualifications != expected.qualifications
-                    || result.projected_qualifications != expected.projected_qualifications
-                {
-                    return Err(refuse(
-                        "returned borrow differs from its boundary result contract",
-                    ));
-                }
-                let slots = crate::boundary_result_slots(
-                    &module.structural_types,
-                    declaration,
-                    crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
-                    result,
-                )
+        let arguments = operation.kind.structural_arguments();
+        let (declared_parameters, slots, actual, public) = if let Some(call) = runtime {
+            let contract = module
+                .callables
+                .contract(call.contract)
+                .ok_or_else(|| refuse("returned runtime value has no exact public contract"))?;
+            let declared = super::callable_reference_result(&module.structural_types, contract)
                 .map_err(refuse)?;
-                (
-                    declaration.structural_parameters.as_slice(),
-                    slots,
-                    Vec::new(),
-                    None,
-                )
+            if !contract.result.matches_machine_result(
+                &terminal_psi::TerminalMachineResult::Structural(
+                    terminal_psi::StructuralResultDeclaration {
+                        place: result.place,
+                        structural_type: result.structural_type,
+                        multiplicity: result.multiplicity,
+                        qualifications: result.qualifications.clone(),
+                        projected_qualifications: result.projected_qualifications.clone(),
+                        reference_sources: Vec::new(),
+                    },
+                ),
+            ) {
+                return Err(refuse(
+                    "returned runtime value changes its public result carrier",
+                ));
             }
-            terminal_psi::TargetMachineCallable::Machine(callee) => {
-                let callee = module
-                    .machine(callee)
-                    .ok_or_else(|| refuse("returned reference call has no actual callee body"))?;
-                let signature = callee.result.structural().ok_or_else(|| {
-                    refuse("returned reference call has no structural result contract")
-                })?;
-                if result.structural_type != signature.structural_type
-                    || result.multiplicity != signature.multiplicity
-                {
-                    return Err(refuse(
-                        "returned reference call changes its declared result carrier",
-                    ));
-                }
-                // A rigid call reaches a bodiless requirement: its declared
-                // lifetimes are the only origins, and no body can narrow them.
-                // It binds through the same public account a selected call reads.
-                if let Some(requirement) =
-                    super::requirement_reference_result(module, callee.id).map_err(refuse)?
-                {
-                    (
-                        callee.structural_parameters.as_slice(),
-                        Vec::new(),
-                        Vec::new(),
-                        Some(requirement),
-                    )
+            let slots = crate::descriptor_results::public_result_slots(
+                &module.structural_types,
+                crate::descriptor_results::DescriptorSlotKind::Views,
+                &declared,
+                result.place,
+            )
+            .ok_or_else(|| refuse("returned runtime views have no complete declared frontier"))?;
+            (
+                contract.structural_parameters.as_slice(),
+                slots,
+                Vec::new(),
+                Some(declared),
+            )
+        } else {
+            let Some(call) = invocation else {
+                return Err(refuse(if returns_reference {
+                    "returned dynamic reference needs its admitted completion resource"
                 } else {
-                    let contents = analysis.result_contents(callee.id).ok_or_else(|| {
+                    "returned dynamic view needs its declared lifetime contract"
+                }));
+            };
+            match call.callee {
+                terminal_psi::TargetMachineCallable::Boundary(boundary) => {
+                    let declaration = module.boundary_machine(boundary).ok_or_else(|| {
+                        refuse("returned boundary borrow has no exact declaration")
+                    })?;
+                    let terminal_psi::BoundaryMachineResult::Structural(expected) =
+                        &declaration.result
+                    else {
+                        return Err(refuse("returned borrow has no structural boundary result"));
+                    };
+                    if result.qualifications != expected.qualifications
+                        || result.projected_qualifications != expected.projected_qualifications
+                    {
+                        return Err(refuse(
+                            "returned borrow differs from its boundary result contract",
+                        ));
+                    }
+                    let slots = crate::boundary_result_slots(
+                        &module.structural_types,
+                        declaration,
+                        crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                        result,
+                    )
+                    .map_err(refuse)?;
+                    (
+                        declaration.structural_parameters.as_slice(),
+                        slots,
+                        Vec::new(),
+                        None,
+                    )
+                }
+                terminal_psi::TargetMachineCallable::Machine(callee) => {
+                    let callee = module.machine(callee).ok_or_else(|| {
+                        refuse("returned reference call has no actual callee body")
+                    })?;
+                    let signature = callee.result.structural().ok_or_else(|| {
+                        refuse("returned reference call has no structural result contract")
+                    })?;
+                    if result.structural_type != signature.structural_type
+                        || result.multiplicity != signature.multiplicity
+                    {
+                        return Err(refuse(
+                            "returned reference call changes its declared result carrier",
+                        ));
+                    }
+                    // A rigid call reaches a bodiless requirement: its declared
+                    // lifetimes are the only origins, and no body can narrow them.
+                    // It binds through the same public account a selected call reads.
+                    if let Some(requirement) =
+                        super::requirement_reference_result(module, callee.id).map_err(refuse)?
+                    {
+                        (
+                            callee.structural_parameters.as_slice(),
+                            Vec::new(),
+                            Vec::new(),
+                            Some(requirement),
+                        )
+                    } else {
+                        let contents = analysis.result_contents(callee.id).ok_or_else(|| {
                         // A dependency can fail before its return sources are
                         // exported. Keep that flow's actual machine and site.
                         analysis.flow(callee.id).err().unwrap_or_else(|| {
                             refuse("returned reference callee has no complete actual source correspondence")
                         })
                     })?;
-                    let actual = if has_reference_contents {
-                        super::reference_origins::reference_result_contents(
-                            &module.structural_types,
-                            &callee.structural_parameters,
-                            signature,
-                            &contents,
-                        )
-                        .map_err(refuse)?
-                    } else {
-                        Vec::new()
-                    };
-                    if actual != signature.reference_sources {
-                        return Err(refuse(
-                            "returned reference header differs from its actual body origins",
-                        ));
-                    }
-                    let public = call
-                        .required_contract
-                        .filter(|_| returns_reference)
-                        .map(|required| {
-                            super::selected_reference_result(module, caller.id, callee.id, required)
-                        })
-                        .transpose()
-                        .map_err(refuse)?;
-                    if let Some(public) = &public {
-                        public
-                            .validate_actual_sources(&callee.structural_parameters, &actual)
+                        let actual = if has_reference_contents {
+                            super::reference_origins::reference_result_contents(
+                                &module.structural_types,
+                                &callee.structural_parameters,
+                                signature,
+                                &contents,
+                            )
+                            .map_err(refuse)?
+                        } else {
+                            Vec::new()
+                        };
+                        if actual != signature.reference_sources {
+                            return Err(refuse(
+                                "returned reference header differs from its actual body origins",
+                            ));
+                        }
+                        let public = call
+                            .required_contract
+                            .filter(|_| returns_reference)
+                            .map(|required| {
+                                super::selected_reference_result(
+                                    module, caller.id, callee.id, required,
+                                )
+                            })
+                            .transpose()
                             .map_err(refuse)?;
+                        if let Some(public) = &public {
+                            public
+                                .validate_actual_sources(&callee.structural_parameters, &actual)
+                                .map_err(refuse)?;
+                        }
+                        (
+                            callee.structural_parameters.as_slice(),
+                            contents.slots,
+                            actual,
+                            public,
+                        )
                     }
-                    (
-                        callee.structural_parameters.as_slice(),
-                        contents.slots,
-                        actual,
-                        public,
-                    )
                 }
             }
         };
@@ -1141,17 +1184,19 @@ pub(crate) mod reference_completion {
         // An admitted boundary establishes its own result provenance. Its
         // logical input debts below retain loans without claiming that the
         // returned bytes lie inside an input's storage.
-        let bindings = if !returns_reference
-            || matches!(
+        let admitted_boundary = invocation.is_some_and(|call| {
+            matches!(
                 call.callee,
                 terminal_psi::TargetMachineCallable::Boundary(_)
-            ) {
+            )
+        });
+        let bindings = if !returns_reference || admitted_boundary {
             Vec::new()
         } else if let Some(public) = &public {
             super::reference_origins::bind_public_reference_call_results(
                 module.structural_types.iter(),
                 public,
-                call.structural_arguments,
+                arguments,
             )
             .map_err(refuse)?
         } else {
@@ -1161,7 +1206,7 @@ pub(crate) mod reference_completion {
                     parameters,
                     sources: &actual,
                 },
-                call.structural_arguments,
+                arguments,
             )
             .map_err(refuse)?
         };
@@ -1252,8 +1297,7 @@ pub(crate) mod reference_completion {
                     // occurrence. It does not form a new loan of its backing.
                     continue;
                 }
-                let argument = call
-                    .structural_arguments
+                let argument = arguments
                     .get(position)
                     .ok_or_else(|| refuse("returned reference input has no actual argument"))?;
                 if argument.access == StructuralAccess::Owned
@@ -1278,8 +1322,8 @@ pub(crate) mod reference_completion {
                 );
             }
         }
-        // A view leaf has no published header row: its origins are the
-        // callee body's actual return slots. A view into a borrowed formal's
+        // A view leaf uses actual body slots for a direct call and the
+        // declared input union for a runtime callable. A view into a borrowed formal's
         // own storage keeps the argument's loan for the view's use. One that
         // reaches through a reference held by the input points into that
         // reference's original backing, whose own loan the descriptor flow
@@ -1322,8 +1366,15 @@ pub(crate) mod reference_completion {
                 if lifetime.live.contains(&at) {
                     return Err(refuse("returned contents cross their own call formation"));
                 }
-                retain_result_dependencies(module, call, dependencies, &lifetime, &mut retained)
-                    .map_err(refuse)?;
+                retain_result_dependencies(
+                    module,
+                    parameters,
+                    arguments,
+                    dependencies,
+                    &lifetime,
+                    &mut retained,
+                )
+                .map_err(refuse)?;
             }
         }
         for slot in &slots {
@@ -1362,8 +1413,7 @@ pub(crate) mod reference_completion {
                         {
                             continue;
                         }
-                        let argument = call
-                            .structural_arguments
+                        let argument = arguments
                             .get(*position)
                             .ok_or_else(|| refuse("returned view input has no actual argument"))?;
                         if argument.access == StructuralAccess::Owned {
@@ -1390,8 +1440,17 @@ pub(crate) mod reference_completion {
                 },
             )?;
         }
-        retain_provider_inputs(module, result, call, &slots, at, &flow, &mut retained)
-            .map_err(refuse)?;
+        retain_provider_inputs(
+            module,
+            result,
+            parameters,
+            arguments,
+            &slots,
+            at,
+            &flow,
+            &mut retained,
+        )
+        .map_err(refuse)?;
         if retained
             .iter()
             .any(|loan| loan.position >= parameters.len())
@@ -1686,7 +1745,7 @@ pub(crate) mod reference_origins {
                 sources: &'declaration [StructuralReferenceResultSource],
             },
             Requirement(&'declaration TerminalDynamicSlot),
-            Callable(&'declaration terminal_psi::TerminalCallableContract),
+            Callable(super::super::DeclaredReferenceResult<'declaration>),
         }
 
         pub enum ReferenceCallOrigin {
@@ -1846,7 +1905,7 @@ pub(crate) mod reference_origins {
                     return bind_public_reference_call_results(types, slot, arguments);
                 }
                 ReferenceCallContract::Callable(contract) => {
-                    return bind_public_reference_call_results(types, contract, arguments);
+                    return bind_public_reference_call_results(types, &contract, arguments);
                 }
             }
             Ok(results)

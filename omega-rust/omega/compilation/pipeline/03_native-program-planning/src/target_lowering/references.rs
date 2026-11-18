@@ -1478,6 +1478,7 @@ mod stored_calls {
         boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         types: &StructuralTypeLookup<'_>,
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
         selected_calls: &crate::target_lowering::selected_boundary_calls::SelectedCallsByCall,
         settlements: &BTreeMap<BoundaryMachineId, target_operations::BoundarySettlementBinding>,
     ) -> StoredEffectCatalog {
@@ -1537,6 +1538,7 @@ mod stored_calls {
             boundaries,
             types.catalog(),
         dynamic_dispatch,
+        callables,
             |function, node| {
                 if let AbstractOperation::BoundaryCall { psi_operation, boundary, .. } = &node.operation
                     && let Some(selected) = selected_calls.get(&(function.machine, (*psi_operation).into(), *boundary))
@@ -2470,7 +2472,16 @@ pub(crate) fn call_results(
             terminal_semantics::ReferenceCallContract::Requirement(slot)
         }
         abstract_operations::AbstractCallSignature::Callable(contract) => {
-            terminal_semantics::ReferenceCallContract::Callable(contract)
+            terminal_semantics::ReferenceCallContract::Callable(
+                terminal_semantics::references::callable_reference_result(
+                    types.catalog().as_slice(),
+                    contract,
+                )
+                .map_err(|reason| LoweringError::InvalidReferenceResult {
+                    machine: function.machine,
+                    reason,
+                })?,
+            )
         }
     };
     let mappings = terminal_semantics::bind_reference_call_results(

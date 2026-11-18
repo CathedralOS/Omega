@@ -176,6 +176,105 @@ pub struct CallableContractView<'a> {
     pub crash_policy: CallableCrashPolicy,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallableResultRefinementError {
+    pub machine: Option<MachineId>,
+    pub detail: String,
+}
+
+/// Validate the declared runtime account and each selected body's actual
+/// result. Logical certificates cannot stand in for returned-storage proof.
+pub fn validate_callable_result_refinements(
+    module: &TerminalModule,
+) -> Result<(), CallableResultRefinementError> {
+    let refuse = |machine, detail: &str| CallableResultRefinementError {
+        machine,
+        detail: detail.to_owned(),
+    };
+    for contract in &module.callables.contracts {
+        crate::references::callable_reference_result(&module.structural_types, contract)
+            .map_err(|detail| refuse(None, detail))?;
+    }
+    let mut roots = Vec::new();
+    for descriptor in &module.callables.descriptors {
+        let contract = module
+            .callables
+            .contract(descriptor.contract)
+            .ok_or_else(|| {
+                refuse(
+                    Some(descriptor.machine),
+                    "runtime value has no callable contract",
+                )
+            })?;
+        if contract.proof.result.structural().is_some_and(|result| {
+            terminal_psi::structural_type_has_borrowed_storage_by(
+                |id| module.structural_type(id),
+                result.structural_type,
+            )
+        }) {
+            roots.push(descriptor.machine);
+        }
+    }
+    roots.sort_unstable();
+    roots.dedup();
+    if roots.is_empty() {
+        return Ok(());
+    }
+    let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
+        module,
+        roots.iter().copied(),
+        &[],
+    )
+    .map_err(|error| CallableResultRefinementError {
+        machine: Some(error.machine()),
+        detail: error.in_module(module),
+    })?;
+    let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+        &module.structural_types,
+        &graph,
+    );
+    for descriptor in &module.callables.descriptors {
+        if roots.binary_search(&descriptor.machine).is_err() {
+            continue;
+        }
+        let body = module.machine(descriptor.machine).ok_or_else(|| {
+            refuse(
+                Some(descriptor.machine),
+                "runtime value has no selected body",
+            )
+        })?;
+        let declared = crate::references::callable_reference_result(
+            &module.structural_types,
+            module
+                .callables
+                .contract(descriptor.contract)
+                .ok_or_else(|| refuse(Some(body.id), "runtime value has no callable contract"))?,
+        )
+        .map_err(|detail| refuse(Some(body.id), detail))?;
+        let result = body
+            .result
+            .structural()
+            .ok_or_else(|| refuse(Some(body.id), "runtime value has no structural body result"))?;
+        let contents =
+            analysis
+                .result_contents(body.id)
+                .ok_or_else(|| match analysis.flow(body.id) {
+                    Err(error) => CallableResultRefinementError {
+                        machine: Some(body.id),
+                        detail: error.in_module(module),
+                    },
+                    Ok(_) => refuse(
+                        Some(body.id),
+                        "runtime value has no complete actual result origins",
+                    ),
+                })?;
+        declared
+            .validate_actual_result(&body.structural_parameters, result, &contents)
+            .map_err(|detail| refuse(Some(body.id), detail))?;
+    }
+    Ok(())
+}
+
 pub fn callable_contract_refinement_goals(
     module: &TerminalModule,
     required: CallableContractId,

@@ -113,6 +113,7 @@ impl CallableNamespace {
         services: &crate::lowering::reach::ServiceMap,
         qualifications: &mut crate::lowering::qualifications::Qualifications,
         module: &mut TerminalModule,
+        declarations: Option<&crate::lowering::read::Program<'_>>,
     ) -> Checked<()> {
         let refuse = |reason: &str| Refusal {
             source_span: None,
@@ -157,6 +158,19 @@ impl CallableNamespace {
                 qualifications,
             )?;
             let mut proof = header.proof;
+            proof.result_lifetimes = Some(
+                declarations
+                    .ok_or_else(|| refuse("callable result lifetimes have no prepared source"))?
+                    .declared_result_lifetimes(
+                        context,
+                        &contract.signature,
+                        &module.structural_types,
+                    )
+                    .map_err(refuse)?
+                    .ok_or_else(|| {
+                        refuse("callable result lifetimes have an unresolved frontier")
+                    })?,
+            );
             proof.id = machine_count
                 .checked_add(id.get())
                 .and_then(ContractId::new)
@@ -187,9 +201,8 @@ impl CallableNamespace {
                 structural_parameters: header.structural_parameters,
                 result,
                 proof_result: header.result,
-                // The shared header retains affine data and erased scalar
-                // formals. Owned linear claims, proof formals and returned
-                // references still refuse before this point.
+                // Returned storage is governed by proof.result_lifetimes.
+                // The older spatial-only column is not another authority.
                 entry_claim_paths: Vec::new(),
                 result_claim_paths: Vec::new(),
                 result_reference_regions: Vec::new(),

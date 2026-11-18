@@ -220,6 +220,22 @@ pub(crate) mod analysis {
             self.replay.slot_kind
         }
 
+        pub(crate) fn payload_history<'input>(
+            &self,
+            module: &'input terminal_psi::TerminalModule,
+            machine: &'input terminal_psi::TerminalMachine,
+        ) -> crate::descriptor_results::PayloadMembershipHistory<'input>
+        where
+            'a: 'input,
+        {
+            crate::descriptor_results::PayloadMembershipHistory::new(
+                &module.structural_types,
+                &module.structural_domains,
+                self.replay.machines,
+                machine,
+            )
+        }
+
         pub fn source_observations(&mut self, identity: MachineId) -> DescriptorSourceObservations {
             let Some(machine) = self.replay.machine(identity) else {
                 return BTreeMap::new();

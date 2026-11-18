@@ -10274,6 +10274,7 @@ mod source {
                             &source.boundary_machines,
                             source.structural_types.as_slice(),
                             &source.dynamic_dispatch,
+                            &source.callables,
                         )?;
                     record_selected_formation_calls(source, targeted, &mut graph)?;
                     Some(graph)
@@ -11619,6 +11620,7 @@ mod source {
                     &source.boundary_machines,
                     source.structural_types.as_slice(),
                     &source.dynamic_dispatch,
+                    &source.callables,
                 )
             }
 

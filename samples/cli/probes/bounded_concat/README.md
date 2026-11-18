@@ -8,16 +8,14 @@ has length 7, then traps if either check fails.
 
 The [Build file](build.omg) selects an entry for all four hosted targets.
 
-The probe uses Core's `ascii_only` predicate. Its slices and indexed writes need
-explicit casts under the current
+The probe uses Core's `ascii_only` predicate. It removes the displayed domains
+before slicing and indexing under the
 [domain rules](../../../../wiki/spec/language/domains.md#byte-containers-and-encoding-domains).
-The checker still loses the ASCII proof when a slice borrows a fixed array through a cast.
-[LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only) tracks the
-remaining work.
+The shared prefixes keep the ASCII proof from their backing arrays. Each copy
+proves that its writes preserve the destination's ASCII requirement.
 
-Reproduce the outstanding check and execution requirements with:
+Run both engines with:
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/bounded_concat/main.omg < /dev/null
 mbx run -p omega -- run --both samples/cli/probes/bounded_concat/main.omg < /dev/null
 ```

@@ -6579,7 +6579,13 @@ pub(crate) fn apply(
                     }
                     (
                         None,
-                        terminal_semantics::ReferenceCallContract::Callable(contract),
+                        terminal_semantics::ReferenceCallContract::Callable(
+                            terminal_semantics::references::callable_reference_result(
+                                plan.structural_types.as_slice(),
+                                contract,
+                            )
+                            .map_err(LegalizationError::custody_with_cause)?,
+                        ),
                     )
                 }
                 abstract_operations::AbstractCallTarget::Dynamic { .. } => {

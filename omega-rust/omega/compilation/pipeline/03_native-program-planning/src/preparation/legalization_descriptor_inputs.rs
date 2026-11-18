@@ -52,6 +52,7 @@ impl<'a> DescriptorInputs<'a> {
                     &self.unit.boundary_machines,
                     self.plan.geometry(),
                     &self.unit.dynamic_dispatch,
+                    &self.unit.callables,
                     |caller, node| self.operation(caller, node),
                 )
             })
@@ -66,6 +67,7 @@ impl<'a> DescriptorInputs<'a> {
                     &self.unit.boundary_machines,
                     self.plan.geometry(),
                     &self.unit.dynamic_dispatch,
+                    &self.unit.callables,
                     |caller, node| self.operation(caller, node),
                     |caller, node| self.preserves_boundary(caller, node),
                 )

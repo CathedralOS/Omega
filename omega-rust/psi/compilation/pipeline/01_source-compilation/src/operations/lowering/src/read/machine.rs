@@ -2811,7 +2811,6 @@ impl<'t> Program<'t> {
         abstract_schema: bool,
     ) -> Checked<Signature> {
         if (!abstract_schema && !signature.type_parameters.is_empty())
-            || !signature.lifetime_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
             || signature.is_default
             || !signature.native_callback_parameters.is_empty()
@@ -2821,7 +2820,7 @@ impl<'t> Program<'t> {
                 id,
                 Construct::Machine,
                 Unserved::Declaration(
-                    "static requirement with unrepresented binders, regions, defaults or callbacks",
+                    "static requirement with unrepresented binders, defaults or callbacks",
                 ),
             ));
         }

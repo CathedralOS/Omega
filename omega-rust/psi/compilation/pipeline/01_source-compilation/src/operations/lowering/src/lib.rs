@@ -1852,6 +1852,7 @@ fn lower_program<'source>(
         services,
         &mut qualifications,
         &mut module,
+        declarations,
     )?;
     module.callables.declaration_envelopes = declaration_envelopes;
     let external_provider_candidates = external_providers.publish(

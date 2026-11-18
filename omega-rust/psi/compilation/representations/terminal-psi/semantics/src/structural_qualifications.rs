@@ -935,7 +935,6 @@ impl<'a> DefaultRequirements<'a> {
     /// are used only as goals, never as evidence that a mutable value satisfies
     /// its own default.
     pub fn clause(&self, required: &DefaultRequirement) -> Judged<Proposition> {
-        let self_place = PlaceId::new(1).expect("self has a nonzero coordinate");
         match required.origin {
             DefaultClause::Type(position) => self
                 .declaration(required.carrier)?
@@ -951,37 +950,42 @@ impl<'a> DefaultRequirements<'a> {
                     .map(|position| &self.domains[position])
                     .filter(|row| row.carrier == required.carrier)
                     .ok_or_else(|| self.error("a default domain clause is absent"))?;
-                let mut clauses = Vec::new();
-                if let Some(predicate) = &row.predicate {
-                    let mut bindings = DefaultBindings(Rerooted {
-                        subject: predicate.subject,
-                        root: self_place,
-                        referent: false,
-                    });
-                    clauses.push(
-                        crate::substitution::clauses::substitute_clause(
-                            &predicate.proposition,
-                            &mut bindings,
-                        )
-                        .map_err(|detail| self.error(detail))?,
-                    );
-                }
-                if let Some(predicate) = row.byte_predicate {
-                    if !crate::byte_predicate_carrier(self.types.iter(), required.carrier) {
-                        return Err(self.error("a named byte default has a nonbyte carrier"));
-                    }
-                    clauses.push(Proposition::Equal(
-                        ScalarTerm::byte_sequence_predicate(predicate, self_place, Vec::new()),
-                        ScalarTerm::Boolean(true),
-                    ));
-                }
-                Ok(match clauses.len() {
-                    0 => return Err(self.error("a named default has no predicate clause")),
-                    1 => clauses.pop().expect("one predicate"),
-                    _ => Proposition::Conjunction(clauses),
-                })
+                default_domain_clause(self.types, row).map_err(|detail| self.error(detail))
             }
         }
+    }
+}
+
+pub(crate) fn default_domain_clause(
+    types: &[StructuralTypeDeclaration],
+    domain: &StructuralDomainDeclaration,
+) -> Result<Proposition, &'static str> {
+    let self_place = PlaceId::new(1).expect("self has a nonzero coordinate");
+    let mut clauses = Vec::new();
+    if let Some(predicate) = &domain.predicate {
+        let mut bindings = DefaultBindings(Rerooted {
+            subject: predicate.subject,
+            root: self_place,
+            referent: false,
+        });
+        clauses.push(crate::substitution::clauses::substitute_clause(
+            &predicate.proposition,
+            &mut bindings,
+        )?);
+    }
+    if let Some(predicate) = domain.byte_predicate {
+        if !crate::byte_predicate_carrier(types.iter(), domain.carrier) {
+            return Err("a named byte default has a nonbyte carrier");
+        }
+        clauses.push(Proposition::Equal(
+            ScalarTerm::byte_sequence_predicate(predicate, self_place, Vec::new()),
+            ScalarTerm::Boolean(true),
+        ));
+    }
+    match clauses.len() {
+        0 => Err("a named default has no predicate clause"),
+        1 => Ok(clauses.pop().expect("one predicate")),
+        _ => Ok(Proposition::Conjunction(clauses)),
     }
 }
 
