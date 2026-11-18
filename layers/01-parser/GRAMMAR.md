@@ -408,19 +408,56 @@ left out.
 
 ## Decisions
 
-Answered by Jarod on 2026-11-18. Nine are decided; one is waiting on one
-more exchange. The grammar text above has not yet been rewritten to match;
+Answered by Jarod on 2026-11-18, with Zac on two of them. Nine are decided;
+decision 2 was decided and then reopened the same day. The grammar text above has not yet been rewritten to match;
 that happens once the last two are settled.
 
 | # | Question | Evidence | Jarod's answer | Status |
 | --- | --- | --- | --- | --- |
 | 1 | Is there an `if` statement? | V1 retired it 2026-07-02; the spec example is rot. | "obviously not" | **Decided: no.** `if` only as an arm guard. |
-| 2 | What ends an arm? | V1's `source` tree has about 11,350 arm lines ending with nothing and 87 ending in a comma. Every spec example omits the comma. Rust requires a comma unless the arm's result is a block. | "comma I think? what does rust do?" then "rewrite is fine we are on v2" | **Decided: a comma.** Arms are separated by commas as in Rust, with an optional comma after the last. Newlines never matter. Existing arms and the spec's examples must be rewritten. |
+| 2 | What ends an arm? | V1's `source` tree has about 11,350 arm lines ending with nothing and 87 ending in a comma. Every spec example omits the comma. Rust requires a comma unless the arm's result is a block. V1 already lets a newline separate predicates in a `requires` list. | Jarod first chose a comma ("rewrite is fine we are on v2"). Zac then questioned what the comma buys ("we already dont force commas on requires/ensures"), Jarod agreed ("if they want it readable, just new line"), and Zac asked whether whitespace breaks anything. | **Reopened.** Leaning to no comma. See [What breaks without a comma](#what-breaks-without-a-comma). |
 | 3 | Tuples in both `match` and `transition`? | The spec says the two share one pattern vocabulary. | "match and transition are identical, only differing in that transition is at the end" | **Decided: one grammar for both.** `transition` is the form in tail position. |
 | 4 | Punctuation after `requires` before a body? | In V1's `source` tree, 775 of 794 such clauses end with nothing, 7 with a comma, 12 with a semicolon. | "whitespace is possibly fine" | **Decided: nothing.** |
 | 5 | Which words are reserved? | V1 reserves none in effect. | `self` matters only inside data and domain predicates; `iN` and `uN` cannot be declared as type names. | **Decided: no reserved words.** `self` is contextual. Refusing a declaration named `u7` is a naming rule for a later layer, not this one. |
 | 6 | Operator precedence? | V1's table, checked in its code. | "same as it was" | **Decided: V1's table.** |
-| 7 | Generic arguments versus less-than? | In a declaration or a type, `<` can only be generics. In an expression, `apply<set_time>(x)` and `a < b` start alike, and a parser cannot know what `apply` is: names are resolved in the next layer. Writing `apply::<set_time>(x)` removes the ambiguity with no lookahead. V1's `source` tree has roughly 600 generic applications in expressions; the spec's examples have about 41. | "is ambiguity? :: would resolve it?" | **Open.** Yes, `::` before `<` resolves it completely. Waiting on whether to adopt it. |
+| 7 | Generic arguments versus less-than? | In a declaration or a type, `<` can only be generics. In an expression, `apply<set_time>(x)` and `a < b` start alike, and a parser cannot know what `apply` is. Writing `apply::<set_time>(x)` removes the ambiguity with no lookahead. Roughly 600 call sites in V1's `source` tree and 41 in the spec's examples change. | Jarod: "is ambiguity? :: would resolve it?" Zac, relayed by Jarod: "yeah we can do ::" | **Decided: `::<` in expressions.** A bare `<` after a name in an expression is always less-than. Declarations and types keep plain `<`. |
 | 8 | Is assembly in the first parser? | The spec defines it; V1 has only part. | "just parse it" | **Decided: in**, as the spec defines it. |
 | 9 | `(m satisfies T::r)` and `some S`? | Both in the spec since 2026-11-10; neither in V1. | "obviously in" | **Decided: in.** |
 | 10 | How is the spec corpus tagged for testing? | 132 examples of mixed kinds. | "I dont care" | **Decided: Claude's choice.** Each example is tagged by what it is. |
+
+### What breaks without a comma
+
+"Whitespace" can mean two different rules, and only one of them is safe.
+
+**Any whitespace, no separator at all.** This is V1's rule for `transition`.
+The start of the next arm's pattern can be read as more of the previous arm's
+result:
+
+| Written | Read as | Why |
+| --- | --- | --- |
+| `-> reject()` then `(_, x) -> ...` | `reject()(_, x)` | A `(` after an expression is a call. |
+| `-> table` then `[a, b] -> ...` | `table[a, b]` | A `[` after an expression is an index. |
+| `-> total` then `-1 -> ...` | `total - 1` | A `-` after an expression is subtraction. |
+| `-> flags` then `&mask -> ...` | `flags & mask` | A `&` after an expression is bitwise and. |
+
+The first row is the spec's own example. It became ordinary once `match` and
+`transition` were given tuple patterns (decision 3). V1 avoids the last two
+only by forbidding binary operators in a result that starts with a name, so
+`-> value + 1` is a parse error there.
+
+**A newline ends the arm.** The result runs to the end of the line, not
+counting newlines inside brackets. Every row above then parses as written,
+because the next pattern is on a new line.
+
+| | Any whitespace | Newline ends the arm | Comma required |
+| --- | --- | --- | --- |
+| Spec's own example parses | No | Yes | After rewriting |
+| `-> value + 1` allowed | No, in V1 | Yes | Yes |
+| Existing arms need rewriting | No | No | About 11,350 lines |
+| Two arms on one line | Ambiguous | Needs a comma between them | Yes |
+| A result too long for one line | Fine | Needs brackets around it | Fine |
+| Newlines carry meaning | No | Yes, here and in `requires` lists | No |
+
+So the comma buys two things over a newline rule: a long result can be broken
+across lines without brackets, and no newline ever matters. Whether that is
+worth rewriting every arm is the decision.
