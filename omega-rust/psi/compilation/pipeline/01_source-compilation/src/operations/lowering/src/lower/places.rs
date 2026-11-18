@@ -2171,9 +2171,8 @@ impl<'a> Lowering<'a> {
             })?
             .structural_parameters
             .push(parameter);
-        // New membership or predicate evidence always owes its conjunction.
-        // Empty theory contributes Truth and still records an arrival for a
-        // saved domain.
+        // Adding a domain still needs an arrival proof, even for an empty
+        // predicate theory.
         let subject = crate::lowering::body::self_place()
             .ok_or_else(|| self.internal("cast subject place identity"))?;
         let mut predicate = Vec::with_capacity(clauses.len());
@@ -2192,11 +2191,11 @@ impl<'a> Lowering<'a> {
                 .predicate_establishments
                 .push((cast, stated.clone()));
         }
-        // A predicate-free removal transfers the same whole value. As with
-        // scalar removals, keep its dominating bindings in ordinary join scope.
-        let predicate_free_removal =
+        // Removing a domain leaves the same value. Keep its existing facts
+        // in scope, just as for a scalar cast that only removes domains.
+        let only_removes_domains =
             changes_memberships && added.is_empty() && clauses.is_empty() && stated.is_none();
-        if !predicate_free_removal {
+        if !only_removes_domains {
             self.invariants.push(terminal_psi::ScalarBlockInvariant {
                 machine: id,
                 header: cast,
