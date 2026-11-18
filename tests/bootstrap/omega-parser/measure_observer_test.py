@@ -28,8 +28,12 @@ try:
 finally:
     observer.cursor = original_cursor
 
-children = Path(f'/proc/self/task/{os.getpid()}/children').read_text().strip()
-assert not children, f'profiler left native children: {children}'
+try:
+    child, _ = os.waitpid(-1, os.WNOHANG)
+except ChildProcessError:
+    pass
+else:
+    raise AssertionError(f'profiler left a native child (waitpid returned {child})')
 assert observer.observe(directory, 'observer-cleanup-positive', request, 30) == b'*'
 assert json.loads((directory / 'observer-cleanup-positive.json').read_text())['cumulative_pairs'] == 0
 record = {'role': 'Profiler cleanup control, not a language rejection.',
