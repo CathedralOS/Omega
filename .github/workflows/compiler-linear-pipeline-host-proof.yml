@@ -1,0 +1,38 @@
+name: Native host proof for the linear compiler
+on:
+  push:
+    branches:
+      - work/compiler-linear-pipeline-host-proof
+
+permissions:
+  contents: read
+
+jobs:
+  execute:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux_x86_64
+            runner: ubuntu-24.04
+          - target: linux_arm64
+            runner: ubuntu-24.04-arm
+          - target: macos_arm64
+            runner: macos-15
+          - target: windows_x86_64
+            runner: windows-2022
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            native-host-proof
+            tests/fixtures/run/providers/target_selected_implementation
+      - name: Verify and execute the candidate and official fixture images
+        shell: bash
+        env:
+          OMEGA_TARGET: ${{ matrix.target }}
+        run: python native-host-proof/verify.py
