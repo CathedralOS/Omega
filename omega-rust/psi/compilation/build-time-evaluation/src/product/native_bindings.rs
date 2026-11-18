@@ -456,8 +456,12 @@ pub fn capture_package_intents(
                         "native effect lost its exact captured source formation and author",
                     )]
                 })?;
-            let (_, selected) = requirement(program, &lookup, &formations[index].request)
-                .map_err(|error| vec![error])?;
+            let author = authors
+                .resolve(event.selecting_machine)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let (_, selected, _) =
+                requirement(program, &lookup, &formations[index].request, author)
+                    .map_err(|error| vec![error])?;
             let source = &declarations[index].source;
             authenticate_locator(
                 program,
