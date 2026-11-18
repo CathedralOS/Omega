@@ -2883,6 +2883,7 @@ impl<'a> Storage<'a> {
                             asked,
                             &captured,
                             (row.block, row.position),
+                            0,
                             budget,
                             concerns,
                         )?;
@@ -2897,6 +2898,7 @@ impl<'a> Storage<'a> {
                         asked,
                         watched,
                         (row.block, row.position - 1),
+                        0,
                         budget,
                         concerns,
                     )?
@@ -2990,27 +2992,53 @@ impl<'a> Storage<'a> {
                     );
                 }
                 (Stored::Moved(source), _) => {
-                    let mut source = source.clone();
-                    source.segments.extend_from_slice(beneath);
+                    let carry_depth = !weakened
+                        && budget.observations == Observations::Boundary
+                        && matches!(asked, Asked::Contents(_))
+                        && !matches!(budget.used, Some(ProgramPoint::BeforeCleanup { .. }))
+                        && budget.crossed_entries.get(index(row.block.get())) == Some(&false)
+                        && !beneath.is_empty()
+                        && beneath.iter().all(|step| {
+                            matches!(
+                                step,
+                                Segment::Field(_) | Segment::Case(_) | Segment::FixedIndex(_)
+                            )
+                        });
+                    let mut leaf = source.clone();
+                    leaf.segments.extend_from_slice(beneath);
                     let asked = match asked {
-                        Asked::Contents(_) => Asked::Contents(&source),
-                        Asked::Case(_) => Asked::Case(&source),
+                        Asked::Contents(_) => Asked::Contents(&leaf),
+                        Asked::Case(_) => Asked::Case(&leaf),
                         Asked::Window { .. } => {
                             return Err(self.foreign(concerns, "a window is followed into a copy"));
                         }
                     };
-                    // The source as it was just before the store.
-                    let supply = self
-                        .reaching_supply(
-                            references,
+                    // Follow the source at the transfer's prestate. Only
+                    // the operand's own selectors can justify its typing;
+                    // the suffix from the destination must be static.
+                    let before = row.position - 1;
+                    let supply = if carry_depth {
+                        let backing =
+                            self.backing(references, &leaf, row.block, before, concerns)?;
+                        let at = (row.block, before);
+                        let depth = self.borrowed_transfer_depth(
                             tables,
-                            asked,
-                            row.block,
-                            row.position - 1,
-                            budget,
+                            &leaf,
+                            &backing,
+                            source,
+                            &row.destination,
+                            at,
                             concerns,
+                        )?;
+                        self.reaching_backing_supply(
+                            references, tables, asked, &backing, at, depth, budget, concerns,
                         )?
-                        .within(beneath.len());
+                    } else {
+                        self.reaching_supply(
+                            references, tables, asked, row.block, before, budget, concerns,
+                        )?
+                    }
+                    .within(beneath.len());
                     return Ok(if weakened {
                         supply.without_identity()
                     } else {
@@ -3420,6 +3448,7 @@ impl<'a> Storage<'a> {
             asked,
             &resolved,
             (block, up_to),
+            0,
             budget,
             concerns,
         )
@@ -3432,6 +3461,7 @@ impl<'a> Storage<'a> {
         asked: Asked<'_>,
         resolved: &Backing,
         (block, up_to): (BlockId, usize),
+        rebase_depth: usize,
         budget: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Supply> {
@@ -3445,7 +3475,7 @@ impl<'a> Storage<'a> {
         let projection = if original == &resolved.place {
             usize::MAX
         } else {
-            0
+            rebase_depth
         };
         if let Some(key) = &key
             && let Some(&address) = budget.keys.get(key)
