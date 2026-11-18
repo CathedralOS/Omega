@@ -20,6 +20,8 @@ The Omega-written stage starts at [resolver.omg](../../../../../source/psi/pipel
 
 Keep the pass order explicit when porting. An operator can acquire a home before symbols are assigned. Substituting a constant needs the symbol table. Recording an authored selection needs the substituted value. Completing one machine body needs the declaration identities the build already holds. These dependencies carry over independently of Rust's module visibility or ownership types.
 
+When a conformance overrides a trait default, [default selection](selections/conformance_blocks.rs) discards the synthesized machine and returns the new position of each survivor. Both deferred bodies and [service reaches](selections/service_reaches.rs) use those positions to stay with their declarations.
+
 Rust's [name resolver](https://rustc-dev-guide.rust-lang.org/name-resolution.html) gives import resolution and the lexical scope walk distinct homes. That split makes it possible to follow a shadowed name directly to the scope rules. Zig's [AstGen](https://github.com/ziglang/zig/blob/0.15.2/lib/std/zig/AstGen.zig) lowers local syntax to untyped instructions, while [Sema](https://github.com/ziglang/zig/blob/0.15.2/src/Sema.zig) analyzes instructions on demand. For Omega the comparable split is the visible handoff from prepared declarations to requested machine bodies.
 
 ## Time one operation
@@ -28,6 +30,8 @@ Rust's [name resolver](https://rustc-dev-guide.rust-lang.org/name-resolution.htm
 mbx bench -p syntax-trees-to-symbol-resolved-trees --bench resolver_timing -- body imports 100
 ```
 
-Choose `full`, `deferred`, `body`, or `extension`, then `tiny`, `imports`, or `generics`, then a positive repeat count. The [harness](benchmarks/resolver_timing.rs) takes a clean owned input for each invocation. It measures one resolver operation per work unit. It prepares sources, parses, clones inputs, warms up, inspects the result, and drops the returned trees outside the clock. The extension measurement ends before the join with a typed consumer. The body measurement starts with an open package and requests `main`.
+Choose `full`, `deferred`, `body`, or `extension`, followed by an input and a positive repeat count. The inputs `tiny`, `imports`, `generics`, and `reach` exercise a single machine, cross-file overloads, a generic array extent, and an authored boundary-service reach. Use `machines-N` to vary the number of independent machines while keeping the requested body the same. For example, `body machines-4096 4` completes `main` four times in a package with 4,096 declarations.
 
-The [paired measurements](../../../../../wiki/drafts/measurements/psi_resolver_layout.md) record what the layout change cost on these inputs.
+The [harness](benchmarks/resolver_timing.rs) takes a clean owned input for each invocation. It measures one resolver operation per work unit. It prepares sources, parses, clones inputs, warms up, inspects the result, and drops the returned trees outside the clock. The extension measurement ends before the join with a typed consumer. The body measurement starts with an open package and requests `main`.
+
+See the paired results for the [resolver reorganization](../../../../../wiki/drafts/measurements/psi_resolver_layout.md) and for [assigning service reaches to machines](../../../../../wiki/drafts/measurements/psi_service_reach.md).
