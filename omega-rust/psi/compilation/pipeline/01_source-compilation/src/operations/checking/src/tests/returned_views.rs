@@ -264,6 +264,32 @@ machine read(slot: &i32) -> i32 { slot }
 machine entry() -> i32 reaches Source invokes Source { read(Source::slot()) }
 "#;
 
+const PROVIDER_RECORD_REFERENCE: &str = r#"
+data Pair { left: i32; right: i32; }
+boundary trait Source { machine cell() -> &Pair reaches none crashes none; }
+machine read(pair: &Pair) -> i32 { pair.left }
+machine entry() -> i32 reaches Source invokes Source { read(Source::cell()) }
+"#;
+
+const PROVIDER_NESTED_RECORD_REFERENCE: &str = r#"
+data Values { left: i32; right: i32; }
+data Pair { values: Values; other: i32; }
+boundary trait Source { machine cell() -> &Pair reaches none crashes none; }
+machine read(pair: &Pair) -> i32 { pair.values.left }
+machine entry() -> i32 reaches Source invokes Source { read(Source::cell()) }
+"#;
+
+#[test]
+fn boundary_reference_completion_reads_inline_record_leaves() {
+    for source in [PROVIDER_RECORD_REFERENCE, PROVIDER_NESTED_RECORD_REFERENCE] {
+        let verdict = crate::checking::judge(elaborate(source));
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "the shared provider contract establishes its typed record leaves: {verdict:?}"
+        );
+    }
+}
+
 #[test]
 fn boundary_reference_completion_reads_a_caller_chosen_provider_result() {
     let elaborated =
@@ -283,12 +309,16 @@ fn boundary_reference_completion_reads_a_caller_chosen_provider_result() {
 
 #[test]
 fn boundary_reference_completion_does_not_invent_a_captured_address() {
+    provider_reference_has_no_captured_address(PROVIDER_REFERENCE);
+}
+
+fn provider_reference_has_no_captured_address(source: &str) {
     use terminal_semantics::descriptor_lifetimes::descriptor_location;
     use terminal_semantics::descriptor_results::{
         DescriptorAnalysis, DescriptorProviderOutput, DescriptorSourceOrigin,
         terminal_borrowed_storage_graph_from,
     };
-    let input = elaborate(PROVIDER_REFERENCE).unwrap();
+    let input = elaborate(source).unwrap();
     let (machine, at, actual) = input
         .module
         .machines
@@ -308,7 +338,7 @@ fn boundary_reference_completion_does_not_invent_a_captured_address() {
                     })
             })
         })
-        .expect("the original read borrows the provider's scalar referent");
+        .expect("the original read borrows the provider's returned referent");
     let graph = terminal_borrowed_storage_graph_from(&input.module, [machine.id], &[]).unwrap();
     let mut analysis =
         DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &graph);
@@ -346,12 +376,16 @@ fn boundary_reference_completion_does_not_invent_a_captured_address() {
 
 #[test]
 fn boundary_reference_completion_does_not_claim_an_unknown_scalar_value() {
-    let source = PROVIDER_REFERENCE.replace(
+    provider_reference_value_is_unknown(PROVIDER_REFERENCE);
+}
+
+fn provider_reference_value_is_unknown(source: &str) {
+    let changed = source.replace(
         "machine entry() -> i32",
         "machine entry() -> i32 ensures result == 0i32",
     );
-    assert_ne!(source, PROVIDER_REFERENCE);
-    let verdict = crate::checking::judge(elaborate(&source));
+    assert_ne!(changed, source);
+    let verdict = crate::checking::judge(elaborate(&changed));
     let Ok(RouteVerdict::Rejected {
         formations,
         violations,
@@ -379,6 +413,21 @@ fn boundary_reference_completion_does_not_claim_an_unknown_scalar_value() {
         failure.kind,
         ObligationKind::NormalGuarantee { .. } | ObligationKind::PublishedGuarantee { .. }
     )));
+}
+
+#[test]
+fn boundary_reference_completion_keeps_record_values_unknown() {
+    for source in [PROVIDER_RECORD_REFERENCE, PROVIDER_NESTED_RECORD_REFERENCE] {
+        provider_reference_value_is_unknown(source);
+    }
+}
+
+#[test]
+fn boundary_reference_completion_keeps_record_addresses_opaque() {
+    for source in [PROVIDER_RECORD_REFERENCE, PROVIDER_NESTED_RECORD_REFERENCE] {
+        provider_reference_has_no_captured_address(source);
+        provider_permission_cannot_be_claimed_as_owned_storage(source);
+    }
 }
 
 #[test]

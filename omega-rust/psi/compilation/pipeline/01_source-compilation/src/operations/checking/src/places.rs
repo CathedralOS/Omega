@@ -3330,6 +3330,51 @@ impl<'a> Storage<'a> {
         })
     }
 
+    // The caller has authenticated the provider reference. Follow ordinary
+    // record fields while retaining each declaration's scalar carrier.
+    fn provider_record_leaf(&self, place: &Lineage, concerns: Construct) -> Checked<bool> {
+        let value_scalar = |scalar| match scalar {
+            ScalarType::Boolean
+            | ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary32
+                | semantic_vocabulary::IeeeFloatFormat::Binary64,
+            ) => true,
+            ScalarType::Integer(integer) => {
+                !integer.is_address()
+                    && integer
+                        .bits()
+                        .is_some_and(|bits| bits != 0 && bits <= 64 && bits % 8 == 0)
+            }
+            _ => false,
+        };
+        let mut in_referent = false;
+        let shape = self.shape_with(place.root, &place.segments, concerns, |shape, segment| {
+            if *segment == Segment::Referent {
+                in_referent = true;
+                return Ok(true);
+            }
+            if !in_referent {
+                return Ok(true);
+            }
+            let Shape::Typed(owner) = shape else {
+                return Ok(false);
+            };
+            let declaration = self.declaration(*owner, concerns)?;
+            Ok(declaration.quotient_carrier.is_none()
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. }))
+        })?;
+        Ok(match shape {
+            Some(Shape::Scalar(scalar)) => value_scalar(scalar),
+            Some(Shape::Typed(owner)) => {
+                let declaration = self.declaration(owner, concerns)?;
+                declaration.quotient_carrier.is_none()
+                    && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
+                        if value_scalar(scalar))
+            }
+            _ => false,
+        })
+    }
+
     fn reaching_supply(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -3341,10 +3386,28 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Supply> {
         let original = asked.place();
-        // The admitted shared reference establishes valid primitive contents.
+        let record_crossing = if matches!(asked, Asked::Contents(_))
+            && matches!(original.segments.last(), Some(Segment::Field(_)))
+        {
+            original
+                .segments
+                .iter()
+                .position(|segment| *segment == Segment::Referent)
+                .filter(|crossing| {
+                    original.segments[..*crossing]
+                        .iter()
+                        .all(|segment| matches!(segment, Segment::Field(_)))
+                        && original.segments[*crossing + 1..]
+                            .iter()
+                            .all(|segment| matches!(segment, Segment::Field(_)))
+                })
+        } else {
+            None
+        };
+        // The admitted shared reference establishes valid scalar contents.
         // It supplies no stored value identity or concrete backing address.
         if matches!(asked, Asked::Contents(_))
-            && original.segments.last() == Some(&Segment::Referent)
+            && (original.segments.last() == Some(&Segment::Referent) || record_crossing.is_some())
             && matches!(
                 budget.used,
                 None | Some(ProgramPoint::BlockEntry(_) | ProgramPoint::AfterOperation(_))
@@ -3354,12 +3417,22 @@ impl<'a> Storage<'a> {
             && let Some(referent) = self.provider_referent(references, original, at, concerns)?
         {
             let declaration = self.declaration(referent, concerns)?;
-            if declaration.quotient_carrier.is_none()
+            let depth = if original.segments.last() == Some(&Segment::Referent)
+                && declaration.quotient_carrier.is_none()
                 && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
                     if terminal_semantics::reference_storage_byte_width(scalar).is_some())
             {
+                Some(1)
+            } else if let Some(crossing) = record_crossing
+                && self.provider_record_leaf(original, concerns)?
+            {
+                Some(original.segments.len() - crossing)
+            } else {
+                None
+            };
+            if let Some(depth) = depth {
                 let address = budget.add_equation();
-                budget.add_supply(address, Supply::Direct(Reached::Established(1)));
+                budget.add_supply(address, Supply::Direct(Reached::Established(depth)));
                 return Ok(Supply::transfer(address));
             }
         }
