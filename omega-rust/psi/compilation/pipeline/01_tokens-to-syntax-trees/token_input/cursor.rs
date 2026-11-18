@@ -76,14 +76,13 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     // The cursor starts on a grammar token. Trivia may separate every later pair.
+    #[inline]
     fn peek_semantic(&self, index: usize) -> Option<&'tokens Token> {
-        let (first, rest) = self.tokens.split_first()?;
-        if index == 0 {
-            return Some(first);
+        let mut tokens = self.tokens;
+        for _ in 0..index {
+            tokens = skip_trivia(tokens.get(1..)?);
         }
-        rest.iter()
-            .filter(|token| !token.is_trivia())
-            .nth(index - 1)
+        tokens.first()
     }
 
     pub(crate) fn depth(&self) -> u16 {

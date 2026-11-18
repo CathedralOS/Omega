@@ -38,6 +38,40 @@ pub enum AtomicOrderingPlan {
     },
 }
 
+/// The primitive selected by a dot call on a bound atomic cell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum AtomicCellMember {
+    Load,
+    Store,
+    FetchAdd,
+    FetchSub,
+    FetchXor,
+    FetchOr,
+    FetchAnd,
+    Swap,
+    Exchange,
+    Once(AtomicCompareExchangeObservationAxis),
+}
+
+impl AtomicCellMember {
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "load" => Self::Load,
+            "store" => Self::Store,
+            "fetch_add" => Self::FetchAdd,
+            "fetch_sub" => Self::FetchSub,
+            "fetch_xor" => Self::FetchXor,
+            "fetch_or" => Self::FetchOr,
+            "fetch_and" => Self::FetchAnd,
+            "swap" => Self::Swap,
+            "compare_exchange" => Self::Exchange,
+            name => Self::Once(AtomicCompareExchangeObservationAxis::single_attempt_member(
+                name,
+            )?),
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AtomicObservingCompareExchangeOperation {
     Decisive,

@@ -1409,7 +1409,7 @@ pub(crate) mod statement {
                 ),
             );
             let binding = lower_local(lowerer, state, types, local, Some(zero))?;
-            let assignment = operation.assignment(lowerer, &binding)?;
+            let assignment = operation.assignment(lowerer, &binding, local.initial_value)?;
             let binding = typed::statement::StatementNode::LocalData(binding);
             types.record(&binding)?;
             return Ok(vec![binding, assignment]);

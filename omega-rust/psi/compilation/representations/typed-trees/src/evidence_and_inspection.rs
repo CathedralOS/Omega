@@ -5604,6 +5604,9 @@ pub mod inspection {
                 Intrinsic::BuildLogWriteLine => ("build_log_write_line", None),
                 Intrinsic::WireEncode => ("wire_encode", None),
                 Intrinsic::WireDecode => ("wire_decode", None),
+                Intrinsic::AtomicCellOperation(member) => {
+                    ("atomic_cell_operation", Some(format!("{member:?}")))
+                }
                 Intrinsic::InlineAssemblyOperation => ("inline_assembly_operation", None),
                 Intrinsic::ProofView => ("proof_view", None),
                 Intrinsic::QuotientDefine => ("quotient_define", None),

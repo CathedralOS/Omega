@@ -1333,6 +1333,65 @@ mod named_value_tests {
     use typed::expression::{ExpressionNode, TableNamePath};
 
     #[test]
+    fn a_direct_machine_field_value_publishes_only_its_real_declarations() {
+        use symbols::SymbolHandle;
+        use typed::references::TypedReferences;
+
+        #[derive(Default)]
+        struct References(Vec<SymbolHandle>);
+        impl Extend<SymbolHandle> for References {
+            fn extend<I: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: I) {
+                self.0.extend(symbols);
+            }
+        }
+        impl TypedReferences for References {}
+
+        let text = r#"
+            data Registry { store: machine(key: u64, value: u64) -> u64 reaches none crashes none terminates; }
+            machine take_value(key: u64, value: u64) -> u64 terminates { value }
+            machine main() -> Registry { let registry: Registry = Registry { store: take_value }; registry }
+        "#;
+        let program =
+            crate::qualified_operator_home_tests::packages(&[(1, "registry.omg", text)], &[], &[])
+                .unwrap();
+        let value = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(_, node)| {
+                let ExpressionNode::MachineValue(value) = node else {
+                    return None;
+                };
+                Some(value)
+            })
+            .expect("the field initializer constructs the selected machine value");
+        let dependencies = |value: &typed::callable_values::MachineValue| {
+            let mut references = References::default();
+            references.machine_value_dependencies(&program, value);
+            references.0
+        };
+        let direct = dependencies(value);
+        assert!(direct.contains(&value.selected.symbol));
+        assert!(
+            direct
+                .iter()
+                .all(|symbol| program.symbols.symbols().nodes().is_valid(*symbol))
+        );
+
+        // A malformed pair still reaches the validator with both coordinates intact.
+        let absent = SymbolHandle::invalid();
+        let stale = SymbolHandle::from_arena_index(999_999);
+        for pair in [[stale, absent], [absent, stale]] {
+            let mut incomplete = value.clone();
+            [incomplete.conformance, incomplete.requirement] = pair;
+            assert!(
+                dependencies(&incomplete)
+                    .windows(2)
+                    .any(|symbols| symbols == pair)
+            );
+        }
+    }
+
+    #[test]
     fn named_values_keep_the_applied_requirement_and_refuse_stale_members() {
         const TEXT: &str = r#"
 trait Shrink<T> {

@@ -1345,6 +1345,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildParameterDescription,
     BuildFieldDescription,
     CoreIntegerOperator(crate::numeric_intrinsics::CoreIntegerOperatorSignature),
+    AtomicCellOperation(language_core::atomic::AtomicCellMember),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]

@@ -23,12 +23,20 @@ fn callable_field_named_store_keeps_its_value_arguments() {
         }",
     )
     .unwrap();
-    assert!(
-        typed
-            .expression_table
-            .iter_expressions()
-            .any(|(_, node)| matches!(node, TypedNode::Call(call) if call.runtime_call.is_some()))
-    );
+    let table = &typed.expression_table;
+    let call = table
+        .iter_expressions()
+        .find_map(|(_, node)| match node {
+            TypedNode::Call(call) if call.runtime_call.is_some() => Some(call),
+            _ => None,
+        })
+        .expect("machine-valued field call");
+    let arguments = table.expression_handles(call.arguments);
+    assert_eq!(arguments.len(), 2);
+    for (&arg, expected) in arguments.iter().zip([1, 42]) {
+        assert!(matches!(table.expression(arg), TypedNode::Integer(literal)
+            if literal.magnitude_u128() == Some(expected)));
+    }
 }
 
 #[test]
@@ -39,15 +47,18 @@ fn indexed_atomic_store_retains_its_destination() {
         }",
     )
     .unwrap();
-    assert!(
-        typed
-            .expression_table
-            .iter_expressions()
-            .any(|(_, node)| matches!(
-                node, TypedNode::Atomic(event)
-                    if event.ordering == AtomicOrderingPlan::Store(MemoryOrdering::NoOrdering)
-            ))
-    );
+    let store = typed.machines().iter()
+        .flat_map(|machine| typed.machine_states(machine))
+        .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
+        .find_map(|instruction| match instruction {
+            StatementNode::Assignment(store) if matches!(typed.expression_table.expression(store.value),
+                TypedNode::Atomic(event) if event.ordering == AtomicOrderingPlan::Store(MemoryOrdering::NoOrdering)) => Some(store),
+            _ => None,
+        }).expect("typed atomic store");
+    assert!(matches!(
+        typed.expression_table.expression(store.target),
+        TypedNode::Indexed(_)
+    ));
 }
 
 #[test]
@@ -110,4 +121,54 @@ fn selected_cells_check_ordering_and_keep_the_event_and_its_result() {
             )
         );
     }
+}
+
+#[test]
+fn source_calls_publish_the_selected_atomic_member() {
+    use language_core::atomic::AtomicCellMember;
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    };
+    let source = "machine main() {
+        let mut cell: AtomicU32;
+        cell.store(10u32, Publish);
+        let prior: u32 = cell.fetch_add(5u32, NoOrdering);
+        let current: u32 = cell.load(Receive);
+    }";
+    let typed =
+        crate::qualified_operator_home_tests::packages(&[(1, "main.omg", source)], &[], &[])
+            .unwrap();
+    let table = &typed.expression_table;
+    let mut operations = Vec::new();
+    for (handle, node) in table.iter_expressions() {
+        let TypedNode::Atomic(event) = node else {
+            continue;
+        };
+        let expected = match event.ordering {
+            AtomicOrderingPlan::Store(_) => AtomicCellMember::Store,
+            AtomicOrderingPlan::ReadModifyWrite(_) => AtomicCellMember::FetchAdd,
+            AtomicOrderingPlan::Load(_) => AtomicCellMember::Load,
+            other => panic!("unexpected atomic event {other:?}"),
+        };
+        let calls: Vec<_> = table
+            .authored_selection_occurrences(handle)
+            .map(|id| typed.authored_declaration_selections().get(id).unwrap())
+            .filter(|row| row.kind() == Kind::Call)
+            .map(|row| row.target())
+            .collect();
+        assert_eq!(
+            calls,
+            [Target::Intrinsic(Intrinsic::AtomicCellOperation(expected))]
+        );
+        operations.push(expected);
+    }
+    assert_eq!(
+        operations,
+        [
+            AtomicCellMember::Store,
+            AtomicCellMember::FetchAdd,
+            AtomicCellMember::Load
+        ]
+    );
 }

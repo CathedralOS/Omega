@@ -1493,8 +1493,12 @@ fn visit_machine_value_dependencies(
     retained: &mut impl TypedReferences,
     value: &crate::callable_values::MachineValue,
 ) {
-    visit_symbol(retained, value.conformance);
-    visit_symbol(retained, value.requirement);
+    // A direct machine value has no conformance row. When either coordinate
+    // is supplied, emit both so capture still rejects a missing or stale mate.
+    if (value.conformance, value.requirement) != (SymbolHandle::invalid(), SymbolHandle::invalid())
+    {
+        retained.extend([value.conformance, value.requirement]);
+    }
     visit_type_reference(program, retained, value.type_reference);
     visit_static_argument(program, retained, &value.selected);
     visit_static_machine_bindings(program, retained, value.application);

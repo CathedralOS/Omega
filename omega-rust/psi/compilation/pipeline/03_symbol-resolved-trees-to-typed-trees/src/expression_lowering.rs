@@ -1357,11 +1357,17 @@ pub(crate) mod expression {
                                     .iter()
                                     .map(|operand| self.lower_value(*operand))
                                     .collect::<Result<Vec<_>, _>>()?;
-                                return operation.value(
+                                let event = operation.value(
                                     &mut self.target_trees.expression_table,
                                     receiver,
                                     operands,
-                                );
+                                )?;
+                                operation.publish(
+                                    self.target_trees,
+                                    event,
+                                    self.source.authored_selection_occurrences(expression),
+                                )?;
+                                return Ok(event);
                             }
                             if crate::runtime_callables::callee_is_value(
                                 self.program,
