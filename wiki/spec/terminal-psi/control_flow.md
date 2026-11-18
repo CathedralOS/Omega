@@ -100,10 +100,11 @@ scope contains immutable scalar machine formals, destination scalar parameters,
 and scalar storage observations rooted at machine structural parameters or that
 destination's own structural parameters. A predicate the checker infers also
 has in scope each block parameter whose binding dominates the destination and
-each integer operation result whose definition does. Every arrival passes that
-definition, so the value is one value on every arrival and at the join, as a
-formal is. A guard over a call result therefore crosses the join that `&&`
-lowers to. An operation-created place, another
+each integer operation result whose definition does. This includes exact
+integer snapshots established on the normal return of a dominating call.
+Every arrival passes their definition, so guards over these values can cross
+the join that `&&` lowers to. Each later read still needs its own reaching
+storage version. An operation-created place, another
 block's local that does not dominate the destination, a branch-local value, a
 result pseudo-value, or an opaque or structural predicate cannot gain scope
 through an assertion. Storage observations

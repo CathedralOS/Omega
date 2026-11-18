@@ -251,6 +251,9 @@ impl<'t> Program<'t> {
             // An implementation parameter is a conformance bound; where
             // the typed trees also list it as a parameter, its kind says so.
             let parameters = self.typed.machine_type_parameters(machine);
+            // Lifetime parameters remain on the shared signature. The
+            // ordinary call still matches every argument and result region
+            // in `call_of`; they require no further code selection here.
             (!parameters.is_empty() || !machine.conformance_bounds.is_empty())
                 && parameters.iter().all(|parameter| {
                     matches!(
@@ -266,7 +269,6 @@ impl<'t> Program<'t> {
                             }
                     )
                 })
-                && machine.lifetime_parameters.is_empty()
         })
     }
 

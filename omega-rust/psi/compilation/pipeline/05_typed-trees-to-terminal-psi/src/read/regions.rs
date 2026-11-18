@@ -526,11 +526,19 @@ impl Program<'_> {
             .iter()
             .find(|(owner, _)| *owner == machine)
             .map_or(0, |(_, minted)| *minted);
-        (0..declared + elided)
+        // Specialization keeps explicit lifetime references attached to the
+        // original declaration. Elided inputs are minted while reading this
+        // copy, so those parameters still belong to this machine.
+        let declaration = self.typed.lifetime_declaration_owner(machine);
+        (0..declared)
             .map(|ordinal| LifetimeParameterIdentity {
-                declaration: machine,
+                declaration,
                 ordinal,
             })
+            .chain((0..elided).map(|ordinal| LifetimeParameterIdentity {
+                declaration: machine,
+                ordinal: declared + ordinal,
+            }))
             .collect()
     }
 
