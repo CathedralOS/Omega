@@ -5237,6 +5237,10 @@ impl<'a> Storage<'a> {
         }
         let refused = crate::checking::Unbound::Refused;
         let place = actual.root;
+        let establishes_predicate = || {
+            terminal_semantics::byte_sequence_source_predicates(self.module, self.lowered, place)
+                .is_some_and(|facts| facts.predicates().any(|fact| fact.implies(predicate)))
+        };
         let result = match self.root_kind(place, concerns).map_err(refused)? {
             StructuralPlaceKind::ByteSequenceLiteral { .. } => {
                 let bytes = self
@@ -5278,9 +5282,13 @@ impl<'a> Storage<'a> {
                         "a byte arrival is not a shared view",
                     ));
                 }
-                // This is a goal term, not an established fact. Every incoming
-                // edge proves the exact formal's predicates, including backedges.
-                ScalarTerm::byte_sequence_predicate(predicate, place, Vec::new())
+                // A declared type can forget a domain on a cast. The bytes
+                // still establish the predicate if every incoming view did.
+                if establishes_predicate() {
+                    ScalarTerm::Boolean(true)
+                } else {
+                    ScalarTerm::byte_sequence_predicate(predicate, place, Vec::new())
+                }
             }
             StructuralPlaceKind::OperationResult { producer, .. } => {
                 let operation = self.operation(producer, concerns).map_err(refused)?;
@@ -5308,15 +5316,7 @@ impl<'a> Storage<'a> {
                     terminal_psi::call_structural_pair_pattern!(..)
                         | OperationKind::ByteSequenceSubslice { .. }
                 ) {
-                    let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
-                    required.insert(predicate);
-                    if terminal_semantics::byte_sequence_source_predicates(
-                        self.module,
-                        self.lowered,
-                        place,
-                    )
-                    .is_some_and(|facts| facts.implies(required))
-                    {
+                    if establishes_predicate() {
                         ScalarTerm::Boolean(true)
                     } else if matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. })
                         && self

@@ -11,7 +11,7 @@ The [Build file](build.omg) selects an entry for all four hosted targets.
 The probe uses Core's `ascii_only` predicate. Its slices and indexed writes need
 explicit casts under the current
 [domain rules](../../../../wiki/spec/language/domains.md#byte-containers-and-encoding-domains).
-The checker must carry the ASCII proof through a cast and prove the write keeps it.
+The checker still loses the ASCII proof when a slice borrows a fixed array through a cast.
 [LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only) tracks the
 remaining work.
 
