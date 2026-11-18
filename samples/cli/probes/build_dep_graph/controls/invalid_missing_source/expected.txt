@@ -1,2 +1,2 @@
-source adapter failed for product dependency row 0 of package `invalid_missing_source`: cannot resolve package source: 
-missing_dir: No such file or directory
+source adapter failed for product dependency row 0 of package `invalid_missing_source`: cannot establish canonical external source path `
+missing_dir`: No such file or directory

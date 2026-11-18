@@ -1,5 +1,5 @@
-use kit::main;
+use kit;
 
 machine entry() -> i32 {
-    value()
+    kit::value()
 }
