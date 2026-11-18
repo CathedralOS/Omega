@@ -1,4 +1,4 @@
-//! A pure Build cache hit owes the current occurrence its recorded logical charge.
+//! Source Build execution accounting and the separate completed-result reuse controls.
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "../tests/support/joined_product_native.rs"]
@@ -56,6 +56,9 @@ fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
     .expect("current Terminal measurement")
 }
 
+#[path = "build_charge/source_accounting.rs"]
+mod source_accounting;
+
 #[path = "build_charge/restricted_consent.rs"]
 mod restricted_consent;
 
@@ -101,6 +104,10 @@ fn main() {
         settled_build_product_contexts();
         return;
     }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--source-accounting")) {
+        source_accounting::run();
+        return;
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--accounting")) {
         pure_build_accounting();
         logged_build_reuse();
@@ -137,6 +144,7 @@ fn main() {
     source_discovery_root_resources();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
+    source_accounting::run();
     pure_build_accounting();
     logged_build_reuse();
     anonymous_build_completes_before_product();
@@ -145,22 +153,14 @@ fn main() {
 
 fn pure_build_accounting() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/targets/shared_program_distinct_roots_exit/main.omg");
+        .join("tests/fixtures/run/calls/installed_entry_contract_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
         Some("linux_x86_64"),
     )
     .expect("fixture admission");
-    let check = |session: &mut CompilationSession, sponsor: &BuildEvaluationSponsor, name| {
-        let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(name));
-        request.package_inputs = prepared.package_inputs.clone();
-        request.build.profile = target::TargetProfile::host_if_supported();
-        request.build.snapshot =
-            package_compilation::BuildSnapshotRequest::automatic_package_inventory(
-                request.package_inputs.as_ref(),
-            );
-        request.build.evaluation_sponsor = Some(sponsor.clone());
-        orchestration::check_source(session, request)
+    let check = |session: &mut CompilationSession, sponsor: &BuildEvaluationSponsor, target| {
+        source_accounting::check(&prepared, session, sponsor, target)
     };
     let measured = sponsor(limits(1_000_000));
     check(
@@ -2741,16 +2741,8 @@ fn logged_build_reuse() {
     )
     .expect("logging fixture admission");
     let expected = b"omega build log witness\n";
-    let check = |session: &mut CompilationSession, account: &BuildEvaluationSponsor, target| {
-        let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));
-        request.package_inputs = prepared.package_inputs.clone();
-        request.build.profile = target::TargetProfile::host_if_supported();
-        request.build.snapshot =
-            package_compilation::BuildSnapshotRequest::automatic_package_inventory(
-                request.package_inputs.as_ref(),
-            );
-        request.build.evaluation_sponsor = Some(account.clone());
-        orchestration::check_source(session, request)
+    let check = |session: &mut CompilationSession, sponsor: &BuildEvaluationSponsor, target| {
+        source_accounting::check(&prepared, session, sponsor, target)
     };
     let mut session = CompilationSession::default();
     let account = sponsor(limits(1_000_000));

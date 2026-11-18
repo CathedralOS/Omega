@@ -311,11 +311,11 @@ finds imports in the returned syntax; generated extension units keep separate
 forests. Build role projection and dependency editing use the same Psi parsing
 entry point, not their own lexer and parser.
 
-The compiler invocation owns prepared sources,
-completed Pure Builds and exact prior language judgments across package targets
-and review rounds. Package callers supply source custody and fresh grants, not
-frontend or proof cache slots. A reused language judgment lends its checked
-arenas; equal Product root selections share the pruning output. Package native
+The compiler invocation owns prepared sources and exact prior language judgments
+across package targets and review rounds. One completed package Build can supply
+several target requests. Each standalone source check starts a fresh Build
+activation. Package callers supply source custody and fresh grants. A reused
+language judgment lends its checked arenas; equal Product root selections share the pruning output. Package native
 requests complete as one roster through the same Terminal producer as
 standalone requests. Package-manager batches supply dependency-ordered custody
 and consent plans; the compiler owns generated-output joins and Build and
