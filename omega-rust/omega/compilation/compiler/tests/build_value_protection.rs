@@ -169,7 +169,7 @@ fn constructing_a_build_is_rejected() {
 fn zero_establishing_a_build_is_refused_by_name() {
     refused_with(
         "zeroed",
-        "machine wrong() -> bool {\n    let forged: Build;\n    forged.freestanding\n}\n",
+        "machine wrong() -> bool {\n    let forged: Build;\n    forged.tests.disabled\n}\n",
         "cast that adds a domain whose issuers are in an access plan",
     );
 }

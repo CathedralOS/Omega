@@ -106,7 +106,9 @@ mod goal_observations;
 mod loans;
 mod log;
 
+#[cfg(test)]
 pub(crate) use loans::reference_graph;
+pub(crate) use loans::reference_graph_with_nominal_calls;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
 use std::collections::BTreeMap;
@@ -1944,6 +1946,37 @@ impl<'a> Storage<'a> {
     fn shape(&self, place: &Lineage, concerns: Construct) -> Checked<Shape<'a>> {
         self.shape_with(place.root, &place.segments, concerns, |_, _| Ok(true))?
             .ok_or_else(|| self.foreign(concerns, "an unfiltered shape omitted a segment"))
+    }
+
+    fn projection_type(&self, place: &Lineage, concerns: Construct) -> Option<StructuralTypeId> {
+        if place.segments.is_empty() {
+            return self.root_type(place.root, concerns).ok();
+        }
+        match self.shape(place, concerns).ok()? {
+            Shape::Typed(ty) => Some(ty),
+            _ => None,
+        }
+    }
+
+    fn actual_projection(
+        &self,
+        actual: &Lineage,
+        formal_type: StructuralTypeId,
+        path: &[CanonicalStructuralPathSegment],
+        concerns: Construct,
+    ) -> Result<Lineage, crate::checking::Unbound> {
+        if path.is_empty() {
+            return Ok(actual.clone());
+        }
+        let path = self
+            .projection_type(actual, concerns)
+            .and_then(|actual_type| {
+                crate::call_projection::translate(self.types, formal_type, actual_type, path)
+            })
+            .ok_or(crate::checking::Unbound::Unsupported(
+                "a contract projection has no corresponding field on the actual storage",
+            ))?;
+        extended(actual.clone(), &path)
     }
 
     /// Resolve each typed segment once. A consumer may restrict the meanings
@@ -6186,7 +6219,12 @@ impl<'a> AtCall<'_, 'a> {
             .ok_or(crate::checking::Unbound::Unsupported(
                 "clause names storage that is no record formal of the callee",
             ))?;
-        extended(self.readable_actual(formal)?.clone(), path)
+        self.storage.actual_projection(
+            self.readable_actual(formal)?,
+            formal.structural_type,
+            path,
+            self.concerns,
+        )
     }
 
     fn readable_actual(
@@ -6415,7 +6453,12 @@ impl<'a> CallObservations<'_, 'a> {
                     if crossings.len() == MAXIMUM_FIELD_CROSSINGS {
                         return crossings;
                     }
-                    let Ok(leaf) = extended(actual.clone(), &field_path) else {
+                    let Ok(leaf) = self.storage.actual_projection(
+                        &actual,
+                        declaration.structural_type,
+                        &field_path,
+                        self.concerns,
+                    ) else {
                         continue;
                     };
                     let Ok(ScalarTerm::Value { id, .. }) =
@@ -6541,9 +6584,33 @@ impl<'a> CallObservations<'_, 'a> {
         let (formal, path, held) =
             if let Some((formal, path)) = formal_observation_path(&self.readable, recorded) {
                 let declaration = &self.callee_formals[formal];
-                let mut actual =
-                    extended(self.readable_actual(declaration).ok()?.clone(), &path).ok()?;
-                if matches!(recorded.segments.last(), Some(Segment::Extent)) {
+                let extent = matches!(recorded.segments.last(), Some(Segment::Extent));
+                let actual_prefix = self.readable_actual(declaration).ok()?;
+                let path = if path.is_empty() {
+                    path
+                } else {
+                    let prefix_length = recorded.segments.len() - path.len() - usize::from(extent);
+                    let origin = Lineage {
+                        root: recorded.root,
+                        segments: recorded.segments[..prefix_length].to_vec(),
+                    };
+                    crate::call_projection::translate(
+                        self.storage.types,
+                        self.storage.projection_type(&origin, self.concerns)?,
+                        declaration.structural_type,
+                        &path,
+                    )?
+                };
+                let mut actual = self
+                    .storage
+                    .actual_projection(
+                        actual_prefix,
+                        declaration.structural_type,
+                        &path,
+                        self.concerns,
+                    )
+                    .ok()?;
+                if extent {
                     actual.segments.push(Segment::Extent);
                 }
                 let held = self
@@ -8003,6 +8070,7 @@ machine entry() {
         .unwrap();
         let mut current = 0;
         let mut saved = 0;
+        let mut observations = Vec::new();
         for operation in machine.operations() {
             if !matches!(operation.kind, OperationKind::ByteSequenceLength { .. }) {
                 continue;
@@ -8016,6 +8084,8 @@ machine entry() {
             }
             let leaf = storage.read_leaf(operation).unwrap().unwrap();
             let (block, after) = graph.locate(point).unwrap();
+            // This query follows the underlying producer. Ordinary reads
+            // instead retain their distinct block-entry snapshot identities.
             let mut trace = storage.budget();
             let reached = storage
                 .reaching(
@@ -8037,6 +8107,14 @@ machine entry() {
                     &trace,
                 )
                 .unwrap();
+            if observations.len() < 8 {
+                observations.push((
+                    operation.id,
+                    reached,
+                    storage.current_extent(producer, &trace).unwrap(),
+                    extent.is_some(),
+                ));
+            }
             if storage.current_extent(producer, &trace).unwrap()
                 && reached == Reached::Extent(producer)
             {
@@ -8053,7 +8131,13 @@ machine entry() {
                 saved += 1;
             }
         }
-        assert!(current > 0, "the current descriptor must be exercised");
+        assert!(
+            current > 0,
+            "the current descriptor must be exercised: machine {:?}, producer {:?}, observations {:?}",
+            machine.id,
+            producer,
+            observations
+        );
         assert!(
             saved > 0,
             "the descriptor captured before the backedge must be exercised"

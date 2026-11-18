@@ -1,0 +1,37 @@
+// Expected exit: 0
+data Payload { before: u64; value: u64; after: u64; }
+data Other { before: u64; value: u64; after: u64; }
+data Result<T> { case Empty; case Full(payload: T); }
+machine make(flag: bool) -> Result<Payload> {
+    transition flag {
+        true -> Result::Full { payload: Payload { before: 17u64, value: 37u64, after: 91u64 } }
+        false -> Result::Empty
+    }
+}
+machine other(flag: bool) -> Result<Other> {
+    transition flag {
+        true -> Result::Full { payload: Other { before: 17u64, value: 37u64, after: 91u64 } }
+        false -> Result::Empty
+    }
+}
+machine invoke<const Make: machine(flag: bool) -> Result<Payload>>(flag: bool) -> Result<Payload> { Make(flag) }
+machine main() crashes Trap {
+    transition invoke<make>(true) {
+        Result::Full { payload } -> verify(payload)
+        _ -> wrong()
+    }
+    machine verify(payload: Payload) crashes Trap {
+        transition payload.before == 17u64 && payload.value == 37u64 && payload.after == 91u64 {
+            true -> empty()
+            false -> wrong()
+        }
+    }
+    machine empty() crashes Trap {
+        transition invoke<make>(false) {
+            Result::Empty -> done()
+            _ -> wrong()
+        }
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

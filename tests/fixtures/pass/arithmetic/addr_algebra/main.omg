@@ -5,7 +5,7 @@
 data Main {
     marker: u64;
 }
-machine Main::main(main: &mut Main) {
+machine main(main: &mut Main) {
     let a: addr = 4096;
     let b: addr = 4000;
     let back: addr = a - 16;

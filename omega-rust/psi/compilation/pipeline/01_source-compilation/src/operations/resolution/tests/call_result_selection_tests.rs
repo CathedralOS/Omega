@@ -143,3 +143,113 @@ fn call_results_keep_owned_and_inherited_conformance_routing() {
     "#,
     );
 }
+
+#[test]
+fn structural_equation_calls_keep_their_callee_occurrence() {
+    let text = r#"
+        data Buffer<Element, const N: u64> { items: [Element; N]; }
+        machine inspect<Kind, Element, const N: u64>(value: &Buffer<Element, N>) -> u64
+        requires Kind == Buffer<Element, N> { 1u64 }
+        machine caller(value: &Buffer<u8, 2>) -> u64 {
+            inspect<Buffer<u8, 2>, u8, 2>(value);
+            inspect<Buffer<u8, 2>, u8, 2>(value)
+        }
+    "#;
+    compare(text);
+}
+
+#[test]
+fn a_structural_equation_machine_still_cannot_escape_as_a_plain_name() {
+    let text = r#"
+        data Buffer<Element, const N: u64> { items: [Element; N]; }
+        machine inspect<Kind, Element, const N: u64>(value: &Buffer<Element, N>) -> u64
+        requires Kind == Buffer<Element, N> { 1u64 }
+        machine caller() { let selected = inspect; }
+    "#;
+    let tokens = Lexer::new(text).tokenize().unwrap();
+    let mut sources = crate::source_inputs::SourceMap::default();
+    let source_id = sources
+        .add("equation-selection/main.omg".into(), text.to_owned())
+        .source_id;
+    let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+    let result = resolve(ResolutionRequest {
+        syntax,
+        sources: Some(std::sync::Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+        retained_base: None,
+    });
+    let Err(errors) = result else {
+        panic!("the unresolved structural selection must refuse");
+    };
+    assert!(
+        errors.iter().any(|error| error.message == "machine with structural equations requires a closed explicit call; noncall selection retains an unsolved equation"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn conjunctions_keep_only_structural_definitions() {
+    for (requirement, expected) in [
+        ("Kind == Buffer<Element, N> && Element == u8", 1),
+        ("Kind == Buffer<Element, N> || Element == u8", 0),
+        ("!(Kind == Buffer<Element, N>)", 0),
+    ] {
+        let text = format!(
+            "const N: u64 = 9u64;\n\
+             data Buffer<Element, const N: u64> {{ items: [Element; N]; }}\n\
+             machine inspect<Kind, Element, const N: u64>(value: &Buffer<Element, N>) -> u64\n\
+             requires {requirement} {{ 1u64 }}"
+        );
+        let tokens = Lexer::new(&text).tokenize().unwrap();
+        let mut sources = crate::source_inputs::SourceMap::default();
+        let source_id = sources
+            .add("equation-definitions/main.omg".into(), text)
+            .source_id;
+        let syntax =
+            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+        let resolved = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        let machine = resolved
+            .machines
+            .iter()
+            .find(|machine| !machine.type_parameters.is_empty())
+            .unwrap();
+        let equations = resolved
+            .declarations()
+            .declared_type_equations
+            .span_or_empty(machine.declared_type_equations);
+        assert_eq!(equations.len(), expected, "{requirement}");
+        if expected != 0 {
+            let parameters = resolved
+                .declarations()
+                .data_type_parameters
+                .span_or_empty(machine.type_parameters);
+            assert!(matches!(&equations[0].parameter,
+                crate::source_resolved::types::TypeReference::Named { name, symbol, .. }
+                    if name.as_str() == "Kind" && *symbol == parameters[0].symbol));
+            let crate::source_resolved::types::TypeReference::Generic(definition) =
+                &equations[0].definition
+            else {
+                panic!("the definition keeps its constructor")
+            };
+            let arguments = resolved
+                .declarations()
+                .child_type_references
+                .span_or_empty(definition.arguments);
+            assert_eq!(arguments.len(), 2);
+            for (argument, parameter) in arguments.iter().zip(&parameters[1..]) {
+                assert!(
+                    matches!(argument,
+                    crate::source_resolved::types::TypeReference::Named { symbol, .. }
+                        if *symbol == parameter.symbol),
+                    "each argument must name its actual declared binder: {argument:?}"
+                );
+            }
+        }
+    }
+}

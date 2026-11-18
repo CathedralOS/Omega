@@ -257,15 +257,20 @@ impl Program<'_> {
         }
     }
 
-    /// The disjuncts of an `||` chain, left to right.
-    fn disjuncts(&self, expression: ExpressionHandle, out: &mut Vec<ExpressionHandle>) {
+    /// The operands of one connective chain, in authored order.
+    fn connective_parts(
+        &self,
+        expression: ExpressionHandle,
+        connective: BinaryOperator,
+        out: &mut Vec<ExpressionHandle>,
+    ) {
         if expression.is_valid()
             && let ExpressionNode::Binary(binary) =
                 self.typed.expression_table.expression(expression)
-            && binary.operator == BinaryOperator::Or
+            && binary.operator == connective
         {
-            self.disjuncts(binary.left, out);
-            self.disjuncts(binary.right, out);
+            self.connective_parts(binary.left, connective, out);
+            self.connective_parts(binary.right, connective, out);
         } else {
             out.push(expression);
         }
@@ -389,6 +394,17 @@ impl Program<'_> {
             return unserved("clause that is not a comparison or conjunction");
         };
         let operator = binary.operator;
+        if operator == BinaryOperator::Equal
+            && let (ExpressionNode::TypeExpression(left), ExpressionNode::TypeExpression(right)) = (
+                typed.expression_table.expression(binary.left),
+                typed.expression_table.expression(binary.right),
+            )
+            && let Some(equation) = self.nominal_type_equation(id, scope, *left, *right)?
+        {
+            let owner = self.contract_operator_owner(id, scope)?;
+            self.complete_type_equation(id, owner, expression)?;
+            return Ok(equation);
+        }
         if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
             *operands = [self.operator_operand_reference(ValueType::plain(ScalarType::Boolean)); 2];
         }
@@ -401,17 +417,23 @@ impl Program<'_> {
             if self.guarded_false(expression) {
                 return unserved("conjunction that type equations decide false");
             }
-            let known_true = |side| self.clause_truth(side) == Some(TypeTruth::Known(true));
-            if known_true(binary.left) {
+            let owner = self.contract_operator_owner(id, scope)?;
+            // A folded type guard still owns the operator answers produced
+            // while evaluating it. Keep them before retaining its sibling.
+            if self.read_static_truth(id, owner, binary.left, super::types::Reading::Clause)?
+                == Some(TypeTruth::Known(true))
+            {
                 return self.clause(id, scope, binary.right);
             }
-            if known_true(binary.right) {
+            if self.read_static_truth(id, owner, binary.right, super::types::Reading::Clause)?
+                == Some(TypeTruth::Known(true))
+            {
                 return self.clause(id, scope, binary.left);
             }
         }
         if scope.subject.is_none() && operator == BinaryOperator::Or {
             let mut disjuncts = Vec::new();
-            self.disjuncts(expression, &mut disjuncts);
+            self.connective_parts(expression, BinaryOperator::Or, &mut disjuncts);
             if disjuncts
                 .iter()
                 .any(|disjunct| self.guarded_false(*disjunct))
@@ -2077,6 +2099,70 @@ impl Program<'_> {
     }
 }
 
+/// Inspect only evaluated source bodies. Signature and type metadata may
+/// describe other callable families without invoking their classifiers.
+#[derive(Default)]
+struct PartitionCalls {
+    calls: Vec<(
+        SymbolHandle,
+        crate::source_state::static_applications::StaticMachineApplicationHandle,
+    )>,
+}
+
+impl Extend<SymbolHandle> for PartitionCalls {
+    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+}
+
+impl crate::source_state::references::TypedReferences for PartitionCalls {
+    fn derived_declaration_references(&self) -> bool {
+        false
+    }
+    fn callable_signature_contents(
+        &mut self,
+        _: &crate::source_state::signature::StateSignature,
+    ) -> bool {
+        false
+    }
+    fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
+        false
+    }
+    fn proof_fact(&mut self, _: arena::Handle<ProofFact>) -> bool {
+        false
+    }
+    fn call_arguments(
+        &mut self,
+        _: &crate::source_state::TypedTrees,
+        call: crate::source_state::references::StaticArgumentCall<'_>,
+    ) -> bool {
+        let direct = match call {
+            crate::source_state::references::StaticArgumentCall::Expression(_, call) => {
+                call.runtime_call.is_none()
+                    && !call.static_machine_parameter.is_valid()
+                    && call.static_requirement_dispatch.is_none()
+            }
+            crate::source_state::references::StaticArgumentCall::Statement(call) => {
+                call.runtime_call.is_none()
+                    && !call.static_machine_parameter.is_valid()
+                    && call.static_requirement_dispatch.is_none()
+            }
+        };
+        if direct {
+            let target = match call {
+                crate::source_state::references::StaticArgumentCall::Expression(_, call) => {
+                    call.target_symbol
+                }
+                crate::source_state::references::StaticArgumentCall::Statement(call) => {
+                    call.target_symbol
+                }
+            };
+            if call.application().is_valid() {
+                self.calls.push((target, call.application()));
+            }
+        }
+        false
+    }
+}
+
 impl Program<'_> {
     /// Complete alternatives for one type binder. A finite family names
     /// them in a requirement such as `requires T == u32 || T == u64`.
@@ -2097,8 +2183,13 @@ impl Program<'_> {
         let parameters = self.typed.machine_type_parameters(machine);
         if parameters.is_empty()
             || parameters.iter().any(|parameter| {
-                parameter.kind != crate::source_state::data::TypeParameterKind::Type
-                    || !parameter.symbol.is_valid()
+                !parameter.symbol.is_valid()
+                    || !matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Type
+                            | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Machine { .. }
+                    )
             })
         {
             return unserved("finite family needs an exact type-parameter roster");
@@ -2158,42 +2249,52 @@ impl Program<'_> {
                 "fact span",
             )? {
                 let expression = self.fact(id, fact)?;
-                let mut disjuncts = Vec::new();
-                self.disjuncts(expression, &mut disjuncts);
-                let listed = parameters
-                    .iter()
-                    .enumerate()
-                    .find_map(|(position, parameter)| {
-                        disjuncts
-                            .iter()
-                            .map(|disjunct| {
-                                disjunct
-                                    .is_valid()
-                                    .then(|| alternative(parameter, *disjunct))?
-                            })
-                            .collect::<Option<Vec<_>>>()
-                            .map(|listed| (position, listed))
-                    });
-                let Some((position, listed)) = listed else {
-                    continue;
-                };
-                if found.is_some() {
-                    return unserved("finite family listed by two clauses");
-                }
-                let mut alternatives: Vec<Vec<Option<TypeReferenceHandle>>> = Vec::new();
-                for reference in listed {
-                    let identity = self.typed.normalized_type_identity(reference);
-                    if !alternatives.iter().any(|known| {
-                        known[position].is_some_and(|reference| {
-                            self.typed.normalized_type_identity(reference) == identity
+                let mut conjuncts = Vec::new();
+                self.connective_parts(expression, BinaryOperator::And, &mut conjuncts);
+                // A finite family remains complete when another input
+                // requirement shares its clause. Every alternative still
+                // reads that whole clause, including its runtime conditions.
+                for expression in conjuncts {
+                    let mut disjuncts = Vec::new();
+                    self.connective_parts(expression, BinaryOperator::Or, &mut disjuncts);
+                    let listed = parameters
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, parameter)| {
+                            parameter.kind == crate::source_state::data::TypeParameterKind::Type
                         })
-                    }) {
-                        let mut arguments = vec![None; parameters.len()];
-                        arguments[position] = Some(reference);
-                        alternatives.push(arguments);
+                        .find_map(|(position, parameter)| {
+                            disjuncts
+                                .iter()
+                                .map(|disjunct| {
+                                    disjunct
+                                        .is_valid()
+                                        .then(|| alternative(parameter, *disjunct))?
+                                })
+                                .collect::<Option<Vec<_>>>()
+                                .map(|listed| (position, listed))
+                        });
+                    let Some((position, listed)) = listed else {
+                        continue;
+                    };
+                    if found.is_some() {
+                        return unserved("finite family listed by two clauses");
                     }
+                    let mut alternatives: Vec<Vec<Option<TypeReferenceHandle>>> = Vec::new();
+                    for reference in listed {
+                        let identity = self.typed.normalized_type_identity(reference);
+                        if !alternatives.iter().any(|known| {
+                            known[position].is_some_and(|reference| {
+                                self.typed.normalized_type_identity(reference) == identity
+                            })
+                        }) {
+                            let mut arguments = vec![None; parameters.len()];
+                            arguments[position] = Some(reference);
+                            alternatives.push(arguments);
+                        }
+                    }
+                    found = Some(alternatives);
                 }
-                found = Some(alternatives);
             }
         }
         match found {
@@ -2205,74 +2306,208 @@ impl Program<'_> {
                 })
                 .collect()),
             None => {
-                // Static guards partition one open binder into their closed
-                // cases and an opaque remainder. All cases are checked, even
-                // when no current consumer selects one of them.
-                let (_, state) = self.declaration(id, symbol)?;
-                let statements = self.typed.statement_table.statements(state.statement_nodes);
-                let mut pending = statements
-                    .iter()
-                    .filter_map(|statement| {
-                        let crate::source_state::statement::StatementNode::Transition(transition) =
-                            statement
-                        else {
-                            return None;
-                        };
-                        match transition.guard {
-                            crate::source_state::statement::TransitionGuardNode::When(guard) => {
-                                Some(guard)
-                            }
-                            _ => None,
-                        }
-                    })
-                    .collect::<Vec<_>>();
+                // Follow exact plain type forwarding as well as local guards.
+                // The mapping names root binders, not spelling or the callee's
+                // declaration ordinal. A closed argument has no root binder.
+                let mut instances = vec![(
+                    symbol,
+                    (0..parameters.len()).map(Some).collect::<Vec<_>>(),
+                    None::<usize>,
+                )];
+                let mut visited = symbols::SymbolMap::<Vec<usize>>::default();
+                visited.insert(symbol, vec![0]);
+                let mut active = symbols::SymbolMap::<usize>::default();
+                let mut pending_instances = vec![(0, true)];
                 let mut selected = None;
                 let mut listed = Vec::new();
-                while let Some(expression) = pending.pop() {
-                    match table.expression(expression) {
-                        ExpressionNode::Unary(unary)
-                            if unary.operator == UnaryOperator::LogicalNot =>
-                        {
-                            pending.push(unary.operand)
-                        }
-                        ExpressionNode::Binary(binary)
-                            if matches!(
-                                binary.operator,
-                                BinaryOperator::And | BinaryOperator::Or
-                            ) =>
-                        {
-                            pending.push(binary.left);
-                            pending.push(binary.right);
-                        }
-                        ExpressionNode::Binary(binary)
-                            if binary.operator == BinaryOperator::Equal
-                                && operand(binary.left).is_some()
-                                && operand(binary.right).is_some() =>
-                        {
-                            let Some((position, reference)) = parameters
-                                .iter()
-                                .enumerate()
-                                .find_map(|(position, parameter)| {
-                                    alternative(parameter, expression)
-                                        .map(|reference| (position, reference))
-                                })
+                while let Some((instance, entering)) = pending_instances.pop() {
+                    let (owner, mapping, parent) = &instances[instance];
+                    let owner = *owner;
+                    if !entering {
+                        active.remove(&owner);
+                        continue;
+                    }
+                    if parent.is_some_and(|parent| {
+                        parent >= instance || active.get(&instances[parent].0) != Some(&parent)
+                    }) {
+                        return unserved("static partition has an invalid introducing caller");
+                    }
+                    let mapping = mapping.clone();
+                    active.insert(owner, instance);
+                    pending_instances.push((instance, false));
+                    let (current, state) = self.declaration(id, owner)?;
+                    let current_parameters = self.typed.machine_type_parameters(current);
+                    if current_parameters.len() != mapping.len() {
+                        return unserved("static partition lost its forwarded binder roster");
+                    }
+                    let statements = self.typed.statement_table.statements(state.statement_nodes);
+                    let mut pending = statements
+                        .iter()
+                        .filter_map(|statement| {
+                            let crate::source_state::statement::StatementNode::Transition(
+                                transition,
+                            ) = statement
                             else {
-                                return unserved(
-                                    "static partition needs a binder and a closed type",
-                                );
+                                return None;
                             };
-                            if selected.is_some_and(|selected| selected != position) {
-                                return unserved("static partition over independent type binders");
+                            match transition.guard {
+                                crate::source_state::statement::TransitionGuardNode::When(
+                                    guard,
+                                ) => Some(guard),
+                                _ => None,
                             }
-                            selected = Some(position);
-                            let identity = self.typed.normalized_type_identity(reference);
-                            if !listed.iter().any(|known| {
-                                self.typed.normalized_type_identity(*known) == identity
-                            }) {
-                                listed.push(reference);
+                        })
+                        .collect::<Vec<_>>();
+                    while let Some(expression) = pending.pop() {
+                        match table.expression(expression) {
+                            ExpressionNode::Unary(unary)
+                                if unary.operator == UnaryOperator::LogicalNot =>
+                            {
+                                pending.push(unary.operand)
                             }
+                            ExpressionNode::Binary(binary)
+                                if matches!(
+                                    binary.operator,
+                                    BinaryOperator::And | BinaryOperator::Or
+                                ) =>
+                            {
+                                pending.push(binary.left);
+                                pending.push(binary.right);
+                            }
+                            ExpressionNode::Binary(binary)
+                                if binary.operator == BinaryOperator::Equal
+                                    && operand(binary.left).is_some()
+                                    && operand(binary.right).is_some() =>
+                            {
+                                let Some((position, reference)) = current_parameters
+                                    .iter()
+                                    .enumerate()
+                                    .find_map(|(position, parameter)| {
+                                        alternative(parameter, expression)
+                                            .map(|reference| (position, reference))
+                                    })
+                                else {
+                                    return unserved(
+                                        "static partition needs a binder and a closed type",
+                                    );
+                                };
+                                let Some(position) = mapping[position] else {
+                                    continue;
+                                };
+                                if selected.is_some_and(|selected| selected != position) {
+                                    return unserved(
+                                        "static partition over independent type binders",
+                                    );
+                                }
+                                selected = Some(position);
+                                let identity = self.typed.normalized_type_identity(reference);
+                                if !listed.iter().any(|known| {
+                                    self.typed.normalized_type_identity(*known) == identity
+                                }) {
+                                    listed.push(reference);
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
+                    }
+                    let mut calls = PartitionCalls::default();
+                    crate::source_state::references::visit_machine(self.typed, &mut calls, current);
+                    for (target, application) in calls.calls {
+                        let Some(callee) = self.entered_machine(target) else {
+                            continue;
+                        };
+                        if !application.is_valid() {
+                            continue;
+                        }
+                        let (declaration, _) = self.declaration(id, callee)?;
+                        let parameters = self.typed.machine_type_parameters(declaration);
+                        if parameters.is_empty()
+                            || parameters.iter().any(|parameter| {
+                                parameter.kind != crate::source_state::data::TypeParameterKind::Type
+                            })
+                        {
+                            continue;
+                        }
+                        let prepared =
+                            self.application_bindings(id, owner, callee, application, &[])?;
+                        if prepared.inherited {
+                            continue;
+                        }
+                        let arguments = prepared.parameters.iter().map(|parameter| {
+                            let binding = prepared.bindings.get(&parameter.symbol).ok_or_else(|| {
+                                refuse(id, Construct::Machine, Unserved::Call("static partition lost a declared binder"))
+                            })?;
+                            let crate::source_state::static_applications::StaticMachineBindingValue::Type(reference) = binding.value else {
+                                return Err(refuse(id, Construct::Machine, Unserved::Call("static partition type has another argument kind")));
+                            };
+                            if !types.contains_type_reference(reference) {
+                                return Err(refuse(id, Construct::Machine, Unserved::Call("static partition has a stale type argument")));
+                            }
+                            Ok(reference)
+                        }).collect::<Checked<Vec<_>>>()?;
+                        let mut forwarded = Vec::with_capacity(arguments.len());
+                        for argument in arguments {
+                            if let crate::source_state::types::TypeReferenceNode::Named {
+                                symbol,
+                                ..
+                            } = types.type_reference(argument)
+                                && let Some(position) = current_parameters
+                                    .iter()
+                                    .position(|parameter| parameter.symbol == *symbol)
+                            {
+                                forwarded.push(mapping[position]);
+                                continue;
+                            }
+                            let inputs = crate::source_state::references::type_reference_inputs(
+                                self.typed, argument,
+                            );
+                            if inputs.symbols.iter().any(|symbol| {
+                                current_parameters
+                                    .iter()
+                                    .any(|parameter| parameter.symbol == *symbol)
+                            }) {
+                                return unserved(
+                                    "static partition cannot invert a constructed type argument",
+                                );
+                            }
+                            // Use the same closed-carrier admission as guard
+                            // alternatives; no physical layout stands for a type.
+                            if self.scalar_type(id, argument).is_err() {
+                                let Some(data) = self.typed.closed_data_definition(argument) else {
+                                    return unserved(
+                                        "static partition forwards neither a binder nor a closed type",
+                                    );
+                                };
+                                super::source_records::source_application(
+                                    self.typed, data, argument, id,
+                                )?;
+                            }
+                            forwarded.push(None);
+                        }
+                        if forwarded.iter().all(Option::is_none) {
+                            continue;
+                        }
+                        if visited.get(&callee).is_some_and(|known| {
+                            known
+                                .iter()
+                                .any(|instance| instances[*instance].1 == forwarded)
+                        }) {
+                            continue;
+                        }
+                        // Keep the body's existing expansion boundary: exact
+                        // recurrence reuses its tuple; a new mapping cannot
+                        // re-enter a template on its introducing ancestry.
+                        // The scoped index makes this check independent of
+                        // the number of unrelated declarations already seen.
+                        if active.contains_key(&callee) {
+                            return unserved(
+                                "recursive static partition forwarding changes its arguments",
+                            );
+                        }
+                        let next = instances.len();
+                        instances.push((callee, forwarded, Some(instance)));
+                        visited.entry(callee).or_default().push(next);
+                        pending_instances.push((next, true));
                     }
                 }
                 let Some(position) = selected else {

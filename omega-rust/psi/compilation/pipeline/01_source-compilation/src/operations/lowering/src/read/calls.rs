@@ -17,6 +17,7 @@ use crate::source_state::expression::{
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::statement::TableCall;
 use crate::source_state::static_applications::StaticMachineApplicationHandle;
+use crate::source_state::types::TypeReferenceHandle;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
@@ -288,7 +289,7 @@ impl<'t> Program<'t> {
     /// The machine a symbol enters: a machine itself, or the machine whose
     /// one state the symbol is. `None` for anything else, including a state
     /// of a machine with several.
-    fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
+    pub(super) fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
         if !self.typed.symbols.symbols().nodes().is_valid(symbol) {
             return None;
         }
@@ -1090,17 +1091,12 @@ impl<'t> Program<'t> {
         self.retain_static_reach(id, read, static_reach_binding)
     }
 
-    /// A sealed ordinary borrow returns the source's existing permission.
-    /// Its closed result belongs to the actual application, never to the
-    /// type a caller hopes to receive. Other interpretations still need
-    /// their evaluated policy, content, profile and resident correspondence.
     /// `size_of<T>()` and `align_of<T>()` (layouts/plans.md, "These forms
-    /// take data types"). The operand is read as an ordinary value type, so
-    /// `CLayout<R>` and `R` name the record rows placement and ABI use, and
-    /// the observation measures exactly that row. Only a record row has a
-    /// storage geometry this reader can name; a scalar, a rigid type
-    /// parameter and the value form `align_of(view)` stay refused here
-    /// rather than receive a fabricated measurement.
+    /// take data types") measure the operand's existing physical storage.
+    /// Records keep their selected layout; primitive carriers use their
+    /// registered builtin storage. Forming a qualified type for this query
+    /// establishes no value or permission. The selected target supplies the
+    /// actual measurement.
     pub(super) fn layout_query(
         &mut self,
         id: MachineId,
@@ -1118,9 +1114,12 @@ impl<'t> Program<'t> {
         {
             return unserved("layout query without exactly one type operand");
         }
-        let ValueType::Record(subject, _, _) = self.value_type(id, query.operand.type_reference)?
-        else {
-            return unserved("layout query of a carrier with no record row");
+        let subject = match self.value_type(id, query.operand.type_reference)? {
+            ValueType::Record(subject, _, _) => subject,
+            ValueType::Scalar(scalar, _) => self.plain_scalar_storage(id, scalar)?,
+            ValueType::Rigid(_) => {
+                return unserved("layout query with an unresolved storage carrier");
+            }
         };
         let measurement = match query.kind {
             DataLayoutQueryKind::Size => terminal_psi::LayoutMeasurement::Size,
@@ -1142,6 +1141,10 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// A sealed ordinary borrow returns the source's existing permission.
+    /// Its closed result belongs to the actual application, never to the
+    /// type a caller hopes to receive. Other interpretations still need
+    /// their evaluated policy, content, profile and resident correspondence.
     fn borrow_factory_call(
         &mut self,
         id: MachineId,
@@ -2041,6 +2044,7 @@ impl<'t> Program<'t> {
             source,
             None,
             &operands,
+            &arguments.const_sources,
         )?;
         let ExpressionKind::Call {
             static_reach_arguments,
@@ -2743,6 +2747,7 @@ impl<'t> Program<'t> {
                 source,
                 expected,
                 &operands,
+                &applied.const_sources,
             )
         } else {
             let callee = self.machine(target)?;
@@ -2947,6 +2952,7 @@ impl<'t> Program<'t> {
             source,
             expected,
             &[],
+            &[],
         )
     }
 
@@ -2959,6 +2965,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<ValueType>,
         const_values: &[Expression],
+        const_sources: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Checked<Expression> {
         let signature = self
             .source_call_signature(id, &callee, required_contract)?
@@ -2972,6 +2979,7 @@ impl<'t> Program<'t> {
             source,
             expected,
             const_values,
+            const_sources,
         )
     }
 
@@ -3110,6 +3118,7 @@ impl<'t> Program<'t> {
             source,
             expected,
             &[],
+            &[],
         )
     }
 
@@ -3123,6 +3132,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<ValueType>,
         const_values: &[Expression],
+        const_sources: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Checked<Expression> {
         let free = if let Some(required) = required_contract {
             let signature = self
@@ -3286,14 +3296,34 @@ impl<'t> Program<'t> {
                 Unserved::Typing("argument types"),
             ));
         }
-        for ((declared, _, borrowed), actual) in formals.iter().zip(&read) {
+        let mut nominal_arguments = Vec::new();
+        let mut structural_ordinal = 0;
+        for ((declared, erased, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
+            let mut nominal_agrees = false;
+            if !erased && (borrowed.is_some() || matches!(formal, ValueType::Record(..))) {
+                if let Some(argument) = self.nominal_call_argument(
+                    id,
+                    &callee,
+                    structural_ordinal,
+                    actual.result,
+                    formal,
+                    const_values,
+                    const_sources,
+                    slots,
+                )? {
+                    nominal_agrees = argument.agrees();
+                    nominal_arguments.push(argument);
+                }
+                structural_ordinal += 1;
+            }
             let agrees = if borrowed.is_some() {
                 self.same_type(actual.result, formal)
             } else {
                 self.agrees(actual.result, Some(formal))
             };
             let agrees = agrees
+                || nominal_agrees
                 || self.const_array_argument_agrees(
                     id,
                     &callee,
@@ -3379,6 +3409,14 @@ impl<'t> Program<'t> {
                 Construct::Machine,
                 Unserved::Typing("result lifetime that no argument supplies"),
             ));
+        }
+        if !nominal_arguments.is_empty() {
+            self.nominal_calls
+                .push(super::nominal_applications::NominalCallSource {
+                    caller: id,
+                    source,
+                    arguments: nominal_arguments,
+                });
         }
         Ok(Expression {
             call_context: None,
@@ -3484,7 +3522,12 @@ impl<'t> Program<'t> {
                 let parameters = program.typed.machine_type_parameters(symbol);
                 let Some(position) = parameters
                     .iter()
-                    .filter(|parameter| program.record_parameter(parameter.symbol).is_none())
+                    .filter(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::source_state::data::TypeParameterKind::Const { .. }
+                        ) && program.record_parameter(parameter.symbol).is_none()
+                    })
                     .position(|parameter| parameter.symbol == inputs[position].symbol)
                 else {
                     return false;

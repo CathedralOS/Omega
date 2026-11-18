@@ -70,6 +70,7 @@ pub(super) fn assign_contract_reference_symbols(
     let proof_facts = &tables.declarations.proof_facts;
     let expression_table = &mut tables.bodies.expressions;
     let child_type_references = &mut tables.declarations.child_type_references;
+    let declared_type_equations = &mut tables.declarations.declared_type_equations;
     let scope_context = super::scopes::ContractScopeContext {
         attached_machines: &attached_machines,
         binder_roles: &binder_roles,
@@ -112,6 +113,22 @@ pub(super) fn assign_contract_reference_symbols(
         let entry_parameters = entry
             .map(|state| state_parameters.span_or_empty(state.parameters))
             .unwrap_or_default();
+        // Retained type equations use this same entry scope as the authored
+        // requirement. Constructor arguments take their selected binder role:
+        // Buffer<Element, N> reads Element as a type and N as a value.
+        for equation in declared_type_equations.span_mut_or_empty(machine.declared_type_equations) {
+            for reference in [&mut equation.parameter, &mut equation.definition] {
+                super::type_references::assign_type_value_expression_symbols(
+                    symbols,
+                    &scope,
+                    entry_parameters,
+                    entry_symbol,
+                    expression_table,
+                    child_type_references,
+                    reference,
+                );
+            }
+        }
         assign_callable_value_symbols(
             symbols,
             &scope,

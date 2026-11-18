@@ -84,7 +84,7 @@ public machine read_unsigned(bytes: &[u8], start: u64) -> UnsignedRead {
     machine accept(bytes: &[u8], cursor: u64, value: u64, shift: u64, remaining_steps: u64, byte: u8, payload: u64) -> UnsignedRead
     requires cursor < bytes.len && remaining_steps > 0u64 && shift <= 63u64
     {
-        let combined: u64 = ((value as u64 in Wrapping) | ((payload as u64 in Wrapping) << shift)) as u64;
+        let combined: u64 = ((value as +Wrapping) | ((payload as +Wrapping) << shift)) as -Wrapping;
         transition {
             byte < 128u8 && (shift == 0u64 || payload != 0u64) -> UnsignedRead::Read { value: combined, next: cursor + 1u64 }
             byte < 128u8 -> UnsignedRead::Invalid
@@ -268,7 +268,7 @@ requires count <= fields.len && remaining_steps > 0u64
 machine compact_signed_word(value: i64) -> u64 {
     let bits: u64 = narrow_i64_to_u64_wrapping(value);
     let sign: u64 = narrow_i64_to_u64_wrapping(value >> 63u64);
-    let zigzag: u64 = (((bits as u64 in Wrapping) << 1u64) ^ (sign as u64 in Wrapping)) as u64;
+    let zigzag: u64 = (((bits as +Wrapping) << 1u64) ^ (sign as +Wrapping)) as -Wrapping;
     zigzag
 }
 
@@ -961,7 +961,7 @@ requires remaining_steps > 0u64
 
 // Signed interpretation consumes an already validated unsigned wire word.
 public machine signed_from_word(word: u64) -> i64 {
-    let sign: u64 = ((0u64 as u64 in Wrapping) - ((word & 1u64) as u64 in Wrapping)) as u64;
+    let sign: u64 = ((0u64 as +Wrapping) - ((word & 1u64) as +Wrapping)) as -Wrapping;
     let bits: u64 = (word >> 1u64) ^ sign;
     narrow_u64_to_i64_wrapping(bits)
 }

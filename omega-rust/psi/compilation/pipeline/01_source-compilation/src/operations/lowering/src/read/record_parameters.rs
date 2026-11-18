@@ -744,7 +744,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             refused.detail,
-            "generic application changed its caller or target, or has another static feature"
+            "generic application has another source owner or declaration"
         );
     }
 
@@ -966,6 +966,10 @@ mod tests {
                     .is_some()
             );
             assert!(!entry.published_service_ceiling.is_empty());
+            assert!(
+                !prepared.program.module.declaration_contracts.is_empty(),
+                "the requirement must follow a nonempty declaration-contract prefix"
+            );
             for requirement in [ordinary, record] {
                 let machine = prepared
                     .program

@@ -1,7 +1,7 @@
 # build_dup_product_edge
 
-Two aliased `Build::dependency` product edges on the same dependency directory are
-legal — each edge is a distinct dependency occurrence under its own
-alias. `main.omg` imports `k1::main` and `k2::main` and calls `value()`
-from both occurrences in one expression, mirroring the build-side
-`build_dup_build_edge` sample.
+Two `Build::dependency` registrations select one local dependency with
+different aliases. The Product imports both package-root modules and adds
+`k1::value()` and `k2::value()`. The dependency's result contract exposes 7
+for both calls so the caller can prove the exact sum. The Build-side
+`build_dup_build_edge` probe selects an occurrence for Build scope.

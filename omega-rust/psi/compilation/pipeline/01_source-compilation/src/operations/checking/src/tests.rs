@@ -57,6 +57,7 @@ mod hosted_primitives;
 mod indexed_contracts;
 mod inferred_bounds;
 mod inferred_locals;
+mod layout_queries;
 mod lifetime_elision;
 mod lifetime_generics;
 mod loan_regions;

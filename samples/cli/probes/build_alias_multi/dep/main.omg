@@ -1,6 +1,10 @@
-public machine v() -> i32 {
+public machine v() -> i32
+ensures result == 1
+{
     1
 }
-public machine w() -> i32 {
+public machine w() -> i32
+ensures result == 2
+{
     2
 }

@@ -16,7 +16,6 @@ suspends
     let mut depkit_dependency_2: DependencyDescription = dependency::from_source(Source::Path { location: "depdir" });
     dependency::with_alias(&mut depkit_dependency_2, "depkit");
     let depkit_registration_2: DependencyRegistration = Build::dependency(builder, depkit_dependency_2);
-    builder.freestanding = true;
     suspend Build::prepare_dependency(builder, depkit_registration);
     let observed: i32 = depkit::value();
     transition observed == 9 {

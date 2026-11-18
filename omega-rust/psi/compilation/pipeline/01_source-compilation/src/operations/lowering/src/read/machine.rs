@@ -441,19 +441,33 @@ impl<'t> Program<'t> {
             None
         };
         let reading = match alternative {
-            Some(alternative) => Reading::Alternative(
-                alternative
-                    .arguments
-                    .into_iter()
-                    .enumerate()
-                    .map(|(position, argument)| match argument {
-                        Some(argument) => self.value_type(id, argument),
-                        None => Ok(ValueType::Rigid(terminal_check_tables::values::RigidType(
-                            position as u32,
-                        ))),
-                    })
-                    .collect::<Checked<_>>()?,
-            ),
+            Some(alternative) => {
+                let parameters = self.typed.machine_type_parameters(declared);
+                if alternative.arguments.len() != parameters.len() {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("static alternative lost its complete binder roster"),
+                    ));
+                }
+                Reading::Alternative(
+                    alternative
+                        .arguments
+                        .into_iter()
+                        .enumerate()
+                        .filter(|(position, _)| {
+                            parameters[*position].kind
+                                == crate::source_state::data::TypeParameterKind::Type
+                        })
+                        .map(|(position, argument)| match argument {
+                            Some(argument) => self.value_type(id, argument),
+                            None => Ok(ValueType::Rigid(terminal_check_tables::values::RigidType(
+                                position as u32,
+                            ))),
+                        })
+                        .collect::<Checked<_>>()?,
+                )
+            }
             None if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
             _ => Reading::Closed,
         };
@@ -1392,9 +1406,9 @@ impl<'t> Program<'t> {
                     }
                 }
             }
-            // Applied at one type argument per parameter, all type
-            // parameters; so is one alternative of a finite family.
-            Reading::Applied(arguments) => {
+            // Calls and finite alternatives bind the type slots only.
+            // Const inputs and callable contracts retain their own positions.
+            Reading::Applied(arguments) | Reading::Alternative(arguments) => {
                 if parameters
                     .iter()
                     .filter(|parameter| {
@@ -1419,23 +1433,11 @@ impl<'t> Program<'t> {
                     );
                 }
             }
-            Reading::Alternative(arguments) => {
-                if parameters.len() != arguments.len()
-                    || parameters.iter().any(|parameter| {
-                        parameter.kind != crate::source_state::data::TypeParameterKind::Type
-                    })
-                {
-                    return unserved_parameters(
-                        "arguments that are not one type for each type parameter",
-                    );
-                }
-            }
         }
-        if !machine.declared_type_equations.is_empty()
-            || !machine.owned_data.is_empty()
+        if !machine.owned_data.is_empty()
             || (!machine.conformance_bounds.is_empty() && !generic_entry)
         {
-            return unserved("type equations, owned data or conformances");
+            return unserved("owned data or conformances");
         }
         // A `satisfies` clause is an obligation of the machine that states
         // it (`satisfied_requirements`); only a closed machine's is read.
@@ -1747,6 +1749,91 @@ impl<'t> Program<'t> {
         Ok(binders)
     }
 
+    /// A generic body may use its own structural requirements as definitions.
+    /// Each definition is read before the frame that binds its left side, so
+    /// dependent definitions are installed first. Actual applications keep
+    /// their supplied tuple and prove the original clause instead.
+    fn assume_type_equations(&mut self, id: MachineId, machine: &Machine) -> Checked<()> {
+        let typed = self.typed;
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Type(detail));
+        let mut definitions = Vec::with_capacity(machine.declared_type_equations.len());
+        for equation in typed
+            .declared_type_equations
+            .span_or_empty(machine.declared_type_equations)
+        {
+            let Some(TypeReferenceNode::Named { symbol, .. }) =
+                typed.contains_type_reference(equation.parameter).then(|| {
+                    typed
+                        .type_reference_table
+                        .type_reference(equation.parameter)
+                })
+            else {
+                return Err(unavailable(
+                    "structural definition has no declared type binder",
+                ));
+            };
+            let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol) else {
+                return Err(unavailable(
+                    "structural definition names another machine's binder",
+                ));
+            };
+            if !typed.contains_type_reference(equation.definition) {
+                return Err(unavailable("structural definition lost its retained type"));
+            }
+            // A finite alternative already chose this binder. Its requirement
+            // still has to agree with that choice; it cannot overwrite it.
+            if matches!(bound, ValueType::Rigid(_)) {
+                definitions.push((*symbol, equation.definition));
+            }
+        }
+        let key = |symbol: SymbolHandle| (symbol.generation(), symbol.arena_index());
+        let mut targets = definitions
+            .iter()
+            .enumerate()
+            .map(|(index, (symbol, _))| (key(*symbol), index))
+            .collect::<Vec<_>>();
+        targets.sort_unstable_by_key(|row| row.0);
+        if targets.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(unavailable(
+                "a structural binder has more than one definition",
+            ));
+        }
+        let mut states = vec![0u8; definitions.len()];
+        let mut order = Vec::with_capacity(definitions.len());
+        let mut pending = Vec::new();
+        for root in 0..definitions.len() {
+            pending.push((root, false));
+            while let Some((index, finishing)) = pending.pop() {
+                if finishing {
+                    states[index] = 2;
+                    order.push(index);
+                    continue;
+                }
+                match states[index] {
+                    2 => continue,
+                    1 => return Err(unavailable("structural type definitions are cyclic")),
+                    _ => {}
+                }
+                states[index] = 1;
+                pending.push((index, true));
+                for symbol in crate::source_state::references::type_reference_inputs(
+                    typed,
+                    definitions[index].1,
+                )
+                .symbols
+                {
+                    if let Ok(position) = targets.binary_search_by_key(&key(symbol), |row| row.0) {
+                        pending.push((targets[position].1, false));
+                    }
+                }
+            }
+        }
+        for index in order {
+            self.source_scope = self.extended_source_scope(vec![definitions[index]]);
+        }
+        Ok(())
+    }
+
     fn signature(
         &mut self,
         id: MachineId,
@@ -1790,6 +1877,26 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("type parameter without a symbol"),
             ));
         }
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_)) {
+            // Definition arguments belong to this preceding scope. Keep their
+            // const binders here before adding any definition frame; actual
+            // scalar input identities are still allocated by const_inputs.
+            let mut source = (*self.source_scope).clone();
+            source.rigid_parameters.extend(
+                self.typed
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .filter_map(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::source_state::data::TypeParameterKind::Const { .. }
+                        )
+                        .then_some(parameter.symbol)
+                    }),
+            );
+            self.source_scope = std::sync::Arc::new(source);
+            self.assume_type_equations(id, machine)?;
+        }
         // A generic check form's requirements are what its body may assume
         // of its rigid type parameters' carrier families; every other
         // machine's requirements over them are obligations.
@@ -1822,8 +1929,10 @@ impl<'t> Program<'t> {
         // either its formal or result type can be read. Shape preparation
         // emits no storage, regions or types; the one ordinary read below
         // must reproduce this exact allocation.
-        let prepared = if matches!(reading, Reading::GenericEntry | Reading::Applied(_))
-            || (self.rigid && matches!(reading, Reading::Implementation))
+        let prepared = if matches!(
+            reading,
+            Reading::GenericEntry | Reading::Alternative(_) | Reading::Applied(_)
+        ) || (self.rigid && matches!(reading, Reading::Implementation))
         {
             Some(self.prepare_const_scope(id, machine, state)?)
         } else {
@@ -1834,6 +1943,28 @@ impl<'t> Program<'t> {
         } else {
             Vec::new()
         };
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_)) {
+            // Equality does not establish the formation of either operand.
+            // Read each definition through ordinary storage/type formation
+            // before its identity can simplify the written requirement.
+            for equation in self
+                .typed
+                .declared_type_equations
+                .span_or_empty(machine.declared_type_equations)
+            {
+                let value = self.value_type(id, equation.definition)?;
+                if let TypeReferenceNode::Named { symbol, .. } = self
+                    .typed
+                    .type_reference_table
+                    .type_reference(equation.parameter)
+                    && let Some((_, bound)) =
+                        self.scope.iter_mut().find(|(binder, _)| binder == symbol)
+                    && matches!(bound, ValueType::Rigid(_))
+                {
+                    *bound = value;
+                }
+            }
+        }
         if !self.contracts_restate_formal_domains(state) {
             return Err(refuse(
                 id,
@@ -3539,19 +3670,19 @@ impl<'t> Program<'t> {
     /// (`source_byte_view`).
     pub(super) fn borrowed_formal_carrier(
         &self,
+        machine: MachineId,
         reference: TypeReferenceHandle,
         referee: TypeReferenceHandle,
-    ) -> (TypeReferenceHandle, BorrowedReferent) {
-        let types = &self.typed.type_reference_table;
-        if types.contains_type_reference(referee)
-            && matches!(
-                types.type_reference(types.unconstrained_type_reference(referee)),
-                TypeReferenceNode::Slice { .. }
-            )
+    ) -> Checked<(TypeReferenceHandle, BorrowedReferent)> {
+        if self
+            .source_scope
+            .slice_application(self.typed, reference)
+            .map_err(|reason| refuse(machine, Construct::Machine, Unserved::Type(reason)))?
+            .is_some()
         {
-            (reference, BorrowedReferent::Slice)
+            Ok((reference, BorrowedReferent::Slice))
         } else {
-            (referee, BorrowedReferent::Value)
+            Ok((referee, BorrowedReferent::Value))
         }
     }
 
@@ -3656,7 +3787,8 @@ impl<'t> Program<'t> {
         if erased {
             return unserved("erased reference parameter");
         }
-        let (carrier, referent) = self.borrowed_formal_carrier(formal.type_reference, referee);
+        let (carrier, referent) =
+            self.borrowed_formal_carrier(id, formal.type_reference, referee)?;
         // Retain the outer loan itself, independently of nested views in
         // its referent. A returned reference cannot borrow only a pointer
         // word or substitute a referent's nested lifetime for this one.
@@ -3898,7 +4030,15 @@ impl<'t> Program<'t> {
         self.static_truths.clear();
         let mut position = 0;
         while let Some(statement) = statements.get(position) {
-            if statically_completed && matches!(statement, StatementNode::Transition(_)) {
+            if statically_completed && let StatementNode::Transition(transition) = statement {
+                // A later target is not executed, but a closed static guard
+                // still has an exact source operator selection. Evaluate only
+                // that static predicate, without reading the target's body.
+                if let crate::source_state::statement::TransitionGuardNode::When(guard) =
+                    transition.guard
+                {
+                    self.read_static_truth(id, symbol, guard, super::types::Reading::Value)?;
+                }
                 position += 1;
                 continue;
             }

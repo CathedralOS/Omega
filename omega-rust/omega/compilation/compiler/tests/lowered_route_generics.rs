@@ -1007,12 +1007,34 @@ fn a_static_callable_specialization_keeps_its_exact_target_and_checks_the_binder
             .result
             .expect_err("an individual call's argument cannot justify a stronger binder contract");
             let diagnostics = failure.into_diagnostics();
-            assert!(
-                diagnostics
-                    .iter()
-                    .any(|diagnostic| diagnostic.message.contains(expected.trim())),
-                "{diagnostics:#?}"
+            // The common refinement checker reports the unmet requirement at
+            // the callback call. The authored actual 7 cannot strengthen the
+            // binder's public contract for every possible input.
+            let diagnostic = diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.severity == diagnostics::DiagnosticSeverity::Error
+                        && diagnostic.message.contains(expected.trim())
+                })
+                .unwrap_or_else(|| panic!("{diagnostics:#?}"));
+            let location = diagnostic
+                .resolved_location
+                .as_ref()
+                .expect("the required callback bound names its original source");
+            assert_eq!(
+                location.path.canonicalize().unwrap(),
+                main.canonicalize().unwrap(),
             );
+            assert_eq!((location.line, location.column), (6, 5));
+            let span = diagnostic
+                .source_span
+                .expect("the bound failure retains the authored callback call");
+            let text = std::fs::read_to_string(&main).unwrap();
+            assert_eq!(
+                text.get(span.span.start..span.span.end),
+                Some("Callback(value)"),
+            );
+            assert!(diagnostic.exceeded_provision.is_none());
         })
         .unwrap()
         .join()

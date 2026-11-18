@@ -34,7 +34,6 @@ Controls:
   byte vocabulary — `A-Z a-z 0-9 . -` only; an underscore rejects at
   build-time Build validation ("not a valid application identifier").
 
-- `invalid_fabricated_inputs`: an authored `BuildInputs {}` value
-  passed to `BuildInputs::get` rejects "named build inputs require a
-  compiler-issued facet" — fabricating the compiler-owned facet shape
-  grants no input access.
+- `invalid_fabricated_inputs` passes an authored `BuildInputs {}` value to
+  `BuildInputs::get`. The lookup requires the original compiler-issued
+  inputs facet and refuses the authored value.

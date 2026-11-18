@@ -9530,6 +9530,7 @@ pub(crate) mod function_structure {
                                 source.structural_type,
                                 &binding.argument.path,
                                 parameter.access,
+                                Some(parameter.structural_type),
                             ) == Some(parameter.structural_type)
                     }) && structural_source_contract(function, binding.argument.place)
                         .is_some_and(|source| source.supplies_qualifications(
@@ -9551,7 +9552,11 @@ pub(crate) mod function_structure {
                         multiplicity != StructuralMultiplicity::Linear
                             && super::super::operation_contracts::structural_access_can_supply(access, parameter.access)
                             && abstract_operations::control_flow::address_joins::borrowed_referent_type(
-                                types.values().copied(), root_type, &binding.argument.path, parameter.access,
+                                types.values().copied(),
+                                root_type,
+                                &binding.argument.path,
+                                parameter.access,
+                                Some(parameter.structural_type),
                             ) == Some(parameter.structural_type)
                     })
                         } else if !binding.argument.path.is_empty() {

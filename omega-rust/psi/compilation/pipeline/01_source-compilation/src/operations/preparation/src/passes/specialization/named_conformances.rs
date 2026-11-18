@@ -85,13 +85,16 @@ pub(super) fn serve(
             "selected implementation argument count differs from its parameters",
         ));
     }
+    let supplying_owner = program
+        .type_reference_table
+        .operand_lifetime_owner(call.requirement_application);
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, reference) in parameters.iter().zip(arguments) {
         let mut argument = program
             .static_operand_from_type_reference(reference)
             .map_err(unserved)?;
         argument.type_reference = reference;
-        let operand = Operand::read(program, parameter, &argument)?;
+        let operand = Operand::read(program, parameter, &argument, supplying_owner)?;
         if operand.is_open(program) {
             return Err(unserved(
                 "selected implementation still has an open argument",

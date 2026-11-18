@@ -1,9 +1,5 @@
-// The package build machine's signature is enforced by shape:
-// the first parameter must be spelled `builder: &mut Build` — the
-// parameter name itself is part of the contract. The entry returns
-// nothing: a Build's result is the requests it made.
+// The explicit mutable Build borrow receives the activation’s project requests.
 
 machine build(builder: &mut Build) {
     Build::application(builder, "build_machine_signature");
-    builder.freestanding = true;
 }

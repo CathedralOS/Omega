@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Focused compiler checks rebuild the implementation three times
+- Category: Verifying costs more than writing
+- Where: [source-compiler unit tests](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/production/src/source_selection_publication.rs#L1985), [integration-test feature](omega-rust/omega/compilation/compiler/Cargo.toml#L107), [source-compiler feature](omega-rust/psi/compilation/pipeline/01_source-compilation/Cargo.toml#L8)
+- Saw: One machine-type identity repair rebuilt `source-compiler` as its unit-test executable, as a library with `test-support` for a compiler integration test, and as the default library for the CLI. The three Rust builds took 13m39s, 10m29s and 11m06s; the four selected tests themselves took 21.098 seconds.
+- Cost: A narrow validation cycle spends over 35 minutes rebuilding before the original program can run. Let small test targets consume the same optimized implementation as the CLI. Measure a warm test-only edit and a production edit, retaining the tests' real compilation and publication paths.
+- Reported: 2026-11-18, Codex, while fixing repeated machine-type declarations
+
 ### Native failure reports discard the instruction context
 - Category: Verifying costs more than writing
 - Where: [operand errors](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/machine_effects.rs#L946), [compile and retention order](omega-rust/omega/application/src/execution/mod.rs#L201)
@@ -108,11 +115,13 @@ framework or a list of unimplemented features.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
-### A build-wide flag admits machine control for every output
-- Category: A verdict with nothing behind it
-- Where: [source admission](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs), [instruction reach](omega-rust/psi/foundation/symbols/src/builtin.rs), [mask helper](source/library/core/interrupt.omg), [terminal classification](omega-rust/omega/compilation/realization/provider-admission/src/terminal_authority_policy/classification.rs), [settled rule](wiki/spec/build/permissions.md#freestanding-machine-owner-authority)
-- Saw: Source checking derives machine ownership from `Build.freestanding` for all bound targets. The interrupt-mask intrinsics, core helper and physical classifier still report `MachineControl`.
-- Cost: Firmware selection can admit machine control in a hosted sibling, and a mask-only package already appears to have broad machine reach. Retire the field, check each selected output's provider authority, and carry `InterruptControl` through direct instructions, helpers, package review and physical classification. Exercise a mixed firmware/hosted build and a package update that adds a page-table write.
+<a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
+
+### Build still validates a retired hardware setting
+- Category: Zombie machinery
+- Where: [Build shape](omega-rust/omega/packages/build-declarations/src/prelude.rs#L266), [return decoding](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs), [Source assembly](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/machine.rs#L3923), [review projection](omega-rust/omega/packages/review-evidence/src/capture/callables.rs#L705), [per-output authority](wiki/spec/build/permissions.md#where-the-operation-can-run)
+- Saw: The authored `Build.freestanding` Boolean remains mandatory through result decoding for compatibility. The checked core mask helpers and receiving classification report `InterruptControl` for mask changes. Source assembly and package instruction-authority projection still refuse their unsupported routes.
+- Cost: Retire the authored field and carry the instruction's exact service through Source, helpers and package review. Check the selected provider for each output. A mixed firmware/hosted build must refuse the hosted mask change when its provider lacks authority. A package update that adds a page-table write must report added `MachineControl` for acceptance.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### Changing storage analysis rebuilds the native compiler

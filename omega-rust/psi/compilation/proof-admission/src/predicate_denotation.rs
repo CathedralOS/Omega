@@ -204,6 +204,7 @@ mod value_equalities {
         matches!(
             term,
             ScalarTerm::Value { .. }
+                | ScalarTerm::Application { .. }
                 | ScalarTerm::IntegerField { .. }
                 | ScalarTerm::BooleanField { .. }
                 | ScalarTerm::IeeeFloatField { .. }

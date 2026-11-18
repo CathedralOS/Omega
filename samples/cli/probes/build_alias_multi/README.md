@@ -1,16 +1,10 @@
 # build_alias_multi
 
-One source under two aliases: `kit1` and `kit2` both name `dep/` —
-aliases are the import identity, so the same package is importable
-twice under different names and both `use` rows resolve.
+The Build registers `dep/` under two aliases, `kit1` and `kit2`.
+The Product imports both package-root modules and adds `kit1::v()` and
+`kit2::w()`. The result contracts expose 1 and 2 for the exact sum.
 
-- `invalid_use_as`: `use kit::main as k` — `as` aliasing does not
-  exist on use rows; parse rejects "expected `;`, found keyword
-  `as`". Alias selection happens at the aliased `Build::dependency` row, not the
-  import.
-- `invalid_bad_field`: `builder.bogus = 1` rejects "data `Build` has
-  no field `bogus`" — field names are a closed schema.
-
-Field schema is kind-agnostic: `builder.freestanding` writes are
-legal on a `package` build too — the flag simply has no artifact to
-apply to.
+- `invalid_use_as` checks that the parser rejects `as` in a `use` item.
+  Build dependency registration supplies the alias.
+- `invalid_bad_field` assigns `builder.bogus = 1` and checks the missing-field
+  diagnostic.

@@ -55,12 +55,11 @@ machine build_entry() { sized(1); }"
 
 /// counts_and_addresses.md: an `addr` is "interpreted under the selected
 /// target's address model" and "grants no storage or access authority". A
-/// value of it is carried and compared like any scalar. Arithmetic on it
-/// relates counts to addresses under a fit proof this route does not form,
-/// and "neither arbitrary value-to-address conversions nor the inverse"
-/// follow from an address, so both are refused by name.
+/// value of it is carried and compared like any scalar. Exact subtraction
+/// has its separate count/address signature and fit proof. Address addition
+/// to another address and arbitrary value/address casts remain refused.
 #[test]
-fn an_address_is_carried_and_compared_and_not_computed_with() {
+fn address_comparisons_keep_unlicensed_arithmetic_and_casts_refused() {
     let using = |body: &str| {
         format!(
             "machine probe(base: addr, limit: addr) -> bool {{ {body} }}
@@ -80,6 +79,62 @@ machine build_entry(base: addr, limit: addr) {{ let seen: bool = probe(base, lim
     assert_eq!(
         verdict(&using("(base as u64) == 64")),
         "expression cast to or from an address while reading the body of `probe`"
+    );
+}
+
+/// The count operand and the address distance keep their separate carriers,
+/// including when the offset is an anonymous literal in an address context.
+#[test]
+fn exact_address_subtraction_keeps_address_and_count_results() {
+    assert_eq!(
+        verdict(
+            "machine build_entry() {
+    let a: addr = 4096;
+    let b: addr = 4000;
+    let back: addr = a - 16;
+    let typed_count: u64 = 16;
+    let back_again: addr = a - typed_count;
+    let typed_literal_back: addr = a - 16u64;
+    let distance: u64 = a - b;
+}"
+        ),
+        "accepted"
+    );
+}
+
+#[test]
+fn exact_address_subtraction_refuses_wrong_count_carriers_and_underflow() {
+    let wrong_count = verdict(
+        "machine probe(base: addr, count: u32) -> addr { base - count }
+machine build_entry() {}",
+    );
+    assert!(
+        wrong_count.contains("operand types") || wrong_count.contains("arithmetic on an address"),
+        "{wrong_count}"
+    );
+    assert_eq!(
+        verdict(
+            "machine build_entry() {
+    let base: addr = 0;
+    let back: addr = base - 1;
+}"
+        ),
+        "rejected"
+    );
+    let wrapping = verdict(
+        "machine build_entry() {
+    let base: addr = 4096;
+    let back: addr = base -% 16;
+}",
+    );
+    assert!(wrapping.contains("arithmetic on an address"), "{wrapping}");
+    let qualified_count = verdict(
+        "machine probe(base: addr, count: u64 in Trapping) -> addr { base - count }
+machine build_entry() {}",
+    );
+    assert!(
+        qualified_count.contains("arithmetic on an address"),
+        "{qualified_count}"
     );
 }
 

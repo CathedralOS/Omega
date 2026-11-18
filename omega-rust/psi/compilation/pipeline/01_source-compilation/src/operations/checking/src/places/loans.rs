@@ -226,9 +226,18 @@ fn competing_borrows(
 /// One canonical descriptor closure per machine judgment. If the module has
 /// no reference-bearing storage there is no reference work; otherwise a missing closure
 /// is an explicit refusal, never an empty approximation.
+#[cfg(test)]
 pub(crate) fn reference_graph(
     module: &terminal_psi::TerminalModule,
     machine: semantic_vocabulary::MachineId,
+) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
+    reference_graph_with_nominal_calls(module, machine, &[])
+}
+
+pub(crate) fn reference_graph_with_nominal_calls(
+    module: &terminal_psi::TerminalModule,
+    machine: semantic_vocabulary::MachineId,
+    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
 ) -> Checked<Vec<terminal_semantics::descriptor_results::DescriptorMachine>> {
     let lowered = module.machine(machine).ok_or_else(|| {
         crate::checking::refusal(
@@ -271,10 +280,11 @@ pub(crate) fn reference_graph(
     if !demanded {
         return Ok(Vec::new());
     }
-    terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from(
+    terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_nominal_calls(
         module,
         [machine],
         &[],
+        nominal_calls,
     )
     .map_err(|error| graph_refusal(module, error))
 }
@@ -1796,7 +1806,16 @@ impl<'a> Storage<'a> {
                                 RefusalReason::Conflict,
                                 self.machine,
                                 concerns,
-                                "successor borrow conflicts with an original live loan",
+                                &format!(
+                                    "successor borrow conflicts with an original live loan: loan {:?} formed {:?}, lender {:?}, source {:?}, captured {:?}, successor {:?}, at {:?}",
+                                    loan.obligation,
+                                    loan.at,
+                                    loan.lender,
+                                    raw,
+                                    loan.lineage,
+                                    backing,
+                                    at,
+                                ),
                             ));
                         }
                     }
@@ -1884,7 +1903,10 @@ impl<'a> Storage<'a> {
             if loan.lender != loan_lender(source) {
                 return Err(self.foreign(
                     Construct::Obligation(loan.obligation),
-                    "reborrow names a different immediate parent occurrence",
+                    &format!(
+                        "reborrow names a different immediate parent occurrence: claimed {:?}, actual {:?}, descriptor {:?}, formed {:?}",
+                        loan.lender, loan_lender(source), descriptor, loan.at,
+                    ),
                 ));
             }
             if let terminal_semantics::BorrowedLoanSource::Loan(parent) = source {
@@ -2644,6 +2666,63 @@ impl<'a> Storage<'a> {
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
         self.reference_results(references, module)?;
         let (mut formed, header_ends) = self.formed(references, module, tables, borrow_ends)?;
+        let addresses =
+            terminal_semantics::plain_affine::borrowed_address_liveness(self.lowered, self.types)
+                .map_err(|error| match error {
+                terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
+                    let concerns = match unavailable.site {
+                        terminal_semantics::plain_affine::Site::Operation(at) => {
+                            Construct::Operation(at)
+                        }
+                        terminal_semantics::plain_affine::Site::Edge(at) => Construct::Edge(at),
+                    };
+                    crate::checking::refusal(
+                        RefusalReason::Unestablished,
+                        self.machine,
+                        concerns,
+                        unavailable.message(),
+                    )
+                }
+                terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
+                    self.foreign(Construct::Machine, detail)
+                }
+                terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                    self.unsupported(Construct::Machine, detail)
+                }
+            })?;
+        for loan in &mut formed {
+            let Some(lifetime) = &mut loan.lifetime else {
+                continue;
+            };
+            // A non-owning block header retains an address, not a descriptor
+            // cell whose disposal must be emitted. Its future uses and every
+            // child debt remain live independently of that temporary spelling.
+            // Plain-affine verification still requires complete restoration.
+            for positions in [&mut lifetime.authorized, &mut lifetime.surviving] {
+                for (at, names) in positions {
+                    let mut missing = false;
+                    names.retain(|name| {
+                        if !name.path.is_empty() || !addresses.is_address_header(name.root) {
+                            return true;
+                        }
+                        match addresses.is_live(name.root, *at) {
+                            Some(live) => live,
+                            None => {
+                                missing = true;
+                                true
+                            }
+                        }
+                    });
+                    if missing {
+                        return Err(self.foreign(
+                            Construct::Obligation(loan.obligation),
+                            "borrowed address retirement lost its actual control-flow cut",
+                        ));
+                    }
+                }
+            }
+        }
+
         self.parents(references, module, &formed)?;
         self.successor_borrows(references, &formed)?;
         self.reference_completions(references, module, &formed)?;
