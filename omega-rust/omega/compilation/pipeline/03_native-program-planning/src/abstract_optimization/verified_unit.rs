@@ -490,14 +490,6 @@ impl VerifiedPsiOptimizationUnit {
 }
 
 #[cfg(test)]
-fn canonical_fixture(
-    module: &terminal_psi::TerminalModule,
-) -> terminal_codec::CanonicalTerminalArtifact {
-    let record = terminal_codec::build_identity_optimization_execution_record(module).unwrap();
-    terminal_codec::CanonicalTerminalArtifact::from_parts(module.clone(), record, None).unwrap()
-}
-
-#[cfg(test)]
 fn authorize_fixture(
     artifact: terminal_codec::CanonicalTerminalArtifact,
 ) -> terminal_installation::AuthorizedTerminalArtifact {
