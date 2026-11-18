@@ -110,11 +110,12 @@ pub(crate) fn const_destination_requires_proof(
 */
 pub(super) fn qualification_names_itself(definition: &ConstDefinition) -> bool {
     definition
+        .preparation()
         .qualification
         .as_ref()
         .is_some_and(|qualification| {
             qualification.destination == definition.type_reference
-                && qualification.initializer == definition.value
+                && qualification.initializer == definition.value()
         })
 }
 
@@ -133,7 +134,7 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
     definition: &ConstDefinition,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
-    if definition.pending_qualification.is_some() {
+    if definition.preparation().pending_qualification.is_some() {
         return Err("constant destination qualification remains pending".to_owned());
     }
     let mut payload = definition.clone();
@@ -153,7 +154,7 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
             );
         }
         if has_domain {
-            payload.type_reference = *base_type;
+            payload.declaration.type_reference = *base_type;
         }
     }
     if qualification_names_itself(definition) {

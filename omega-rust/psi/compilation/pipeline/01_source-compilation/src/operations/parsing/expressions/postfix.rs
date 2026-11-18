@@ -77,18 +77,11 @@ pub(crate) fn finish_argument_lanes<'tokens, 'source>(
     ))
 }
 
-/// A `.member` projection after the operand parsed so far, or the
-/// start of an atomic `.load(ordering)` whose ordering the caller parses.
-pub(crate) enum MemberSuffix<'tokens, 'source> {
-    Member(ExpressionHandle, Input<'tokens, 'source>),
-    Load { after_open: Input<'tokens, 'source> },
-}
-
 pub(crate) fn parse_member_suffix<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut expression: ExpressionHandle,
     input: Input<'tokens, 'source>,
-) -> Result<MemberSuffix<'tokens, 'source>, ParseError> {
+) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     let mut access_source_span = input.source_span(
         input
             .tokens
@@ -126,11 +119,6 @@ pub(crate) fn parse_member_suffix<'tokens, 'source>(
         }
     }
 
-    if member.as_str(syntax_trees) == "load" && rest.at_punctuation(PunctuationKind::LeftParen) {
-        let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
-        return Ok(MemberSuffix::Load { after_open });
-    }
-
     let member_span = member.source_span();
     expression = syntax_trees
         .expressions
@@ -143,7 +131,7 @@ pub(crate) fn parse_member_suffix<'tokens, 'source>(
     syntax_trees
         .expressions
         .set_source_span(expression, member_span);
-    Ok(MemberSuffix::Member(expression, rest))
+    Ok((expression, rest))
 }
 
 /// A cast written after the operand parsed so far, starting at `as`.
@@ -176,7 +164,7 @@ pub(crate) fn parse_cast_suffix<'tokens, 'source>(
     let consumed = target_start.tokens.len().saturating_sub(rest.tokens.len());
     let target_label_text = target_start.tokens[..consumed]
         .iter()
-        .map(|token| target_start.text(token).as_str())
+        .map(|token| target_start.spelling(token))
         .collect::<String>();
     let mut target_label = HandleSpan::empty();
     syntax_trees
@@ -323,7 +311,7 @@ fn parse_cast_entries<'tokens, 'source>(
         let consumed = entry_start.tokens.len().saturating_sub(input.tokens.len());
         let label_text = entry_start.tokens[..consumed]
             .iter()
-            .map(|token| entry_start.text(token).as_str())
+            .map(|token| entry_start.spelling(token))
             .collect::<String>();
         let mut target_label = HandleSpan::empty();
         syntax_trees
@@ -413,24 +401,16 @@ pub(crate) fn build_call_expression_handle(
                 operational_acknowledgement: Default::default(),
             })
         }
-        ExpressionNode::Member(member) => {
-            validate_atomic_call_orderings(
-                syntax_trees,
-                member.member.as_str(syntax_trees),
-                member.receiver,
-                arguments,
-            )?;
-            Ok(TableCallExpression {
-                callee,
-                target_is_static: false,
-                receiver: member.receiver,
-                target: member.member.clone(),
-                machine_arguments,
-                arguments,
-                evidence_arguments,
-                operational_acknowledgement: Default::default(),
-            })
-        }
+        ExpressionNode::Member(member) => Ok(TableCallExpression {
+            callee,
+            target_is_static: false,
+            receiver: member.receiver,
+            target: member.member.clone(),
+            machine_arguments,
+            arguments,
+            evidence_arguments,
+            operational_acknowledgement: Default::default(),
+        }),
         _ => Ok(TableCallExpression {
             callee,
             receiver: ExpressionHandle::invalid(),
@@ -448,92 +428,6 @@ pub(crate) fn build_call_expression_handle(
     Ok(expression)
 }
 
-pub(crate) fn memory_ordering_from_expression(
-    syntax_trees: &SyntaxTrees,
-    expression: ExpressionHandle,
-) -> Result<language_core::atomic::MemoryOrdering, String> {
-    let ExpressionNode::Name {
-        members: path,
-        application: path_application,
-    } = syntax_trees.expressions.expression(expression)
-    else {
-        return Err(
-            "atomic ordering must be one of `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`"
-                .to_owned(),
-        );
-    };
-    if path_application.is_some() {
-        return Err("atomic ordering cannot have static arguments".to_owned());
-    }
-    let members = syntax_trees
-        .expressions
-        .identifier_path_members(path.to_owned());
-    if members.len() != 1 {
-        return Err(
-            "atomic ordering must be an unqualified built-in name: `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`"
-                .to_owned(),
-        );
-    }
-    language_core::atomic::MemoryOrdering::from_name(members[0].as_str(syntax_trees)).ok_or_else(|| {
-        format!(
-            "unknown atomic ordering `{}`; expected `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`",
-            members[0].as_str(syntax_trees)
-        )
-    })
-}
-
-fn validate_atomic_call_orderings(
-    syntax_trees: &SyntaxTrees,
-    target: &str,
-    receiver: ExpressionHandle,
-    arguments: HandleSpan<ExpressionHandle>,
-) -> Result<(), ParseError> {
-    if !receiver.is_valid() {
-        return Ok(());
-    }
-    let arguments = syntax_trees.expressions.expression_handles(arguments);
-    match (target, arguments) {
-        ("store", [_, ordering]) => {
-            let ordering = memory_ordering_from_expression(syntax_trees, *ordering)
-                .map_err(ParseError::new)?;
-            if !ordering.valid_for_store() {
-                return Err(ParseError::new(format!(
-                    "atomic store cannot use `{}` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`",
-                    ordering.name()
-                )));
-            }
-        }
-        (
-            "fetch_add" | "fetch_sub" | "fetch_xor" | "fetch_or" | "fetch_and" | "swap",
-            [_, ordering],
-        ) => {
-            let _ = memory_ordering_from_expression(syntax_trees, *ordering)
-                .map_err(ParseError::new)?;
-        }
-        (member, [_, _, success, failure])
-            if member == "compare_exchange"
-                || language_core::atomic::AtomicCompareExchangeObservationAxis::single_attempt_member(
-                    member,
-                )
-                .is_some() =>
-        {
-            let success =
-                memory_ordering_from_expression(syntax_trees, *success).map_err(ParseError::new)?;
-            let failure =
-                memory_ordering_from_expression(syntax_trees, *failure).map_err(ParseError::new)?;
-            if !failure.valid_compare_exchange_failure(success) {
-                return Err(ParseError::new(format!(
-                    "atomic compare_exchange failure ordering `{}` is invalid for success ordering `{}`; failure cannot publish or be stronger than success",
-                    failure.name(),
-                    success.name()
-                )));
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
 pub(crate) fn try_parse_static_machine_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -545,7 +439,7 @@ pub(crate) fn try_parse_static_machine_arguments<'tokens, 'source>(
     let mut group_depth = 0usize;
     let mut previous = None;
     for (offset, token) in input.tokens.iter().enumerate() {
-        if token.is_non_semantic() {
+        if token.is_trivia() {
             continue;
         }
         let Some(punctuation) = token.punctuation() else {

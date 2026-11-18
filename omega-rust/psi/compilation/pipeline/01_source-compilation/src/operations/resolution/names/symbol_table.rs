@@ -1351,7 +1351,7 @@ pub(super) fn append_body_symbols(
             }
             let statements = declarations
                 .state_statements
-                .span_mut_or_empty(state.statements);
+                .span_mut_or_empty(state.construction_statement_span());
             append_local_symbols(&mut program.symbols, state.symbol, statements);
             let graphs: Vec<_> = statements
                 .iter()

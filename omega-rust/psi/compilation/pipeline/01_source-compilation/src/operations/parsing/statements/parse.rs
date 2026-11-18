@@ -1,8 +1,6 @@
 use crate::assembly::parse::parse_asm_block_statement_handles;
 use crate::declarations::items::starts_machine_declaration;
 use crate::expressions::parse::parse_expression_handle;
-use crate::statements::bindings::try_desugar_atomic_let;
-use crate::statements::bindings::try_desugar_atomic_store;
 use crate::statements::destructuring::{
     reject_retired_proof_output_binding, try_parse_destructure_let, try_parse_proof_output_binding,
 };
@@ -30,8 +28,7 @@ pub(crate) fn parse_statement_handles<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     reject_retired_proof_output_binding(input)?;
     if input.at_keyword(KeywordKind::Transition) {
-        let next = input.take_keyword(KeywordKind::Transition, "transition")?;
-        parse_transition_block_handles(syntax_trees, next)
+        parse_transition_block_handles(syntax_trees, input)
     } else if input.at_contextual("asm") {
         parse_asm_block_statement_handles(syntax_trees, input)
     } else if let Some(parsed) = try_parse_proof_output_binding(syntax_trees, input) {
@@ -41,16 +38,11 @@ pub(crate) fn parse_statement_handles<'tokens, 'source>(
     } else if input.at_keyword(KeywordKind::Let) {
         let input = input.take_keyword(KeywordKind::Let, "let")?;
         let (binding, rest) = parse_local_data(syntax_trees, input)?;
-        let statements = if let Some(statements) = try_desugar_atomic_let(syntax_trees, &binding) {
-            statements
-        } else {
-            let statement = syntax_trees
-                .statements
-                .insert(StatementNode::LocalData(binding));
-            let handle = syntax_trees.items.append_statement_handle(statement);
-            HandleSpan::from_parts(handle, 1)
-        };
-        Ok((statements, rest))
+        let statement = syntax_trees
+            .statements
+            .insert(StatementNode::LocalData(binding));
+        let handle = syntax_trees.items.append_statement_handle(statement);
+        Ok((HandleSpan::from_parts(handle, 1), rest))
     } else {
         let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
         let handle = syntax_trees.items.append_statement_handle(statement);
@@ -152,14 +144,6 @@ fn parse_statement_handle<'tokens, 'source>(
         return finish_semicolon_statement(
             syntax_trees,
             StatementNode::RootBinding(binding),
-            input,
-        );
-    }
-
-    if let Some(assignment) = try_desugar_atomic_store(syntax_trees, expression) {
-        return finish_semicolon_statement(
-            syntax_trees,
-            StatementNode::Assignment(assignment),
             input,
         );
     }

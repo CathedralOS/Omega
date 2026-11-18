@@ -63,7 +63,11 @@ fn measure() -> Result<(), String> {
             format!("{:?}", token.kind).hash(&mut fingerprint);
             token.span.start.hash(&mut fingerprint);
             token.span.end.hash(&mut fingerprint);
-            tokens.text(token).as_bytes().hash(&mut fingerprint);
+            if let Some(bytes) = tokens.literal_bytes(token) {
+                bytes.as_ref().hash(&mut fingerprint);
+            } else {
+                tokens.spelling(token).as_bytes().hash(&mut fingerprint);
+            }
         }
     }
 

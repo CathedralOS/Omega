@@ -28,7 +28,8 @@ pub(crate) fn parse_statements<'tokens, 'source>(
                 .is_some_and(|statement| {
                     matches!(
                         syntax_trees.statements.statement(*statement),
-                        syntax_trees::statement::StatementNode::Transition(_)
+                        syntax_trees::statement::StatementNode::Dispatch(_)
+                            | syntax_trees::statement::StatementNode::Transition(_)
                             | syntax_trees::statement::StatementNode::Expression(_)
                     )
                 })

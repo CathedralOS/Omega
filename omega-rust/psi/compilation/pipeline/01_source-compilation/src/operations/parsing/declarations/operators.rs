@@ -72,7 +72,7 @@ pub(crate) fn parse_operator_spelling<'tokens, 'source>(
         token.punctuation().is_some() && token.punctuation() != Some(PunctuationKind::Semicolon)
     }) {
         let (token, next) = rest.expect_token()?;
-        symbol.push_str(input.text(token).as_str());
+        symbol.push_str(input.spelling(token));
         rest = next;
         if OperatorSpelling::from_symbol(&symbol).is_some() {
             break;

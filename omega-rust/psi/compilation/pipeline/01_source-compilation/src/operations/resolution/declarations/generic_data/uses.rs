@@ -121,9 +121,10 @@ mod assignments {
                     return None;
                 };
                 Some((
-                    constant.value,
+                    constant.value(),
                     constant.type_reference,
                     constant
+                        .preparation()
                         .normalization
                         .as_ref()
                         .map(|normalization| normalization.authored_expression),
@@ -1210,6 +1211,14 @@ mod expressions {
     ) {
         use syntax_trees::statement::{TransitionGuardNode, TransitionTargetNode};
         match syntax.tables.statements.statement(statement) {
+            StatementNode::AuthoredAssembly(handle) => {
+                syntax
+                    .statements
+                    .authored_assembly(*handle)
+                    .visit_operands(syntax, |operand| {
+                        collect_expression_handles(syntax, operand, handles);
+                    });
+            }
             StatementNode::Assembly(handle) => {
                 let graph = syntax.tables.statements.assembly(*handle);
                 for block in syntax.tables.statements.assembly_blocks(graph.blocks) {
@@ -1258,6 +1267,14 @@ mod expressions {
             }
             StatementNode::LocalData(local) => {
                 collect_expression_handles(syntax, local.initial_value, handles)
+            }
+            StatementNode::Dispatch(handle) => {
+                syntax
+                    .statements
+                    .dispatch(*handle)
+                    .visit_operands(syntax, |operand| {
+                        collect_expression_handles(syntax, operand, handles);
+                    })
             }
             StatementNode::Transition(transition) => {
                 for retained in syntax.statements.transition_patterns(transition.patterns) {

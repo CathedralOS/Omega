@@ -1023,3 +1023,24 @@ fn retired_abi_declaration_names_requirement_owned_calling_policy() {
     assert!(!error.message.contains("inferred from the image"));
     assert!(!error.message.contains("boundary(<Plan>)"));
 }
+
+#[test]
+fn external_stack_demand_reads_three_semantic_tokens_across_trivia() {
+    for demand in ["stack 32 bytes", "stack /* limit */ 32 // count\n bytes"] {
+        let source =
+            format!("machine wait() satisfies Wait::poll via ForeignBinding::Syscall(7) {demand};");
+        let parsed = crate::tests::parse_source_unwrap(&source);
+        assert_eq!(
+            crate::tests::root_machine_unwrap(&parsed).admitted_same_stack_bytes,
+            32
+        );
+    }
+
+    let source =
+        "machine wait() satisfies Wait::poll via ForeignBinding::Syscall(7) stack 0 bytes;";
+    let tokens = crate::frontend_fixture::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let error = crate::parse_syntax_trees(&tokens).unwrap_err();
+    assert!(error.message.contains("positive byte count"));
+}

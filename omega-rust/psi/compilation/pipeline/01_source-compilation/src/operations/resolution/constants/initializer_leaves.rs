@@ -434,7 +434,7 @@ pub(crate) fn pending_const_initializer_leaves(
     collect(
         syntax,
         selection,
-        definition.value,
+        definition.value(),
         definition.type_reference,
         &GenericApplicationSubstitution::new(),
         &mut leaves,

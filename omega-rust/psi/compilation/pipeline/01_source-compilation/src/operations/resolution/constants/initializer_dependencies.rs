@@ -1520,8 +1520,8 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             {
                 return Err("constant dependency has a stale or foreign state".to_owned());
             }
-            let body = program.state_statements(state.statements);
-            if body.len() != state.statements.len() {
+            let body = program.construction_statements(state.construction_statement_span());
+            if body.len() != state.construction_statement_span().len() {
                 return Err("constant dependency state has stale statements".to_owned());
             }
             let mut statements: Vec<_> = body.iter().rev().collect();

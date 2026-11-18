@@ -153,7 +153,7 @@ pub(in crate::resolution::declarations::generic_data) fn prepare_closed_applicat
                             [syntax_trees::types::ConstArgumentOrigin {
                                 reference: name.source_span(),
                                 declaration: definition.name.source_span(),
-                                initializer: syntax.expressions.source_span(definition.value),
+                                initializer: syntax.expressions.source_span(definition.value()),
                                 evaluated_value: value.encoding.into(),
                             }],
                             [],

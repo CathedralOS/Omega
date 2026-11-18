@@ -1,7 +1,6 @@
 /*
 We represent symbol-resolved callable state signatures (`calls`), machines,
-states, executable statements (`control_flow`), and mathematical/proposition
-evidence declarations (`evidence`) in `SymbolResolvedTrees`.
+states, and executable statements (`control_flow`) in `SymbolResolvedTrees`.
 */
 
 pub mod calls {
@@ -362,11 +361,48 @@ pub mod control_flow {
             pub parameters: HandleSpan<StateParameter>,
             pub return_type: Option<crate::source_resolved::types::TypeReference>,
             pub contracts: HandleSpan<SignatureContract>,
-            pub statements: HandleSpan<Statement>,
+            /// Resolver construction rows and retained lexical declarations.
+            pub(in crate::source_resolved) construction_statements: HandleSpan<Statement>,
+            /// Published instruction span. Read the executable body with `SymbolResolvedTrees::state_body`.
             pub statement_nodes: HandleSpan<StatementNode>,
         }
 
         deref_to_storage!(State => StateStorage);
+
+        impl State {
+            pub fn header(
+                name: DiagnosticName,
+                parameters: HandleSpan<StateParameter>,
+                return_type: Option<crate::source_resolved::types::TypeReference>,
+            ) -> Self {
+                Self {
+                    name,
+                    storage: StateStorage {
+                        parameters,
+                        return_type,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            }
+
+            /// Resolver access before publication, when a statement can still acquire a bound symbol.
+            pub fn construction_statement_span(&self) -> HandleSpan<Statement> {
+                self.storage.construction_statements
+            }
+
+            pub fn set_construction_statements(&mut self, statements: HandleSpan<Statement>) {
+                self.storage.construction_statements = statements;
+            }
+
+            /// Deferred completion may replace a body's instructions while retaining its exact header.
+            pub fn has_same_header_as(&self, previous: &Self) -> bool {
+                let mut header = self.clone();
+                header.storage.construction_statements = previous.storage.construction_statements;
+                header.storage.statement_nodes = previous.storage.statement_nodes;
+                header == *previous
+            }
+        }
 
         #[cfg(test)]
         pub(crate) fn test_state(statements: HandleSpan<Statement>) -> State {
@@ -381,7 +417,7 @@ pub mod control_flow {
                         symbol: SymbolHandle::invalid(),
                         name: DiagnosticName::generated("i32"),
                     }),
-                    statements,
+                    construction_statements: statements,
                     statement_nodes: HandleSpan::empty(),
                 },
             }
@@ -1563,108 +1599,6 @@ pub mod control_flow {
                 assert_eq!(arguments.count(), 2);
                 assert_eq!(expressions.expression_count(), 3);
             }
-        }
-    }
-}
-
-pub mod evidence {
-    pub mod mathematical {
-        use crate::source_resolved::data::TypeParameter;
-        use crate::source_resolved::expression::ExpressionHandle;
-        use crate::source_resolved::name::DiagnosticName;
-        use crate::source_resolved::types::TypeReference;
-        use arena::{Handle, HandleSpan};
-        use symbols::SymbolHandle;
-
-        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub struct MathematicalDefinition {
-            pub symbol: SymbolHandle,
-            pub name: DiagnosticName,
-            pub is_public: bool,
-            pub binders: HandleSpan<TypeParameter>,
-            pub parameters: HandleSpan<MathematicalParameter>,
-            pub result: MathematicalTypeHandle,
-            pub body: MathematicalBody,
-        }
-
-        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub struct MathematicalParameter {
-            pub symbol: SymbolHandle,
-            pub name: DiagnosticName,
-            pub relevance: language_core::BindingRelevance,
-            pub ty: MathematicalTypeHandle,
-        }
-
-        pub type MathematicalTypeHandle = Handle<MathematicalType>;
-
-        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-        pub enum MathematicalType {
-            Ordinary(TypeReference),
-            Arrow {
-                binder: Option<DiagnosticName>,
-                domain: MathematicalTypeHandle,
-                codomain: MathematicalTypeHandle,
-            },
-            Application {
-                callee: MathematicalTypeHandle,
-                arguments: HandleSpan<ExpressionHandle>,
-            },
-        }
-
-        impl Default for MathematicalType {
-            fn default() -> Self {
-                Self::Ordinary(TypeReference::default())
-            }
-        }
-
-        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub enum MathematicalBody {
-            #[default]
-            Assumption,
-            Definition(ExpressionHandle),
-        }
-    }
-    pub mod proposition {
-        use crate::source_resolved::data::Binder;
-        use crate::source_resolved::expression::ExpressionHandle;
-        use crate::source_resolved::name::DiagnosticName;
-        use crate::source_resolved::types::TypeReference;
-        use arena::HandleSpan;
-        use symbols::SymbolHandle;
-
-        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub struct PropositionDefinition {
-            pub symbol: SymbolHandle,
-            pub name: DiagnosticName,
-            pub is_public: bool,
-            pub binders: HandleSpan<PropositionBinder>,
-            pub parameters: HandleSpan<crate::source_resolved::signature::StateParameter>,
-            pub transparent_formula_source_span: Option<source_text::SourceSpan>,
-            pub body: PropositionBody,
-        }
-
-        pub type PropositionBinder = Binder<PropositionBinderKind>;
-
-        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub enum PropositionBinderKind {
-            #[default]
-            Type,
-            Const {
-                type_reference: TypeReference,
-            },
-            Machine,
-        }
-
-        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub enum PropositionBody {
-            #[default]
-            Primitive,
-            Witness {
-                evidence: TypeReference,
-            },
-            Transparent {
-                proposition: ExpressionHandle,
-            },
         }
     }
 }

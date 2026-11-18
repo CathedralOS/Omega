@@ -1,18 +1,16 @@
 # Parsing
 
-Start at [parser.rs](parser.rs). Its only public operation is
-`parse(&LexedSources, ParseOptions) -> Result<ParsedSyntaxPages, ParseError>`.
-It creates the trees, schedules independent pages, asks
-[declarations/items.rs](declarations/items.rs) for declarations, and publishes
-the complete syntax and source records. Grammar dispatch is visible here and
-in the domain entries below.
+Start at [parser.rs](parser.rs). `parse_into` reads one token stream into a
+syntax page and returns its declaration roots. It dispatches declarations
+through [declarations/items.rs](declarations/items.rs). The
+[source compiler](../../source_parsing.rs) calls this operation as it lexes each
+file, recycling each token buffer after parsing.
 
-`ParseOptions` carries the first page identity and whether sources may share
-pages or need independently reusable units. These are input data, not separate
-execution routes. The compiler sequences `lex` then `parse`; it does not supply
-mutable trees, assemble parsed roots, or duplicate either stage's source loop.
-Invalid page coordinates return a parse error, including identity zero for an
-empty batch. A failed parse returns no syntax pages and leaves its tokens intact.
+For an already-tokenized batch, `parse(&LexedSources, ParseOptions)` schedules
+pages, calls the same `parse_into` for each source and returns `ParsedSyntaxPages`.
+`ParseOptions` assigns the first page identity and selects shared pages or
+independently reusable units. An invalid page identity or a parse failure
+returns an error and leaves the input tokens intact.
 
 | Follow this path | It owns |
 | --- | --- |
@@ -22,20 +20,27 @@ empty batch. A failed parse returns no syntax pages and leaves its tokens intact
 | [parameters/callable.rs](parameters/callable.rs), [generics.rs](parameters/generics.rs) | Callable and generic binders; requirements and relevance rules are shared here |
 | [contracts/clauses.rs](contracts/clauses.rs) | Machine clauses; siblings parse facts, signatures, conformance and external bindings |
 | [machine_bodies/states.rs](machine_bodies/states.rs) | Machine entries and states; `defaults.rs` handles trait defaults |
-| [transitions/blocks.rs](transitions/blocks.rs) | Transition blocks, with guards and targets in adjacent files |
+| [transitions/blocks.rs](transitions/blocks.rs) | One dispatch per transition block, with subjects and ordered arm patterns, guards and targets |
 | [statements/sequence.rs](statements/sequence.rs), [parse.rs](statements/parse.rs) | Statement sequence and dispatch, then binding, destructuring and expression statements |
 | [patterns/fields.rs](patterns/fields.rs) | Destructure field entry and result; `bindings.rs` rewrites captured binding references |
-| [assembly/parse.rs](assembly/parse.rs) | Assembly blocks; `generated_statements.rs` constructs their register and flag statements |
-| [token_input/cursor.rs](token_input/cursor.rs) | Token cursor, retained source, spans and lookahead; `delimiters.rs` handles balanced token ranges |
+| [assembly/parse.rs](assembly/parse.rs) | Authored mnemonics, operands, labels and contracts. [Instruction preparation](../resolution/declarations/assembly/mod.rs) resolves their target behavior |
+| [token_input/cursor.rs](token_input/cursor.rs) | Source spans and lookahead across grammar tokens. The cursor retains trivia for newline-sensitive clauses. [delimiters.rs](token_input/delimiters.rs) handles balanced token ranges. |
 | [literals/numbers.rs](literals/numbers.rs) | Numeric value validation after lexical recognition |
 | [errors/parse_error.rs](errors/parse_error.rs) | The public parse error; `expected.rs` builds expected-token diagnostics |
 
-The output belongs to [syntax-trees](../../representations/syntax-trees/syntax_trees.rs).
-Its [files/pages.rs](../../representations/syntax-trees/files/pages.rs) owns
+For `(registry.store)(key, value)`, [postfix parsing](expressions/postfix.rs)
+records a call on a member and retains both arguments. Follow the receiver into
+[typing](../typing/src/atomic_calls.rs) to see
+why an atomic cell's `store` checks its ordering argument. For a transition,
+[dispatch preparation](../resolution/declarations/dispatches.rs)
+takes the authored arms and arranges to evaluate the subjects once.
+
+The output belongs to [syntax-trees](../../../../../representations/syntax-trees/syntax_trees.rs).
+Its [files/pages.rs](../../../../../representations/syntax-trees/files/pages.rs) owns
 `ParsedSyntaxPages` and the source-to-page associations. Converting `ParseError`
 to a diagnostic retains the existing path, line, column and message format.
-Generic spans come from [foundation/arena](../../../foundation/arena/src/arena.rs);
-[tree copying](../../representations/syntax-trees/copying/statement_paths.rs) belongs
+Generic spans come from [foundation/arena](../../../../../../foundation/arena/src/arena.rs);
+[tree copying](../../../../../representations/syntax-trees/copying/statement_paths.rs) belongs
 to the representation. The parser accesses its public tables directly.
 This stage preserves authored syntax and source spans. Symbol resolution, typing
 and proof checking follow it. It neither changes the token representation nor
@@ -51,9 +56,9 @@ loop that applies them.
 helper tests remain registered with their owner, but their bodies live there too.
 [tests/diagnostics.rs](tests/diagnostics.rs) checks public errors;
 [tests/sample_files.rs](tests/sample_files.rs) checks sample source parsing.
-Small fixtures use [tests/support/frontend.rs](../../../../../tests/support/frontend.rs)
+Small fixtures use [tests/support/frontend_operations.rs](../../../../../../../../tests/support/frontend_operations.rs)
 to construct complete stage inputs. Private grammar tests can still inspect
-partial construction; that is not an external parser operation.
+partial construction directly.
 There are no inline test bodies in production files.
 
 ## Comparing parser designs
@@ -88,13 +93,13 @@ and the existing root syntax snapshot; it is not a complete serialization of all
 internal tables. The behavior tests also check diagnostics and less common forms.
 
 ```text
-mbx bench -p tokens-to-syntax-trees --bench parser_timing -- 100 <absolute-source-path>...
-mbx bench -p tokens-to-syntax-trees --bench parser_timing --no-run
+mbx bench -p source-compiler --features test-support --bench parsing_parser_timing -- 100 <absolute-source-path>...
+mbx bench -p source-compiler --features test-support --bench parsing_parser_timing --no-run
 ```
 
 Use the repository's host build budget. Cargo runs the harness from its package
 directory, so use absolute input paths. Save the executable printed by `--no-run`
 for each source revision and compare immutable inputs with
-[omega-bench](../../../../../tools/benchmark/README.md) `reported_work` plans.
-The [before/after report](../../../../../wiki/drafts/measurements/rust_parser_2026_11_16.md)
+[omega-bench](../../../../../../../../tools/benchmark/README.md) `reported_work` plans.
+The [before/after report](../../../../../../../../wiki/drafts/measurements/rust_parser_2026_11_16.md)
 records source identities, host limits, paired results and rejected experiments.

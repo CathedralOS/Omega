@@ -607,6 +607,7 @@ crashes Trap
             ValueBinding::Parameter { parameter } -> value_tag(resolver_harness, output, index, 3, parameter, 0)
             ValueBinding::PatternBinder { field } -> value_tag(resolver_harness, output, index, 4, field, 0)
             ValueBinding::Machine { handle } -> value_tag(resolver_harness, output, index, 6, handle, 0)
+            ValueBinding::Overloads { representative, candidates as _ } -> value_tag(resolver_harness, output, index, 6, representative, 0)
             ValueBinding::Data { item } -> value_tag(resolver_harness, output, index, 7, item, 0)
             ValueBinding::DataCase { item, data_case } -> value_tag(resolver_harness, output, index, 8, item, data_case)
             ValueBinding::GenericParameter { parameter } -> value_tag(resolver_harness, output, index, 10, parameter, 0)

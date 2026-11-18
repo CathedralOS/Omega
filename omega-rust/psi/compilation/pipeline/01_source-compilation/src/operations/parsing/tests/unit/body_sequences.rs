@@ -132,25 +132,34 @@ fn entry_and_nested_bodies_preserve_expanded_statement_order_and_boundaries() {
         };
         let states = trees.items.state_handles(machine.states);
         assert_eq!(states.len(), 1);
-        let statements = crate::tests::inline_assembly::instruction_statements(
-            &trees,
-            trees
-                .items
-                .statements(trees.items.state(states[0]).statements),
-        );
-        assert_eq!(statements.len(), 4);
+        let statements = trees
+            .items
+            .statements(trees.items.state(states[0]).statements);
+        let [local, assembly, dispatch] = statements else {
+            panic!("local, assembly, dispatch");
+        };
         assert!(matches!(
-            trees.statements.statement(statements[0]),
+            trees.statements.statement(*local),
             StatementNode::LocalData(_)
         ));
-        for (handle, expected) in [(statements[1], "asm#lfence"), (statements[2], "asm#sfence")] {
-            assert!(
-                matches!(trees.statements.statement(handle), StatementNode::Call(call) if call.target.as_str(&trees) == expected)
-            );
-        }
+        let StatementNode::AuthoredAssembly(assembly) = trees.statements.statement(*assembly)
+        else {
+            panic!("authored assembly");
+        };
+        let assembly = trees.statements.authored_assembly(*assembly);
+        assert!(assembly.clobbers.as_deref().is_some_and(<[_]>::is_empty));
+        let [block] = assembly.blocks.as_ref() else {
+            panic!("one implicit block");
+        };
+        let names: Vec<_> = block
+            .instructions
+            .iter()
+            .map(|op| op.mnemonic.as_str(&trees))
+            .collect();
+        assert_eq!(names, ["lfence", "sfence"]);
         assert!(matches!(
-            trees.statements.statement(statements[3]),
-            StatementNode::Transition(_)
+            trees.statements.statement(*dispatch),
+            StatementNode::Dispatch(_)
         ));
     }
 }

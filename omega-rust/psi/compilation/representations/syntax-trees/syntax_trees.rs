@@ -12,8 +12,7 @@ pub use text_owner::{RetainedSource, SyntaxTextContext, SyntaxTextOwner};
 
 use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::item::{
-    Item, ItemHandle, ItemTable, Machine, MathematicalDefinition, MathematicalDefinitionHandle,
-    TraitDefinition,
+    Item, ItemHandle, ItemTable, MathematicalDefinition, MathematicalDefinitionHandle,
 };
 use crate::statement::StatementTable;
 use crate::types::TypeReferenceTable;
@@ -104,7 +103,7 @@ impl SyntaxTrees {
     }
 
     pub fn push_root_item(&mut self, item: Item) -> ItemHandle {
-        let handle = self.insert_item(item);
+        let handle = self.items.append_item(item);
         self.roots.items.push(handle);
         handle
     }
@@ -160,28 +159,6 @@ impl SyntaxTrees {
         self.roots.items.len()
     }
 
-    pub fn constant_initializer_owns_selection(&self, reference: source_text::SourceSpan) -> bool {
-        self.root_items().any(|item| {
-            let Item::Const(definition) = item else {
-                return false;
-            };
-            definition
-                .normalization
-                .as_ref()
-                .is_some_and(|normalization| {
-                    normalization
-                        .selections
-                        .iter()
-                        .any(|origin| origin.reference == reference)
-                        || normalization.builtin_operators.contains(&reference)
-                        || normalization
-                            .call_selections
-                            .iter()
-                            .any(|selection| selection.0 == reference)
-                })
-        })
-    }
-
     pub fn extend_from(&mut self, other: &SyntaxTrees) {
         let frontier = self.type_references.supplied_operand_owner_frontier();
         let mut declarations = Vec::with_capacity(other.root_item_count());
@@ -193,6 +170,10 @@ impl SyntaxTrees {
             let definition = self
                 .copy_mathematical_definition(other, other.root_mathematical_definition(*handle));
             self.push_root_mathematical_definition(definition);
+        }
+        for &(expression, public) in &other.roots.constant_extent_probes {
+            let copied = self.copy_expression_from(other, expression);
+            self.roots.constant_extent_probes.push((copied, public));
         }
         self.type_references
             .remap_supplied_operand_owners(frontier, &declarations);
@@ -266,35 +247,6 @@ impl SyntaxTrees {
 
     pub fn page_count(&self) -> usize {
         self.tables.page_count()
-    }
-
-    fn insert_item(&mut self, item: Item) -> ItemHandle {
-        match &item {
-            Item::Machine(machine) => self.insert_machine(machine),
-            Item::Trait(trait_definition) => self.insert_trait_definition(trait_definition),
-            Item::Capability(_)
-            | Item::Conformance(_)
-            | Item::Const(_)
-            | Item::Data(_)
-            | Item::TypeAlias(_)
-            | Item::Domain(_)
-            | Item::Measure(_)
-            | Item::Module(_)
-            | Item::Operator(_)
-            | Item::Package(_)
-            | Item::Proposition(_)
-            | Item::Use(_) => {}
-        }
-
-        self.items.append_item(item)
-    }
-
-    fn insert_machine(&mut self, machine: &Machine) {
-        self.items.insert_machine(machine);
-    }
-
-    fn insert_trait_definition(&mut self, trait_definition: &TraitDefinition) {
-        self.items.insert_trait_definition(trait_definition);
     }
 
     fn push_copied_root_item(&mut self, other: &SyntaxTrees, handle: ItemHandle) -> ItemHandle {
