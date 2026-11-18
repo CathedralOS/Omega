@@ -3031,7 +3031,6 @@ dependencies = [
  "proof-admission",
  "schema-reflection",
  "semantic-vocabulary",
- "storage-access",
  "terminal-psi",
  "terminal-semantics",
  "wire",
