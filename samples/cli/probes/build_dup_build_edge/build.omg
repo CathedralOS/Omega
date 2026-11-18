@@ -14,7 +14,6 @@ suspends
     let mut k2_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
     dependency::with_alias(&mut k2_dependency, "k2");
     let k2_registration: DependencyRegistration = Build::build_dependency(builder, k2_dependency);
-    builder.freestanding = true;
     suspend Build::prepare_dependency(builder, k1_registration);
     let observed: i32 = k1::seed();
     transition observed == 3 {
