@@ -1062,8 +1062,8 @@ machine entry() -> u64 crashes none {
 #[test]
 fn content_partition_keeps_both_claims_and_rejects_a_gap() {
     use crate::typing::{bundled_core_sources, typed_packages as packages};
-    // This is the unchanged partition body from the executable Run split/merge
-    // control. Its two laws conserve the Granted and Vacant claims separately.
+    // This partition is copied from the split/merge runtime candidate.
+    // Its laws track Granted and Vacant separately.
     let positive = r#"use omega::language::core::Extent;
 use omega::language::core::Extent::Granted;
 use omega::language::core::Extent::Vacant;
@@ -1096,11 +1096,11 @@ ensures
         false -> base,
     };
     Pieces {
-        taken: Extent { base: base, length: requested },
+        taken: Extent { base: base, length: requested } as +Granted +Vacant,
         rest: Extent { base: rest_base, length: match requested < length {
             true -> length - requested - 0,
             false -> 0,
-        } },
+        } } as +Granted +Vacant,
     }
 }
 "#;
