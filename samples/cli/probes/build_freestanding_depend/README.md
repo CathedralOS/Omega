@@ -1,7 +1,5 @@
 # build_freestanding_depend
 
-`builder.freestanding = true` opts the package out of lock and install
-context — it does not forbid dependency edges. A freestanding
-application may still `Build::dependency` on a local sibling package: the edge
-resolves against the filesystem, not the package cache, and checks
-cleanly. Freestanding is an acquisition mode, not a graph restriction.
+The application registers `dep/` as a local package with `Source::Path`.
+The sample gate captures the same dependency subtree that the source graph
+loads for the `edge_dep` package, so both views of the nested source agree.
