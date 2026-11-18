@@ -1,0 +1,23 @@
+// GRAMMAR.md: generic parameters, every form.
+machine every_form<
+    T,
+    Element [copy],
+    Count: u32,
+    u: core::Level,
+    const N: u64,
+    const F: machine(v: u32) -> u32,
+    const G: machine,
+    machine Step,
+    some S,
+    'a,
+>(value: &'a T) {
+}
+
+// A machine type's clause inside `<...>` ends at the closing `>`.
+machine forward<const F: machine(value: u64) -> u64 ensures result >= value>(x: u64) -> u64 {
+    F(x)
+}
+
+// `const`, `machine` and `some` are parameter names when no name follows them.
+machine names<const, machine, some>(a: const, b: some) {
+}

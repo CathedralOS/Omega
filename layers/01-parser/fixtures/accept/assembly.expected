@@ -1,0 +1,128 @@
+File
+  AsmMachine
+    'asm'
+    'machine'
+    Path 'syscall_write'
+    Params
+      '('
+      Param
+        'fd'
+        ':'
+        PathType 'u64'
+      ','
+      Param
+        'bytes'
+        ':'
+        ReferenceType
+          '&'
+          SliceType
+            '['
+            PathType 'u8'
+            ']'
+      ')'
+    Result
+      '->'
+      PathType 'u64'
+    Registers
+      'registers'
+      'rdi'
+      '='
+      PathExpression 'fd'
+    Registers
+      'registers'
+      'rsi'
+      '='
+      FieldAccess
+        PathExpression 'bytes'
+        '.'
+        'address'
+    Clobbers 'clobbers' 'rcx' ',' 'r11'
+    '{'
+    Instruction
+      'mov'
+      PathExpression 'rax'
+      ','
+      Literal '1'
+    ';'
+    Instruction 'syscall'
+    ';'
+    AsmTransition 'transition' '->' 'done'
+    ';'
+    Instruction 'ret'
+    AsmMachine
+      'asm'
+      'machine'
+      Path 'done'
+      '{'
+      Instruction
+        'mov'
+        PathExpression 'rax'
+        ','
+        ArrayLiteral
+          '['
+          Binary
+            PathExpression 'rbx'
+            '+'
+            Literal '8'
+          ']'
+      ';'
+      Instruction
+        'b'
+        '.'
+        'eq'
+        PathExpression 'target'
+      '}'
+    '}'
+  AsmMachine
+    'public'
+    'asm'
+    'machine'
+    Path 'halt'
+    Clobbers 'clobbers' 'none'
+    '{'
+    '}'
+  Machine
+    'machine'
+    Path 'mixed'
+    Params
+      '('
+      Param
+        'value'
+        ':'
+        PathType 'u64'
+      ')'
+    Result
+      '->'
+      PathType 'u64'
+    Body
+      '{'
+      Let
+        'let'
+        BindingPattern 'doubled'
+        '='
+        Binary
+          PathExpression 'value'
+          '*'
+          Literal '2'
+        ';'
+      AsmBlock
+        'asm'
+        Registers
+          'registers'
+          'rax'
+          '='
+          PathExpression 'doubled'
+        Clobbers 'clobbers' 'none'
+        '{'
+        Instruction
+          'add'
+          PathExpression 'rax'
+          ','
+          PathExpression 'rax'
+        ';'
+        Instruction 'nop'
+        '}'
+      AsmBlock 'asm' '{' '}'
+      Tail
+        PathExpression 'doubled'
+      '}'

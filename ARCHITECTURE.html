@@ -108,7 +108,7 @@
     <h2><span>1</span>The layers</h2>
     <figure>
       <div class="scroll">
-      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. Source bytes enter the lexer, which is built and signed off; tokens go to the parser, a syntax tree to the resolver, a resolved tree to the typer, a typed tree to preparation, a prepared tree to lowering, Terminal Psi to the checker, checked Psi to publication, which produces the published Psi artifact. The parser's contract is being drafted and the six layers after it are not started.">
+      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. Source bytes enter the lexer, which is built and signed off; tokens go to the parser, a syntax tree to the resolver, a resolved tree to the typer, a typed tree to preparation, a prepared tree to lowering, Terminal Psi to the checker, checked Psi to publication, which produces the published Psi artifact. The parser is built and has passed its gate, and is waiting for sign-off; the six layers after it are not started.">
         <text x="120" y="30" text-anchor="middle" class="mono">source bytes</text>
         <path class="a" d="M120,40 V70"/>
 
@@ -213,9 +213,63 @@
     </figure>
   </section>
 
+  <!-- ============================== 3. INSIDE L1 ============================== -->
+  <section>
+    <h2><span>3</span>Inside the parser</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 290" role="img" aria-label="Tokens go through a cursor that skips whitespace and comments, then through the grammar, which has one function per rule, looks ahead and commits, and never rewinds. The grammar can refuse the file with one error saying what was expected and where. Its output for 'a + b * c' is fifteen events in a row: open Binary, open Path, a, close, plus, open Binary, open Path, b, close, times, open Path, c, close, close, close. Brackets under the row show the five nodes those events describe: three paths, the inner product b times c, and the outer sum.">
+        <text x="70" y="60" text-anchor="middle" class="mono">tokens</text>
+        <path class="a" d="M105,55 H150"/>
+
+        <rect class="b" x="150" y="30" width="200" height="50" rx="7"/>
+        <text x="250" y="52" text-anchor="middle" class="th">token cursor</text>
+        <text x="250" y="70" text-anchor="middle" class="ts">skips whitespace and comments</text>
+        <path class="a" d="M350,55 H400"/>
+
+        <rect class="b" x="400" y="30" width="250" height="50" rx="7"/>
+        <text x="525" y="52" text-anchor="middle" class="th">grammar: one function per rule</text>
+        <text x="525" y="70" text-anchor="middle" class="ts">looks ahead, then commits; never rewinds</text>
+
+        <rect class="b-bad" x="730" y="30" width="200" height="50" rx="7"/>
+        <text x="830" y="52" text-anchor="middle" class="th">one error</text>
+        <text x="830" y="70" text-anchor="middle" class="ts">what was expected, and where</text>
+        <path class="a-bad" d="M650,55 H730"/><text x="690" y="47" text-anchor="middle" class="tl t-bad">no rule fits</text>
+
+        <path class="a" d="M525,80 V128"/><text x="535" y="109" class="tl">events, here for</text><text x="628" y="109" class="mono-s">a + b * c</text>
+
+        <rect class="b" x="45" y="130" width="58" height="36"/><text x="74" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b" x="103" y="130" width="58" height="36"/><text x="132" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b-accent" x="161" y="130" width="58" height="36"/><text x="190" y="153" text-anchor="middle" class="mono">a</text>
+        <rect class="b-trivia" x="219" y="130" width="58" height="36"/><text x="248" y="153" text-anchor="middle" class="ts">Close</text>
+        <rect class="b-accent" x="277" y="130" width="58" height="36"/><text x="306" y="153" text-anchor="middle" class="mono">+</text>
+        <rect class="b" x="335" y="130" width="58" height="36"/><text x="364" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b" x="393" y="130" width="58" height="36"/><text x="422" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b-accent" x="451" y="130" width="58" height="36"/><text x="480" y="153" text-anchor="middle" class="mono">b</text>
+        <rect class="b-trivia" x="509" y="130" width="58" height="36"/><text x="538" y="153" text-anchor="middle" class="ts">Close</text>
+        <rect class="b-accent" x="567" y="130" width="58" height="36"/><text x="596" y="153" text-anchor="middle" class="mono">*</text>
+        <rect class="b" x="625" y="130" width="58" height="36"/><text x="654" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b-accent" x="683" y="130" width="58" height="36"/><text x="712" y="153" text-anchor="middle" class="mono">c</text>
+        <rect class="b-trivia" x="741" y="130" width="58" height="36"/><text x="770" y="153" text-anchor="middle" class="ts">Close</text>
+        <rect class="b-trivia" x="799" y="130" width="58" height="36"/><text x="828" y="153" text-anchor="middle" class="ts">Close</text>
+        <rect class="b-trivia" x="857" y="130" width="58" height="36"/><text x="886" y="153" text-anchor="middle" class="ts">Close</text>
+
+        <path class="tick" fill="none" d="M107,172 V182 H273 V172"/><text x="190" y="197" text-anchor="middle" class="ts">Path</text>
+        <path class="tick" fill="none" d="M397,172 V182 H563 V172"/><text x="480" y="197" text-anchor="middle" class="ts">Path</text>
+        <path class="tick" fill="none" d="M629,172 V182 H795 V172"/><text x="712" y="197" text-anchor="middle" class="ts">Path</text>
+        <path class="tick" fill="none" d="M339,172 V212 H853 V172"/><text x="596" y="227" text-anchor="middle" class="ts">Binary: b * c</text>
+        <path class="tick" fill="none" d="M49,172 V242 H911 V172"/><text x="480" y="257" text-anchor="middle" class="ts">Binary: a + (b * c)</text>
+
+        <text x="480" y="281" text-anchor="middle" class="tl">no allocation per node; the five shaded cells are the next five meaningful tokens from the lexer, in order</text>
+      </svg>
+      </div>
+      <figcaption>The tree is not a set of allocated nodes. It is the list of events a walk of the tree would visit: an <code>Open</code> starts a node, its <code>Close</code> ends it, and each shaded cell is the next token from the lexer. The brackets show the five nodes these fifteen events describe; <code>*</code> binds tighter than <code>+</code>, so <code>b * c</code> is the inner one. Every meaningful token appears exactly once, which is the check the tests run on every tree.</figcaption>
+    </figure>
+  </section>
+
   <!-- ============================== 3. TESTING ============================== -->
   <section>
-    <h2><span>3</span>How a layer is tested</h2>
+    <h2><span>4</span>How a layer is tested</h2>
     <figure>
       <div class="scroll">
       <svg viewBox="0 0 960 320" role="img" aria-label="Four kinds of input go through the layer under test, each with its own check. Accept fixtures must produce exactly their expected dump. Reject fixtures must be refused with the expected rule and byte range. The 132 examples read from the spec must be accepted and satisfy the invariants. Byte cases must match results predicted by hand.">
@@ -266,7 +320,7 @@
 
   <!-- ============================== 4. LAYER LOOP ============================== -->
   <section>
-    <h2><span>4</span>How a layer gets built</h2>
+    <h2><span>5</span>How a layer gets built</h2>
     <figure>
       <div class="scroll">
       <svg viewBox="0 0 960 240" role="img" aria-label="A layer goes from contract to fixtures to implementation to the gate to sign-off. A failed gate returns to implementation. A contract rule with no source in the spec becomes a spec gap, which needs an owner decision before the rule is settled.">
@@ -307,13 +361,13 @@
         <path class="a" d="M285,160 V100"/><text x="295" y="135" class="tl">rule settled</text>
       </svg>
       </div>
-      <figcaption>The same loop for every layer. The lexer has been through it and is signed off; the parser is at the first box.</figcaption>
+      <figcaption>The same loop for every layer. The lexer has been through it and is signed off; the parser has passed its gate and is waiting for sign-off.</figcaption>
     </figure>
   </section>
 
   <!-- ============================== 5. V1 vs V2 ============================== -->
   <section>
-    <h2><span>5</span>The Build: what changes from V1</h2>
+    <h2><span>6</span>The Build: what changes from V1</h2>
     <figure>
       <div class="scroll">
       <svg viewBox="0 0 960 380" role="img" aria-label="Left: in V1 and the spec, one Build program is checked a prefix at a time, run, suspended when a dependency or provider arrives, checked further and resumed, in a loop. The product's hand-written source is checked and frozen first so the Build can query it, and generated source is added afterwards as a later stratum that hand-written code cannot call. Right: in V2 a chain of whole programs each runs to completion and hands a plan to the next: a core first stage, the project's build.omg, then the product, which is compiled once.">
@@ -377,7 +431,7 @@
 
   <!-- ============================== 6. INVOCATION ============================== -->
   <section>
-    <h2><span>6</span>What the command decides<span class="tag">leaning, not decided</span></h2>
+    <h2><span>7</span>What the command decides<span class="tag">leaning, not decided</span></h2>
     <figure>
       <div class="scroll">
       <svg viewBox="0 0 960 310" role="img" aria-label="Three chains, each started by the driver reading the command and handing the first stage its input. With omega build, the first stage plans for a build program, which plans for the product. With omega run, the first plan goes straight to the given program with default settings. A single file with two entries is a build program whose plan names the same file again with a different entry.">
@@ -441,7 +495,7 @@
 
   <!-- ============================== 7. DRIVER LOOP ============================== -->
   <section>
-    <h2><span>7</span>One turn of the driver</h2>
+    <h2><span>8</span>One turn of the driver</h2>
     <figure>
       <div class="scroll">
       <svg viewBox="0 0 960 336" role="img" aria-label="The driver takes the plan from the previous stage, compiles the stage in one straight pass through the layers, and runs it in the Terminal Psi interpreter. The plan selects which backings the stage gets, by identity; the invocation separately grants the resources. The stage returns its own plan, which either asks for another stage, looping back, or asks for an artifact, which ends the chain.">
@@ -484,7 +538,7 @@
 
   <!-- ============================== 7. REFLECTION CHANNEL ============================== -->
   <section>
-    <h2><span>8</span>How two stages refer to the same declaration</h2>
+    <h2><span>9</span>How two stages refer to the same declaration</h2>
     <figure>
       <div class="scroll">
       <svg viewBox="0 0 960 290" role="img" aria-label="Stage N imports the Console requirement and the TestConsole implementation into its own universe only to name them. Reflection turns each into an identity, and the plan carries the pair. Stage N plus one has its own copies of both declarations; its compile binds the identities to those copies and checks they match, and a mismatch is an error.">
@@ -529,7 +583,7 @@
 
   <!-- ============================== 8. REPOSITORY ============================== -->
   <section>
-    <h2><span>9</span>What is in the repository</h2>
+    <h2><span>10</span>What is in the repository</h2>
     <figure>
       <div class="scroll">
       <svg viewBox="0 0 960 310" role="img" aria-label="The repository holds the spec under wiki/spec, two test tools, the lexer layer and PLAN.md. The lexer's contract cites the spec. Its tests call the lexer, use the golden tool to compare output with expected files, and use the spec-corpus tool, which reads the spec's examples at test time. PLAN.md lists six departures from the spec.">
@@ -551,7 +605,7 @@
         <rect class="b" x="30" y="220" width="180" height="60" rx="7"/>
         <text x="120" y="245" text-anchor="middle" class="mono">PLAN.md</text>
         <text x="120" y="264" text-anchor="middle" class="ts">decisions, gaps, status</text>
-        <path class="a" d="M120,220 V120"/><text x="130" y="175" class="tl">lists 6 departures</text>
+        <path class="a" d="M120,220 V120"/><text x="130" y="175" class="tl">lists 9 departures</text>
 
         <rect class="panel" x="590" y="40" width="350" height="250" rx="10"/>
         <text x="606" y="64" class="tp">layers/00-lexer</text>
@@ -573,7 +627,7 @@
         <path class="a" d="M610,180 H570 V250 H500"/><text x="535" y="243" text-anchor="middle" class="tl">uses</text>
       </svg>
       </div>
-      <figcaption>Every later layer gets a folder shaped like <code>layers/00-lexer</code> and reuses the two tools. Nothing here depends on V1's code.</figcaption>
+      <figcaption>Every later layer gets a folder shaped like <code>layers/00-lexer</code> and reuses the two tools. <code>layers/01-parser</code> is the second: its contract is GRAMMAR.md, with 116 fixtures. Nothing here depends on V1's code.</figcaption>
     </figure>
   </section>
 </main>

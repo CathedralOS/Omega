@@ -1,0 +1,4 @@
+error UnexpectedToken at 5:5 bytes 142..149
+  found: machine
+  expected: `asm machine`; a machine nested in assembly is itself assembly
+  expected `asm machine`; a machine nested in assembly is itself assembly

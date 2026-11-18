@@ -1,0 +1,4 @@
+// The lexer has `+=`, but the grammar has no compound assignment.
+machine f(n: u32) {
+    n += 1;
+}

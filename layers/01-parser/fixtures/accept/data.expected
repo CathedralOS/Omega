@@ -1,0 +1,199 @@
+File
+  Data
+    'data'
+    'Point'
+    '{'
+    Field
+      'x'
+      ':'
+      PathType 'i32'
+      ';'
+    Field
+      'y'
+      ':'
+      PathType 'i32'
+      ';'
+    '}'
+  Data
+    'public'
+    'data'
+    'Command'
+    GenericParams
+      '<'
+      TypeParam 'T'
+      '>'
+    '{'
+    Field
+      StableNumber '#' '1'
+      'command_id'
+      ':'
+      PathType 'u64'
+      ';'
+    Field
+      StableNumber '#' '2'
+      'op'
+      ':'
+      Data
+        'data'
+        'Operation'
+        '{'
+        Case
+          StableNumber '#' '1'
+          'case'
+          'GetUser'
+          '('
+          CaseField
+            StableNumber '#' '1'
+            'user_id'
+            ':'
+            PathType 'u64'
+          ','
+          CaseField
+            StableNumber '#' '2'
+            'flags'
+            ':'
+            PathType 'u8'
+          ')'
+          ';'
+        Case 'case' 'CountUsers' ';'
+        '}'
+      ';'
+    Data
+      'data'
+      'Header'
+      '{'
+      Field
+        'length'
+        ':'
+        QualifiedType
+          PathType 'u32'
+          'in'
+          PathType 'Positive'
+          '&'
+          PathType 'Small'
+        ';'
+      '}'
+    Field
+      'payload'
+      Attributes
+        '['
+        Attribute 'erased'
+        ']'
+      ':'
+      PathType
+        'Valid'
+        TypeArgs
+          '<'
+          PathType 'T'
+          '>'
+      ';'
+    '}'
+  Data
+    'data'
+    'Bounded'
+    Requires
+      'requires'
+      Binary
+        FieldAccess
+          PathExpression 'self'
+          '.'
+          'low'
+        '<='
+        FieldAccess
+          PathExpression 'self'
+          '.'
+          'high'
+    Requires
+      'requires'
+      Binary
+        FieldAccess
+          PathExpression 'self'
+          '.'
+          'high'
+        '<'
+        Literal '100'
+    '{'
+    Field
+      'low'
+      ':'
+      PathType 'u8'
+      ';'
+    Field
+      'high'
+      ':'
+      PathType 'u8'
+      ';'
+    '}'
+  Data
+    'data'
+    'SmallBytes'
+    '='
+    PathType
+      'ByteBuffer'
+      TypeArgs
+        '<'
+        Literal '64'
+        '>'
+    ';'
+  Data
+    'data'
+    'Lease'
+    GenericParams
+      '<'
+      TypeParam 'T'
+      '>'
+    Attributes
+      '['
+      Attribute 'linear'
+      ','
+      Attribute 'carry' '(' 'suspension' ':' 'allowed' ',' 'transfer' ':' 'refused' ')'
+      ']'
+    DroppedBy
+      'dropped'
+      'by'
+      PathType
+        'release_guard'
+        TypeArgs
+          '<'
+          PathType 'T'
+          '>'
+    '{'
+    Field
+      'pool'
+      ':'
+      ReferenceType
+        '&'
+        'mut'
+        PathType
+          'Pool'
+          TypeArgs
+            '<'
+            PathType 'T'
+            '>'
+      ';'
+    Field
+      'slot'
+      ':'
+      PathType 'u32'
+      ';'
+    '}'
+  Data
+    'data'
+    'Words'
+    '{'
+    Field
+      'case'
+      ':'
+      PathType 'u8'
+      ';'
+    Field
+      'data'
+      ':'
+      ArrayType
+        '['
+        PathType 'u8'
+        ';'
+        Literal '4'
+        ']'
+      ';'
+    '}'

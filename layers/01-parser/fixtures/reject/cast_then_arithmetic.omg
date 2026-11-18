@@ -1,0 +1,4 @@
+// A `-` directly after a cast begins a cast entry, never a subtraction.
+machine f(a: u32) -> i64 {
+    a as i64 - 1
+}

@@ -1,0 +1,23 @@
+// GRAMMAR.md: no word is reserved. Each of these words is a name wherever a name is expected.
+machine names(machine: u32, data: u32, match: u32, transition: u32, let: u32, block: u32, move: u32) -> u32 {
+    let result = machine + data;
+    let use = match + transition;
+    let if = let + block;
+    let mut = move;
+    let mut mut = mut;
+    data = 3;
+    machine.run();
+    block(use);
+    if(result);
+    let total = if + mut;
+    match = match.field;
+    asm = public;
+    use(e.owner);
+    suspend
+}
+
+data machine {
+    use: u8;
+    public: u8;
+    machine: u8;
+}

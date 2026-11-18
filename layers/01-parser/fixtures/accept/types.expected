@@ -1,0 +1,222 @@
+File
+  Machine
+    'machine'
+    Path 'types'
+    Params
+      '('
+      Param
+        'a'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'b'
+        ':'
+        PathType 'core' '::' 'Level'
+      ','
+      Param
+        'c'
+        ':'
+        PathType
+          'Outcome'
+          TypeArgs
+            '<'
+            PathType 'u32'
+            ','
+            PathType 'Never'
+            '>'
+      ','
+      Param
+        'd'
+        ':'
+        PathType
+          'Vec'
+          TypeArgs
+            '<'
+            PathType
+              'Vec'
+              TypeArgs
+                '<'
+                PathType 'u8'
+                '>'
+            '>'
+      ','
+      Param
+        'e'
+        ':'
+        PathType
+          'Envelope'
+          TypeArgs
+            '<'
+            PathType 'u32'
+            '>'
+          '::'
+          'Body'
+      ','
+      Param
+        'f'
+        ':'
+        ReferenceType
+          '&'
+          PathType 'u8'
+      ','
+      Param
+        'g'
+        ':'
+        ReferenceType
+          '&'
+          'mut'
+          SliceType
+            '['
+            PathType 'u8'
+            ']'
+      ','
+      Param
+        'h'
+        ':'
+        ReferenceType
+          '&'
+          Lifetime ''' 'a'
+          'mut'
+          PathType 'S'
+      ','
+      Param
+        'i'
+        ':'
+        ArrayType
+          '['
+          PathType 'u8'
+          ';'
+          Literal '38'
+          ']'
+      ','
+      Param
+        'j'
+        ':'
+        ArrayType
+          '['
+          ArrayType
+            '['
+            PathType 'u8'
+            ';'
+            Literal '4'
+            ']'
+          ';'
+          Binary
+            PathExpression 'N'
+            '*'
+            Literal '2'
+          ']'
+      ','
+      Param
+        'k'
+        ':'
+        MachineType
+          'machine'
+          Params
+            '('
+            Param
+              'value'
+              ':'
+              PathType 'u32'
+            ')'
+          Result
+            '->'
+            PathType 'u32'
+      ','
+      Param
+        'l'
+        ':'
+        MachineType
+          'machine'
+          GenericParams
+            '<'
+            TypeParam 'T'
+            '>'
+          Params
+            '('
+            Param
+              'value'
+              ':'
+              PathType 'T'
+            ')'
+          Reaches
+            'reaches'
+            PathType 'none'
+      ','
+      Param
+        'm'
+        ':'
+        FunctionType
+          PathType 'A'
+          '->'
+          PathType 'B'
+      ','
+      Param
+        'n'
+        ':'
+        QualifiedType
+          PathType 'i32'
+          'in'
+          PathType 'Km'
+          '&'
+          PathType 'Positive'
+      ','
+      Param
+        'o'
+        ':'
+        PathType
+          'ByteBuffer'
+          TypeArgs
+            '<'
+            Literal '64'
+            '>'
+      ','
+      Param
+        'p'
+        ':'
+        PathType
+          'Buffer'
+          TypeArgs
+            '<'
+            Binary
+              PathExpression 'N'
+              '+'
+              Literal '1'
+            ','
+            Paren
+              '('
+              PathExpression 'M'
+              ')'
+            '>'
+      ','
+      Param
+        'q'
+        ':'
+        ReferenceType
+          '&'
+          PathType 'mut'
+      ','
+      Param
+        'r'
+        ':'
+        PathType 'machine'
+      ','
+      ')'
+    Result
+      '->'
+      QualifiedType
+        ReferenceType
+          '&'
+          Lifetime ''' 'a'
+          SliceType
+            '['
+            PathType 'u8'
+            ']'
+        'in'
+        PathType 'NonEmpty'
+    Body
+      '{'
+      Tail
+        PathExpression 'a'
+      '}'

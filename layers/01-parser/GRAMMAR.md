@@ -1,8 +1,11 @@
 # L1 Parser grammar
 
-Status: **all ten decisions made (2026-11-18); this is the parser's contract
-in draft.** It becomes final when the fixtures written from it pass. No
-parser code exists yet.
+Status: **built against this document on 2026-11-18; gate passed; waiting for
+Jarod's sign-off.** All ten decisions are made. The parser in `src/` follows
+this grammar, every rule below has fixtures (see [Rules and their
+fixtures](#rules-and-their-fixtures)), and all 132 spec examples parse.
+Building it changed the grammar in seven places and raised two questions;
+both are listed under [What building it found](#what-building-it-found).
 
 The spec has no grammar, so this document is one. Its sources, in order of
 authority:
@@ -17,7 +20,12 @@ authority:
 The parser's input is the lexer's tokens. No word is reserved: every word
 below, `machine` included, arrives as a plain word and means something only
 in the position this grammar gives it. A name such as `block` or `result` is
-legal wherever a name is expected.
+legal wherever a name is expected. The exact tests are under [When a word is
+a keyword](#when-a-word-is-a-keyword).
+
+The parser never tries one reading and falls back to another. Every choice
+is made by looking ahead a bounded distance and committing. Where that costs
+the language a corner, the corner is stated at the rule.
 
 ## Notation
 
@@ -45,10 +53,31 @@ A file's namespace comes from its directory; there is no `module` header
     path       = word ( '::' word )*
     type_args  = '<' ( generic_arg % ',' ) '>'            in types and declarations
     expr_args  = '::' '<' ( generic_arg % ',' ) '>'       in expressions
-    generic_arg = type | expression | '(' selection ')'
+    generic_arg = lifetime | type | expression
 
 In a declaration or a type, `<` after a name can only open generic arguments,
-so it is written bare: `Outcome<u32, Never>`, `machine sort<T>(...)`.
+so it is written bare: `Outcome<u32, Never>`, `machine sort<T>(...)`. That
+holds after `as` as well: `x as u32 < y` is refused and is written
+`(x as u32) < y`.
+
+**Type or value?** A generic argument is a type (`Outcome<u32, Never>`) or a
+value (`ByteBuffer<64>`, `Buffer<N * 2>`), and the two can start alike. The
+parser decides by looking ahead:
+
+1. Skip any `[` the argument opens with.
+2. `&` or `machine(` there begins a type.
+3. A name there, with any `::name` parts, begins a type if the token after
+   it is `<` or `->`, or ends the argument: `,` or `>` at the top, `]` or `;`
+   inside brackets. So `[u8]` and `[u8; 4]` are types, and `[a, b]` and
+   `[f(x)]` are array literals.
+4. Anything else is an expression. In it, `>` ends the argument, so a
+   greater-than comparison there is written in parentheses.
+
+`Buffer<N>` therefore holds a type-shaped `N` that may turn out to name a
+value; the resolver tells which. Two shapes land on the wrong side and are
+written with parentheses: a value that begins with a generic type,
+`Buffer<(Other::<T>::SIZE + 1)>`, and an array literal of one bare name,
+`Routes<[(open_file)]>`.
 
 In an expression, generic arguments are written with `::` first, and a bare
 `<` after a name is always less-than (decision 7). The parser never looks
@@ -85,9 +114,9 @@ untyped `const clear_a = (clear satisfies A::clear);`
     data        = visibility? 'data' word generic_params? attributes? dropped_by?
                   ( '=' type ';' | requires* '{' data_member* '}' )
     data_member = stable_number? word attributes? ':' ( type_in | data ) ';'
-                | stable_number? 'case' word ( '(' ( case_field % ',' ) ')' )? ';'
+                | stable_number? 'case' word ( '(' ( case_field % ',' )? ')' )? ';'
                 | data
-    case_field  = stable_number? word ':' type
+    case_field  = stable_number? word ':' type_in
     stable_number = '#' integer
     attributes  = '[' ( attribute % ',' ) ']'
     attribute   = word ( '(' ( word ':' word ) % ',' ')' )?
@@ -138,11 +167,12 @@ and a restricted alias
 
     conformance = visibility? word generic_params? 'satisfies' type
                   hypothesis* '{' machine* '}'
-    hypothesis  = 'requires' 'machine' word '(' params ')' result? clause* ';'
 
 `public SaturatingIncrement satisfies Incrementable<Counter> { ... }`
 (language/conformances.md:39), and with hypotheses (proofs/quotients.md:196).
-A hypothesis is the one clause that ends in a semicolon before a body.
+A hypothesis is defined under [Header clauses](#header-clauses); it is the
+only clause a conformance takes. `public satisfies T { }` declares a
+conformance for a type named `public`.
 
 ### machine
 
@@ -197,11 +227,11 @@ proofs/mathematical_bindings.md:63 and :226.
 
 ## Types
 
-    type        = '&' lifetime? 'mut'? type
+    type        = type_operand ( '->' type )?
+    type_operand = '&' lifetime? 'mut'? type_operand
                 | '[' type ']'
                 | '[' type ';' expression ']'
                 | machine_type
-                | type '->' type
                 | path_type
     path_type   = word type_args? ( '::' word type_args? )*
     type_in     = type ( 'in' type_domains )?
@@ -213,22 +243,51 @@ References and views `&[u8]`, `&mut [u8]`, `&'a U`, `&'a mut S`
 (language/data_and_literals.md:109, language/some_packages.md:15), arrays
 `[u8; 38]` (language/expressions.md:526), machine types as field and
 parameter types (language/effects.md:201), function types `A -> B` in
-mathematical declarations (proofs/mathematical_bindings.md:63), and
-qualification `i32 in Km & Positive` (language/domains.md:572).
+mathematical declarations and in machine parameters
+(proofs/mathematical_bindings.md:63 and :226), and qualification
+`i32 in Km & Positive` (language/domains.md:572).
+
+- **The function arrow** groups to the right, and `&A -> B` is a function
+  from `&A`. It is a type everywhere except directly after `as`: in an arm
+  written `x as T -> ...` the arrow belongs to the arm.
+- **`machine` alone is a name.** It is a machine type when `(` or `<`
+  follows it, which is how `const F: machine` (an inferred machine) parses.
+- **A machine type inside `<...>` ends at the closing `>`**, even in the
+  middle of one of its clauses: in
+  `<const F: machine(v: u64) -> u64 ensures result >= v>` the last `>` closes
+  the list (language/effects.md:571). A greater-than comparison in such a
+  clause is written in parentheses.
+- **A reference to a reference is written `& &T`.** The lexer reads `&&` as
+  one token, and no type begins with it. The same holds for `& &x` in an
+  expression. See [What building it found](#what-building-it-found).
 
 ## Header clauses
 
-    clause = requires | 'ensures' expression
-           | 'reaches' ( 'none' | type )
-           | 'crashes' ( 'none' | path )
-           | 'blocks' 'false'?
-           | 'suspends' 'false'?
-           | 'terminates' ( 'by' expression ( '->' expression )? ( 'in' expression )? )?
-           | 'invokes' path
+    clause = requires | hypothesis | 'ensures' expression
+           | 'reaches' type
+           | 'crashes' type
+           | 'blocks' ( 'true' | 'false' )?
+           | 'suspends' ( 'true' | 'false' )?
+           | 'terminates' ( 'by' expression ( '->' expression )? ( 'in' bound )? )?
+           | 'invokes' type
            | 'satisfies' type
            | 'registers' word '=' expression
-           | 'clobbers' ( 'none' | word % ',' )
-    requires = 'requires' expression
+           | 'clobbers' word ( ',' word )*
+    requires   = 'requires' expression
+    hypothesis = 'requires' 'machine' word '(' params ')' result? clause* ';'
+    bound      = expression ( ( '..' | '..=' ) expression )?
+
+- `none` after `reaches`, `crashes` and `clobbers` is an ordinary name to the
+  parser; what it means is a later layer's question.
+- **A hypothesis is the one clause that ends in a semicolon.** It assumes a
+  machine with that signature exists, and it carries clauses of its own;
+  without the `;` there would be no telling where they stop and the enclosing
+  header's clauses resume. It appears on machines
+  (proofs/mathematical_bindings.md:226) and on conformances
+  (proofs/quotients.md:196).
+- The bound of `terminates by ... in` may be a range, `in 0..=limit`
+  (language/termination.md:35). A range is not an expression anywhere else
+  except inside index brackets.
 
 - **Nothing separates a clause from what follows** (decision 4). A clause
   ends at the next clause word or at the `{`. A `;` or `,` between a clause
@@ -273,7 +332,13 @@ qualification `i32 in Km & Positive` (language/domains.md:572).
   (language/ownership.md:309).
 - Discard `_ = builder.tests.group::<Tests::memory>();`
   (build/scoped_execution.md:302, in V2's spelling).
-- The last expression of a body, with no semicolon, is its result.
+- The last expression of a body, with no semicolon, is its result. Nothing
+  executable follows it, and nothing executable follows a `transition`.
+- A `match` used as a statement ends with `;` like any other expression.
+- **`if` gets its own error.** `if` is not reserved, so `if(ready);` is a
+  call to a machine named `if` and parses. A statement that begins with the
+  word `if` and then fails to parse is reported as "Omega has no `if`
+  statement", at the `if`.
 
 ## match and transition
 
@@ -303,18 +368,36 @@ qualification `i32 in Km & Positive` (language/domains.md:572).
 
 ## Patterns
 
-    pattern = '_' | literal | path
+    pattern = '_'
+            | '(' ( pattern % ',' )? ')'
             | path '{' ( field_pattern % ',' )? '..'? '}'
-            | '(' ( pattern % ',' ) ')'
+            | expression
     field_pattern = word ( 'as' ( word | '_' ) | ':' expression )?
 
 "`field` binds the field, `field as name` renames it, `field as _` waives it,
 and `field: value` is ordinary projected equality" (language/patterns.md,
 "Pattern subjects and bindings").
 
+- **A pattern may be any expression.** With no subject an arm's pattern is a
+  condition, and with one it may be a literal, a constant or a computed
+  value. An expression pattern cannot hold a record literal at its top level,
+  since `Name {` there begins a record pattern.
+- **A pattern that is one bare word** is recorded as a binding. Whether the
+  word binds a new name or names a constant or a case is a question about
+  what it refers to, which the resolver answers.
+- **Tuple pattern or parenthesized condition?** Both start with `(`. The
+  parser finds the matching `)` and looks at the one token after it: `->`,
+  `,`, `)`, `=`, `:` or `;` ends a pattern, so the parentheses were a pattern;
+  anything else continues an expression, so they were part of a condition.
+  `(a, b) -> ...` is a tuple pattern and `(a + b) > c -> ...` is a condition.
+- One pattern in parentheses with no comma is that pattern, grouped. `()`,
+  `(a,)` and `(a, b)` are tuples.
+- `..` stands for every field not written, so it comes last, in a record
+  pattern and in a record literal.
+
 ## Expressions
 
-    primary = literal | expr_path | '(' expression ')' | '(' expression % ',' ')'
+    primary = literal | expr_path | '(' ')' | '(' expression ')' | '(' expression % ',' ')'
             | expr_path '{' ( field_init % ',' )? '..'? '}'
             | '[' ( expression % ',' )? ']'
             | match
@@ -327,6 +410,9 @@ and `field: value` is ordinary projected equality" (language/patterns.md,
     prefix  = ( '&' 'mut'? | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix
     cast    = prefix ( 'as' type? cast_entry* )*
     cast_entry = ( '+' | '-' | '=' ) path_type
+
+A cast binds tighter than every binary operator and looser than a prefix, so
+`-a as i64` casts `-a` and `a as u64 * 2` multiplies the cast.
 
 Binary operators, tightest first, all left-associative (decision 6; this is
 V1's table, checked in `expressions/operators.rs`, and it agrees with the two
@@ -357,8 +443,15 @@ Bitwise operators bind tighter than comparisons, unlike C.
   cast therefore begins an entry, never an addition or subtraction"
   (language/expressions.md). Examples at language/domains.md:623 and :701.
 - **Call markers** `suspend`, `block`, `suspend block` come before a call
-  (language/effects.md:871). `block` and `suspend` are prefixes only when
-  the next token is not `(`, so a machine named `block` can still be called.
+  (language/effects.md:871). `move`, `suspend` and `block` are prefixes only
+  directly before another word, so each is still a name everywhere else:
+  `block(x)` calls a machine named `block`.
+- **`mut` after `&`** is the marker only if an operand follows it; `&mut;`
+  borrows a name spelled `mut`.
+- **A record literal needs parentheses** where a `{` after a name means
+  something else: in the subject of a `match` or `transition`, in a clause's
+  predicate, and at the top of a pattern.
+- A field is reached by name. There is no `pair.0`.
 - Record literals with shorthand and explicit omission `..`
   (language/data_and_literals.md:172).
 - Membership `self in Value::Integer` (language/data_and_literals.md:272).
@@ -388,7 +481,68 @@ Parsed in this layer, as the spec defines it (decision 8).
 - Operands are parsed as ordinary expressions. Whether a mnemonic exists and
   takes those operands is not this layer's question.
 - `asm machine` at the top of a file is an item; nested, it follows the
-  instructions of its parent.
+  instructions of its parent. A plain `machine` inside an assembly machine is
+  refused with a message that says to write `asm machine`.
+- `asm` begins a block when `{` or a clause word follows it; otherwise it is
+  a name.
+
+## When a word is a keyword
+
+No word is reserved (decision 5), so each word that the grammar gives a
+meaning has a test for when it has that meaning. Everywhere the test fails,
+the word is an ordinary name.
+
+| Word | Is a keyword when | So this is still a name |
+| --- | --- | --- |
+| `use`, `const`, `data`, `trait` | a declaration can start here and a name follows | `data = 3;` |
+| `domain` | a declaration can start here and a name or `<` follows | `domain.size` |
+| `machine` | a declaration can start here and a name, or an operator and a name, follows | `machine.run();` |
+| `machine` (in a type) | `(` or `<` follows | `const F: machine` |
+| `asm` | `machine` and a name follow; or, in a body, `{` or a clause word follows | `asm = public;` |
+| `let` (top of file) | a name and then `(` or `<` follow | |
+| `let` (in a body) | a name or `(` follows | `let = 3;` |
+| `public` | a declaration follows | `public satisfies T { }` |
+| `boundary` | `trait`, `machine` or `let` follows, as a declaration | |
+| `match`, `transition` | `{` follows, or a token that can start a subject | `match = match.field;` |
+| `mut` | after `&` or `let`, and an operand or pattern follows | `let mut = move;` |
+| `move`, `suspend`, `block` | directly before another word | `block(use);` |
+| `case` (in data) | a name follows | `case: u8;` |
+| `const`, `machine`, `some` (generic parameter) | a name follows | `<const, machine, some>` |
+| `as`, `in`, `by`, `satisfies`, `access`, `dropped by` | only in the position its rule names | |
+| clause words | where a clause can start, which is after a complete header part | `requires a < reaches` |
+| `self`, `none`, `true`, `false` | never; to the parser they are names | |
+| `_` | at the start of a pattern, and before `=` at the start of a statement | |
+
+Two words in a row are never a legal expression, which is why "a name
+follows" is a safe test for a declaration.
+
+The cost is in one place. A machine named `match` or `transition` cannot be
+called as `match(x)`, because `(x)` could be a subject.
+
+## Limits
+
+- **Nesting is followed 128 levels deep.** Brackets, types, patterns, bodies
+  and nested declarations each count. Past that the file is refused. The spec
+  states no limit; this one exists so that a hostile file cannot run the
+  parser out of stack, and it is far beyond anything a person writes. A long
+  chain such as `a + a + ... + a` or `f()()()` is not nesting and has no
+  limit.
+
+## Fragments
+
+The compiler parses files. The parser has a second entry point,
+`parse_fragment`, that exists for one reason: most of the spec's examples
+are not files. It accepts three shapes:
+
+- **Statements**: declarations and statements in any order. An expression
+  with no `;` is accepted wherever it ends, because the spec lists bare
+  expressions one per line to show forms.
+- **Clauses**: header clauses with no header, with an optional final `;`.
+- **GenericParam**: one generic parameter with no list around it.
+
+Four examples are parsed as one of the narrower shapes; they are named in
+`tests/spec_corpus.rs`. Every fixture is a whole file and goes through
+`parse_file`.
 
 ## How the spec's examples change
 
@@ -407,6 +561,78 @@ Also not source, and tagged as such in the corpus: bodies written `{ ... }`
 (build/task_runtime.md:133, language/data_and_literals.md:20,
 language/generics.md:636), and the many examples that are fragments
 (statements, clauses or expressions outside any declaration).
+
+## Rules and their fixtures
+
+Every fixture is a whole file under `fixtures/`, parsed with `parse_file`.
+An accept fixture's `.expected` is its tree; a reject fixture's is the one
+error it must produce. 22 accept, 94 reject.
+
+| Rule | Accept fixture | Reject fixtures |
+| --- | --- | --- |
+| file, items | `empty`, `comments_only` | `top_level_expression`, `top_level_let_statement`, `stray_closing_brace`, `boundary_data` |
+| use, const | `use_and_const` | `use_with_glob`, `use_without_semicolon`, `public_use`, `const_without_value` |
+| data | `data` | `data_without_body`, `data_member_without_semicolon`, `data_case_without_name`, `stable_number_is_not_an_integer`, `attribute_list_unclosed`, `attribute_setting_without_value`, `dropped_without_by`, `semicolon_before_data_body` |
+| domain | `domains` | `domain_with_body`, `domain_composition_with_comma` |
+| trait, conformance | `traits_and_conformances` | `trait_requirement_with_body`, `trait_with_field`, `restriction_without_star`, `conformance_with_statement`, `conformance_without_body`, `hypothesis_without_semicolon` |
+| machine | `machines` | `missing_machine_params`, `missing_param_type`, `missing_result_type`, `machine_without_body_or_semicolon`, `operator_machine_with_unknown_operator`, `unclosed_params`, `unclosed_body` |
+| mathematical let | `math_let` | `math_let_without_type`, `public_math_let` |
+| generic parameters | `generic_params` | `generic_params_empty`, `generic_params_unclosed`, `const_param_without_type` |
+| generic arguments | `generic_arguments` | `generic_args_empty`, `generic_args_unclosed`, `generic_arg_value_starting_with_type`, `generic_arg_greater_than`, `turbofish_in_type` |
+| types | `types`, `reference_to_reference` | `array_type_without_length`, `slice_type_unclosed`, `type_missing_after_reference`, `qualified_type_without_domain`, `reference_to_reference_unspaced` |
+| header clauses | `clauses` | `semicolon_before_body`, `comma_before_body`, `clause_without_predicate`, `terminates_by_without_measure`, `reaches_without_type`, `registers_without_value`, `clobbers_without_name`, `record_literal_in_clause` |
+| statements | `statements` | `if_statement`, `if_statement_parenthesized`, `return_statement`, `compound_assignment`, `crash_statement`, `empty_statement`, `let_with_literal_pattern`, `let_without_semicolon`, `statement_after_tail`, `statement_after_nested_machine`, `transition_not_last` |
+| match, transition | `match_and_transition` | `missing_arm_comma`, `missing_arm_comma_in_transition`, `fat_arrow_arm`, `arm_without_result`, `arm_result_is_block`, `match_without_arms`, `record_literal_as_subject`, `transition_as_expression` |
+| patterns | `patterns` | `record_pattern_rest_not_last`, `field_pattern_as_without_name` |
+| binary operators | `expressions_binary` | `missing_operand`, `two_operators` |
+| right shift | `right_shift` | `right_shift_with_space` |
+| prefixes, postfixes, primaries | `expressions_unary_postfix` | `unary_plus`, `unclosed_call`, `unclosed_index`, `unclosed_parenthesis`, `field_access_by_number`, `path_ending_in_colons`, `record_literal_missing_comma`, `record_literal_omission_not_last`, `selection_without_trait` |
+| casts | `casts` | `cast_then_arithmetic`, `cast_then_less_than` |
+| assembly | `assembly` | `asm_instructions_without_separator`, `asm_transition_without_target`, `asm_machine_holding_a_machine`, `asm_block_unclosed` |
+| no reserved words | `words_are_not_reserved` | covered by the rows above: each keyword test has a fixture on each side |
+| nesting limit | `tests/hostile_inputs.rs` (100 levels parse) | `nesting_too_deep`, and 17 constructs at 100,000 levels in `tests/hostile_inputs.rs` |
+
+Beyond the fixtures, `tests/hostile_inputs.rs` checks that the parser refuses
+without crashing or hanging: every recursive rule nested 100,000 deep on a
+1 MB stack, five inputs that make a try-and-rewind parser take exponential
+time, 30,000 random sources built from the grammar's own vocabulary, and
+every accept fixture with each of its tokens removed in turn (3,300 files).
+
+Every tree any test accepts is also checked for four things that do not
+depend on the grammar: it is one well-formed tree, no node is unfinished or
+empty, it holds every meaningful token exactly once in order, and every
+bracket closes inside the node that opened it.
+
+## What building it found
+
+The parser was written from this document and then run over the spec's 132
+examples. 125 parsed on the first run. The other seven each showed something
+the grammar had missed; all 132 parse now.
+
+| # | Example | What the grammar had | What the example needs | Resolution |
+| --- | --- | --- | --- | --- |
+| F1 | language/effects.md:571 | A machine type's clauses were ordinary predicates. | `<const F: machine(v: u64) -> u64 ensures result >= value>`: the clause ends at the `>` that closes the list. | Inside `<...>`, a `>` ends a machine type's clause. |
+| F2 | proofs/mathematical_bindings.md:226 | Function types only in mathematical `let`. | A machine parameter typed `A -> core::Strict<v>`. | `A -> B` is a type everywhere except directly after `as`. |
+| F3 | proofs/mathematical_bindings.md:226 | A hypothesis only on a conformance. | `requires machine Step(...) ...;` on a machine. | A hypothesis is a clause; a conformance takes only that one. |
+| F4 | language/termination.md:35 | `terminates by e in e`. | `in 0..=limit`. | The bound may be a range. |
+| F5 | resources/access.md:83 | A generic argument starting `[` was a type. | `IssuedByAny<2, [reflect::callable(a), ...]>`, an array literal. | The lookahead rule under [generic arguments](#names-and-the-two-spellings-of-generic-arguments). |
+| F6 | language/patterns.md:82, language/reflection.md:77 | Fragments were statements. | Bare expressions listed one per line. | The Statements fragment accepts an expression wherever it ends. Files are unaffected. |
+| F7 | resources/content_custody.md:129 | A clause fragment ended at its last clause. | A final `;`, as on a bodyless declaration. | The Clauses fragment accepts one. |
+
+Two things came up that are questions, not fixes. Both are in PLAN.md's
+owner questions.
+
+- **Comparisons chain, so an old-style generic call parses.** With bare `<`
+  as less-than and every operator grouping to the left, `apply<set_time>(x)`
+  is a valid expression: `(apply < set_time) > (x)`. Nobody means that. The
+  typer will refuse it, with a message about comparing a machine. Refusing a
+  comparison whose operand is itself a comparison would catch it here, with a
+  message that says to write `::<`. That departs from "all left-associative"
+  (decision 6), so it is not done. None of the 132 examples is affected: no
+  spec example chains comparisons.
+- **`&&` is one token.** A reference to a reference has to be written
+  `& &T`, and a borrow of a borrow `& &x`. Splitting the token in type and
+  prefix position would remove the corner. V1's lexer has the same token.
 
 ## Decisions
 

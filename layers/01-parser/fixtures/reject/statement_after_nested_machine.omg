@@ -1,0 +1,9 @@
+// "Once declarations begin, executable statements cannot resume."
+machine outer() {
+    first();
+
+    machine inner() {
+    }
+
+    second();
+}

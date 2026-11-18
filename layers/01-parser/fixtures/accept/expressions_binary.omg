@@ -1,0 +1,25 @@
+// GRAMMAR.md: binary operators. Each line shows one precedence boundary; all group to the left.
+machine precedence(a: u32, b: u32, c: u32, d: u32) {
+    _ = a || b && c;
+    _ = a && b == c;
+    _ = a == b < c;
+    _ = a < b in c;
+    _ = a in b | c;
+    _ = a | b ^ c;
+    _ = a ^ b & c;
+    _ = a & b << c;
+    _ = a << b + c;
+    _ = a + b * c;
+    _ = a - b - c;
+    _ = a / b / c;
+    _ = a * b + c * d;
+    _ = (a + b) * c;
+    _ = a != b && c >= d || a <= b;
+    _ = a +% b +| c +! d;
+    _ = a -% b -| c -! d;
+    _ = a *% b *| c *! d;
+    _ = a /% b /| c /! d;
+    _ = a %% b %| c %! d % a;
+    _ = a <<% b <<| c <<! d;
+    _ = self in Value::Integer;
+}

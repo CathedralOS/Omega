@@ -1,0 +1,4 @@
+error IfStatement at 3:5 bytes 72..74
+  found: if
+  expected: `transition`
+  Omega has no `if` statement; branch with `transition condition { true -> ..., false -> ... }`

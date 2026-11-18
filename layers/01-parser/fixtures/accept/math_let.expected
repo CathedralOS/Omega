@@ -1,0 +1,134 @@
+File
+  MathLet
+    'let'
+    'greater_than'
+    Params
+      '('
+      Param
+        'limit'
+        ':'
+        PathType 'i32'
+      ','
+      Param
+        'value'
+        ':'
+        PathType 'i32'
+      ')'
+    ':'
+    PathType
+      'core'
+      '::'
+      'Strict'
+      TypeArgs
+        '<'
+        Literal '0'
+        '>'
+    '='
+    Binary
+      PathExpression 'value'
+      '>'
+      PathExpression 'limit'
+    ';'
+  MathLet
+    'boundary'
+    'let'
+    'choose'
+    GenericParams
+      '<'
+      KindedParam
+        'u'
+        ':'
+        PathType 'core' '::' 'Level'
+      ','
+      KindedParam
+        'A'
+        ':'
+        PathType
+          'core'
+          '::'
+          'Type'
+          TypeArgs
+            '<'
+            PathType 'u'
+            '>'
+      '>'
+    Params
+      '('
+      Param
+        'present'
+        ':'
+        PathType
+          'core'
+          '::'
+          'Squash'
+          TypeArgs
+            '<'
+            PathType 'A'
+            '>'
+      ')'
+    ':'
+    PathType 'A'
+    ';'
+  MathLet
+    'let'
+    'compose'
+    GenericParams
+      '<'
+      TypeParam 'A'
+      ','
+      TypeParam 'B'
+      ','
+      TypeParam 'C'
+      '>'
+    Params
+      '('
+      Param
+        'first'
+        ':'
+        FunctionType
+          PathType 'A'
+          '->'
+          PathType 'B'
+      ','
+      Param
+        'second'
+        ':'
+        FunctionType
+          PathType 'B'
+          '->'
+          PathType 'C'
+      ')'
+    ':'
+    FunctionType
+      PathType 'A'
+      '->'
+      PathType 'C'
+    '='
+    PathExpression 'second'
+    ';'
+  MathLet
+    'let'
+    'curried'
+    Params
+      '('
+      Param
+        'f'
+        ':'
+        FunctionType
+          PathType 'A'
+          '->'
+          FunctionType
+            PathType 'B'
+            '->'
+            PathType 'C'
+      ')'
+    ':'
+    FunctionType
+      ReferenceType
+        '&'
+        PathType 'A'
+      '->'
+      PathType 'B'
+    '='
+    PathExpression 'f'
+    ';'

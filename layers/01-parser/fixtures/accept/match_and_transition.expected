@@ -1,0 +1,328 @@
+File
+  Machine
+    'machine'
+    Path 'dispatch'
+    Params
+      '('
+      Param
+        'command'
+        ':'
+        PathType 'Command'
+      ','
+      Param
+        'a'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'b'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Let
+        'let'
+        BindingPattern 'first'
+        '='
+        Match
+          'match'
+          FieldAccess
+            PathExpression 'command'
+            '.'
+            'op'
+          '{'
+          Arm
+            RecordPattern
+              PathExpression 'Command' '::' 'Operation' '::' 'GetUser'
+              '{'
+              FieldPattern 'user_id'
+              '}'
+            '->'
+            Call
+              PathExpression 'lookup'
+              Args
+                '('
+                PathExpression 'user_id'
+                ')'
+          ','
+          Arm
+            ValuePattern
+              PathExpression 'Command' '::' 'Operation' '::' 'CountUsers'
+            '->'
+            Call
+              PathExpression 'count'
+              Args '(' ')'
+          '}'
+        ';'
+      Let
+        'let'
+        BindingPattern 'second'
+        '='
+        Match
+          'match'
+          Tuple
+            '('
+            FieldAccess
+              PathExpression 'command'
+              '.'
+              'command_id'
+            ','
+            FieldAccess
+              PathExpression 'command'
+              '.'
+              'op'
+            ')'
+          '{'
+          Arm
+            TuplePattern
+              '('
+              ValuePattern
+                Literal '0'
+              ','
+              WildcardPattern '_'
+              ')'
+            '->'
+            Call
+              PathExpression 'reject'
+              Args '(' ')'
+          ','
+          Arm
+            TuplePattern
+              '('
+              WildcardPattern '_'
+              ','
+              RecordPattern
+                PathExpression 'Command' '::' 'Operation' '::' 'GetUser'
+                '{'
+                FieldPattern 'user_id'
+                '}'
+              ')'
+            '->'
+            Call
+              PathExpression 'lookup'
+              Args
+                '('
+                PathExpression 'user_id'
+                ')'
+          ','
+          Arm
+            TuplePattern
+              '('
+              WildcardPattern '_'
+              ','
+              ValuePattern
+                PathExpression 'Command' '::' 'Operation' '::' 'CountUsers'
+              ')'
+            '->'
+            Call
+              PathExpression 'count'
+              Args '(' ')'
+          ','
+          '}'
+        ';'
+      Let
+        'let'
+        BindingPattern 'third'
+        '='
+        Match
+          'match'
+          '{'
+          Arm
+            ValuePattern
+              Binary
+                PathExpression 'a'
+                '>'
+                PathExpression 'b'
+            '->'
+            PathExpression 'a'
+          ','
+          Arm
+            WildcardPattern '_'
+            '->'
+            PathExpression 'b'
+          '}'
+        ';'
+      Let
+        'let'
+        BindingPattern 'fourth'
+        '='
+        Match
+          'match'
+          PathExpression 'a'
+          '{'
+          Arm
+            ValuePattern
+              Literal '0'
+            '->'
+            Match
+              'match'
+              PathExpression 'b'
+              '{'
+              Arm
+                ValuePattern
+                  Literal '0'
+                '->'
+                Literal '1'
+              ','
+              Arm
+                WildcardPattern '_'
+                '->'
+                Literal '2'
+              '}'
+          ','
+          Arm
+            WildcardPattern '_'
+            '->'
+            Literal '3'
+          '}'
+        ';'
+      Let
+        'let'
+        BindingPattern 'fifth'
+        '='
+        Match
+          'match'
+          Paren
+            '('
+            RecordLiteral
+              PathExpression 'Point'
+              '{'
+              FieldInit
+                'x'
+                ':'
+                PathExpression 'a'
+              ','
+              FieldInit
+                'y'
+                ':'
+                PathExpression 'b'
+              '}'
+            ')'
+          '{'
+          Arm
+            WildcardPattern '_'
+            '->'
+            Literal '0'
+          '}'
+        ';'
+      Transition
+        'transition'
+        '{'
+        Arm
+          ValuePattern
+            Binary
+              Paren
+                '('
+                Binary
+                  PathExpression 'a'
+                  '+'
+                  PathExpression 'b'
+                ')'
+              '>'
+              PathExpression 'first'
+          '->'
+          Call
+            PathExpression 'grow'
+            Args '(' ')'
+        ','
+        Arm
+          ParenPattern
+            '('
+            BindingPattern 'a'
+            ')'
+          '->'
+          Call
+            PathExpression 'same'
+            Args '(' ')'
+        ','
+        Arm
+          ValuePattern
+            Binary
+              Binary
+                PathExpression 'a'
+                '=='
+                PathExpression 'b'
+              '&&'
+              Binary
+                PathExpression 'second'
+                '>'
+                PathExpression 'third'
+          '->'
+          Call
+            PathExpression 'equal'
+            Args '(' ')'
+        ','
+        Arm
+          WildcardPattern '_'
+          '->'
+          Call
+            PathExpression 'shrink'
+            Args '(' ')'
+        ','
+        '}'
+      '}'
+  Machine
+    'machine'
+    Path 'one_line'
+    Params
+      '('
+      Param
+        'n'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Transition
+        'transition'
+        PathExpression 'n'
+        '{'
+        Arm
+          ValuePattern
+            Literal '0'
+          '->'
+          Call
+            PathExpression 'zero'
+            Args '(' ')'
+        ','
+        Arm
+          ValuePattern
+            Literal '1'
+          '->'
+          Call
+            PathExpression 'one'
+            Args '(' ')'
+        ','
+        Arm
+          WildcardPattern '_'
+          '->'
+          Call
+            PathExpression 'many'
+            Args '(' ')'
+        '}'
+      '}'
+  Machine
+    'machine'
+    Path 'no_arms'
+    Params
+      '('
+      Param
+        'n'
+        ':'
+        PathType 'Never'
+      ')'
+    Body
+      '{'
+      Transition
+        'transition'
+        PathExpression 'n'
+        '{'
+        '}'
+      '}'

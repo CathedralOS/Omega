@@ -1,0 +1,263 @@
+//! Measures how fast the parser turns tokens into a tree, next to how fast the lexer made the tokens.
+//!
+//!     cargo run --release -p omega-parser --example parse_throughput
+//!     cargo run --release -p omega-parser --example parse_throughput -- --rounds 15
+//!
+//! There is no large body of V2 source yet: V1's source tree is written in V1's syntax, which this
+//! grammar refuses on purpose. So the workload is this crate's own accept fixtures, laid end to
+//! end and repeated until there are about 64 MB of them. Every construct in the grammar is in
+//! there, in proportions nobody chose, so read the number as "the parser on dense, varied source",
+//! not as a prediction for a real program.
+//!
+//! The last line printed is for comparing two builds of the parser:
+//!
+//!     RESULT parse_min_ms=154.0 parse_median_ms=158.2 floor_min_ms=41.0 lex_min_ms=136.0 fingerprint=9f3a...
+//!
+//! :TwoWorkloads
+//! By default the bytes are one 64 MB file. With `--files` they are the same bytes as 5,000-odd
+//! files of 12 KB, lexed and parsed one after another. The second is what a compiler does, and
+//! the two behave differently: a 64 MB file has 870 MB of tokens, so every pass over them waits
+//! on memory, while a 12 KB file's tokens stay in the cache. Tune against `--files`; keep the
+//! single file as a check that nothing depends on the input being small.
+//!
+//! Two builds that print the same fingerprint built the same tree, event for event. The floor is
+//! a loop that does the least any parser over these tokens could do: skip whitespace and comments
+//! and write one event per token that is left. It has no grammar in it, so the gap between the
+//! floor and the parse time is what the grammar costs.
+
+use omega_lexer::{Token, lex_into};
+use omega_parser::{Event, SyntaxTree, parse_file};
+use std::path::Path;
+use std::time::{Duration, Instant};
+
+const TARGET_BYTE_COUNT: usize = 64 * 1024 * 1024;
+const DEFAULT_ROUND_COUNT: usize = 9;
+
+fn main() {
+    let arguments: Vec<String> = std::env::args().collect();
+    let round_count = arguments
+        .iter()
+        .position(|argument| argument == "--rounds")
+        .and_then(|flag_position| arguments.get(flag_position + 1))
+        .and_then(|round_text| round_text.parse().ok())
+        .unwrap_or(DEFAULT_ROUND_COUNT);
+
+    // `--files`: the same bytes as many small files instead of one large one. See :TwoWorkloads.
+    let is_many_files = arguments.iter().any(|argument| argument == "--files");
+    let (one_copy, fixture_count, copy_count) = build_workload();
+    let (source_bytes, parse_count) = if is_many_files {
+        (one_copy, copy_count)
+    } else {
+        (one_copy.repeat(copy_count), 1)
+    };
+    let megabyte_count = (source_bytes.len() * parse_count) as f64 / (1024.0 * 1024.0);
+
+    let mut tokens = Vec::new();
+    let mut lex_durations = Vec::new();
+    let mut parse_durations = Vec::new();
+    let mut floor_durations = Vec::new();
+    let mut event_count = 0usize;
+    let mut meaningful_token_count = 0usize;
+    let mut fingerprint = 0u64;
+
+    for _ in 0..round_count {
+        let mut lex_duration = Duration::ZERO;
+        let mut parse_duration = Duration::ZERO;
+        let mut floor_duration = Duration::ZERO;
+
+        for _ in 0..parse_count {
+            let lex_started_at = Instant::now();
+
+            if let Err(lex_error) = lex_into(&source_bytes, &mut tokens) {
+                eprintln!("the fixtures do not lex: {lex_error}");
+                std::process::exit(1);
+            }
+
+            lex_duration += lex_started_at.elapsed();
+
+            let parse_started_at = Instant::now();
+            let parse_result = parse_file(&source_bytes, &tokens);
+
+            parse_duration += parse_started_at.elapsed();
+
+            match parse_result {
+                Ok(syntax_tree) => {
+                    event_count = syntax_tree.get_events().len() * parse_count;
+                    meaningful_token_count = syntax_tree.get_meaningful_token_indices().len() * parse_count;
+
+                    // The tree is the same every time; hashing it once is enough.
+                    if fingerprint == 0 {
+                        fingerprint = get_fingerprint(&syntax_tree);
+                    }
+                }
+                Err(parse_error) => {
+                    eprintln!("the fixtures do not parse: {parse_error}");
+                    std::process::exit(1);
+                }
+            }
+
+            let floor_started_at = Instant::now();
+            let floor_event_count = run_floor(&tokens);
+
+            floor_duration += floor_started_at.elapsed();
+            std::hint::black_box(floor_event_count);
+        }
+
+        lex_durations.push(lex_duration);
+        parse_durations.push(parse_duration);
+        floor_durations.push(floor_duration);
+    }
+
+    let lex_minimum = get_minimum(&lex_durations);
+    let parse_minimum = get_minimum(&parse_durations);
+    let parse_median = get_median(&mut parse_durations);
+    let floor_minimum = get_minimum(&floor_durations);
+    let nanoseconds_per_token = parse_minimum.as_nanos() as f64 / meaningful_token_count as f64;
+    let floor_nanoseconds_per_token = floor_minimum.as_nanos() as f64 / meaningful_token_count as f64;
+
+    println!(
+        "{megabyte_count:.1} MB as {parse_count} file(s) of {} bytes: {fixture_count} fixtures x {copy_count} copies, {meaningful_token_count} meaningful tokens, {event_count} events, {round_count} rounds",
+        source_bytes.len()
+    );
+    println!(
+        "lex      {:>8.1} ms  {:>7.0} MB/s",
+        to_milliseconds(lex_minimum),
+        megabyte_count / lex_minimum.as_secs_f64()
+    );
+    println!(
+        "parse    {:>8.1} ms  {:>7.0} MB/s  {nanoseconds_per_token:.2} ns per meaningful token (median {:.1} ms)",
+        to_milliseconds(parse_minimum),
+        megabyte_count / parse_minimum.as_secs_f64(),
+        to_milliseconds(parse_median)
+    );
+    println!(
+        "floor    {:>8.1} ms  {:>7.0} MB/s  {floor_nanoseconds_per_token:.2} ns per meaningful token",
+        to_milliseconds(floor_minimum),
+        megabyte_count / floor_minimum.as_secs_f64()
+    );
+    println!(
+        "together {:>8.1} ms  {:>7.0} MB/s",
+        to_milliseconds(lex_minimum + parse_minimum),
+        megabyte_count / (lex_minimum + parse_minimum).as_secs_f64()
+    );
+    println!(
+        "events per meaningful token: {:.2}; tree bytes per source byte: {:.2}",
+        event_count as f64 / meaningful_token_count as f64,
+        (event_count * size_of::<Event>() + meaningful_token_count * size_of::<u32>()) as f64 / (source_bytes.len() * parse_count) as f64
+    );
+    println!(
+        "RESULT parse_min_ms={:.1} parse_median_ms={:.1} floor_min_ms={:.1} lex_min_ms={:.1} fingerprint={fingerprint:016x}",
+        to_milliseconds(parse_minimum),
+        to_milliseconds(parse_median),
+        to_milliseconds(floor_minimum),
+        to_milliseconds(lex_minimum)
+    );
+}
+
+/// Every accept fixture, end to end, repeated to about `TARGET_BYTE_COUNT`.
+fn build_workload() -> (Vec<u8>, usize, usize) {
+    let fixture_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/accept");
+
+    let mut fixture_paths: Vec<_> = match std::fs::read_dir(&fixture_directory) {
+        Ok(directory_entries) => directory_entries
+            .filter_map(|directory_entry| directory_entry.ok().map(|entry| entry.path()))
+            .filter(|fixture_path| {
+                fixture_path
+                    .extension()
+                    .is_some_and(|extension| extension == "omg")
+            })
+            .collect(),
+        Err(read_error) => {
+            eprintln!("could not read {}: {read_error}", fixture_directory.display());
+            std::process::exit(1);
+        }
+    };
+
+    fixture_paths.sort();
+
+    let mut one_copy = Vec::new();
+
+    for fixture_path in &fixture_paths {
+        match std::fs::read(fixture_path) {
+            Ok(fixture_bytes) => one_copy.extend_from_slice(&fixture_bytes),
+            Err(read_error) => {
+                eprintln!("could not read {}: {read_error}", fixture_path.display());
+                std::process::exit(1);
+            }
+        }
+    }
+
+    if one_copy.is_empty() {
+        eprintln!("no fixtures found in {}", fixture_directory.display());
+        std::process::exit(1);
+    }
+
+    let copy_count = TARGET_BYTE_COUNT.div_ceil(one_copy.len());
+
+    (one_copy.repeat(copy_count), fixture_paths.len(), copy_count)
+}
+
+/// The least a parser over these tokens could do: drop the trivia, number what is left, and write
+/// one event for each. No grammar, no lookahead, no nodes.
+fn run_floor(tokens: &[Token]) -> usize {
+    let mut meaningful_token_indices: Vec<u32> = Vec::with_capacity(tokens.len() / 2 + 1);
+    let mut events: Vec<Event> = Vec::with_capacity(tokens.len() * 2);
+
+    for (token_index, token) in tokens.iter().enumerate() {
+        if token.get_kind().is_trivia() {
+            continue;
+        }
+
+        meaningful_token_indices.push(token_index as u32);
+        events.push(Event::Token);
+    }
+
+    std::hint::black_box(&meaningful_token_indices);
+
+    events.len()
+}
+
+/// FNV-1a over every event and every token index. Equal fingerprints mean equal trees.
+fn get_fingerprint(syntax_tree: &SyntaxTree) -> u64 {
+    const FNV_OFFSET: u64 = 0xCBF2_9CE4_8422_2325;
+    const FNV_PRIME: u64 = 0x0000_0100_0000_01B3;
+
+    let mut hash = FNV_OFFSET;
+    let mut mix = |byte: u8| {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    };
+
+    for event in syntax_tree.get_events() {
+        match event {
+            Event::Open(node_kind) => {
+                mix(1);
+                mix(*node_kind as u8);
+            }
+            Event::Close => mix(2),
+            Event::Token => mix(3),
+        }
+    }
+
+    for token_index in syntax_tree.get_meaningful_token_indices() {
+        for byte in token_index.to_le_bytes() {
+            mix(byte);
+        }
+    }
+
+    hash
+}
+
+fn get_minimum(durations: &[Duration]) -> Duration {
+    durations.iter().copied().min().unwrap_or_default()
+}
+
+fn get_median(durations: &mut [Duration]) -> Duration {
+    durations.sort_unstable();
+
+    durations.get(durations.len() / 2).copied().unwrap_or_default()
+}
+
+fn to_milliseconds(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1000.0
+}

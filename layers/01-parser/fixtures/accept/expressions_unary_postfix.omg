@@ -1,0 +1,44 @@
+// GRAMMAR.md: prefixes, postfixes, primaries.
+machine operands(counter: Counter, view: &[u8], operations: Operations) {
+    _ = -a;
+    _ = !ready;
+    _ = ~mask;
+    _ = - -a;
+    _ = !-a.b;
+    _ = &counter;
+    _ = &mut counter;
+    _ = &mut;
+    _ = move counter;
+    _ = suspend read(view);
+    _ = block wait();
+    _ = suspend block wait();
+    _ = f();
+    _ = f(a, b,);
+    _ = counter.value.inner;
+    _ = counter.read().value;
+    _ = builder.tests.group::<Tests::memory>();
+    _ = (operations.value)(&counter);
+    _ = view[0];
+    _ = view[2..4];
+    _ = view[..];
+    _ = view[1..];
+    _ = view[..=3];
+    _ = view[a + 1][b];
+    _ = [1, 2, 3];
+    _ = [];
+    _ = [[1], [2],];
+    _ = ();
+    _ = (a);
+    _ = (a, b);
+    _ = (a,);
+    _ = Point { x: 1, y: 2 };
+    _ = Point { x, y };
+    _ = Point { x: 1, .. };
+    _ = Point { .. };
+    _ = Point { };
+    _ = Envelope::<u32>::Body::Value { value: 7 };
+    _ = integer::max::<i32>();
+    _ = Sensor::<29u64>::read();
+    _ = (clear satisfies A::clear);
+    _ = 1.5e3f32 + 0xFFu8 + "bytes"[0];
+}

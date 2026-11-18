@@ -1,0 +1,304 @@
+File
+  Machine
+    'machine'
+    Path 'precedence'
+    Params
+      '('
+      Param
+        'a'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'b'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'c'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'd'
+        ':'
+        PathType 'u32'
+      ')'
+    Body
+      '{'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '||'
+          Binary
+            PathExpression 'b'
+            '&&'
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '&&'
+          Binary
+            PathExpression 'b'
+            '=='
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '=='
+          Binary
+            PathExpression 'b'
+            '<'
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '<'
+          Binary
+            PathExpression 'b'
+            'in'
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          'in'
+          Binary
+            PathExpression 'b'
+            '|'
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '|'
+          Binary
+            PathExpression 'b'
+            '^'
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '^'
+          Binary
+            PathExpression 'b'
+            '&'
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '&'
+          Binary
+            PathExpression 'b'
+            '<<'
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '<<'
+          Binary
+            PathExpression 'b'
+            '+'
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '+'
+          Binary
+            PathExpression 'b'
+            '*'
+            PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            PathExpression 'a'
+            '-'
+            PathExpression 'b'
+          '-'
+          PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            PathExpression 'a'
+            '/'
+            PathExpression 'b'
+          '/'
+          PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            PathExpression 'a'
+            '*'
+            PathExpression 'b'
+          '+'
+          Binary
+            PathExpression 'c'
+            '*'
+            PathExpression 'd'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Paren
+            '('
+            Binary
+              PathExpression 'a'
+              '+'
+              PathExpression 'b'
+            ')'
+          '*'
+          PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            Binary
+              PathExpression 'a'
+              '!='
+              PathExpression 'b'
+            '&&'
+            Binary
+              PathExpression 'c'
+              '>='
+              PathExpression 'd'
+          '||'
+          Binary
+            PathExpression 'a'
+            '<='
+            PathExpression 'b'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            Binary
+              PathExpression 'a'
+              '+%'
+              PathExpression 'b'
+            '+|'
+            PathExpression 'c'
+          '+!'
+          PathExpression 'd'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            Binary
+              PathExpression 'a'
+              '-%'
+              PathExpression 'b'
+            '-|'
+            PathExpression 'c'
+          '-!'
+          PathExpression 'd'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            Binary
+              PathExpression 'a'
+              '*%'
+              PathExpression 'b'
+            '*|'
+            PathExpression 'c'
+          '*!'
+          PathExpression 'd'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            Binary
+              PathExpression 'a'
+              '/%'
+              PathExpression 'b'
+            '/|'
+            PathExpression 'c'
+          '/!'
+          PathExpression 'd'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            Binary
+              Binary
+                PathExpression 'a'
+                '%%'
+                PathExpression 'b'
+              '%|'
+              PathExpression 'c'
+            '%!'
+            PathExpression 'd'
+          '%'
+          PathExpression 'a'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            Binary
+              PathExpression 'a'
+              '<<%'
+              PathExpression 'b'
+            '<<|'
+            PathExpression 'c'
+          '<<!'
+          PathExpression 'd'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'self'
+          'in'
+          PathExpression 'Value' '::' 'Integer'
+        ';'
+      '}'

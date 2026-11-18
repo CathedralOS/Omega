@@ -1,0 +1,45 @@
+File
+  Machine
+    'machine'
+    Path 'f'
+    Params
+      '('
+      Param
+        'a'
+        ':'
+        ReferenceType
+          '&'
+          ReferenceType
+            '&'
+            PathType 'u8'
+      ','
+      Param
+        'b'
+        ':'
+        ReferenceType
+          '&'
+          ReferenceType
+            '&'
+            'mut'
+            PathType 'u8'
+      ')'
+    Body
+      '{'
+      Discard
+        '_'
+        '='
+        Borrow
+          '&'
+          Borrow
+            '&'
+            PathExpression 'a'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '&&'
+          PathExpression 'b'
+        ';'
+      '}'

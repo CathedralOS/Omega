@@ -123,7 +123,7 @@ Psi to native code) are not planned yet.
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
-| L1 Parser | tokens → syntax tree | grammar decided; fixtures next | — |
+| L1 Parser | tokens → syntax tree | built, gate passed 2026-11-18; waiting for sign-off | 1.1 s |
 | L2 Resolver | syntax tree → names resolved | not started | — |
 | L3 Typer | resolved tree → typed tree | not started | — |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
@@ -183,9 +183,30 @@ Psi to native code) are not planned yet.
 
 - **Spec owners:** none as a single document. The spec has no grammar; syntax
   is carried by examples spread across `wiki/spec/language/`.
-- **Draft grammar:** [layers/01-parser/GRAMMAR.md](layers/01-parser/GRAMMAR.md),
+- **Contract:** [layers/01-parser/GRAMMAR.md](layers/01-parser/GRAMMAR.md),
   derived from the spec's prose and all 132 examples, each form citing the
-  examples that show it. Not confirmed, and no parser code exists.
+  examples that show it. The parser in `layers/01-parser/src` was built
+  against it on 2026-11-18.
+- **Gate (2026-11-18), waiting for Jarod's sign-off:**
+
+  | Check | Result |
+  | --- | --- |
+  | Fixtures | 22 accept and 94 reject, each a whole file; every rule in the grammar has both. The table is in GRAMMAR.md. |
+  | Spec corpus | All 132 examples parse. 125 did on the first run; the other seven each showed a gap in the grammar, listed as F1 to F7 in GRAMMAR.md. |
+  | Independent check | Every accepted tree is one well-formed tree, has no empty or unfinished node, holds every meaningful token exactly once in order, and closes every bracket inside the node that opened it. |
+  | Hostile input | 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five inputs that make a try-and-rewind parser take exponential time are refused at once. 30,000 random sources and 3,300 one-token-removed fixtures never crash it or produce a malformed tree. |
+  | Mutation | 29 deliberate breakages of the parser, one rule each; the suite fails on all 29. |
+  | Suite time | 1.1 s, almost all of it the hostile-input tests in a debug build. |
+  | Speed | About 400 MB/s on one thread (383 and 416 in two runs), 9 to 10 ns per token, about the lexer's cost on the same bytes. Measured, not tuned; baseline and candidates in [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md). |
+
+- **Design:** recursive descent, one function per grammar rule, with
+  precedence climbing for binary operators. The tree is a flat list of
+  events over the lexer's tokens, not allocated nodes. The parser never tries
+  one reading and rewinds to another; each choice is made by bounded
+  lookahead, because readings that contain each other make a rewinding parser
+  exponential on hostile input.
+- **Left open by the build:** two owner questions, 5 and 6 below. Neither
+  blocks sign-off; both are corners a later decision can close.
 - **What it found:** four places where the spec disagrees with itself, and
   seven spec examples that V1's parser, as read, would refuse. The largest:
   the spec shows an `if` statement that V1 retired, and writes `match` arms
@@ -196,7 +217,7 @@ Psi to native code) are not planned yet.
   assembly is parsed, and the spec's newer forms are in. Generic arguments
   in expressions are written `::<`. Arms are
   separated by commas. All ten are decided, and the grammar is rewritten to
-  match; it is the parser's contract in draft until fixtures pass.
+  match.
 
 ### L2 to L4
 
@@ -500,8 +521,9 @@ before the layer that depends on it is signed off.
 
 | # | Gap | Evidence | Affects | Decision |
 | --- | --- | --- | --- | --- |
-| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Draft grammar written in `layers/01-parser/GRAMMAR.md`; ten decisions pending |
-| 10 | The spec's examples disagree with each other and with V1's parser. | A `requires` before a body is punctuated three ways in one file; an `if` statement appears once and is defined nowhere; `match` is shown with tuple patterns V1 does not parse. Full list in the grammar draft. | L1 | Open, decided with the grammar |
+| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01-parser/GRAMMAR.md`, all ten decisions made, parser built against it; accepted with L1 sign-off |
+| 11 | No limit on nesting is stated. | A parser that follows nesting without limit can be run out of stack by a small hostile file. | L1 | The parser follows 128 levels and refuses more; accepted with L1 sign-off |
+| 10 | The spec's examples disagree with each other and with V1's parser. | A `requires` before a body is punctuated three ways in one file; an `if` statement appears once and is defined nowhere; `match` is shown with tuple patterns V1 does not parse. Full list in the grammar. | L1 | Decided with the grammar; V2's copy of the spec's examples is rewritten to match, its prose is not yet |
 | 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Accepted with L0 sign-off (G2): `//` and nesting `/* */` |
 | 5 | No list of reserved words. | The spec gives only the shape of an identifier and says "no identifier is reserved for builtin types". | L0, L1 | Accepted with L0 sign-off (G1): the lexer has none; L1 decides |
 | 6 | Float literal spelling is not defined. | No prose; examples use `1.0e-48` style only. | L0 | Accepted with L0 sign-off (G3): digits on both sides of the dot |
@@ -548,6 +570,8 @@ not worked around in code.
 | 2 | Where do a Build's own services come from? `build.omg` may import a file that declares or uses a service such as `Console`, but calling it needs a provider, and the decided Build model does not say who supplies one. Raised by Zac. | 2026-11-18 | driver, interpreter | Answered 2026-11-18: from the stage before it. The core-supplied first stage selects the ordinary build backings for `build.omg`, and the invocation grants the resources. See the [Build model](#v2s-build-model-a-chain-of-stages). |
 | 3 | When `omega run main.omg` is run and a build program sits beside it, is that build program used or ignored? Using it makes the command do what the project intends; ignoring it keeps "what you pass is what runs" and lets a script be run without its project's build. | 2026-11-18 | driver | Open. Probably moot: if no file names are blessed, nothing beside the given file can be picked up implicitly. Not confirmed. |
 | 4 | How should V2 load source files? Measured on V1's 19,442 files: reading file by file tops out near 90,000 files per second (about 125 MB/s) at 4 threads, or about 115,000 with real-time antivirus off, because each file costs 24 to 30 microseconds of operating-system work whatever its size. Reading the same bytes as one packed file runs at 6 to 9 GB/s. Getting near the drive therefore needs a packed copy of the sources plus a cheap way to see which files changed. Is that wanted, and at which stage? Details in [EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md), experiment 6. | 2026-11-18 | driver, source loading | Deferred 2026-11-18, worth revisiting. Not built now: staleness detection is the hard part and nothing downstream exists to show what share of a build reading is. Revisit when a real build can be timed end to end and reading is more than about 10 to 20 percent of it, or when the full test suite's read time is felt. First thing to measure then: how cheaply the OS can report which files changed. See [What the operating system costs](#what-the-operating-system-costs). |
+| 5 | Should a comparison be allowed as the operand of another comparison? Today it is, because every operator groups to the left (grammar decision 6). The cost: a generic call written the old way, `apply<set_time>(x)`, is a valid expression, `(apply < set_time) > (x)`, and gets past the parser. The typer will refuse it, but with a message about comparing a machine. Refusing chained comparisons in the parser would catch it there with a message that says to write `::<`. No spec example chains comparisons. | 2026-11-18 | L1 | Open. Does not block L1's sign-off: the parser follows the decided grammar, and this would be one added refusal. |
+| 6 | Should `&&` be split when it starts a type or an operand? The lexer reads `&&` as one token, so a reference to a reference must be written `& &T`, and a borrow of a borrow `& &x`. Splitting it in those two positions removes the corner; leaving it keeps the lexer and parser simpler. V1 has the same token. | 2026-11-18 | L0, L1 | Open. Does not block L1's sign-off; both spellings have fixtures. |
 
 ## What the operating system costs
 

@@ -1,0 +1,4 @@
+// Decision 2 applies to `transition` as it does to `match`.
+machine f(n: u32) -> u32 {
+    transition n { 0 -> zero() 1 -> one() }
+}

@@ -1,0 +1,3 @@
+Counter satisfies Incrementable {
+    let a = 1;
+}

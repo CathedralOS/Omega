@@ -1,0 +1,4 @@
+error UnexpectedToken at 3:5 bytes 28..29
+  found: y
+  expected: `;`
+  expected `;`
