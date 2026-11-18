@@ -26,16 +26,13 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration +
         depth: u64, restart: u8) -> u32
     requires depth > 0 && depth <= 4096 && restart <= 1 {
         transition frames[depth - 1] {
-            WindowsRemovalFrame::Directory { handle } -> block directory(frames, entry, depth, restart, handle)
+            WindowsRemovalFrame::Directory { handle } -> match
+                (handle as -WindowsPrivateNonalertFileOrAbsent) != -1 &&
+                (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
+                true -> block query(frames, entry, depth, restart, handle)
+                false -> block windows_removal_unwind(frames, depth, 31)
+            }
             WindowsRemovalFrame::Empty -> block windows_removal_unwind(frames, depth, 31)
-        }
-    }
-    machine directory(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
-        depth: u64, restart: u8, handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> u32
-    requires depth > 0 && depth <= 4096 && restart <= 1 {
-        transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
-            true -> block query(frames, entry, depth, restart, handle)
-            false -> block windows_removal_unwind(frames, depth, 31)
         }
     }
     machine query(frames: &mut [WindowsRemovalFrame; 4096], entry: &mut WindowsNativeDirectoryEntryInfo,
