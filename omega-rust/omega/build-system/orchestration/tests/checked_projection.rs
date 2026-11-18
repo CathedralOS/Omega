@@ -8,7 +8,7 @@ fn accepted_fixture() -> compiler::CheckedCompilation {
     let main = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
-        .expect("compiler crate is under omega-rust/omega/compilation/compiler")
+        .expect("orchestration crate is under omega-rust/omega/build-system/orchestration")
         .join("tests/fixtures/run/calls/scalar_contract_route_exit/main.omg");
     // Discovery and checking recurse deeply; use the compiler worker's stack.
     std::thread::scope(|scope| {
