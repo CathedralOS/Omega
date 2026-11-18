@@ -353,6 +353,7 @@ fn lower_records(
         semantic_vocabulary::ContractId::new(1).unwrap(),
         &bodies,
         &[],
+        false,
         signatures,
         outcomes,
         &declared.records,

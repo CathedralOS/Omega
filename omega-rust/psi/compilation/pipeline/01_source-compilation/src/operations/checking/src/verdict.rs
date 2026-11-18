@@ -1056,6 +1056,7 @@ fn examine(
     crate::checking::static_reach::validate(&elaboration).map_err(fall_back_or_defect)?;
     crate::checking::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
     let mut affine_unestablished = Vec::new();
+    let mut verified_borrow_ends = Vec::new();
     // A machine the affine check cannot judge yet is one refusal; the check
     // goes on with the next machine, and the first such refusal becomes the
     // verdict with the rest beside it.
@@ -1168,6 +1169,9 @@ fn examine(
                 "affine machine has no source correspondence",
             ))
         })?;
+        if plan.unavailable.is_empty() && !plan.borrowed_header_ends.is_empty() {
+            verified_borrow_ends.push((machine.id, plan.borrowed_header_ends));
+        }
         for unavailable in plan.unavailable {
             let at = match unavailable.site {
                 terminal_semantics::plain_affine::Site::Operation(operation) => {
@@ -1187,7 +1191,16 @@ fn examine(
     if let Some(first) = unsupported.verdict(Roster::of(&elaboration), further) {
         return Err(Ok(RouteVerdict::FallBack(first)));
     }
-    match crate::checking::discharge_carrying(&mut elaboration, carried, activity) {
+    // The established ownership frontier belongs to this elaboration.
+    // Replay adds logical call requirements and guarantees without changing
+    // the structural operations, selected edges, or their cleanup schedules.
+    verified_borrow_ends.sort_unstable_by_key(|(machine, _)| *machine);
+    match crate::checking::discharge_inner(
+        &mut elaboration,
+        carried,
+        Some(&verified_borrow_ends),
+        activity,
+    ) {
         Ok(discharged) => Ok(Examined {
             elaboration,
             opaque_storage,
