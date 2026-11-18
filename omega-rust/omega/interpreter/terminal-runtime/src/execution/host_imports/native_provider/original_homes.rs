@@ -897,6 +897,7 @@ mod tests {
     fn provider_result_leases_preserve_live_leaf_custody_and_retirement() {
         use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
         use platform_custody::temporary_directory::TemporaryDirectory;
+        use std::process::Command;
         use terminal_interpreter::{
             TerminalEffectResult, TerminalReferencePayload, TerminalStorageContents,
         };
@@ -1008,6 +1009,10 @@ machine build(builder: &mut Build) {{
         for failed in [false, true] {
             let mut worker = Command::new(std::env::current_exe().unwrap());
             worker.args(["internal_native_provider_worker", "--nocapture"]);
+            let worker = native_provider_sponsor::for_provisions(
+                worker,
+                report.published_runtime_provisions(),
+            );
             let context = NativeContext::new(
                 Some(worker),
                 crate::execution::TerminalNativeServiceDelegation::MatchingHost,
