@@ -73,6 +73,7 @@ fn generated(
             erased: vec![],
             borrowed: vec![],
             result: Some(ValueType::plain(scalar)),
+            membership_ensures: vec![],
             requires: vec![],
             ensures: vec![],
             reaches: Ceiling::Inferred,

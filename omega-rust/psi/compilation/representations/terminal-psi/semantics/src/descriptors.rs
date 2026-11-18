@@ -330,6 +330,98 @@ pub mod descriptor_lifetimes {
             }
         }
 
+        /// Indexing a view borrows through that descriptor, even when the
+        /// selected element is an ordinary scalar. This identifies permission,
+        /// not the address or extent of the payload.
+        pub fn view_element_descriptor_prefix(
+            types: &[StructuralTypeDeclaration],
+            root_type: StructuralTypeId,
+            path: &[DescriptorPathSegment],
+        ) -> Result<Option<usize>, &'static str> {
+            let mut tip = Some(root_type);
+            let mut case_fields = None;
+            let mut element = None;
+            for (position, segment) in path.iter().enumerate() {
+                let owner = declaration(types, tip.ok_or("a loan path crosses a scalar leaf")?)
+                    .ok_or("a loan path has no exact structural declaration")?;
+                if case_fields.is_none()
+                    && matches!(
+                        segment,
+                        DescriptorPathSegment::FixedIndex(_)
+                            | DescriptorPathSegment::RuntimeIndex { .. }
+                    )
+                    && owner.shape.is_view_descriptor()
+                    && element.replace(position).is_some()
+                {
+                    return Err("an inner view needs its own captured descriptor");
+                }
+                tip = match segment {
+                    DescriptorPathSegment::Field(id) => {
+                        let fields = match case_fields.take() {
+                            Some(fields) => fields,
+                            None => fields(owner).ok_or("a loan field has no record owner")?,
+                        };
+                        let field = exactly_one(fields.iter(), |field| {
+                            field.id == *id && !field.relevance.is_erased()
+                        })
+                        .ok_or("a loan field has no exact declaration")?;
+                        match field.field_type {
+                            StructuralFieldType::Structural(id) => Some(id),
+                            _ => crate::inline_carrier_declaration(types.iter(), field)
+                                .map(|declaration| declaration.id),
+                        }
+                    }
+                    DescriptorPathSegment::Case(id) if case_fields.is_none() => {
+                        let cases = owner
+                            .shape
+                            .sum_cases()
+                            .ok_or("a loan case has no sum owner")?;
+                        let case = exactly_one(cases.iter(), |case| case.id == *id)
+                            .ok_or("a loan case has no exact declaration")?;
+                        case_fields = Some(case.fields.as_slice());
+                        Some(owner.id)
+                    }
+                    DescriptorPathSegment::Referent if case_fields.is_none() => {
+                        if element.is_some() {
+                            return Err("reference backing beneath an unresolved element selector");
+                        }
+                        let StructuralTypeShape::Reference { referent, .. } = owner.shape else {
+                            return Err("a loan referent has no reference descriptor");
+                        };
+                        Some(referent)
+                    }
+                    DescriptorPathSegment::FixedIndex(_)
+                    | DescriptorPathSegment::RuntimeIndex { .. }
+                        if case_fields.is_none() =>
+                    {
+                        match owner.shape {
+                            StructuralTypeShape::FixedArray { element, .. }
+                            | StructuralTypeShape::ElementView { element, .. } => Some(element),
+                            StructuralTypeShape::ByteSequence(_) => None,
+                            _ => return Err("a loan index has no array or view owner"),
+                        }
+                    }
+                    DescriptorPathSegment::RepresentationView {
+                        structural_type,
+                        stored_scalar,
+                    } if case_fields.is_none() => Some(
+                        crate::representation_view_declaration(
+                            types.iter(),
+                            *structural_type,
+                            *stored_scalar,
+                        )
+                        .ok_or("a loan presentation has no exact declaration")?
+                        .id,
+                    ),
+                    // Extent observations name the descriptor's storage, not
+                    // its separately borrowed bytes.
+                    DescriptorPathSegment::Extent => return Ok(element),
+                    _ => return Err("a loan path has no exact typed projection"),
+                };
+            }
+            Ok(element)
+        }
+
         pub fn descriptor_location_type(
             types: &[StructuralTypeDeclaration],
             root_type: StructuralTypeId,
@@ -638,7 +730,7 @@ pub mod descriptor_lifetimes {
     }
     pub use locations::{
         canonical_descriptor_location, descriptor_location, descriptor_location_type,
-        descriptor_path, fixed_runtime_index_alternatives,
+        descriptor_path, fixed_runtime_index_alternatives, view_element_descriptor_prefix,
     };
     pub use residences::{DescriptorResidenceRules, descriptor_residence_live_positions};
 
@@ -718,6 +810,13 @@ pub mod descriptor_lifetimes {
         /// reference the parameter held.
         pub consumed: Vec<DescriptorLocation>,
         pub derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
+        /// Exact value copies, including whole records with no descriptor
+        /// slots. Backing-preserving projections and content transformations
+        /// remain ordinary derivations and cannot transport membership facts.
+        pub value_transfers: Vec<(DescriptorLocation, DescriptorLocation)>,
+        /// Exact scalar inputs stored by this operation. Expanded numeric terms
+        /// can prove equalities but cannot stand in for the copied value.
+        pub scalar_value_stores: Vec<(DescriptorLocation, semantic_vocabulary::ValueId)>,
         pub authority_derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
         pub inputs: Vec<DescriptorFlowInput>,
         pub may_escape: bool,
@@ -725,6 +824,16 @@ pub mod descriptor_lifetimes {
     }
 
     impl DescriptorFlowStep {
+        pub(crate) fn copy_value(
+            &mut self,
+            source: DescriptorLocation,
+            destination: DescriptorLocation,
+        ) {
+            self.value_transfers
+                .push((source.clone(), destination.clone()));
+            self.derivations.push((source, destination));
+        }
+
         pub fn transport_authority(
             &self,
             before: &BTreeSet<DescriptorLocation>,
@@ -15737,7 +15846,8 @@ pub mod descriptor_results {
                         | OperationKind::EstablishReference { source, .. } => {
                             let (source, _, capture) = captured_storage_source(
                                 &module.structural_types,
-                                source,
+                                source.place,
+                                &source.path,
                                 machine.structural_place_type(source.place)?,
                                 position,
                             )?;
@@ -15925,6 +16035,7 @@ pub mod descriptor_results {
                             .payload_scalar_definitions
                             .insert(position, vec![result.id]);
                     }
+                    let mut step = DescriptorFlowStep::default();
                     let scalar_store = match &operation.kind {
                         OperationKind::WriteOnlyPrimitiveStore {
                             destination,
@@ -15941,15 +16052,17 @@ pub mod descriptor_results {
                         } => Some((*destination, path.as_slice(), Some(*field), *value)),
                         _ => None,
                     };
-                    if let Some((destination, path, field, value)) = scalar_store
-                        && let Some(value) = scalar_expressions.expression(value)
+                    if let Some((destination, path, field, source)) = scalar_store
                         && let Some(destination) = location(destination, path, field)
                     {
-                        graph
-                            .scalar_payload_writes
-                            .entry(position)
-                            .or_default()
-                            .push((destination, value));
+                        step.scalar_value_stores.push((destination.clone(), source));
+                        if let Some(value) = scalar_expressions.expression(source) {
+                            graph
+                                .scalar_payload_writes
+                                .entry(position)
+                                .or_default()
+                                .push((destination, value));
+                        }
                     }
                     if let OperationKind::ScalarStructuralField {
                         source,
@@ -15992,7 +16105,6 @@ pub mod descriptor_results {
                             .or_default()
                             .push((location, ScalarTerm::value(result.id, result.scalar_type)));
                     }
-                    let mut step = DescriptorFlowStep::default();
                     let is_invocation = matches!(
                         &operation.kind,
                         terminal_psi::call_structural_argument_variants!(_arguments)
@@ -16537,7 +16649,8 @@ pub mod descriptor_results {
                             let (source_location, mut backing_projection, capture) =
                                 captured_storage_source(
                                     &module.structural_types,
-                                    source,
+                                    source.place,
+                                    &source.path,
                                     *graph.place_types.get(&source.place)?,
                                     position,
                                 )?;
@@ -16687,7 +16800,12 @@ pub mod descriptor_results {
                             };
                             if let Some(source) = source {
                                 step.replace_value_inputs([source.clone()]);
-                                step.derivations.push((source, destination.clone()));
+                                if matches!(operation.kind, OperationKind::TransformContent { .. })
+                                {
+                                    step.derivations.push((source, destination.clone()));
+                                } else {
+                                    step.copy_value(source, destination.clone());
+                                }
                             } else {
                                 step.may_escape = true;
                             }
@@ -16751,7 +16869,7 @@ pub mod descriptor_results {
                                 let destination = DescriptorLocation::whole(result.place);
                                 step.replace_value_inputs([source.clone()]);
                                 step.definitions.push(source.clone());
-                                step.derivations.push((source, destination));
+                                step.copy_value(source, destination);
                             } else {
                                 step.may_escape = true;
                             }
@@ -16795,7 +16913,7 @@ pub mod descriptor_results {
                                 location(value.place, &value.path, None),
                             ) {
                                 step.definitions.push(destination.clone());
-                                step.derivations.push((source, destination.clone()));
+                                step.copy_value(source, destination.clone());
                                 if destination.path.is_empty()
                                     && !is_descriptor(
                                         module.structural_types.iter(),
@@ -16853,6 +16971,8 @@ pub mod descriptor_results {
                             )?;
                         }
                         OperationKind::EstablishPrimitiveLocal { value, .. } => {
+                            step.scalar_value_stores
+                                .push((location(result?.place, &[], None)?, *value));
                             if let Some(value) = scalar_expressions.expression(*value) {
                                 graph
                                     .scalar_payload_writes
@@ -16869,6 +16989,8 @@ pub mod descriptor_results {
                                     result.structural_type,
                                     u64::try_from(ordinal).ok()?,
                                 )?;
+                                step.scalar_value_stores
+                                    .push((location(result.place, &path, None)?, *value));
                                 if let Some(value) = scalar_expressions.expression(*value) {
                                     graph
                                         .scalar_payload_writes
@@ -16932,7 +17054,7 @@ pub mod descriptor_results {
                                     )?
                                 };
                                 let source = location(source.place, &source.path, None)?;
-                                step.derivations.push((source, destination));
+                                step.copy_value(source, destination);
                             }
                         }
                         OperationKind::ElementViewRead {
@@ -16993,19 +17115,20 @@ pub mod descriptor_results {
                                     }
                                     _ => location(result?.place, &[], Some(field.field))?,
                                 };
-                                if let RecordFieldValue::Scalar { value, .. } = &field.value
-                                    && let Some(value) = scalar_expressions.expression(*value)
-                                {
-                                    graph
-                                        .scalar_payload_writes
-                                        .entry(position)
-                                        .or_default()
-                                        .push((destination.clone(), value));
+                                if let RecordFieldValue::Scalar { value, .. } = &field.value {
+                                    step.scalar_value_stores.push((destination.clone(), *value));
+                                    if let Some(value) = scalar_expressions.expression(*value) {
+                                        graph
+                                            .scalar_payload_writes
+                                            .entry(position)
+                                            .or_default()
+                                            .push((destination.clone(), value));
+                                    }
                                 }
                                 if let Some(source) = field.value.as_structural() {
                                     if let Some(source) = location(source.place, &source.path, None)
                                     {
-                                        step.derivations.push((source, destination));
+                                        step.copy_value(source, destination);
                                     } else {
                                         step.may_escape = true;
                                     }
@@ -17859,36 +17982,31 @@ pub mod descriptor_results {
         }
 
         #[derive(Clone, Copy, PartialEq, Eq)]
-        enum CapturedBacking {
+        pub(crate) enum CapturedBacking {
             StorageAddress,
             DescriptorPayload,
             AccessInterpretation,
             ByteWindow,
         }
 
-        fn captured_storage_source(
+        pub(crate) fn captured_storage_source(
             types: &[StructuralTypeDeclaration],
-            source: &StructuralArgument,
+            source: PlaceId,
+            path: &[StructuralPathSegment],
             root_type: StructuralTypeId,
             position: DescriptorPosition,
         ) -> Option<(DescriptorLocation, Option<Projection>, CapturedBacking)> {
-            let prefix_length = source
-                .path
+            let prefix_length = path
                 .iter()
                 .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
-                .unwrap_or(source.path.len());
-            let location = descriptor_location(
-                types,
-                source.place,
-                root_type,
-                &source.path[..prefix_length],
-                None,
-            )?;
-            if prefix_length == source.path.len() {
+                .unwrap_or(path.len());
+            let location =
+                descriptor_location(types, source, root_type, &path[..prefix_length], None)?;
+            if prefix_length == path.len() {
                 return Some((location, None, CapturedBacking::StorageAddress));
             }
             let prefix_type = descriptor_location_type(types, root_type, &location.path)?;
-            let suffix = &source.path[prefix_length..];
+            let suffix = &path[prefix_length..];
             let prefix_shape = &find_structural_type(types, prefix_type)?.shape;
             let capture = if matches!(prefix_shape, StructuralTypeShape::ByteSequence(_)) {
                 CapturedBacking::ByteWindow

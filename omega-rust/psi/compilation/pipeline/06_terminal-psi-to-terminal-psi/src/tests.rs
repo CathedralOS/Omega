@@ -233,6 +233,7 @@ fn lower(machines: Vec<Machine>) -> Checked<typed_trees_to_terminal_psi::Elabora
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters,
             erased: machine.erased,
@@ -1961,6 +1962,7 @@ fn elaborate_over(
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: machine.parameters,
             erased: Vec::new(),
@@ -6451,6 +6453,7 @@ mod generic_bodies {
                 statements: machine.statements,
             });
             signatures.push(Signature {
+                membership_ensures: Vec::new(),
                 operational: Default::default(),
                 parameters,
                 erased: Vec::new(),
@@ -7058,6 +7061,7 @@ fn crashing_below_ten(
         ],
     });
     signatures.push(Signature {
+        membership_ensures: Vec::new(),
         operational: Default::default(),
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
@@ -7151,6 +7155,7 @@ fn crashing_at_zero(
         ],
     });
     signatures.push(Signature {
+        membership_ensures: Vec::new(),
         operational: Default::default(),
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
@@ -7207,6 +7212,7 @@ fn calling_a_zero_route(
         statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
     });
     signatures.push(Signature {
+        membership_ensures: Vec::new(),
         operational: Default::default(),
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
@@ -7232,6 +7238,7 @@ fn calling_a_zero_route(
         ],
     });
     signatures.push(Signature {
+        membership_ensures: Vec::new(),
         operational: Default::default(),
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
@@ -7335,6 +7342,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
         });
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: vec![u32_type().into()],
             erased: Vec::new(),
@@ -7360,6 +7368,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             ],
         });
         signatures.push(Signature {
+            membership_ensures: Vec::new(),
             operational: Default::default(),
             parameters: vec![u32_type().into()],
             erased: Vec::new(),

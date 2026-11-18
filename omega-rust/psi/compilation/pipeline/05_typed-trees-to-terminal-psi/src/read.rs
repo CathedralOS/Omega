@@ -61,6 +61,7 @@ pub(crate) mod services;
 mod source_operators;
 mod source_records;
 mod statements;
+mod static_contexts;
 pub(crate) mod storage_metadata;
 mod storage_path;
 mod subjects;

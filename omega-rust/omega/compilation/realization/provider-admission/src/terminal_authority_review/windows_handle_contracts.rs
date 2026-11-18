@@ -300,6 +300,7 @@ pub(super) fn reviewed_process_exit<'a>(
         requirement,
         binding.provider_plan_report_identity(),
     ) || !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
+        context.input.module(),
         declaration,
         plan,
         requirement,
@@ -360,6 +361,7 @@ fn process_exit_signature(declaration: &BoundaryMachineDeclaration) -> bool {
         )
         && declaration.crash_routes.is_empty()
         && declaration.scalar_ensures.is_empty()
+        && declaration.membership_ensures.is_empty()
         && declaration.normal_qualifications.is_empty()
         && declaration.content_guarantees.is_empty()
         && declaration.program_local_root_introductions.is_empty()
@@ -421,6 +423,7 @@ fn matches_declaration(
         || declaration.parameter_order.len() != api.parameters.len()
         || declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn
         || !declaration.scalar_ensures.is_empty()
+        || !declaration.membership_ensures.is_empty()
         || !declaration.normal_qualifications.is_empty()
         || !declaration.content_guarantees.is_empty()
         || !declaration.program_local_root_introductions.is_empty()
@@ -571,6 +574,7 @@ mod tests {
             result_reference_regions: Vec::new(),
             result_lifetimes: None,
             requires: Vec::new(),
+            membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             scalar_requires: Vec::new(),

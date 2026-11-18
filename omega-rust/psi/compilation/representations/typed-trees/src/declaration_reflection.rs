@@ -72,6 +72,53 @@ pub mod reflection {
             )
         }
 
+        /// A schema names either its retained data application or its exact
+        /// compiler-installed scalar carrier. References are not scalar roots.
+        pub fn schema_subject_symbol(
+            typed: &TypedTrees,
+            reference: TypeReferenceHandle,
+        ) -> Result<SymbolHandle, String> {
+            if !typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return Err("a schema subject lost its retained type reference".into());
+            }
+            if let Some(data) = typed.closed_data_definition(reference) {
+                return Ok(data.symbol);
+            }
+            let symbol = typed.type_reference_table.type_symbol(reference);
+            let atom = typed
+                .symbols
+                .builtin_type_atom(symbol)
+                .ok_or("a schema subject has no exact data or scalar declaration")?;
+            let primitive = symbols::PrimitiveType::from_builtin_atom(atom)
+                .ok_or("a schema subject is not a scalar carrier")?;
+            if typed.primitive_type_reference(reference) != Some(primitive) {
+                return Err("a schema subject does not have its selected scalar carrier".into());
+            }
+            Ok(symbol)
+        }
+
+        /// Source-free carriers have a semantic revision, never an authored
+        /// source revision. Data keeps the original immutable source record.
+        pub fn schema_subject_revision(
+            typed: &TypedTrees,
+            subject: SymbolHandle,
+        ) -> Result<Vec<u8>, String> {
+            if let Some(atom) = typed.symbols.builtin_type_atom(subject) {
+                if symbols::PrimitiveType::from_builtin_atom(atom).is_none() {
+                    return Err("a schema revision names a non-scalar builtin".into());
+                }
+                let mut revision = b"omega.reflect.primitive.v2\0".to_vec();
+                revision.extend_from_slice(
+                    language_semantics::type_identity::builtin_type_identity(atom).as_bytes(),
+                );
+                return Ok(revision);
+            }
+            declaration_source_revision(typed, subject)
+        }
+
         pub fn exact_symbol_identity(
             typed: &TypedTrees,
             symbol: SymbolHandle,
@@ -1189,6 +1236,33 @@ pub mod reflection {
                 .contains_type_reference(reference)
             {
                 return Err("a schema query lost its selected type reference".into());
+            }
+            let subject = schema_subject_symbol(typed, reference)?;
+            if let Some(atom) = typed.symbols.builtin_type_atom(subject) {
+                let identity = language_semantics::type_identity::builtin_type_name(atom);
+                let application = schema_type_identity(typed, reference, subject)?;
+                let root = SchemaNodeHandle::from_index(1);
+                return SemanticSchemaGraph::from_nodes(
+                    vec![
+                        SchemaNode::Invalid,
+                        SchemaNode::Declaration(DeclarationDescription {
+                            owner_identity: identity,
+                            identity_is_hermetic: true,
+                            name: atom.symbol_name().into_owned(),
+                            shape: SchemaShape::Primitive(atom),
+                            supply: String::new(),
+                            multiplicity: "Copy".into(),
+                            carry: None,
+                            type_parameters: Vec::new(),
+                            lifetime_parameters: Vec::new(),
+                            application_identity: Some(application),
+                            members: Vec::new(),
+                            retired_identities: Vec::new(),
+                        }),
+                    ],
+                    root,
+                    authority,
+                );
             }
             let data = typed
                 .closed_data_definition(reference)

@@ -288,7 +288,10 @@ pub fn admit_native_providers<'request>(
             ))]);
         }
         if let Some(boundary) = module.boundary_machine(settlement.boundary)
-            && boundary.requires_checked_result(&module.structural_domains)
+            && boundary.requires_checked_result(
+                &module.structural_domains,
+                &module.scalar_qualifications.domains,
+            )
             && !checked_component
         {
             return Err(vec![Diagnostic::error(format!(

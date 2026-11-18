@@ -145,6 +145,7 @@ pub struct ServiceMethod {
     pub has_result: bool,
     pub result_type_identity: ProviderIdentityId,
     pub result_claims: Vec<ServiceResultClaim>,
+    pub normal_result_memberships: Vec<ServiceNormalResultMembership>,
     pub service_reach: Vec<String>,
     pub synchronous_invocations: Vec<String>,
     pub may_suspend: bool,
@@ -192,6 +193,7 @@ impl ServiceMethod {
             && left_table.text(self.result_type_identity)
                 == right_table.text(other.result_type_identity)
             && self.result_claims == other.result_claims
+            && self.normal_result_memberships == other.normal_result_memberships
             && self.service_reach == other.service_reach
             && self.synchronous_invocations == other.synchronous_invocations
             && self.may_suspend == other.may_suspend
@@ -445,6 +447,34 @@ pub struct ServiceEntryClaim {
 pub struct ServiceResultClaim {
     pub domain: String,
     pub effective_carry: crate::CarryPolicy,
+}
+
+/// A semantic result selector, relative to the method's exact declared result
+/// application. Field and case identities use the declaration's named or
+/// numbered member identity. Implicit reference traversal adds no selector.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ServiceResultProjection {
+    Field(String),
+    Case(String),
+    FixedIndex(u64),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ServiceNormalResultMembership {
+    pub path: Vec<ServiceResultProjection>,
+    /// Complete canonical declaration/application identity, including indices.
+    pub domain: String,
+}
+
+impl ServiceNormalResultMembership {
+    pub fn has_exact_identity(&self) -> bool {
+        !self.domain.is_empty()
+            && self.path.iter().all(|step| match step {
+                ServiceResultProjection::Field(identity)
+                | ServiceResultProjection::Case(identity) => !identity.is_empty(),
+                ServiceResultProjection::FixedIndex(_) => true,
+            })
+    }
 }
 
 // Nominal declaration coordinates only; this carries no source tree or proof.
