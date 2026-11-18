@@ -201,6 +201,7 @@ impl Program<'_> {
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(Vec::new());
+        self.source_scopes.push(self.source_scope.clone());
         self.const_scopes.push(Vec::new());
         self.requirements.push(id);
         let member = self
@@ -737,6 +738,111 @@ mod tests {
             refused.detail,
             "generic application changed its caller or target, or has another static feature"
         );
+    }
+
+    #[test]
+    fn record_projections_never_alias_declared_headers_in_either_allocation_order() {
+        for record_first in [true, false] {
+            let fixture = fixture_with_reach(true);
+            let mut program = Program::new(&fixture.typed, true);
+            let caller = program.machine(fixture.caller).unwrap();
+            let (position, signature) = program
+                .record_requirement_signature(caller, fixture.parameters[0], fixture.requirement)
+                .unwrap()
+                .unwrap();
+            let source_scope = program.source_scope.clone();
+            let (ordinary, record) = if record_first {
+                let record = program
+                    .record_requirement(fixture.parameters[0], position, &signature, &[])
+                    .unwrap();
+                let ordinary = program.requirement(&signature, &[]).unwrap();
+                (ordinary, record)
+            } else {
+                let ordinary = program.requirement(&signature, &[]).unwrap();
+                let record = program
+                    .record_requirement(fixture.parameters[0], position, &signature, &[])
+                    .unwrap();
+                (ordinary, record)
+            };
+            assert_ne!(
+                ordinary, record,
+                "a declared header cannot acquire a receiver-bound projection identity"
+            );
+            assert_eq!(program.requirement(&signature, &[]).unwrap(), ordinary);
+            assert_eq!(
+                program
+                    .record_requirement(fixture.parameters[0], position, &signature, &[])
+                    .unwrap(),
+                record
+            );
+            assert_eq!(
+                program.source_scopes.len(),
+                program.symbols.len(),
+                "every allocated machine retains its own source scope row"
+            );
+            assert_eq!(program.source_scopes.get(record), Some(&source_scope));
+            assert_eq!(program.source_scopes.get(ordinary), Some(&source_scope));
+            assert_eq!(
+                program.symbols.get(record),
+                Some(&signature.symbol),
+                "a record member retains its exact source requirement"
+            );
+            let second = program
+                .record_requirement(fixture.parameters[1], position, &signature, &[])
+                .unwrap();
+            assert_ne!(
+                record, second,
+                "equal member signatures do not identify two supplier binders"
+            );
+            assert_eq!(
+                program.requirement(&signature, &[]).unwrap(),
+                ordinary,
+                "later record allocation cannot redirect the declared header"
+            );
+            assert_eq!(program.source_scopes.len(), program.symbols.len());
+        }
+    }
+
+    #[test]
+    fn callable_witnesses_and_record_projections_keep_distinct_public_headers() {
+        let fixture = fixture_with_reach(true);
+        let mut program = Program::new(&fixture.typed, true);
+        let caller = program.machine(fixture.caller).unwrap();
+        let (position, signature) = program
+            .record_requirement_signature(caller, fixture.parameters[0], fixture.requirement)
+            .unwrap()
+            .unwrap();
+        let (_, declared) = fixture
+            .typed
+            .trait_machine_signature(fixture.requirement)
+            .unwrap();
+        let callable = program
+            .callable_contract(crate::CallableDeclaration::Signature(declared))
+            .unwrap();
+        let record = program
+            .record_requirement(fixture.parameters[0], position, &signature, &[])
+            .unwrap();
+        let public = program.requirement(&signature, &[]).unwrap();
+        assert_ne!(
+            public, callable,
+            "a public header cannot reuse an independently owned callable witness"
+        );
+        assert_ne!(
+            public, record,
+            "a public header cannot reuse a receiver-bound record member"
+        );
+        assert_ne!(callable, record);
+        assert_eq!(program.requirement(&signature, &[]).unwrap(), public);
+        assert_eq!(program.symbols.get(callable), Some(&signature.symbol));
+        assert_eq!(program.symbols.get(record), Some(&signature.symbol));
+        assert_eq!(program.symbols.get(public), Some(&signature.symbol));
+        assert_eq!(program.source_scopes.len(), program.symbols.len());
+        for target in [callable, record, public] {
+            assert_eq!(
+                program.source_scopes.get(target),
+                Some(&program.source_scope)
+            );
+        }
     }
 
     #[test]

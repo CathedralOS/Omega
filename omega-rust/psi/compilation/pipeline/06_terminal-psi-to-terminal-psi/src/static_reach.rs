@@ -143,7 +143,10 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
             })
         },
     )
-    .map_err(|reason| fault(first, reason))?;
+    .map_err(|error| {
+        let machine = error.call.as_ref().map_or(first, |call| call.caller);
+        fault(machine, &error.to_string())
+    })?;
     if derived != elaboration.static_reach_summaries {
         return Err(fault(
             first,

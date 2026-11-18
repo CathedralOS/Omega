@@ -829,7 +829,9 @@ machine entry<const Left: Operations, const Right: Operations>(counter: &mut Cou
         assert!(
             matches!(&verdict, Err(refusal)
             if refusal.reason == RefusalReason::ForeignIdentity
-                && refusal.detail == "abstract callback call lost its exact originating parameter"),
+                && refusal.detail.starts_with("abstract callback call lost its exact originating parameter; caller=")
+                && refusal.detail.contains("callee=")
+                && refusal.detail.contains("static_reach_binding=Some(1)")),
             "the equally shaped Right parameter cannot replace Left: {verdict:?}"
         );
     }
