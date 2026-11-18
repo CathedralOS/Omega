@@ -123,8 +123,10 @@ fn lower_type_reference_contents(
             let exposure = if lowerer.derived_const_argument_origins.contains(origin) {
                 None
             } else {
-                let authored_here =
-                    !syntax_trees.constant_initializer_owns_selection(origin.reference);
+                let authored_here = !crate::constants::constant_initializer_owns_selection(
+                    syntax_trees,
+                    origin.reference,
+                );
                 Some(if authored_here {
                     lowerer.current_authored_expression_exposure.unwrap_or(
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
@@ -156,7 +158,10 @@ fn lower_type_reference_contents(
                 AuthoredDeclarationSelectionKind as Kind,
                 AuthoredDeclarationSelectionLateBinding as LateBinding,
             };
-            let exposure = if syntax_trees.constant_initializer_owns_selection(*reference) {
+            let exposure = if crate::constants::constant_initializer_owns_selection(
+                syntax_trees,
+                *reference,
+            ) {
                 Exposure::PrivateImplementation
             } else {
                 lowerer

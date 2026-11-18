@@ -89,6 +89,7 @@ impl ConstInitializerSelection {
             definition,
             DependencyPurpose::DeclarationReadiness,
             definition
+                .preparation()
                 .normalization
                 .as_ref()
                 .map(|receipt| receipt.declaration_custody.call_selections.as_slice()),

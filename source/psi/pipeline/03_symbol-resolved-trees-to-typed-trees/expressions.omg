@@ -200,7 +200,7 @@ crashes Trap
     }
 
     machine call(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
-        type_call(typer, sources, syntax, resolution, index, expression);
+        type_call(typer, syntax, resolution, index, expression);
     }
 
     machine construct(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {

@@ -8,16 +8,17 @@ checkpoints, page adoption and root publication stay beside those structures.
 
 | Follow the field or operation | Definition |
 | --- | --- |
-| `SyntaxTreeTables.items` | [declarations/items.rs](declarations/items.rs): item variants, their table and root handles; adjacent files own data, machines, capabilities, proofs and aliases |
+| `SyntaxTreeTables.items` | [declarations/items.rs](declarations/items.rs): item variants, their table and root handles; adjacent files own machines, data, domains, conformances, generic parameters, capabilities and proof declarations |
 | `SyntaxTreeTables.expressions` | [expressions/values.rs](expressions/values.rs): expression rows and their table; [display.rs](expressions/display.rs) formats diagnostic names and [float_spelling.rs](expressions/float_spelling.rs) retains authored floats |
 | `SyntaxTreeTables.statements` | [statements/control_flow.rs](statements/control_flow.rs): executable statements and transitions; [assembly.rs](statements/assembly.rs) owns assembly records |
-| `SyntaxTreeTables.type_references` | [types/references.rs](types/references.rs): type syntax, constraints and retained application information |
+| `SyntaxTreeTables.type_references` | [types/references.rs](types/references.rs): type syntax and constraints. [preparation.rs](types/preparation.rs) owns expanded occurrences, normalized constant operands and their declaration origins |
 | `SyntaxTreeTables.text` | [text/owner.rs](text/owner.rs): retained source pages; [identifiers.rs](text/identifiers.rs) defines names and paths that refer to them |
 | `ParsedSource`, `ParsedSources`, `ParsedUnit` | [files/parsed.rs](files/parsed.rs): source/root associations and standalone reusable parses |
 | `ParsedSyntaxPages`, `ParsedSyntaxSource` | [files/pages.rs](files/pages.rs): published parser pages and their source associations |
 | Copying between forests | [copying/items.rs](copying/items.rs) and [bodies.rs](copying/bodies.rs): declaration/body copying, preserving shared handles and text ownership |
 | Copying between tables in one forest | [copying/statement_paths.rs](copying/statement_paths.rs): expression arguments and identifier paths retained by statements |
 | Logical equality and page identity | [storage/equality.rs](storage/equality.rs), [relocation.rs](storage/relocation.rs), [paged_tables.rs](storage/paged_tables.rs) |
+| Constant declarations | [constants.rs](declarations/constants.rs) keeps the parsed initializer. [constant_preparation.rs](declarations/constant_preparation.rs) records the materialized value and obligations for that occurrence when resolution needs them. |
 | Diagnostic snapshots | [inspection/snapshot.rs](inspection/snapshot.rs): the snapshot representation; adjacent files expand the grammar domains |
 
 The [parser](../../pipeline/01_tokens-to-syntax-trees/parser.rs) produces this

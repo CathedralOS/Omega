@@ -9,10 +9,10 @@ fn rejected_nested_static_attempts_leave_the_published_prefix_intact() {
         let tokens = crate::frontend_fixture::Lexer::new(spelling)
             .tokenize()
             .unwrap();
-        let retained = Input::retain_source(&tokens);
+
         let mut syntax = SyntaxTrees::new(source::SourceId(7));
         let prefix = syntax.expressions.insert(ExpressionNode::Boolean(true));
-        let input = Input::new(source::SourceId(7), &tokens, &retained, &mut syntax);
+        let input = Input::new(source::SourceId(7), &tokens, &mut syntax);
         let types = syntax.type_references.type_reference_count();
         assert!(
             try_parse_static_machine_arguments(&mut syntax, input)

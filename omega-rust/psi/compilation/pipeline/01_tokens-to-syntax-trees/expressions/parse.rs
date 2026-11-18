@@ -25,9 +25,8 @@ use crate::expressions::operators::{
     take_unary_prefix,
 };
 use crate::expressions::postfix::{
-    MemberSuffix, build_call_expression_handle, finish_argument_lanes,
-    memory_ordering_from_expression, parse_cast_suffix, parse_member_suffix, range_separator,
-    take_range_separator, try_parse_static_machine_arguments,
+    build_call_expression_handle, finish_argument_lanes, parse_cast_suffix, parse_member_suffix,
+    range_separator, take_range_separator, try_parse_static_machine_arguments,
 };
 use crate::expressions::primary::{
     spanned, starts_fixed_array_type, starts_lifetime_reference_type, try_applied_requirement_head,
@@ -257,7 +256,6 @@ enum Frame<'tokens, 'source> {
         start: ExpressionHandle,
         end_inclusive: bool,
     },
-    LoadOrdering(Box<LoadOrderingFrame<'tokens, 'source>>),
     Group,
     ArrayLiteral(Box<ArrayLiteralFrame<'tokens, 'source>>),
     StructLiteral(Box<StructLiteralFrame<'tokens, 'source>>),
@@ -294,13 +292,6 @@ enum ArgumentsPurpose {
         target: Identifier,
         machine_arguments: Box<[StaticMachineArgument]>,
     },
-}
-
-struct LoadOrderingFrame<'tokens, 'source> {
-    source_start: SourceSpan,
-    receiver: ExpressionHandle,
-    after_open: Input<'tokens, 'source>,
-    context: PostfixContext,
 }
 
 struct ArrayLiteralFrame<'tokens, 'source> {
@@ -531,36 +522,6 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                         }));
                 self.finish_index(syntax_trees, site, range, input)
             }
-            Frame::LoadOrdering(frame) => {
-                let LoadOrderingFrame {
-                    source_start,
-                    receiver,
-                    after_open,
-                    context,
-                } = *frame;
-                if !input.at_punctuation(PunctuationKind::RightParen) {
-                    return Err(load_arity_error(after_open));
-                }
-                let ordering = memory_ordering_from_expression(syntax_trees, value)
-                    .map_err(|reason| after_open.error_here(reason))?;
-                if !ordering.valid_for_load() {
-                    return Err(after_open.error_here(format!(
-                        "atomic load cannot use `{}` ordering; use `NoOrdering`, `Receive`, or `GlobalOrder`",
-                        ordering.name()
-                    )));
-                }
-                let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-                let expression = syntax_trees.expressions.insert(ExpressionNode::Atomic(
-                    syntax_trees::expression::TableAtomicExpression {
-                        value: receiver,
-                        result: ExpressionHandle::invalid(),
-                        ordering: language_core::atomic::AtomicOrderingPlan::Load(ordering),
-                        result_custody:
-                            language_core::atomic::AtomicExpressionResultCustody::Scalar,
-                    },
-                ));
-                self.suffixes(syntax_trees, context, expression, input, source_start)
-            }
             Frame::Group => {
                 let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
                 Ok(Step::Value(value, input))
@@ -776,29 +737,8 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             }
 
             if input.at_punctuation(PunctuationKind::Dot) {
-                match parse_member_suffix(syntax_trees, expression, input)? {
-                    MemberSuffix::Member(member, rest) => {
-                        expression = member;
-                        input = rest;
-                        continue;
-                    }
-                    MemberSuffix::Load { after_open } => {
-                        if after_open.at_punctuation(PunctuationKind::RightParen) {
-                            return Err(load_arity_error(after_open));
-                        }
-                        self.frames
-                            .push(Frame::LoadOrdering(Box::new(LoadOrderingFrame {
-                                source_start,
-                                receiver: expression,
-                                after_open,
-                                context,
-                            })));
-                        return Ok(Step::Descend(
-                            Descent::Expression(ExpressionContext::Default),
-                            after_open,
-                        ));
-                    }
-                }
+                (expression, input) = parse_member_suffix(syntax_trees, expression, input)?;
+                continue;
             }
 
             // Accesses form the operand before its prefixes. A cast then
@@ -1692,10 +1632,4 @@ fn finish_array_literal<'tokens, 'source>(
         .expressions
         .set_source_span(expression, start.source_span_until(input));
     Ok(Step::Value(expression, input))
-}
-
-fn load_arity_error(after_open: Input<'_, '_>) -> ParseError {
-    after_open.error_here(
-        "`load` takes exactly one ordering argument: e.g. `self.counter.load(NoOrdering)`",
-    )
 }

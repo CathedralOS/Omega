@@ -7,17 +7,14 @@
 /*
 We represent symbol-resolved Omega trees (`SymbolResolvedTrees`,
 `SymbolResolvedRoots`, and `SymbolResolvedTableStorage`) after name binding and
-before type checking. Every declaration, member, parameter, and reference
-carries its canonical `SymbolHandle` and normalized boundary-service reach or
-semantic-domain identity.
+before type checking. The roots and their tables own declaration identities,
+written type references, machine bodies and normalized boundary-service reaches.
 */
 
 /*
-We resolve lexical spellings into durable `SymbolHandle` identities once in
-`Psi 02` so typing (`Psi 03`) and build-time evaluation never re-run scope lookup
-or recover meaning from raw strings. Owned `ResolvedIndexes` track arena
-revisions alongside the tables they index so lookup acceleration cannot outlive
-its backing storage.
+Lexical binding records the declaration selected by a use. Operations that
+need the receiver’s type can remain explicit pending selections for typing.
+`ResolvedIndexes` keeps lookup indexes with their backing storage.
 */
 
 /*
@@ -25,11 +22,14 @@ its backing storage.
 - Consumed by: `Psi 03` (`03_symbol-resolved-trees-to-typed-trees`) and `build-time-evaluation`.
 - Flat module layout:
   - `lib.rs`: `SymbolResolvedTrees`, `SymbolResolvedRoots`, `SymbolResolvedTableStorage`, and `declaration_selection` re-exports.
-  - `declarations.rs`: constant, data, domain, measure, operator, trait, type-alias, wire, and machine-declaration records.
-  - `control_flow_and_calls.rs`: state-machine signatures, states, executable statements, and mathematical/proposition evidence.
-  - `type_system.rs`: symbol-resolved type references (`TypeReference`) and diagnostic name carriers (`DiagnosticName`).
-  - `values.rs`: symbol-resolved expressions (`Expression`) and cross-table/symbol copy routines.
-  - `storage_and_indexes.rs`: backing arena tables (`tables`) and revision-tracked lookup indexes (`lookup_indexes`).
+  - `declarations_and_machines.rs`: constant, data, domain, measure, operator, trait, type-alias, wire, and machine-declaration records.
+  - `control_flow_and_calls.rs`: state-machine signatures, states and executable statements.
+  - `state_bodies.rs`: read a state’s published instructions and lexical local declarations.
+  - `evidence.rs`: mathematical definitions and propositions.
+  - `callable_values.rs`: runtime callable signatures and their input scopes.
+  - `type_system_and_names.rs`: symbol-resolved type references (`TypeReference`) and diagnostic name carriers (`DiagnosticName`).
+  - `expression.rs`: expression nodes and storage. The `expression/` directory contains display, copying and symbol remapping.
+  - `tables.rs`: publish and extend body tables. `lookup_indexes.rs`: revision-tracked symbol lookups.
   - `continuations.rs`: exact predecessor/successor handoffs for generated allocations,
     source activation, appended declarations and completed bodies. Pending syntax
     stays with the resolver; the driver coordinates its next batch.
@@ -68,14 +68,22 @@ macro_rules! deref_to_storage {
 pub mod callable_values;
 pub mod continuations;
 mod control_flow_and_calls;
-pub use control_flow_and_calls::{calls, control_flow, evidence};
+mod state_bodies;
+pub use control_flow_and_calls::{calls, control_flow};
 mod declarations_and_machines;
+pub mod evidence;
 pub use declarations_and_machines::{declarations, machine_declarations};
-mod storage_and_indexes;
-pub use storage_and_indexes::{lookup_indexes, storage};
+pub mod lookup_indexes;
+pub mod tables;
+pub mod storage {
+    pub use crate::tables;
+}
 mod type_system_and_names;
 pub use type_system_and_names::{names, type_system};
-pub mod values;
+pub mod expression;
+pub mod values {
+    pub use crate::expression;
+}
 
 struct PreparedOccurrenceRebase {
     expressions: expression::PreparedExpressionSelectionRebase,
@@ -907,7 +915,8 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
-    pub fn state_statements(&self, span: HandleSpan<Statement>) -> &[Statement] {
+    /// Statements under construction, before the resolver publishes the executable body.
+    pub fn construction_statements(&self, span: HandleSpan<Statement>) -> &[Statement] {
         self.declarations().state_statements.span_or_empty(span)
     }
 
@@ -1511,9 +1520,7 @@ pub use declarations::{
 };
 pub use evidence::{mathematical, proposition};
 pub use names::name;
-pub use storage::tables;
 pub use type_system::types;
-pub use values::expression;
 
 pub mod symbol_resolved_trees {
     pub use crate::*;

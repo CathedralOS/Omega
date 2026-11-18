@@ -937,6 +937,26 @@ fn substitute_statement_static_arguments(
                 );
             }
         }
+        StatementNode::AuthoredAssembly(handle) => {
+            let mut operands = Vec::new();
+            syntax
+                .statements
+                .authored_assembly(handle)
+                .visit_operands(syntax, |operand| operands.push(operand));
+            for operand in operands {
+                substitute_expression_static_arguments(syntax, operand, substitution, seen);
+            }
+        }
+        StatementNode::Dispatch(handle) => {
+            let mut operands = Vec::new();
+            syntax
+                .statements
+                .dispatch(handle)
+                .visit_operands(syntax, |operand| operands.push(operand));
+            for operand in operands {
+                substitute_expression_static_arguments(syntax, operand, substitution, seen);
+            }
+        }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
                 substitute_expression_static_arguments(syntax, guard, substitution, seen);

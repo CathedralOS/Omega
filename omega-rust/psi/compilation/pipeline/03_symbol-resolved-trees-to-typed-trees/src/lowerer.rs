@@ -1099,10 +1099,7 @@ pub(crate) mod seeded_continuation {
             }
             for &state in old_states {
                 let old_state = base.machine_state(state);
-                let mut new_state = candidate.machine_state(state).clone();
-                new_state.statements = old_state.statements;
-                new_state.statement_nodes = old_state.statement_nodes;
-                if new_state != *old_state {
+                if !candidate.machine_state(state).has_same_header_as(old_state) {
                     return false;
                 }
             }

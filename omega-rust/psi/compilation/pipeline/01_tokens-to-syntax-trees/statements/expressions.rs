@@ -1,58 +1,9 @@
 use crate::errors::parse_error::ParseError;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
-    TableMemberExpression,
-};
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::TableCall;
-
-pub(crate) fn copy_expression_as_place(
-    syntax_trees: &mut SyntaxTrees,
-    expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    let node = syntax_trees.expressions.expression(expression).clone();
-    let copied = match node {
-        ExpressionNode::Member(m) => {
-            let recv = copy_expression_as_place(syntax_trees, m.receiver)?;
-            ExpressionNode::Member(TableMemberExpression {
-                receiver: recv,
-                access_source_span: m.access_source_span,
-                member: m.member,
-                case_variant: m.case_variant.clone(),
-            })
-        }
-        ExpressionNode::Name {
-            members: path,
-            application: path_application,
-        } if path_application.is_none() => {
-            let new_path = syntax_trees
-                .expressions
-                .copy_identifier_path_prefix(path.to_owned(), path.to_owned().len());
-            ExpressionNode::Name {
-                members: new_path,
-                application: None,
-            }
-        }
-        ExpressionNode::Indexed(idx) => {
-            let coll = copy_expression_as_place(syntax_trees, idx.collection)?;
-            ExpressionNode::Indexed(TableIndexedExpression {
-                collection: coll,
-                index: idx.index,
-            })
-        }
-        ExpressionNode::Borrow(inner) => {
-            let inner_copy = copy_expression_as_place(syntax_trees, inner.target)?;
-            ExpressionNode::Borrow(syntax_trees::expression::TableBorrowExpression {
-                target: inner_copy,
-                access: inner.access,
-            })
-        }
-        _ => return None,
-    };
-    Some(syntax_trees.expressions.insert(copied))
-}
 
 pub(crate) fn root_binding_declaration(
     syntax_trees: &SyntaxTrees,

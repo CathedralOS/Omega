@@ -182,7 +182,7 @@ pub(crate) fn fold_closed_scalar_initializers(
         let Item::Const(definition) = syntax.root_item(*item) else {
             continue;
         };
-        demanded |= definition.normalization.is_none()
+        demanded |= definition.preparation().normalization.is_none()
             && crate::constants::requires_const_initializer_evaluation(syntax, definition);
         constants.push((span_key(definition.name.source_span()), *item));
     }
@@ -250,8 +250,8 @@ fn advance(
     let Item::Const(definition) = syntax.root_item(item) else {
         return Ok(Advance::Settled(Fold::Carried));
     };
-    let initializer = syntax.expressions.source_span(definition.value);
-    if let Some(receipt) = &definition.normalization {
+    let initializer = syntax.expressions.source_span(definition.value());
+    if let Some(receipt) = &definition.preparation().normalization {
         return Ok(Advance::Settled(Fold::Closed(Closed {
             declaration: definition.name.source_span(),
             initializer,
@@ -267,7 +267,7 @@ fn advance(
             },
         })));
     }
-    if definition.pending_target_observation {
+    if definition.preparation().pending_target_observation {
         return Ok(Advance::Settled(Fold::Carried));
     }
     if !crate::constants::requires_const_initializer_evaluation(syntax, definition) {
@@ -417,7 +417,9 @@ fn closed_shape(
     selection: &ConstantSelection,
     definition: &ConstDefinition,
 ) -> Option<Shape> {
-    if definition.qualification.is_some() || definition.pending_qualification.is_some() {
+    if definition.preparation().qualification.is_some()
+        || definition.preparation().pending_qualification.is_some()
+    {
         return None;
     }
     let TypeReferenceNode::Named(type_name) = syntax
@@ -436,7 +438,7 @@ fn closed_shape(
         references: Vec::new(),
         operators: Vec::new(),
     };
-    let mut pending = vec![definition.value];
+    let mut pending = vec![definition.value()];
     while let Some(expression) = pending.pop() {
         match syntax.expressions.expression(expression) {
             ExpressionNode::Integer(_) if matches!(carrier, Carrier::Integer(_)) => {}
@@ -522,7 +524,7 @@ fn evaluate(
     let integer = match shape.carrier {
         Carrier::Integer(integer) => integer,
         Carrier::Boolean => {
-            let (reference, _) = name_reference(syntax, definition.value)
+            let (reference, _) = name_reference(syntax, definition.value())
                 .ok_or("a Boolean constant folds only another Boolean constant")?;
             return operand(dependencies, reference, shape.carrier);
         }
@@ -547,7 +549,7 @@ fn evaluate(
         validate_declared_integer(integer, &value)?;
         Ok(value)
     };
-    let mut pending = vec![Step::Enter(definition.value)];
+    let mut pending = vec![Step::Enter(definition.value())];
     let mut operands = Vec::new();
     while let Some(step) = pending.pop() {
         match step {
@@ -664,7 +666,7 @@ fn materialize(
         )]);
     };
     let mut folded = definition.clone();
-    let authored = folded.value;
+    let authored = folded.value();
     let initializer = syntax.expressions.source_span(authored);
     let literal = match value {
         Scalar::Boolean(value) => ExpressionNode::Boolean(value),
@@ -676,10 +678,10 @@ fn materialize(
             )
         }
     };
-    folded.value = syntax.expressions.insert(literal);
+    folded.preparation_mut().materialized_initializer = Some(syntax.expressions.insert(literal));
     syntax
         .expressions
-        .set_source_span(folded.value, initializer);
+        .set_source_span(folded.value(), initializer);
     let evaluated = crate::constants::evaluated_declaration_value(syntax, &folded, Some(selection))
         .map_err(|reason| invalid(syntax, &folded, &reason))?;
     let custodies = Custodies {
@@ -687,7 +689,7 @@ fn materialize(
         declaration: custody(shape, dependencies, |custodies| &custodies.declaration),
         value: custody(shape, dependencies, |custodies| &custodies.value),
     };
-    folded.normalization = Some(ConstInitializerNormalization {
+    folded.preparation_mut().normalization = Some(ConstInitializerNormalization {
         authored_custody: custodies.authored.clone(),
         declaration_custody: custodies.declaration.clone(),
         authored_expression: authored,

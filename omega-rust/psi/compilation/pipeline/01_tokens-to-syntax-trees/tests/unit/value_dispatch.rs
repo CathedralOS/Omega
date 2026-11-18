@@ -13,8 +13,8 @@ fn value_match_retains_subject_once_ordered_duplicate_arms_and_spans() {
         let source_id = SourceId::default();
         let tokens = Lexer::new(&source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source_id);
-        let retained_source = Input::retain_source(&tokens);
-        let input = Input::new(source_id, &tokens, &retained_source, &mut trees);
+
+        let input = Input::new(source_id, &tokens, &mut trees);
         let (expression, rest) =
             parse_expression_handle(&mut trees, input).expect("ordered value match");
         assert!(rest.tokens.is_empty());
@@ -118,8 +118,8 @@ fn value_match_rejects_empty_dispatch_and_duplicate_bindings() {
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(SourceId::default());
-        let retained_source = Input::retain_source(&tokens);
-        let input = Input::new(SourceId::default(), &tokens, &retained_source, &mut trees);
+
+        let input = Input::new(SourceId::default(), &tokens, &mut trees);
         let error = parse_expression_handle(&mut trees, input)
             .err()
             .expect("empty dispatch or duplicate bindings reject");

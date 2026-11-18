@@ -1761,7 +1761,9 @@ mod tests {
                 .machine_state_handles(machine.states)
                 .iter()
                 .flat_map(|state| {
-                    program.state_statements(program.machine_state(*state).statements)
+                    program.construction_statements(
+                        program.machine_state(*state).construction_statement_span(),
+                    )
                 })
                 .filter_map(|node| match node {
                     symbol_resolved_trees::statement::Statement::Call(call) => Some(call),
@@ -2053,7 +2055,9 @@ mod tests {
                         .iter()
                         .find_map(|state| {
                             program
-                                .state_statements(program.machine_state(*state).statements)
+                                .construction_statements(
+                                    program.machine_state(*state).construction_statement_span(),
+                                )
                                 .iter()
                                 .find_map(|statement| match statement {
                                     symbol_resolved_trees::statement::Statement::Call(call)

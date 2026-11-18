@@ -11,6 +11,10 @@ pub use item_snapshots::{
     PropositionParameterSignatureSnapshot, QuotientEquivalenceSelectionSnapshot, QuotientSnapshot,
     SatisfiesClauseSnapshot, TypeParameterSnapshot,
 };
+pub use mathematical::{
+    MathematicalDefinitionBodySnapshot, MathematicalDefinitionSnapshot,
+    MathematicalParameterSnapshot, MathematicalTypeSnapshot,
+};
 pub use state_and_statement_snapshots::{
     AssemblyFactKindSnapshot, NativeCallbackParameterSnapshot, StateParameterSnapshot,
     StateSignatureSnapshot, StateSnapshot, StatementSnapshot, TransitionGuardSnapshot,
@@ -23,9 +27,19 @@ use diagnostics::PhaseSnapshot;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConstantExtentProbeSnapshot {
+    pub expression: ExpressionSnapshot,
+    pub is_public: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SyntaxTreesSnapshot {
     pub source_id: usize,
     pub root_items: Vec<ItemSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub mathematical_definitions: Vec<MathematicalDefinitionSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub constant_extent_probes: Vec<ConstantExtentProbeSnapshot>,
 }
 
 impl SyntaxTreesSnapshot {
@@ -41,6 +55,27 @@ impl SyntaxTreesSnapshot {
 impl SyntaxTrees {
     pub fn snapshot(&self) -> SyntaxTreesSnapshot {
         SyntaxTreesSnapshot {
+            mathematical_definitions: self
+                .root_mathematical_definition_handles()
+                .iter()
+                .map(|handle| {
+                    mathematical::snapshot_definition(
+                        self,
+                        self.root_mathematical_definition(*handle),
+                    )
+                })
+                .collect(),
+            constant_extent_probes: self
+                .roots
+                .constant_extent_probes
+                .iter()
+                .map(|(handle, public)| ConstantExtentProbeSnapshot {
+                    expression: expression_and_type_snapshots::snapshot_expression_handle(
+                        self, *handle,
+                    ),
+                    is_public: *public,
+                })
+                .collect(),
             source_id: self.source_id.0,
             root_items: self
                 .root_item_handles()
@@ -69,6 +104,9 @@ impl PhaseSnapshot for SyntaxTrees {
 
 #[path = "expressions_and_types.rs"]
 pub(crate) mod expression_and_type_snapshots;
+
+#[path = "mathematical.rs"]
+mod mathematical;
 
 #[path = "items.rs"]
 pub(crate) mod item_snapshots;

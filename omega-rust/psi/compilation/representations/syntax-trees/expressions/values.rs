@@ -119,6 +119,16 @@ impl ExpressionTable {
         })
     }
 
+    pub fn set_transition_subject(
+        &mut self,
+        capture: Handle<MatchSubjectCapture>,
+        subject: ExpressionHandle,
+    ) {
+        let captured = self.match_subjects.get_mut(capture);
+        debug_assert_eq!(captured.purpose, SubjectCapturePurpose::Transition);
+        captured.subject = subject;
+    }
+
     pub fn match_subject(&self, capture: Handle<MatchSubjectCapture>) -> &MatchSubjectCapture {
         self.match_subjects.get(capture)
     }

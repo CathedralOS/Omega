@@ -62,8 +62,7 @@ fn parse_into(
     source_id: SourceId,
     tokens: &TokenStream<'_>,
 ) -> Result<ParsedRootItems, ParseError> {
-    let retained_source = Input::retain_source(tokens);
-    let mut input = Input::new(source_id, tokens, &retained_source, syntax_trees);
+    let mut input = Input::new(source_id, tokens, syntax_trees);
     let mut roots = ParsedRootItems::default();
     while !input.tokens.is_empty() {
         let (declaration, rest) = parse_item(syntax_trees, input)?;
@@ -188,14 +187,17 @@ fn parse_recorded_source(
 ) -> Result<ParsedSource, ParseError> {
     let root_items = parse_into(syntax_trees, lexed_source.source_id, &lexed_source.tokens)
         .map_err(|mut error| {
-            let position = SourcePosition::of(&lexed_source.source, error.source_span.span.start);
+            let position = SourcePosition::of(
+                lexed_source.tokens.source_text(),
+                error.source_span.span.start,
+            );
             error.location = Some((lexed_source.path.clone(), position));
             error
         })?;
     Ok(ParsedSource {
         source_id: lexed_source.source_id,
         path: lexed_source.path.clone(),
-        source: lexed_source.source.clone(),
+        source: lexed_source.tokens.shared_source(),
         origin: lexed_source.origin,
         root_items: root_items.items,
         import_root_range: root_items.import_range,
@@ -208,7 +210,6 @@ mod machine_bodies {
     pub(crate) mod states;
 }
 mod statements {
-    pub(crate) mod bindings;
     pub(crate) mod destructuring;
     pub(crate) mod expressions;
     pub(crate) mod local_data;
@@ -267,7 +268,6 @@ mod expressions {
     mod static_targets_tests;
 }
 mod assembly {
-    pub(crate) mod generated_statements;
     pub(crate) mod parse;
 }
 mod errors {

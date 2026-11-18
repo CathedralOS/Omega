@@ -29,7 +29,11 @@ fn appending_sources_preserves_root_handles_and_source_identity() {
         .items;
     let original = trees.root_item(first[0]).clone();
     let lexed = lexed_source(SourceId(22), "second.omg", "data Second {} data Third {}");
-    let backing = lexed.sources.span_or_empty(lexed.batch)[0].source.clone();
+    let backing = lexed.sources.span_or_empty(lexed.batch)[0]
+        .tokens
+        .source_owner()
+        .unwrap()
+        .clone();
     let parsed = parse_sources(lexed, &mut trees).unwrap();
     let sources = parsed.sources.span_or_empty(parsed.batch);
     assert_eq!(sources.len(), 1);

@@ -420,7 +420,7 @@ fn reject_ambiguous_outcome_specific_ensures(input: Input<'_, '_>) -> Result<(),
     if guard.tokens.iter().any(|token| {
         token.punctuation() == Some(PunctuationKind::Semicolon)
             || matches!(
-                input.text(token).as_str(),
+                input.spelling(token),
                 "requires"
                     | "ensures"
                     | "crashes"

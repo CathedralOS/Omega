@@ -129,10 +129,11 @@ pub(crate) fn evaluated_declaration_value(
     if const_destination_requires_proof(syntax, definition, selection) {
         return Err("constant requires its checked initializer computation".into());
     }
-    if let Some(normalization) = &definition.normalization {
+    if let Some(normalization) = &definition.preparation().normalization {
         return Ok(normalization.result_value.clone());
     }
-    if let ExpressionNode::UndeterminedNaN(format) = syntax.expressions.expression(definition.value)
+    if let ExpressionNode::UndeterminedNaN(format) =
+        syntax.expressions.expression(definition.value())
     {
         let mut carrier = definition.type_reference;
         while let TypeReferenceNode::Constrained { base_type, .. } =
@@ -193,7 +194,7 @@ pub(crate) fn validate_scalar_initializer(
     let Some(atom) = selection.builtin_type(syntax, carrier) else {
         return Ok(());
     };
-    let initializer = syntax.expressions.expression(constant.value);
+    let initializer = syntax.expressions.expression(constant.value());
     match atom {
         symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64 => {
             let format = if atom == symbols::BuiltinTypeAtom::F32 {
@@ -240,7 +241,7 @@ pub(crate) fn validate_const_definition(
     definition: &ConstDefinition,
     selection: Option<&crate::declarations::declaration_selection::ConstantSelection>,
 ) -> Result<(), Diagnostic> {
-    if definition.normalization.is_some()
+    if definition.preparation().normalization.is_some()
         || crate::constants::requires_const_initializer_evaluation(syntax, definition)
         || const_destination_requires_proof(syntax, definition, selection)
     {
@@ -248,7 +249,7 @@ pub(crate) fn validate_const_definition(
         // Only an accepted invocation can supply a computed value.
         return Ok(());
     }
-    if definition.pending_target_observation {
+    if definition.preparation().pending_target_observation {
         let supported = syntax_type_references(syntax)
             .type_reference(definition.type_reference)
             .as_named()
@@ -293,7 +294,7 @@ pub(crate) fn validate_const_definition(
         ))
         .with_source_span(definition.name.source_span())
     })?;
-    validate_literal_initializer(syntax, definition, definition.value)
+    validate_literal_initializer(syntax, definition, definition.value())
 }
 
 pub(crate) fn retain_const_initializer(
@@ -304,7 +305,7 @@ pub(crate) fn retain_const_initializer(
     let pending =
         lowerer.const_resolution_mode != crate::lowering::lowerer::ConstResolutionMode::Complete;
     if !pending
-        && definition.normalization.is_none()
+        && definition.preparation().normalization.is_none()
         && !has_scalar_initializer(syntax, definition)
         && !crate::constants::requires_const_initializer_evaluation(syntax, definition)
         && !const_destination_requires_proof(
@@ -331,12 +332,12 @@ pub(crate) fn retain_const_initializer(
                 .with_source_span(definition.name.source_span())
             })?;
         } else {
-            if !definition.pending_target_observation {
-                validate_literal_initializer(syntax, definition, definition.value)?;
+            if !definition.preparation().pending_target_observation {
+                validate_literal_initializer(syntax, definition, definition.value())?;
             }
         }
     }
-    let initializer = lower_expression_into_table(lowerer, syntax, definition.value)?;
+    let initializer = lower_expression_into_table(lowerer, syntax, definition.value())?;
     lowerer.pending_const_values.push(initializer);
     initializer_normalization::retain(lowerer, syntax, definition, initializer)?;
     Ok(initializer)
@@ -345,7 +346,7 @@ pub(crate) fn retain_const_initializer(
 fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) -> bool {
     use syntax_trees::expression::ExpressionNode;
     matches!(
-        syntax.expressions.expression(definition.value),
+        syntax.expressions.expression(definition.value()),
         ExpressionNode::Boolean(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)

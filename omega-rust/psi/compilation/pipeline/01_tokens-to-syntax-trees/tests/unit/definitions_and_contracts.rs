@@ -730,12 +730,8 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
-    let StatementNode::Transition(transition) = parsed
-        .statements
-        .statement(parsed.items.statements(state.statements)[0])
-    else {
-        panic!("expected transition statement");
-    };
+    let transition =
+        &crate::tests::dispatch(&parsed, parsed.items.statements(state.statements)[0]).arms[0];
     let syntax_trees::statement::TransitionTargetNode::Named {
         evidence_arguments, ..
     } = parsed.statements.transition_target(transition.target)
@@ -1737,14 +1733,15 @@ fn declaration_lookahead_rewinds_private_rows_and_preserves_source_custody() {
         ("domain [u8; ]::Bytes;", false),
     ] {
         let tokens = Lexer::new(source).tokenize().expect("lookahead tokens");
-        let retained_source = Input::retain_source(&tokens);
+
         let source_id = source::SourceId::default();
         let mut trees = SyntaxTrees::new_with_generation(source_id, 7);
-        let input = Input::new(source_id, &tokens, &retained_source, &mut trees);
+        let input = Input::new(source_id, &tokens, &mut trees);
         let established = trees.expressions.insert(ExpressionNode::Boolean(true));
         trees.roots.constant_extent_probes.push((established, true));
         let roots = trees.roots.clone();
-        let source_owners = Arc::strong_count(&retained_source);
+        let retained_source = tokens.source_owner().unwrap();
+        let source_owners = Arc::strong_count(retained_source);
         let mut untouched = trees.clone();
         let expected_next = untouched.expressions.insert(ExpressionNode::Boolean(false));
         drop(untouched);
@@ -1762,7 +1759,7 @@ fn declaration_lookahead_rewinds_private_rows_and_preserves_source_custody() {
                 trees.expressions.expression(established),
                 ExpressionNode::Boolean(true)
             ));
-            assert_eq!(Arc::strong_count(&retained_source), source_owners);
+            assert_eq!(Arc::strong_count(retained_source), source_owners);
         }
         let next = trees.expressions.insert(ExpressionNode::Boolean(false));
         assert_eq!(next, expected_next, "private probe handles must not escape");

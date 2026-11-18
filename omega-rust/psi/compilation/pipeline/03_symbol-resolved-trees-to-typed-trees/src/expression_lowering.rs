@@ -1344,6 +1344,25 @@ pub(crate) mod expression {
                                 )))
                         }
                         resolved::expression::ExpressionNode::Call(call) => {
+                            if let Some(program) = self.program
+                                && let Some(operation) = crate::atomic_calls::select_expression(
+                                    program,
+                                    self.source,
+                                    call,
+                                )?
+                            {
+                                let receiver = self.lower_value(operation.receiver)?;
+                                let operands = operation
+                                    .operands
+                                    .iter()
+                                    .map(|operand| self.lower_value(*operand))
+                                    .collect::<Result<Vec<_>, _>>()?;
+                                return operation.value(
+                                    &mut self.target_trees.expression_table,
+                                    receiver,
+                                    operands,
+                                );
+                            }
                             if crate::runtime_callables::callee_is_value(
                                 self.program,
                                 self.source,
@@ -2882,7 +2901,7 @@ pub(crate) mod expression {
                 declared
             }
 
-            fn declared_type<'program>(
+            pub(crate) fn declared_type<'program>(
                 program: &'program resolved::SymbolResolvedTrees,
                 expressions: &resolved::expression::ExpressionTable,
                 expression: ExpressionHandle,
@@ -3087,38 +3106,29 @@ pub(crate) mod expression {
                 symbol: SymbolHandle,
                 depth: usize,
             ) -> Option<&'program TypeReference> {
-                let declared = declared_symbol_type(program, symbol)?;
-                if !matches!(declared, TypeReference::Unit) {
-                    return Some(declared);
+                if !symbol.is_valid() {
+                    return None;
                 }
-                if program.symbols.get(symbol).kind != SymbolKind::Local {
-                    return Some(declared);
+                let declaration = program.symbols.get(symbol);
+                if declaration.kind != SymbolKind::Local {
+                    return declared_symbol_type(program, symbol);
                 }
-                let parent = program.symbols.get(symbol).parent;
+                let parent = declaration.parent;
                 let state = program
                     .tables
                     .declarations
                     .machine_states
                     .iter()
                     .find_map(|(_, state)| (state.symbol == parent).then_some(state))?;
-                let local =
-                    program
-                        .state_statements(state.statements)
-                        .iter()
-                        .find_map(|statement| {
-                            let resolved::statement::Statement::LocalData(local) = statement else {
-                                return None;
-                            };
-                            (local.symbol == symbol).then_some(local)
-                        })?;
+                let (local, declared_type_ref) = program.state_local(state, symbol)?;
                 if !local.type_is_inferred
                     || local.role != language_core::LocalBindingRole::Value
                     || !local.initial_value.is_valid()
                 {
-                    return Some(declared);
+                    return Some(declared_type_ref);
                 }
                 declared_type(program, expressions, local.initial_value, depth + 1)
-                    .or(Some(declared))
+                    .or(Some(declared_type_ref))
             }
 
             pub(crate) fn declared_symbol_type(
@@ -3185,15 +3195,8 @@ pub(crate) mod expression {
                             |(_, state)| (state.symbol == declaration.parent).then_some(state),
                         )?;
                         program
-                            .state_statements(state.statements)
-                            .iter()
-                            .find_map(|statement| {
-                                let resolved::statement::Statement::LocalData(local) = statement
-                                else {
-                                    return None;
-                                };
-                                (local.symbol == symbol).then_some(&local.type_reference)
-                            })
+                            .state_local(state, symbol)
+                            .map(|(_, declared_type)| declared_type)
                     }
                     SymbolKind::Field => {
                         for definition in &program.data_definitions {

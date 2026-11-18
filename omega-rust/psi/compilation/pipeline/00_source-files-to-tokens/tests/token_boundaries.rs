@@ -7,10 +7,10 @@ fn punctuation_keeps_longest_matches_and_adjacent_tokens_separate() {
     let tokens = Lexer::new(source).tokenize().unwrap();
     let spellings: Vec<_> = tokens
         .iter()
-        .filter(|token| !token.is_non_semantic())
+        .filter(|token| !token.is_trivia())
         .map(|token| {
             assert!(matches!(token.kind, TokenKind::Punctuation(_)));
-            tokens.text(token).as_str()
+            tokens.spelling(token)
         })
         .collect();
     assert_eq!(
@@ -29,7 +29,7 @@ fn keyword_prefixes_and_suffixes_remain_identifiers() {
     assert!(
         tokens
             .iter()
-            .filter(|token| !token.is_non_semantic())
+            .filter(|token| !token.is_trivia())
             .all(|token| token.kind == TokenKind::Identifier)
     );
 }

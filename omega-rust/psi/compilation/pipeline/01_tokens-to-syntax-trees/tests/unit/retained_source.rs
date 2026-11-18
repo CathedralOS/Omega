@@ -6,10 +6,13 @@ fn escaping_text_and_literal_bytes_outlive_token_storage() {
     let source: Arc<str> = Arc::from(r#"name 1.5 "\xff""#);
     let tokens = crate::frontend_fixture::lex_retained(source.clone()).unwrap();
     let mut syntax = syntax_trees::SyntaxTrees::new(SourceId(77));
-    let input = Input::new(SourceId(77), &tokens, &source, &mut syntax);
+    let input = Input::new(SourceId(77), &tokens, &mut syntax);
     let (name, rest) = input.take_identifier().unwrap();
     let (float, rest) = rest.take_float_text().unwrap();
-    let decoded_pointer = tokens.text(tokens.last().unwrap()).as_bytes().as_ptr();
+    let decoded_pointer = tokens
+        .literal_bytes(tokens.last().unwrap())
+        .unwrap()
+        .as_ptr();
     let (bytes, rest) = rest.take_string_bytes().unwrap();
     assert_eq!(bytes.as_ptr(), decoded_pointer);
     assert!(rest.tokens.is_empty());

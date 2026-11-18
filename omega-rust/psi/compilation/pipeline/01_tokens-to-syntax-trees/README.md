@@ -22,13 +22,20 @@ empty batch. A failed parse returns no syntax pages and leaves its tokens intact
 | [parameters/callable.rs](parameters/callable.rs), [generics.rs](parameters/generics.rs) | Callable and generic binders; requirements and relevance rules are shared here |
 | [contracts/clauses.rs](contracts/clauses.rs) | Machine clauses; siblings parse facts, signatures, conformance and external bindings |
 | [machine_bodies/states.rs](machine_bodies/states.rs) | Machine entries and states; `defaults.rs` handles trait defaults |
-| [transitions/blocks.rs](transitions/blocks.rs) | Transition blocks, with guards and targets in adjacent files |
+| [transitions/blocks.rs](transitions/blocks.rs) | One dispatch per transition block, with subjects and ordered arm patterns, guards and targets |
 | [statements/sequence.rs](statements/sequence.rs), [parse.rs](statements/parse.rs) | Statement sequence and dispatch, then binding, destructuring and expression statements |
 | [patterns/fields.rs](patterns/fields.rs) | Destructure field entry and result; `bindings.rs` rewrites captured binding references |
-| [assembly/parse.rs](assembly/parse.rs) | Assembly blocks; `generated_statements.rs` constructs their register and flag statements |
-| [token_input/cursor.rs](token_input/cursor.rs) | Token cursor, retained source, spans and lookahead; `delimiters.rs` handles balanced token ranges |
+| [assembly/parse.rs](assembly/parse.rs) | Authored mnemonics, operands, labels and contracts. [Instruction preparation](../02_syntax-trees-to-symbol-resolved-trees/declarations/assembly/mod.rs) resolves their target behavior |
+| [token_input/cursor.rs](token_input/cursor.rs) | Source spans and lookahead across grammar tokens. The cursor retains trivia for newline-sensitive clauses. [delimiters.rs](token_input/delimiters.rs) handles balanced token ranges. |
 | [literals/numbers.rs](literals/numbers.rs) | Numeric value validation after lexical recognition |
 | [errors/parse_error.rs](errors/parse_error.rs) | The public parse error; `expected.rs` builds expected-token diagnostics |
+
+For `(registry.store)(key, value)`, [postfix parsing](expressions/postfix.rs)
+records a call on a member and retains both arguments. Follow the receiver into
+[typing](../03_symbol-resolved-trees-to-typed-trees/src/atomic_calls.rs) to see
+why an atomic cell's `store` checks its ordering argument. For a transition,
+[dispatch preparation](../02_syntax-trees-to-symbol-resolved-trees/declarations/dispatches.rs)
+takes the authored arms and arranges to evaluate the subjects once.
 
 The output belongs to [syntax-trees](../../representations/syntax-trees/syntax_trees.rs).
 Its [files/pages.rs](../../representations/syntax-trees/files/pages.rs) owns

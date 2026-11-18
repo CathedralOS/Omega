@@ -246,3 +246,14 @@ fn dependent_binder_requires_an_arrow() {
     let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
     assert!(error.message.contains("->"), "{}", error.message);
 }
+
+#[test]
+fn mathematical_roots_and_their_bodies_are_visible_in_syntax_snapshots() {
+    let empty = parse("").snapshot();
+    let definition = parse("let pi(): core::Real = term;").snapshot();
+    let other_body = parse("let pi(): core::Real = zero;").snapshot();
+    assert!(empty.mathematical_definitions.is_empty());
+    assert!(definition.root_items.is_empty());
+    assert_eq!(definition.mathematical_definitions[0].name.text, "pi");
+    assert_ne!(definition, other_body);
+}

@@ -4,6 +4,100 @@ use crate::paged_roster::paged_roster;
 use crate::statement::StatementHandle;
 use arena::{Handle, HandleSpan};
 
+// The parser preserves instruction spelling, operand expressions and labeled blocks.
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    syntax_trees_derive::SyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    compiler_storage::Record,
+)]
+pub struct AuthoredAssembly {
+    pub source_span: source::SourceSpan,
+    pub requires: Box<[ExpressionHandle]>,
+    pub ensures: Box<[ExpressionHandle]>,
+    pub clobbers: Option<Box<[Identifier]>>,
+    pub blocks: Box<[AuthoredAssemblyBlock]>,
+}
+
+impl AuthoredAssembly {
+    pub fn visit_operands(
+        &self,
+        trees: &crate::SyntaxTrees,
+        mut visit: impl FnMut(ExpressionHandle),
+    ) {
+        for &operand in self.requires.iter().chain(&self.ensures) {
+            visit(operand);
+        }
+        for block in &self.blocks {
+            for &operand in block.requires.iter().chain(&block.ensures) {
+                visit(operand);
+            }
+            for instruction in &block.instructions {
+                match &instruction.operands {
+                    AssemblyOperands::Expressions(values) => {
+                        for &operand in values {
+                            visit(operand);
+                        }
+                    }
+                    AssemblyOperands::Transition(target) => {
+                        use crate::statement::TransitionTargetNode;
+                        match trees.statements.transition_target(*target) {
+                            TransitionTargetNode::Value(value) => visit(*value),
+                            TransitionTargetNode::Named { arguments, .. } => {
+                                for &operand in trees.statements.expression_handles(*arguments) {
+                                    visit(operand);
+                                }
+                            }
+                            TransitionTargetNode::Terminal => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    syntax_trees_derive::SyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    compiler_storage::Record,
+)]
+pub struct AuthoredAssemblyBlock {
+    pub label: Option<Identifier>,
+    pub requires: Box<[ExpressionHandle]>,
+    pub ensures: Box<[ExpressionHandle]>,
+    pub instructions: Box<[AssemblyInstruction]>,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    syntax_trees_derive::SyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    compiler_storage::Record,
+)]
+pub struct AssemblyInstruction {
+    pub mnemonic: Identifier,
+    pub operands: AssemblyOperands,
+    pub source_span: source::SourceSpan,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    syntax_trees_derive::SyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    compiler_storage::Record,
+)]
+pub enum AssemblyOperands {
+    Expressions(Box<[ExpressionHandle]>),
+    Transition(crate::statement::TransitionTargetHandle),
+}
+
 #[derive(
     Debug,
     Clone,
@@ -65,6 +159,7 @@ pub enum AssemblyExit {
 
 paged_roster! {
     pub(crate) struct AssemblyTable => pub(crate) AssemblyTableAppendCheckpoint {
+        arena authored: AuthoredAssembly,
         arena graphs: AssemblyControlFlow,
         arena blocks: AssemblyBlock,
         arena instructions: StatementHandle,
@@ -73,6 +168,16 @@ paged_roster! {
 }
 
 impl AssemblyTable {
+    pub(crate) fn insert_authored(&mut self, value: AuthoredAssembly) -> Handle<AuthoredAssembly> {
+        self.authored.insert(value)
+    }
+    pub(crate) fn authored(&self, handle: Handle<AuthoredAssembly>) -> &AuthoredAssembly {
+        self.authored.get(handle)
+    }
+    pub(crate) fn has_authored(&self) -> bool {
+        !self.authored.is_empty()
+    }
+
     pub(crate) fn insert_graph(
         &mut self,
         graph: AssemblyControlFlow,

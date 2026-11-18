@@ -1,6 +1,5 @@
 use crate::frontend_fixture::Lexer;
 use crate::parse_syntax_trees;
-use crate::tests::inline_assembly::instruction_statements;
 use language_core::ReferenceAccess;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionNode;
@@ -658,32 +657,19 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
     let machine = crate::tests::root_machine(&parsed, "machine root item");
     let entry = crate::tests::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
-    let statement = parsed
-        .items
-        .statements(state.statements)
-        .iter()
-        .copied()
-        .filter(|handle| {
-            matches!(
-                parsed.statements.statement(*handle),
-                StatementNode::Transition(_)
-            )
-        })
-        .nth(1)
-        .expect("data-pattern transition");
-    let StatementNode::Transition(transition) = parsed.statements.statement(statement) else {
-        panic!("second arm should be a transition")
-    };
+    let transition =
+        &crate::tests::dispatch(&parsed, parsed.items.statements(state.statements)[0]).arms[1];
     assert!(matches!(
         transition.guard,
         syntax_trees::statement::TransitionGuardNode::Always
     ));
-    let [pattern] = parsed.statements.transition_patterns(transition.patterns) else {
+    let [pattern] = transition.patterns.as_ref() else {
         panic!("data-pattern arm retains one subject pattern");
     };
-    assert!(pattern.is_structural);
-    let ExpressionNode::Binary(comparison) = parsed.expressions.expression(pattern.pattern.guard)
-    else {
+    let syntax_trees::expression::MatchPattern::Destructure(pattern) = pattern.pattern else {
+        panic!("structured pattern")
+    };
+    let ExpressionNode::Binary(comparison) = parsed.expressions.expression(pattern.guard) else {
         panic!("data-pattern guard should be a comparison");
     };
     assert_eq!(comparison.operator, BinaryOperator::Greater);
@@ -722,16 +708,12 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
                 .items
                 .statements(parsed.items.state(*state).statements)
         })
-        .find_map(|statement| match parsed.statements.statement(*statement) {
-            StatementNode::Transition(transition) if !transition.proof_selectors.is_empty() => {
-                Some(transition)
-            }
-            _ => None,
-        })
+        .flat_map(|statement| &crate::tests::dispatch(&parsed, *statement).arms)
+        .find(|arm| !arm.proof_selectors().is_empty())
         .expect("one transition arm with erased selectors");
     let selectors = parsed
         .statements
-        .outcome_proof_selectors(transition.proof_selectors);
+        .outcome_proof_selectors(transition.proof_selectors());
     assert_eq!(selectors.len(), 2);
     assert_eq!(selectors[0].output_field.as_str(&parsed), "selected");
     assert_eq!(selectors[0].binding.as_str(&parsed), "local");
@@ -740,7 +722,7 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
 }
 
 #[test]
-fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
+fn outcome_proof_selectors_preserve_one_subject_and_the_same_arm_shape() {
     let sources = [
         r#"
         data Outcome { case Success; case Failure; }
@@ -788,28 +770,16 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
         let statements = parsed
             .items
             .statements(parsed.items.state(entry).statements);
-        let producer_locals = statements
-            .iter()
-            .filter(|statement| {
-                let StatementNode::LocalData(local) = parsed.statements.statement(**statement)
-                else {
-                    return false;
-                };
-                matches!(
-                    parsed.expressions.expression(local.initial_value),
-                    ExpressionNode::Call(call) if call.target.as_str(&parsed) == "produce"
-                )
-            })
-            .count();
-        let transitions = statements
-            .iter()
-            .filter(|statement| {
-                matches!(
-                    parsed.statements.statement(**statement),
-                    StatementNode::Transition(_)
-                )
-            })
-            .count();
+        let [statement] = statements else {
+            panic!("one authored dispatch")
+        };
+        let dispatch = crate::tests::dispatch(&parsed, *statement);
+        let [subject] = parsed.statements.expression_handles(dispatch.subjects) else {
+            panic!("one produced subject")
+        };
+        assert!(
+            matches!(parsed.expressions.expression(*subject),ExpressionNode::Call(call) if call.target.as_str(&parsed) == "produce")
+        );
         let producer_calls = parsed
             .expressions
             .iter_expressions()
@@ -820,16 +790,15 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
                 )
             })
             .count();
-        assert_eq!(producer_locals, 1, "the captured producer call is retained");
         assert_eq!(
             producer_calls, 1,
-            "the producer call is evaluated exactly once"
+            "the dispatch contains one authored producer call"
         );
-        plans.push((statements.len(), producer_locals, transitions));
+        plans.push((statements.len(), dispatch.arms.len()));
     }
     assert_eq!(
         plans[0], plans[1],
-        "erased proof selectors must not add or remove runtime statements"
+        "erased proof selectors preserve the authored dispatch shape"
     );
 }
 
@@ -855,18 +824,11 @@ fn rejects_duplicate_and_defers_noncase_outcome_proof_selectors() {
     );
     let machine = crate::tests::root_machine(&parsed, "machine root item");
     let state = crate::tests::entry_state(&parsed, machine);
-    let transition = parsed
-        .items
-        .statements(state.statements)
-        .iter()
-        .find_map(|handle| match parsed.statements.statement(*handle) {
-            StatementNode::Transition(transition) => Some(transition),
-            _ => None,
-        })
-        .expect("selector arm");
+    let transition =
+        &crate::tests::dispatch(&parsed, parsed.items.statements(state.statements)[0]).arms[0];
     let selectors = parsed
         .statements
-        .outcome_proof_selectors(transition.proof_selectors);
+        .outcome_proof_selectors(transition.proof_selectors());
     assert_eq!(selectors.len(), 1);
     assert_eq!(selectors[0].output_field.as_str(&parsed), "selected");
     assert_eq!(selectors[0].binding.as_str(&parsed), "local");
@@ -887,25 +849,19 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
     let parsed = crate::tests::parse_source(source, "field-value pattern should parse");
     let machine = crate::tests::root_machine(&parsed, "machine root item");
     let state = crate::tests::entry_state(&parsed, machine);
-    let transition = parsed
-        .items
-        .statements(state.statements)
-        .iter()
-        .filter_map(|handle| match parsed.statements.statement(*handle) {
-            syntax_trees::statement::StatementNode::Transition(transition) => Some(transition),
-            _ => None,
-        })
-        .next()
-        .expect("first transition arm");
+    let transition =
+        &crate::tests::dispatch(&parsed, parsed.items.statements(state.statements)[0]).arms[0];
     assert!(matches!(
         transition.guard,
         syntax_trees::statement::TransitionGuardNode::Always
     ));
-    let [pattern] = parsed.statements.transition_patterns(transition.patterns) else {
+    let [pattern] = transition.patterns.as_ref() else {
         panic!("field-value arm retains one subject pattern");
     };
-    assert!(pattern.is_structural);
-    let [ok, version] = parsed.expressions.match_fields(pattern.pattern.fields) else {
+    let syntax_trees::expression::MatchPattern::Destructure(pattern) = pattern.pattern else {
+        panic!("structured pattern")
+    };
+    let [ok, version] = parsed.expressions.match_fields(pattern.fields) else {
         panic!("both authored fields are retained");
     };
     assert_eq!(ok.member.as_str(&parsed), "ok");
@@ -930,78 +886,4 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
         parsed.expressions.expression(*target),
         ExpressionNode::Member(_)
     ));
-}
-
-#[test]
-fn parses_asm_jmp_block_as_transition_statement() {
-    let source = r#"
-        data Main {
-            value: i32;
-        }
-
-        machine Main::main(main: &mut Main) {
-            asm {
-                jmp other()
-            }
-
-            machine other() {}
-        }
-        "#;
-
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
-    let machine = crate::tests::root_machine(&parsed, "machine root item");
-    let entry = crate::tests::entry_state_handle(&parsed, machine);
-    let state = parsed.items.state(entry);
-    let instructions = instruction_statements(&parsed, parsed.items.statements(state.statements));
-    let statement = *instructions.first().expect("asm transition");
-    assert!(matches!(
-        parsed.statements.statement(statement),
-        StatementNode::Transition(_)
-    ));
-}
-
-#[test]
-fn parses_asm_mnemonics_as_intrinsic_calls() {
-    let source = r#"
-        data Main {
-            port: u16;
-        }
-
-        machine Main::main(main: &mut Main) {
-            let mut status: u8 = 0;
-            asm { hlt }
-            asm { out main.port, status }
-            asm { in status, main.port }
-        }
-        "#;
-
-    let parsed = crate::tests::parse_source(source, "parse should succeed");
-    let machine = crate::tests::root_machine(&parsed, "machine root item");
-    let entry = crate::tests::entry_state_handle(&parsed, machine);
-    let state = parsed.items.state(entry);
-    let statements = instruction_statements(&parsed, parsed.items.statements(state.statements));
-    assert_eq!(statements.len(), 4, "let + three asm statements");
-
-    let StatementNode::Call(hlt) = parsed.statements.statement(statements[1]).clone() else {
-        panic!("asm {{ hlt }} should desugar to a call statement");
-    };
-    assert_eq!(hlt.target.as_str(&parsed), "asm#hlt");
-    assert!(hlt.receiver.is_empty());
-    assert_eq!(hlt.arguments.count(), 0);
-
-    let StatementNode::Call(out) = parsed.statements.statement(statements[2]).clone() else {
-        panic!("asm {{ out .. }} should desugar to a call statement");
-    };
-    assert_eq!(out.target.as_str(&parsed), "asm#port_out");
-    assert_eq!(out.arguments.count(), 2);
-
-    let StatementNode::Assignment(read) = parsed.statements.statement(statements[3]).clone() else {
-        panic!("asm {{ in .. }} should desugar to an assignment");
-    };
-    let ExpressionNode::Call(port_in) = parsed.expressions.expression(read.value).clone() else {
-        panic!("asm {{ in .. }} assignment value should be the intrinsic call");
-    };
-    assert_eq!(port_in.target.as_str(&parsed), "asm#port_in");
-    assert_eq!(port_in.arguments.count(), 1);
-    assert!(!port_in.receiver.is_valid());
 }

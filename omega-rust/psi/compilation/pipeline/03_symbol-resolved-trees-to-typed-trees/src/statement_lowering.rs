@@ -446,7 +446,6 @@ pub(crate) mod statement {
 
         pub(crate) fn infer_initializer_type(
             lowerer: &mut Lowerer,
-            attached_data: Option<&resolved::name::DiagnosticName>,
             state: &resolved::state::State,
             types: &LocalTypes,
             initial_value: ExpressionHandle,
@@ -455,9 +454,7 @@ pub(crate) mod statement {
 
             if let ExpressionNode::Borrow(borrow) = expressions.expression(initial_value) {
                 let (target, access) = (borrow.target, borrow.access);
-                let Some(referee) =
-                    infer_initializer_type(lowerer, attached_data, state, types, target)?
-                else {
+                let Some(referee) = infer_initializer_type(lowerer, state, types, target)? else {
                     return Ok(None);
                 };
                 return Ok(Some(lowerer.typed_trees.type_reference_table.insert(
@@ -613,7 +610,6 @@ pub(crate) mod statement {
                     )?;
                     instantiate_declared_call_result(
                         lowerer,
-                        attached_data,
                         state,
                         types,
                         call,
@@ -629,13 +625,7 @@ pub(crate) mod statement {
                 expressions.expression(initial_value),
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
             ) {
-                return declared_projection_type(
-                    lowerer,
-                    attached_data,
-                    state,
-                    types,
-                    initial_value,
-                );
+                return declared_projection_type(lowerer, state, types, initial_value);
             }
 
             // A captured Boolean result has the same type as an authored
@@ -658,7 +648,6 @@ pub(crate) mod statement {
 
         fn declared_projection_type(
             lowerer: &mut Lowerer,
-            attached_data: Option<&resolved::name::DiagnosticName>,
             state: &resolved::state::State,
             types: &LocalTypes,
             place: ExpressionHandle,
@@ -683,13 +672,6 @@ pub(crate) mod statement {
                         root = indexed.collection;
                     }
                     ExpressionNode::Member(member) => {
-                        if matches!(
-                            expressions.expression(member.receiver),
-                            ExpressionNode::Name(path) if expressions.name_path_members(path.members)
-                                .first().is_some_and(|name| name.is_self_receiver())
-                        ) {
-                            break;
-                        }
                         steps.push(ProjectionStep::Field(member));
                         root = member.receiver;
                     }
@@ -697,34 +679,34 @@ pub(crate) mod statement {
                     _ => break,
                 }
             }
-            let supplied = if let ExpressionNode::Name(path) = expressions.expression(root)
-                && expressions.name_path_members(path.members).len() == 1
-            {
-                types
-                    .get(path.symbol)
-                    .or_else(|| types.get(path.head_symbol))
-            } else {
-                None
+            let ExpressionNode::Name(path) = expressions.expression(root) else {
+                return Ok(None);
             };
-            let root_type = if let Some(reference) = supplied {
-                reference
-            } else {
-                if let ExpressionNode::Name(path) = expressions.expression(root)
-                    && [path.symbol, path.head_symbol].into_iter().any(|symbol| {
-                        symbol.is_valid()
-                            && lowerer.source_trees.symbols.get(symbol).kind
-                                == symbols::SymbolKind::Local
-                    })
-                {
-                    return Ok(None);
-                }
-                let Some(declared_root) =
-                    collection_type_reference(lowerer, attached_data, state, root)
-                else {
-                    return Ok(None);
+            if expressions.name_path_members(path.members).len() != 1 {
+                return Ok(None);
+            }
+            let binders = [path.symbol, path.head_symbol];
+            let root_type =
+                if let Some(reference) = binders.into_iter().find_map(|symbol| types.get(symbol)) {
+                    reference
+                } else {
+                    // A parameter supplies its declared type before statement lowering
+                    // publishes any locals. An unavailable local cannot borrow a
+                    // same-spelled parameter's type.
+                    let parameters = lowerer.source_trees.state_parameters(state.parameters);
+                    let Some(parameter) = binders
+                        .into_iter()
+                        .filter(|symbol| symbol.is_valid())
+                        .find_map(|symbol| {
+                            parameters
+                                .iter()
+                                .find(|parameter| parameter.symbol == symbol)
+                        })
+                    else {
+                        return Ok(None);
+                    };
+                    lower_type_reference_into_table(lowerer, &parameter.type_reference)?
                 };
-                lower_type_reference_into_table(lowerer, &declared_root)?
-            };
             lowerer
                 .typed_trees
                 .prepare_data_application_view(root_type)
@@ -839,7 +821,6 @@ pub(crate) mod statement {
 
         fn instantiate_declared_call_result(
             lowerer: &mut Lowerer,
-            attached_data: Option<&resolved::name::DiagnosticName>,
             state: &resolved::state::State,
             types: &LocalTypes,
             call: &resolved::expression::TableCallExpression,
@@ -882,8 +863,7 @@ pub(crate) mod statement {
                 .expression_handles(call.arguments)
                 .to_vec();
             for (formal, argument) in formal_parameters.iter().zip(arguments) {
-                let Some(concrete) =
-                    infer_initializer_type(lowerer, attached_data, state, types, argument)?
+                let Some(concrete) = infer_initializer_type(lowerer, state, types, argument)?
                 else {
                     continue;
                 };
@@ -1023,81 +1003,6 @@ pub(crate) mod statement {
                 .map_err(Diagnostic::error)
         }
 
-        fn collection_type_reference(
-            lowerer: &Lowerer,
-            attached_data: Option<&resolved::name::DiagnosticName>,
-            state: &resolved::state::State,
-            collection: ExpressionHandle,
-        ) -> Option<TypeReference> {
-            let expressions = &lowerer.source_trees.tables.bodies.expressions;
-            match expressions.expression(collection) {
-                ExpressionNode::Member(_) => {
-                    member_chain_type(lowerer, attached_data, state, collection)
-                }
-                ExpressionNode::Name(path) => {
-                    let members = expressions.name_path_members(path.members);
-                    let [only] = members else {
-                        return None;
-                    };
-                    parameter_type(lowerer.source_trees, state, only.as_str()).or_else(|| {
-                        local_type(
-                            lowerer.source_trees,
-                            state,
-                            path.head_symbol,
-                            path.symbol,
-                            only.as_str(),
-                        )
-                    })
-                }
-                _ => None,
-            }
-        }
-
-        fn member_chain_type(
-            lowerer: &Lowerer,
-            attached_data: Option<&resolved::name::DiagnosticName>,
-            state: &resolved::state::State,
-            place: ExpressionHandle,
-        ) -> Option<TypeReference> {
-            let expressions = &lowerer.source_trees.tables.bodies.expressions;
-            let Some(member) = expressions.member_node(place) else {
-                return collection_type_reference(lowerer, attached_data, state, place);
-            };
-            if matches!(
-                expressions.expression(member.receiver),
-                ExpressionNode::Name(path)
-                    if expressions.name_path_members(path.members)
-                        .first().is_some_and(|name| name.is_self_receiver())
-            ) {
-                return attached_field_type(
-                    lowerer.source_trees,
-                    attached_data?,
-                    member.member.as_str(),
-                );
-            }
-            let receiver_type = member_chain_type(lowerer, attached_data, state, member.receiver)?;
-            let data_name = named_data_of(lowerer.source_trees, &receiver_type)?;
-            attached_field_type(lowerer.source_trees, &data_name, member.member.as_str())
-        }
-
-        fn named_data_of(
-            source_trees: &resolved::SymbolResolvedTrees,
-            type_reference: &TypeReference,
-        ) -> Option<resolved::name::DiagnosticName> {
-            match type_reference {
-                TypeReference::Named { name, .. } => Some(name.clone()),
-                TypeReference::Reference(reference) => named_data_of(
-                    source_trees,
-                    source_trees.child_type_reference(reference.referee),
-                ),
-                TypeReference::Constrained(constrained) => named_data_of(
-                    source_trees,
-                    source_trees.child_type_reference(constrained.base_type),
-                ),
-                _ => None,
-            }
-        }
-
         fn builtin_primitive_type(
             lowerer: &mut Lowerer,
             atom: symbols::BuiltinTypeAtom,
@@ -1118,62 +1023,6 @@ pub(crate) mod statement {
                     name: typed::name::Identifier::generated_static(spelling),
                 },
             )))
-        }
-
-        fn attached_field_type(
-            source_trees: &resolved::SymbolResolvedTrees,
-            data_name: &resolved::name::DiagnosticName,
-            field_name: &str,
-        ) -> Option<TypeReference> {
-            let data = source_trees
-                .data_definitions
-                .iter()
-                .find(|data| data.name.as_str() == data_name.as_str())?;
-            source_trees
-                .data_members(data.members)
-                .iter()
-                .find_map(|member| match member {
-                    resolved::data::DataMember::Field(field)
-                        if field.name.as_str() == field_name =>
-                    {
-                        Some(field.type_reference.clone())
-                    }
-                    _ => None,
-                })
-        }
-
-        fn parameter_type(
-            source_trees: &resolved::SymbolResolvedTrees,
-            state: &resolved::state::State,
-            name: &str,
-        ) -> Option<TypeReference> {
-            source_trees
-                .state_parameters(state.parameters)
-                .iter()
-                .find(|parameter| parameter.name.as_str() == name)
-                .map(|parameter| parameter.type_reference.clone())
-        }
-
-        fn local_type(
-            source_trees: &resolved::SymbolResolvedTrees,
-            state: &resolved::state::State,
-            head_symbol: symbols::SymbolHandle,
-            symbol: symbols::SymbolHandle,
-            name: &str,
-        ) -> Option<TypeReference> {
-            source_trees
-                .state_statements(state.statements)
-                .iter()
-                .find_map(|statement| {
-                    let resolved::statement::Statement::LocalData(local) = statement else {
-                        return None;
-                    };
-                    let symbol_matches = (head_symbol.is_valid() && head_symbol == local.symbol)
-                        || (symbol.is_valid() && symbol == local.symbol);
-                    let symbols_are_absent = !head_symbol.is_valid() && !symbol.is_valid();
-                    (symbol_matches || (symbols_are_absent && local.name.as_str() == name))
-                        .then(|| local.type_reference.clone())
-                })
         }
     }
     pub(crate) mod root_bindings {
@@ -1406,7 +1255,6 @@ pub(crate) mod statement {
 
         pub(crate) fn lower(
             lowerer: &mut Lowerer,
-            attached_data: Option<&resolved::name::DiagnosticName>,
             state: &resolved::state::State,
             types: &mut LocalTypes,
             handle: Handle<resolved::statement::AssemblyControlFlow>,
@@ -1442,14 +1290,8 @@ pub(crate) mod statement {
                 for instruction in
                     resolved_statements(lowerer.source_trees).statements(block.statement_nodes)
                 {
-                    let instruction = lower_statement_node(
-                        lowerer,
-                        attached_data,
-                        state,
-                        types,
-                        instruction,
-                        true,
-                    )?;
+                    let instruction =
+                        lower_statement_node(lowerer, state, types, instruction, true)?;
                     types.record(&instruction)?;
                     instructions.push(instruction);
                 }
@@ -1552,30 +1394,114 @@ pub(crate) mod statement {
 
     pub(crate) fn lower_statement(
         lowerer: &mut Lowerer,
-        attached_data: Option<&resolved::name::DiagnosticName>,
         state: &resolved::state::State,
         types: &mut LocalTypes,
         statement: &resolved::statement::StatementNode,
         closes_run: bool,
     ) -> Result<Vec<typed::statement::StatementNode>, Diagnostic> {
+        if let resolved::statement::StatementNode::LocalData(local) = statement
+            && let Some(operation) =
+                crate::atomic_calls::update_initializer(lowerer.source_trees, local.initial_value)?
+        {
+            let zero = lowerer.typed_trees.expression_table.insert(
+                typed::expression::ExpressionNode::Integer(
+                    numerics::literals::IntegerLiteral::zero(),
+                ),
+            );
+            let mut binding = lower_local(lowerer, state, types, local, Some(zero))?;
+            binding.role = language_core::LocalBindingRole::AtomicObservedResult;
+            let assignment = operation.assignment(lowerer, &binding)?;
+            let binding = typed::statement::StatementNode::LocalData(binding);
+            types.record(&binding)?;
+            return Ok(vec![binding, assignment]);
+        }
         if let resolved::statement::StatementNode::Assembly(handle) = statement {
-            assembly::lower(lowerer, attached_data, state, types, *handle)
+            assembly::lower(lowerer, state, types, *handle)
         } else {
-            let statement =
-                lower_statement_node(lowerer, attached_data, state, types, statement, closes_run)?;
+            let statement = lower_statement_node(lowerer, state, types, statement, closes_run)?;
             types.record(&statement)?;
             Ok(vec![statement])
         }
     }
 
+    fn lower_local(
+        lowerer: &mut Lowerer,
+        state: &resolved::state::State,
+        types: &LocalTypes,
+        local_data: &resolved::statement::TableLocalData,
+        initializer: Option<typed::expression::ExpressionHandle>,
+    ) -> Result<TableLocalData, Diagnostic> {
+        let declared_is_unit = matches!(
+            type_references(lowerer.source_trees).type_reference(local_data.type_reference),
+            resolved::types::TypeReferenceNode::Unit
+        );
+        let type_reference = if declared_is_unit
+            && local_data.initial_value.is_valid()
+            && local_data.type_is_inferred
+            && local_data.role.has_ordinary_initializer()
+        {
+            infer_initializer_type(lowerer, state, types, local_data.initial_value)?
+                .unwrap_or_else(typed::types::TypeReferenceHandle::invalid)
+        } else {
+            lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?
+        };
+        let roster = crate::tables::resolved_expressions(lowerer.source_trees)
+            .match_fields(local_data.pattern_fields)
+            .iter()
+            .map(|field| {
+                use resolved::expression::MatchFieldAction as Authored;
+                use typed::expression::{MatchFieldAction, TableMatchField};
+                TableMatchField {
+                    component: field.component,
+                    member: crate::lowerer::name::lower_name(&field.member),
+                    field_symbol: field.field_symbol,
+                    action: match &field.action {
+                        Authored::Bind(binding) => {
+                            MatchFieldAction::Bind(crate::lowerer::name::lower_name(binding))
+                        }
+                        Authored::Waive | Authored::Equal(_) => MatchFieldAction::Waive,
+                    },
+                }
+            })
+            .collect::<Vec<_>>();
+        let pattern_fields = crate::tables::expression_table_mut(&mut lowerer.typed_trees)
+            .insert_match_fields(roster);
+        Ok(TableLocalData {
+            pattern_fields,
+            pattern_subject: symbols::SymbolHandle::invalid(),
+            role: local_data.role,
+            symbol: local_data.symbol,
+            name: crate::lowerer::name::lower_name(&local_data.name),
+            type_reference,
+            initial_value: match initializer {
+                Some(value) => value,
+                None => local_data
+                    .initial_value
+                    .is_valid()
+                    .then(|| lower_statement_expression(lowerer, local_data.initial_value))
+                    .transpose()?
+                    .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
+            },
+            is_mutable: local_data.is_mutable,
+            type_is_inferred: local_data.type_is_inferred,
+            is_operand_capture: local_data.is_operand_capture,
+            relevance: local_data.relevance,
+            reflected_query_origin: None,
+        })
+    }
+
     fn lower_statement_node(
         lowerer: &mut Lowerer,
-        attached_data: Option<&resolved::name::DiagnosticName>,
         state: &resolved::state::State,
         types: &LocalTypes,
         statement: &resolved::statement::StatementNode,
         closes_run: bool,
     ) -> Result<typed::statement::StatementNode, Diagnostic> {
+        if let resolved::statement::StatementNode::Call(call) = statement
+            && let Some(assignment) = crate::atomic_calls::store(lowerer, call)?
+        {
+            return Ok(assignment);
+        }
         match statement {
             resolved::statement::StatementNode::Assembly(_) => Err(Diagnostic::error(
                 "assembly typing requires its complete enclosing statement window",
@@ -1671,67 +1597,9 @@ pub(crate) mod statement {
                     lower_statement_expression(lowerer, *expression)?,
                 ))
             }
-            resolved::statement::StatementNode::LocalData(local_data) => {
-                let declared_is_unit = matches!(
-                    type_references(lowerer.source_trees).type_reference(local_data.type_reference),
-                    resolved::types::TypeReferenceNode::Unit
-                );
-                let type_reference = if declared_is_unit
-                    && local_data.initial_value.is_valid()
-                    && local_data.type_is_inferred
-                    && local_data.role.has_ordinary_initializer()
-                {
-                    infer_initializer_type(
-                        lowerer,
-                        attached_data,
-                        state,
-                        types,
-                        local_data.initial_value,
-                    )?
-                    .unwrap_or_else(typed::types::TypeReferenceHandle::invalid)
-                } else {
-                    lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?
-                };
-                let roster = crate::tables::resolved_expressions(lowerer.source_trees)
-                    .match_fields(local_data.pattern_fields)
-                    .iter()
-                    .map(|field| {
-                        use resolved::expression::MatchFieldAction as Authored;
-                        use typed::expression::{MatchFieldAction, TableMatchField};
-                        TableMatchField {
-                            component: field.component,
-                            member: crate::lowerer::name::lower_name(&field.member),
-                            field_symbol: field.field_symbol,
-                            action: match &field.action {
-                                Authored::Bind(binding) => MatchFieldAction::Bind(
-                                    crate::lowerer::name::lower_name(binding),
-                                ),
-                                Authored::Waive | Authored::Equal(_) => MatchFieldAction::Waive,
-                            },
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                let pattern_fields = crate::tables::expression_table_mut(&mut lowerer.typed_trees)
-                    .insert_match_fields(roster);
-                Ok(typed::statement::StatementNode::LocalData(TableLocalData {
-                    pattern_fields,
-                    pattern_subject: symbols::SymbolHandle::invalid(),
-                    role: local_data.role,
-                    symbol: local_data.symbol,
-                    name: crate::lowerer::name::lower_name(&local_data.name),
-                    type_reference,
-                    initial_value: local_data
-                        .initial_value
-                        .is_valid()
-                        .then(|| lower_statement_expression(lowerer, local_data.initial_value))
-                        .transpose()?
-                        .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
-                    is_mutable: local_data.is_mutable,
-                    type_is_inferred: local_data.type_is_inferred,
-                    is_operand_capture: local_data.is_operand_capture,
-                    relevance: local_data.relevance,
-                    reflected_query_origin: None,
-                }))
+            resolved::statement::StatementNode::LocalData(local) => {
+                lower_local(lowerer, state, types, local, None)
+                    .map(typed::statement::StatementNode::LocalData)
             }
             resolved::statement::StatementNode::Transition(transition) => {
                 Ok(typed::statement::StatementNode::Transition(
@@ -1814,5 +1682,48 @@ mod boolean_result_tests {
         }
         assert_eq!(captured, 3);
         assert_eq!(authored, 5);
+    }
+}
+
+#[cfg(test)]
+mod scoped_field_tests {
+    use crate::qualified_operator_home_tests::packages;
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::TypeReferenceNode;
+
+    #[test]
+    fn field_initializer_uses_the_explicit_receivers_package() {
+        let left = "data Packet { value: u32; } machine Packet::read_left(packet: &Packet) -> u32 { let from_left = packet.value; from_left }";
+        let right = "data Packet { value: u64; } machine Packet::read_right(packet: &Packet) -> u64 { let from_right = packet.value; from_right }";
+        let program =
+            packages(&[(1, "left.omg", left), (2, "right.omg", right)], &[], &[]).unwrap();
+        let locals = program
+            .machines()
+            .iter()
+            .flat_map(|machine| program.machine_states(machine))
+            .flat_map(|state| program.statement_table.statements(state.statement_nodes))
+            .filter_map(|node| match node {
+                StatementNode::LocalData(local) => Some(local),
+                _ => None,
+            });
+        let mut observed = locals
+            .filter_map(|local| {
+                let expected = match local.name.as_str() {
+                    "from_left" => "u32",
+                    "from_right" => "u64",
+                    _ => return None,
+                };
+                let TypeReferenceNode::Named { name, .. } = program
+                    .type_reference_table
+                    .type_reference(local.type_reference)
+                else {
+                    panic!("{} lost the selected field's type", local.name.as_str());
+                };
+                assert_eq!(name.as_str(), expected);
+                Some(local.name.as_str())
+            })
+            .collect::<Vec<_>>();
+        observed.sort_unstable();
+        assert_eq!(observed, ["from_left", "from_right"]);
     }
 }

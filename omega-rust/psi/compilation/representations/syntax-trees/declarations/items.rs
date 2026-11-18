@@ -10,15 +10,18 @@ pub type ItemHandle = Handle<Item>;
 pub type StateParameterHandle = Handle<StateParameterNode>;
 pub type StateSignatureHandle = Handle<StateSignature>;
 pub type StateHandle = Handle<State>;
-pub type MachineHandle = Handle<MachineNode>;
-pub type TraitHandle = Handle<TraitNode>;
 pub type MathematicalDefinitionHandle = Handle<MathematicalDefinition>;
 pub type MathematicalParameterHandle = Handle<MathematicalParameterNode>;
 pub type MathematicalTypeHandle = Handle<MathematicalTypeNode>;
 
 pub use capabilities::*;
+pub use conformances::*;
+pub use constant_preparation::*;
+pub use constants::*;
 pub use data_items::*;
+pub use domains::*;
 pub use machine_items::*;
+pub use parameters::*;
 pub use proof_items::*;
 pub use type_aliases::*;
 
@@ -67,90 +70,6 @@ impl Item {
         };
         Some(machine)
     }
-}
-
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    syntax_trees_derive::SyntaxEquivalent,
-    syntax_trees_derive::SyntaxRelocate,
-    compiler_storage::Record,
-)]
-pub struct ConstDefinition {
-    pub scope: Identifier,
-    pub name: Identifier,
-    pub is_public: bool,
-    pub type_reference: TypeReferenceHandle,
-    pub value: ExpressionHandle,
-    pub pending_target_observation: bool,
-    pub normalization: Option<ConstInitializerNormalization>,
-    pub qualification: Option<ConstQualification>,
-    pub pending_qualification: Option<ConstDestinationObligation>,
-}
-
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    syntax_trees_derive::PlainSyntaxEquivalent,
-    syntax_trees_derive::SyntaxRelocate,
-    compiler_storage::Record,
-)]
-pub struct ConstQualification {
-    pub destination: TypeReferenceHandle,
-    pub initializer: ExpressionHandle,
-}
-
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    syntax_trees_derive::PlainSyntaxEquivalent,
-    syntax_trees_derive::SyntaxRelocate,
-    compiler_storage::Record,
-)]
-pub struct ConstDestinationObligation {
-    pub declaration: source::SourceSpan,
-    pub destination: TypeReferenceHandle,
-    pub initializer: ExpressionHandle,
-}
-
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    compiler_storage::Record,
-    syntax_trees_derive::SyntaxRelocate,
-)]
-pub struct ConstInitializerCustody {
-    pub selections: Vec<crate::types::ConstArgumentOrigin>,
-    pub builtin_operators: Vec<source::SourceSpan>,
-    pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
-}
-
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    syntax_trees_derive::PlainSyntaxEquivalent,
-    syntax_trees_derive::SyntaxRelocate,
-    compiler_storage::Record,
-)]
-pub struct ConstInitializerNormalization {
-    pub authored_custody: ConstInitializerCustody,
-    pub declaration_custody: ConstInitializerCustody,
-    pub authored_expression: ExpressionHandle,
-    pub result_value: language_core::constant_value::EvaluatedConstant,
-    pub selections: Vec<crate::types::ConstArgumentOrigin>,
-    pub builtin_operators: Vec<source::SourceSpan>,
-    pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
 }
 
 #[derive(
@@ -240,8 +159,6 @@ paged_roster! {
         arena state_handles: StateHandle,
         arena signature_handles: StateSignatureHandle,
         arena statement_handles: StatementHandle,
-        arena machines: MachineNode,
-        arena traits: TraitNode,
     }
 }
 
@@ -263,6 +180,12 @@ paged_roster! {
         arena mathematical_parameters: MathematicalParameterNode,
         arena mathematical_parameter_handles: MathematicalParameterHandle,
     }
+}
+
+#[derive(Clone, Copy)]
+pub enum StatementBody {
+    State(StateHandle),
+    TraitDefault(StateSignatureHandle),
 }
 
 impl ItemTable {
@@ -360,14 +283,6 @@ impl ItemTable {
 
     pub fn state_mut(&mut self, handle: StateHandle) -> &mut State {
         self.state_storage.states.get_mut(handle)
-    }
-
-    pub fn machine(&self, handle: MachineHandle) -> &MachineNode {
-        self.state_storage.machines.get(handle)
-    }
-
-    pub fn trait_definition(&self, handle: TraitHandle) -> &TraitNode {
-        self.state_storage.traits.get(handle)
     }
 
     pub fn type_parameter_entries(&self) -> impl Iterator<Item = &TypeParameter> {
@@ -490,6 +405,36 @@ impl ItemTable {
         self.state_storage.state_handles.span_or_empty(span)
     }
 
+    /// Bodies published by declarations. A nested machine owns a state just like a root machine.
+    pub fn statement_bodies(
+        &self,
+    ) -> impl Iterator<Item = (StatementBody, HandleSpan<StatementHandle>)> {
+        self.state_storage
+            .states
+            .iter()
+            .map(|(owner, state)| (StatementBody::State(owner), state.statements))
+            .chain(
+                self.state_storage
+                    .signatures
+                    .iter()
+                    .filter(|(_, signature)| !signature.default_body.is_empty())
+                    .map(|(owner, signature)| {
+                        (StatementBody::TraitDefault(owner), signature.default_body)
+                    }),
+            )
+    }
+
+    pub fn set_statement_body(&mut self, owner: StatementBody, body: HandleSpan<StatementHandle>) {
+        match owner {
+            StatementBody::State(owner) => {
+                self.state_storage.states.get_mut(owner).statements = body
+            }
+            StatementBody::TraitDefault(owner) => {
+                self.state_storage.signatures.get_mut(owner).default_body = body
+            }
+        }
+    }
+
     pub fn statements(&self, span: HandleSpan<StatementHandle>) -> &[StatementHandle] {
         self.state_storage.statement_handles.span_or_empty(span)
     }
@@ -601,42 +546,12 @@ impl ItemTable {
         handle
     }
 
-    pub fn machine_count(&self) -> usize {
-        self.state_storage.machines.len()
-    }
-
     pub fn insert_state_signature(&mut self, signature: &StateSignature) -> StateSignatureHandle {
         self.state_storage.signatures.append(signature.clone())
     }
 
     pub fn insert_state(&mut self, state: &State) -> StateHandle {
         self.state_storage.states.append(state.clone())
-    }
-
-    pub fn insert_machine(&mut self, machine: &Machine) -> MachineHandle {
-        self.state_storage.machines.append(MachineNode {
-            name: machine.name.clone(),
-            satisfies: machine.satisfies,
-            service_reach_keyword_source_spans: machine.service_reach_keyword_source_spans.clone(),
-            service_reaches: machine.service_reaches,
-            invokes: machine.invokes,
-            suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
-            blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
-            suspends: machine.suspends,
-            blocks: machine.blocks,
-            contracts: machine.contracts,
-            states: machine.states,
-        })
-    }
-
-    pub fn insert_trait_definition(&mut self, trait_definition: &TraitDefinition) -> TraitHandle {
-        self.state_storage.traits.append(TraitNode {
-            is_boundary: trait_definition.is_boundary,
-            name: trait_definition.name.clone(),
-            parents: trait_definition.parents,
-            requires: trait_definition.requires,
-            machines: trait_definition.machines,
-        })
     }
 }
 
@@ -680,46 +595,23 @@ pub struct NativeCallbackParameterNode {
     pub native_ordinal: u32,
 }
 
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    syntax_trees_derive::SyntaxEquivalent,
-    syntax_trees_derive::SyntaxRelocate,
-    compiler_storage::Record,
-)]
-pub struct MachineNode {
-    pub name: Identifier,
-    pub satisfies: HandleSpan<SatisfiesClause>,
-    pub service_reach_keyword_source_spans: Vec<source::SourceSpan>,
-    pub service_reaches: HandleSpan<Identifier>,
-    pub invokes: HandleSpan<Identifier>,
-    pub suspends_keyword_source_spans: Vec<source::SourceSpan>,
-    pub blocks_keyword_source_spans: Vec<source::SourceSpan>,
-    pub suspends: bool,
-    pub blocks: bool,
-    pub contracts: HandleSpan<CapabilityContract>,
-    pub states: HandleSpan<StateHandle>,
-}
+#[path = "constants.rs"]
+pub(crate) mod constants;
 
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    syntax_trees_derive::SyntaxEquivalent,
-    syntax_trees_derive::SyntaxRelocate,
-    compiler_storage::Record,
-)]
-pub struct TraitNode {
-    pub is_boundary: bool,
-    pub name: Identifier,
-    pub parents: HandleSpan<TypeReferenceHandle>,
-    pub requires: HandleSpan<Identifier>,
-    pub machines: HandleSpan<StateSignatureHandle>,
-}
+#[path = "constant_preparation.rs"]
+pub(crate) mod constant_preparation;
 
 #[path = "capabilities.rs"]
 pub(crate) mod capabilities;
+
+#[path = "conformances.rs"]
+pub(crate) mod conformances;
+
+#[path = "domains.rs"]
+pub(crate) mod domains;
+
+#[path = "parameters.rs"]
+pub(crate) mod parameters;
 
 #[path = "data.rs"]
 pub(crate) mod data_items;

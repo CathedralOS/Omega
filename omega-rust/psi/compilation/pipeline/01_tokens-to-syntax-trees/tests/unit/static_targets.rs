@@ -80,7 +80,7 @@ fn check_call_extents(text: &str, expected: &[(&str, &str, &str)]) {
         let mut pending = program
             .root_items()
             .filter_map(|item| match item {
-                syntax_trees::item::Item::Const(definition) => Some(definition.value),
+                syntax_trees::item::Item::Const(definition) => Some(definition.initializer),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -214,7 +214,7 @@ fn applied_requirement_call_keeps_its_trait_application_as_static_receiver() {
     let values = syntax
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Const(definition) => Some(definition.value),
+            syntax_trees::item::Item::Const(definition) => Some(definition.initializer),
             _ => None,
         })
         .collect::<Vec<_>>();

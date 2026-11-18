@@ -53,7 +53,6 @@ fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, LexError>
     Ok(LexedSource {
         source_id: loaded_source.source_id,
         path: std::mem::take(&mut loaded_source.path),
-        source: loaded_source.source.clone(),
         origin: loaded_source.origin,
         tokens: tokens.retain_source(loaded_source.source.clone()),
         scope: loaded_source.scope,

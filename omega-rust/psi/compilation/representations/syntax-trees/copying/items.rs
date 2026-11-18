@@ -85,6 +85,30 @@ impl SyntaxTrees {
         SyntaxCopy::new(self, other).copy_expression_handle(other, handle)
     }
 
+    pub fn copy_assembly_operands_from(
+        &mut self,
+        other: &SyntaxTrees,
+        operands: &mut crate::statement::AssemblyOperands,
+    ) {
+        SyntaxCopy::new(self, other).copy_assembly_operands(other, operands);
+    }
+
+    /// Copy a prepared body as a unit so shared operands keep their identity.
+    pub fn copy_statements_from(
+        &mut self,
+        other: &SyntaxTrees,
+        statements: &[crate::statement::StatementHandle],
+    ) -> Vec<crate::statement::StatementHandle> {
+        let mut copy = SyntaxCopy::new(self, other);
+        statements
+            .iter()
+            .map(|&handle| {
+                let node = copy.copy_statement_node(other, other.statements.statement(handle));
+                copy.statements.insert(node)
+            })
+            .collect()
+    }
+
     pub fn copy_proof_fact_from(
         &mut self,
         other: &SyntaxTrees,
@@ -355,50 +379,65 @@ impl SyntaxCopy<'_> {
             Item::Const(constant) => {
                 let type_reference =
                     self.copy_type_reference_handle(other, constant.type_reference);
-                let value = self.copy_expression_handle(other, constant.value);
-                Item::Const(ConstDefinition {
+                let initializer = self.copy_expression_handle(other, constant.initializer);
+                let declaration = crate::item::ConstSyntax {
                     scope: constant.scope.clone(),
                     name: constant.name.clone(),
                     is_public: constant.is_public,
                     type_reference,
-                    value,
-                    pending_target_observation: constant.pending_target_observation,
-                    normalization: constant.normalization.as_ref().map(|normalization| {
-                        ConstInitializerNormalization {
-                            authored_custody: normalization.authored_custody.clone(),
-                            declaration_custody: normalization.declaration_custody.clone(),
-                            authored_expression: self
-                                .copy_expression_handle(other, normalization.authored_expression),
-                            result_value: normalization.result_value.clone(),
-                            selections: normalization.selections.clone(),
-                            builtin_operators: normalization.builtin_operators.clone(),
-                            call_selections: normalization.call_selections.clone(),
-                        }
-                    }),
-                    pending_qualification: constant.pending_qualification.as_ref().map(
-                        |obligation| {
-                            if obligation.declaration == constant.name.source_span()
-                                && obligation.destination == constant.type_reference
-                                && obligation.initializer == constant.value
-                            {
-                                ConstDestinationObligation {
-                                    declaration: constant.name.source_span(),
-                                    destination: type_reference,
-                                    initializer: value,
-                                }
-                            } else {
-                                obligation.clone()
+                    initializer,
+                };
+                let preparation = constant.preparation.as_deref().map(|prepared| {
+                    let materialized_initializer = prepared
+                        .materialized_initializer
+                        .map(|handle| self.copy_expression_handle(other, handle));
+                    let value = materialized_initializer.unwrap_or(initializer);
+                    Box::new(crate::item::ConstPreparation {
+                        materialized_initializer,
+                        pending_target_observation: prepared.pending_target_observation,
+                        normalization: prepared.normalization.as_ref().map(|normalization| {
+                            ConstInitializerNormalization {
+                                authored_custody: normalization.authored_custody.clone(),
+                                declaration_custody: normalization.declaration_custody.clone(),
+                                authored_expression: self.copy_expression_handle(
+                                    other,
+                                    normalization.authored_expression,
+                                ),
+                                result_value: normalization.result_value.clone(),
+                                selections: normalization.selections.clone(),
+                                builtin_operators: normalization.builtin_operators.clone(),
+                                call_selections: normalization.call_selections.clone(),
                             }
-                        },
-                    ),
-                    qualification: constant.qualification.as_ref().and_then(|qualification| {
-                        (qualification.destination == constant.type_reference
-                            && qualification.initializer == constant.value)
+                        }),
+                        pending_qualification: prepared.pending_qualification.as_ref().map(
+                            |obligation| {
+                                if obligation.declaration == constant.name.source_span()
+                                    && obligation.destination == constant.type_reference
+                                    && obligation.initializer == constant.value()
+                                {
+                                    ConstDestinationObligation {
+                                        declaration: constant.name.source_span(),
+                                        destination: type_reference,
+                                        initializer: value,
+                                    }
+                                } else {
+                                    obligation.clone()
+                                }
+                            },
+                        ),
+                        qualification: prepared.qualification.as_ref().and_then(|qualification| {
+                            (qualification.destination == constant.type_reference
+                                && qualification.initializer == constant.value())
                             .then_some(ConstQualification {
                                 destination: type_reference,
                                 initializer: value,
                             })
-                    }),
+                        }),
+                    })
+                });
+                Item::Const(ConstDefinition {
+                    declaration,
+                    preparation,
                 })
             }
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),

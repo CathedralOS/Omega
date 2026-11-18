@@ -78,7 +78,6 @@ fn parse_pages(
     let mut lexed = tokens::LexedSources::default();
     lexed.batch = lexed.sources.insert_many([tokens::LexedSource {
         source_id,
-        source: source.clone(),
         tokens: tokens.clone().retain_source(source),
         ..Default::default()
     }]);

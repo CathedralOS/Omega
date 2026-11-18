@@ -71,8 +71,10 @@ Unknown mnemonics fail separately. Service-admission candidates
 Target gates never substitute another ISA's instruction.
 
 [Parsing](../../compilation/pipeline/01_tokens-to-syntax-trees/assembly/parse.rs)
-lowers known forms and checks separators, transfer position and the exact
-clobber union. Requires and ensures clauses become assertions around the
+records instruction spelling, operands, clauses and labels, and checks separators.
+[Instruction preparation](../../compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/declarations/assembly/mod.rs)
+looks up contracts, checks transfer position and the exact clobber union, and
+builds the block graph. Requires and ensures clauses become assertions around the
 instructions, with a proof-neutral entry marker for an ensures-only block.
 Checked assertions use exact block-point flow facts and refuse stale
 postconditions whose places were written.

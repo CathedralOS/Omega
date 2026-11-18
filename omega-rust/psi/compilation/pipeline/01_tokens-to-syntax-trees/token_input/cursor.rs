@@ -8,7 +8,7 @@ use numerics::literals::IntegerLiteral;
 use source::{SourceId, SourceSpan, Span};
 use syntax_trees::FloatSpelling;
 use syntax_trees::identifier::Identifier;
-use tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText};
+use tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenStream};
 
 pub(crate) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
 
@@ -29,25 +29,17 @@ pub(crate) struct Input<'tokens, 'source> {
 }
 
 impl<'tokens, 'source> Input<'tokens, 'source> {
-    pub(crate) fn retain_source(stream: &TokenStream<'_>) -> std::sync::Arc<str> {
-        stream
-            .source_owner()
-            .cloned()
-            .unwrap_or_else(|| std::sync::Arc::from(stream.source_text()))
-    }
-
     pub(crate) fn new(
         source_id: SourceId,
         stream: &'tokens TokenStream<'source>,
-        retained_source: &std::sync::Arc<str>,
         syntax_trees: &mut syntax_trees::SyntaxTrees,
     ) -> Self {
-        let source_owner = syntax_trees.text.retain(retained_source.clone());
+        let source_owner = syntax_trees.text.retain(stream.shared_source());
         Self {
             source_id,
             source_owner,
             stream,
-            tokens: skip_non_semantic_tokens(stream.as_slice()),
+            tokens: skip_trivia(stream.as_slice()),
             depth: 0,
             pending_greater: false,
             constant_position: false,
@@ -59,7 +51,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             source_id: self.source_id,
             stream: self.stream,
             source_owner: self.source_owner,
-            tokens: skip_non_semantic_tokens(tokens),
+            tokens: skip_trivia(tokens),
             depth: self.depth,
             pending_greater: self.pending_greater,
             constant_position: self.constant_position,
@@ -68,7 +60,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(crate) fn restarted(self, tokens: &'tokens [Token]) -> Self {
         Self {
-            tokens: skip_non_semantic_tokens(tokens),
+            tokens: skip_trivia(tokens),
             depth: 0,
             pending_greater: false,
             ..self
@@ -79,15 +71,19 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         *self = self.advanced(tokens);
     }
 
-    pub(crate) fn text(self, token: &Token) -> TokenText<'tokens> {
-        self.stream.text(token)
+    pub(crate) fn spelling(self, token: &Token) -> &'tokens str {
+        self.stream.spelling(token)
     }
 
-    fn peek(&self, index: usize) -> Option<&'tokens Token> {
+    // The cursor starts on a grammar token. Trivia may separate every later pair.
+    fn peek_semantic(&self, index: usize) -> Option<&'tokens Token> {
+        let (first, rest) = self.tokens.split_first()?;
         if index == 0 {
-            return self.tokens.first();
+            return Some(first);
         }
-        skip_non_semantic_tokens(self.tokens.get(1..)?).get(index - 1)
+        rest.iter()
+            .filter(|token| !token.is_trivia())
+            .nth(index - 1)
     }
 
     pub(crate) fn depth(&self) -> u16 {
@@ -142,12 +138,12 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         let consumed = &self.tokens[..consumed_count];
         let first = consumed
             .iter()
-            .find(|token| !token.is_non_semantic())
+            .find(|token| !token.is_trivia())
             .expect("a consumed source span requires one semantic token");
         let last = consumed
             .iter()
             .rev()
-            .find(|token| !token.is_non_semantic())
+            .find(|token| !token.is_trivia())
             .expect("a consumed source span requires one semantic token");
         SourceSpan::new(self.source_id, Span::new(first.span.start, last.span.end))
     }
@@ -253,7 +249,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_contextual(self, name: &str) -> Result<Self, ParseError> {
         let (token, rest) = self.expect_token()?;
         if matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-            && self.text(token).as_str() == name
+            && self.spelling(token) == name
         {
             Ok(rest)
         } else {
@@ -293,7 +289,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         let Some(kind) = token.integer_literal_kind() else {
             return Err(diagnostics::expected(self, token, expected));
         };
-        let literal = parse_integer_literal(self.text(token).as_str(), kind)
+        let literal = parse_integer_literal(self.spelling(token), kind)
             .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
         Ok((literal, rest))
     }
@@ -322,9 +318,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(crate) fn take_string(self) -> Result<(String, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
-        if token.is_string_literal() {
-            let bytes = self.text(token).as_bytes();
-            let value = std::str::from_utf8(bytes).map_err(|_| {
+        if let Some(bytes) = self.stream.literal_bytes(token) {
+            let value = std::str::from_utf8(&bytes).map_err(|_| {
                 ParseError::at_source_span(
                     "raw byte string literal requires the terminal byte-sequence lowering path",
                     self.source_span(token),
@@ -338,8 +333,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(crate) fn take_string_bytes(self) -> Result<(source::SourceBytes, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
-        if token.is_string_literal() {
-            Ok((self.stream.literal_bytes(token), rest))
+        if let Some(bytes) = self.stream.literal_bytes(token) {
+            Ok((bytes, rest))
         } else {
             Err(diagnostics::expected(self, token, "string literal"))
         }
@@ -348,7 +343,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn take_float_text(self) -> Result<(FloatSpelling, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.float_literal_kind() {
-            validate_float_literal(self.text(token).as_str(), kind)
+            validate_float_literal(self.spelling(token), kind)
                 .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
             Ok((
                 FloatSpelling::source_backed(self.source_owner, self.source_span(token)),
@@ -380,7 +375,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(crate) fn at_contextual(&self, name: &str) -> bool {
         self.tokens.first().is_some_and(|token| {
             matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && self.text(token).as_str() == name
+                && self.spelling(token) == name
         })
     }
 
@@ -404,11 +399,11 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// The one clause that is, the installation bound
     /// `reaches <= Bound`, keeps its clause reading.
     pub(crate) fn clause_word_is_an_operand(&self) -> bool {
-        let Some(next) = self.peek(1) else {
+        let Some(next) = self.peek_semantic(1) else {
             return false;
         };
         if next.kind == TokenKind::Keyword(KeywordKind::As)
-            || (next.kind == TokenKind::Identifier && self.text(next).as_str() == "in")
+            || (next.kind == TokenKind::Identifier && self.spelling(next) == "in")
         {
             return true;
         }
@@ -450,17 +445,17 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(crate) fn at_contextual_then_string(&self, name: &str) -> bool {
-        self.peek(0).is_some_and(|token| {
-            token.kind == TokenKind::Identifier && self.text(token).as_str() == name
-        }) && self.peek(1).is_some_and(Token::is_string_literal)
+        self.peek_semantic(0).is_some_and(|token| {
+            token.kind == TokenKind::Identifier && self.spelling(token) == name
+        }) && self.peek_semantic(1).is_some_and(Token::is_string_literal)
     }
 
     pub(crate) fn at_identifier_then_contextual(&self, name: &str) -> bool {
-        self.peek(0)
+        self.peek_semantic(0)
             .is_some_and(|first| first.kind == TokenKind::Identifier)
-            && self.peek(1).is_some_and(|token| {
+            && self.peek_semantic(1).is_some_and(|token| {
                 matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                    && self.text(token).as_str() == name
+                    && self.spelling(token) == name
             })
     }
 
@@ -472,21 +467,24 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         if !self.at_punctuation(PunctuationKind::LeftBrace) {
             return false;
         }
-        let Some(after_brace) = self.tokens.get(1..).map(skip_non_semantic_tokens) else {
+        let Some(after_brace) = self.tokens.get(1..).map(skip_trivia) else {
             return false;
         };
         let Some((word, rest)) = after_brace.split_first() else {
             return false;
         };
         matches!(word.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-            && matches!(self.text(word).as_str(), "decreases" | "increases")
-            && skip_non_semantic_tokens(rest)
+            && matches!(self.spelling(word), "decreases" | "increases")
+            && skip_trivia(rest)
                 .first()
                 .is_some_and(is_identifier_token_for_parser)
     }
 
     pub(crate) fn at_contextual_then_name(&self, name: &str) -> bool {
-        self.at_contextual(name) && self.peek(1).is_some_and(is_identifier_token_for_parser)
+        self.at_contextual(name)
+            && self
+                .peek_semantic(1)
+                .is_some_and(is_identifier_token_for_parser)
     }
 
     pub(crate) fn at_name_like(&self) -> bool {
@@ -502,15 +500,15 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(crate) fn at_same_stack_demand(&self) -> bool {
-        self.peek(0).is_some_and(|first| {
+        self.peek_semantic(0).is_some_and(|first| {
             matches!(first.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                && self.text(first).as_str() == "stack"
+                && self.spelling(first) == "stack"
         }) && self
-            .peek(1)
+            .peek_semantic(1)
             .is_some_and(|integer| integer.integer_literal_kind().is_some())
-            && self.peek(2).is_some_and(|token| {
+            && self.peek_semantic(2).is_some_and(|token| {
                 matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
-                    && self.text(token).as_str() == "bytes"
+                    && self.spelling(token) == "bytes"
             })
     }
 
@@ -519,10 +517,10 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         let mut index = skipped_count;
         while index > 0 {
             let token = &self.tokens[index - 1];
-            if !token.is_non_semantic() {
+            if !token.is_trivia() {
                 return false;
             }
-            if self.text(token).as_str().contains('\n') {
+            if self.spelling(token).contains('\n') {
                 return true;
             }
             index -= 1;
@@ -546,14 +544,14 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 pub(crate) fn is_identifier_token_for_parser(token: &Token) -> bool {
     match token.kind {
         TokenKind::Identifier => true,
-        TokenKind::Keyword(keyword) => !keyword.is_strict_identifier_keyword(),
+        TokenKind::Keyword(keyword) => keyword != KeywordKind::SelfValue,
         _ => false,
     }
 }
 
-fn skip_non_semantic_tokens(tokens: &[Token]) -> &[Token] {
+fn skip_trivia(tokens: &[Token]) -> &[Token] {
     let mut index = 0usize;
-    while index < tokens.len() && tokens[index].is_non_semantic() {
+    while index < tokens.len() && tokens[index].is_trivia() {
         index += 1;
     }
     &tokens[index..]

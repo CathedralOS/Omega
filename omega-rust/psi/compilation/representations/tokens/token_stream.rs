@@ -8,7 +8,6 @@ pub use token_kind::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
     NumericLiteralKind, PunctuationKind, TokenKind,
 };
-pub use token_text::TokenText;
 
 use arena::{Arena, Handle};
 use std::{ops::Deref, sync::Arc};
@@ -99,6 +98,10 @@ impl<'source> TokenStream<'source> {
 
     #[inline]
     pub fn push_source(&mut self, kind: TokenKind, span: Span) {
+        assert!(
+            kind != TokenKind::StringLiteral,
+            "quoted literals require decoded bytes"
+        );
         self.tokens.push(Token {
             kind,
             span,
@@ -141,6 +144,13 @@ impl<'source> TokenStream<'source> {
         self.source.text()
     }
 
+    /// Shares the exact source used to build this stream with a longer-lived consumer.
+    pub fn shared_source(&self) -> Arc<str> {
+        self.source_owner()
+            .cloned()
+            .unwrap_or_else(|| Arc::from(self.source_text()))
+    }
+
     pub fn source_owner(&self) -> Option<&Arc<str>> {
         match &self.source {
             SourceBacking::Borrowed(_) => None,
@@ -148,33 +158,25 @@ impl<'source> TokenStream<'source> {
         }
     }
 
+    /// The exact source bytes covered by this token, including a literal's quotes and escapes.
     #[inline]
-    pub fn text(&self, token: &Token) -> TokenText<'_> {
-        if token.decoded.is_valid() {
-            let range = self.decoded_ranges.get(token.decoded);
-            TokenText::Bytes(
-                &self
-                    .decoded_bytes
-                    .as_ref()
-                    .expect("decoded payload has backing bytes")[range.start..range.end],
-            )
-        } else {
-            TokenText::Source(&self.source.text()[token.span.start..token.span.end])
-        }
+    pub fn spelling(&self, token: &Token) -> &str {
+        &self.source_text()[token.span.start..token.span.end]
     }
 
-    pub fn literal_bytes(&self, token: &Token) -> source::SourceBytes {
+    /// The decoded contents of a quoted byte literal, which may contain arbitrary bytes.
+    pub fn literal_bytes(&self, token: &Token) -> Option<source::SourceBytes> {
         if !token.decoded.is_valid() {
-            return source::SourceBytes::from(self.text(token).as_bytes());
+            return None;
         }
         let range = self.decoded_ranges.get(token.decoded);
-        source::SourceBytes::from_shared(
+        Some(source::SourceBytes::from_shared(
             self.decoded_bytes
                 .as_ref()
                 .expect("decoded payload has backing bytes")
                 .clone(),
             range.start..range.end,
-        )
+        ))
     }
 
     #[inline]
@@ -185,11 +187,12 @@ impl<'source> TokenStream<'source> {
 
 impl PartialEq for TokenStream<'_> {
     fn eq(&self, other: &Self) -> bool {
-        self.len() == other.len()
+        self.source_text() == other.source_text()
+            && self.len() == other.len()
             && self.iter().zip(other.iter()).all(|(left, right)| {
                 left.kind == right.kind
                     && left.span == right.span
-                    && self.text(left) == other.text(right)
+                    && self.literal_bytes(left) == other.literal_bytes(right)
             })
     }
 }
@@ -213,5 +216,3 @@ pub mod sources;
 pub mod token;
 #[path = "lexemes/kinds.rs"]
 pub mod token_kind;
-#[path = "text/spelling.rs"]
-pub mod token_text;
