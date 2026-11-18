@@ -773,7 +773,6 @@ dependencies = [
  "target-x86_64",
  "task-plans",
  "terminal-psi",
- "terminal-semantics",
  "verified-optimization-input",
  "wire",
 ]
