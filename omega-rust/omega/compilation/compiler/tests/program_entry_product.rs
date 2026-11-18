@@ -271,26 +271,6 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .is_err()
             );
 
-            // Keep the entry and all bindings identical, but give the program a
-            // different canonical identity. Its native provider selection belongs
-            // to the original publication.
-            let mut other = module.clone();
-            let mut identities = other.identities.into_builder();
-            identities.intern("test::distinct-publication");
-            other.identities = identities.build();
-            let other = std::sync::Arc::new(
-                terminal_codec::CanonicalTerminalArtifact::from_parts(
-                    other,
-                    program.artifact().optimization().clone(),
-                    None,
-                )
-                .unwrap(),
-            );
-            let refusal = products::PublishedNativeEntry::for_program(&other, checked.execution())
-                .err()
-                .expect("a different program cannot borrow this target selection");
-            assert!(diagnostics::join_messages(&refusal).contains("different accepted program"));
-
             // A portable body with the same entry ID is insufficient when its
             // declaration or arrival signature is absent.
             let mut malformed = module.clone();
@@ -411,6 +391,25 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 other_checked.execution().original_program(),
                 checked.execution().original_program()
             );
+            // Both programs use the same Build entry and target. Publish the
+            // other checked source with its own optimization and program identities.
+            let other_publication = other_checked.terminal_publication();
+            let other_program = portable_publication::ProductCodeSource {
+                publication: other_publication,
+                sources: other_checked.sources(),
+            }
+            .publish(
+                other_publication.optimizations(),
+                &mut source_compiler::UnmeasuredProduction,
+            )
+            .expect("publish the independently checked program");
+            let refusal = products::PublishedNativeEntry::for_program(
+                other_program.artifact(),
+                checked.execution(),
+            )
+            .err()
+            .expect("a different program cannot borrow this target selection");
+            assert!(diagnostics::join_messages(&refusal).contains("different accepted program"));
             let mismatch = receive(other_checked.execution()).unwrap_err();
             assert_eq!(
                 mismatch[0].message,

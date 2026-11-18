@@ -107,7 +107,6 @@ pub(crate) fn execute(
         .filter(|boundary| !component_slots.contains(boundary))
         .collect::<Vec<_>>();
     host.bind_instance(
-        &program,
         &mut instance,
         request
             .provisions

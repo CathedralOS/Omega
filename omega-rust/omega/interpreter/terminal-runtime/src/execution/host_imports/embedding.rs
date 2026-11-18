@@ -1,17 +1,16 @@
 //! Individual bindings for embedders running an explicitly instantiated PSI program.
 use super::{
-    BoundaryMachineId, HostContext, TerminalProgram, TerminalRuntimeError,
-    TerminalRuntimeHostProvisions, bind,
+    BoundaryMachineId, HostContext, TerminalRuntimeError, TerminalRuntimeHostProvisions, bind,
 };
 impl<'host> HostContext<'host> {
     pub fn bind_instance(
         &self,
-        program: &TerminalProgram,
         instance: &mut terminal_interpreter::TerminalInstance<'host, '_>,
         provisions: Option<&TerminalRuntimeHostProvisions>,
         imports: &[BoundaryMachineId],
     ) -> Result<(), TerminalRuntimeError> {
-        bind(program, instance, provisions, imports, self).map(|_| ())
+        let program = instance.program().clone();
+        bind(&program, instance, provisions, imports, self).map(|_| ())
     }
 
     pub fn prepare_component<'artifact>(

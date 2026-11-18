@@ -16432,7 +16432,7 @@
       "kind": "definition",
       "meaning": "Groups HostContext < 'host > operations with their defining host or checked image.",
       "producer": "terminal hosted interpreter",
-      "signature": "7c42e67899f7040f02e41d45fe4fad2a41037f6387a79a75d4de0c17a78ce6a8"
+      "signature": "1826c83bb20b4cbba1952037856ebdc70118e4cdb25602aca2dd5c0e2da4f49e"
     },
     {
       "consumers": [
@@ -16443,9 +16443,9 @@
       "file": "omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/embedding.rs",
       "item": "impl:HostContext < 'host >::method:bind_instance#1",
       "kind": "host_operation",
-      "meaning": "Attach independently admitted host import handlers to an already instantiated PSI program.",
+      "meaning": "Derive the canonical program from the instance itself when attaching independently admitted host import handlers.",
       "producer": "terminal hosted interpreter",
-      "signature": "2c46ab56df548cb5f208cc397fb8cf8b0245a215e0a5ea0ac510d1fabc5ee8a9"
+      "signature": "3c76e9ae7f7e89348df9832dbe234c0f201f9fd25143f1c62d7df05dda4902d8"
     },
     {
       "consumers": [
@@ -16480,11 +16480,11 @@
         "PSI embedders"
       ],
       "file": "omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/embedding.rs",
-      "item": "use:super :: { BoundaryMachineId , HostContext , TerminalProgram , TerminalRuntimeError , TerminalRuntimeHostProvisions , bind , }#1",
+      "item": "use:super :: { BoundaryMachineId , HostContext , TerminalRuntimeError , TerminalRuntimeHostProvisions , bind , }#1",
       "kind": "definition",
-      "meaning": "Imports super::{ BoundaryMachineId , HostContext , TerminalProgram , TerminalRuntimeError , TerminalRuntimeHostProvisions , bind , } for the owning host or inspector.",
+      "meaning": "Imports super::{ BoundaryMachineId , HostContext , TerminalRuntimeError , TerminalRuntimeHostProvisions , bind , } for the owning host or inspector.",
       "producer": "terminal hosted interpreter",
-      "signature": "cd348e4a32a52366240ed47eb277608830126147b6f79cf583ab7f29cb31ed13"
+      "signature": "b90ee5a2a135426a908bc32a19889bff5495f14485d61a1414afba08ca33655e"
     },
     {
       "consumers": [
@@ -16497,7 +16497,7 @@
       "kind": "host_operation",
       "meaning": "Privately instantiate and sponsor PSI with the concrete host\u2019s verified image or portable absence; no public raw-layout call exists.",
       "producer": "terminal hosted interpreter",
-      "signature": "11102773e1fcf0b6056085c777548427215c90327695755e49aa745365bedba9"
+      "signature": "47ed7bf1c92ab94f22a2549b0cb6df6fad9973f1460580eca954fc4676e01a94"
     },
     {
       "consumers": [
@@ -18421,7 +18421,7 @@
       "kind": "definition",
       "meaning": "Implement package review provider correspondence operations on ProviderChoice.",
       "producer": "package review provider correspondence",
-      "signature": "4bf9966c3c032401e8fea74c546f4f000a3e5592b7715571addfd97d018657d6"
+      "signature": "68e440500341e122ff2bc55b3e7a6ad448bed59055ad371a6769da60670dac6d"
     },
     {
       "consumers": [
@@ -18431,9 +18431,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/provider_rows.rs",
       "item": "impl:ProviderChoice::method:key#1",
       "kind": "definition",
-      "meaning": "Select the package, provider and nominal service coordinate used to join a chosen installation.",
+      "meaning": "Select the implementing package, exact hermetic provider identity, declaring service package and service path used to join an installation.",
       "producer": "package review provider correspondence",
-      "signature": "c4b8c0e1b118dc710672b6d14bc2ea06b3c1047f403a944ffa816f03e72db121"
+      "signature": "fa1aebe8cfd389f6fc0152712bfbbad426c24f20e01038c09e38223ca7502b04"
     },
     {
       "consumers": [
@@ -18638,6 +18638,18 @@
       "meaning": "The selected provider\u2019s original Build declaration and package.",
       "producer": "package review provider contracts",
       "signature": "7fd320970830d2844b7e2c2b5f01e579a92ffbaa54cdb8f2d1764d67bbdda476"
+    },
+    {
+      "consumers": [
+        "package policy assembly",
+        "permission admission"
+      ],
+      "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
+      "item": "AuthoredProvider::field:provider_identity#1",
+      "kind": "carried_record",
+      "meaning": "The hermetic provider identity derived from its checked source symbol, exactly as the source publisher derives the selected provider identity.",
+      "producer": "package review provider contracts",
+      "signature": "786c06c8ab9268b544f6f3ef5ecb22b153edc9b2fe0d165b9941b9623fb16753"
     },
     {
       "consumers": [
@@ -19045,7 +19057,7 @@
       "kind": "definition",
       "meaning": "Implement package review provider contracts operations on AuthoredProvider < 'source >.",
       "producer": "package review provider contracts",
-      "signature": "26469184c5e6a89738e5d8c2cba2074eabf1b55f91b1b2b85b8c5a24c6f48f61"
+      "signature": "a58039e34beeb2a300c4eb796f165b5f3d0ba04f3fdbbc58ddc879f330e2a0c2"
     },
     {
       "consumers": [
@@ -19055,9 +19067,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
       "item": "impl:AuthoredProvider < 'source >::method:key#1",
       "kind": "definition",
-      "meaning": "Read the selecting package and canonical provider/service paths from an authored Build choice.",
+      "meaning": "Read the implementing package, qualified provider identity, declaring service package and original service path from an authored Build choice.",
       "producer": "package review provider contracts",
-      "signature": "da364bf537b4dff4c3627507665edb0141a75d14ead0d88840be13f67232b354"
+      "signature": "f474620cb977fd3e3927c6c3a81480e7102771d01c485d2204de85960df4e595"
     },
     {
       "consumers": [
@@ -19093,7 +19105,7 @@
       "kind": "definition",
       "meaning": "Implement package review provider contracts operations on PolicySource < '_ >.",
       "producer": "package review provider contracts",
-      "signature": "0ac971c91c172ad2d284e7365d4425769df38914dadc1adec59a478929ca7ba2"
+      "signature": "07436e0438ab3b074390bfc35cff4406d7590751a9852085caf9e4edbdd84cc4"
     },
     {
       "consumers": [
@@ -19103,9 +19115,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
       "item": "impl:PolicySource < '_ >::method:authored_providers#1",
       "kind": "producer",
-      "meaning": "Join the Build\u2019s actual selected provider and original trait symbols to its admitted supplied roster.",
+      "meaning": "Rejoin the Build\u2019s selected provider and service to the admitted source roster, authenticate both symbols\u2019 package and full nominal paths, and derive the hermetic provider coordinate from the original declaration.",
       "producer": "package review provider contracts",
-      "signature": "bed770bae5ced2c695dd9bd5f5499abff079b8c8553501af46d34b3f2726ecd9"
+      "signature": "b24f8502e0d04f41bd1744eb08afb2fb6bd738858d00ef427f7757197585ff74"
     },
     {
       "consumers": [
@@ -19213,7 +19225,7 @@
       "kind": "definition",
       "meaning": "Implement package review provider contracts operations on PreparedProviders.",
       "producer": "package review provider contracts",
-      "signature": "2c0774eaa610f56b9f502a348598e93b90c1fdbb2480bd5d6855b45e06bc3bbf"
+      "signature": "99bf3b9511ce01fcbea2963c2a0c2de3d5697e40d8bd31586d749a7d58830d33"
     },
     {
       "consumers": [
@@ -19225,7 +19237,7 @@
       "kind": "checker",
       "meaning": "Match prepared source facts with the genuinely admitted target plan and return the projected policy or its exact correspondence refusal.",
       "producer": "package review provider contracts",
-      "signature": "2a84835bae8851a865e727aeaa59a4dd607777fb3df3f362b4281c58771b29a7"
+      "signature": "aedcde2d0412bbd0c3e7d093ae0b67d8145440220699f00a88038a9ebe0e3f2a"
     },
     {
       "consumers": [
@@ -19285,7 +19297,7 @@
       "kind": "carried_record",
       "meaning": "The paired exact service/provider declarations supplied by the authored Build.",
       "producer": "package review provider contracts",
-      "signature": "d9ac26cca1aafa6761137b9a3046d7feb3a45481982219d22095fd52eb575264"
+      "signature": "a8a0e336ff64f0d1585379bf0cc079190d1817de53ac2fa8d35dcf44b51eb1c1"
     },
     {
       "consumers": [

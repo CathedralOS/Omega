@@ -54,13 +54,22 @@ pub(super) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 struct AuthoredProvider<'source> {
     subject: &'source ProviderSelectionIdentity,
     provider: &'source ProviderSelectionIdentity,
+    provider_identity: String,
 }
 
 impl<'source> AuthoredProvider<'source> {
-    fn key(&self) -> (Option<PackageKeyIdentity>, &'source str, &'source str) {
+    fn key(
+        &self,
+    ) -> (
+        Option<PackageKeyIdentity>,
+        &str,
+        Option<PackageKeyIdentity>,
+        &str,
+    ) {
         (
             self.provider.package,
-            &self.provider.canonical_path,
+            &self.provider_identity,
+            self.subject.package,
             &self.subject.canonical_path,
         )
     }
@@ -225,7 +234,7 @@ impl PreparedProviders {
                 plan_name: plan.name.clone(),
                 realizing_package: plan.origin_package_identity,
                 schema_declaration: captured.schema.clone(),
-                provider_type: plan.provider_type.clone(),
+                provider_type: captured.provider.path().to_owned(),
                 provider_type_declaration: Some(captured.provider.clone()),
                 target: plan.target.clone(),
                 methods: captured.methods.clone(),
@@ -687,10 +696,28 @@ impl PolicySource<'_> {
                 .target
                 .is_none_or(|selected| selected.canonical_name() == target.target_name())
             {
-                authored.push(AuthoredProvider { subject, provider });
+                let typed = self.typed();
+                for selected in [subject, provider] {
+                    if typed.symbols.symbol_package_identity(selected.symbol) != selected.package
+                        || typed.symbols.display_path(selected.symbol, "::")
+                            != selected.canonical_path
+                    {
+                        return Err(unavailable("the exact Build provider selection custody"));
+                    }
+                }
+                // Terminal identifies the selected provider by the hermetic identity
+                // of the exact declaration. The Build also retains its nominal path.
+                let provider_identity = typed
+                    .normalized_hermetic_symbol_identity(provider.symbol)
+                    .map_err(|reason| unavailable(&reason))?;
+                authored.push(AuthoredProvider {
+                    subject,
+                    provider,
+                    provider_identity,
+                });
             }
         }
-        authored.sort_unstable_by_key(AuthoredProvider::key);
+        authored.sort_unstable_by(|left, right| left.key().cmp(&right.key()));
         Ok((authored, supplied_slots))
     }
 

@@ -27,10 +27,18 @@ pub(super) struct ProviderChoice {
 }
 
 impl ProviderChoice {
-    pub fn key(&self) -> (Option<PackageKeyIdentity>, &str, &str) {
+    pub fn key(
+        &self,
+    ) -> (
+        Option<PackageKeyIdentity>,
+        &str,
+        Option<PackageKeyIdentity>,
+        &str,
+    ) {
         (
             self.package,
             &self.provider,
+            self.schema.declaration.trait_package_identity,
             self.schema
                 .identity_text(self.schema.declaration.trait_name),
         )
