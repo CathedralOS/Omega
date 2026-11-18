@@ -2238,6 +2238,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         semantic_domains,
         applied_domain_applications: _,
         applied_data_cleanup_selections: _,
+        opaque_representation_selections: _,
         external_bindings,
         plan_laid_layouts: _,
         plan_laid_target_layouts: _,

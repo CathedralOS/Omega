@@ -10,6 +10,7 @@ use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use crate::source_state::{SourceFieldCorrespondence, SourceRecordCorrespondence, SourceTypeApplication};
 
 mod layouts;
+mod opaque;
 
 use super::{Program, places::RecordSource};
 use crate::lowering::body::RecordType;
@@ -209,22 +210,14 @@ fn source_application_in_scope(
                         }
                         _ => None,
                     };
-                    if let Some(carrier) = carrier {
-                        let literal = typed
-                            .static_const_literal_from_type_reference(*argument)
-                            .ok_or_else(|| {
-                                unavailable("record const argument is not a closed integer")
-                            })?;
-                        let value = literal
-                            .value_i64()
-                            .map(i128::from)
-                            .or_else(|| literal.value_u64().map(i128::from));
-                        let expected = numeric_literals::LandedIntegerType::Fixed(carrier);
-                        if value.is_none_or(|value| !expected.admits_i128(value))
-                            || literal
-                                .landing()
-                                .is_some_and(|landing| landing.landed_type != expected)
-                        {
+                    if carrier.is_some() {
+                        let expected =
+                            typed
+                                .primitive_type_reference(type_reference)
+                                .ok_or_else(|| {
+                                    unavailable("record const argument has no integer carrier")
+                                })?;
+                        if !scope.integer_argument_matches(typed, *argument, expected) {
                             return Err(unavailable(
                                 "record const argument does not inhabit its declared carrier",
                             ));
@@ -275,8 +268,7 @@ fn source_application_in_scope(
                 }
             }
             if !crate::source_state::domain::index_argument_is_closed(typed, *argument)
-                && !(parameter.kind == TypeParameterKind::Type
-                    && scope.admits_argument(typed, *argument))
+                && !scope.admits_argument(typed, *argument)
             {
                 return Err(unavailable(
                     "record application with an unresolved argument",
@@ -410,7 +402,7 @@ pub(super) fn same_application(
     left: &SourceTypeApplication,
     right: &SourceTypeApplication,
 ) -> bool {
-    use crate::source_state::{data::TypeParameterKind, type_identity::IndexIdentityArgument};
+    use crate::source_state::data::TypeParameterKind;
 
     if left.type_identity(typed) != right.type_identity(typed)
         || left.substitutions.len() != right.substitutions.len()
@@ -446,16 +438,8 @@ pub(super) fn same_application(
                         // carrier. Compare its value as an index, so evaluating a
                         // literal does not create a second record storage identity.
                         TypeParameterKind::Const { .. } => {
-                            let left = crate::source_state::type_identity::normalized_index_identity(
-                                typed,
-                                IndexIdentityArgument::TypeReference(*left_argument),
-                                &[],
-                            );
-                            let right = crate::source_state::type_identity::normalized_index_identity(
-                                typed,
-                                IndexIdentityArgument::TypeReference(*right_argument),
-                                &[],
-                            );
+                            let left = left.scope.index_identity(typed, *left_argument);
+                            let right = right.scope.index_identity(typed, *right_argument);
                             left.is_some() && left == right
                         }
                         _ => false,

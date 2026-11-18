@@ -61,30 +61,22 @@ pub struct ProductRepresentationInput<'request> {
 }
 
 impl ProductRepresentationInput<'_> {
-    /// Whether this Build asked for an opaque representation: it authored or
-    /// executed a representation selection, or an earlier admission retained
-    /// one. A Build activation that made other requests asks for none.
-    fn requested(&self) -> bool {
-        crate::evaluation::build_requests_any(
+    fn rederive(
+        &self,
+        typed: &crate::source_state::TypedTrees,
+    ) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
+        let selected = crate::evaluation::opaque_representations::collect(
+            typed,
+            self.activation,
             self.declared,
             self.executed,
-            &[crate::declaration_selection::BuildOperation::RepresentationSelection],
-        ) || !self.retained.is_empty()
-    }
-
-    /// The planner that admitted an opaque representation was removed with
-    /// the old checker, and nothing on the lowered-form route admits one
-    /// yet. A program that asks for none owes that admission nothing. One
-    /// that asks, whether by an authored request it never ran, an executed
-    /// one, or a retained application, is refused: the request may not be
-    /// dropped and presented to the route as an empty choice.
-    pub(crate) fn require_none_requested(&self) -> Result<(), Vec<Diagnostic>> {
-        if self.requested() {
+        )?;
+        if selected != self.retained {
             return Err(vec![Diagnostic::error(
-                "no product route yet: opaque representation admission",
+                "retained opaque representation choices disagree with the authoritative Build execution",
             )]);
         }
-        Ok(())
+        Ok(selected)
     }
 }
 
@@ -156,8 +148,9 @@ impl SourcePreparationRequest<'_> {
                     "no product route yet: source selection authority admission",
                 )]);
             }
-            self.admission.representations.require_none_requested()?;
             let mut program = self.program;
+            program.opaque_representation_selections =
+                self.admission.representations.rederive(&program)?;
             crate::evaluation::evaluate_fixed_layout_applications(
                 &mut program,
                 self.admission.layout_scopes,
@@ -310,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn unserved_representation_inputs_are_never_silently_discarded() {
+    fn unauthored_representation_inputs_are_refused() {
         use super::ProductRepresentationInput;
         use crate::declaration_selection::BuildOperation;
         use crate::declaration_selection::ExecutedProductSelection;
@@ -394,14 +387,18 @@ mod tests {
             };
             assert_eq!(
                 failure.diagnostics[0].message,
-                "no product route yet: opaque representation admission",
-                "{dimension} must reach the missing admission obligation",
+                match dimension {
+                    "declared" => "Build request has no original authored occurrence",
+                    "executed" => "executed Build request has no original Build activation",
+                    _ =>
+                        "retained opaque representation choices disagree with the authoritative Build execution",
+                },
+                "{dimension} must retain its original authority",
             );
         }
     }
 
-    /// The twin: a Build that ran and made requests, none of them a
-    /// representation selection, asks nothing of the missing admission.
+    /// An unrelated request creates no representation choice.
     #[test]
     fn a_build_that_selects_no_representation_owes_no_representation_admission() {
         use super::ProductRepresentationInput;

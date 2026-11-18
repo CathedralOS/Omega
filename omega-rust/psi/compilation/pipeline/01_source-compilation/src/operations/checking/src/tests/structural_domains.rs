@@ -209,6 +209,49 @@ machine entry() -> u32 {
     );
 }
 
+#[test]
+fn a_direct_indexed_store_supplies_its_post_store_domain_goal() {
+    let source = r#"
+data Cell requires count <= 16u64 { count: u64; location: u64; }
+data Plan { cells: [Cell; 2]; convention: u64; }
+machine reg(word: u64, convention: &u64) -> u64 {
+    let observed: u64 = convention;
+    transition observed == 9u64 {
+        true -> (word)
+        false -> (0u64)
+    }
+}
+machine single(plan: &mut Plan, ordinal: u64, word: u64)
+requires ordinal < 2u64 {
+    plan.cells[ordinal].count = 1u64;
+    plan.cells[ordinal].location = reg(word, &plan.convention);
+}
+machine entry() -> u64 {
+    let mut plan: Plan;
+    plan.convention = 9u64;
+    single(&mut plan, 1u64, 7u64);
+    transition plan.cells[1u64].count == 1u64
+        && plan.cells[0u64].count == 0u64 && plan.cells[0u64].location == 0u64 {
+        true -> (plan.cells[1u64].location)
+        false -> (0u64)
+    }
+}
+"#;
+    assert_unsigned_invocation(source, 7);
+    let rejected = judge(invocation(
+        &source.replace(".count = 1u64;", ".count = 17u64;"),
+    ))
+    .unwrap();
+    assert!(
+        matches!(&rejected, RouteVerdict::Rejected { unproved, .. }
+        if unproved.iter().any(|row| matches!(
+            row.kind,
+            terminal_check_tables::obligations::ObligationKind::DataDomain { .. },
+        ))),
+        "{rejected:?}"
+    );
+}
+
 fn assert_unsigned_invocation(source: &str, expected: u128) {
     use terminal_interpreter::{
         TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,

@@ -23,7 +23,7 @@ pub use evaluation_requests::{
 };
 pub use declaration_contracts::wire::WireCompatibilityDemand;
 pub use product::{
-    assumed_bindings, build_requests_any, native_bindings, product_declarations, product_policy,
+    assumed_bindings, build_requests_any, native_bindings, opaque_representations, product_declarations, product_policy,
     provider_declarations, test_groups,
 };
 pub use scalar_applications::{

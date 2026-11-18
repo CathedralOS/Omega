@@ -162,6 +162,7 @@ impl Program<'_> {
                 let source = value.source;
                 self.measured_collection(
                     id,
+                    slots,
                     value,
                     crate::source_state::expression::CollectionMeasure::Length,
                     source,

@@ -600,7 +600,7 @@ fn assign_machine_references(
     lexical_inputs: &mut [crate::resolution::lowering::state::StateLexicalInputs],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let attached_machines = super::scope::attached_machines(program);
-    let binder_roles = super::scope::BinderRoles::of(program);
+    let binder_roles = super::scope::BinderRoles::of(program, symbols);
     let trait_scopes = super::scope::TraitLexicalScopes::of(program);
     let conformance_scopes = super::scope::DeclarationTypeScopes::of(program)?;
     let SymbolResolvedTrees {

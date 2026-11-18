@@ -1,7 +1,7 @@
 # Chapter 15: Modules, imports, and visibility
 
-A package is a directory with a `build.omg`. Modules organize the
-declarations inside it, and `use` brings names into a file.
+A package is a directory with a `build.omg`. Its subdirectories name its
+modules, and `use` brings names into a file.
 
 ## A package
 
@@ -18,30 +18,36 @@ adding and updating dependencies.
 
 ## Modules
 
-```omega
-module dungeon::combat;
-```
-
-A module declaration names the module that every declaration in its file
-belongs to. Write it near the top, before the file's declarations; the
-compiler does not check where it appears. Files that name the same module
-share it. `::` separates names and `.` selects fields:
+Read the directories from the package root. Both files below belong to
+`combat::ai`, so `score` can call its sibling's `base_score` directly.
+The filenames are yours to choose. Files directly beside the package's
+`build.omg` belong to its root namespace.
 
 ```omega
-let room: dungeon::rooms::Room = dungeon::rooms::create();
-dungeon::rooms::describe(&room);
+// combat/ai/weights.omg
+machine base_score() -> i32 { 10 }
+
+// combat/ai/targeting.omg
+public machine score() -> i32 { base_score() }
 ```
 
 ## Imports
 
+Another directory can expose a public operation of its own and delegate the
+work. If the scoring code moves to a new directory, update the import here.
+Callers keep using `combat::target_score`.
+
 ```omega
-use dungeon::combat::CombatSystem;
-use dungeon::rooms::Room;
+// combat/api.omg
+use combat::ai::score;
+
+public machine target_score() -> i32 { score() }
 ```
 
 An import affects only the file it is in. Two imports that supply the same
 name are an error; import order never picks a winner. A package you import
-from must be a dependency you declared directly.
+from must be a dependency you declared directly. See
+[directory namespaces and imports](../spec/language/modules.md#directory-namespaces).
 
 ## Public and private
 

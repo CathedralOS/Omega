@@ -1565,7 +1565,6 @@ pub(crate) mod declaration_foundations {
         };
 
         pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
-            super::opaque_representations::validate(module)?;
             validate_census(module)?;
             super::super::super::wire::require_increasing(
                 module.calling_signatures.iter().map(|row| row.boundary),
@@ -2124,6 +2123,7 @@ pub(crate) mod declaration_foundations {
     pub(crate) mod opaque_representations {
 
         use crate::codec_error::{CodecError, malformed};
+        use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
         use terminal_psi::{
             StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralRecordStorage,
             StructuralTypeShape, TerminalModule,
@@ -2160,6 +2160,15 @@ pub(crate) mod declaration_foundations {
                     .application
                     .validate_identity_encoding()
                     .map_err(CodecError::NativeLayout)?;
+                let checked_copy = relation.application.copy_disposition
+                    == OpaqueRepresentationCopyDisposition::CheckedSemanticCopy;
+                if checked_copy
+                    != (opaque.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted)
+                {
+                    return malformed(
+                        "opaque representation copy disposition differs from nominal multiplicity",
+                    );
+                }
                 if !same_shape(module, &opaque.shape, &carrier.shape)
                     || opaque.scalar_restriction != carrier.scalar_restriction
                 {
@@ -2217,13 +2226,79 @@ pub(crate) mod declaration_foundations {
             Ok(())
         }
 
+        /// Every carrier promises inert placement, including the inactive cases.
+        /// A copyable nominal type additionally promises every owned child can be copied.
+        pub(crate) fn validate_lifecycle(
+            module: &TerminalModule,
+            graph: &terminal_semantics::storage::type_graph::StorageTypeGraph<'_>,
+        ) -> Result<(), CodecError> {
+            use terminal_psi::{StructuralMultiplicity, StructuralTypeDeclaration};
+            for disposition in [
+                OpaqueRepresentationCopyDisposition::PlacementOnly,
+                OpaqueRepresentationCopyDisposition::CheckedSemanticCopy,
+            ] {
+                let mut roots = module
+                    .opaque_representations
+                    .iter()
+                    .filter(|row| row.application.copy_disposition == disposition)
+                    .map(|row| row.carrier)
+                    .peekable();
+                if roots.peek().is_none() {
+                    continue;
+                }
+                let inert = |declaration: &StructuralTypeDeclaration| {
+                    !declaration.owns_linear_claim
+                        && declaration.multiplicity != StructuralMultiplicity::Linear
+                        && declaration.nominal_cleanup.is_none()
+                        && declaration.no_code_affine_cleanup
+                        && (disposition != OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+                            || declaration.multiplicity == StructuralMultiplicity::Unrestricted)
+                        && !matches!(declaration.shape, StructuralTypeShape::FixedArray { length, .. } if length.literal().is_none())
+                        && !matches!(
+                            declaration.shape,
+                            StructuralTypeShape::Opaque
+                                | StructuralTypeShape::TypeParameter
+                                | StructuralTypeShape::Reference { .. }
+                                | StructuralTypeShape::ElementView { .. }
+                                | StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                        | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                                )
+                        )
+                        && module
+                            .opaque_representations
+                            .binary_search_by_key(&declaration.id, |row| row.opaque)
+                            .is_err()
+                };
+                let mut valid = true;
+                graph
+                    .reachability()
+                    .visit(roots, |declaration| {
+                        valid &= inert(declaration)
+                            && declaration
+                                .shape
+                                .fields()
+                                .filter_map(|field| field.inline_carrier)
+                                .all(|child| module.structural_type(child).is_some_and(inert));
+                    })
+                    .map_err(super::super::storage_graph_error)?;
+                if !valid {
+                    return malformed(
+                        "opaque representation carrier cannot supply its inert lifecycle or copy disposition",
+                    );
+                }
+            }
+            Ok(())
+        }
+
         fn same_fields(
             left: &[StructuralFieldDeclaration],
             right: &[StructuralFieldDeclaration],
         ) -> bool {
             left.len() == right.len()
                 && left.iter().zip(right).all(|(left, right)| {
-                    left.identity == right.identity
+                    left.declaration_identity == right.declaration_identity
+                        && left.identity == right.identity
                         && left.relevance == right.relevance
                         && left.field_type == right.field_type
                         && left.storage == right.storage
@@ -2237,7 +2312,9 @@ pub(crate) mod declaration_foundations {
         ) -> bool {
             left.len() == right.len()
                 && left.iter().zip(right).all(|(left, right)| {
-                    left.identity == right.identity && same_fields(&left.fields, &right.fields)
+                    left.declaration_identity == right.declaration_identity
+                        && left.identity == right.identity
+                        && same_fields(&left.fields, &right.fields)
                 })
         }
 
@@ -11802,67 +11879,7 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
     Ok(())
 }
 
-pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
-    validate_callable_scalar_types(module)?;
-    terminal_semantics::calls::callable_refinement::validate_descriptor_refinement_evidence(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-    terminal_semantics::callable_envelopes::validate_callable_operational_refinements(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-    validate_callable_contracts(module)?;
-    terminal_semantics::nominal_cleanup::validate_selections(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-    terminal_semantics::nominal_cleanup::validate_normal_returns(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-    for definition in &module.scalar_predicate_definitions {
-        if module
-            .identities
-            .text(definition.declaration)
-            .is_none_or(str::is_empty)
-        {
-            return malformed("scalar predicate has no exact declaration identity");
-        }
-        // Only bare scalar inputs are currently represented. A qualification
-        // must not disappear into an apparently unrestricted formal.
-        if definition
-            .parameters
-            .iter()
-            .any(|parameter| !parameter.qualifications.is_empty())
-        {
-            return malformed("qualified scalar predicate input is not supported");
-        }
-        semantic_vocabulary::PropositionContext::from_value_types(
-            definition
-                .parameters
-                .iter()
-                .map(|parameter| (parameter.id, parameter.scalar_type)),
-        )
-        .and_then(|context| context.validate(&definition.body))
-        .map_err(CodecError::MalformedProposition)?;
-    }
-    scalar_applications::validate(module)?;
-    task_activation::validate(module)?;
-    module
-        .folded_constants
-        .validate(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-    scalar_qualifications::validate(module)?;
-    scalar_boundary_contracts::validate_declarations(module)?;
-    scalar_fields::validate(module)?;
-    terminal_semantics::quotients::validate_quotient_catalog(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-    terminal_semantics::closed_reach::validate_closed_reach_applications(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-    terminal_semantics::closed_conformances::validate_closed_conformances(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-    for row in &module.access_view_inputs {
-        access_view_input_parameter(module, row).map_err(CodecError::AccessViewInput)?;
-    }
-    validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
-    validate_access_lifecycle_plans(module).map_err(CodecError::MalformedStructuralFoundation)?;
-    validate_portable_entry(module)?;
-    validate_boundary_application_operations(module)?;
-    validate_callback_registrars(module)?;
-    installed_interrupts::validate(module)?;
+pub(crate) fn validate_storage_foundation(module: &TerminalModule) -> Result<(), CodecError> {
     require_unique_nonempty_identities(
         module
             .structural_types
@@ -11925,6 +11942,93 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             return malformed("identity-only structural type is not a reference target");
         }
     }
+    declaration_foundations::opaque_representations::validate(module)?;
+    let storage_graph =
+        terminal_semantics::storage::type_graph::StorageTypeGraph::new(&module.structural_types)
+            .map_err(storage_graph_error)?;
+    declaration_foundations::opaque_representations::validate_lifecycle(module, &storage_graph)?;
+    let attachment_storage = storage_graph
+        .storage_reachable_from(
+            module
+                .machines
+                .iter()
+                .filter_map(|machine| machine.attachment),
+        )
+        .map_err(storage_graph_error)?;
+    target_layouts::validate(module, &attachment_storage)?;
+    native_layouts::validate(module)?;
+    for declaration in &module.structural_types {
+        structural_type_foundations::validate_type_shape(module, declaration, &attachment_storage)?;
+    }
+    storage_graph
+        .validate_acyclic()
+        .map_err(storage_graph_error)?;
+    terminal_semantics::owned_structure::validate_intrinsic_claim_roots(&module.structural_types)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    Ok(())
+}
+
+pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    validate_callable_scalar_types(module)?;
+    terminal_semantics::calls::callable_refinement::validate_descriptor_refinement_evidence(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    terminal_semantics::callable_envelopes::validate_callable_operational_refinements(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    validate_callable_contracts(module)?;
+    terminal_semantics::nominal_cleanup::validate_selections(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    terminal_semantics::nominal_cleanup::validate_normal_returns(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    for definition in &module.scalar_predicate_definitions {
+        if module
+            .identities
+            .text(definition.declaration)
+            .is_none_or(str::is_empty)
+        {
+            return malformed("scalar predicate has no exact declaration identity");
+        }
+        // Only bare scalar inputs are currently represented. A qualification
+        // must not disappear into an apparently unrestricted formal.
+        if definition
+            .parameters
+            .iter()
+            .any(|parameter| !parameter.qualifications.is_empty())
+        {
+            return malformed("qualified scalar predicate input is not supported");
+        }
+        semantic_vocabulary::PropositionContext::from_value_types(
+            definition
+                .parameters
+                .iter()
+                .map(|parameter| (parameter.id, parameter.scalar_type)),
+        )
+        .and_then(|context| context.validate(&definition.body))
+        .map_err(CodecError::MalformedProposition)?;
+    }
+    scalar_applications::validate(module)?;
+    task_activation::validate(module)?;
+    module
+        .folded_constants
+        .validate(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    scalar_qualifications::validate(module)?;
+    scalar_boundary_contracts::validate_declarations(module)?;
+    scalar_fields::validate(module)?;
+    terminal_semantics::quotients::validate_quotient_catalog(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    terminal_semantics::closed_reach::validate_closed_reach_applications(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    terminal_semantics::closed_conformances::validate_closed_conformances(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    for row in &module.access_view_inputs {
+        access_view_input_parameter(module, row).map_err(CodecError::AccessViewInput)?;
+    }
+    validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
+    validate_access_lifecycle_plans(module).map_err(CodecError::MalformedStructuralFoundation)?;
+    validate_portable_entry(module)?;
+    validate_boundary_application_operations(module)?;
+    validate_callback_registrars(module)?;
+    installed_interrupts::validate(module)?;
     for domain in &module.structural_domains {
         if module.identities.text(domain.subject_identity).is_none() {
             return malformed("structural domain has an out-of-range subject application identity");
@@ -11952,27 +12056,6 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         "boundary machine identity",
     )?;
 
-    let storage_graph =
-        terminal_semantics::storage::type_graph::StorageTypeGraph::new(&module.structural_types)
-            .map_err(storage_graph_error)?;
-    let attachment_storage = storage_graph
-        .storage_reachable_from(
-            module
-                .machines
-                .iter()
-                .filter_map(|machine| machine.attachment),
-        )
-        .map_err(storage_graph_error)?;
-    target_layouts::validate(module, &attachment_storage)?;
-    native_layouts::validate(module)?;
-    for declaration in &module.structural_types {
-        structural_type_foundations::validate_type_shape(module, declaration, &attachment_storage)?;
-    }
-    storage_graph
-        .validate_acyclic()
-        .map_err(storage_graph_error)?;
-    terminal_semantics::owned_structure::validate_intrinsic_claim_roots(&module.structural_types)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
     for interface in &module.dynamic_dispatch.interfaces {
         for slot in &interface.slots {
             validate_dynamic_reference_regions(module.structural_types.iter(), slot)

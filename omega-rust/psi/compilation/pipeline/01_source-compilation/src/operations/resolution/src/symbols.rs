@@ -80,7 +80,7 @@ mod contracts {
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         let attached_machines = super::scope::attached_machines(program);
-        let binder_roles = super::scope::BinderRoles::of(program);
+        let binder_roles = super::scope::BinderRoles::of(program, symbols);
         let trait_scopes = super::scope::TraitLexicalScopes::of(program);
         let SymbolResolvedTrees { roots, tables, .. } = program;
         let data_definitions = &roots.data_definitions;
@@ -2524,7 +2524,7 @@ mod measures {
         symbols: &SymbolTable,
     ) {
         let attached_machines = super::scope::attached_machines(program);
-        let binder_roles = super::scope::BinderRoles::of(program);
+        let binder_roles = super::scope::BinderRoles::of(program, symbols);
         let declarations = &mut program.tables.declarations;
         let expressions = &mut program.tables.bodies.expressions;
         for measure in &program.roots.measures {
@@ -4316,7 +4316,7 @@ mod scope {
     }
 
     impl BinderRoles {
-        pub(super) fn of(program: &SymbolResolvedTrees) -> Self {
+        pub(super) fn of(program: &SymbolResolvedTrees, symbols: &SymbolTable) -> Self {
             let mut machines = Vec::with_capacity(program.machines.len());
             let mut roles = Vec::new();
             for machine in program.machines.iter() {
@@ -4325,6 +4325,18 @@ mod scope {
                     continue;
                 }
                 let start = roles.len() as u32;
+                // The installer names its registrar and private callback slot before
+                // the first declared type parameter. Both select declarations.
+                if machine.name.as_str() == "X86StaticInterruptScope::run"
+                    && symbols.sealed_declaration(machine.symbol, machine.name.as_str())
+                        == Some(
+                            language_core::sealed_intrinsics::SealedIntrinsic::StaticInterrupt(
+                                language_core::static_interrupts::StaticInterruptOperation::Install,
+                            ),
+                        )
+                {
+                    roles.extend([BinderRole::Declaration; 2]);
+                }
                 roles.extend(binders.iter().map(|binder| BinderRole::of(&binder.kind)));
                 machines.push((machine.symbol, start, roles.len() as u32));
             }
@@ -6375,7 +6387,7 @@ pub(crate) fn assign_constant_expression_symbols(
     initializers: impl IntoIterator<Item = crate::source_resolved::expression::ExpressionHandle>,
 ) {
     let attached_machines = scope::attached_machines(program);
-    let binder_roles = scope::BinderRoles::of(program);
+    let binder_roles = scope::BinderRoles::of(program, &program.symbols);
     let declarations = &mut program.tables.declarations;
     let mut scope = scope::MachineScope {
         attached_machines: &attached_machines,

@@ -1525,6 +1525,14 @@ impl<'t> Program<'t> {
         }
         let (prepared, inputs) = self.const_inputs(id, formals, state.return_type, &binders)?;
         self.const_scope = inputs;
+        // These exact constants already have checking inputs. Retaining their
+        // source binders lets nominal record headers keep symbolic extents;
+        // it does not choose a size or grant executable layout.
+        let mut source = (*self.source_scope).clone();
+        source
+            .rigid_parameters
+            .extend(self.const_scope.iter().map(|binding| binding.symbol));
+        self.source_scope = std::sync::Arc::new(source);
         Ok(prepared)
     }
 

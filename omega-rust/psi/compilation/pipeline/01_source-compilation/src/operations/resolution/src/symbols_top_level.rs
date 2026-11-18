@@ -298,7 +298,7 @@ mod machines {
                 .unwrap_or_else(SymbolHandle::invalid);
         });
         let attached_machines = crate::resolution::symbols::scope::attached_machines(program);
-        let binder_roles = crate::resolution::symbols::scope::BinderRoles::of(program);
+        let binder_roles = crate::resolution::symbols::scope::BinderRoles::of(program, symbols);
         {
             let parameters = &mut program.tables.declarations.data_type_parameters;
             program.roots.machines.for_each_mut(|machine| {

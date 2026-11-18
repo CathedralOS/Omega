@@ -1,8 +1,7 @@
 //! Retained source choices for an opaque declaration and its exact carrier.
 //!
 //! These records preserve the selected application and its commitment for Build
-//! configuration and downstream consumers. Storing a choice grants no acceptance:
-//! unsupported representation admission refuses before consuming these records.
+//! configuration and downstream consumers. Admission establishes the choice.
 
 use crate::source_state::ClosedConformanceApplication;
 pub use application_identity::opaque_representations::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION;
@@ -28,6 +27,28 @@ pub struct OpaqueRepresentationSelection {
 }
 
 impl OpaqueRepresentationSelection {
+    pub fn portable_application(
+        &self,
+        typed: &crate::source_state::TypedTrees,
+    ) -> Result<application_identity::opaque_representations::SelectedOpaqueApplication, String> {
+        Ok(
+            application_identity::opaque_representations::SelectedOpaqueApplication {
+                opaque_identity: typed.normalized_hermetic_symbol_identity(self.opaque())?,
+                carrier_identity: typed.normalized_hermetic_symbol_identity(self.carrier())?,
+                conformance_identity: typed
+                    .normalized_hermetic_symbol_identity(self.application().declaration)?,
+                application_report_fingerprint: self.application().report_fingerprint,
+                conformance_application_commitment: self.application().commitment.as_bytes(),
+                identity_encoding: self.application().identity_encoding.to_vec(),
+                schema_version: self.schema_version(),
+                origin: self.origin(),
+                lifecycle: self.lifecycle(),
+                copy_disposition: self.copy_disposition(),
+                selected_application_commitment: self.selected_application_commitment(),
+            },
+        )
+    }
+
     pub fn from_validated_application(
         opaque: SymbolHandle,
         carrier: SymbolHandle,

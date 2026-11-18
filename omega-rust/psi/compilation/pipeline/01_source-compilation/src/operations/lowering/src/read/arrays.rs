@@ -112,6 +112,37 @@ pub(super) fn source_sequence_view(
 }
 
 impl Program<'_> {
+    /// A symbolic extent names a constant input of this checking body. Its
+    /// scalar value is not a layout or an input owned by another machine.
+    pub(super) fn extent_input(
+        &self,
+        machine: MachineId,
+        owner: MachineId,
+        value: semantic_vocabulary::ValueId,
+    ) -> Checked<super::ConstBinding> {
+        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        if owner != machine {
+            return Err(unavailable(
+                "fixed-array length names another machine's input",
+            ));
+        }
+        let binding = self
+            .const_scope
+            .iter()
+            .find(|binding| binding.owner == owner && binding.value == value)
+            .copied()
+            .ok_or_else(|| unavailable("fixed-array length has no owned constant input"))?;
+        if !matches!(binding.scalar_type, ScalarType::Integer(integer)
+            if !integer.is_address() && integer.sign() == IntegerSign::Unsigned
+                && integer.bits().is_some_and(|bits| bits <= 64))
+        {
+            return Err(unavailable(
+                "fixed-array length needs an unsigned input of at most 64 bits",
+            ));
+        }
+        Ok(binding)
+    }
+
     /// The exact element storage of a closed byte array. Whole-value domains
     /// stay on its source expression and do not change this storage geometry;
     /// only an explicit range forms a descriptor loan.

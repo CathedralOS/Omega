@@ -2608,7 +2608,7 @@ impl<'t> Program<'t> {
         }
     }
 
-    /// A lexical child uses its enclosing declaration's exact static binders.
+    /// A lexical helper uses its enclosing declaration's exact static binders.
     /// The same tuple reader handles both explicit and inherited applications.
     fn inherited_application_arguments(
         &mut self,
@@ -2621,18 +2621,23 @@ impl<'t> Program<'t> {
         let Some(caller) = self.symbols.get(id).copied() else {
             return Ok(None);
         };
-        let mut enclosing = self.typed.symbols.get(target).parent;
-        while enclosing.is_valid() && enclosing != caller {
-            enclosing = self.typed.symbols.get(enclosing).parent;
-        }
-        if enclosing != caller {
-            return Ok(None);
-        }
         let Some(machine) = self.typed.machine_by_symbol(target) else {
             return Ok(None);
         };
-        if self.typed.machine_type_parameters(machine).is_empty()
+        let parameters = self.typed.machine_type_parameters(machine);
+        // Siblings and recursive helpers inherit the same declarations too.
+        // Match those declarations, rather than requiring the caller to own
+        // the callee; ordinary visibility still controls which helper is callable.
+        if parameters.is_empty()
             || !machine.conformance_bounds.is_empty()
+            || !parameters.iter().all(|parameter| {
+                self.typed.symbols.get(parameter.symbol).parent != target
+                    && self
+                        .typed
+                        .declaration_type_parameters(caller)
+                        .iter()
+                        .any(|actual| actual == parameter)
+            })
         {
             return Ok(None);
         }

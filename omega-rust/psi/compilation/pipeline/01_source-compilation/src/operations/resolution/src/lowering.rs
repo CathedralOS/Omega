@@ -3160,6 +3160,105 @@ pub(crate) mod operator {
         }
 
         #[test]
+        fn the_installer_selects_its_slot_before_reading_its_type_arguments() {
+            use crate::source_resolved::expression::ExpressionNode;
+            use symbols::SymbolKind;
+            let core = std::str::from_utf8(language_core::static_interrupts::CORE_DECLARATIONS)
+                .expect("bundled declaration is UTF-8");
+            let caller = "trait SlotKind {}
+                TimerSlot satisfies SlotKind {}
+                data Table {}
+                machine owner() { let selected: bool = X86StaticInterruptScope::run<owner, TimerSlot, Table>(); }";
+            for origin in [SourceOrigin::Toolchain, SourceOrigin::User] {
+                let mut sources = SourceMap::default();
+                let declaration = if origin == SourceOrigin::Toolchain {
+                    core
+                } else {
+                    "data X86StaticInterruptScope {} machine X86StaticInterruptScope::run<Table, Context>() -> bool { true }"
+                };
+                let mut syntax =
+                    parse_into(&mut sources, declaration, "static_interrupt.omg", origin);
+                if origin == SourceOrigin::Toolchain {
+                    let assembly = include_str!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/../../../../../source/library/core/assembly.omg"
+                    ));
+                    syntax.extend_from(&parse_into(
+                        &mut sources,
+                        assembly,
+                        "assembly.omg",
+                        SourceOrigin::Toolchain,
+                    ));
+                    let interrupts = include_str!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/../../../../../source/library/core/interrupt.omg"
+                    ));
+                    syntax.extend_from(&parse_into(
+                        &mut sources,
+                        interrupts,
+                        "interrupt.omg",
+                        SourceOrigin::Toolchain,
+                    ));
+                    let representation = include_str!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/../../../../../source/library/core/representation.omg"
+                    ));
+                    let mut representation = parse_into(
+                        &mut sources,
+                        representation,
+                        "representation.omg",
+                        SourceOrigin::Toolchain,
+                    );
+                    let tables = &representation.tables;
+                    representation.roots.items.retain(|item| {
+                        matches!(tables.items.item(*item), syntax_trees::item::Item::Trait(trait_)
+                            if trait_.name.as_str(&tables.text) == "OpaqueRepresentation")
+                    });
+                    syntax.extend_from(&representation);
+                }
+                syntax.extend_from(&parse_into(
+                    &mut sources,
+                    caller,
+                    "main.omg",
+                    SourceOrigin::User,
+                ));
+                let mut request = ResolutionRequest::new(syntax);
+                request.sources = Some(Arc::new(sources));
+                let resolved = resolve(request).expect("resolve the installer and its caller");
+                let call = resolved
+                    .tables
+                    .bodies
+                    .expressions
+                    .iter_expressions()
+                    .find_map(|(_, node)| match node {
+                        ExpressionNode::Call(call)
+                            if call.machine_arguments.len() == 3
+                                && call.machine_arguments[1]
+                                    .path
+                                    .last()
+                                    .is_some_and(|name| name.as_str() == "TimerSlot") =>
+                        {
+                            Some(call)
+                        }
+                        _ => None,
+                    })
+                    .expect("the source installation call");
+                let slot = call.machine_arguments[1].symbol;
+                if origin == SourceOrigin::Toolchain {
+                    assert_eq!(resolved.symbols.get(slot).kind, SymbolKind::Conformance);
+                    assert_eq!(
+                        resolved.symbols.get(call.machine_arguments[2].symbol).kind,
+                        SymbolKind::Data
+                    );
+                } else {
+                    assert!(
+                        !slot.is_valid(),
+                        "a user's second type parameter cannot select a conformance"
+                    );
+                }
+            }
+        }
+        #[test]
         fn sealed_bodyless_declaration_retains_its_machine_owner() {
             let trees = resolved(ATOMIC, "atomic.omg", SourceOrigin::Toolchain)
                 .expect("the bundled fence declaration must resolve");

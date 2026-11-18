@@ -390,7 +390,6 @@ mod product_policy {
     use crate::evaluation::native_bindings::{CapturedNativeDeclaration, NativeBindingSelection};
     use crate::evaluation::product_declarations::AdmittedProductDeclarations;
     use crate::evaluation::provider_declarations::ProviderSelection;
-    use crate::source_checking::ProductRepresentationInput;
     use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
     use declaration_contracts::selection::AuthoredBehaviorExclusion;
     use declaration_contracts::selection::AuthoredRootGrant;
@@ -459,13 +458,6 @@ mod product_policy {
             &mut self,
             request: ProductPolicyRequest<'_>,
         ) -> Result<AdmittedProductPolicy, Vec<Diagnostic>> {
-            ProductRepresentationInput {
-                activation: request.activation,
-                declared: request.declared,
-                executed: request.executed,
-                retained: &[],
-            }
-            .require_none_requested()?;
             use crate::declaration_selection::BuildOperation;
             let formations = self.product_formation_authors(request.declared, |request| {
                 matches!(
@@ -518,7 +510,12 @@ mod product_policy {
                 }
             }
             let typed = self.typed();
-            let representations = Vec::new();
+            let representations = crate::evaluation::opaque_representations::collect(
+                typed,
+                request.activation,
+                request.declared,
+                request.executed,
+            )?;
             let native_bindings = crate::evaluation::native_bindings::collect(
                 typed,
                 request.activation,

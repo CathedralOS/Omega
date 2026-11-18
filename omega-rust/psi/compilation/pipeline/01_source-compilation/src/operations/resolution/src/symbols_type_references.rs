@@ -1248,7 +1248,7 @@ mod value_expressions {
         symbols: &SymbolTable,
     ) {
         let attached_machines = crate::resolution::symbols::scope::attached_machines(program);
-        let binder_roles = crate::resolution::symbols::scope::BinderRoles::of(program);
+        let binder_roles = crate::resolution::symbols::scope::BinderRoles::of(program, symbols);
         let declarations = &mut program.tables.declarations;
         let applications = program
             .roots
@@ -2062,7 +2062,7 @@ mod value_expressions {
                     });
                 }
                 let attached = attached_machines(&program);
-                let binder_roles = crate::resolution::symbols::scope::BinderRoles::of(&program);
+                let binder_roles = crate::resolution::symbols::scope::BinderRoles::of(&program, &symbols);
                 let parameter = StateParameter {
                     symbol: parameter,
                     name: name("index"),

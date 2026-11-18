@@ -583,6 +583,9 @@ terminates
 {
     block helper()
     machine helper() -> u32 {
+        transition true { true -> block sibling() false -> 0u32 }
+    }
+    machine sibling() -> u32 {
         block Selected::wait()
     }
 }

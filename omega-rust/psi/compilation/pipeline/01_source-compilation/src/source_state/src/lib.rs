@@ -1331,6 +1331,9 @@ pub struct TypedTrees {
     pub semantic_domains: crate::source_tables::SemanticDomainTable,
     pub applied_domain_applications: domain::AppliedDomainApplications,
     pub applied_data_cleanup_selections: Vec<domain::AppliedDataCleanupSelection>,
+    /// Build's admitted carriers, ordered by the opaque declaration's symbol.
+    pub opaque_representation_selections:
+        Vec<opaque_representations::OpaqueRepresentationSelection>,
     pub external_bindings: crate::source_tables::ExternalBindingTable,
     pub plan_laid_layouts: Vec<PlanLaidLayout>,
     pub plan_laid_target_layouts: arena::RootedArena<PlanLaidTargetLayout>,
@@ -1413,6 +1416,7 @@ impl TypedTrees {
             semantic_domains,
             applied_domain_applications,
             applied_data_cleanup_selections,
+            opaque_representation_selections,
             external_bindings,
             plan_laid_layouts,
             plan_laid_target_layouts,
@@ -1684,6 +1688,7 @@ impl TypedTrees {
             semantic_domains: crate::source_tables::SemanticDomainTable::default(),
             applied_domain_applications: Default::default(),
             applied_data_cleanup_selections: Vec::new(),
+            opaque_representation_selections: Vec::new(),
             external_bindings: crate::source_tables::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
             plan_laid_target_layouts: arena::RootedArena::new(),

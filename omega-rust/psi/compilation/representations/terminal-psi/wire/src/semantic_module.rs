@@ -3562,7 +3562,7 @@ use application_identity::opaque_representations::selected_application_commitmen
                 &identity_encoding,
             );
         let lifecycle = OpaqueRepresentationLifecycleDisposition::Inert;
-        let copy_disposition = OpaqueRepresentationCopyDisposition::PlacementOnly;
+        let copy_disposition = OpaqueRepresentationCopyDisposition::CheckedSemanticCopy;
         let origin = OpaqueRepresentationApplicationOrigin::NamedConformance;
         module
             .opaque_representations
@@ -3593,6 +3593,93 @@ use application_identity::opaque_representations::selected_application_commitmen
         let bytes = encode_module(&module).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), module);
         let mut redirected = module.clone();
+        let mut noncopy = module.clone();
+        noncopy.structural_types[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+        let error = decode_module(&super::module_wire::encode_raw(&noncopy).unwrap()).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("cannot supply its inert lifecycle or copy disposition"),
+            "{error}"
+        );
+        let mut nominal_mismatch = module.clone();
+        nominal_mismatch.structural_types[2].multiplicity =
+            terminal_psi::StructuralMultiplicity::Affine;
+        let error =
+            decode_module(&super::module_wire::encode_raw(&nominal_mismatch).unwrap()).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("copy disposition differs from nominal multiplicity"),
+            "{error}"
+        );
+        let saved = redirected.take_opaque_storage_shapes().unwrap();
+        let field = [terminal_psi::StructuralPathSegment::Field(
+            TerminalIdentityIndex(4),
+        )];
+        let path = |owner| {
+            crate::foundation_validation::validate_structural_path(
+                &redirected,
+                StructuralTypeId::new(owner).unwrap(),
+                &field,
+            )
+        };
+        assert!(path(4).is_ok());
+        assert!(
+            path(3)
+                .unwrap_err()
+                .to_string()
+                .contains("opaque contents have no guest-visible storage projection")
+        );
+        saved.restore(&mut redirected).unwrap();
+        // Both identities have identical physical bytes. Only the concrete
+        // carrier permits the guest to construct those bytes from zero.
+        for (identity, guest_can_construct) in [(4, true), (3, false)] {
+            use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralPlaceKind};
+            use terminal_psi::{
+                Operation, OperationKind, OperationResult, StructuralMultiplicity,
+                StructuralOperationResult, StructuralPlaceDeclaration,
+            };
+            let mut guest = module.clone();
+            let mut machine = super::entry_tests::unit_machine(MachineId::new(1).unwrap());
+            let producer = OperationId::new(1).unwrap();
+            let place = PlaceId::new(1).unwrap();
+            let structural_type = StructuralTypeId::new(identity).unwrap();
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                },
+            });
+            machine.blocks[0].operations.push(Operation::unsuspended(
+                producer,
+                OperationResult::Structural(StructuralOperationResult {
+                    place,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                OperationKind::EstablishZeroedStructural {},
+            ));
+            guest.machines.push(machine);
+            let readback = decode_module(&super::module_wire::encode_raw(&guest).unwrap());
+            if guest_can_construct {
+                assert_eq!(readback.unwrap(), guest);
+            } else {
+                let error = readback.unwrap_err();
+                assert!(
+                    error.to_string().contains(
+                        "zero provisioning cannot establish routed scalar field membership"
+                    ),
+                    "{error}"
+                );
+            }
+        }
         redirected.opaque_representations[0].carrier = StructuralTypeId::new(2).unwrap();
         let error =
             decode_module(&super::module_wire::encode_raw(&redirected).unwrap()).unwrap_err();
@@ -5078,12 +5165,16 @@ pub fn decode_closed_parts(
     if format_marker != FORMAT_MARKER {
         return Err(CodecError::UnsupportedFormatMarker(format_marker));
     }
-    let module = decode_module_body(&mut reader)?;
+    let mut module = decode_module_body(&mut reader)?;
     if reader.remaining() != 0 {
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(&module)?;
+    module_foundation_validation::validate_storage_foundation(&module)?;
+    let opaque_storage = module
+        .take_opaque_storage_shapes()
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     validate_structural_foundation(&module)?;
     // Artifact ingress judges structural memberships exactly as the lowered
     // checker does; an artifact cannot carry a domain the checker would refuse.
@@ -5093,6 +5184,9 @@ pub fn decode_closed_parts(
     // the kernel. Decoding does not re-decide a carried judgment.
     crate::identity_formations::validate_identity_formations(&module)?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
+    opaque_storage
+        .restore(&mut module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     let (canonical, mut types) = module_wire::encode_raw_closed(&module)?;
     types.record_callables(&module);
     if canonical != bytes {

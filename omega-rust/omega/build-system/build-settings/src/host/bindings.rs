@@ -591,7 +591,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                 };
                 if call.request.requires_lexical_subject() && call.selecting_machine.is_none() {
                     return Err(refuse(
-                        "behavior exclusion lost its authored machine coordinate",
+                        "Build declaration selection lost its authored machine coordinate",
                     ));
                 }
                 ExecutedBuildSelection::Declaration(ExecutedProductSelection {

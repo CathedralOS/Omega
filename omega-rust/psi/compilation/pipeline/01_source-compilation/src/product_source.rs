@@ -182,15 +182,8 @@ fn prepare_and_judge(
             .iter()
             .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
     );
-    // Representation declarations are claimed source dependencies; preparation
-    // explicitly refuses choices with no surviving admission route.
-    selected.extend(
-        build
-            .representations
-            .retained
-            .iter()
-            .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
-    );
+    // Opaque representations enter the source frontier when a value requires them.
+
     let source_admission = crate::SourceAdmission {
         invocation_sources: None,
         // Roots belong to structural judgment below, rather than to a deleted

@@ -1,15 +1,39 @@
 # Modules, imports, and visibility
 
-[Build declarations](../build/declarations.md) define the package directory,
-role, source lineage, and dependency graph. A source file belongs to its package
-by location; it does not repeat a package declaration. Module names organize
-declarations within that boundary and participate in name/artifact identity.
+[Build declarations](../build/declarations.md) establish each package and its
+dependencies. Directories within that package name its modules. These names
+participate in declaration and artifact identity.
+
+<a id="module-header-position"></a>
+
+## Directory namespaces
+
+A source file's namespace is its parent directory relative to its owning
+package root. Read each directory component as one Omega identifier and join
+the components with `::`. A file directly under the root contributes to the
+package's root namespace. For example, a machine named `score` in
+`combat/ai/targeting.omg` has the package-local name `combat::ai::score`.
+If a directory component cannot name a namespace, diagnose the offending
+component when admitting the source. The filename contributes no component.
+
+The directory is the sole source of the namespace. Omega has no `module`
+keyword or namespace declaration. A legacy `module combat::ai;` header is
+invalid in every position. Moving declarations between files in one directory
+preserves their qualified names. Moving a declaration to another directory
+changes its qualified name, including the name of a public type or trait.
+A public machine can keep its name and call an implementation in another
+directory under the ordinary visibility rules.
+
+Use the logical path recorded for the source in its owning package. The same
+package in a different checkout has the same names. For generated source,
+use the logical name admitted by [`Build::include_source`](../build/execution.md#generated-source-boundary).
+Package identity, dependency admission and visibility still govern which
+declarations a caller can select.
 
 ## Names and imports
 
 ```text
 name_path   := IDENT ("::" IDENT)*
-module_decl := "module" name_path ";"
 import_decl := "use" name_path ";"
 ```
 
@@ -51,15 +75,11 @@ API. Carrying does not add a direct dependency or grant selection authority.
 
 ### Import scope and exposure
 
-Imports affect the importing source file, not sibling files that declare the
-same logical module. This is the ordinary import rule; it does not restrict
-visibility of the logical module's own declarations. Import exposure is not
-transitive: another module's imports do not become this file's imports.
-
-A package's source files that declare no module form one logical module: each
-sees its siblings' declarations without an import, while each file's imports
-remain its own. A file's own declarations and its imports take precedence over
-a sibling's same-spelled declaration.
+Files in the same package directory share their module's declarations. Each
+file sees its siblings' declarations without an import and keeps its own
+`use` imports. Importing a module does not import that module's imports.
+A file's own declarations and imports take precedence over a sibling's
+same-spelled declaration. Each subdirectory forms a distinct namespace.
 
 | Authored selection | Foreign domains exposed for carrier-qualified lookup |
 | --- | --- |
@@ -144,7 +164,7 @@ builtin type spelling; a declaration introducing a value may:
 | --- | --- |
 | A value: local, machine or state parameter, field, pattern binding, value constant, generic value binder, machine, named implementation, value import alias | Yes. It does not affect type lookup. |
 | A type: data declaration, trait schema, type alias, generic type binder, type import alias | No. It would compete with the builtin type, and rejects where it is introduced. |
-| A namespace: module declaration, namespace import alias | No, for the same reason. |
+| A namespace: directory component, namespace import alias | No, for the same reason. |
 
 Each use resolves by its role, determined before any operation is chosen:
 
