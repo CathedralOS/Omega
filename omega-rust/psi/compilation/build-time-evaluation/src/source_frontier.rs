@@ -21,6 +21,38 @@ fn unavailable() -> Vec<Diagnostic> {
 /// that holds it.
 type SourceJob = (symbols::SymbolHandle, DeferredRequest);
 
+// Observe the real inventory passes in focused tests without adding runtime
+// telemetry or sharing counters between parallel test threads.
+#[cfg(test)]
+pub(crate) mod inventory_observation {
+    use std::cell::Cell;
+
+    std::thread_local! {
+        static PASSES: Cell<(usize, usize)> = const { Cell::new((0, 0)) };
+    }
+
+    pub fn requests() {
+        PASSES.with(|passes| {
+            let (requests, owners) = passes.get();
+            passes.set((requests + 1, owners));
+        });
+    }
+
+    pub fn owners() {
+        PASSES.with(|passes| {
+            let (requests, owners) = passes.get();
+            passes.set((requests, owners + 1));
+        });
+    }
+
+    pub fn observe<T>(work: impl FnOnce() -> T) -> (T, (usize, usize)) {
+        let before = PASSES.with(Cell::get);
+        let result = work();
+        let after = PASSES.with(Cell::get);
+        (result, (after.0 - before.0, after.1 - before.1))
+    }
+}
+
 fn unsupported(job: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!("no product route yet: {job}"))]
 }
@@ -131,6 +163,8 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 /// The evaluation requests written inside declarations, each with the
 /// declaration that holds it. One that no declaration owns refuses.
 pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
+    #[cfg(test)]
+    inventory_observation::requests();
     // Reuse the reference owner's complete type-position inventory rather
     // than searching selected statements or treating a type as only a name.
     let references = typed_trees::references::collect_source_evaluation_references(typed);
@@ -184,6 +218,8 @@ pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Di
     }
     // A request is its declaration's to carry. One that no declaration owns
     // has no reader that could raise it, so it still refuses the program.
+    #[cfg(test)]
+    inventory_observation::owners();
     let owners = typed_trees::references::collect_source_evaluation_operand_owners(typed);
     for (expression, request) in expressions {
         let before = jobs.len();
@@ -458,22 +494,56 @@ impl PreCheckEvaluation {
         self,
         typed: &mut TypedTrees,
     ) -> Result<crate::RecordedPreCheck, Vec<Diagnostic>> {
+        self.record_pre_check(typed, &mut false)
+    }
+
+    /// Complete continuations over one unchanged typed program. Recording a
+    /// refusal changes no request input, so inventory and record it once. Each
+    /// continuation still checks its own authority in its original order.
+    /// This state belongs only to this call: completed bodies or an extension
+    /// must inventory their new typed program again.
+    pub fn evaluate_recorded_continuations(
+        pre_checks: Vec<Self>,
+        typed: &mut TypedTrees,
+    ) -> Result<(Vec<Self>, crate::SourceCompletionAccounting), Vec<Diagnostic>> {
+        let mut requests_recorded = false;
+        let mut deferred = Vec::new();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        for pre_check in pre_checks {
+            let recorded = pre_check.record_pre_check(typed, &mut requests_recorded)?;
+            accounting.append(recorded.accounting);
+            if let Some(pending) = recorded.pending {
+                deferred.push(pending);
+            }
+        }
+        Ok((deferred, accounting))
+    }
+
+    fn record_pre_check(
+        self,
+        typed: &mut TypedTrees,
+        requests_recorded: &mut bool,
+    ) -> Result<crate::RecordedPreCheck, Vec<Diagnostic>> {
+        self.require_rejoined_authority()?;
+        if !*requests_recorded {
+            defer_source_jobs(typed)?;
+            *requests_recorded = true;
+        }
+        // A source frontier has no compilation demand. Retain constant
+        // requests until SourcePreparationRequest receives the real roster.
+        Ok(crate::RecordedPreCheck {
+            pending: None,
+            accounting: crate::SourceCompletionAccounting::default(),
+        })
+    }
+
+    fn require_rejoined_authority(&self) -> Result<(), Vec<Diagnostic>> {
         if self.recorded_authority.is_some() {
             return Err(vec![Diagnostic::error(
                 "source normalization authority has not been rejoined",
             )]);
         }
-        // Inventory all remaining source work before retaining an invocation
-        // owner. Later refusal recording must not mutate its request metadata.
-        defer_source_jobs(typed)?;
-        // A source frontier has no compilation demand. Retain constant
-        // requests until SourcePreparationRequest receives the real roster.
-        let accounting = crate::SourceCompletionAccounting::default();
-        self.evaluate(typed)?;
-        Ok(crate::RecordedPreCheck {
-            pending: None,
-            accounting,
-        })
+        Ok(())
     }
     pub fn evaluate_or_defer(
         self,
@@ -494,16 +564,12 @@ impl PreCheckEvaluation {
         }
         defer_source_jobs(typed)?;
         for pending in pre_checks {
-            pending.evaluate(typed)?;
+            pending.require_rejoined_authority()?;
         }
         Ok(Vec::new())
     }
     pub fn evaluate(self, typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-        if self.recorded_authority.is_some() {
-            return Err(vec![Diagnostic::error(
-                "source normalization authority has not been rejoined",
-            )]);
-        }
+        self.require_rejoined_authority()?;
         defer_source_jobs(typed)
     }
 }
