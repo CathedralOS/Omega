@@ -207,25 +207,27 @@ fn default_abi_eligible(declaration: &terminal_psi::CallingAbiDeclaration) -> bo
 
 /// Native bindings use the requirement's published ABI and the calling policy
 /// of their actual mechanism. A syscall must not inherit the platform C ABI.
-pub fn native_calling_applications(
+pub fn native_calling_applications<'a>(
     profile: target::TargetProfile,
     program: &super::CallingProgram,
-    bindings: &[crate::target_supply::NormalizedNativeSupply],
+    bindings: impl IntoIterator<
+        Item = (
+            semantic_vocabulary::BoundaryMachineId,
+            &'a crate::native_bindings::NativeBuildSupply,
+        ),
+    >,
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
-    if bindings.is_empty() {
-        return Ok(Vec::new());
-    }
     let module = program.artifact.semantic_module();
     let failure = |reason: String| vec![Diagnostic::error(reason)];
     let mut applications = Vec::new();
-    for supplied in bindings {
-        if supplied.binding.target() != profile {
+    for (boundary, supplied) in bindings {
+        if supplied.selection.target.canonical_name() != profile.target_name() {
             return Err(failure(
                 "native calling application has another target".into(),
             ));
         }
         let declaration = module
-            .boundary_machine(supplied.boundary)
+            .boundary_machine(boundary)
             .and_then(|boundary| boundary.declaration.as_ref())
             .ok_or_else(|| {
                 failure("native calling application lost its boundary declaration".into())
@@ -241,7 +243,7 @@ pub fn native_calling_applications(
         let signature = module
             .calling_signatures
             .iter()
-            .find(|signature| signature.boundary == supplied.boundary)
+            .find(|signature| signature.boundary == boundary)
             .ok_or_else(|| {
                 failure(format!(
                     "native boundary `{name}` has no calling declaration"
@@ -271,11 +273,16 @@ pub fn native_calling_applications(
                 "native boundary `{name}` has another declaration's calling ABI"
             )));
         }
-        let policy = match &supplied.binding {
-            effects::provider_plan::EvaluatedNativeBinding::Import(_) => {
+        let policy = match &supplied.selection.locator {
+            semantic_vocabulary::NativeBindingLocator::Import(_) => {
                 calling_conventions::CallingPolicy::native_for_target(profile.native_target())
             }
-            effects::provider_plan::EvaluatedNativeBinding::Syscall(_) => {
+            semantic_vocabulary::NativeBindingLocator::FunctionField { .. } => {
+                return Err(failure(
+                    "table binding needs its explicitly selected calling policy".into(),
+                ));
+            }
+            semantic_vocabulary::NativeBindingLocator::Syscall { .. } => {
                 calling_conventions::CallingPolicy::native_syscall_for_target(
                     profile.native_target(),
                 )

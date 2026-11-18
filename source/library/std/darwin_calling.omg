@@ -7,14 +7,24 @@
 
 public DarwinArm64ScalarCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let mut plan: BoundaryEntryPlan = darwin_arm64_entry();
-        let accepted: bool = darwin_arm64_scalar_signature(&signature, &mut plan);
-        transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan }
-            _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
-                reason: "expected at most 32 fixed integer or sized-reference parameters, Unit or 32/64-bit integer result, at least 32-bit register scalars, and no callbacks" as +Utf8
-            } }
-        }
+        darwin_arm64_scalar_plan(signature, TableParameter::None)
+    }
+}
+
+// The same scalar policy places the final native roster after an explicit
+// table role. Declaration identities and lookup access are checked separately.
+public machine darwin_arm64_scalar_plan(signature: BoundarySignature,
+    table_parameter: TableParameter) -> BoundaryPlanResult {
+    let mut normalized: BoundarySignature = signature;
+    let normalized_ok: bool = normalize_table_parameters(&mut normalized, table_parameter);
+    let mut plan: BoundaryEntryPlan = darwin_arm64_entry();
+    plan.call.table_parameter = table_parameter;
+    let accepted: bool = normalized_ok && darwin_arm64_scalar_signature(&normalized, &mut plan);
+    transition accepted {
+        true -> BoundaryPlanResult::Accepted { plan: plan }
+        _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
+            reason: "expected at most 32 fixed integer or sized-reference parameters, Unit or 32/64-bit integer result, at least 32-bit register scalars, and no callbacks" as +Utf8
+        } }
     }
 }
 

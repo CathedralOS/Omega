@@ -15,7 +15,11 @@ fn encode_table_field_storage(
         Ok(storage) => {
             encoder.tag("checked", 0);
             encoder.string_field("table_application", &storage.table_application)?;
-            encoder.string_field("field_declaration", &storage.field_declaration)
+            encoder.string_field("field_declaration", &storage.field_declaration)?;
+            encoder.u64_field("formal", storage.formal.get())?;
+            encoder.u32_field("formal_ordinal", storage.formal_ordinal)?;
+            encoder.u32_field("table_operand", storage.table_operand)?;
+            encoder.u32_field("byte_offset", storage.byte_offset)
         }
         Err(reason) => {
             encoder.tag("unavailable", 1);

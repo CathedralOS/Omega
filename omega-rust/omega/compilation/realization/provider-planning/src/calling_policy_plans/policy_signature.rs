@@ -378,13 +378,52 @@ fn build_boundary_value_field(field: BoundaryValueField) -> BuildTimeValue {
 
 pub fn validate_calling_policy_result(
     result: BoundaryPlanResult,
-    signature: &CallingPolicySignature,
+    signature: &mut CallingPolicySignature,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {
-    let native_formals = signature.native_parameters()?;
     let BoundaryPlanResult::Accepted(plan) = result else {
         return validate_boundary_plan_result(result, &CallSignature::default())
             .map_err(|diagnostic| diagnostic.to_string());
     };
+    // Close the semantic role first. Only this result owner assigns final
+    // native positions; physical classification and placement follow below.
+    let declared = signature.native_parameters()?;
+    let mut semantic = declared
+        .iter()
+        .filter(|row| {
+            matches!(
+                row.origin,
+                BoundaryNativeParameterOrigin::SemanticFormal { .. }
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    semantic.sort_unstable_by_key(|row| match row.origin {
+        BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } => formal_ordinal,
+        BoundaryNativeParameterOrigin::PrivateCallback { .. } => unreachable!(),
+    });
+    let callbacks = declared.iter().filter_map(|row| match row.origin {
+        BoundaryNativeParameterOrigin::PrivateCallback {
+            binder,
+            requirement,
+        } => Some(terminal_psi::CallingDirectCallback {
+            identity: row.identity,
+            native_ordinal: row.native_ordinal,
+            binder,
+            requirement,
+        }),
+        BoundaryNativeParameterOrigin::SemanticFormal { .. } => None,
+    });
+    let closed = calling_conventions::NativeParameterTelescope::close(
+        semantic,
+        callbacks,
+        signature.target,
+        plan.call.table_parameter,
+    )?;
+    let mut parameters = arena::Arena::with_capacity(closed.parameters.len());
+    let rows = parameters.insert_many(closed.parameters);
+    signature.geometry.native_parameters = parameters;
+    signature.geometry.native_parameter_rows = rows;
+    let native_formals = signature.native_parameters()?;
     if plan.call.parameters.len() != native_formals.len() {
         return Err(invalid_authored_plan(format!(
             "plan places {} parameters for a boundary signature with {} native parameters",
@@ -462,6 +501,137 @@ mod tests {
     };
 
     #[test]
+    fn semantic_table_roles_are_checked_before_native_placement() {
+        use calling_conventions::{
+            CallingPolicy, NativeParameterId, TableParameter, evaluate_ordinary_boundary_entry_plan,
+        };
+        let id = |value| NativeParameterId::new(value).unwrap();
+        let mut native_parameters = Arena::new();
+        let native_parameter_rows =
+            native_parameters.insert_many([11, 22, 33].into_iter().enumerate().map(
+                |(ordinal, value)| BoundaryNativeParameterGeometry {
+                    identity: id(value),
+                    native_ordinal: ordinal as u32,
+                    origin: BoundaryNativeParameterOrigin::SemanticFormal {
+                        formal_ordinal: ordinal as u32,
+                    },
+                    shape: BoundaryNativeParameterShape::Semantic(0),
+                },
+            ));
+        let signature = CallingPolicySignature {
+            target: target::TargetProfile::MacosArm64.native_target(),
+            geometry: BoundarySignatureGeometry {
+                shapes: vec![BoundaryValueShape {
+                    class: BoundaryValueClass::Integer,
+                    byte_size: 8,
+                    alignment: 8,
+                }],
+                fields: Vec::new(),
+                parameters: vec![0, 0, 0],
+                result: None,
+                native_parameters,
+                native_parameter_rows,
+                callback_layouts: Arena::new(),
+                callback_layout_rows: HandleSpan::empty(),
+                callback_bindings: Arena::new(),
+                callback_binding_rows: HandleSpan::empty(),
+            },
+            callbacks: CallbackMaterializationContext::default(),
+        };
+        let placements = |count| {
+            evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::Aapcs64,
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(8, 8); count],
+                    result: None,
+                },
+            )
+            .unwrap()
+            .plan()
+            .clone()
+        };
+        let mut omitted = placements(2);
+        omitted.call.table_parameter = TableParameter::DispatchOnly {
+            formal: id(22),
+            formal_ordinal: 1,
+        };
+        let mut normalized = signature.clone();
+        validate_calling_policy_result(
+            BoundaryPlanResult::Accepted(omitted.clone()),
+            &mut normalized,
+        )
+        .unwrap();
+        assert_eq!(
+            normalized
+                .native_parameters()
+                .unwrap()
+                .iter()
+                .map(|row| (row.identity.get(), row.native_ordinal, row.origin))
+                .collect::<Vec<_>>(),
+            [
+                (
+                    11,
+                    0,
+                    BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 0 }
+                ),
+                (
+                    33,
+                    1,
+                    BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 2 }
+                ),
+            ]
+        );
+        for (role, reason) in [
+            (
+                TableParameter::DispatchOnly {
+                    formal: id(22),
+                    formal_ordinal: 0,
+                },
+                "exact semantic formal correspondence",
+            ),
+            (
+                TableParameter::DispatchOnly {
+                    formal: id(99),
+                    formal_ordinal: 1,
+                },
+                "no declared semantic formal",
+            ),
+            (TableParameter::None, "plan places 2 parameters"),
+        ] {
+            let mut changed = omitted.clone();
+            changed.call.table_parameter = role;
+            let error = validate_calling_policy_result(
+                BoundaryPlanResult::Accepted(changed),
+                &mut signature.clone(),
+            )
+            .unwrap_err();
+            assert!(error.contains(reason), "{error}");
+        }
+        let mut passed = placements(3);
+        passed.call.table_parameter = TableParameter::Passed {
+            formal: id(22),
+            formal_ordinal: 1,
+        };
+        let mut normalized = signature.clone();
+        validate_calling_policy_result(
+            BoundaryPlanResult::Accepted(passed.clone()),
+            &mut normalized,
+        )
+        .unwrap();
+        assert_eq!(
+            normalized.native_parameters().unwrap(),
+            signature.native_parameters().unwrap()
+        );
+        passed.call.table_parameter = omitted.call.table_parameter;
+        let error = validate_calling_policy_result(
+            BoundaryPlanResult::Accepted(passed),
+            &mut signature.clone(),
+        )
+        .unwrap_err();
+        assert!(error.contains("plan places 3 parameters"), "{error}");
+    }
+
+    #[test]
     fn nominal_callback_binder_cannot_disappear_with_an_empty_demand_list() {
         let binder = StaticMachineBinderId::new(11).unwrap();
         let requirement = CallbackRequirementId::new(12).unwrap();
@@ -488,14 +658,20 @@ mod tests {
         .expect("empty ordinary signature")
         .plan()
         .clone();
-        validate_calling_policy_result(BoundaryPlanResult::Accepted(plan.clone()), &signature)
-            .expect("a signature with no callback obligations remains valid");
+        validate_calling_policy_result(
+            BoundaryPlanResult::Accepted(plan.clone()),
+            &mut signature.clone(),
+        )
+        .expect("a signature with no callback obligations remains valid");
         signature.callbacks.binders.push(CallbackBinderRequirement {
             binder,
             requirement,
         });
-        let error = validate_calling_policy_result(BoundaryPlanResult::Accepted(plan), &signature)
-            .expect_err("a nominal binder requires its materialization even with no demands");
+        let error = validate_calling_policy_result(
+            BoundaryPlanResult::Accepted(plan),
+            &mut signature.clone(),
+        )
+        .expect_err("a nominal binder requires its materialization even with no demands");
         assert!(error.contains("omits a nominal callback binder"), "{error}");
     }
 
@@ -622,21 +798,30 @@ mod tests {
                 binder,
                 destination,
             });
-        validate_calling_policy_result(BoundaryPlanResult::Accepted(plan.clone()), &signature)
-            .expect("native-only callback remains placed");
+        validate_calling_policy_result(
+            BoundaryPlanResult::Accepted(plan.clone()),
+            &mut signature.clone(),
+        )
+        .expect("native-only callback remains placed");
 
         let mut omitted = plan.clone();
         omitted.call.callback_materializations.clear();
         assert!(
-            validate_calling_policy_result(BoundaryPlanResult::Accepted(omitted), &signature)
-                .is_err(),
+            validate_calling_policy_result(
+                BoundaryPlanResult::Accepted(omitted),
+                &mut signature.clone()
+            )
+            .is_err(),
             "lost callback demand"
         );
         plan.call.parameters[1].shape = ValueShape::integer(4, 4);
         assert!(
-            validate_calling_policy_result(BoundaryPlanResult::Accepted(plan), &signature)
-                .unwrap_err()
-                .contains("target function-pointer ABI shape")
+            validate_calling_policy_result(
+                BoundaryPlanResult::Accepted(plan),
+                &mut signature.clone()
+            )
+            .unwrap_err()
+            .contains("target function-pointer ABI shape")
         );
     }
 }

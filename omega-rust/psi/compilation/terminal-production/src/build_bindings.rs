@@ -15,7 +15,8 @@ mod native_locator {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct TerminalBuildNativeLocator {
         pub structural_type: StructuralTypeId,
-        pub widths: [u64; 3],
+        pub vocabulary: language_core::core_vocabulary::ExternalBindingVocabulary,
+        pub widths: Option<[u64; 3]>,
         pub shape: Arc<TerminalBuildValueShape>,
     }
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]

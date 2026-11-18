@@ -23,7 +23,6 @@ pub(super) fn project(
     let signature = &application.signature;
     let result_type = method.calling_result_type();
     if application.target != target.native_target()
-        || application.dispatch_only_formal.is_some()
         || application
             .recomputed_commitment()
             .map_err(|reason| unavailable(&reason))?
@@ -139,6 +138,7 @@ pub(super) fn project(
             result: signature.result,
         },
         semantic_parameters,
+        table_parameter: application.plan.plan().call.table_parameter,
         semantic_result: result_type.cloned(),
         native_parameters,
         callbacks: PackagePolicyCallbacks {

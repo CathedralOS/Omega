@@ -120,17 +120,11 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             digest.raw(receipt);
             hash_bytes(&mut digest, requirement_identity.as_bytes());
         }
-        target_operations::NormalizedForeignCallMechanism::Table {
-            target,
-            byte_offset,
-            dispatch_only,
-            same_stack_contribution,
-        } => {
+        target_operations::NormalizedForeignCallMechanism::Table { .. } => {
             digest.byte(3);
-            hash_bytes(&mut digest, target.target_name().as_bytes());
-            digest.raw(&byte_offset.to_le_bytes());
-            digest.byte(u8::from(*dispatch_only));
-            digest.raw(&same_stack_contribution.commitment().as_bytes());
+            let mut encoded = Vec::new();
+            legalized_operations::encode_call_mechanism(&mut encoded, mechanism);
+            hash_bytes(&mut digest, &encoded);
         }
         target_operations::NormalizedForeignCallMechanism::Import {
             locator,

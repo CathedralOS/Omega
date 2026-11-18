@@ -225,9 +225,6 @@ pub mod reflection {
             scope: DescriptionAuthor<'_>,
         ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
             let author = scope.machine;
-            use crate::expression::StaticMachineArgument;
-            use crate::reflection::SchemaNode;
-            use crate::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
             let symbols = typed.symbols.symbols().nodes();
             if !symbols.is_valid(author) {
                 return Err(String::from("a field query lost its lexical owner"));
@@ -374,7 +371,50 @@ pub mod reflection {
                 }
                 None => construct_semantic_schema_graph(typed, owner, authority),
             }?;
-            let member = exact_symbol_identity(typed, selected.symbol)?.0;
+            field_description_from_graph(typed, selected.symbol, owner, author, &graph)
+        }
+
+        /// A native selector already carries a checked borrowed table type.
+        /// Describe its exact member with the same metadata construction as a
+        /// declaration query; the native binding owner separately checks the
+        /// original supplier's visibility before admitting these coordinates.
+        pub fn field_description_for_type(
+            typed: &TypedTrees,
+            reference: TypeReferenceHandle,
+            field: SymbolHandle,
+            author: SymbolHandle,
+        ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+            let data = typed
+                .closed_data_definition(reference)
+                .ok_or("a field description requires its exact closed owner application")?;
+            if typed
+                .closed_data_constructor_field(reference, data.symbol, field)
+                .is_none()
+            {
+                return Err(
+                    "a field description is not a member of its closed owner application".into(),
+                );
+            }
+            let scope = DescriptionAuthor {
+                machine: author,
+                product: None,
+            };
+            scope.authorize(typed, field, data.is_public)?;
+            let authority = scope.authority(typed, data.symbol)?;
+            let graph = construct_semantic_schema_graph_for_type(typed, reference, authority)?;
+            field_description_from_graph(typed, field, data.symbol, author, &graph)
+        }
+
+        fn field_description_from_graph(
+            typed: &TypedTrees,
+            selected: SymbolHandle,
+            owner: SymbolHandle,
+            author: SymbolHandle,
+            graph: &SemanticSchemaGraph,
+        ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+            use crate::expression::StaticMachineArgument;
+            use crate::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
+            let member = exact_symbol_identity(typed, selected)?.0;
             let mut described = graph.nodes().iter().filter_map(|node| match node {
                 SchemaNode::Field(field) if field.member_identity == member => Some(field),
                 _ => None,

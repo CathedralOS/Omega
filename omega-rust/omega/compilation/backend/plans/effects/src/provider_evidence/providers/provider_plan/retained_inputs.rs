@@ -201,6 +201,14 @@ impl<'a> ProviderPlanInput<'a> {
                     if reader.tag(1)? == 1 {
                         reader.nonempty_string()?;
                         reader.nonempty_string()?;
+                        if reader.number()? == 0 {
+                            return Err("table field has no issued formal identity");
+                        }
+                        for _ in 0..3 {
+                            if reader.number()? > u64::from(u32::MAX) {
+                                return Err("table field coordinate exceeds u32");
+                            }
+                        }
                     } else {
                         reader.nonempty_string()?;
                     }
@@ -488,6 +496,10 @@ mod tests {
         let storage = TableFieldStorage {
             table_application: "closed-table<word>".into(),
             field_declaration: "exact-package::table::invoke".into(),
+            formal: semantic_vocabulary::NativeParameterId::new(42).unwrap(),
+            formal_ordinal: 1,
+            table_operand: 0,
+            byte_offset: 8,
         };
         for storage in [Ok(storage), Err("field is not addr".into())] {
             let mut plan = selected_plan();

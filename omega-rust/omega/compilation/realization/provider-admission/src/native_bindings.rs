@@ -140,6 +140,18 @@ pub fn validate_receipt(
                 receipt.clone(),
             )?;
         }
+        EvaluatedNativeBinding::VtableField(field)
+        | EvaluatedNativeBinding::TableFunction(field) => {
+            let dispatch_only = matches!(binding, EvaluatedNativeBinding::TableFunction(_));
+            effects::provider_plan::EvaluatedTableField::from_retained_evidence(
+                field.target(),
+                field.table().clone(),
+                field.field().clone(),
+                field.storage().clone(),
+                dispatch_only,
+                receipt.clone(),
+            )?;
+        }
         EvaluatedNativeBinding::Syscall(syscall) => {
             effects::provider_plan::EvaluatedForeignSyscall::from_retained_evidence(
                 syscall.target(),
@@ -250,6 +262,41 @@ pub(crate) fn settle<'execution>(
                         requirement_identity: requirement.to_owned(),
                     },
                     physical,
+                )
+            }
+            EvaluatedNativeBinding::VtableField(field)
+            | EvaluatedNativeBinding::TableFunction(field) => {
+                if request.profile.program_entry_slot().schema
+                    != target::ProgramEntrySchema::HostedApplication
+                {
+                    return Err(refuse(
+                        "table binding needs admitted demand on a fixed or freestanding stack"
+                            .into(),
+                    ));
+                }
+                let dispatch_only = matches!(row.binding, EvaluatedNativeBinding::TableFunction(_));
+                let storage = field.storage();
+                (
+                    NormalizedForeignCallMechanism::Table {
+                        target: request.profile,
+                        byte_offset: storage.byte_offset,
+                        dispatch_only,
+                        table_operand: storage.table_operand,
+                        execution: NormalizedForeignExecution::NativeBinding(receipt),
+                        requirement_identity: Some(requirement.to_owned()),
+                        same_stack_contribution: None,
+                    },
+                    effects::TerminalMechanismIdentity::Table {
+                        target: request.profile,
+                        provider: None,
+                        native_binding: Some(receipt),
+                        calling: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                            entry.contract_commitment_digest(),
+                        ),
+                        byte_offset: storage.byte_offset,
+                        dispatch_only,
+                        table_operand: storage.table_operand,
+                    },
                 )
             }
             EvaluatedNativeBinding::Syscall(syscall) => {
@@ -447,9 +494,25 @@ fn validate_native_calling(
     application: &calling_conventions::BoundaryCallingApplication,
 ) -> Result<target_operations::NativeBindingExecution, String> {
     let abi = module.calling_abi_identity(row.boundary)?;
+    let table_role = match &row.binding {
+        EvaluatedNativeBinding::VtableField(field) => calling_conventions::TableParameter::Passed {
+            formal: field.storage().formal,
+            formal_ordinal: field.storage().formal_ordinal,
+        },
+        EvaluatedNativeBinding::TableFunction(field) => {
+            calling_conventions::TableParameter::DispatchOnly {
+                formal: field.storage().formal,
+                formal_ordinal: field.storage().formal_ordinal,
+            }
+        }
+        EvaluatedNativeBinding::Import(_) | EvaluatedNativeBinding::Syscall(_) => {
+            calling_conventions::TableParameter::None
+        }
+    };
     if application.abi != abi
         || application.target != profile.native_target()
-        || application.dispatch_only_formal.is_some()
+        || application.dispatch_only_formal != table_role.dispatch_only_formal()
+        || application.plan.plan().call.table_parameter != table_role
     {
         return Err("calling application changed its exact ABI, target or dispatch".into());
     }
@@ -539,6 +602,19 @@ pub fn validate_native_binding_realization(
     {
         return Err("native binding changed its exact physical calling plan".into());
     }
+    if let EvaluatedNativeBinding::VtableField(field)
+    | EvaluatedNativeBinding::TableFunction(field) = &row.binding
+    {
+        backend_plan::validate_table_field_storage(
+            module,
+            row.boundary,
+            application,
+            profile,
+            field.table(),
+            field.field(),
+            field.storage(),
+        )?;
+    }
     let mechanism_matches = match (&row.binding, &binding.mechanism) {
         (
             EvaluatedNativeBinding::Import(evaluated),
@@ -554,6 +630,29 @@ pub fn validate_native_binding_realization(
             evaluated.locator() == locator
                 && *receipt == execution.receipt()
                 && declared == Some(requirement_identity.as_str())
+        }
+        (
+            EvaluatedNativeBinding::VtableField(evaluated)
+            | EvaluatedNativeBinding::TableFunction(evaluated),
+            target_operations::NormalizedForeignCallMechanism::Table {
+                target,
+                byte_offset,
+                dispatch_only,
+                table_operand,
+                execution: target_operations::NormalizedForeignExecution::NativeBinding(receipt),
+                requirement_identity,
+                same_stack_contribution: None,
+            },
+        ) => {
+            evaluated.target() == *target
+                && evaluated.storage().byte_offset == *byte_offset
+                && evaluated.storage().table_operand == *table_operand
+                && evaluated.dispatch_only() == *dispatch_only
+                && *receipt == execution.receipt()
+                && module
+                    .boundary_machine(row.boundary)
+                    .and_then(|row| module.identities.text(row.identity))
+                    == requirement_identity.as_deref()
         }
         (
             EvaluatedNativeBinding::Syscall(evaluated),

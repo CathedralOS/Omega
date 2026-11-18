@@ -2,11 +2,11 @@
 //! Observations are ordinary operations; the checker independently validates
 //! their types, descriptor bindings, comparisons, and coverage of every cycle.
 
-use super::places::Bound;
+use super::places::{Bound, Step};
 use super::{Lowering, Value};
 use crate::body::{Expression, ExpressionKind, Signature, Strict, ValueType};
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
-use semantic_vocabulary::{BlockId, IdTable, MachineId, OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{BlockId, IdTable, MachineId, OperationId, PlaceId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
@@ -19,7 +19,7 @@ use terminal_psi::{
 #[derive(Clone)]
 enum Input {
     Scalar(ValueId),
-    Structural(StructuralArgument),
+    Structural((PlaceId, Vec<Step>, StructuralAccess)),
     Unavailable,
 }
 
@@ -44,9 +44,9 @@ impl Lowering<'_> {
             .enumerate()
             .map(|(slot, _)| match self.slots.get(slot).copied().flatten() {
                 Some(Bound::Scalar(value)) => Input::Scalar(value),
-                Some(Bound::Record(place) | Bound::Home(place)) => Input::Structural(
-                    StructuralArgument::whole(place, StructuralAccess::SharedBorrow),
-                ),
+                Some(Bound::Record(place) | Bound::Home(place)) => {
+                    Input::Structural((place, Vec::new(), StructuralAccess::SharedBorrow))
+                }
                 // Unused erased bindings need no runtime operand. Reading
                 // one as a measure still refuses in rank_expression.
                 _ => Input::Unavailable,
@@ -64,7 +64,7 @@ impl Lowering<'_> {
         &mut self,
         member: MachineId,
         scalars: &[ValueId],
-        structural: &[StructuralArgument],
+        structural: &[(PlaceId, Vec<Step>, StructuralAccess)],
     ) -> Checked<()> {
         let signature = self.signatures.get(member.into(), self.id)?;
         let Some(expressions) = &signature.ranking else {
@@ -80,7 +80,7 @@ impl Lowering<'_> {
         &self,
         signature: &Signature,
         scalars: &[ValueId],
-        structural: &[StructuralArgument],
+        structural: &[(PlaceId, Vec<Step>, StructuralAccess)],
     ) -> Checked<Vec<Input>> {
         let mut scalar = scalars.iter();
         let mut places = structural.iter();
@@ -169,19 +169,17 @@ impl Lowering<'_> {
                         self.unserved_rank("length ranking subject is not a resolved formal")
                     );
                 };
-                let Some(Input::Structural(argument)) = inputs.get(slot) else {
+                let Some(Input::Structural((place, steps, _))) = inputs.get(slot) else {
                     return Err(self.unserved_rank(
                         "length ranking subject does not name a structural argument",
                     ));
                 };
-                let mut argument = argument.clone();
-                argument.access = StructuralAccess::SharedBorrow;
                 let record = self
                     .roots
-                    .get(argument.place)
+                    .get(*place)
                     .map(|(_, record)| *record)
                     .ok_or_else(|| self.internal("ranking descriptor has no root declaration"))?;
-                let exact = self.exact_root(argument.place)?;
+                let exact = self.exact_root(*place)?;
                 self.name_contents(exact, ValueType::record(record))?;
                 let operation = self.operation_identity(expression.source);
                 let read = self
@@ -191,7 +189,20 @@ impl Lowering<'_> {
                     .ok_or_else(|| {
                         self.unserved_rank("ranking length has no collection descriptor")
                     })?;
-                self.emit(operation, Some(scalar_type), read(argument))?
+                let path = self.storage_path(
+                    steps,
+                    terminal_check_tables::obligations::ExecutionSite::Operation(operation),
+                    expression.source,
+                )?;
+                self.emit(
+                    operation,
+                    Some(scalar_type),
+                    read(StructuralArgument {
+                        place: *place,
+                        path,
+                        access: StructuralAccess::SharedBorrow,
+                    }),
+                )?
             }
             _ => {
                 return Err(

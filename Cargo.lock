@@ -120,6 +120,7 @@ dependencies = [
  "function-identity",
  "language-core",
  "language-semantics",
+ "layout",
  "optimization-core",
  "semantic-vocabulary",
  "target",

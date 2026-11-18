@@ -55,6 +55,110 @@ pub fn vocabulary(
     })
 }
 
+/// Retain the authenticated source vocabulary beside its actual coordinates.
+/// A text selector has no fixed byte widths; it is never a zero-width import.
+pub fn application(
+    typed: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Result<
+    (
+        language_core::core_vocabulary::ExternalBindingVocabulary,
+        Option<[u64; 3]>,
+    ),
+    Vec<Diagnostic>,
+> {
+    use language_core::core_vocabulary::{
+        CoreVocabulary, ExternalBindingVocabulary, ReflectionDeclaration,
+    };
+    let application =
+        binding_application(typed, reference).map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = typed.type_reference_table.type_reference(application)
+    else {
+        return Err(vec![Diagnostic::error(
+            "native locator lost its exact generic origin",
+        )]);
+    };
+    match typed.symbols.core_vocabulary(*base_symbol) {
+        Some(CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::ForeignBinding)) => {
+            application_widths(typed, reference)
+                .map(|widths| (ExternalBindingVocabulary::ForeignBinding, Some(widths)))
+        }
+        Some(CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::FunctionFieldBinding)) => {
+            let definition = exact_vocabulary(
+                typed,
+                *base_symbol,
+                ExternalBindingVocabulary::FunctionFieldBinding,
+            )?;
+            let Some([lifetime]) = definition.lifetime_parameters.as_slice().as_array() else {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned FunctionFieldBinding must retain its one text lifetime",
+                )]);
+            };
+            if !typed.data_type_parameters(definition).is_empty()
+                || !typed
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .is_empty()
+            {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned FunctionFieldBinding has no value or type arguments",
+                )]);
+            }
+            let members = typed.data_members(definition);
+            let expected = [
+                ("table", ReflectionDeclaration::ParameterInfo),
+                ("field", ReflectionDeclaration::FieldInfo),
+            ];
+            if members.len() != expected.len() {
+                return Err(vec![Diagnostic::error(
+                    "compiler-owned FunctionFieldBinding field set drifted",
+                )]);
+            }
+            for (member, (name, declaration)) in members.iter().zip(expected) {
+                let DataMember::Field(field) = member else {
+                    return Err(vec![Diagnostic::error(
+                        "compiler-owned FunctionFieldBinding must remain an ordinary record",
+                    )]);
+                };
+                let TypeReferenceNode::Generic {
+                    base_symbol,
+                    arguments,
+                    lifetime_arguments,
+                    ..
+                } = typed
+                    .type_reference_table
+                    .type_reference(field.type_reference)
+                else {
+                    return Err(vec![Diagnostic::error(
+                        "FunctionFieldBinding must retain the exact Core description applications",
+                    )]);
+                };
+                if field.name.as_str() != name
+                    || typed.symbols.core_vocabulary(*base_symbol)
+                        != Some(CoreVocabulary::Reflection(declaration))
+                    || !typed
+                        .type_reference_table
+                        .type_reference_handles(*arguments)
+                        .is_empty()
+                    || lifetime_arguments.as_slice() != std::slice::from_ref(lifetime)
+                {
+                    return Err(vec![Diagnostic::error(
+                        "FunctionFieldBinding description identity or text lifetime drifted",
+                    )]);
+                }
+            }
+            Ok((ExternalBindingVocabulary::FunctionFieldBinding, None))
+        }
+        _ => Err(vec![Diagnostic::error(
+            "native binding requires the exact compiler-owned `ForeignBinding` declaration or the exact compiler-owned `FunctionFieldBinding` declaration",
+        )]),
+    }
+}
+
 pub fn application_widths(
     typed: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -178,6 +282,9 @@ fn exact_vocabulary(
             "ForeignBinding"
         }
         language_core::core_vocabulary::ExternalBindingVocabulary::DllImport => "DllImport",
+        language_core::core_vocabulary::ExternalBindingVocabulary::FunctionFieldBinding => {
+            "FunctionFieldBinding"
+        }
     };
     let definition = typed
         .unique_data_definition_by_symbol(symbol)

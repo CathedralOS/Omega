@@ -1,0 +1,70 @@
+// Expected exit: 0
+// Each call reads its supplied table. The second formal is dispatch-only;
+// a separate protocol passes its table as the native receiver.
+use omega_language_std::Calling;
+use omega_language_std::CallingPolicy;
+use omega_language_std::BoundarySignature;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::DarwinArm64ScalarCalling;
+use omega_language_std::darwin_arm64_scalar_plan;
+use omega_language_std::table_parameter_for_formal;
+
+boundary trait Symbols: Calling<DarwinArm64ScalarCalling> {
+    machine resolve(handle: u64, name: &[u8; 8]) -> addr
+    reaches terminates crashes none
+    requires handle == 18446744073709551614, name[7] == 0;
+}
+data FunctionTable { reserved: u64; entry: addr; }
+data Holder { functions: FunctionTable; }
+data TextFunctions { bytes: [u8; 8]; entry: addr; }
+boundary trait TableFunctions: Calling<DispatchCalling> {
+    machine apply(value: i32, table: &FunctionTable) -> i32
+    reaches terminates crashes none
+    requires value >= 0, value <= 127;
+}
+boundary trait TextFunction: Calling<ReceiverCalling> {
+    machine length(table: &TextFunctions) -> u64
+    reaches terminates crashes none
+    requires table.bytes[7] == 0;
+}
+DispatchCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        darwin_arm64_scalar_plan(signature, table_parameter_for_formal(&signature, 1, true))
+    }
+}
+ReceiverCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        darwin_arm64_scalar_plan(signature, table_parameter_for_formal(&signature, 0, false))
+    }
+}
+machine forward(value: i32, table: &FunctionTable) -> i32
+reaches TableFunctions
+invokes TableFunctions
+requires value >= 0, value <= 127 {
+    TableFunctions::apply(value, table)
+}
+machine main()
+reaches Symbols + TableFunctions + TextFunction
+invokes Symbols
+invokes TableFunctions
+invokes TextFunction
+crashes Trap {
+    let abs_name: [u8; 8] = "abs\0\0\0\0\0";
+    let upper_name: [u8; 8] = "toupper\0";
+    let length_name: [u8; 8] = "strlen\0\0";
+    let absolute: addr = Symbols::resolve(18446744073709551614, &abs_name);
+    let upper: addr = Symbols::resolve(18446744073709551614, &upper_name);
+    let length: addr = Symbols::resolve(18446744073709551614, &length_name);
+    let first: FunctionTable = FunctionTable { reserved: 0, entry: absolute };
+    let second: Holder = Holder { functions: FunctionTable { reserved: 0, entry: upper } };
+    let text: TextFunctions = TextFunctions { bytes: "abc\0\0\0\0\0", entry: length };
+    let unchanged: i32 = TableFunctions::apply(97, &first);
+    let changed: i32 = forward(97, &second.functions);
+    let count: u64 = TextFunction::length(&text);
+    transition unchanged == 97 && changed == 65 && count == 3 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

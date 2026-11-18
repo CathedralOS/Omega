@@ -24,6 +24,8 @@ mod callback_artifacts;
 mod canonical_schemas;
 pub use canonical_schemas::{compiler_primitive_schemas, hosted_requirement_schema};
 mod direct_boundary_leaves;
+mod table_fields;
+pub use table_fields::{table_field_storage, validate_table_field_storage};
 pub mod synchronous_invocations;
 mod target_providers;
 

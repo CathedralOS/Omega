@@ -304,7 +304,13 @@ mod boundary {
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum NativeBindingLocator {
             Import(ForeignLocatorCandidate),
-            Syscall { number: u64 },
+            Syscall {
+                number: u64,
+            },
+            FunctionField {
+                table: crate::ParameterDescription,
+                field: crate::FieldInfoDescription,
+            },
         }
     }
 

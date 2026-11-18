@@ -49,6 +49,7 @@ pub(in crate::encoding::recovery) fn application(
                 shape_root: reader.u16()?,
             })
         })?,
+        table_parameter: table_parameter(reader)?,
         semantic_result: reader.option(type_identity)?,
         native_parameters: reader.sequence(15, |reader| {
             Ok(PackagePolicyNativeParameter {
@@ -89,4 +90,27 @@ fn declaration_abi(
         return Err(Error::NonCanonicalEncoding);
     }
     Ok(abi)
+}
+
+fn table_parameter(reader: &mut Reader<'_>) -> Result<calling_conventions::TableParameter, Error> {
+    use calling_conventions::{NativeParameterId, TableParameter};
+    Ok(match reader.byte()? {
+        0 => TableParameter::None,
+        tag @ (1 | 2) => {
+            let formal = NativeParameterId::new(reader.u64()?).ok_or(Error::InvalidIdentity)?;
+            let formal_ordinal = reader.u32()?;
+            if tag == 1 {
+                TableParameter::Passed {
+                    formal,
+                    formal_ordinal,
+                }
+            } else {
+                TableParameter::DispatchOnly {
+                    formal,
+                    formal_ordinal,
+                }
+            }
+        }
+        _ => return Err(Error::InvalidTag),
+    })
 }

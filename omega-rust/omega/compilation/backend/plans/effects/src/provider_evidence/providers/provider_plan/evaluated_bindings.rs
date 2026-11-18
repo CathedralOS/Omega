@@ -467,10 +467,127 @@ pub fn evaluated_syscall_identity_digest(
     target::evaluated_syscall_identity_digest(target, number)
 }
 
+// A table receipt retains the actual checked selectors and their one layout
+// result. It does not read a table or authorize its foreign implementation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvaluatedTableField {
+    target: TargetProfile,
+    table: semantic_vocabulary::ParameterDescription,
+    field: semantic_vocabulary::FieldInfoDescription,
+    storage: super::TableFieldStorage,
+    dispatch_only: bool,
+    identity_digest: ForeignLocatorIdentityDigest,
+    receipt: EvaluatedBindingReceipt,
+}
+
+pub fn evaluated_table_field_identity_digest(
+    target: TargetProfile,
+    table: &semantic_vocabulary::ParameterDescription,
+    field: &semantic_vocabulary::FieldInfoDescription,
+    storage: &super::TableFieldStorage,
+    dispatch_only: bool,
+) -> Result<ForeignLocatorIdentityDigest, String> {
+    let mut descriptions =
+        compiler_storage::RecordWriter::new(compiler_storage::RecordLimits::default());
+    compiler_storage::Record::write(table, &mut descriptions).map_err(|error| error.to_string())?;
+    compiler_storage::Record::write(field, &mut descriptions).map_err(|error| error.to_string())?;
+    let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
+        b"omega.evaluated-table-field-binding.v1\0",
+    );
+    digest.bytes(target.target_name().as_bytes());
+    digest.bytes(&descriptions.finish());
+    digest.bytes(storage.table_application.as_bytes());
+    digest.bytes(storage.field_declaration.as_bytes());
+    digest.raw(&storage.formal.get().to_le_bytes());
+    digest.raw(&storage.formal_ordinal.to_le_bytes());
+    digest.raw(&storage.table_operand.to_le_bytes());
+    digest.raw(&storage.byte_offset.to_le_bytes());
+    digest.raw(&[u8::from(dispatch_only)]);
+    Ok(ForeignLocatorIdentityDigest::from_digest(digest.finish()))
+}
+
+impl EvaluatedTableField {
+    #[doc(hidden)]
+    pub fn from_retained_evidence(
+        target: TargetProfile,
+        table: semantic_vocabulary::ParameterDescription,
+        field: semantic_vocabulary::FieldInfoDescription,
+        storage: super::TableFieldStorage,
+        dispatch_only: bool,
+        receipt: EvaluatedBindingReceipt,
+    ) -> Result<Self, String> {
+        if storage.table_application.as_bytes() != field.owner_application
+            || storage.field_declaration.as_bytes() != field.member_identity
+            || u64::from(storage.formal_ordinal) != table.declaration_position
+            || table.requirement_identity.is_empty()
+            || table.parameter_identity.is_empty()
+            || field.member_identity.is_empty()
+            || field.is_erased
+            || !field.case_identity.is_empty()
+            || dispatch_only && storage.table_operand != 0
+        {
+            return Err("table receipt changes its exact selector/storage correspondence".into());
+        }
+        let identity_digest =
+            evaluated_table_field_identity_digest(target, &table, &field, &storage, dispatch_only)?;
+        if receipt.locator_identity_digest() != identity_digest {
+            return Err(
+                "evaluated receipt does not commit to its exact table field and role".into(),
+            );
+        }
+        Ok(Self {
+            target,
+            table,
+            field,
+            storage,
+            dispatch_only,
+            identity_digest,
+            receipt,
+        })
+    }
+    pub const fn target(&self) -> TargetProfile {
+        self.target
+    }
+    pub fn table(&self) -> &semantic_vocabulary::ParameterDescription {
+        &self.table
+    }
+    pub fn field(&self) -> &semantic_vocabulary::FieldInfoDescription {
+        &self.field
+    }
+    pub const fn storage(&self) -> &super::TableFieldStorage {
+        &self.storage
+    }
+    pub const fn dispatch_only(&self) -> bool {
+        self.dispatch_only
+    }
+    pub const fn receipt(&self) -> &EvaluatedBindingReceipt {
+        &self.receipt
+    }
+    pub const fn identity_digest(&self) -> ForeignLocatorIdentityDigest {
+        self.identity_digest
+    }
+    fn reintern(
+        &self,
+        receipt: EvaluatedBindingReceipt,
+        dispatch_only: bool,
+    ) -> Result<Self, String> {
+        Self::from_retained_evidence(
+            self.target,
+            self.table.clone(),
+            self.field.clone(),
+            self.storage.clone(),
+            dispatch_only,
+            receipt,
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvaluatedNativeBinding {
     Import(EvaluatedForeignImport),
     Syscall(EvaluatedForeignSyscall),
+    VtableField(EvaluatedTableField),
+    TableFunction(EvaluatedTableField),
 }
 
 impl EvaluatedNativeBinding {
@@ -481,6 +598,8 @@ impl EvaluatedNativeBinding {
     ) -> Result<Self, String> {
         let receipt = self.receipt().reintern_producer(source, destination)?;
         match self {
+            Self::VtableField(field) => Ok(Self::VtableField(field.reintern(receipt, false)?)),
+            Self::TableFunction(field) => Ok(Self::TableFunction(field.reintern(receipt, true)?)),
             Self::Import(import) => Ok(Self::Import(
                 EvaluatedForeignImport::from_retained_evidence(import.locator().clone(), receipt)?,
             )),
@@ -499,6 +618,7 @@ impl EvaluatedNativeBinding {
         match self {
             Self::Import(evaluated) => evaluated.locator().target(),
             Self::Syscall(evaluated) => evaluated.target(),
+            Self::VtableField(evaluated) | Self::TableFunction(evaluated) => evaluated.target(),
         }
     }
 
@@ -506,6 +626,7 @@ impl EvaluatedNativeBinding {
         match self {
             Self::Import(evaluated) => evaluated.receipt(),
             Self::Syscall(evaluated) => evaluated.receipt(),
+            Self::VtableField(evaluated) | Self::TableFunction(evaluated) => evaluated.receipt(),
         }
     }
 
@@ -513,11 +634,24 @@ impl EvaluatedNativeBinding {
         match self {
             Self::Import(evaluated) => evaluated.locator().identity_digest(),
             Self::Syscall(evaluated) => evaluated.identity_digest(),
+            Self::VtableField(evaluated) | Self::TableFunction(evaluated) => {
+                evaluated.identity_digest()
+            }
         }
     }
 
     pub fn provider_binding(&self) -> super::ProviderBinding {
         match self {
+            Self::VtableField(evaluated) => super::ProviderBinding::VtableField {
+                table: evaluated.storage.table_application.clone(),
+                field: evaluated.storage.field_declaration.clone(),
+                storage: Ok(evaluated.storage.clone()),
+            },
+            Self::TableFunction(evaluated) => super::ProviderBinding::TableFunction {
+                table: evaluated.storage.table_application.clone(),
+                field: evaluated.storage.field_declaration.clone(),
+                storage: Ok(evaluated.storage.clone()),
+            },
             Self::Import(evaluated) => super::ProviderBinding::Import {
                 evaluated: evaluated.clone(),
             },

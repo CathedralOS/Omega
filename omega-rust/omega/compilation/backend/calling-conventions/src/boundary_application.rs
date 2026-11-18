@@ -60,7 +60,6 @@ pub struct BoundarySignatureGeometry {
 
 pub struct NativeCallProjection<'geometry> {
     parameters: &'geometry [BoundaryNativeParameterGeometry],
-    dispatch_only_formal: Option<u32>,
 }
 
 impl<'geometry> NativeCallProjection<'geometry> {
@@ -100,44 +99,28 @@ impl<'geometry> NativeCallProjection<'geometry> {
                 }
             }
         }
-        if semantic_seen.contains(&false) {
-            return Err("native call projection lost a public semantic formal".into());
+        for (formal, present) in semantic_seen.into_iter().enumerate() {
+            let should_pass = Some(formal as u32) != dispatch_only_formal;
+            if present != should_pass {
+                return Err("native call projection lost a passed formal or retained the dispatch-only formal".into());
+            }
         }
-        Ok(Self {
-            parameters,
-            dispatch_only_formal,
-        })
-    }
-
-    fn is_dispatch_only(&self, parameter: &BoundaryNativeParameterGeometry) -> bool {
-        matches!(parameter.origin,
-            BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal }
-            if Some(formal_ordinal) == self.dispatch_only_formal)
+        Ok(Self { parameters })
     }
 
     pub fn parameters(
         &self,
     ) -> impl Iterator<Item = &'geometry BoundaryNativeParameterGeometry> + '_ {
-        self.parameters
-            .iter()
-            .filter(|parameter| !self.is_dispatch_only(parameter))
+        self.parameters.iter()
     }
 
-    pub fn parameter_ordinal(&self, public_ordinal: u32) -> Result<Option<usize>, String> {
+    pub fn parameter_ordinal(&self, native_ordinal: u32) -> Result<Option<usize>, String> {
         let ordinal =
-            usize::try_from(public_ordinal).map_err(|_| "native ordinal exceeds usize")?;
-        let parameter = self
-            .parameters
+            usize::try_from(native_ordinal).map_err(|_| "native ordinal exceeds usize")?;
+        self.parameters
             .get(ordinal)
-            .ok_or("native ordinal is outside the public telescope")?;
-        if self.is_dispatch_only(parameter) {
-            return Ok(None);
-        }
-        let omitted = self.parameters[..ordinal]
-            .iter()
-            .filter(|parameter| self.is_dispatch_only(parameter))
-            .count();
-        Ok(Some(ordinal - omitted))
+            .ok_or("native ordinal is outside the normalized telescope")?;
+        Ok(Some(ordinal))
     }
 }
 
@@ -169,19 +152,21 @@ mod projection_tests {
 
     #[test]
     fn dispatch_omits_the_selected_formal_and_keeps_callback_order() {
-        let parameters = parameters();
+        let mut parameters = parameters();
+        parameters.remove(2);
+        parameters[2].native_ordinal = 2;
         let projection = NativeCallProjection::new(&parameters, 3, Some(1)).unwrap();
         assert_eq!(
             projection
                 .parameters()
                 .map(|row| row.native_ordinal)
                 .collect::<Vec<_>>(),
-            [0, 1, 3]
+            [0, 1, 2]
         );
         assert_eq!(projection.parameter_ordinal(0).unwrap(), Some(0));
         assert_eq!(projection.parameter_ordinal(1).unwrap(), Some(1));
-        assert_eq!(projection.parameter_ordinal(2).unwrap(), None);
-        assert_eq!(projection.parameter_ordinal(3).unwrap(), Some(2));
+        assert_eq!(projection.parameter_ordinal(2).unwrap(), Some(2));
+        assert!(projection.parameter_ordinal(3).is_err());
     }
 
     #[test]
@@ -210,11 +195,35 @@ mod projection_tests {
 
 impl BoundaryCallingApplication {
     pub fn call_projection(&self) -> Result<NativeCallProjection<'_>, String> {
+        let parameters = self
+            .signature
+            .native_parameters
+            .span(self.signature.native_parameter_rows)
+            .ok_or("calling application has stale native telescope storage")?;
+        match self.plan.plan().call.table_parameter {
+            crate::TableParameter::None if self.dispatch_only_formal.is_none() => {}
+            crate::TableParameter::Passed {
+                formal,
+                formal_ordinal,
+            } if self.dispatch_only_formal.is_none()
+                && parameters.iter().any(|row| {
+                    row.identity == formal
+                        && row.origin
+                            == BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal }
+                }) => {}
+            crate::TableParameter::DispatchOnly {
+                formal,
+                formal_ordinal,
+            } if self.dispatch_only_formal == Some(formal_ordinal)
+                && !parameters.iter().any(|row| row.identity == formal) => {}
+            _ => {
+                return Err(
+                    "calling application changes its exact semantic table correspondence".into(),
+                );
+            }
+        }
         NativeCallProjection::new(
-            self.signature
-                .native_parameters
-                .span(self.signature.native_parameter_rows)
-                .ok_or("calling application has stale native telescope storage")?,
+            parameters,
             self.signature.parameters.len(),
             self.dispatch_only_formal,
         )
@@ -222,6 +231,10 @@ impl BoundaryCallingApplication {
 
     pub fn recomputed_commitment(&self) -> Result<[u8; 32], String> {
         self.abi.validate()?;
+        if self.dispatch_only_formal != self.plan.plan().call.table_parameter.dispatch_only_formal()
+        {
+            return Err("calling application changes the policy's semantic table role".into());
+        }
         if self.abi.requirement_identity != self.requirement_identity {
             return Err("calling application requirement differs from its exact ABI key".into());
         }
@@ -231,8 +244,32 @@ impl BoundaryCallingApplication {
             .span(self.signature.native_parameter_rows)
             .ok_or("native telescope has stale row storage")?;
         let mut strong =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v11");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v12");
         self.call_projection()?;
+        match self.plan.plan().call.table_parameter {
+            crate::TableParameter::None => strong.byte(0),
+            crate::TableParameter::Passed {
+                formal,
+                formal_ordinal,
+            }
+            | crate::TableParameter::DispatchOnly {
+                formal,
+                formal_ordinal,
+            } => {
+                strong.byte(
+                    if matches!(
+                        self.plan.plan().call.table_parameter,
+                        crate::TableParameter::Passed { .. }
+                    ) {
+                        1
+                    } else {
+                        2
+                    },
+                );
+                strong.u64(formal.get());
+                strong.raw(&formal_ordinal.to_le_bytes());
+            }
+        }
         match self.dispatch_only_formal {
             Some(formal) => {
                 strong.byte(1);

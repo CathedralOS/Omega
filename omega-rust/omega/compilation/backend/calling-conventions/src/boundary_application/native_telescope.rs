@@ -13,6 +13,7 @@ use crate::{
 use target::NativeTarget;
 use terminal_psi::CallingDirectCallback;
 
+#[derive(Debug)]
 pub struct NativeParameterTelescope {
     pub parameters: Vec<BoundaryNativeParameterGeometry>,
 }
@@ -37,15 +38,23 @@ impl NativeParameterTelescope {
         semantic: impl IntoIterator<Item = BoundaryNativeParameterGeometry>,
         callbacks: impl IntoIterator<Item = CallingDirectCallback>,
         target: NativeTarget,
+        table_parameter: crate::TableParameter,
     ) -> Result<Self, String> {
         let mut parameters = Vec::<BoundaryNativeParameterGeometry>::new();
-        for parameter in semantic {
+        for (ordinal, parameter) in semantic.into_iter().enumerate() {
             if !matches!(
                 parameter.origin,
                 BoundaryNativeParameterOrigin::SemanticFormal { .. }
             ) {
                 return Err(
                     "native telescope semantic input contains a native-only parameter".into(),
+                );
+            }
+            if !matches!(parameter.origin, BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal }
+                if usize::try_from(formal_ordinal).ok() == Some(ordinal))
+            {
+                return Err(
+                    "semantic formals are missing, repeated or out of declaration order".into(),
                 );
             }
             validate_fresh_native_parameter_identity(
@@ -79,6 +88,69 @@ impl NativeParameterTelescope {
                     parameter.native_ordinal
                 ));
             }
+        }
+        // Roles precede the final native positions. Callback destinations are
+        // authored native positions; removing a semantic formal must not shift
+        // them along with the old all-passed declaration roster.
+        let selected = match table_parameter {
+            crate::TableParameter::None => None,
+            crate::TableParameter::Passed {
+                formal,
+                formal_ordinal,
+            }
+            | crate::TableParameter::DispatchOnly {
+                formal,
+                formal_ordinal,
+            } => Some((formal, formal_ordinal)),
+        };
+        if let Some((identity, ordinal)) = selected {
+            let parameter = parameters
+                .iter()
+                .find(|row| row.identity == identity)
+                .ok_or("table role names no declared semantic formal")?;
+            if !matches!(parameter.origin, BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } if formal_ordinal == ordinal)
+            {
+                return Err("table role changes its exact semantic formal correspondence or names a private callback".into());
+            }
+        }
+        if let crate::TableParameter::DispatchOnly { formal, .. } = table_parameter {
+            parameters.retain(|row| row.identity != formal);
+            let count = parameters.len();
+            let mut occupied = vec![false; count];
+            for row in &parameters {
+                if matches!(
+                    row.origin,
+                    BoundaryNativeParameterOrigin::PrivateCallback { .. }
+                ) {
+                    let position = usize::try_from(row.native_ordinal)
+                        .ok().and_then(|ordinal| occupied.get_mut(ordinal))
+                        .ok_or("callback destination is outside the native roster after dispatch exclusion")?;
+                    if std::mem::replace(position, true) {
+                        return Err("callback destinations repeat a native position".into());
+                    }
+                }
+            }
+            parameters.sort_unstable_by_key(|row| match row.origin {
+                BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } => formal_ordinal,
+                BoundaryNativeParameterOrigin::PrivateCallback { .. } => u32::MAX,
+            });
+            let mut free = occupied
+                .iter()
+                .enumerate()
+                .filter_map(|(ordinal, used)| (!used).then_some(ordinal));
+            for row in &mut parameters {
+                if matches!(
+                    row.origin,
+                    BoundaryNativeParameterOrigin::SemanticFormal { .. }
+                ) {
+                    row.native_ordinal = u32::try_from(
+                        free.next()
+                            .ok_or("semantic formals exceed the remaining native positions")?,
+                    )
+                    .map_err(|_| "native position exceeds u32")?;
+                }
+            }
+            parameters.sort_unstable_by_key(|row| row.native_ordinal);
         }
         Ok(Self { parameters })
     }
@@ -150,6 +222,7 @@ mod tests {
             [semantic(1, 1, 0), semantic(2, 3, 1)],
             [callback(102, 4), callback(100, 0), callback(101, 2)],
             target(),
+            crate::TableParameter::None,
         )
         .unwrap();
         assert_eq!(
@@ -177,26 +250,123 @@ mod tests {
     }
 
     #[test]
+    fn table_roles_close_before_native_positions_without_moving_callbacks() {
+        let id = |value| NativeParameterId::new(value).unwrap();
+        let close = |role| {
+            NativeParameterTelescope::close(
+                [semantic(1, 0, 0), semantic(2, 2, 1), semantic(4, 3, 2)],
+                [callback(3, 1)],
+                target(),
+                role,
+            )
+        };
+        let passed = close(crate::TableParameter::Passed {
+            formal: id(2),
+            formal_ordinal: 1,
+        })
+        .unwrap();
+        assert_eq!(
+            passed
+                .parameters
+                .iter()
+                .map(|row| row.identity.get())
+                .collect::<Vec<_>>(),
+            [1, 3, 2, 4]
+        );
+        let omitted = close(crate::TableParameter::DispatchOnly {
+            formal: id(2),
+            formal_ordinal: 1,
+        })
+        .unwrap();
+        assert_eq!(
+            omitted
+                .parameters
+                .iter()
+                .map(|row| (row.identity.get(), row.native_ordinal))
+                .collect::<Vec<_>>(),
+            [(1, 0), (3, 1), (4, 2)]
+        );
+        assert_eq!(
+            omitted.parameters[2].origin,
+            BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 2 }
+        );
+        // The callback's authored native destination is one after exclusion,
+        // even when the removed table originally preceded it.
+        let first = NativeParameterTelescope::close(
+            [semantic(1, 0, 0), semantic(2, 2, 1)],
+            [callback(3, 1)],
+            target(),
+            crate::TableParameter::DispatchOnly {
+                formal: id(1),
+                formal_ordinal: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            first
+                .parameters
+                .iter()
+                .map(|row| (row.identity.get(), row.native_ordinal))
+                .collect::<Vec<_>>(),
+            [(2, 0), (3, 1)]
+        );
+        assert!(
+            close(crate::TableParameter::Passed {
+                formal: id(3),
+                formal_ordinal: 1
+            })
+            .unwrap_err()
+            .contains("private callback")
+        );
+        assert!(
+            close(crate::TableParameter::DispatchOnly {
+                formal: id(99),
+                formal_ordinal: 1
+            })
+            .unwrap_err()
+            .contains("no declared semantic formal")
+        );
+    }
+
+    #[test]
     fn duplicate_id_ordinal_gap_and_unadmitted_pointer_shape_refuse() {
-        let collision =
-            NativeParameterTelescope::close([semantic(1, 0, 0)], [callback(1, 1)], target())
-                .err()
-                .unwrap();
+        let collision = NativeParameterTelescope::close(
+            [semantic(1, 0, 0)],
+            [callback(1, 1)],
+            target(),
+            crate::TableParameter::None,
+        )
+        .err()
+        .unwrap();
         assert!(collision.contains("compact native-parameter report identity"));
-        let gap = NativeParameterTelescope::close([semantic(1, 1, 0)], [], target())
-            .err()
-            .unwrap();
+        let gap = NativeParameterTelescope::close(
+            [semantic(1, 1, 0)],
+            [],
+            target(),
+            crate::TableParameter::None,
+        )
+        .err()
+        .unwrap();
         assert!(gap.contains("contiguous position 0"));
-        let ordinal =
-            NativeParameterTelescope::close([semantic(1, 0, 0)], [callback(2, 0)], target())
-                .err()
-                .unwrap();
+        let ordinal = NativeParameterTelescope::close(
+            [semantic(1, 0, 0)],
+            [callback(2, 0)],
+            target(),
+            crate::TableParameter::None,
+        )
+        .err()
+        .unwrap();
         assert!(ordinal.contains("contiguous position 1"));
         let mut invalid = target();
         invalid.pointer_size = 4;
-        let pointer = NativeParameterTelescope::close([], [callback(1, 0)], invalid)
-            .err()
-            .unwrap();
+        let pointer = NativeParameterTelescope::close(
+            [],
+            [callback(1, 0)],
+            invalid,
+            crate::TableParameter::None,
+        )
+        .err()
+        .unwrap();
         assert!(pointer.contains("8/8 target function-pointer shape"));
     }
 }

@@ -97,7 +97,7 @@ impl CallingProgram {
             .calling_abi_signature(declaration)
             .ok_or("calling policy lost its exact declaration ABI")?
             .identity(&self.artifact.semantic_module().identities)?;
-        let canonical = self.materialize_storage(
+        let mut canonical = self.materialize_storage(
             &abi,
             target,
             CallingStorageScope::Policy {
@@ -111,7 +111,7 @@ impl CallingProgram {
             artifact: &self.artifact,
             entry: policy,
             target,
-            signature: &canonical.policy,
+            signature: &mut canonical.policy,
             account,
             admission,
         })?;

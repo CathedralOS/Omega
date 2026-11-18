@@ -80,7 +80,7 @@ impl PackageReviewInput<'_> {
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let mut normalized = Vec::new();
         let mut policies = Vec::new();
-        for supply in supplies {
+        for supply in supplies.clone() {
             let selection = &supply.selection;
             if selection.supplier_package != package || selection.producer.package != package {
                 return Err(unavailable(
@@ -167,6 +167,7 @@ impl PackageReviewInput<'_> {
             let binding = provider_planning::native_bindings::normalize_native_binding(
                 supply,
                 &canonical,
+                None,
                 &mut identities,
             )
             .map_err(|reason| unavailable(&reason))?;
@@ -178,7 +179,8 @@ impl PackageReviewInput<'_> {
                 package: Some(package),
                 callable_identity: selection.producer.callable_identity.clone(),
             };
-            let policy_binding = binding_policy(&binding, producer);
+            let policy_binding =
+                binding_policy(&binding, producer).map_err(|reason| unavailable(&reason))?;
             let schema_index = schemas
                 .binary_search_by_key(&symbol_key(declaration.slot), |(slot, _, _)| {
                     symbol_key(*slot)
@@ -263,7 +265,10 @@ impl PackageReviewInput<'_> {
         let applications = provider_planning::calling_policy_plans::native_calling_applications(
             target,
             &program,
-            &normalized,
+            normalized
+                .iter()
+                .zip(supplies)
+                .map(|(binding, supply)| (binding.boundary, supply)),
         )?;
         if applications.len() != normalized.len() {
             return Err(unavailable(
@@ -309,8 +314,8 @@ impl PackageReviewInput<'_> {
 fn binding_policy(
     binding: &EvaluatedNativeBinding,
     producer: PackagePolicyEvaluatedBindingProducer,
-) -> PackagePolicyProviderBinding {
-    match binding {
+) -> Result<PackagePolicyProviderBinding, String> {
+    Ok(match binding {
         EvaluatedNativeBinding::Import(import) => {
             let locator = import.locator();
             PackagePolicyProviderBinding::Import {
@@ -348,6 +353,9 @@ fn binding_policy(
                 producer,
             }
         }
+        EvaluatedNativeBinding::VtableField(_) | EvaluatedNativeBinding::TableFunction(_) => {
+            return Err("the table binding's explicitly selected calling policy for review".into());
+        }
         EvaluatedNativeBinding::Syscall(syscall) => PackagePolicyProviderBinding::Syscall {
             number: syscall.number(),
             evaluated: Some(PackagePolicyProviderEvaluatedSyscall {
@@ -355,5 +363,5 @@ fn binding_policy(
                 producer,
             }),
         },
-    }
+    })
 }

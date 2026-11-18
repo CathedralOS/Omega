@@ -1737,7 +1737,7 @@ machine build(builder: &mut Build) {{
                 .expect("the dependency Build produced the actual selected locator");
             let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
             let wrong = provider_planning::native_bindings::normalize_native_binding(
-                supply, "wrong-requirement-for-the-same-completed-locator", &mut identities,
+                supply, "wrong-requirement-for-the-same-completed-locator", None, &mut identities,
             ).unwrap();
             let refusal = leaf.validate_plain_execution(module, &[wrong], &identities.build())
                 .expect_err("a completed locator for another requirement is not this supply");

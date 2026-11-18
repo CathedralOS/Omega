@@ -60,6 +60,11 @@ impl CanonicalCallingSignature {
         dispatch_only_formal: Option<u32>,
         owner: Option<String>,
     ) -> Result<BoundaryCallingApplication, String> {
+        if dispatch_only_formal != validated.plan().call.table_parameter.dispatch_only_formal() {
+            return Err(
+                "calling application changes the policy's exact semantic table role".into(),
+            );
+        }
         let CallingPolicySignature {
             target,
             geometry,
@@ -258,6 +263,7 @@ impl CanonicalCallingSignature {
             native_formals,
             telescope.direct_callbacks.iter().cloned(),
             target.native_target(),
+            calling_conventions::TableParameter::None,
         )?;
         let binders =
             calling_conventions::TerminalCallingTelescope::callback_bindings(module, telescope)?;

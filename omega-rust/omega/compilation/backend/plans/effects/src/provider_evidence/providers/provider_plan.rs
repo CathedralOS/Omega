@@ -18,7 +18,8 @@ pub use evaluated_bindings::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
-    EvaluatedForeignSyscall, EvaluatedNativeBinding, evaluated_syscall_identity_digest,
+    EvaluatedForeignSyscall, EvaluatedNativeBinding, EvaluatedTableField,
+    evaluated_syscall_identity_digest, evaluated_table_field_identity_digest,
 };
 pub use language_semantics::service_surface::identities::{
     ProviderIdentityId, ProviderIdentityTable,
@@ -68,6 +69,10 @@ pub enum ProviderBinding {
 pub struct TableFieldStorage {
     pub table_application: String,
     pub field_declaration: String,
+    pub formal: semantic_vocabulary::NativeParameterId,
+    pub formal_ordinal: u32,
+    pub table_operand: u32,
+    pub byte_offset: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

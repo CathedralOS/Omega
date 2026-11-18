@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 117), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 118), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload. Native-binding receipts and hosted imports remain distinct from finite
@@ -59,9 +59,9 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Type rows now retain declared multiplicity instead of a copy-permission bit.
 // Callback materializations also retain their registrar machine.
 // Reject predecessor recovery schemas before reading their payload.
-pub(super) const VERSION: u32 = 117;
+pub(super) const VERSION: u32 = 118;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
-const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v64\0";
+const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v65\0";
 
 impl FixedViewCopyPlan {
     pub fn encode(&self) -> Result<Vec<u8>, CodecError> {

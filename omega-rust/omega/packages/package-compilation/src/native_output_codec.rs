@@ -1,4 +1,4 @@
-// Canonical wire encoding, decoding, and content digesting (`OMG-NATIVE-OUTPUTS\x03`)
+// Canonical wire encoding, decoding, and content digesting (`OMG-NATIVE-OUTPUTS\x04`)
 // for the native declarations, foreign/syscall locators, and `NativeBuildEvaluation`
 // carried inside a `PackageBuildHandoff`. Decoding reconstructs inert anchors
 // without granting source visibility, host backing, or native execution authority.
@@ -27,6 +27,76 @@ fn read_string(cursor: &mut ObservationCursor<'_>) -> Option<String> {
 fn count(cursor: &mut ObservationCursor<'_>) -> Option<usize> {
     let length = cursor.u64()?;
     (length <= (1 << 20)).then_some(usize::try_from(length).ok()?)
+}
+
+fn parameter_description(output: &mut Vec<u8>, value: &semantic_vocabulary::ParameterDescription) {
+    for bytes in [
+        &value.requirement_identity,
+        &value.requirement_application,
+        &value.parameter_identity,
+        &value.qualified_type,
+    ] {
+        push_framed(output, bytes);
+    }
+    number(output, value.declaration_position);
+    push_framed(output, &value.source_revision);
+}
+
+fn read_parameter_description(
+    cursor: &mut ObservationCursor<'_>,
+) -> Option<semantic_vocabulary::ParameterDescription> {
+    Some(semantic_vocabulary::ParameterDescription {
+        requirement_identity: cursor.framed()?.to_vec(),
+        requirement_application: cursor.framed()?.to_vec(),
+        parameter_identity: cursor.framed()?.to_vec(),
+        qualified_type: cursor.framed()?.to_vec(),
+        declaration_position: cursor.u64()?,
+        source_revision: cursor.framed()?.to_vec(),
+    })
+}
+
+fn field_description(output: &mut Vec<u8>, value: &semantic_vocabulary::FieldInfoDescription) {
+    for bytes in [
+        &value.member_identity,
+        &value.case_identity,
+        &value.owner_identity,
+        &value.owner_application,
+        &value.name,
+        &value.qualified_type,
+    ] {
+        push_framed(output, bytes);
+    }
+    number(output, value.declaration_position);
+    output.push(u8::from(value.has_stable_number));
+    output.push(u8::from(value.is_erased));
+    number(output, value.stable_number);
+    push_framed(output, &value.source_revision);
+}
+
+fn read_boolean(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
+    match cursor.u8()? {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
+    }
+}
+
+fn read_field_description(
+    cursor: &mut ObservationCursor<'_>,
+) -> Option<semantic_vocabulary::FieldInfoDescription> {
+    Some(semantic_vocabulary::FieldInfoDescription {
+        member_identity: cursor.framed()?.to_vec(),
+        case_identity: cursor.framed()?.to_vec(),
+        owner_identity: cursor.framed()?.to_vec(),
+        owner_application: cursor.framed()?.to_vec(),
+        name: cursor.framed()?.to_vec(),
+        qualified_type: cursor.framed()?.to_vec(),
+        declaration_position: cursor.u64()?,
+        has_stable_number: read_boolean(cursor)?,
+        is_erased: read_boolean(cursor)?,
+        stable_number: cursor.u64()?,
+        source_revision: cursor.framed()?.to_vec(),
+    })
 }
 
 fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
@@ -91,13 +161,18 @@ fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
                 output.push(4);
                 number(output, *syscall);
             }
+            NativeBindingLocator::FunctionField { table, field } => {
+                output.push(5);
+                parameter_description(output, table);
+                field_description(output, field);
+            }
         }
     }
 }
 
 pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
     let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v3\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v4\0");
     let anchors = bundle
         .native_declarations()
         .iter()
@@ -124,7 +199,7 @@ pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
 }
 
 pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
-    let mut output = b"OMG-NATIVE-OUTPUTS\x03".to_vec();
+    let mut output = b"OMG-NATIVE-OUTPUTS\x04".to_vec();
     let anchors = bundle
         .native_declarations()
         .iter()
@@ -167,7 +242,7 @@ pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
 
 pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuildHandoff> {
     let mut cursor = ObservationCursor::new(bytes);
-    let magic = b"OMG-NATIVE-OUTPUTS\x03";
+    let magic = b"OMG-NATIVE-OUTPUTS\x04";
     if cursor.bytes(magic.len())? != magic {
         return None;
     }
@@ -239,6 +314,10 @@ pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuild
             4 => NativeBindingLocator::Syscall {
                 number: cursor.u64()?,
             },
+            5 => NativeBindingLocator::FunctionField {
+                table: read_parameter_description(&mut cursor)?,
+                field: read_field_description(&mut cursor)?,
+            },
             _ => return None,
         };
         intents.push(CapturedNativeIntent {
@@ -276,4 +355,216 @@ pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuild
     handoff
         .with_native_binding_outputs(declarations, intents, evaluation)
         .ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    use semantic_vocabulary::{FieldInfoDescription, ParameterDescription, WorkScheduleIdentity};
+
+    fn selectors() -> NativeBindingLocator {
+        NativeBindingLocator::FunctionField {
+            table: ParameterDescription {
+                requirement_identity: b"exact requirement".to_vec(),
+                requirement_application: b"invoke<'firmware>(u64,&'firmware Table)->Status"
+                    .to_vec(),
+                parameter_identity: b"exact formal".to_vec(),
+                qualified_type: b"&'firmware Table".to_vec(),
+                declaration_position: 1,
+                source_revision: b"exact requirement revision".to_vec(),
+            },
+            field: FieldInfoDescription {
+                member_identity: b"exact function field".to_vec(),
+                case_identity: Vec::new(),
+                owner_identity: b"exact table".to_vec(),
+                owner_application: b"exact table application".to_vec(),
+                name: b"function".to_vec(),
+                qualified_type: b"addr".to_vec(),
+                declaration_position: 4,
+                has_stable_number: true,
+                is_erased: false,
+                stable_number: 19,
+                source_revision: b"exact table revision".to_vec(),
+            },
+        }
+    }
+
+    fn handoff(locator: NativeBindingLocator) -> PackageBuildHandoff {
+        // This is an inert wire candidate. Receiving source admission must
+        // still authenticate its declaration, selectors and evaluation.
+        let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let mut sources = source::SourceMap::default();
+        let text = "public boundary trait Raw { machine invoke() reaches none crashes none; }";
+        let source = sources
+            .add_checked_instance(
+                "/package/main.omg".into(),
+                text,
+                "/package".into(),
+                Some(package),
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::Base,
+                source::DependencyScope::Product,
+            )
+            .source_id;
+        let requirement = symbols::RetainedDeclaration::from_retained_parts(
+            sources.get(source).unwrap().clone(),
+            source::Span::new(28, 34),
+            symbols::SymbolKind::State,
+        )
+        .unwrap();
+        let declaration = CapturedNativeDeclaration {
+            application: None,
+            source: NativeBindingSource {
+                producer: NativeBindingProducer {
+                    package,
+                    declaration_path: "build".into(),
+                    callable_identity: "build(&mut Build)".into(),
+                },
+                requirement_path: "Raw::invoke".into(),
+                source_occurrence_digest: [11; 32],
+                resolution_stratum: source::SourceResolutionStratum::Base,
+            },
+            requirement,
+            requirement_identity: "Raw::invoke()".into(),
+            dependency_alias: None,
+        };
+        let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        };
+        let limits = BuildEvaluationSponsorLimits::new(100, 100, 8, 8, 100, 100, 100, 100).unwrap();
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(limits, measurement).unwrap();
+        let usage = *sponsor
+            .begin_invocation(measurement, 100)
+            .unwrap()
+            .snapshot()
+            .unwrap()
+            .record();
+        let evaluation = Arc::new(NativeBuildEvaluation {
+            terminal_code: terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([13; 32]),
+            },
+            usage,
+            observation_digest: [17; 32],
+        });
+        let closure = crate::PackageDependencyClosure::from_canonical_parts(
+            package,
+            crate::BuildDeclarationKind::Package,
+            vec![package],
+            Vec::new(),
+        )
+        .unwrap();
+        PackageBuildHandoff::from_checked(
+            package,
+            build_declarations::DependencyPurpose::Product,
+            target::TargetProfile::LinuxX64,
+            None,
+            closure,
+            crate::PackageSourceConsumptionCommitment::from_retained_digest([23; 32]),
+            Vec::new(),
+        )
+        .with_native_binding_outputs(
+            vec![declaration],
+            vec![CapturedNativeIntent {
+                declaration: 0,
+                target: ProductTarget::LinuxX86_64,
+                locator,
+            }],
+            Some(evaluation),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn native_output_choices_round_trip_without_changing_selector_bytes() {
+        for locator in [
+            NativeBindingLocator::Import(ForeignLocatorCandidate::PeByName {
+                library: b"library".to_vec(),
+                export: b"symbol".to_vec(),
+            }),
+            NativeBindingLocator::Import(ForeignLocatorCandidate::PeByOrdinal {
+                library: b"library".to_vec(),
+                ordinal: 19,
+            }),
+            NativeBindingLocator::Import(ForeignLocatorCandidate::ElfVersioned {
+                object: b"object".to_vec(),
+                symbol: b"symbol".to_vec(),
+                version: b"version".to_vec(),
+            }),
+            NativeBindingLocator::Import(ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: b"dylib".to_vec(),
+                symbol: b"symbol".to_vec(),
+            }),
+            NativeBindingLocator::Syscall { number: 77 },
+            selectors(),
+        ] {
+            let original = handoff(locator);
+            let bytes = encode(&original);
+            assert!(bytes.starts_with(b"OMG-NATIVE-OUTPUTS\x04"));
+            let recovered = decode(&bytes, original.clone()).unwrap();
+            assert_eq!(recovered, original);
+            assert_eq!(encode(&recovered), bytes);
+            assert_eq!(digest(&recovered), digest(&original));
+        }
+    }
+
+    #[test]
+    fn table_output_refuses_invalid_booleans_truncation_and_other_versions() {
+        let original = handoff(selectors());
+        let bytes = encode(&original);
+        for length in 0..bytes.len() {
+            assert!(
+                decode(&bytes[..length], original.clone()).is_none(),
+                "truncated length {length}"
+            );
+        }
+        for version in [3, 5] {
+            let mut changed = bytes.clone();
+            changed[b"OMG-NATIVE-OUTPUTS".len()] = version;
+            assert!(decode(&changed, original.clone()).is_none());
+        }
+        let NativeBindingLocator::FunctionField { field, .. } = selectors() else {
+            unreachable!()
+        };
+        let mut encoded_field = Vec::new();
+        field_description(&mut encoded_field, &field);
+        let offsets = bytes
+            .windows(encoded_field.len())
+            .enumerate()
+            .filter_map(|(index, chunk)| (chunk == encoded_field).then_some(index))
+            .collect::<Vec<_>>();
+        let [offset] = offsets.as_slice() else {
+            panic!("one exact encoded field")
+        };
+        let mut prefix = Vec::new();
+        for value in [
+            &field.member_identity,
+            &field.case_identity,
+            &field.owner_identity,
+            &field.owner_application,
+            &field.name,
+            &field.qualified_type,
+        ] {
+            push_framed(&mut prefix, value);
+        }
+        number(&mut prefix, field.declaration_position);
+        for boolean in 0..2 {
+            let mut changed = bytes.clone();
+            changed[offset + prefix.len() + boolean] = 2;
+            assert!(decode(&changed, original.clone()).is_none());
+        }
+        let mut changed = selectors();
+        let NativeBindingLocator::FunctionField { field, .. } = &mut changed else {
+            unreachable!()
+        };
+        field.member_identity.push(0);
+        let changed = handoff(changed);
+        assert_ne!(encode(&changed), bytes);
+        assert_ne!(digest(&changed), digest(&original));
+    }
 }

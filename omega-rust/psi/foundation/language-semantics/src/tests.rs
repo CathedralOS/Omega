@@ -1007,3 +1007,118 @@ mod type_identity_vocabulary {
         );
     }
 }
+
+mod native_locator_descriptions {
+    use crate::native_bindings::decode_native_locator;
+    use build_time_values::BuildTimeValue as Value;
+    use language_core::core_vocabulary::ExternalBindingVocabulary as Vocabulary;
+    use semantic_vocabulary::{FieldInfoDescription, NativeBindingLocator, ParameterDescription};
+
+    fn record(fields: Vec<(&str, Value)>) -> Value {
+        Value::Struct {
+            type_name: String::new(),
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| (name.into(), value))
+                .collect(),
+        }
+    }
+    fn text(value: &str) -> Value {
+        Value::Text(value.as_bytes().to_vec())
+    }
+
+    #[test]
+    fn table_coordinates_keep_every_declared_identity_and_lifetime_byte() {
+        // The decoder retains descriptions, not a callable or a table address.
+        // Native selection must still authenticate these exact bytes against
+        // the selected declaration and its independent calling policy.
+        let table = record(vec![
+            (
+                "requirement_identity",
+                text("package@revision::Boot::invoke"),
+            ),
+            (
+                "requirement_application",
+                text("invoke<'firmware>(u64,&'firmware Table)->Status"),
+            ),
+            (
+                "parameter_identity",
+                text("package@revision::Boot::invoke::table"),
+            ),
+            ("qualified_type", text("&'firmware package@revision::Table")),
+            ("declaration_position", Value::Int(1)),
+            ("source_revision", text("exact captured source")),
+        ]);
+        let field = record(vec![
+            ("member_identity", text("package@revision::Table::function")),
+            ("case_identity", text("")),
+            ("owner_identity", text("package@revision::Table")),
+            ("owner_application", text("package@revision::Table")),
+            ("name", text("function")),
+            ("qualified_type", text("addr")),
+            ("declaration_position", Value::Int(4)),
+            ("has_stable_number", Value::Bool(false)),
+            ("is_erased", Value::Bool(false)),
+            ("stable_number", Value::Int(0)),
+            ("source_revision", text("exact captured table source")),
+        ]);
+        let locator = record(vec![("table", table), ("field", field)]);
+        let decoded =
+            decode_native_locator(&locator, Vocabulary::FunctionFieldBinding, None).unwrap();
+        assert_eq!(
+            decoded,
+            NativeBindingLocator::FunctionField {
+                table: ParameterDescription {
+                    requirement_identity: b"package@revision::Boot::invoke".to_vec(),
+                    requirement_application: b"invoke<'firmware>(u64,&'firmware Table)->Status"
+                        .to_vec(),
+                    parameter_identity: b"package@revision::Boot::invoke::table".to_vec(),
+                    qualified_type: b"&'firmware package@revision::Table".to_vec(),
+                    declaration_position: 1,
+                    source_revision: b"exact captured source".to_vec(),
+                },
+                field: FieldInfoDescription {
+                    member_identity: b"package@revision::Table::function".to_vec(),
+                    case_identity: Vec::new(),
+                    owner_identity: b"package@revision::Table".to_vec(),
+                    owner_application: b"package@revision::Table".to_vec(),
+                    name: b"function".to_vec(),
+                    qualified_type: b"addr".to_vec(),
+                    declaration_position: 4,
+                    has_stable_number: false,
+                    is_erased: false,
+                    stable_number: 0,
+                    source_revision: b"exact captured table source".to_vec(),
+                },
+            }
+        );
+        assert!(decode_native_locator(&locator, Vocabulary::ForeignBinding, Some([0; 3])).is_err());
+        assert!(
+            decode_native_locator(&locator, Vocabulary::FunctionFieldBinding, Some([0; 3]))
+                .is_err()
+        );
+        let mut wrong = locator.clone();
+        let Value::Struct { fields, .. } = &mut wrong else {
+            unreachable!()
+        };
+        fields.swap(0, 1);
+        assert!(
+            decode_native_locator(&wrong, Vocabulary::FunctionFieldBinding, None)
+                .unwrap_err()
+                .contains("fields drifted")
+        );
+        let mut wrong = locator;
+        let Value::Struct { fields, .. } = &mut wrong else {
+            unreachable!()
+        };
+        let Value::Struct { fields, .. } = &mut fields[0].1 else {
+            unreachable!()
+        };
+        fields[4].1 = Value::Int(-1);
+        assert!(
+            decode_native_locator(&wrong, Vocabulary::FunctionFieldBinding, None)
+                .unwrap_err()
+                .contains("formal position must fit u64")
+        );
+    }
+}
