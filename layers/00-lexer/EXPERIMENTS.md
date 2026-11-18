@@ -122,29 +122,89 @@ it.
 costs one changed constant. It reserves about 10.7 bytes of token storage per
 source byte, up from 8.
 
+## 3. Punctuation chosen by a hand-written match (2026-11-18): kept
+
+**Hypothesis.** After experiment 1 a punctuation token still went through a
+range lookup, an iterator and a variable-length comparison. Deciding on the
+first three bytes with a `match` should compile to jumps. Estimated before
+running: 15 to 30 percent file by file. Under 5 percent would have rejected
+it.
+
+**Change.** `Punctuation::longest_match` is now a `match` on the first two
+bytes, with the third consulted for `<<` and `..`. The spelling list stays as
+the definition of the right answer, and a test compares the match against a
+search of that list on every input of up to four bytes built from the bytes
+that could tell them apart (over 50,000 inputs). The first-byte range table
+from experiment 1 is gone, since the match replaces it.
+
+**Result.** Five rounds of 15 passes, with the order of baseline and candidate
+swapped each round. Median of the passes, file by file:
+
+| Round | Baseline | Candidate |
+| --- | --- | --- |
+| 1 | 524 MB/s | 578 |
+| 2 | 531 | 577 |
+| 3 | 532 | 571 |
+| 4 | 537 | 616 |
+| 5 | 556 | 586 |
+
+The candidate won every round, by 5 to 15 percent and about 9 percent on
+average. Per token went from about 6.3 to 5.8 ns. That is a real gain and
+smaller than estimated: the lookup was already cheap after experiment 1.
+
+**Same output.** Fingerprint `b7778a2e5cd741fb` in all ten runs; 47 tests pass.
+
+**Decision.** Kept, narrowly. The cost is that a punctuation spelling now
+lives in two places, the list and the match. The comparison test fails if
+they ever differ, which is what makes that acceptable.
+
+### Diagnostic: how much does storing tokens cost?
+
+A throwaway build constructed every token but did not store it. It is not a
+valid lexer and was reverted; it only measures what storage costs.
+
+| | Normal | Tokens not stored |
+| --- | --- | --- |
+| File by file | about 586 MB/s | about 678 MB/s |
+| One joined buffer | about 370 MB/s | about 742 MB/s |
+
+- **Small files:** storing tokens costs about 14 percent.
+- **One large input:** storing tokens costs half the time.
+- **The ceiling without storage is about 700 MB/s**, still five times below
+  the 3,500 MB/s byte-classification floor. So on small files most of the
+  remaining time is neither reading bytes nor storing tokens. It is the
+  scanner's own decision work: about 4 of the 5.8 ns per token.
+
+## How the estimates have done
+
+| Experiment | Estimated | Measured |
+| --- | --- | --- |
+| 1. First-byte dispatch | 4 to 6 times | 6.7 times |
+| 2. Larger reservation | 5 to 15 percent file by file | under 5 percent, unresolved |
+| 3. Punctuation match | 15 to 30 percent | about 9 percent |
+
+Estimates of small gains have run high. Read the guesses below with that in
+mind.
+
 ## Candidates not yet tried
 
-Ranked by expected gain on the file-by-file workload. None is measured; each
-estimate is a guess to be tested.
+Ranked for the file-by-file workload after the diagnostic above.
 
-1. **Choose punctuation with a `match`, not a table search.** A third of
-   tokens are punctuation. Each still goes through a range lookup, an
-   iterator and a variable-length comparison for what is usually one byte. A
-   direct two-level `match` on the first and second bytes should compile to a
-   jump. Guess: 15 to 30 percent.
-2. **Dispatch on a byte-class table.** `scan_token` picks its rule through a
-   chain of comparisons, and every word starting with `r` calls the
-   raw-literal check twice. One table lookup could select the rule. Guess: 5
-   to 15 percent.
-3. **A smaller token.** 32 bytes holds two `usize` offsets and a 16-byte
+1. **Tighten the scanner's decision work.** This is where the diagnostic says
+   the time is. `scan_token` picks its rule through a chain of comparisons;
+   every word starting with `r` runs the raw-literal check twice; the inner
+   loops go through a closure and a bounds-checked `peek` for every byte. A
+   byte-class table to pick the rule and loops over a plain slice are the
+   obvious forms. Guess: 10 to 25 percent, with the caveat above.
+2. **A smaller token.** 32 bytes holds two `usize` offsets and a 16-byte
    kind. Since tokens tile the source, a token's end is the next token's
-   start, so start plus kind fits in 8 bytes. Guess: small file by file,
-   large on big inputs. This changes the type the parser consumes, so it
-   should be decided with the parser, not before it.
-4. **Not storing whitespace.** A third of tokens are whitespace that a parser
-   skips. Dropping them removes a third of the stores. This changes contract
-   rule R2 and is an owner decision.
-5. **Lexing files in parallel.** The workload is many small independent
+   start, so start plus kind fits in 8 bytes. Worth at most the 14 percent
+   that storage costs on small files, and up to half on one large input.
+   This changes the type the parser consumes, so it should be decided with
+   the parser.
+3. **Not storing whitespace.** A third of tokens are whitespace that a parser
+   skips. This changes contract rule R2 and is an owner decision.
+4. **Lexing files in parallel.** The workload is many small independent
    files. This belongs to whatever calls the lexer, not to the lexer.
 
 Not worth trying: SIMD scanning. Words average 6.4 bytes and whitespace 1.9,

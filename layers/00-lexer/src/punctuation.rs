@@ -27,9 +27,11 @@ macro_rules! define_punctuation {
     :LongestMatchOrder
     Within each group that shares a first character, a longer spelling must
     come before any spelling that is a prefix of it: `<<%` before `<<` before
-    `<`. `longest_match` returns the first entry that matches, so the order of
-    this list *is* the longest-match rule. The test at the bottom of this file
-    fails if an entry is ever placed after one of its own prefixes.
+    `<`. The right answer for any input is the first entry here that matches,
+    so the order of this list *is* the longest-match rule. `longest_match` is
+    a faster hand-written form of that search and is tested against it. A test
+    at the bottom of this file also fails if an entry is ever placed after one
+    of its own prefixes.
 
     The `%`, `|` and `!` suffixed forms are the policy operators (Wrapping,
     Saturating, Trapping). The spec says "lexing takes the longest operator, so
@@ -99,38 +101,94 @@ define_punctuation! {
     ("}", RightBrace),
 }
 
-/// For each ASCII byte, the half-open range of `ORDERED_SPELLINGS` indices whose spellings begin
-/// with that byte. A byte that begins no punctuation has the empty range `(0, 0)`.
-const FIRST_BYTE_RANGES: [(u8, u8); 128] = build_first_byte_ranges();
-
-const fn build_first_byte_ranges() -> [(u8, u8); 128] {
-    let mut ranges = [(0u8, 0u8); 128];
-    let ordered_spellings = Punctuation::ORDERED_SPELLINGS;
-    let mut spelling_index = 0;
-    while spelling_index < ordered_spellings.len() {
-        let first_byte = ordered_spellings[spelling_index].0.as_bytes()[0] as usize;
-        if ranges[first_byte].1 == 0 {
-            ranges[first_byte].0 = spelling_index as u8;
-        }
-        // Spellings that share a first byte sit together in the list, so the range is tight. If
-        // one were ever misplaced the range would only widen; `longest_match` would stay correct.
-        ranges[first_byte].1 = spelling_index as u8 + 1;
-        spelling_index += 1;
-    }
-    ranges
-}
-
 impl Punctuation {
     /// Finds the longest punctuation spelling that `remaining_bytes` starts with.
     ///
-    /// We look only at the spellings that share the first byte, at most six of them. Walking the
-    /// whole list instead cost most of the lexer's time: a third of all tokens are punctuation, and
-    /// the commonest ones (`;`, `,`, brackets) are at the end of the list. See EXPERIMENTS.md.
+    /// This is `longest_match_by_search` written out by hand as a decision on the first three
+    /// bytes, so the compiler can turn it into jumps. `ORDERED_SPELLINGS` remains the definition
+    /// of what the answer is; a test checks this function against a search of that list for every
+    /// input that could tell them apart. A new spelling must be added in both places, and that
+    /// test fails if it is added to only one.
+    ///
+    /// No spelling contains a zero byte, so zero stands in for "the source ended here".
     pub fn longest_match(remaining_bytes: &[u8]) -> Option<Punctuation> {
-        let &first_byte = remaining_bytes.first()?;
-        let &(range_start, range_end) = FIRST_BYTE_RANGES.get(usize::from(first_byte))?;
+        let first_byte = *remaining_bytes.first()?;
+        let second_byte = remaining_bytes.get(1).copied().unwrap_or(0);
+        let third_byte = remaining_bytes.get(2).copied().unwrap_or(0);
+
+        Some(match (first_byte, second_byte) {
+            (b'+', b'%') => Self::PlusWrapping,
+            (b'+', b'|') => Self::PlusSaturating,
+            (b'+', b'!') => Self::PlusTrapping,
+            (b'+', b'=') => Self::PlusEqual,
+            (b'+', _) => Self::Plus,
+            (b'-', b'%') => Self::MinusWrapping,
+            (b'-', b'|') => Self::MinusSaturating,
+            (b'-', b'!') => Self::MinusTrapping,
+            (b'-', b'>') => Self::Arrow,
+            (b'-', b'=') => Self::MinusEqual,
+            (b'-', _) => Self::Minus,
+            (b'*', b'%') => Self::AsteriskWrapping,
+            (b'*', b'|') => Self::AsteriskSaturating,
+            (b'*', b'!') => Self::AsteriskTrapping,
+            (b'*', b'=') => Self::AsteriskEqual,
+            (b'*', _) => Self::Asterisk,
+            (b'/', b'%') => Self::SlashWrapping,
+            (b'/', b'|') => Self::SlashSaturating,
+            (b'/', b'!') => Self::SlashTrapping,
+            (b'/', b'=') => Self::SlashEqual,
+            (b'/', _) => Self::Slash,
+            (b'%', b'%') => Self::PercentWrapping,
+            (b'%', b'|') => Self::PercentSaturating,
+            (b'%', b'!') => Self::PercentTrapping,
+            (b'%', b'=') => Self::PercentEqual,
+            (b'%', _) => Self::Percent,
+            (b'<', b'<') => match third_byte {
+                b'%' => Self::LessLessWrapping,
+                b'|' => Self::LessLessSaturating,
+                b'!' => Self::LessLessTrapping,
+                _ => Self::LessLess,
+            },
+            (b'<', b'=') => Self::LessEqual,
+            (b'<', _) => Self::Less,
+            (b'>', b'=') => Self::GreaterEqual,
+            (b'>', _) => Self::Greater,
+            (b'=', b'=') => Self::EqualEqual,
+            (b'=', _) => Self::Equal,
+            (b'!', b'=') => Self::ExclamationEqual,
+            (b'!', _) => Self::Exclamation,
+            (b'&', b'&') => Self::AmpersandAmpersand,
+            (b'&', _) => Self::Ampersand,
+            (b'|', b'|') => Self::PipePipe,
+            (b'|', _) => Self::Pipe,
+            (b':', b':') => Self::ColonColon,
+            (b':', _) => Self::Colon,
+            (b'.', b'.') => match third_byte {
+                b'=' => Self::DotDotEqual,
+                _ => Self::DotDot,
+            },
+            (b'.', _) => Self::Dot,
+            (b'\'', _) => Self::Apostrophe,
+            (b'^', _) => Self::Caret,
+            (b'~', _) => Self::Tilde,
+            (b'#', _) => Self::Hash,
+            (b',', _) => Self::Comma,
+            (b';', _) => Self::Semicolon,
+            (b'(', _) => Self::LeftParenthesis,
+            (b')', _) => Self::RightParenthesis,
+            (b'[', _) => Self::LeftBracket,
+            (b']', _) => Self::RightBracket,
+            (b'{', _) => Self::LeftBrace,
+            (b'}', _) => Self::RightBrace,
+            _ => return None,
+        })
+    }
+
+    /// The definition `longest_match` must agree with: the first entry of `ORDERED_SPELLINGS`
+    /// that `remaining_bytes` starts with. Slow, obviously right, and only run by the tests.
+    #[cfg(test)]
+    fn longest_match_by_search(remaining_bytes: &[u8]) -> Option<Punctuation> {
         Self::ORDERED_SPELLINGS
-            .get(usize::from(range_start)..usize::from(range_end))?
             .iter()
             .find(|(spelling, _)| remaining_bytes.starts_with(spelling.as_bytes()))
             .map(|&(_, punctuation)| punctuation)
@@ -166,21 +224,56 @@ mod tests {
         }
     }
 
+    /// Every byte that occurs in some spelling, plus bytes that occur in none: a letter, a digit,
+    /// a space, an unused symbol, zero (the stand-in for end of source) and two non-ASCII bytes.
+    fn get_distinguishing_bytes() -> Vec<u8> {
+        let mut bytes: Vec<u8> = Punctuation::ORDERED_SPELLINGS
+            .iter()
+            .flat_map(|(spelling, _)| spelling.bytes())
+            .collect();
+        bytes.extend_from_slice(b"a0 @\x00\x80\xFF");
+        bytes.sort_unstable();
+        bytes.dedup();
+        bytes
+    }
+
     #[test]
-    fn first_byte_ranges_hold_exactly_the_spellings_that_start_with_that_byte() {
-        for first_byte in 0u8..128 {
-            let (range_start, range_end) = super::FIRST_BYTE_RANGES[usize::from(first_byte)];
-            for (spelling_index, (spelling, _)) in Punctuation::ORDERED_SPELLINGS.iter().enumerate()
-            {
-                let starts_with_this_byte = spelling.as_bytes()[0] == first_byte;
-                let is_in_range =
-                    (usize::from(range_start)..usize::from(range_end)).contains(&spelling_index);
-                assert_eq!(
-                    starts_with_this_byte, is_in_range,
-                    "`{spelling}` and the range for byte {first_byte:#04x} disagree"
-                );
+    fn the_hand_written_match_agrees_with_a_search_of_the_spelling_list() {
+        // No spelling is longer than three bytes, so inputs of up to four bytes built from the
+        // distinguishing bytes cover every way the two functions could disagree.
+        assert!(
+            Punctuation::ORDERED_SPELLINGS
+                .iter()
+                .all(|(spelling, _)| spelling.len() <= 3)
+        );
+
+        let bytes = get_distinguishing_bytes();
+        let mut checked_input_count = 0usize;
+        let mut check = |input: &[u8]| {
+            assert_eq!(
+                Punctuation::longest_match(input),
+                Punctuation::longest_match_by_search(input),
+                "the match and the search disagree on {input:?}"
+            );
+            checked_input_count += 1;
+        };
+
+        check(&[]);
+        for &first in &bytes {
+            check(&[first]);
+            for &second in &bytes {
+                check(&[first, second]);
+                for &third in &bytes {
+                    check(&[first, second, third]);
+                    // A fourth byte must never change the answer; one sample is enough to show it is ignored.
+                    check(&[first, second, third, b'=']);
+                }
             }
         }
+        assert!(
+            checked_input_count > 50_000,
+            "only {checked_input_count} inputs were checked"
+        );
     }
 
     #[test]
