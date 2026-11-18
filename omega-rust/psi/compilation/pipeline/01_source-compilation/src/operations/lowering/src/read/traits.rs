@@ -729,7 +729,8 @@ impl<'program> Program<'program> {
                 SourceImplementation::Native(supplied.symbol)
             } else {
                 let machine = self.subject_machine(supplied.symbol)?;
-                self.fixed_inputs.push(machine);
+                self.fixed_contracts
+                    .push(super::FixedContract::Interface(machine));
                 SourceImplementation::Machine(machine)
             };
             let scope = self.applied_scope(context, &application, required)?;

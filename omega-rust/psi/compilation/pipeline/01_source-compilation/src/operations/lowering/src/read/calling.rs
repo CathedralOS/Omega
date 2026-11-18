@@ -474,8 +474,12 @@ impl Program<'_> {
                 ));
             }
             let policy = self.machine(implementation)?;
-            if !self.fixed_inputs.contains(&policy) {
-                self.fixed_inputs.push(policy);
+            if !self
+                .fixed_contracts
+                .contains(&super::FixedContract::Interface(policy))
+            {
+                self.fixed_contracts
+                    .push(super::FixedContract::Interface(policy));
             }
             self.admitted_declarations.include(scope.declaration.symbol);
             let mut signatures = Vec::new();
@@ -641,8 +645,12 @@ impl Program<'_> {
                 }
                 continue;
             }
-            if !self.fixed_inputs.contains(&implementation) {
-                self.fixed_inputs.push(implementation);
+            if !self
+                .fixed_contracts
+                .contains(&super::FixedContract::Interface(implementation))
+            {
+                self.fixed_contracts
+                    .push(super::FixedContract::Interface(implementation));
             }
             prepared.entries.push(SourceProgramEntryContract {
                 target: entry.target.to_owned(),
@@ -1310,7 +1318,7 @@ mod header_reading_tests {
         assert!(program.symbols.is_empty());
         assert!(program.signatures.is_empty());
         assert!(program.boundaries.rows.is_empty());
-        assert!(program.fixed_inputs.is_empty());
+        assert!(program.fixed_contracts.is_empty());
         let helper = typed
             .machines()
             .iter()
@@ -1491,7 +1499,7 @@ mod header_reading_tests {
             assert!(program.admitted_signature_views.is_empty());
             assert!(program.signatures.is_empty());
             assert!(program.boundaries.rows.is_empty());
-            assert!(program.fixed_inputs.is_empty());
+            assert!(program.fixed_contracts.is_empty());
 
             // Use the production capture path. Registering a canonical service
             // identity does not select its members' source contract clauses.
@@ -1545,7 +1553,7 @@ mod header_reading_tests {
             }
             assert!(program.signatures.is_empty());
             assert!(program.boundaries.rows.is_empty());
-            assert!(program.fixed_inputs.is_empty());
+            assert!(program.fixed_contracts.is_empty());
         }
     }
 
@@ -1592,7 +1600,7 @@ mod header_reading_tests {
         .expect("the exact And and negation have actual checked reader completions");
         assert!(program.signatures.is_empty());
         assert!(program.boundaries.rows.is_empty());
-        assert!(program.fixed_inputs.is_empty());
+        assert!(program.fixed_contracts.is_empty());
     }
 
     #[test]

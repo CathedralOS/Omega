@@ -158,7 +158,8 @@ impl Program<'_> {
             }
             if typed.machine_by_symbol(*symbol).is_some() {
                 let machine = self.machine(*symbol)?;
-                self.fixed_inputs.push(machine);
+                self.fixed_contracts
+                    .push(super::FixedContract::Interface(machine));
             } else if let Some(data) = self.data_declaration(*symbol) {
                 let names_only = names_only(data);
                 self.admitted_declarations.include(*symbol);
@@ -291,8 +292,12 @@ impl Program<'_> {
                     value_arguments: Vec::new(),
                 };
                 let root = self.provider(machine.symbol, owner.symbol, requirement)?;
-                if !self.fixed_inputs.contains(&root) {
-                    self.fixed_inputs.push(root);
+                if !self
+                    .fixed_contracts
+                    .contains(&super::FixedContract::Interface(root))
+                {
+                    self.fixed_contracts
+                        .push(super::FixedContract::Interface(root));
                 }
                 // Ordinary policies have checked bodies and refinement witnesses,
                 // but supply no external service. Only a boundary requirement

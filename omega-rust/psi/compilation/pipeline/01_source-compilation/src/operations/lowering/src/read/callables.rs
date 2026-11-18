@@ -231,8 +231,12 @@ impl<'t> Program<'t> {
         // A stored selection opens the helper's possible-use boundary: a
         // particular caller cannot narrow the callable's public inputs or
         // supply private body facts to an unknown call of the value.
-        if !self.fixed_inputs.contains(&target) {
-            self.fixed_inputs.push(target);
+        if !self
+            .fixed_contracts
+            .contains(&super::FixedContract::Interface(target))
+        {
+            self.fixed_contracts
+                .push(super::FixedContract::Interface(target));
         }
         let application = typed
             .runtime_machine_value_identity(value, &[])

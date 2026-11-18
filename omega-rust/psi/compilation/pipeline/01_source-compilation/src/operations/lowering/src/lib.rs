@@ -431,6 +431,9 @@ fn elaborate_source_for<'source>(
     captures: SharedReading,
 ) -> Result<PreparedProgram<'source>, Vec<Refusal>> {
     let mut program = read::Program::with_captures(typed, false, compilation.purpose, captures);
+    program.local_summary_scope = Some(read::LocalSummaryScope::Compilation(
+        compilation.subjects.to_vec(),
+    ));
     program.publication = publication;
     program.declaration_metadata = compilation.declaration_metadata.to_vec();
     let first = MachineId::new(1).expect("1 is nonzero");
@@ -445,10 +448,14 @@ fn elaborate_source_for<'source>(
     program.collected = Some(Vec::new());
     let entry = if let Some((entry, others)) = compilation.entries.split_first() {
         let entry = program.machine(*entry).map_err(alone)?;
-        program.fixed_inputs.push(entry);
+        program
+            .fixed_contracts
+            .push(read::FixedContract::Interface(entry));
         for other in others {
             match program.machine(*other) {
-                Ok(other) => program.fixed_inputs.push(other),
+                Ok(other) => program
+                    .fixed_contracts
+                    .push(read::FixedContract::Interface(other)),
                 Err(refused) => program.keep(Err(refused)).map_err(alone)?,
             }
         }
@@ -834,7 +841,9 @@ fn prepare_witness<'source>(
         .machine_by_symbol(implementation)
         .is_some_and(|machine| is_generic_template(typed, machine));
     let mut program = read::Program::with_captures(typed, generic, inputs.purpose, inputs.captures);
-    program.outcome_subjects = inputs.outcome_subjects.map(|subjects| subjects.to_vec());
+    program.local_summary_scope = inputs
+        .outcome_subjects
+        .map(|subjects| read::LocalSummaryScope::Witness(subjects.to_vec()));
     let entry = program.witnessed(
         declaring_trait,
         requirement,
