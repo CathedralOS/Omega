@@ -115,11 +115,13 @@ framework or a list of unimplemented features.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
-### A build-wide flag admits machine control for every output
-- Category: A verdict with nothing behind it
-- Where: [source admission](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs), [instruction reach](omega-rust/psi/foundation/symbols/src/builtin.rs), [mask helper](source/library/core/interrupt.omg), [terminal classification](omega-rust/omega/compilation/realization/provider-admission/src/terminal_authority_policy/classification.rs), [settled rule](wiki/spec/build/permissions.md#freestanding-machine-owner-authority)
-- Saw: Source checking derives machine ownership from `Build.freestanding` for all bound targets. The interrupt-mask intrinsics, core helper and physical classifier still report `MachineControl`.
-- Cost: Firmware selection can admit machine control in a hosted sibling, and a mask-only package already appears to have broad machine reach. Retire the field, check each selected output's provider authority, and carry `InterruptControl` through direct instructions, helpers, package review and physical classification. Exercise a mixed firmware/hosted build and a package update that adds a page-table write.
+<a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
+
+### Build still validates a retired hardware setting
+- Category: Zombie machinery
+- Where: [Build shape](omega-rust/omega/packages/build-declarations/src/prelude.rs#L266), [return decoding](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs), [Source assembly](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/machine.rs#L3923), [review projection](omega-rust/omega/packages/review-evidence/src/capture/callables.rs#L705), [per-output authority](wiki/spec/build/permissions.md#where-the-operation-can-run)
+- Saw: The authored `Build.freestanding` Boolean remains mandatory through result decoding for compatibility. The checked core mask helpers and receiving classification report `InterruptControl` for mask changes. Source assembly and package instruction-authority projection still refuse their unsupported routes.
+- Cost: Retire the authored field and carry the instruction's exact service through Source, helpers and package review. Check the selected provider for each output. A mixed firmware/hosted build must refuse the hosted mask change when its provider lacks authority. A package update that adds a page-table write must report added `MachineControl` for acceptance.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### Changing storage analysis rebuilds the native compiler

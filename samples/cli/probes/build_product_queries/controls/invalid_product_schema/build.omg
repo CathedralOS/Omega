@@ -3,7 +3,6 @@ machine build(builder: &mut Build) {
     let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../dependency" });
     dependency::with_alias(&mut kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
-    builder.freestanding = true;
     let schema: ProductTypeSchema = BuildProduct::schema(&builder.product, "kit");
     let spath: &[u8] = ProductTypeSchema::path(&schema);
     BuildLog::write_line(&mut builder.log, spath);
