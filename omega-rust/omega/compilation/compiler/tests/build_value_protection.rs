@@ -403,7 +403,7 @@ machine helper(builder: &mut Build) {{
 fn binding_requires_the_shared_cohort_to_end_before_exclusive_access() {
     let helper = |operations: &str| {
         format!(
-            "machine observe(builder: &Build) -> bool {{ builder.freestanding }}
+            "machine observe(builder: &Build) -> bool {{ builder.tests.disabled }}
 machine helper(builder: &mut Build) -> bool {{
     let view: &Build = builder;
     {operations}
@@ -431,8 +431,8 @@ machine helper(builder: &mut Build) -> bool {{
 fn an_explicit_exclusive_argument_to_a_shared_formal_requires_the_cohort_to_end() {
     let helper = |operations: &str| {
         format!(
-            "machine observe(builder: &Build) -> bool {{ builder.freestanding }}
-machine observe_both(left: &Build, right: &Build) -> bool {{ left.freestanding && right.freestanding }}
+            "machine observe(builder: &Build) -> bool {{ builder.tests.disabled }}
+machine observe_both(left: &Build, right: &Build) -> bool {{ left.tests.disabled && right.tests.disabled }}
 machine helper(builder: &mut Build) -> bool {{
     let view: &Build = builder;
     {operations}
