@@ -5,16 +5,18 @@
         cargo run --release -p omega-lexer --example lex_throughput -- [--passes N] <directory>...
 
     A single MB/s figure cannot be judged without knowing what bounds it and
-    what it is made of, so we take four measurements over the same files, all
+    what it is made of, so we take five measurements over the same files, all
     held in memory first so that no disk time is included:
 
       1. UTF-8 validation alone. The lexer does this pass before scanning, so
          it is a floor: lexing cannot be faster than this plus something.
-      2. Lexing each file separately, which is the real workload. Each call
+      2. Classifying every byte through a table. A second floor: what a
+         byte-at-a-time lexer pays before it decides or stores anything.
+      3. Lexing each file separately, which is the real workload. Each call
          allocates its own token list.
-      3. Lexing all files joined into one buffer. Same bytes, one allocation.
-         The gap between 2 and 3 is the fixed cost paid per file.
-      4. The token mix: how many tokens and bytes each kind accounts for.
+      4. Lexing all files joined into one buffer. Same bytes, one allocation.
+         The gap between 3 and 4 is the fixed cost paid per file.
+      5. The token mix: how many tokens and bytes each kind accounts for.
 
     Every timed measurement is repeated for the requested number of passes,
     interleaved so that drift in machine load hits all of them alike, and we
@@ -77,6 +79,7 @@ fn main() {
     let joined_source = sources.join(&b"\n"[..]);
 
     let mut utf8_seconds = Vec::with_capacity(pass_count);
+    let mut class_run_seconds = Vec::with_capacity(pass_count);
     let mut per_file_seconds = Vec::with_capacity(pass_count);
     let mut joined_seconds = Vec::with_capacity(pass_count);
     let mut total_token_count = 0usize;
@@ -88,6 +91,14 @@ fn main() {
             black_box(std::str::from_utf8(black_box(source_bytes)).is_ok());
         }
         utf8_seconds.push(started.elapsed().as_secs_f64());
+
+        let started = Instant::now();
+        let mut class_run_count = 0usize;
+        for source_bytes in &sources {
+            class_run_count += count_byte_class_runs(black_box(source_bytes));
+        }
+        black_box(class_run_count);
+        class_run_seconds.push(started.elapsed().as_secs_f64());
 
         let started = Instant::now();
         let mut pass_token_count = 0usize;
@@ -126,6 +137,11 @@ fn main() {
     println!();
     println!("                          fastest    median   slowest");
     print_measurement("UTF-8 validation only", &mut utf8_seconds, total_byte_count);
+    print_measurement(
+        "classify every byte",
+        &mut class_run_seconds,
+        total_byte_count,
+    );
     print_measurement("lex, file by file", &mut per_file_seconds, total_byte_count);
     print_measurement(
         "lex, one joined buffer",
@@ -146,6 +162,42 @@ fn main() {
     );
 
     print_token_mix(&joined_source, total_byte_count);
+}
+
+/// Looks every byte up in a class table and counts how many times the class changes.
+///
+/// This is a floor for a byte-at-a-time lexer, not a lexer: it does the one thing no such lexer
+/// can avoid, a load and a table lookup per byte, and none of the work of deciding token
+/// boundaries or storing tokens. How far real lexing sits above it is the room left to gain
+/// without changing approach.
+fn count_byte_class_runs(source_bytes: &[u8]) -> usize {
+    const BYTE_CLASSES: [u8; 256] = build_byte_classes();
+
+    let mut previous_class = u8::MAX;
+    let mut run_count = 0usize;
+    for &byte in source_bytes {
+        let class = BYTE_CLASSES[usize::from(byte)];
+        run_count += usize::from(class != previous_class);
+        previous_class = class;
+    }
+    run_count
+}
+
+const fn build_byte_classes() -> [u8; 256] {
+    let mut classes = [5u8; 256];
+    let mut byte = 0usize;
+    while byte < 256 {
+        classes[byte] = match byte as u8 {
+            b' ' | b'\t' | b'\r' | b'\n' => 0,
+            b'a'..=b'z' | b'A'..=b'Z' | b'_' => 1,
+            b'0'..=b'9' => 2,
+            b'"' => 3,
+            0x80..=0xFF => 4,
+            _ => 5,
+        };
+        byte += 1;
+    }
+    classes
 }
 
 /// Prints one row of throughput in MB/s. Sorts `pass_seconds` fastest first as a side effect.

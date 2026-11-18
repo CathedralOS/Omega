@@ -80,3 +80,74 @@ bytes, and whether whitespace tokens need to be stored at all.
 Correction, same day: this entry first said 24 bytes and 186 MB. That was
 assumed, not measured. `size_of::<Token>()` is 32: a 16-byte kind and a
 16-byte span.
+
+## 2. A floor, and the token-list reservation (2026-11-18): kept
+
+**A floor to judge against.** The tool gained a measurement that looks every
+byte up in a class table and counts class changes, storing nothing. It runs at
+about 3,500 MB/s on the same files, which is 0.28 ns per byte. The lexer at
+about 520 MB/s costs 1.9 ns per byte. Tokens here average 3.4 bytes, so the
+difference is about 5.6 ns of work per token that is not reading bytes: it is
+choosing the rule, building the token and storing it. Per-token overhead, not
+per-byte scanning, is where the remaining time is.
+
+**Hypothesis.** `scan_all` reserved room for one token per 4 bytes. The
+workload has one per 3.4, so most files overflowed the reservation and the
+list grew once, copying every token already stored. Reserving one per 3 bytes
+should remove that copy. Estimated before running: 5 to 15 percent file by
+file, more on a large input. No gain on the joined buffer would have rejected
+it.
+
+**Change.** `len / 4 + 16` became `len / 3 + 16`. Nothing else.
+
+**Result.** Four rounds, alternating, 9 passes each. Median of the passes:
+
+| Round | File by file, before | after | Joined buffer, before | after |
+| --- | --- | --- | --- | --- |
+| 1 | 408 MB/s | 546 | 215 MB/s | 364 |
+| 2 | 487 | 517 | 227 | 353 |
+| 3 | 526 | 518 | 256 | 354 |
+| 4 | 493 | 528 | 249 | 357 |
+
+- **Joined buffer: about 45 percent faster**, in every round and far outside
+  the noise.
+- **File by file: inconclusive.** The candidate was ahead in three rounds and
+  behind in one, and round 1's baseline was visibly disturbed by other work on
+  the machine. Any real gain is under about 5 percent, which this host cannot
+  resolve. The 5 to 15 percent estimate was not confirmed.
+
+**Same output.** Fingerprint `b7778a2e5cd741fb` in all eight runs.
+
+**Decision.** Kept. It helps large inputs clearly, cannot hurt small ones, and
+costs one changed constant. It reserves about 10.7 bytes of token storage per
+source byte, up from 8.
+
+## Candidates not yet tried
+
+Ranked by expected gain on the file-by-file workload. None is measured; each
+estimate is a guess to be tested.
+
+1. **Choose punctuation with a `match`, not a table search.** A third of
+   tokens are punctuation. Each still goes through a range lookup, an
+   iterator and a variable-length comparison for what is usually one byte. A
+   direct two-level `match` on the first and second bytes should compile to a
+   jump. Guess: 15 to 30 percent.
+2. **Dispatch on a byte-class table.** `scan_token` picks its rule through a
+   chain of comparisons, and every word starting with `r` calls the
+   raw-literal check twice. One table lookup could select the rule. Guess: 5
+   to 15 percent.
+3. **A smaller token.** 32 bytes holds two `usize` offsets and a 16-byte
+   kind. Since tokens tile the source, a token's end is the next token's
+   start, so start plus kind fits in 8 bytes. Guess: small file by file,
+   large on big inputs. This changes the type the parser consumes, so it
+   should be decided with the parser, not before it.
+4. **Not storing whitespace.** A third of tokens are whitespace that a parser
+   skips. Dropping them removes a third of the stores. This changes contract
+   rule R2 and is an owner decision.
+5. **Lexing files in parallel.** The workload is many small independent
+   files. This belongs to whatever calls the lexer, not to the lexer.
+
+Not worth trying: SIMD scanning. Words average 6.4 bytes and whitespace 1.9,
+too short for vector code to pay off; only comments are long, and they are
+11.5 percent of bytes. Dropping the separate UTF-8 pass would save at most 4
+percent.
