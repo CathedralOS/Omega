@@ -743,6 +743,77 @@ fn root_grants_keep_the_actual_provider_application() {
 }
 
 #[test]
+fn accepted_machine_grants_distinguish_the_local_subject_from_a_dependency() {
+    use declaration_contracts::selection::RootGrantSubject;
+    let source = "public boundary machine Claim() ensures true;";
+    let fixture = Fixture::for_operation(
+        "machine build(builder: &mut Build) { Build::accept_boundary<Claim>(builder); Build::accept_boundary<dep::Claim>(builder); }",
+        source,
+        Some(source),
+        BuildOperation::BoundaryAcceptance,
+    );
+    let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused); 2]);
+    let grants = super::product_policy::collect_product_root_grants(
+        &fixture.typed,
+        Some(fixture.activation),
+        &fixture.declared,
+        &events,
+    )
+    .unwrap();
+    let [local, dependency] = grants.as_slice() else {
+        panic!("both executed grants must be retained")
+    };
+    for (grant, owner) in [(local, package(7)), (dependency, package(8))] {
+        let RootGrantSubject::AcceptedMachine {
+            declaration,
+            machine,
+        } = &grant.subject
+        else {
+            panic!("the authored operand must name a concrete accepted machine");
+        };
+        assert_eq!(grant.subject_package, Some(owner));
+        assert_eq!(
+            fixture.typed.symbols.symbol_package_identity(*machine),
+            Some(owner)
+        );
+        assert_eq!(
+            fixture
+                .typed
+                .normalized_hermetic_symbol_identity(*machine)
+                .unwrap(),
+            *declaration
+        );
+    }
+    assert_ne!(local.subject, dependency.subject);
+    for hidden in ["Missing", "dep::Private"] {
+        let build = format!(
+            "machine build(builder: &mut Build) {{ Build::accept_boundary<{hidden}>(builder); }}"
+        );
+        let fixture = Fixture::for_operation(
+            &build,
+            source,
+            Some("boundary machine Private() ensures true;"),
+            BuildOperation::BoundaryAcceptance,
+        );
+        let errors = super::product_policy::collect_product_root_grants(
+            &fixture.typed,
+            Some(fixture.activation),
+            &fixture.declared,
+            &[],
+        )
+        .unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0].message,
+            format!(
+                "root grant subject `{hidden}` must name one visible provider or admitted machine declaration"
+            )
+        );
+        assert_eq!(errors[0].source_span, Some(fixture.declared[0].source_span));
+    }
+}
+
+#[test]
 fn trust_census_keeps_unrequested_claims_and_missing_receipts() {
     use declaration_contracts::selection::RootGrantSubject;
     use declaration_contracts::trust_declarations::TrustDeclarationCardinality;

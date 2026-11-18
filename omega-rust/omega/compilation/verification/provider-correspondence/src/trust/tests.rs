@@ -1,9 +1,8 @@
-// We test `reconstruct_trust_obligations` and `TrustAdmission` across exact vs
-// leaf-name grant resolution, deferred unused declaration errors, template vs
-// contract cardinality rejections, package-aware non-provider grant rejection,
-// and domain-separated digest equality.
+//! Admission consumes the author’s declaration, handle and package. It
+//! rejoins those exact coordinates and validates only requested evidence.
 
-use super::{TrustAdmission, reconstruct_trust_obligations};
+use super::{RootTrustPolicy, TrustAdmission, reconstruct_trust_obligations};
+use declaration_contracts::selection::{AuthoredRootGrant, RootGrantSubject};
 use declaration_contracts::trust_declarations::AcceptedContractDeclaration;
 use declaration_contracts::trust_declarations::AcceptedMachineDeclaration;
 use declaration_contracts::trust_declarations::AcceptedTemplateDeclaration;
@@ -24,73 +23,55 @@ fn machine(index: u32, name: &str) -> AcceptedMachineDeclaration {
     }
 }
 
+fn claim(index: u32, declaration: &str) -> AuthoredRootGrant {
+    AuthoredRootGrant {
+        selector: declaration.to_owned(),
+        subject: RootGrantSubject::AcceptedMachine {
+            declaration: declaration.to_owned(),
+            machine: symbols::SymbolHandle::from_arena_index(index),
+        },
+        subject_package: None,
+        selecting_machine: symbols::SymbolHandle::from_arena_index(9),
+        source_span: Default::default(),
+    }
+}
+
 fn admit(
     machines: Vec<AcceptedMachineDeclaration>,
-    grants: &[&str],
-    package_aware: bool,
+    grants: &[AuthoredRootGrant],
+    policy: RootTrustPolicy,
 ) -> Result<Vec<TrustAdmission>, String> {
     let declarations = TrustDeclarations {
         machines: machines.into_boxed_slice(),
     };
-    let mut machine_rows = declarations.machines.iter().collect::<Vec<_>>();
-    machine_rows.sort_unstable_by_key(|machine| {
-        (machine.machine.arena_index(), machine.machine.generation())
-    });
-    let grants = grants
-        .iter()
-        .map(|grant| {
-            let super::NonProviderTrustGrant::AcceptedMachine(symbol) =
-                super::resolve_non_provider_trust_grant(&declarations, grant)
-                    .map_err(|error| error.message)?;
-            let machine = super::accepted_machine_grants::accepted_machine(&machine_rows, symbol)
-                .map_err(|error| error.message)?;
-            Ok(declaration_contracts::selection::AuthoredRootGrant {
-                selector: (*grant).to_owned(),
-                subject: declaration_contracts::selection::RootGrantSubject::AcceptedMachine {
-                    declaration: machine.declaration_identity.clone(),
-                    machine: symbol,
-                },
-                subject_package: machine.package_identity,
-                selecting_machine: symbols::SymbolHandle::from_arena_index(0),
-                source_span: Default::default(),
-            })
-        })
-        .collect::<Result<Vec<_>, String>>()?;
     reconstruct_trust_obligations(
         &declarations,
-        &grants,
+        grants,
         &[],
         &effects::SelectedProviderPlanFacts::default(),
         &[],
-        if package_aware {
-            super::RootTrustPolicy::PackageReview
-        } else {
-            super::RootTrustPolicy::Unpackaged
-        },
+        policy,
     )
     .map_err(|errors| format!("{errors:?}"))
 }
 
 #[test]
-fn exact_name_precedes_ambiguous_leaf_and_duplicate_grants_collapse() {
+fn identical_authored_grants_collapse_without_resolving_the_display_name() {
     let declarations = vec![
         machine(1, "Claim"),
         machine(2, "left::Claim"),
         machine(3, "right::Claim"),
     ];
-    let rows = admit(declarations, &["Claim", "Claim"], false).expect("exact declaration");
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].commitment(), "accepted fact: Claim");
-    let error = admit(
-        vec![machine(2, "left::Claim"), machine(3, "right::Claim")],
-        &["Claim"],
-        false,
+    let mut grant = claim(2, "left::Claim");
+    grant.selector = "Claim".to_owned();
+    let rows = admit(
+        declarations,
+        &[grant.clone(), grant],
+        RootTrustPolicy::Unpackaged,
     )
-    .unwrap_err();
-    assert!(
-        error.contains("ambiguous across non-provider trust subjects"),
-        "{error}"
-    );
+    .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].commitment(), "accepted fact: left::Claim");
 }
 
 #[test]
@@ -99,12 +80,20 @@ fn unrequested_declaration_failures_remain_deferred() {
     unused.template = Err(TrustDeclarationCardinality::Duplicate);
     unused.contract = Err(TrustDeclarationCardinality::Missing);
     assert_eq!(
-        admit(vec![machine(1, "Claim"), unused.clone()], &["Claim"], false)
-            .unwrap()
-            .len(),
+        admit(
+            vec![machine(1, "Claim"), unused.clone()],
+            &[claim(1, "Claim")],
+            RootTrustPolicy::Unpackaged
+        )
+        .unwrap()
+        .len(),
         1
     );
-    assert!(admit(vec![unused], &[], false).unwrap().is_empty());
+    assert!(
+        admit(vec![unused], &[], RootTrustPolicy::Unpackaged)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -121,7 +110,12 @@ fn missing_and_duplicate_template_classifications_refuse_the_named_grant() {
     ] {
         let mut declaration = machine(1, "Claim");
         declaration.template = Err(cardinality);
-        let error = admit(vec![declaration], &["Claim"], false).unwrap_err();
+        let error = admit(
+            vec![declaration],
+            &[claim(1, "Claim")],
+            RootTrustPolicy::Unpackaged,
+        )
+        .unwrap_err();
         assert!(error.contains(reason), "{error}");
     }
 }
@@ -140,14 +134,25 @@ fn missing_and_duplicate_contract_plans_refuse_only_concrete_claims() {
     ] {
         let mut declaration = machine(1, "Claim");
         declaration.contract = Err(cardinality);
-        let error = admit(vec![declaration.clone()], &["Claim"], false).unwrap_err();
+        let error = admit(
+            vec![declaration.clone()],
+            &[claim(1, "Claim")],
+            RootTrustPolicy::Unpackaged,
+        )
+        .unwrap_err();
         assert!(error.contains(reason), "{error}");
         declaration.template = Ok(Some(AcceptedTemplateDeclaration {
             report_fingerprint: 71,
             commitment: [11; 32],
         }));
         assert_eq!(
-            admit(vec![declaration], &["Claim"], false).unwrap().len(),
+            admit(
+                vec![declaration],
+                &[claim(1, "Claim")],
+                RootTrustPolicy::Unpackaged
+            )
+            .unwrap()
+            .len(),
             1
         );
     }
@@ -157,7 +162,12 @@ fn missing_and_duplicate_contract_plans_refuse_only_concrete_claims() {
 fn package_policy_precedes_deferred_template_evidence() {
     let mut declaration = machine(1, "Claim");
     declaration.template = Err(TrustDeclarationCardinality::Missing);
-    let error = admit(vec![declaration], &["Claim"], true).unwrap_err();
+    let error = admit(
+        vec![declaration],
+        &[claim(1, "Claim")],
+        RootTrustPolicy::PackageReview,
+    )
+    .unwrap_err();
     assert!(
         error.contains("package-aware compilation cannot admit individual accepted machine"),
         "{error}"
@@ -169,31 +179,48 @@ fn package_policy_precedes_deferred_template_evidence() {
 fn exact_declaration_identity_and_invalid_symbols_still_refuse() {
     let error = admit(
         vec![machine(1, "First"), machine(1, "Second")],
-        &["First"],
-        false,
+        &[claim(1, "First")],
+        RootTrustPolicy::Unpackaged,
     )
     .unwrap_err();
     assert!(error.contains("2 exact typed definitions"), "{error}");
-    let error = admit(vec![machine(0, "Claim")], &["Claim"], false).unwrap_err();
+    let error = admit(
+        vec![machine(0, "Claim")],
+        &[claim(0, "Claim")],
+        RootTrustPolicy::Unpackaged,
+    )
+    .unwrap_err();
     assert!(error.contains("no valid exact symbol"), "{error}");
-    let error = admit(vec![machine(1, "Claim")], &["Other"], false).unwrap_err();
-    assert!(
-        error.contains("does not name an exact accepted machine or selected provider plan"),
-        "{error}"
-    );
+    let error = admit(
+        vec![machine(1, "Claim")],
+        &[claim(2, "Other")],
+        RootTrustPolicy::Unpackaged,
+    )
+    .unwrap_err();
+    assert!(error.contains("has no exact typed definition"), "{error}");
 }
 
 #[test]
 fn role_and_strong_commitment_define_trust_identity_not_report_fingerprints() {
-    let concrete = admit(vec![machine(1, "Claim")], &["Claim"], false)
-        .unwrap()
-        .remove(0);
+    let concrete = admit(
+        vec![machine(1, "Claim")],
+        &[claim(1, "Claim")],
+        RootTrustPolicy::Unpackaged,
+    )
+    .unwrap()
+    .remove(0);
     let mut generic = machine(1, "Claim");
     generic.template = Ok(Some(AcceptedTemplateDeclaration {
         report_fingerprint: 37,
         commitment: [7; 32],
     }));
-    let template = admit(vec![generic], &["Claim"], false).unwrap().remove(0);
+    let template = admit(
+        vec![generic],
+        &[claim(1, "Claim")],
+        RootTrustPolicy::Unpackaged,
+    )
+    .unwrap()
+    .remove(0);
     assert_ne!(concrete.digest(), template.digest());
     let mut different_report = machine(1, "Claim");
     different_report
@@ -203,32 +230,44 @@ fn role_and_strong_commitment_define_trust_identity_not_report_fingerprints() {
         .report_fingerprint = 99;
     assert_eq!(
         concrete,
-        admit(vec![different_report], &["Claim"], false)
-            .unwrap()
-            .remove(0)
+        admit(
+            vec![different_report],
+            &[claim(1, "Claim")],
+            RootTrustPolicy::Unpackaged
+        )
+        .unwrap()
+        .remove(0)
     );
     let mut different_contract = machine(1, "Claim");
     different_contract.contract.as_mut().unwrap().commitment = [8; 32];
     assert_ne!(
         concrete,
-        admit(vec![different_contract], &["Claim"], false)
-            .unwrap()
-            .remove(0)
+        admit(
+            vec![different_contract],
+            &[claim(1, "Claim")],
+            RootTrustPolicy::Unpackaged
+        )
+        .unwrap()
+        .remove(0)
     );
 }
 
 #[test]
-fn selector_failures_precede_final_contract_validation() {
+fn an_absent_authored_handle_precedes_final_contract_validation() {
     let mut declaration = machine(1, "Claim");
     declaration.contract = Err(TrustDeclarationCardinality::Missing);
-    let error = admit(vec![declaration], &["Claim", "Unknown"], false).unwrap_err();
-    assert!(error.contains("root grant `Unknown`"), "{error}");
+    let error = admit(
+        vec![declaration],
+        &[claim(1, "Claim"), claim(2, "Unknown")],
+        RootTrustPolicy::Unpackaged,
+    )
+    .unwrap_err();
+    assert!(error.contains("has no exact typed definition"), "{error}");
     assert!(!error.contains("checked machine contract plan"));
 }
 
 #[test]
 fn an_accepted_machine_handle_cannot_replace_the_retained_declaration() {
-    use declaration_contracts::selection::{AuthoredRootGrant, RootGrantSubject};
     let declarations = TrustDeclarations {
         machines: vec![
             machine(1, "package-a::Claim"),

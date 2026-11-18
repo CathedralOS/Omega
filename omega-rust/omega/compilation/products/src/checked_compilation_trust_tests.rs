@@ -57,17 +57,18 @@ fn authored_provider_grants_do_not_reselect_by_display_name() {
         selecting_machine: symbols::SymbolHandle::from_arena_index(9),
         source_span: source_text::SourceSpan::default(),
     };
-    let admit = |grants: &[AuthoredRootGrant]| {
-        reconstruct_trust_obligations(
-            &declarations,
-            grants,
-            &[&plan],
-            &selected,
-            &[],
-            RootTrustPolicy::Unpackaged,
-        )
+    let admit_for = |grants: &[AuthoredRootGrant], policy| {
+        reconstruct_trust_obligations(&declarations, grants, &[&plan], &selected, &[], policy)
     };
-    assert_eq!(admit(&[grant.clone(), grant.clone()]).unwrap().len(), 1);
+    let admit = |grants: &[AuthoredRootGrant]| admit_for(grants, RootTrustPolicy::Unpackaged);
+    let accepted = admit(&[grant.clone(), grant.clone()]).unwrap();
+    assert_eq!(accepted.len(), 1);
+    // Package review excludes individual claims. A checked provider grant
+    // with the same display name still joins its exact provider application.
+    assert_eq!(
+        admit_for(std::slice::from_ref(&grant), RootTrustPolicy::PackageReview).unwrap(),
+        accepted
+    );
     let mut other_owner = grant.clone();
     let RootGrantSubject::Provider { declaration, .. } = &mut other_owner.subject else {
         unreachable!()
