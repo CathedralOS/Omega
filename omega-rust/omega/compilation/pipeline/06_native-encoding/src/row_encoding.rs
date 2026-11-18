@@ -665,10 +665,10 @@ fn encode_scalar_call(
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<SelectedFormEncodedRowDraft, Error> {
     let views = operand_views(machine);
-    if matches!(
-        kind.call_target(),
-        Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
-    ) {
+    if kind
+        .call_target()
+        .is_some_and(|target| target.indirect_code_offset().is_some())
+    {
         let (bytes, effects) = match target.architecture {
             Architecture::Aarch64 => isa_aarch64::encode_aarch64_selected_dynamic_call_template(
                 target,
@@ -1275,6 +1275,165 @@ mod tests {
         assert!(
             replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
         );
+    }
+
+    #[test]
+    fn callable_rows_use_indirect_encoding_and_reject_missing_pointer_or_changed_bytes() {
+        let target = NativeTarget::macos_arm64();
+        let physical =
+            validate_physical_register_model(isa_aarch64::aarch64_physical_register_model())
+                .unwrap();
+        let constraints = isa_aarch64::validate_aarch64_register_constraint_catalog(
+            isa_aarch64::aarch64_register_constraint_catalog(&physical),
+            &physical,
+        )
+        .unwrap();
+        let catalog = isa_aarch64::validate_aarch64_machine_effect_catalog(
+            target,
+            &constraints,
+            isa_aarch64::aarch64_machine_effect_catalog(target, &constraints).unwrap(),
+        )
+        .unwrap();
+        let key = isa_aarch64::aarch64_darwin_register_call_keys()[0];
+        let base = constraints.constraint(key).unwrap();
+        let constraint =
+            selected_instructions::calls::dynamic::instantiate_constraint(base, &physical).unwrap();
+        let declaration = catalog
+            .catalog()
+            .declarations
+            .iter()
+            .find(|row| row.constraint == key && row.semantic == MachineSemanticKind::CallScalar)
+            .expect("the ordinary zero-argument scalar call has its actual catalog row");
+        let declaration = selected_instructions::calls::dynamic::instantiate_declaration(
+            declaration,
+            &constraint,
+            &physical,
+        )
+        .unwrap();
+        let callable = selected_instructions::SelectedCallTarget::Callable {
+            contract: semantic_vocabulary::CallableContractId::new(1).unwrap(),
+        };
+        let mut selected = SelectedInstruction {
+            id: SelectedInstructionId(1),
+            kind: SelectedInstructionKind::CallScalar { target: callable },
+            constraint: constraint.key,
+            operands: Vec::new(),
+            implicit_uses: constraint.implicit_uses.clone(),
+            implicit_defs: constraint.implicit_defs.clone(),
+            clobbers: constraint.clobbers.clone(),
+            provenance: SelectedInstructionProvenance::default(),
+        };
+        let mut machine = PostAllocationMachineInstruction {
+            instruction: selected.id,
+            address: None,
+            alternative: declaration.alternatives[0].clone(),
+            operands: Vec::new(),
+            implicit_unit_uses: constraint.implicit_uses.clone(),
+            implicit_unit_defs: constraint.implicit_defs.clone(),
+            implicit_unit_clobbers: constraint.clobbers.clone(),
+            unit_uses: constraint.implicit_uses.clone(),
+            unit_defs: constraint.implicit_defs.clone(),
+            unit_clobbers: constraint.clobbers.clone(),
+        };
+        for expected in &constraint.operands {
+            let view = physical.model().view(expected.fixed_view.unwrap()).unwrap();
+            let virtual_register = VirtualRegisterId(u32::from(expected.operand));
+            let reads = expected.access == RegisterOperandAccess::Use;
+            assert!(reads || expected.access == RegisterOperandAccess::Def);
+            selected.operands.push(SelectedOperand {
+                operand: expected.operand,
+                virtual_register,
+                access: expected.access,
+                class: expected.class,
+                fixed_view: expected.fixed_view,
+                tied_to: expected.tied_to,
+                early_clobber: expected.early_clobber,
+            });
+            machine.operands.push(PhysicalOperandFootprint {
+                operand: expected.operand,
+                virtual_register,
+                class: view.class,
+                view: view.id,
+                access: expected.access,
+                storage_units: view.units.clone(),
+                read_units: if reads {
+                    view.units.clone()
+                } else {
+                    Vec::new()
+                },
+                write_units: if reads {
+                    Vec::new()
+                } else {
+                    view.write_units.clone()
+                },
+                write_semantics: (!reads).then_some(view.write_semantics),
+            });
+            if reads {
+                machine.unit_uses.extend_from_slice(&view.units);
+            } else {
+                machine.unit_defs.extend_from_slice(&view.write_units);
+            }
+        }
+        machine.unit_uses.sort_unstable();
+        machine.unit_uses.dedup();
+        machine.unit_defs.sort_unstable();
+        machine.unit_defs.dedup();
+
+        // Both retained target kinds address the first code cell. Exercise the
+        // real row router and independent receiver rather than an ISA helper.
+        let mut baseline = None;
+        for call_target in [
+            selected_instructions::SelectedCallTarget::Dynamic {
+                interface: 7,
+                slot: 0,
+            },
+            callable,
+        ] {
+            selected.kind = SelectedInstructionKind::CallScalar {
+                target: call_target,
+            };
+            let mut encoded = SelectedFormEncodedRowStore::new();
+            let row =
+                encode_fixture_row(target, &selected, &machine, &physical, None, &mut encoded)
+                    .expect("the indirect target keeps its actual pointer operand");
+            assert!(matches!(row.state, SelectedFormEncodingState::Encoded));
+            replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded)
+                .expect("independent admission receives the same indirect call");
+            let bytes = encoded.bytes(row.code).to_vec();
+            if let Some(baseline) = &baseline {
+                assert_eq!(&bytes, baseline);
+            } else {
+                baseline = Some(bytes);
+            }
+
+            let mut missing = machine.clone();
+            let selector = physical.model().view_named("x16").unwrap().id;
+            missing.operands.retain(|operand| operand.view != selector);
+            assert!(matches!(
+                encode_fixture_row(
+                    target,
+                    &selected,
+                    &missing,
+                    &physical,
+                    None,
+                    &mut SelectedFormEncodedRowStore::new()
+                ),
+                Err(Error::Aarch64ScalarCall(
+                    isa_aarch64::Aarch64ScalarCallTemplateError::OperandViewMismatch
+                ))
+            ));
+            assert!(matches!(
+                replay_fixture_row(target, &selected, &missing, &physical, &row, &encoded),
+                Err(Error::Aarch64ScalarCall(
+                    isa_aarch64::Aarch64ScalarCallTemplateError::OperandViewMismatch
+                ))
+            ));
+            encoded.bytes_mut(row.code)[0] ^= 1;
+            assert!(matches!(
+                replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded),
+                Err(Error::ArtifactMismatch)
+            ));
+        }
     }
 
     #[test]
