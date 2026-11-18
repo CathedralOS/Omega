@@ -617,8 +617,8 @@ impl Program<'_> {
     ///   type is built from builtin scalars, the header's own type
     ///   parameters, fixed arrays whose length is a number or one of the
     ///   header's constants, data with no parameters, and applications of
-    ///   data. A closed application or a data type with no parameters is
-    ///   resolved here like any other subject type.
+    ///   data. Qualified members use the ordinary type reader, which checks
+    ///   their carrier and domains without establishing a value.
     ///
     /// Anything else refuses the declaration.
     fn subject_data_template(
@@ -736,6 +736,11 @@ impl Program<'_> {
                 }
                 self.template_member_type(entry, parameters, *element_type, depth + 1)
             }
+            TypeReferenceNode::Constrained { .. } => {
+                // Keep the qualification's formation checks. Reading only its
+                // underlying type would accept a domain on the wrong carrier.
+                self.value_type(entry, reference).map(|_| ())
+            }
             TypeReferenceNode::Generic {
                 base_symbol,
                 arguments,
@@ -788,7 +793,6 @@ impl Program<'_> {
             TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::Constrained { .. }
             | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::Unit => Err(unserved()),
