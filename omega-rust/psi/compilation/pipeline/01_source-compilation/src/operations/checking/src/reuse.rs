@@ -29,12 +29,12 @@ use proof_admission::{
 };
 use semantic_vocabulary::{
     EvidenceIdentity, IntegerMathTerm, MachineId, ObligationId, Proposition, PropositionContext,
-    ScalarTerm, ScalarType, ValueId,
+    ScalarTerm, ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::edges::Callee;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::program::Elaboration;
-use terminal_check_tables::values::Justification;
+use terminal_check_tables::values::{Justification, RigidType};
 use terminal_check_tables::{
     Checked, Construct, InvocationId, KnowledgeId, MachineTables, Refusal, RefusalReason,
     UnprovedCause,
@@ -854,7 +854,10 @@ pub fn reverify_specialization(
     )?;
     let mut verdicts = Vec::new();
     for (obligation, row) in tables.obligations.iter() {
-        if let ObligationKind::PublishedGuarantee { .. } = row.kind {
+        // The ordinary ownership check accounts for loans and claims. This
+        // replay only offers certificates for the proof questions.
+        if row.kind.is_conserved() || matches!(row.kind, ObligationKind::PublishedGuarantee { .. })
+        {
             continue;
         }
         let verdict = crate::checking::goal(
@@ -893,12 +896,21 @@ struct Instantiation {
     /// generic body leaves rigid, read off the two machines' formals and
     /// result: each formal of a rigid type there is a formal of this type
     /// here, the same type at every one of them.
-    types: Vec<(terminal_check_tables::values::RigidType, ScalarType)>,
+    types: Vec<(RigidType, TypeArgument)>,
     authored: usize,
     /// The literal each value parameter is in the specialization, in
     /// declaration order; `None` for one neither contract mentions, which
     /// no proof can then be moved through.
     bound: Vec<Option<ScalarTerm>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TypeArgument {
+    Scalar {
+        scalar_type: ScalarType,
+        storage: Option<StructuralTypeId>,
+    },
+    Structural(StructuralTypeId),
 }
 
 impl Instantiation {
@@ -917,7 +929,7 @@ impl Instantiation {
         specialization: &TerminalMachine,
         tables: &MachineTables,
         machine: MachineId,
-        generic_module: &terminal_psi::TerminalModule,
+        generic_source: &Elaboration,
         module: &terminal_psi::TerminalModule,
     ) -> Checked<Self> {
         let refuse = |detail| {
@@ -952,12 +964,14 @@ impl Instantiation {
             }) else {
                 return refuse("a value of a type parameter has no value in the specialization");
             };
-            match found.types.iter().find(|(bound, _)| *bound == parameter) {
-                None => found.types.push((parameter, mine.scalar_type)),
-                Some((_, scalar_type)) if *scalar_type == mine.scalar_type => {}
-                Some(_) => {
-                    return refuse("one type parameter is two types in the specialization");
-                }
+            if !found.bind_type(
+                parameter,
+                TypeArgument::Scalar {
+                    scalar_type: mine.scalar_type,
+                    storage: None,
+                },
+            ) {
+                return refuse("one type parameter is two types in the specialization");
             }
         }
         // A width can be absent from the textual guarantees. Bind it from
@@ -1031,7 +1045,7 @@ impl Instantiation {
             paired.structural_type = mine.structural_type;
             if paired != *mine
                 || !found.structural_type(
-                    generic_module,
+                    generic_source,
                     module,
                     generic,
                     theirs.structural_type,
@@ -1039,9 +1053,7 @@ impl Instantiation {
                     &mut visited,
                 )
             {
-                return refuse(
-                    "a structural input is not the generic body's at one const argument",
-                );
+                return refuse("a structural input does not match the instantiated generic input");
             }
         }
         match (&generic.result, &specialization.result) {
@@ -1053,7 +1065,7 @@ impl Instantiation {
                 paired.structural_type = mine.structural_type;
                 if paired != *mine
                     || !found.structural_type(
-                        generic_module,
+                        generic_source,
                         module,
                         generic,
                         theirs.structural_type,
@@ -1062,7 +1074,7 @@ impl Instantiation {
                     )
                 {
                     return refuse(
-                        "a structural result is not the generic body's at one const argument",
+                        "a structural result does not match the instantiated generic result",
                     );
                 }
             }
@@ -1074,7 +1086,7 @@ impl Instantiation {
         }
         let (theirs, mine) = (&generic.contract, &specialization.contract);
         if (!theirs.membership_ensures.is_empty() || !mine.membership_ensures.is_empty())
-            && (!std::ptr::eq(generic_module, module)
+            && (!std::ptr::eq(&generic_source.module, module)
                 || theirs.membership_ensures != mine.membership_ensures)
         {
             // Membership coordinates belong to one module. Without their exact
@@ -1112,7 +1124,7 @@ impl Instantiation {
     #[allow(clippy::too_many_arguments)]
     fn structural_type(
         &mut self,
-        generic_module: &terminal_psi::TerminalModule,
+        generic_source: &Elaboration,
         module: &terminal_psi::TerminalModule,
         generic: &TerminalMachine,
         theirs: semantic_vocabulary::StructuralTypeId,
@@ -1122,7 +1134,8 @@ impl Instantiation {
             semantic_vocabulary::StructuralTypeId,
         )>,
     ) -> bool {
-        use terminal_psi::{ArrayExtent, StructuralTypeShape as Shape};
+        use terminal_psi::{ArrayExtent, StructuralMultiplicity, StructuralTypeShape as Shape};
+        let generic_module = &generic_source.module;
         if visited.contains(&(theirs, mine)) {
             return true;
         }
@@ -1133,6 +1146,37 @@ impl Instantiation {
             return false;
         };
         visited.push((theirs.id, mine.id));
+        if matches!(theirs.shape, Shape::TypeParameter) {
+            let Some(parameter) = generic_source
+                .generic_storage
+                .iter()
+                .find(|binding| binding.storage == theirs.id)
+            else {
+                return false;
+            };
+            if matches!(mine.shape, Shape::TypeParameter)
+                || (parameter.multiplicity != StructuralMultiplicity::Affine
+                    && parameter.multiplicity != mine.multiplicity)
+            {
+                return false;
+            }
+            // A plain scalar behind a reference can also occur as a scalar
+            // formal. Both uses of the binder must agree.
+            let argument = match mine.shape {
+                Shape::PrimitiveScalar(scalar_type)
+                    if mine.scalar_restriction.is_none()
+                        && mine.quotient_carrier.is_none()
+                        && mine.requires.is_empty() =>
+                {
+                    TypeArgument::Scalar {
+                        scalar_type,
+                        storage: Some(mine.id),
+                    }
+                }
+                _ => TypeArgument::Structural(mine.id),
+            };
+            return self.bind_type(RigidType(parameter.ordinal), argument);
+        }
         if generic_module.identities.text(theirs.declaration_identity)
             != module.identities.text(mine.declaration_identity)
             || theirs.quotient_carrier.is_some()
@@ -1176,7 +1220,7 @@ impl Instantiation {
                     access: b,
                 },
             ) if a == b => {
-                self.structural_type(generic_module, module, generic, *theirs, *mine, visited)
+                self.structural_type(generic_source, module, generic, *theirs, *mine, visited)
             }
             (
                 Shape::FixedArray {
@@ -1211,7 +1255,7 @@ impl Instantiation {
                 };
                 same_length
                     && self.structural_type(
-                        generic_module,
+                        generic_source,
                         module,
                         generic,
                         *theirs,
@@ -1229,6 +1273,34 @@ impl Instantiation {
             // A container needs correspondence of every child and nominal
             // application. Equal local child IDs cannot establish that.
             _ => false,
+        }
+    }
+
+    fn bind_type(&mut self, parameter: RigidType, argument: TypeArgument) -> bool {
+        let Some((_, known)) = self.types.iter_mut().find(|(bound, _)| *bound == parameter) else {
+            self.types.push((parameter, argument));
+            return true;
+        };
+        match (*known, argument) {
+            (
+                TypeArgument::Scalar {
+                    scalar_type,
+                    storage,
+                },
+                TypeArgument::Scalar {
+                    scalar_type: actual,
+                    storage: actual_storage,
+                },
+            ) if scalar_type == actual
+                && storage.zip(actual_storage).is_none_or(|(a, b)| a == b) =>
+            {
+                *known = TypeArgument::Scalar {
+                    scalar_type,
+                    storage: storage.or(actual_storage),
+                };
+                true
+            }
+            _ => *known == argument,
         }
     }
 
@@ -1467,6 +1539,7 @@ impl<'a> Carry<'a> {
         lowered: &'a TerminalMachine,
         module: &'a terminal_psi::TerminalModule,
     ) -> Checked<Self> {
+        crate::checking::generic_storage::declared(generic)?;
         let rigid = generic.value_parameters.get(template).copied().unwrap_or(0);
         let generic_tables = terminal_check_tables::row(
             &generic.tables.machines,
@@ -1481,7 +1554,7 @@ impl<'a> Carry<'a> {
             lowered,
             tables,
             specialization,
-            &generic.module,
+            generic,
             module,
         )?;
         let carry = Carry {
@@ -1570,15 +1643,20 @@ impl Carry<'_> {
             Some(rigid) => {
                 mine.rigid.is_none()
                     && mine.origin == theirs.origin
-                    && self.instantiation.types.iter().any(|(bound, scalar_type)| {
-                        *bound == rigid && *scalar_type == mine.scalar_type
+                    && self.instantiation.types.iter().any(|(bound, argument)| {
+                        *bound == rigid
+                            && matches!(argument, TypeArgument::Scalar {
+                            scalar_type, ..
+                        } if *scalar_type == mine.scalar_type)
                     })
             }
         }
     }
 
-    /// The specialization has the generic body's values and calls, one for
-    /// one, except the value parameters it has bound. Selecting a machine
+    /// The specialization has the generic body's values and calls, except
+    /// the value parameters it has bound. A concrete type may let the checker
+    /// name additional storage observations after the original values.
+    /// Those observations cannot become executable operands. Selecting a machine
     /// parameter changes only which machine a call names, and binding a
     /// value parameter only removes its formal, so anything else means
     /// `specialization` is not that body. A body that reads a value
@@ -1586,8 +1664,21 @@ impl Carry<'_> {
     /// constant where the generic body reads its formal, so it has a value
     /// the generic body does not, and is refused.
     fn corresponds(&self) -> Checked<()> {
-        let same_values = self.tables.values.len() + self.instantiation.bound.len()
-            == self.template.values.len()
+        let same_values = self
+            .template
+            .values
+            .len()
+            .checked_sub(self.instantiation.bound.len())
+            .is_some_and(|matched| {
+                self.tables.values.len() >= matched
+                    && self.tables.values.iter().skip(matched).all(|(_, row)| {
+                        row.rigid.is_none()
+                            && matches!(
+                                row.origin,
+                                terminal_check_tables::values::ValueOrigin::StorageContent { .. }
+                            )
+                    })
+            })
             && self.template.values.iter().all(|(value, theirs)| {
                 match self.instantiation.moved(value) {
                     Some(Moved::Value(mine)) => self
@@ -2186,6 +2277,32 @@ impl Carry<'_> {
                 unsupported("the refinement proof names a value that is not a formal or the result")
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod type_argument_tests {
+    use super::*;
+
+    #[test]
+    fn a_type_parameter_keeps_one_type_across_scalar_and_storage_uses() {
+        let mut instance = Instantiation {
+            owner: MachineId::new(1).unwrap(),
+            types: Vec::new(),
+            authored: 0,
+            bound: Vec::new(),
+        };
+        let parameter = RigidType(0);
+        let storage = |id| Some(StructuralTypeId::new(id).unwrap());
+        let boolean = |storage| TypeArgument::Scalar {
+            scalar_type: ScalarType::Boolean,
+            storage,
+        };
+        assert!(instance.bind_type(parameter, boolean(None)));
+        assert!(instance.bind_type(parameter, boolean(storage(1))));
+        assert!(instance.bind_type(parameter, boolean(storage(1))));
+        assert!(!instance.bind_type(parameter, boolean(storage(2))));
+        assert!(!instance.bind_type(parameter, TypeArgument::Structural(storage(1).unwrap())));
     }
 }
 

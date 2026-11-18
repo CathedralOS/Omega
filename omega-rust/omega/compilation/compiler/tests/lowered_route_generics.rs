@@ -557,13 +557,13 @@ fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
 #[test]
 fn a_type_parameter_body_is_checked_once_and_carried() {
     let (outcome, rows) = carried("tests/fixtures/run/generics/type_parameter_contract");
-    assert_eq!(outcome, "route=carried-accepted");
+    assert_eq!(outcome, "route=carried-accepted", "{rows:?}");
     // `relay`: the call's requirement, the add and the guarantee.
     // `forward`: its guarantee.
-    assert_eq!(count(&rows, "generic", "proved"), 4);
+    assert_eq!(count(&rows, "generic", "proved"), 4, "{rows:?}");
     assert_eq!(count(&rows, "generic", "refused"), 0);
     // Two types, each with both machines.
-    assert_eq!(count(&rows, "carried", "accepted"), 8);
+    assert_eq!(count(&rows, "carried", "accepted"), 8, "{rows:?}");
     assert_eq!(count(&rows, "carried", "refused"), 0);
 }
 
@@ -575,7 +575,7 @@ fn a_type_parameter_body_is_checked_once_and_carried() {
 fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
     let (outcome, rows) =
         carried("tests/fixtures/fail/generics/type_parameter_contract_exceeds_callee");
-    assert_eq!(outcome, "route=carried-refused");
+    assert_eq!(outcome, "route=carried-refused", "{rows:?}");
     let refused: Vec<_> = rows
         .iter()
         .filter(|row| row[4] == "refused" && row[0] != "concrete")
@@ -639,7 +639,7 @@ fn native_and_psi_execute_the_finite_family_contract() {
 fn the_comparison_witness_lowers_and_corresponds() {
     let (outcome, rows) =
         carried("tests/fixtures/pass/facts/generic_comparison_body_through_match_join_exit");
-    assert_eq!(outcome, "route=carried-accepted");
+    assert_eq!(outcome, "route=carried-accepted", "{rows:?}");
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "refused"), 0);
 }

@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Case splits rebuild unchanged proof facts
+- Category: Verifying costs more than writing
+- Where: [case splitting](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/prove.rs#L1674), [fact substitution](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/known.rs#L766)
+- Saw: A saved range check from the multiplication table creates 65 provers and makes 80,080 substitutions. The replay takes 1.23 seconds. Checking the equations takes 22 milliseconds. A 128-entry substitution cache made the replay 12% slower. The runs returned the same bounds.
+- Cost: Each branch rebuilds facts from its parent, even when its new assumption leaves those facts unchanged. Measure how much of that work branches can share while keeping their assumptions and search budget separate.
+- Reported: 2026-11-18, Codex, while investigating slow range checks in the portable filesystem and standard library.
+
 ### Descriptor lifetime queries repeat the same graph walk
 - Category: One idea, several implementations
 - Where: [descriptor lifetime queries](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L1221), [descriptor transport](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L1487)
