@@ -80,8 +80,7 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
     }
     let valid_key = |key| {
         module.identities.text(key).is_some_and(|text| {
-            !text.is_empty()
-                && application_identity::type_identity::malformed_identity_offset(text).is_none()
+            application_identity::type_identity::validate_source_type_description(text).is_ok()
         })
     };
     let mut observed = 0;
