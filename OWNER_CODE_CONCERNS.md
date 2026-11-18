@@ -75,20 +75,20 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Native failure reports discard the instruction context
+- Category: Verifying costs more than writing
+- Where: [operand errors](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/machine_effects.rs#L946), [compile and retention order](omega-rust/omega/application/src/execution/mod.rs#L201)
+- Saw: The stored-machine program failed with only `SelectedInstructionId(4)`. That number is local to a function, but the error drops the function, instruction kind, operands and expected constraint. Failed compilation returns before artifact retention, and the temporary directory is removed.
+- Cost: Finding the failed instruction can require repeating the 175-second compilation. Preserve the available instruction and constraint context in the error, or retain the failed stage input for debugging.
+- Reported: 2026-11-17, Codex, while repairing native calls through stored machines
+
+
 ### Capture comparisons leave their time scope implicit
 - Category: A verdict with nothing behind it
 - Where: [address comparisons](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/backing.rs#L78), [captured path comparison](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2551)
 - Saw: Captured paths record static `(BlockId, u32)` positions. `Backing::same_single_region` and `Backing::definitely_contains` compare those paths without receiving an entry version. Lifetime and whole-value consumption checks live elsewhere; a static position alone does not distinguish separate loop entries.
 - Cost: Reviewers must trace each caller to establish which execution the comparison covers. A loop that retires a binding and changes its index at the same capture point remains unverified; no accepted invalid program was observed. Make that time-scope premise explicit in the comparison API or establish one common caller rule.
 - Reported: 2026-11-17, Codex, while checking reference transport through nested-machine loops
-
-### Typed conversion leaves operand formation as an implicit caller obligation
-- Category: A verdict with nothing behind it
-- Where: [conversion entry](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L343), [lambda checking](omega-rust/psi/compilation/proof-admission/src/mathematical_typing.rs#L2621)
-- Saw: Conversion accepts raw term handles and checks their shared type; callers must separately establish the operands' types. A lambda annotation `((λ z:Empty. Two) TwoZero)` was accepted because reduction hid its ill-typed argument. The local lambda check is repaired here, but the conversion API still carries no evidence of those operand premises.
-- Cost: Another caller can repeat the same omission. Reviewers must trace operand formation through each conversion call instead of seeing the required premises at its interface.
-- Reported: 2026-11-17, Codex, while repairing the table's pair-certificate checking cost
-
 
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations

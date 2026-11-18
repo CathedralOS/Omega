@@ -2809,7 +2809,6 @@ dependencies = [
  "target-vocabulary",
  "task-plans",
  "terminal-psi",
- "terminal-semantics",
 ]
 
 [[package]]

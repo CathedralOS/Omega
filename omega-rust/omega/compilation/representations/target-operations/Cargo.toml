@@ -21,4 +21,3 @@ terminal-psi = { path = "../../../../psi/compilation/representations/terminal-ps
 
 installation-evidence = { path = "../installation-evidence" }
 runtime-abi = { path = "../../target-description/runtime-abi" }
-terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }

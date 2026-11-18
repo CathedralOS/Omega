@@ -40,7 +40,6 @@ fn a_build_that_aliases_a_path_dependency_compiles() {
     let mut description: DependencyDescription = dependency::from_source(Source::Path { location: \"dep\" });
     dependency::with_alias(&mut description, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
-    builder.freestanding = true;
 }
 ",
     )

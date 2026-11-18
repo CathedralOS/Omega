@@ -55,7 +55,7 @@ fn check(name: &str, assignments: &str) -> (bool, String) {
 
 #[test]
 fn a_build_that_assigns_no_view_compiles() {
-    let (compiled, stderr) = check("control", "    builder.freestanding = true;\n");
+    let (compiled, stderr) = check("control", "    builder.tests.disabled = true;\n");
     assert!(compiled, "{stderr}");
 }
 

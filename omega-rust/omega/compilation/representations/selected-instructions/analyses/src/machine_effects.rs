@@ -750,10 +750,11 @@ mod facts {
                 instruction.constraint,
             )
             .ok_or_else(invalid)?;
-            if matches!(
-                instruction.kind.call_target(),
-                Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
-            ) {
+            if instruction
+                .kind
+                .call_target()
+                .is_some_and(|target| target.indirect_code_offset().is_some())
+            {
                 selected_instructions::calls::dynamic::call_record(function, instruction)
                     .ok_or_else(invalid)?;
                 return Ok(Cow::Owned(
@@ -793,10 +794,11 @@ mod facts {
             let invalid = || MachineEffectError::ConstraintEffectMismatch {
                 instruction: instruction.id,
             };
-            if matches!(
-                instruction.kind.call_target(),
-                Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
-            ) {
+            if instruction
+                .kind
+                .call_target()
+                .is_some_and(|target| target.indirect_code_offset().is_some())
+            {
                 selected_instructions::calls::dynamic::call_record(function, instruction)
                     .ok_or_else(invalid)?;
                 return Ok(Cow::Owned(
@@ -1075,5 +1077,325 @@ mod catalog_handoff_tests {
                 target_aarch64::Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi
             ))
         ));
+    }
+}
+
+#[cfg(test)]
+mod indirect_call_tests {
+    use std::sync::Arc;
+
+    use register_environment::{
+        ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
+    };
+    use selected_instructions::{
+        MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedTrapBehavior,
+        MachineMemoryEffect, MachineTrapBehavior, SelectedBlock, SelectedBlockId,
+        SelectedBlockOrigin, SelectedCallContract, SelectedCallTarget, SelectedFunction,
+        SelectedFunctionContracts, SelectedInstruction, SelectedInstructionId,
+        SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionProvenance,
+        SelectedOperand, SelectedProgram, SelectedProgramContracts, SelectedTerminator,
+        VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    };
+    use semantic_vocabulary::{
+        BlockId, CallableContractId, EdgeId, MachineId, OperationId, ValueId, WorkScheduleIdentity,
+    };
+    use target::NativeTarget;
+    use target_vocabulary::NativeCallTarget;
+
+    use super::{MachineEffectError, prepared_machine_effect_catalog};
+
+    fn selected_call(
+        environment: &ValidatedTargetRegisterEnvironment,
+        target: NativeTarget,
+        callee: NativeCallTarget,
+    ) -> SelectedProgram {
+        let keys = environment.allocation_constraint_keys();
+        let base = register_model::find_register_constraint(
+            &environment.constraints().catalog().constraints,
+            keys.call_unit[0],
+        )
+        .unwrap();
+        assert!(base.operands.is_empty());
+        let constraint = if callee.selector().is_some() {
+            selected_instructions::calls::dynamic::instantiate_constraint(
+                base,
+                environment.physical(),
+            )
+            .unwrap()
+        } else {
+            base.clone()
+        };
+        let instruction =
+            |id, kind, row: &register_model::RegisterInstructionConstraint| SelectedInstruction {
+                id,
+                kind,
+                constraint: row.key,
+                operands: row
+                    .operands
+                    .iter()
+                    .map(|operand| SelectedOperand {
+                        operand: operand.operand,
+                        virtual_register: VirtualRegisterId(u32::from(operand.operand)),
+                        access: operand.access,
+                        class: operand.class,
+                        fixed_view: operand.fixed_view,
+                        tied_to: operand.tied_to,
+                        early_clobber: operand.early_clobber,
+                    })
+                    .collect(),
+                implicit_uses: row.implicit_uses.clone(),
+                implicit_defs: row.implicit_defs.clone(),
+                clobbers: row.clobbers.clone(),
+                provenance: SelectedInstructionProvenance::default(),
+            };
+        let call_id = SelectedInstructionId(0);
+        let call = instruction(
+            call_id,
+            SelectedInstructionKind::CallUnit {
+                target: SelectedCallTarget::from_native(callee),
+            },
+            &constraint,
+        );
+        let return_constraint = register_model::find_register_constraint(
+            &environment.constraints().catalog().constraints,
+            keys.return_unit,
+        )
+        .unwrap();
+        assert!(return_constraint.operands.is_empty());
+        let machine = MachineId::new(1).unwrap();
+        let function = SelectedFunction {
+            contracts: Arc::new(SelectedFunctionContracts {
+                machine,
+                attachment: None,
+                provenance: Default::default(),
+                structural: None,
+                structural_block_parameters: Vec::new(),
+                local_storage_slots: Vec::new(),
+                outgoing_arguments: Vec::new(),
+                calls: vec![SelectedCallContract {
+                    instruction: call_id,
+                    owner: target_vocabulary::CallSiteOwner::Operation(
+                        OperationId::new(1).unwrap(),
+                    ),
+                    call: target_vocabulary::LegalizedScalarCall {
+                        descriptor_origins: Vec::new(),
+                        access_bindings: Vec::new(),
+                        source: target_vocabulary::NativeCallOrigin::Authored,
+                        target: callee,
+                        call_plan: calling_conventions::evaluate_call_plan(
+                            calling_conventions::CallingPolicy::native_for_target(target),
+                            &calling_conventions::CallSignature::default(),
+                        )
+                        .unwrap(),
+                        arguments: Vec::new(),
+                        result_placement: None,
+                        structural_result: None,
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
+                    effect: native_vocabulary::provenance::EffectLink {
+                        input: 0,
+                        output: 1,
+                    },
+                    ownership: Vec::new(),
+                }],
+                normalized_foreign_calls: Vec::new(),
+                memory_accesses: Vec::new(),
+                boundary_settlements: Vec::new(),
+                virtual_registers: constraint
+                    .operands
+                    .iter()
+                    .map(|operand| VirtualRegister {
+                        id: VirtualRegisterId(u32::from(operand.operand)),
+                        scalar_type: callee.operand_type().unwrap(),
+                        class: operand.class,
+                        origin: VirtualRegisterOrigin::EntryParameter {
+                            source_value: callee.selector().unwrap(),
+                            parameter_index: 0,
+                        },
+                        definition_site: None,
+                        entry_fixed_view: None,
+                    })
+                    .collect(),
+            }),
+            entry_block: SelectedBlockId(0),
+            blocks: vec![SelectedBlock {
+                id: SelectedBlockId(0),
+                origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+                instructions: vec![call],
+                terminator: SelectedTerminator::Return {
+                    instruction: instruction(
+                        SelectedInstructionId(1),
+                        SelectedInstructionKind::ReturnUnit,
+                        return_constraint,
+                    ),
+                    psi_return_edge: EdgeId::new(1).unwrap(),
+                },
+            }]
+            .into(),
+        };
+        let work_schedule = WorkScheduleIdentity::new(1).unwrap();
+        let plan = SelectedInstructionPlan {
+            contracts: Arc::new(SelectedProgramContracts::default()),
+            psi: terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
+            },
+            work_schedule,
+            target,
+            entry: machine,
+            functions: vec![function].into(),
+        };
+        SelectedProgram {
+            identity: selected_instructions::selected_instruction_plan_identity(&plan),
+            plan: Arc::new(plan),
+            optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([2; 32]),
+            work_schedule,
+        }
+    }
+
+    fn analyze(
+        selected: &SelectedProgram,
+        environment: &ValidatedTargetRegisterEnvironment,
+    ) -> Result<super::ValidatedPreAllocationMachineEffects, MachineEffectError> {
+        let catalog =
+            prepared_machine_effect_catalog(selected.plan.target, environment.constraints())
+                .unwrap();
+        super::analyze_pre_allocation_machine_effects(
+            selected,
+            environment.identity(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            &environment.allocation_constraint_keys(),
+            &catalog,
+        )
+    }
+
+    fn changed(
+        selected: &SelectedProgram,
+        change: impl FnOnce(&mut SelectedFunction),
+    ) -> SelectedProgram {
+        let mut selected = selected.clone();
+        let plan = Arc::make_mut(&mut selected.plan);
+        change(&mut plan.functions[0]);
+        selected.identity = selected_instructions::selected_instruction_plan_identity(plan);
+        selected
+    }
+
+    fn indirect_targets() -> [NativeCallTarget; 2] {
+        [
+            NativeCallTarget::Callable {
+                callee: ValueId::new(1).unwrap(),
+                contract: CallableContractId::new(1).unwrap(),
+            },
+            NativeCallTarget::Dynamic {
+                selector: ValueId::new(1).unwrap(),
+                interface: 1,
+                slot: 2,
+            },
+        ]
+    }
+
+    #[test]
+    fn indirect_calls_retain_selector_and_pointer_effects() {
+        for target in [NativeTarget::macos_arm64(), NativeTarget::linux_x64()] {
+            let environment = baseline_target_register_environment(target).unwrap();
+            for callee in indirect_targets() {
+                let selected = selected_call(&environment, target, callee);
+                let effects = analyze(&selected, &environment).unwrap();
+                let call = &effects.plan().functions[0].blocks[0].instructions[0];
+                assert_eq!(call.memory, MachineMemoryEffect::ReadPointerV1);
+                assert_eq!(call.trap, MachineTrapBehavior::MayArchitecturalFaultV1);
+                assert!(!call.alternatives.is_empty());
+                for alternative in &call.alternatives {
+                    assert_eq!(
+                        alternative.encoded.memory,
+                        MachineEncodedMemoryEffect::ReadPointerV1 {
+                            pointer_operand: 0,
+                            byte_count: 8,
+                        }
+                    );
+                    assert_eq!(
+                        alternative.encoded.control,
+                        MachineEncodedControlEffect::IndirectTableCallOrTrapV1
+                    );
+                    assert_eq!(
+                        alternative.encoded.trap,
+                        MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                    );
+                    assert_eq!(alternative.encoded.external_operand_reads, vec![0]);
+                }
+            }
+            let ordinary = selected_call(
+                &environment,
+                target,
+                NativeCallTarget::Machine(MachineId::new(2).unwrap()),
+            );
+            let effects = analyze(&ordinary, &environment).unwrap();
+            let call = &effects.plan().functions[0].blocks[0].instructions[0];
+            assert_eq!(call.memory, MachineMemoryEffect::NoneV1);
+            assert!(
+                ordinary.plan.functions[0].blocks[0].instructions[0]
+                    .operands
+                    .is_empty()
+            );
+            assert!(call.alternatives.iter().all(|alternative| {
+                alternative.encoded.control
+                    != MachineEncodedControlEffect::IndirectTableCallOrTrapV1
+            }));
+        }
+    }
+
+    #[test]
+    fn indirect_calls_refuse_inexact_selector_receipt_and_register_effects() {
+        for target in [NativeTarget::macos_arm64(), NativeTarget::linux_x64()] {
+            let environment = baseline_target_register_environment(target).unwrap();
+            for callee in indirect_targets() {
+                let selected = selected_call(&environment, target, callee);
+                let missing_selector = changed(&selected, |function| {
+                    function.blocks[0].instructions[0].operands.clear();
+                });
+                let wrong_selector = changed(&selected, |function| {
+                    function.blocks[0].instructions[0].operands[0].fixed_view = None;
+                });
+                for invalid in [missing_selector, wrong_selector] {
+                    assert!(matches!(
+                        analyze(&invalid, &environment),
+                        Err(MachineEffectError::ConstraintOperandMismatch {
+                            instruction: SelectedInstructionId(0)
+                        })
+                    ));
+                }
+                let missing_receipt = changed(&selected, |function| function.calls.clear());
+                let duplicate_receipt = changed(&selected, |function| {
+                    let record = function.calls[0].clone();
+                    function.calls.push(record);
+                });
+                let wrong_receipt = changed(&selected, |function| {
+                    function.calls[0].call.target =
+                        NativeCallTarget::Machine(MachineId::new(2).unwrap());
+                });
+                let missing_effects = changed(&selected, |function| {
+                    let call = &mut function.blocks[0].instructions[0];
+                    assert!(!call.clobbers.is_empty());
+                    call.clobbers.clear();
+                });
+                for invalid in [
+                    missing_receipt,
+                    duplicate_receipt,
+                    wrong_receipt,
+                    missing_effects,
+                ] {
+                    assert!(matches!(
+                        analyze(&invalid, &environment),
+                        Err(MachineEffectError::ConstraintEffectMismatch {
+                            instruction: SelectedInstructionId(0)
+                        })
+                    ));
+                }
+            }
+        }
     }
 }

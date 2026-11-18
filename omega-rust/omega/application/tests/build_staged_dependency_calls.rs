@@ -11,7 +11,7 @@ A `build.omg` registers a build dependency, waits for it, and then calls it:
     suspends
     {
         Build::application(builder, "staged");
-        builder.freestanding = true;
+        builder.tests.disabled = true;
         ... registered = Build::build_dependency(builder, request aliased "kit");
 
         suspend Build::prepare_dependency(builder, registered);
@@ -30,7 +30,7 @@ resolved with `kit` selectable, checked, and run against the same Build: the
 same `builder`, the same registrations, nothing run twice.
 
 The first program does exactly that, and binds its entry only if `kit::v()`
-returned what the dependency declares (7) and `builder.freestanding`, set
+returned what the dependency declares (7) and `builder.tests.disabled`, set
 before the wait, is still set after it. Its other arm declares a second
 project role, which a Build is refused for. So the program compiles only if
 the call went through the dependency, the setting was carried, and the
@@ -72,7 +72,7 @@ machine build(builder: &mut Build)
 suspends
 {{
     Build::application(builder, \"staged\");
-    builder.freestanding = true;
+    builder.tests.disabled = true;
     let mut kit_request: DependencyDescription = dependency::from_source(Source::Path {{ location: \"dep\" }});
     dependency::with_alias(&mut kit_request, \"kit\");
     let kit_registered: DependencyRegistration = Build::build_dependency(builder, kit_request);
@@ -126,7 +126,7 @@ machine hidden() -> i32 {{ 7 }}
 fn after(callee: &str) -> String {
     format!(
         "    let seven: i32 = {callee}();
-    transition seven == 7 && builder.freestanding {{
+    transition seven == 7 && builder.tests.disabled {{
         true -> carried(builder)
         _ -> wrong(builder)
     }}"
@@ -175,8 +175,25 @@ fn a_call_written_before_the_wait_names_nothing() {
     );
     assert!(!compiled);
     assert!(
-        stderr.contains("names a value nothing the program declares"),
+        stderr.contains(concat!(
+            "this call has no visible declaration in its source scope: ",
+            "an unknown machine name is an error wherever it appears, ",
+            "in a statement that never executes as in any other"
+        )),
         "{stderr}"
+    );
+    let location = stderr.lines().map(str::trim).find_map(|line| {
+        line.strip_prefix("at ")
+            .and_then(|position| position.strip_suffix(":11:22"))
+    });
+    let expected_path = std::path::PathBuf::from(format!(
+        "omega-build-staged-dependency-calls-{}-used-before",
+        std::process::id()
+    ))
+    .join("build.omg");
+    assert!(
+        location.is_some_and(|path| std::path::Path::new(path).ends_with(&expected_path)),
+        "the refusal identifies the call before dependency preparation: {stderr}"
     );
 }
 
@@ -192,8 +209,25 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
     );
     assert!(!compiled);
     assert!(
-        stderr.contains("names a value nothing the program declares"),
+        stderr.contains(concat!(
+            "this call has no visible declaration in its source scope: ",
+            "an unknown machine name is an error wherever it appears, ",
+            "in a statement that never executes as in any other"
+        )),
         "{stderr}"
+    );
+    let location = stderr.lines().map(str::trim).find_map(|line| {
+        line.strip_prefix("in package `staged`, ")
+            .and_then(|position| position.strip_suffix(":15:22"))
+    });
+    let expected_path = std::path::PathBuf::from(format!(
+        "omega-build-staged-dependency-calls-{}-product-dependency",
+        std::process::id()
+    ))
+    .join("build.omg");
+    assert!(
+        location.is_some_and(|path| std::path::Path::new(path).ends_with(&expected_path)),
+        "the refusal identifies the call through a Product-only dependency: {stderr}"
     );
 }
 

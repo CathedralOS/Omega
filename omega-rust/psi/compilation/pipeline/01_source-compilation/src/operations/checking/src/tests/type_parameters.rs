@@ -1671,3 +1671,171 @@ fn a_nominal_const_extent_keeps_its_checking_input() {
     let verdict = judge(Ok(form)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
+
+/// A declared invariant belongs to each actual record application. The
+/// borrowed reader must use that fact; construction and formation still owe it.
+#[test]
+fn generic_record_predicates_are_formed_and_proved_at_their_actual_values() {
+    let positive = r#"// Expected exit: 0
+// The generic record's count bound justifies the borrowed subtraction.
+data Ticket [linear] { id: u32; }
+data Bounded<T> [linear]
+requires self.count <= self.limit
+{
+    payload: T;
+    count: u32;
+    limit: u32;
+}
+machine remaining(value: &Bounded<Ticket>) -> u32 requires true { value.limit - value.count }
+machine entry() -> u32 {
+    let packet: Bounded<Ticket> = Bounded {
+        payload: Ticket { id: 41u32 }, count: 3u32, limit: 7u32,
+    };
+    let distance: u32 = remaining(&packet);
+    let { payload, count as _, limit as _ } = move packet;
+    let { id as number } = move payload;
+    match number == 41u32 && distance == 4u32 { true -> 0u32, false -> 1u32 }
+}
+"#;
+    let negative = positive.replace("count: 3u32, limit: 7u32", "count: 8u32, limit: 7u32");
+    assert_ne!(positive, negative);
+    let unformed = r#"
+        data Unused<T> requires self.count - 1u32 <= self.limit {
+            payload: T; count: u32; limit: u32;
+        }
+        machine entry() -> u32 { 0u32 }
+    "#;
+    let observed = [positive, negative.as_str(), unformed].map(|text| {
+        let source = super::boundary_calls::typed(text);
+        let (source, _) = crate::preparation::prepare_typed_trees(
+            source,
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .expect("the actual generic application must be prepared");
+        let entry = super::boundary_calls::entry(&source);
+        let compilation = crate::lowering::prepare_compilation(
+            &source,
+            crate::lowering::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[None],
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        );
+        let judgments = crate::checking::judge_compilation(compilation.program);
+        for (position, judgment) in judgments.iter().enumerate() {
+            match judgment {
+                Ok(RouteVerdict::Accepted(_)) => eprintln!("form {position}: accepted"),
+                refused => eprintln!("form {position}: {refused:?}"),
+            }
+        }
+        super::entryless::whole_subject_result(judgments)
+    });
+    for (name, verdict) in ["valid bound", "invalid value", "unformed invariant"]
+        .into_iter()
+        .zip(&observed)
+    {
+        match verdict {
+            Ok(RouteVerdict::Accepted(_)) => eprintln!("{name}: accepted"),
+            refusal => eprintln!("{name}: {refusal:?}"),
+        }
+    }
+    let Ok(RouteVerdict::Accepted(accepted)) = &observed[0] else {
+        panic!(
+            "the actual invariant must justify the borrowed subtraction: {:?}",
+            observed[0]
+        );
+    };
+    accepted
+        .publish()
+        .expect("the closed application must publish");
+    assert!(
+        matches!(&observed[1], Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::DataDomain { .. }))),
+        "the changed count must fail its construction invariant: {:?}",
+        observed[1]
+    );
+    assert!(
+        matches!(&observed[2], Ok(RouteVerdict::Rejected { violations, .. })
+        if violations.iter().any(|violation| violation.statement.contains(
+            "data domain: contract arithmetic is not proved total before its condition"
+        ))),
+        "an unused generic predicate must prove its arithmetic is defined: {:?}",
+        observed[2]
+    );
+}
+
+#[test]
+fn generic_fields_form_their_qualifications_without_assuming_the_predicate() {
+    let positive = r#"// Expected exit: 0
+// A generic record retains the predicate on its qualified field.
+domain u32::Small requires self <= 10;
+data Envelope<T> { payload: T; count: u32 in Small; }
+machine remaining(value: &Envelope<u32>) -> u32 requires true {
+    10u32 - (value.count as -Small)
+}
+machine main() crashes Trap {
+    let packet: Envelope<u32> = Envelope { payload: 41u32, count: 7u32 as +Small };
+    transition remaining(&packet) == 3u32 && packet.payload == 41u32 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    let negative = positive.replace("count: 7u32 as +Small", "count: 11u32 as +Small");
+    assert_ne!(positive, negative);
+    let unknown_domain = r#"
+        data Unused<T> { payload: T; count: u32 in Nowhere; }
+        machine entry() {}
+    "#;
+    let observed = [positive, negative.as_str(), unknown_domain].map(|text| {
+        let source = super::boundary_calls::typed(text);
+        let (source, _) = crate::preparation::prepare_typed_trees(
+            source,
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .expect("the qualified field must retain its applied source type");
+        super::entryless::judged_typed_result(&source, false)
+    });
+    for (name, result) in [
+        "qualified field",
+        "false predicate",
+        "unused unknown domain",
+    ]
+    .into_iter()
+    .zip(&observed)
+    {
+        match result {
+            Ok(RouteVerdict::Accepted(_)) => eprintln!("{name}: accepted"),
+            refused => eprintln!("{name}: {refused:?}"),
+        }
+    }
+    assert!(
+        matches!(&observed[0], Ok(RouteVerdict::Accepted(_))),
+        "the field predicate must justify subtraction after the explicit domain cast: {:?}",
+        observed[0]
+    );
+    assert!(
+        matches!(&observed[1], Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::ArrivalInvariant { .. })
+                && row.statement.contains("the value of this cast is in the domain it adds"))),
+        "changing only the field value must fail its domain predicate: {:?}",
+        observed[1]
+    );
+    assert!(
+        matches!(&observed[2], Ok(RouteVerdict::Rejected { violations, .. })
+        if violations.iter().any(|violation| violation.statement.contains(
+            "this type names the domain `Nowhere`, but no domain of that name is visible here"
+        ))),
+        "an unused generic field must still resolve the domain it names: {:?}",
+        observed[2]
+    );
+}
