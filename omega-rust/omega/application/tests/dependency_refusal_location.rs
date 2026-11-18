@@ -39,7 +39,6 @@ fn a_refusal_inside_a_dependency_names_its_machine_and_file_position() {
     let mut description: DependencyDescription = dependency::from_source(Source::Path { location: \"dep\" });
     dependency::with_alias(&mut description, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
-    builder.freestanding = true;
 }
 ",
     )
