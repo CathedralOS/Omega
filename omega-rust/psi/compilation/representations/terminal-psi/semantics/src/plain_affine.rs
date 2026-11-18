@@ -448,6 +448,11 @@ impl<'a> Components<'a> {
     }
 }
 
+enum WindowBacking {
+    Exact(PlaceId, Vec<StructuralPathSegment>),
+    Alternatives(Vec<(PlaceId, Vec<StructuralPathSegment>)>),
+}
+
 struct Analysis<'a> {
     module: Option<&'a terminal_psi::TerminalModule>,
     types: &'a [StructuralTypeDeclaration],
@@ -632,16 +637,32 @@ fn reference_backing_uses(
                     }
                 }
                 slot.path.push(DescriptorPathSegment::Referent);
-                let source =
-                    references
-                        .location(graph.id, *at, &slot)
-                        .ok_or(Error::unsupported(
-                            "reference observation has no exact live backing",
-                        ))?;
-                if !graph.place_types.contains_key(&source.root) {
-                    return Err(Error::malformed("reference backing is outside its machine"));
+                let roots = uses.entry(*at).or_insert_with(Vec::new);
+                if let Some(source) = references.location(graph.id, *at, &slot) {
+                    if !graph.place_types.contains_key(&source.root) {
+                        return Err(Error::malformed("reference backing is outside its machine"));
+                    }
+                    roots.push(source.root);
+                    continue;
                 }
-                uses.entry(*at).or_insert_with(Vec::new).push(source.root);
+                // Liveness must keep every address the reference can select.
+                // The loan checker separately judges access to its referent.
+                let family = references
+                    .captured_storage_family(graph.id, *at, &slot)
+                    .map_err(|_| {
+                        Error::unsupported("reference observation has no exact live backing")
+                    })?;
+                for origin in family {
+                    let crate::descriptor_results::DescriptorCallOrigin::Argument {
+                        source, ..
+                    } = origin
+                    else {
+                        return Err(Error::unsupported(
+                            "reference observation has no exact live backing",
+                        ));
+                    };
+                    roots.push(source);
+                }
             }
         }
     }
@@ -2157,28 +2178,28 @@ impl<'a> Analysis<'a> {
         }
         let mut referent = path.to_vec();
         referent.push(StructuralPathSegment::Referent);
-        let (root, captured) = self.backing(state, source, &referent, site)?;
-        if self.root(root)?.is_none() {
-            return Ok(());
-        }
-        let (captured, inline) = self.observed(root, &captured)?;
-        // An incoming descriptor can name storage outside its carrier. The
-        // typed observation still checks that carrier, but only an exact
-        // inline region can hold a vacancy in this frontier: extraction uses
-        // `canonical`, which refuses indirect and runtime-selected regions.
-        // Their loan obligations remain with reference checking.
-        if !inline {
-            return Ok(());
-        }
-        if !state.regions[index(root.get())?]
-            .as_ref()
-            .is_some_and(|region| region.available(&captured))
-        {
-            self.unavailable.push(Unavailable {
-                site,
-                place: root,
-                unrestored: true,
-            });
+        let backings = match self.backings(state, source, &referent, site)? {
+            WindowBacking::Exact(root, path) => vec![(root, path)],
+            WindowBacking::Alternatives(backings) => backings,
+        };
+        for (root, captured) in backings {
+            if self.root(root)?.is_none() {
+                continue;
+            }
+            let (captured, inline) = self.observed(root, &captured)?;
+            // Indirect storage cannot hold a tracked vacancy. Its loan
+            // still has to pass the reference checker's restoration rules.
+            if inline
+                && !state.regions[index(root.get())?]
+                    .as_ref()
+                    .is_some_and(|region| region.available(&captured))
+            {
+                self.unavailable.push(Unavailable {
+                    site,
+                    place: root,
+                    unrestored: true,
+                });
+            }
         }
         Ok(())
     }
@@ -3867,15 +3888,15 @@ impl<'a> Analysis<'a> {
 
     /// A reference carrier stays live while its exact captured lender holds
     /// the window. Resolve at the use, so reassignment cannot retarget a hole.
-    fn backing(
+    fn backings(
         &mut self,
         state: &State,
         root: PlaceId,
         path: &[StructuralPathSegment],
         site: Site,
-    ) -> Result<(PlaceId, Vec<StructuralPathSegment>), Error> {
+    ) -> Result<WindowBacking, Error> {
         if !path.contains(&StructuralPathSegment::Referent) {
-            return Ok((root, path.to_vec()));
+            return Ok(WindowBacking::Exact(root, path.to_vec()));
         }
         let body = self
             .body
@@ -3895,27 +3916,63 @@ impl<'a> Analysis<'a> {
         let position = self
             .position
             .ok_or(Error::malformed("a window has no use position"))?;
-        let captured = self
-            .references
-            .as_mut()
+        let references = self.references.as_mut().ok_or(Error::unsupported(
+            "a borrowed reference window requires its module's exact backing",
+        ))?;
+        if let Some(captured) = references.location(machine, position, &location) {
+            let declaration =
+                body.structural_place_type(captured.root)
+                    .ok_or(Error::unsupported(
+                        "a borrowed window has no typed lender storage",
+                    ))?;
+            let path = crate::descriptor_lifetimes::descriptor_path(
+                self.types,
+                declaration,
+                &captured.path,
+            )
             .ok_or(Error::unsupported(
-                "a borrowed reference window requires its module's exact backing",
-            ))?
-            .location(machine, position, &location)
-            .ok_or(Error::unsupported(
-                "a borrowed window has no exact live backing correspondence",
-            ))?;
-        let declaration = body
-            .structural_place_type(captured.root)
-            .ok_or(Error::unsupported(
-                "a borrowed window has no typed lender storage",
-            ))?;
-        let path =
-            crate::descriptor_lifetimes::descriptor_path(self.types, declaration, &captured.path)
-                .ok_or(Error::unsupported(
                 "a borrowed window has no typed lender path",
             ))?;
-        Ok((captured.root, path))
+            return Ok(WindowBacking::Exact(captured.root, path));
+        }
+        let unresolved =
+            || Error::unsupported("a borrowed window has no exact live backing correspondence");
+        let family = references
+            .captured_storage_family(machine, position, &location)
+            .map_err(|_| unresolved())?;
+        family
+            .into_iter()
+            .map(|origin| {
+                let crate::descriptor_results::DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                } = origin
+                else {
+                    return Err(unresolved());
+                };
+                let path = projection.captured_storage_path().ok_or_else(unresolved)?;
+                Ok((source, path))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(WindowBacking::Alternatives)
+    }
+
+    /// A move or a receiving store changes one tracked vacancy. A family
+    /// can prove that every target was restored, but cannot identify which
+    /// target to remove from or add to the affine state.
+    fn backing(
+        &mut self,
+        state: &State,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        site: Site,
+    ) -> Result<(PlaceId, Vec<StructuralPathSegment>), Error> {
+        match self.backings(state, root, path, site)? {
+            WindowBacking::Exact(root, path) => Ok((root, path)),
+            WindowBacking::Alternatives(_) => Err(Error::unsupported(
+                "a borrowed window has no exact live backing correspondence",
+            )),
+        }
     }
 
     fn canonical(

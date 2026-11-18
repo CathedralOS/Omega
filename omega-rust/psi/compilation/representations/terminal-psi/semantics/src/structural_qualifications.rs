@@ -632,7 +632,7 @@ impl<'a> DefaultRequirements<'a> {
             if !writes_default_storage(effect) {
                 continue;
             }
-            let (root, mut path, payload) = match used {
+            let (root, path, payload) = match used {
                 StructuralStorageUse::Projection(projection) => {
                     (projection.root, projection.path.to_vec(), false)
                 }
@@ -657,11 +657,13 @@ impl<'a> DefaultRequirements<'a> {
                     } else {
                         descriptor.path.to_vec()
                     };
-                    let (root, mut selected) =
-                        self.backing(descriptor.root, &selected, true, before, references)?;
-                    selected.extend_from_slice(path);
-                    selected.pop(); // The replaced element is not its containing owner.
-                    self.append_unique(&mut result, self.owners(root, &selected)?);
+                    for (root, mut selected) in
+                        self.backings(descriptor.root, &selected, true, before, references)?
+                    {
+                        selected.extend_from_slice(path);
+                        selected.pop(); // Only the containing owner carries the default.
+                        self.append_unique(&mut result, self.owners(root, &selected)?);
+                    }
                     continue;
                 }
                 _ => return Err(self.error("a default write has no supported storage projection")),
@@ -673,17 +675,15 @@ impl<'a> DefaultRequirements<'a> {
                     | OperationKind::StructuralByteViewFieldStore { field: None, .. }
                     | OperationKind::AtomicAccess { .. }
             );
-            let original_root = root;
-            let original_path = path.clone();
-            let (root, resolved) = self.backing(root, &path, payload, before, references)?;
-            path = resolved;
-            if replaces_whole {
-                self.append_lost(&mut result, original_root, &original_path, root, &path)?;
-                if path.pop().is_none() {
-                    continue;
+            for (owner, mut selected) in self.backings(root, &path, payload, before, references)? {
+                if replaces_whole {
+                    self.append_lost(&mut result, root, &path, owner, &selected)?;
+                    if selected.pop().is_none() {
+                        continue;
+                    }
                 }
+                self.append_unique(&mut result, self.owners(owner, &selected)?);
             }
-            self.append_unique(&mut result, self.owners(root, &path)?);
         }
         for argument in operation.kind.structural_arguments() {
             if !matches!(
@@ -693,13 +693,15 @@ impl<'a> DefaultRequirements<'a> {
             ) {
                 continue;
             }
-            let (root, mut path) =
-                self.backing(argument.place, &argument.path, true, before, references)?;
-            // The callee maintains its displayed domains, but domains removed
-            // from the actual loan remain the lender's responsibility.
-            self.append_lost(&mut result, argument.place, &argument.path, root, &path)?;
-            if path.pop().is_some() {
-                self.append_unique(&mut result, self.owners(root, &path)?);
+            for (root, mut path) in
+                self.backings(argument.place, &argument.path, true, before, references)?
+            {
+                // The callee maintains its displayed domains. Each possible
+                // lender still owes its own hidden and enclosing rules.
+                self.append_lost(&mut result, argument.place, &argument.path, root, &path)?;
+                if path.pop().is_some() {
+                    self.append_unique(&mut result, self.owners(root, &path)?);
+                }
             }
         }
         Ok(result)
@@ -734,14 +736,14 @@ impl<'a> DefaultRequirements<'a> {
         }
     }
 
-    fn backing(
+    fn backings(
         &self,
         root: PlaceId,
         path: &[StructuralPathSegment],
         payload: bool,
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
-    ) -> Judged<(PlaceId, Vec<StructuralPathSegment>)> {
+    ) -> Judged<Vec<(PlaceId, Vec<StructuralPathSegment>)>> {
         use crate::descriptor_results::DescriptorCallOrigin;
         let ty = self
             .declared
@@ -764,7 +766,7 @@ impl<'a> DefaultRequirements<'a> {
                     self.carrier(root, path)?,
                 ))
         {
-            return Ok((root, path.to_vec()));
+            return Ok(vec![(root, path.to_vec())]);
         }
         let split = path
             .iter()
@@ -786,31 +788,41 @@ impl<'a> DefaultRequirements<'a> {
                     self.error("default restoration has no exact descriptor location")
                 })?;
         let captured = references
-            .storage_projection(self.machine.id, before, &location)
-            .ok_or_else(|| self.error(crate::descriptor_results::INEXACT_REFERENCE_BACKING))?;
-        let DescriptorCallOrigin::Argument { source, projection } = captured else {
-            return Err(self.error("default restoration has no exact captured lender"));
-        };
-        let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
-            (source, path)
-        } else {
-            let unique = references
-                .location(self.machine.id, before, &location)
-                .ok_or_else(|| self.error("default restoration has no unique incoming lender"))?;
-            let ty = self
-                .declared
-                .row(unique.root)
-                .map(|row| row.1)
-                .ok_or_else(|| self.error("default restoration lost its incoming carrier"))?;
-            let path = crate::descriptor_lifetimes::descriptor_path(self.types, ty, &unique.path)
-                .ok_or_else(|| {
-                self.error("default restoration lost its incoming storage path")
-            })?;
-            (unique.root, path)
-        };
-        selected.extend_from_slice(suffix);
-        self.carrier(root, &selected)?;
-        Ok((root, selected))
+            .captured_storage_family(self.machine.id, before, &location)
+            .map_err(|_| self.error(crate::descriptor_results::INEXACT_REFERENCE_BACKING))?;
+        captured
+            .into_iter()
+            .map(|origin| {
+                let DescriptorCallOrigin::Argument { source, projection } = origin else {
+                    return Err(self.error("default restoration has no exact captured lender"));
+                };
+                let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
+                    (source, path)
+                } else {
+                    let unique = references
+                        .location(self.machine.id, before, &location)
+                        .ok_or_else(|| {
+                            self.error("default restoration has no unique incoming lender")
+                        })?;
+                    let ty = self
+                        .declared
+                        .row(unique.root)
+                        .map(|row| row.1)
+                        .ok_or_else(|| {
+                            self.error("default restoration lost its incoming carrier")
+                        })?;
+                    let path =
+                        crate::descriptor_lifetimes::descriptor_path(self.types, ty, &unique.path)
+                            .ok_or_else(|| {
+                                self.error("default restoration lost its incoming storage path")
+                            })?;
+                    (unique.root, path)
+                };
+                selected.extend_from_slice(suffix);
+                self.carrier(root, &selected)?;
+                Ok((root, selected))
+            })
+            .collect()
     }
 
     fn declared_operation(&self, operation: &Operation) -> Judged<Vec<DefaultRequirement>> {
