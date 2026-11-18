@@ -173,8 +173,8 @@ Omega. Passing a callback or opaque source owner fails that gate.
 | 00 Admit compilation inputs | Acquired source/package bytes, scoped roots and explicit compilation request | Admitted compilation inputs: source custody, Build/configuration requests, target/component/provider/loader/output records, selections, budgets and staged observation receipts | Record availability and authority without activating every source file. Values that require source evaluation are produced by 01, not guessed here. |
 | 01 Compile source and values | Admitted compilation inputs | Accepted program and computed values, checked body catalog, neutral selection records, provenance and carried requests | Own lazy syntax, resolution, typing, preparation, lowering, invocation admission and hermetic evaluation. Only the lowered-form checker gives the semantic verdict; independent certificate admission stays independent. |
 | 02 Seal portable program | Accepted program, evidence, publication policy and carried requests | Canonical Psi plus the compilation record needed downstream | Psi stays target-neutral. Sealing grants no new semantic acceptance or host authority. No live source owner escapes. |
-| 03 Plan native code | Canonical checked body catalog and carried Build rows, target, component admissions and native request | Selected native program, call/ABI plans, obligations, generated-body recipes and remaining requests | Join exact Build selections to checked candidates without source lookup. Own calling-policy computation here. Close retained-body demand without changing logical choices. |
-| 04 Build physical program | Selected native program and carried target/environment facts | Complete physical program, effects, frames and symbolic resource uses | Represent ordinary bodies, adapters, entries and handlers together. Register/frame choices and generated code have this owner, not a later writer. |
+| 03 Plan native code | Canonical checked body catalog and carried Build rows, target, component admissions and native request | Retained target operations, call/ABI plans, obligations, generated-body recipes and remaining requests | Join exact Build selections to checked candidates without source lookup. Own calling-policy computation here. Close retained-body demand without changing logical choices. |
+| 04 Build physical program | Retained target operations, generated-body recipes and target/environment facts | Complete physical program, effects, frames and measured installation guards | Plan the handlers an installer depends on first. Select and optimize instructions, allocate registers and plan frames for each retained body. |
 | 05 Bind resources | Complete physical program, resource summaries and carried installations/limits | Bound physical program and remaining requests | Check transitive stack, bridge storage, call bias, fault premises and placement identities. Binding must not change allocation, effects, frames or body membership. |
 | 06 Encode all code | Bound physical program and carried encoding/format facts | Encoded bodies, frames, legal alternatives, fixups and remaining requests | Every executable byte produced here has a represented body. Imported pre-encoded components remain explicit admitted data. No new body downstream. |
 | 07 Lay out code | Encoded program and carried placement rules/relocations | Laid-out program, resolved references and remaining requests | Choose and patch carried alternatives only. Preserve body/frame relaxation, range and alignment rules. |
@@ -201,12 +201,12 @@ request carries the record through without native work. Retained portable bytes
 are a finished output, never an earlier executable graph used to recover facts.
 Specify these product/request variants in the input-custody gate before coding.
 
-Native planning absorbs the current early realization/Omega 00–04 operations
-that must cooperate to close retained-body demand. Physical planning owns
-allocation, physical alternatives, frames and generated-body construction.
-This is a recommended starting boundary, **not a proved claim** that all current
-optimizations can close reach before encoding. The proof and adjustments are
-part of §8; a downstream discovery cannot be excused as “just a helper.”
+Stage 03 closes body demand from the retained target operations. Stage 04
+selects and optimizes instructions, checks their references against that roster
+and builds physical bodies. Keeping selection in 04 lets an installer use the
+measured stack demand of its handlers. Stage 05 checks every installation in
+the finished program. Coverage of all optimization selections remains
+**unverified**. The [implementation checkpoint](#implementation-checkpoint) records what has been exercised.
 
 ## 4. Source settlement, evaluation and provider-body closure
 
@@ -220,10 +220,10 @@ inside a proposed stage; they are not current crate numbers.
 | Proposed owner | Visible operations, in dependency order |
 | --- | --- |
 | 00 Inputs | Record source custody; admit compilation requests and budgets. |
-| 01 Source | Lex → tokens; parse → syntax; resolve → bound names; type → typed trees; prepare applications and required values → prepared trees; lower → lowered Psi; check → accepted Psi; selected Psi optimizations → transformed Psi; check transformed Psi → accepted result. |
+| 01 Source | For each activated file, lex its bytes and immediately parse its tokens into a syntax page. Reuse its token buffers for the next file. Then resolve → bound names; type → typed trees; prepare applications and required values → prepared trees; lower → lowered Psi; check → accepted Psi; selected Psi optimizations → transformed Psi; check transformed Psi → accepted result. |
 | 02 Portable publication | Encode accepted Psi; seal identities, evidence and carried requests. |
-| 03 Native planning | Join Build selections to checked bodies; compute and validate calling policies; lower to abstract operations; optimize abstract operations; lower to target operations; select instructions; optimize selected instructions; close retained body demand and generated recipes. |
-| 04 Physical planning | Construct generated bodies and constraints; allocate registers; lower physical operations; plan frames and complete effects/resource dependencies. |
+| 03 Native planning | Join Build selections to checked bodies; compute and validate calling policies; lower to abstract operations; optimize abstract operations; lower to target operations and close the roster of retained bodies and generated recipes. |
+| 04 Physical planning | Construct generated bodies and constraints. Order installed handlers before the bodies that install them. For each body, select and optimize instructions, allocate registers, lower physical operations and plan its frame and effects. |
 | 05 Resources | Derive complete resource summaries; check installation limits and bind resources. |
 | 06 Encoding | Encode ordinary/generated bodies and frames; publish alternatives and fixups. |
 | 07 Layout | Place fragments; relax and patch carried alternatives; apply selected layout optimizations. |
@@ -456,18 +456,18 @@ entry/bridge costs, arrival nesting and fault premises. Installation binding
 checks that summary against admitted cohorts, environment assumptions and
 placement requirements and publishes one bound physical program.
 
-Today [O03 constructs numeric stack guards][guard] before this point. The
-recommendation is to represent those requirements as symbolic operands with
-reserved constraints until binding. Binding must not change body membership,
-register pressure, clobbers, control-flow shape or frame demand. Encoding may
-choose a carried width alternative after the value is known.
+In the observed compiler, [instruction selection builds numeric stack guards][guard].
+The migration selects these guards in 04. First collect the actual installation
+edges from retained target bodies. Walk those edges child first and visit a
+shared handler once. A cycle of installation demands refuses compilation.
+Ordinary callback references alone impose no resource-order constraint.
 
-**Unverified:** prove this stability for every current numeric consumer. A late
-literal patch is insufficient if the value chooses a different instruction
-sequence, creates a helper or alters its own stack bound. The plan must either
-move that decision into physical planning with a proved finite dependency
-order, or revise the boundary. It cannot claim a global pass while secretly
-compiling handlers through later stages and returning to the installer.
+When planning an installer, 04 already has the body, callee and entry-bridge
+costs of each handler whose guard it needs. It can select the concrete stack
+comparison and alignment mask before allocating the installer. After every
+retained body has a frame, 05 independently checks the placement, complete
+measurements, nesting and fault premises before encoding. Agreement across
+every optimization and hosted target remains **unverified**.
 
 ### Encoding and layout have a closed executable input
 
@@ -790,6 +790,30 @@ same final contracts, the exact combined change passes its behavior/identity and
 architecture checks, and the old route is deleted at the single cutover. A page
 build, a smaller crate count, a renamed stage or a partially connected native
 example does not establish that outcome.
+
+### Implementation checkpoint
+
+The branch at `2ff15fbb385` contains numbered owners 00–10. Its source
+owner lexes and parses each activated file into a syntax page and recycles the
+token buffers. Retained syntax can be reused for the same bytes. A later
+lexical failure still takes precedence over a syntax failure according to the
+existing diagnostic contract. [Per-file stream][checkpoint-stream]
+
+Stage 03 closes the callback roster from retained target operations. Stage 04
+orders handler dependencies and produces the physical bodies. Stage 05
+compares the complete handler demand with each installation before granting
+it authority. The ordering tests cover a shared handler, an unreachable cycle,
+a demanded cycle and a chain of 50,000 installations. [Body roster][checkpoint-roster],
+[handler order and tests][checkpoint-order], [installation checks][checkpoint-bind]
+
+The workspace and its test targets type-checked at this checkpoint. The
+whole-migration acceptance in §10 is still **unverified**, including the
+release-mode dependency graph, runtime consumers and end-to-end program runs.
+
+[checkpoint-stream]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs#L75-L132
+[checkpoint-roster]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/03_native-program-planning/src/callable_planning.rs#L153
+[checkpoint-order]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/04_physical-program-planning/src/handler_order.rs
+[checkpoint-bind]: https://github.com/CathedralOS/Omega/blob/2ff15fbb3855fd7c88a0cb9775774763cec946f8/omega-rust/omega/compilation/pipeline/05_installation-binding/src/lib.rs#L41
 
 ## 11. Decisions still to settle
 

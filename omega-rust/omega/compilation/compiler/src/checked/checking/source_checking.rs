@@ -209,14 +209,9 @@ fn prepare_and_judge(
             .iter()
             .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
     );
-    // Representation declarations are claimed source dependencies; preparation
-    // explicitly refuses choices with no surviving admission route.
-    selected.extend(
-        build
-            .opaque_representation_selections
-            .iter()
-            .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
-    );
+    // A representation choice authorizes storage when a value needs it.
+    // Adding the opaque declaration as a root here would manufacture demand
+    // even if the program only borrowed it.
     let source_admission = source_compiler::SourceAdmission {
         invocation_sources: None,
         // Roots belong to structural judgment below, rather than to a deleted

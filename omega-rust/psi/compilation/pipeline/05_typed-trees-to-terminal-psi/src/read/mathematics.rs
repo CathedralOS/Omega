@@ -3,7 +3,10 @@
 //! Address interpretation follows the ordinary program carrier or the binding's
 //! retained mathematical model, including through nested definitions.
 
-use semantic_vocabulary::{IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarType};
+use numerics::literals::IntegerLiteral;
+use semantic_vocabulary::{
+    IntegerMathLiteral, IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarType,
+};
 use symbols::{BuiltinFunction, BuiltinTypeMember, SymbolHandle};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::{
@@ -18,6 +21,26 @@ use super::{
     logical::{MathematicalAddressContext, MathematicalInputs},
 };
 use crate::{Unserved, refuse};
+
+/// A proof integer has no runtime carrier. A literal with a carrier suffix
+/// must enter the proof through an explicit `embed`.
+pub(super) fn mathematical_integer_literal(
+    id: MachineId,
+    literal: &IntegerLiteral,
+) -> Checked<IntegerMathTerm> {
+    let unserved = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+    if literal.landing().is_some() {
+        return Err(unserved(
+            "typed literal in a mathematical term without embed",
+        ));
+    }
+    let magnitude = literal
+        .magnitude_u128()
+        .ok_or_else(|| unserved("mathematical literal magnitude exceeds 128 bits"))?;
+    let literal = IntegerMathLiteral::new(literal.is_negative() && magnitude != 0, magnitude)
+        .map_err(|_| unserved("invalid mathematical literal"))?;
+    Ok(IntegerMathTerm::IntegerLiteral(literal))
+}
 
 /// Embedding reads an integer's value without invoking a carrier operator.
 /// Domain qualifications do not change that value. The term reader and checker
@@ -434,10 +457,7 @@ impl<'t> Program<'t> {
                     _ => Err(unserved("mathematical premise arithmetic")),
                 }
             }
-            ExpressionNode::Integer(literal) => {
-                let (value, _) = self.literal(id, literal, None)?;
-                Ok(IntegerMathTerm::literal(value))
-            }
+            ExpressionNode::Integer(literal) => mathematical_integer_literal(id, literal),
             _ => Err(unserved(
                 "mathematical premise term without explicit integer embedding",
             )),
@@ -450,7 +470,7 @@ mod address_context_tests {
     use super::*;
     use crate::body::ValueType;
     use crate::read::Slot;
-    use numerics::literals::IntegerLiteral;
+    use numerics::literals::{IntegerLanding, IntegerRadix, LandedIntegerType};
     use semantic_vocabulary::{ClosedIntegerType, IntegerSign, ScalarAddressModel, ValueId};
     use symbols::{
         BuiltinFunction, BuiltinTypeAtom, FixedCoreDeclaration, SymbolKind, SymbolNameRef,
@@ -721,6 +741,70 @@ mod address_context_tests {
             2
         );
         assert!(program.symbols.is_empty());
+    }
+
+    #[test]
+    fn callable_premises_preserve_the_exact_magnitude_of_proof_literals() {
+        let (mut typed, _, _, _) = fixture();
+        let term = |typed: &mut TypedTrees, literal| {
+            let expression = typed
+                .expression_table
+                .insert(ExpressionNode::Integer(literal));
+            let id = MachineId::new(1).unwrap();
+            let inputs = MathematicalInputs::empty();
+            let scope = ClauseScope {
+                slots: &[],
+                values: &[],
+                bound: &[],
+                owner: SymbolHandle::invalid(),
+                result: ResultTerm::Absent("entry"),
+                subject: None,
+                formal_fields: true,
+                logical: Some(inputs.scope(id, MathematicalAddressContext::Ordinary, &[])),
+            };
+            Program::new(typed, false).logical_mathematical_term(id, &scope, expression)
+        };
+        let bound =
+            IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551616")
+                .unwrap();
+        assert_eq!(
+            term(&mut typed, bound).unwrap(),
+            IntegerMathTerm::literal(IntegerValue::Unsigned(1u128 << 64))
+        );
+
+        let maximum = IntegerLiteral::from_parts(
+            true,
+            IntegerRadix::Hexadecimal,
+            "ffffffffffffffffffffffffffffffff",
+        )
+        .unwrap();
+        assert_eq!(
+            term(&mut typed, maximum).unwrap(),
+            IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(true, u128::MAX).unwrap())
+        );
+        let too_wide = IntegerLiteral::from_parts(
+            false,
+            IntegerRadix::Hexadecimal,
+            "100000000000000000000000000000000",
+        )
+        .unwrap();
+        assert!(
+            term(&mut typed, too_wide)
+                .unwrap_err()
+                .detail
+                .contains("magnitude exceeds 128 bits")
+        );
+
+        let typed_literal = IntegerLiteral::from_value(1).with_landing(IntegerLanding {
+            landed_type: LandedIntegerType::U8,
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+        });
+        assert!(
+            term(&mut typed, typed_literal)
+                .unwrap_err()
+                .detail
+                .contains("typed literal in a mathematical term without embed")
+        );
     }
 
     #[test]

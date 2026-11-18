@@ -24,6 +24,9 @@ pub enum CoreVocabulary {
     /// The ordinary `Never` data declaration in core `never.omg`.
     /// This identifies a nominal ABI result; it proves no inhabitedness.
     Never,
+    OpaqueRepresentation,
+    PrivateCallbackSlot,
+    FixedLayoutPlan,
     /// The `MachineControl` service in core `assembly.omg`.
     MachineControlService,
     /// The `PortIo` service in core `assembly.omg`.
@@ -288,6 +291,24 @@ const ROWS: &[CoreVocabularyRow] = &[
         CoreVocabulary::FilesystemService(FilesystemService::NamespaceMutation),
     ),
     row("never.omg", "Never", NEVER, CoreVocabulary::Never),
+    row(
+        "representation.omg",
+        "OpaqueRepresentation",
+        core_source!("representation.omg"),
+        CoreVocabulary::OpaqueRepresentation,
+    ),
+    row(
+        "layout.omg",
+        "PrivateCallbackSlot",
+        LAYOUT,
+        CoreVocabulary::PrivateCallbackSlot,
+    ),
+    row(
+        "layout.omg",
+        "FixedLayout::plan",
+        LAYOUT,
+        CoreVocabulary::FixedLayoutPlan,
+    ),
     row(
         "layout.omg",
         "AccessPolicy",

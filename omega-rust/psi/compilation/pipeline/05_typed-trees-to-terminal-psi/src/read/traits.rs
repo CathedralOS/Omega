@@ -81,7 +81,7 @@ impl<'program> Program<'program> {
         false
     }
 
-    fn static_envelope(
+    pub(super) fn static_envelope(
         &self,
         context: MachineId,
         signature: &StateSignature,
@@ -293,6 +293,7 @@ impl<'program> Program<'program> {
                     self.generic_templates.push(signature.symbol);
                 }
                 requirements.push(SourceSchemaRequirement {
+                    instance: None,
                     declaration: signature.symbol,
                     abstract_types: 0,
                     signature: None,
@@ -347,6 +348,7 @@ impl<'program> Program<'program> {
                 }
             }
             requirements.push(SourceSchemaRequirement {
+                instance: None,
                 declaration: signature.symbol,
                 abstract_types,
                 signature: Some(lowered),
@@ -577,6 +579,42 @@ impl<'program> Program<'program> {
             .ok_or_else(|| {
                 services::unavailable(context, "implementation has no exact schema declaration")
             })?;
+        if typed.core_vocabulary(schema.symbol)
+            == Some(language_core::core_vocabulary::CoreVocabulary::PrivateCallbackSlot)
+        {
+            // The slot has no callable rows. Its contract is the closed
+            // relation between the semantic type, layout policy and callback.
+            // A declaration must satisfy it even when no policy uses the slot.
+            let selected = typed_trees::expression::StaticMachineArgument {
+                symbol,
+                ..Default::default()
+            };
+            let sources = self
+                .exact_toolchain_sources()
+                .map_err(|reason| services::unavailable(context, reason))?;
+            typed
+                .check_private_callback_slot_declaration(&selected, symbol, sources)
+                .map_err(|reason| services::unavailable(context, reason))?;
+            if !schema.machines.is_empty()
+                || !schema.requires.is_empty()
+                || schema.refines.is_some()
+                || !schema.refinement_clauses.is_empty()
+            {
+                return Err(services::unavailable(
+                    context,
+                    "private callback slot has additional requirements",
+                ));
+            }
+            let start = self.static_contracts.conformances.len();
+            self.static_contracts.formed.insert(
+                position,
+                crate::static_contracts::FormedConformance {
+                    declaration: symbol,
+                    questions: start..start,
+                },
+            );
+            return Ok(true);
+        }
         self.read_trait_schema(context, schema)?;
         let application =
             AppliedTraitScope::from_conformance(typed, declaration).ok_or_else(|| {

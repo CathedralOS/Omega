@@ -885,6 +885,7 @@ fn witness_call(
             designated: None,
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
         },
         result: required.result,
         source,
@@ -1112,12 +1113,16 @@ fn finish_reading_into<'source>(
     program.finish_operational_envelopes(&bodies, &components)?;
     program.finish_declarations(diagnostic)?;
     program.prepare_external_providers(diagnostic)?;
+    for requirement in program.requirements.clone() {
+        program.retain_requirement_schema(requirement)?;
+    }
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
     let descriptions = (!policies.requests.is_empty())
         .then(|| program.prepare_calling_storage(diagnostic, &policies))
         .transpose()?;
+    let opaque_carriers = program.prepare_opaque_carriers(diagnostic)?;
     program.prepare_domain_predicates(diagnostic)?;
     program.finish_cleanup_selections()?;
     // Header types and clauses may name services and parent contracts.
@@ -1153,6 +1158,46 @@ fn finish_reading_into<'source>(
         Some(&program),
     )?;
     elaboration.machines = program.symbols.clone();
+    for schema in &elaboration.static_schemas {
+        for declaration in &schema.requirements {
+            let Some(instance) = &declaration.instance else {
+                continue;
+            };
+            let requirement = instance.machine;
+            let ceiling = elaboration
+                .requirement_ceilings
+                .get_mut(requirement)
+                .ok_or_else(|| {
+                    refuse(
+                        requirement,
+                        Construct::Machine,
+                        Unserved::Contract("abstract requirement has no exact ceiling row"),
+                    )
+                })?;
+            if ceiling
+                .envelope
+                .replace(declaration.envelope.clone())
+                .is_some()
+            {
+                return Err(refuse(
+                    requirement,
+                    Construct::Machine,
+                    Unserved::Contract("abstract requirement envelope was already retained"),
+                ));
+            }
+        }
+    }
+
+    let mut checking_envelopes = IdTable::default();
+    for (id, envelope) in program.checking_envelopes.iter() {
+        checking_envelopes.push(
+            envelope
+                .as_ref()
+                .map(|row| row.publish(id, &services))
+                .transpose()?,
+        );
+    }
+
     elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
     source.selection_questions = Some(source_selection_questions);
     crate::reach::publish(entry, &services, &mut elaboration)?;
@@ -1165,6 +1210,10 @@ fn finish_reading_into<'source>(
             Unserved::Declaration(reason),
         )
     };
+    elaboration.static_reach_parameters = std::mem::take(&mut program.static_reach_parameters);
+    elaboration
+        .static_reach_applications
+        .sort_unstable_by_key(|row| (row.caller, row.site));
     // Real typed bodies retain their actual declarations in check forms too.
     // A synthetic frame has no such declaration and is recorded as undeclared.
     let prepared_applications = declare::declare(
@@ -1172,9 +1221,22 @@ fn finish_reading_into<'source>(
         &program,
         &outcomes,
         &binder_reach,
+        &checking_envelopes,
         &mut elaboration,
     )
     .map_err(declaration_error)?;
+    let mut requirements = elaboration.requirements.clone();
+    requirements.sort_unstable();
+    for slot in &mut elaboration.module.callables.machine_envelopes {
+        // An abstract header retains its static bounds, never an executable
+        // declaration or a synthetic checked body.
+        if slot
+            .as_ref()
+            .is_some_and(|row| requirements.binary_search(&row.machine).is_ok())
+        {
+            *slot = None;
+        }
+    }
     if let Some(typed) = declared {
         elaboration.provider_candidate_intents = declare::provider_candidates(
             typed,
@@ -1194,18 +1256,7 @@ fn finish_reading_into<'source>(
         elaboration
             .undeclared
             .sort_unstable_by_key(|(machine, _)| *machine);
-        let mut requirements = elaboration.requirements.clone();
-        requirements.sort_unstable();
         for slot in &mut elaboration.module.callables.machine_envelopes {
-            // A bodyless requirement retains its exact abstract ceiling in
-            // requirement_ceilings, not a named executable declaration.
-            if slot
-                .as_ref()
-                .is_some_and(|row| requirements.binary_search(&row.machine).is_ok())
-            {
-                *slot = None;
-                continue;
-            }
             if slot.as_ref().is_some_and(|row| {
                 elaboration
                     .undeclared
@@ -1242,6 +1293,14 @@ fn finish_reading_into<'source>(
     reference_results::publish(&mut elaboration, &program.selections)?;
     finish_storage(diagnostic, &mut elaboration, further)?;
     elaboration.generic_storage = program.generic_storage_bindings(diagnostic)?;
+    program.publish_opaque_carriers(
+        diagnostic,
+        opaque_carriers,
+        descriptions
+            .iter()
+            .flat_map(|rows| rows.signatures.iter().map(|row| &row.storage)),
+        &mut elaboration.module,
+    )?;
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
@@ -1436,6 +1495,7 @@ fn lower_program<'source>(
         signatures.machines.map(|_, signature| RequirementCeilings {
             reaches: signature.reaches.clone(),
             invokes: signature.invokes.clone(),
+            envelope: None,
             suspension: signature.operational.suspension,
             blocking: signature.operational.blocking,
             // The signature reader refuses unsupported progress premises before
@@ -1465,7 +1525,8 @@ fn lower_program<'source>(
         terminal_codec::TerminalPublication::Portable => {
             terminal_psi::TerminalIdentityTableBuilder::default()
         }
-        terminal_codec::TerminalPublication::Invocation => {
+        terminal_codec::TerminalPublication::Invocation
+        | terminal_codec::TerminalPublication::LayoutPolicyInvocation => {
             terminal_psi::TerminalIdentityTableBuilder::for_invocation()
         }
     };
@@ -1621,6 +1682,7 @@ fn lower_program<'source>(
         }
     }
     let mut source = SourceFormCorrespondence::default();
+    let mut static_reach_applications = Vec::new();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
             refuse(
@@ -1663,6 +1725,7 @@ fn lower_program<'source>(
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
         source.calls.extend(lowered.source_calls);
+        static_reach_applications.extend(lowered.static_reach_applications);
         source.constructions.extend(lowered.source_constructions);
         source.folded_calls.extend(lowered.source_folded_calls);
     }
@@ -1825,6 +1888,10 @@ fn lower_program<'source>(
             provider_candidate_intents: Vec::new(),
             undeclared: Vec::new(),
             check_form_envelopes: Vec::new(),
+            static_reach_parameters: Vec::new(),
+            static_reach_applications,
+            static_reach_summaries: Vec::new(),
+            generic_callable_declarations: Vec::new(),
             reach: ServiceReach::default(),
             external_provider_candidates,
             static_schemas,

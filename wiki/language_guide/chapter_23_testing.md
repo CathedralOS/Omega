@@ -55,19 +55,31 @@ crashing.
 
 ## Services and fixtures
 
-A test that uses a service names its slot, and the test runner supplies it.
-For std's `FilesystemService` the runner supplies a private in-memory
-filesystem, so ordinary filesystem calls in the test reach it the way they
-reach a real one:
+Register a filesystem test group the same way as an arithmetic group.
 
 ```omega
 let memory: TestGroup = builder.tests.group<Tests::memory>();
-builder.tests.service<Tests::memory, FilesystemService>();
 ```
 
-The runner supplies an empty filesystem for every test invocation. Build fixture data inside the
-test and pass it to helpers as arguments. A dependency's tests cannot turn the
-in-memory filesystem you gave them into access to the real one.
+For the test product, select a provider for the same `FilesystemService`
+that the application calls. For example, a harness that defines a conforming
+provider named `PrivateFilesystem` would make this selection in the test
+product's configuration:
+
+```omega
+Build::select_provider<FilesystemService, PrivateFilesystem>(builder, linux_x86_64);
+```
+
+The harness supplies a fresh, empty backing for that provider each time a test
+runs. Inside a test, an ordinary call such as
+`block FilesystemService::create_new("note.txt")` creates the file in that
+test's filesystem. A helper can open it again. The next test can create
+`note.txt` anew, even when both tests run in parallel.
+
+A dependency given that view can pass it along or narrow it. Asking for a host
+filesystem cannot give it access to the developer's files. The application's
+own provider selection is independent. See
+[test configuration and authority](../spec/build/testing.md#test-runner-filesystem-slot).
 
 ## What runs where
 

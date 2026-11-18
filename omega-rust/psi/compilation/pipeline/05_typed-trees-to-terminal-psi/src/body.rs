@@ -408,6 +408,15 @@ pub enum StorageShape {
 }
 
 impl StorageShape {
+    /// A fixed array's length belongs to its type, not to stored contents.
+    /// Symbolic extents retain their owning invocation and exact input.
+    pub(crate) fn fixed_array_extent(&self) -> Option<terminal_psi::ArrayExtent> {
+        match self {
+            Self::FixedArray { length, .. } => Some(*length),
+            _ => None,
+        }
+    }
+
     /// Select the checked metadata read from the descriptor's storage type.
     pub(crate) fn length_operation(
         &self,
@@ -1233,6 +1242,7 @@ pub enum ExpressionKind {
         callee: CallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
         static_reach_binding: Option<u32>,
+        static_reach_arguments: Vec<terminal_psi::static_reach::StaticReachArgument>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },

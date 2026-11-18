@@ -2342,6 +2342,7 @@ dependencies = [
  "arena",
  "compiler-storage",
  "diagnostics",
+ "execution-admission",
  "language-core",
  "language-semantics",
  "numerics",

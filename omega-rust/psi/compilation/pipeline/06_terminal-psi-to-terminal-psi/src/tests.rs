@@ -155,6 +155,7 @@ fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
         ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
@@ -1571,6 +1572,7 @@ fn transferred_when(flag: usize, value: usize) -> Expression {
             ExpressionKind::Call {
                 required_contract: None,
                 static_reach_binding: None,
+                static_reach_arguments: Vec::new(),
                 callee: id::<MachineId>(2).into(),
                 arguments: vec![place(value, point())],
                 designated: None,
@@ -2098,6 +2100,19 @@ fn read_equals(tables: &MachineTables, read: (OperationId, ValueId)) -> Option<V
     first
 }
 
+/// A read's exact operation-owned equation, including typed literal results.
+fn assert_read_equation(tables: &MachineTables, read: (OperationId, ValueId), held: ScalarTerm) {
+    let scalar_type = tables.values.get(read.1).unwrap().scalar_type;
+    let expected = Proposition::Equal(ScalarTerm::value(read.1, scalar_type), held);
+    assert!(
+        tables.knowledge.values().any(|row| row.justification
+            == Justification::OperationSemantics(read.0)
+            && row.available_from == ProgramPoint::AfterOperation(read.0)
+            && tables.propositions.get(row.proposition) == Some(&expected)),
+        "missing read equation: {expected:?}"
+    );
+}
+
 #[test]
 fn a_read_after_construction_is_provably_the_constructed_operand() {
     // f(a: u32) -> u32 {
@@ -2220,6 +2235,7 @@ fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_lea
                     ExpressionKind::Call {
                         required_contract: None,
                         static_reach_binding: None,
+                        static_reach_arguments: Vec::new(),
                         callee: id::<MachineId>(3).into(),
                         arguments: Vec::new(),
                         designated: None,
@@ -2911,7 +2927,9 @@ fn a_read_of_a_gated_local_nothing_was_stored_into_is_unestablished() {
         returns(read(place(0, data(GATED)), 0)),
     ])]);
     assert_eq!(uses(&result), [Ok(())]);
-    let three = constants(&elaboration)[1];
+    let [three] = constants(&elaboration)[..] else {
+        panic!("the store has one authored constant: 3");
+    };
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     assert_eq!(
         read_equals(tables, field_reads(&elaboration)[0]),
@@ -3048,7 +3066,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     // join is the one place two paths meet. The store on its `!b` path is
     // added by hand.
     let program = |stored_before: bool| {
-        let mut statements = vec![declare(2, data(GATED))];
+        let mut statements = vec![bind(4, unsigned(4)), declare(2, data(GATED))];
         if stored_before {
             statements.push(store(2, &[0], unsigned(4)));
         }
@@ -3070,7 +3088,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
         elaborate_over(
             vec![Shaped {
                 parameters: vec![ScalarType::Boolean.into(), ScalarType::Boolean.into()],
-                locals: vec![data(GATED), ScalarType::Boolean.into()],
+                locals: vec![data(GATED), ScalarType::Boolean.into(), u32_type().into()],
                 result: u32_type().into(),
                 requires: Vec::new(),
                 statements,
@@ -3103,6 +3121,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
             .unwrap();
         let negation = negation.id;
         let read = field_reads(&elaboration)[0];
+        let mut inserted = None;
         if let Some(value) = on_one_way {
             // `g.v`, the one leaf of the local (field identity 7).
             let place = projected(elaboration.tables.machines.get(id(1)).unwrap(), home, &[7]);
@@ -3121,6 +3140,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
                 .map(|operation| operation.id)
                 .max()
                 .unwrap();
+            inserted = Some(store);
             let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
             tables
                 .obligations
@@ -3133,11 +3153,21 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
                 });
         }
         let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
+        if let Some(store) = inserted {
+            let owed = verdicts(
+                &elaboration,
+                &result,
+                1,
+                |kind| matches!(kind, ObligationKind::DataDomain { operation, .. } if *operation == store),
+            );
+            assert_eq!(owed.len(), 1);
+            assert_kernel_checked(&elaboration, 1, owed[0].0, certificate(owed[0].1));
+        }
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         (uses(&result), read_equals(tables, read))
     };
-    // Some u32 value for the hand-written row to store: the zero constant
-    // the declaration logged, the first constant of either program.
+    // The real authored 4 establishes the one path containing the injected
+    // store. It cannot establish the untouched predecessor of the joined read.
     let some_value = constants(&program(false))[0];
     // Nothing stored anywhere: only the gated zero reaches the read, so it
     // is unestablished.
@@ -3154,7 +3184,8 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
     assert_eq!(verdicts, [Ok(())]);
     assert!(equals.is_some());
     // Stored before the branch and again on one way: established, but the
-    // two ways supply different values, so the read has no equation.
+    // ways supply distinct captured scalar identities, so no one identity
+    // names the merged read.
     let (verdicts, equals) = judged(true, Some(some_value));
     assert_eq!(verdicts, [Ok(())]);
     assert_eq!(equals, None);
@@ -3224,6 +3255,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                     ExpressionKind::Call {
                         required_contract: None,
                         static_reach_binding: None,
+                        static_reach_arguments: Vec::new(),
                         callee: id::<MachineId>(2).into(),
                         arguments: vec![place(4, point())],
                         designated: None,
@@ -3892,7 +3924,7 @@ fn a_sum_local_without_an_initializer_is_its_first_case_with_a_zeroed_payload() 
     // let z: Shape; match z { Shape::Dot { at } -> bounded(at), _ -> 0 }
     // `Dot` is the first declared case, so the zero value is `Dot` with
     // `at` zero: the dispatch is established, the payload parameter equals
-    // the zero constant, and `bounded`'s requirement follows from it.
+    // typed zero, and `bounded`'s requirement follows from it.
     // (Until the owner settled the data half of
     // `local-without-initializer`, the dispatch was `Unestablished`.)
     let (elaboration, result, verdicts) = sum_uses(
@@ -3908,11 +3940,23 @@ fn a_sum_local_without_an_initializer_is_its_first_case_with_a_zeroed_payload() 
         ],
     );
     assert_eq!(verdicts, [Ok(())]);
-    let zero = constants(&elaboration)[0];
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
-    let bound = bound_payloads(tables);
-    assert_eq!(bound.len(), 1);
-    assert_eq!(bound[0].1, zero);
+    let bound = tables
+        .knowledge
+        .values()
+        .filter_map(|row| {
+            let Justification::DispatchBinding { edge } = row.justification else {
+                return None;
+            };
+            assert_eq!(row.available_from, ProgramPoint::Edge(edge));
+            Some(tables.propositions.get(row.proposition).unwrap())
+        })
+        .collect::<Vec<_>>();
+    let [Proposition::Equal(ScalarTerm::Value { scalar_type, .. }, held)] = bound.as_slice() else {
+        panic!("one exact payload equation: {bound:?}");
+    };
+    assert_eq!(*scalar_type, u32_type());
+    assert_eq!(*held, number(0));
     let required = verdicts_of(&elaboration, &result);
     assert_eq!(required.len(), 1);
     assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
@@ -4255,6 +4299,7 @@ fn returned_span_store(stored: u128) -> (typed_trees_to_terminal_psi::Elaboratio
                         ExpressionKind::Call {
                             required_contract: None,
                             static_reach_binding: None,
+                            static_reach_arguments: Vec::new(),
                             callee: id::<MachineId>(2).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4441,7 +4486,7 @@ fn zero_only() -> Shaped {
 fn a_data_local_without_an_initializer_is_established_as_zero_when_zero_satisfies_its_requires() {
     // f() -> u32 { let b: Bounded; zero(b.value) }
     // `Bounded requires value <= 5` holds of zero: the declaration owes the
-    // clause over the zero constant, the read equals that constant, and
+    // clause over typed zero, the read equals that literal, and
     // `zero`'s requirement follows.
     let (elaboration, result) = run_constrained(vec![
         closed(
@@ -4454,17 +4499,16 @@ fn a_data_local_without_an_initializer_is_established_as_zero_when_zero_satisfie
         ),
         zero_only(),
     ]);
-    let zero = constants(&elaboration)[0];
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 1);
-    assert_eq!(certificate(owed[0].1).goal, at_most_value(zero, 5));
+    assert_eq!(
+        certificate(owed[0].1).goal,
+        Proposition::LessOrEqual(number(0), number(5))
+    );
     assert_kernel_checked(&elaboration, 1, owed[0].0, certificate(owed[0].1));
     assert_eq!(uses(&result), [Ok(())]);
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
-    assert_eq!(
-        read_equals(tables, field_reads(&elaboration)[0]),
-        Some(zero)
-    );
+    assert_read_equation(tables, field_reads(&elaboration)[0], number(0));
     let required = verdicts_of(&elaboration, &result);
     assert_kernel_checked(&elaboration, 1, required[0].0, certificate(required[0].1));
 }
@@ -4882,6 +4926,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                         ExpressionKind::Call {
                             required_contract: None,
                             static_reach_binding: None,
+                            static_reach_arguments: Vec::new(),
                             callee: id::<MachineId>(3).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4943,6 +4988,7 @@ fn peeking(argument: Expression) -> Expression {
         ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
             callee: id::<MachineId>(2).into(),
             arguments: vec![argument],
             designated: None,
@@ -4995,6 +5041,7 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
                 ExpressionKind::Call {
                     required_contract: None,
                     static_reach_binding: None,
+                    static_reach_arguments: Vec::new(),
                     callee: id::<MachineId>(3).into(),
                     arguments: Vec::new(),
                     designated: None,
@@ -5101,6 +5148,7 @@ fn taking(callee: u64, argument: Expression) -> Expression {
         ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
+            static_reach_arguments: Vec::new(),
             callee: id::<MachineId>(callee).into(),
             arguments: vec![argument],
             designated: None,

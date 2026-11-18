@@ -2900,3 +2900,72 @@ fn nested_const_callback_applications_keep_their_values_in_the_selected_tuple() 
         "different values select different applications even when the body ignores them"
     );
 }
+
+#[test]
+fn open_callback_applications_retain_the_whole_binding_tuple() {
+    use super::{GeneratedMachines, specialize_application};
+    let mut source = source();
+    let consumer = callback_consumer(&mut source);
+    let mut arguments = vec![
+        argument(source.forward.parameter, "T"),
+        applied_callback(
+            &mut source.program,
+            source.forward.state,
+            vec![argument(source.forward.parameter, "T")],
+        ),
+    ];
+    let application = source
+        .program
+        .expression_table
+        .retain_static_machine_application(
+            consumer.machine,
+            Identifier::from("consume"),
+            &arguments,
+        );
+    source
+        .program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = source.forward.machine;
+    let parameters = source
+        .program
+        .machine_by_symbol(consumer.machine)
+        .map(|machine| source.program.machine_callable_parameters(machine))
+        .unwrap();
+    assert!(
+        specialize_application(
+            &mut source.program,
+            consumer.machine,
+            &parameters,
+            application,
+            &mut arguments,
+            &mut GeneratedMachines::default()
+        )
+        .unwrap()
+        .is_none()
+    );
+    let retained = source
+        .program
+        .expression_table
+        .static_machine_application(application);
+    assert_eq!(retained.binding_declaration, consumer.machine);
+    let bindings = source
+        .program
+        .expression_table
+        .static_machine_application_bindings(application);
+    assert_eq!(bindings.len(), parameters.len());
+    assert!(matches!(
+        bindings[0].value,
+        typed_trees::static_applications::StaticMachineBindingValue::Type(_)
+    ));
+    let typed_trees::static_applications::StaticMachineBindingValue::Machine(selected) =
+        &bindings[1].value
+    else {
+        panic!("the callback binding was dropped")
+    };
+    assert_eq!(selected, &arguments[1]);
+    assert_eq!(
+        selected.application.as_ref().unwrap().arguments[0].symbol,
+        source.forward.parameter
+    );
+}

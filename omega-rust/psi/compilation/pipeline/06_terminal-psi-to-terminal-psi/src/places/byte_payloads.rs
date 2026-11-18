@@ -2,7 +2,7 @@
 //! facts about those bytes while keeping the view's address and length separate.
 //! Authenticate the source write log before adding these derived effects.
 
-use super::{Lineage, Logged, Shape, Storage, Stored};
+use super::{Backing, Lineage, Logged, Shape, Storage, Stored};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_check_tables::{Checked, Construct, MachineTables};
 use terminal_psi::{ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralTypeShape};
@@ -139,8 +139,8 @@ impl<'a> Storage<'a> {
                     self.backing(references, &pending.carrier, block, before, concerns)?;
                 for lineage in aliases {
                     writes.push(Logged {
-                        captured: pending.carrier.clone(),
-                        lineage: lineage.clone(),
+                        destination: pending.carrier.clone(),
+                        backing: Backing::direct(lineage.clone()),
                         block,
                         position: before + 1,
                         operation: write.operation,
@@ -159,8 +159,8 @@ impl<'a> Storage<'a> {
                     concerns,
                 )? {
                     writes.push(Logged {
-                        captured: descriptor.clone(),
-                        lineage: backing,
+                        destination: descriptor.clone(),
+                        backing: Backing::direct(backing),
                         block,
                         position: before + 1,
                         operation: write.operation,
@@ -241,7 +241,8 @@ impl<'a> Storage<'a> {
                         )
                     })?;
                 let raw = self.stored_at(slot.root, &path, concerns)?;
-                incoming.push(self.backing(references, &raw, entry.0, 0, concerns)?);
+                let backing = self.backing(references, &raw, entry.0, 0, concerns)?;
+                incoming.extend(backing.possible_regions().cloned());
             }
         }
         incoming.sort();
@@ -371,10 +372,12 @@ impl<'a> Storage<'a> {
                     }
                 }
             }
-            backings.sort();
-            backings.dedup();
             for backing in backings {
-                exposed.entry(backing).or_default().push(*at);
+                // Exposure only adds conservative possible effects. It grants
+                // no equality between independently selected references.
+                for region in backing.possible_regions() {
+                    exposed.entry(region.clone()).or_default().push(*at);
+                }
             }
         }
         // Repeated calls often expose the same backing. Propagate each exact

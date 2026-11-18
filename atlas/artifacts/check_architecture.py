@@ -175,7 +175,7 @@ def main():
         assert page.get_by_label('Trace a pipeline detour').input_value()=='handlers'
         assert page.locator('#compiler-overview').get_attribute('data-view')=='proposed'
         cards=page.locator('.proposed-scene .overview-node.is-traced')
-        assert cards.locator('.handoff-status').count()==5
+        assert cards.locator('.handoff-status').count()==6
         assert cards.first.get_attribute('data-endpoint')=='native-planning-target'
         page.evaluate('document.fonts.ready')
         assert cards.evaluate_all("""cards=>cards.every(card=>{
@@ -187,7 +187,7 @@ def main():
         })""")
         cards.first.locator('.stage-title').click()
         assert page.locator('.connected-detail').get_by_role('link',name='Permitted nesting and pairs').is_visible()
-        page.locator('.connected-jump').select_option('native-planning-select')
+        page.locator('.connected-jump').select_option('physical-planning-select')
         assert page.locator('.connected-detail').get_by_role('link',name='Pair guards').is_visible()
         page.goto(base+'pages/architecture.html#proposed-handler-binding')
         assert page.get_by_label('Trace a pipeline detour').input_value()=='handlers'
