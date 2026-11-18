@@ -148,10 +148,25 @@ pub fn reference_view_compatible(
         return Err("reference geometry has no common complete layout input roster");
     }
     for input in &first.target_inputs {
+        // The source's enclosing record can contain sums or descriptors beside
+        // the projected field. Their geometry belongs to this same retained
+        // target, even when only the viewed record has a selected layout.
+        let carriers = semantic_vocabulary::TargetCarrierLayout {
+            pointer_byte_size: input.pointer_size,
+            pointer_byte_alignment: input.pointer_alignment,
+            descriptor_byte_size: input
+                .pointer_size
+                .checked_mul(2)
+                .ok_or("reference geometry descriptor footprint overflows")?,
+            descriptor_byte_alignment: input.pointer_alignment,
+            case_tag_byte_size: input.case_tag_size,
+            case_tag_byte_alignment: input.case_tag_alignment,
+        };
         let mut geometry =
             ReferenceStorageGeometry::new(module.structural_types.iter(), |application| {
                 Err(StorageGeometryError::UnresolvedExtent(application))
             })
+            .with_target_carriers(Some(carriers))
             .with_record_storage(RetainedLayout { module, input });
         if !geometry.view_source_compatible(source, path, reference, stored) {
             return Ok(false);
@@ -404,10 +419,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_shared_view_checks_all_targets_and_does_not_create_boolean_validity() {
-        // The bytes must fit every retained target, and equal byte counts
-        // cannot turn arbitrary stored bytes into valid Boolean values.
+    fn two_target_record_module() -> TerminalModule {
         let scalar =
             |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
         let field = |raw| StructuralFieldDeclaration {
@@ -495,6 +507,14 @@ mod tests {
                 target_inputs: inputs,
                 realizations,
             });
+        module
+    }
+
+    #[test]
+    fn a_shared_view_checks_all_targets_and_does_not_create_boolean_validity() {
+        // The bytes must fit every retained target, and equal byte counts
+        // cannot turn arbitrary stored bytes into valid Boolean values.
+        let mut module = two_target_record_module();
         assert_eq!(
             reference_view_compatible(&module, ty(3), &[], ty(5), None),
             Ok(true)
@@ -535,5 +555,97 @@ mod tests {
             reference_view_compatible(&module, ty(3), &[], ty(5), None),
             Err("reference view requires target validity not established by its source bits")
         );
+    }
+
+    #[test]
+    fn a_projected_view_supplies_target_carriers_to_sibling_sums() {
+        // The selected record contributes the target's carrier roster. Its
+        // source field is aligned and large enough, but a sibling sum also
+        // needs that roster to calculate the enclosing record's geometry.
+        let scalar =
+            |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+        let field = |raw, field_type| StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
+            id: StructuralFieldId::new(raw).unwrap(),
+            identity: TerminalIdentityIndex(raw as u32),
+            field_type,
+            storage: None,
+            inline_carrier: None,
+            relevance: BindingRelevance::Relevant,
+        };
+        let mut module = two_target_record_module();
+        let selected = module.structural_types[2].shape.clone();
+        module.structural_types[2].shape = StructuralTypeShape::Record {
+            fields: vec![
+                field(3, StructuralFieldType::Structural(ty(6))),
+                field(5, StructuralFieldType::Structural(ty(4))),
+                field(4, StructuralFieldType::Scalar(scalar(64))),
+            ],
+            storage: StructuralRecordStorage::Packed,
+        };
+        module.structural_types[4].shape = StructuralTypeShape::Reference {
+            referent: ty(7),
+            access: StructuralAccess::SharedBorrow,
+        };
+        module.structural_types.extend([
+            declaration(
+                6,
+                StructuralTypeShape::Sum {
+                    cases: vec![terminal_psi::StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
+                        id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                        identity: TerminalIdentityIndex(9),
+                        fields: Vec::new(),
+                    }],
+                },
+            ),
+            declaration(7, selected),
+        ]);
+        let application = &mut module.target_layout_applications[0];
+        application.record = ty(7);
+        application.schema = ty(7);
+        let compatible = |module: &TerminalModule| {
+            reference_view_compatible(
+                module,
+                ty(3),
+                &[StructuralPathSegment::Field(TerminalIdentityIndex(5))],
+                ty(5),
+                None,
+            )
+        };
+        assert_eq!(compatible(&module), Ok(true));
+
+        // A four-byte tag moves the same window to an unaligned offset on
+        // one retained target. The other target's eight-byte tag cannot
+        // stand in for it.
+        let application = &mut module.target_layout_applications[0];
+        application.target_inputs[0].case_tag_size = 4;
+        application.target_inputs[0].case_tag_alignment = 4;
+        application.realizations[0].case_tag_size = 4;
+        application.realizations[0].case_tag_alignment = 4;
+        assert_eq!(compatible(&module), Ok(false));
+        let application = &mut module.target_layout_applications[0];
+        application.target_inputs[0].case_tag_size = 8;
+        application.target_inputs[0].case_tag_alignment = 8;
+        application.realizations[0].case_tag_size = 8;
+        application.realizations[0].case_tag_alignment = 8;
+
+        // Target carriers cannot enlarge a short field or supply alignment
+        // that its actual position lacks.
+        module.structural_types[3].shape = StructuralTypeShape::FixedArray {
+            element: ty(1),
+            length: ArrayExtent::Literal(15),
+        };
+        assert_eq!(compatible(&module), Ok(false));
+        module.structural_types[3].shape = StructuralTypeShape::FixedArray {
+            element: ty(1),
+            length: ArrayExtent::Literal(16),
+        };
+        let StructuralTypeShape::Record { fields, .. } = &mut module.structural_types[2].shape
+        else {
+            unreachable!();
+        };
+        fields.insert(1, field(8, StructuralFieldType::Scalar(scalar(8))));
+        assert_eq!(compatible(&module), Ok(false));
     }
 }
