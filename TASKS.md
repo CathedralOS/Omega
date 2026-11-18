@@ -108,8 +108,9 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Pipeline route
 
-- **PIPELINE-ARCHITECTURE-ENFORCEMENT.** Enforce the single-pass Psi (`00–07`) + Build + per-target Omega (`00–09`) [pipeline](omega-rust/pipeline.md) in `target_batch.rs`.
-  - Admit dependency contexts ([scoped_execution.md](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)), run `build.omg` and Psi `00–07` once, clear `FIREWALL_ALLOWANCES` in `tools/check_native_boundary.py`, store recursive terms as flat tables in memory ([pipeline](omega-rust/pipeline.md)), and drop 256 MiB stacks (source depth is bounded only by memory and time, per [compiler_request.md](wiki/spec/build/compiler_request.md)).
+- **PIPELINE-ARCHITECTURE-ENFORCEMENT.** Verify the [connected 00–10 route](omega-rust/pipeline.md#connected-program-route) through the product and native entry points for target batches, multiple callable roots and independently produced components.
+  - Verify Build effects execute once per admitted context and that matching targets share the checked source and portable program. Exercise differing grants, source inputs and execution profiles under the [dependency context rules](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).
+  - Store recursive terms in flat in-memory tables and remove the [256 MiB worker stacks](omega-rust/psi/foundation/execution-admission/src/lib.rs). Source depth is bounded by available memory and time. [Depth requirement](wiki/spec/build/compiler_request.md)
 
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
   - Add reusable activation-scoped registrations, Build/Product subjects and direct library checks with preserved owners.

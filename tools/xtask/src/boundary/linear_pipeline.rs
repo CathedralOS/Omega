@@ -63,6 +63,21 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
     }
     let mut adjacency = BTreeMap::<String, Vec<String>>::new();
     let mut errors = Vec::new();
+    // Cargo unifies requested features across workspace consumers, including
+    // sample binaries and build dependencies compiled alongside the compiler.
+    for package in &metadata.packages {
+        for dep in &package.dependencies {
+            if dep.kind.as_deref() != Some("dev")
+                && dep.path.is_some()
+                && dep.features.iter().any(|feature| feature == "test-support")
+            {
+                errors.push(format!(
+                    "production dependency enables test-support: {} -> {}",
+                    package.name, dep.name
+                ));
+            }
+        }
+    }
     for (package, owner, dependency) in production_edges(metadata)? {
         if under(&dependency, &[TEST_SUPPORT]) && !under(&owner, &[TEST_SUPPORT]) {
             errors.push(format!(
@@ -155,6 +170,11 @@ mod tests {
                 name: "alias".to_owned(),
                 path: Some(format!("/repo/{to}")),
                 kind: kind.map(str::to_owned),
+                features: if to == FIXTURE {
+                    vec!["test-support".to_owned()]
+                } else {
+                    Vec::new()
+                },
             });
         };
         edge(SHARED, FIXTURE, None);
@@ -186,6 +206,12 @@ mod tests {
             .filter(|v| v.contains("production dependency on a test fixture"))
             .collect();
         assert_eq!(fixture_errors.len(), 1);
+        let feature_errors: Vec<_> = errors
+            .iter()
+            .filter(|error| error.contains("enables test-support"))
+            .collect();
+        assert_eq!(feature_errors.len(), 1);
+        assert!(feature_errors[0].contains("shared -> alias"));
         assert!(fixture_errors[0].contains("shared -> omega-rust/test-support/image-fixtures"));
         assert!(!errors.iter().any(|v| v.contains("lexing -> parsing")));
         assert!(

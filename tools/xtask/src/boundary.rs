@@ -116,11 +116,14 @@ pub struct Dependency {
     pub name: String,
     pub kind: Option<String>,
     pub path: Option<String>,
+    #[serde(default)]
+    pub features: Vec<String>,
 }
 
 fn under(relative: &str, owners: &[&str]) -> bool {
     owners.iter().any(|owner| {
-        relative == *owner
+        owner.is_empty()
+            || relative == *owner
             || relative
                 .strip_prefix(owner)
                 .is_some_and(|rest| rest.starts_with('/'))
@@ -228,7 +231,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
     });
     for stage in 3..=9 {
         let mut external = rule(
-            vec!["omega-rust"],
+            vec![""],
             vec![STAGES[stage]],
             "only the native driver and the neighboring phase may consume native stage APIs",
         );
@@ -1154,6 +1157,7 @@ mod tests {
                     name: (*dep_name).to_owned(),
                     kind: kind.map(str::to_owned),
                     path: Some(format!("/repo/{dep_rel}")),
+                    features: Vec::new(),
                 })
                 .collect(),
         }
@@ -1169,6 +1173,11 @@ mod tests {
                 PRODUCT_COORDINATOR,
             ),
             (PRODUCT_COORDINATOR, FRONTEND_OPERATIONS[0], PSI_FACADE),
+            (
+                "samples/scientific-driver",
+                linear_pipeline::STAGES[3],
+                BUILD_COORDINATOR,
+            ),
         ] {
             for (dependency, kind, permitted) in [
                 (stage, None, false),

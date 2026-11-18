@@ -148,17 +148,17 @@ and focused frontend tests must check that part of the compiler separately.
 
 ## Connected program route
 
-A source build follows 00–02. A native build continues from the published
-Terminal program and supplied target bindings through 03–09. Stage 10 installs
-the requested files. A received Terminal artifact enters native planning after
-decoding and admission. Check-only and interpreter requests stop at the
-boundary their product needs. [Product coordinator](omega/compilation/compiler/src/product_execution.rs)
+A source build enters at 00 and streams source through 01. Stage 02 publishes
+the accepted portable program. A target-scoped check can require provider
+selection at 03. Native builds continue through 09 and stage 10 installs the
+requested files. A received Terminal artifact enters native planning after
+decoding and admission. [Product coordinator](omega/compilation/compiler/src/product_execution.rs)
 · [Native driver](omega/compilation/native-compiler/src/compile.rs)
 
 | Stage | Input → output | Owner |
 | --- | --- | --- |
 | 00 · Compilation inputs | Requested product, targets, options, rollback and installation assumptions → admitted target destinations and policy | [Input admission](omega/compilation/pipeline/00_compilation-inputs/src/lib.rs) |
-| 01 · Source compilation | Admitted source and generated source → resolved and typed program, lowered-form verdict and accepted Terminal program | [Psi source compiler](psi/compilation/pipeline/01_source-compilation/src/lib.rs) |
+| 01 · Source compilation | Admitted source and generated source → resolved and typed program, lowered-form verdict, accepted Terminal program and logical provider demand for the requested roots | [Psi source compiler](psi/compilation/pipeline/01_source-compilation/src/lib.rs) · [Source provider choices](psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs) |
 | 02 · Portable publication | Accepted program and logical provider choices → canonical Terminal artifact, entry metadata, reached requirements and selected checked bodies | [Published program](omega/compilation/pipeline/02_portable-publication/src/lib.rs) · [Provider demand](omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs) |
 | 03 · Native program planning | Published program, logical choices and target bindings → admitted provider and calling plans, executable entry and target body plans | [Target execution](omega/compilation/pipeline/03_native-program-planning/src/execution.rs) · [Body planning](omega/compilation/pipeline/03_native-program-planning/src/body_planning.rs) |
 | 04 · Physical program planning | Target body plans → selected instructions, register homes, frames, generated entry recipes and measured installation resources | [Physical program](omega/compilation/pipeline/04_physical-program-planning/src/lib.rs) · [Handler measurement](omega/compilation/pipeline/04_physical-program-planning/src/installed_handlers.rs) |
@@ -184,6 +184,13 @@ source frontier. Build-generated sources resume the existing resolver and
 typing continuation. [Source pages](psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs)
 · [Source continuation](psi/compilation/pipeline/01_source-compilation/src/source_compilation.rs)
 
+Source settlement can grow the set of providers to check. When a reached
+provider calls another boundary, stage 01 adds its chosen provider and checks
+the enlarged roster before publication. Preparing the named backing for a
+suspended `Build::await_provider` also checks that backing as a supply of its
+exact requirement. [Source provider closure](psi/compilation/pipeline/01_source-compilation/src/source_supply.rs)
+· [Build-provider preparation](omega/compilation/compiler/src/checked/package_compilation.rs)
+
 <a id="one-driver-one-pass-per-target-realization"></a>
 
 ## Two drivers, one pass, per-target realization
@@ -196,9 +203,10 @@ named second-check refusal. [Source checking](psi/compilation/pipeline/01_source
 · [Accepted program](psi/compilation/pipeline/01_source-compilation/src/operations/production/src/accepted.rs)
 · [Optimization contract](../wiki/spec/terminal-psi/product.md#optimization-ordering)
 
-The product coordinator collects the requested roots and each target's
-declarations. At 02 it publishes the reached requirements and logical
-providers with the portable program. At 03 the native planner joins those
+The product coordinator supplies the requested roots and each target's
+declarations to the checked source owner at 01. That owner follows the
+reachable calls and selects their logical providers. Stage 02 publishes
+those choices with the portable program. At 03 the native planner joins them
 choices to target-specific calling policies and verifies the selected bodies.
 Later native stages carry that decision through allocation, installation,
 encoding, layout and image construction. Product publication issues its
@@ -217,8 +225,11 @@ The product coordinator owns the source and Build continuation. The native
 driver consumes the published artifact and admitted execution inputs. Later
 stages receive established facts in their predecessor's output. Explicit
 audits can request retained originals. Runtime and inspection consume the
-published records. The dependency guard and handoff inventory enforce the
-declared architecture. [Dependency guard](../tools/xtask/src/boundary/)
+published records. The dependency guard checks the production package graph,
+including paths through shared crates. The handoff inventory checks the
+fields and signatures of reviewed modules. The product and native drivers
+determine the order of calls for each requested program and its callable
+bodies. [Dependency guard](../tools/xtask/src/boundary/)
 · [Reviewed handoffs](pipeline-contracts.json)
 
 One Psi invocation owns its arenas and lends a lifetime-bound Terminal artifact
@@ -307,8 +318,11 @@ frontend or proof cache slots. A reused language judgment lends its checked
 arenas; equal Product root selections share the pruning output. Package native
 requests complete as one roster through the same Terminal producer as
 standalone requests. Package-manager batches supply dependency-ordered custody
-and consent plans; the compiler owns generated-output joins, Build and Product
-continuations and independent component publication. Target plans enter
+and consent plans; the compiler owns generated-output joins and Build and
+Product continuations. Native component production requires separately
+accepted inputs. [Component entrance](omega/compilation/native-compiler/src/components.rs)
+
+Target plans enter
 together, and matching post-Build root continuations share source completion.
 The captured Build prefix keeps its deferred Product frontend, keyed by exact
 source and semantic inputs. Siblings validate live custody before borrowing it,
@@ -578,23 +592,19 @@ or interpreters. A stage cannot call the coordinator or a neighbouring stage to
 rebuild input facts it is missing. Enforce these production dependency edges;
 independent representations and explicit test-only consumers are fine.
 
-Psi 03 reads resolved continuation records and prepared requirement selections
-from `symbol-resolved-trees`, not stage 02 APIs. The Psi driver pairs deferred
-resolver state with typing checkpoints; allocation and source-activation
-handoffs keep the exact predecessor, and pending syntax stays in resolution.
+Within stage 01 the Psi driver pairs deferred resolver state with typing
+checkpoints. Source activations resume that same continuation, and pending
+syntax stays in resolution. [Source continuation](psi/compilation/pipeline/01_source-compilation/src/source_compilation.rs)
 
-Native code generation must keep the entry, selected functions and admitted
-callbacks tied to the same program and target. Omega 00 publishes `VerifiedPsiOptimizationInput` in the shared
-`verified-optimization-input` representation. Omega 01 consumes it and passes
-its sealed `AdmittedLoweringFacts` to Omega 02. The representation keeps the
-entry, native function selection, provider choices, callbacks and interrupts in
-private fields. Omega 02 borrows and checks that same record without calling
-an earlier stage or rebuilding missing facts, and ends by publishing the
-execution plan: target operations joined to their accepted proofs, concrete
-types and surviving installations. Omega 03 reads that plan and the
-installations the driver bound to it; it cannot name the abstract program,
-the optimization unit or the sealed module. This needs no exception to the
-stage dependency rules; `check-boundary` enforces them unchanged.
+Native code generation keeps the entry, selected functions and admitted
+callbacks tied to the same program and target. Stage 03 admits the published
+execution inputs, optimizes the abstract program and lowers it to target
+operations. Its body plan carries the prepared instruction selection and
+emission facts. Stage 04 selects instructions, allocates registers, applies
+frames and measures physical handlers. Stage 05 binds installations to
+those exact bodies, frames and measurements. [Native body plan](omega/compilation/pipeline/03_native-program-planning/src/body_planning.rs)
+· [Physical planning](omega/compilation/pipeline/04_physical-program-planning/src/lib.rs)
+· [Installation binding](omega/compilation/pipeline/05_installation-binding/src/lib.rs)
 
 Consumers ask for a meaningful outcome: checking, Build or helper Terminal
 production, product completion, native realization or inspection. Do not expose
@@ -1100,8 +1110,9 @@ Structural elaboration and the lowered-form checker work on the same Terminal
 module, which is published with its evidence ([verification placement](#verification-placement)).
 The retired facts and intermediate Lowered Psi packages are gone. Checker tables belong to
 `psi/compilation/representations/terminal-psi/check-tables/`.
-Shared effect-summary records and pass-selection vocabulary live in
-`psi/foundation/flow-effects/` and `psi/foundation/optimization/`.
+Shared effect summaries and pass selections have independent definitions.
+[Source effects](psi/compilation/representations/source-effects/)
+· [Optimization policy](psi/compilation/representations/optimization-policy/)
 
 Omega has six top-level program families: abstract operations, target
 operations, selected instructions, register homes, post-allocation machine and
@@ -1113,16 +1124,18 @@ producer and consumer of each form.
 
 The `optimization-unit` package under `abstract-operations/` holds the derived
 CFG/SSA and replay form used during abstract optimization. The
-`legalized-operations` package under `target-operations/` holds the internal
-form between legalization and selection inside Omega 03. Both are independent
+`legalized-operations` package under `target-operations/` holds the form
+produced by legalization in stage 03 and consumed by instruction selection in
+stage 04. Both are independent
 packages; nesting names the family and adds no dependency on a producing stage.
 Keep these forms and manifests separate, and do not invent pipeline steps to
 make folder counts match.
 
-In backend, target descriptions, calling conventions and register models
-belong to backend itself, installation and task evidence to backend runtime,
-boundary-application companions to backend artifacts, and provider authority
-evidence to backend plans. Target-independent records of opaque representation
+Target descriptions, calling conventions and register models belong to
+[`target-description/`](omega/compilation/target-description/).
+The [native representations](omega/compilation/representations/) include
+installation evidence, task plans, boundary applications and provider plans.
+Target-independent records of opaque representation
 selections belong to the `typed-trees::opaque_representations` data owner; they
 keep source choices, not a checking verdict. None of these is a pipeline
 program IR.
@@ -1130,8 +1143,9 @@ program IR.
 ### Subsystem entrances and supporting packages
 
 [`omega/compilation/products/`](omega/compilation/products/README.md) owns
-invocation configuration, product eligibility, finished report payloads and
-artifact publication. It also owns the retained evaluated-Build records and the
+invocation configuration, product eligibility and finished report payloads.
+Stage 10 owns publication to the requested destination. The products package
+also owns the retained evaluated-Build records and the
 checked compilation product: source-custody sealing, immutable stage results
 and their metadata and subject projections. The Build evaluator produces this
 shared data contract; product consumers depend on neither evaluator nor
@@ -1172,13 +1186,15 @@ executable alternatives.
 
 `omega/compilation/compiler/` owns only compilation orchestration.
 [`omega/compilation/native-compiler/`](omega/compilation/native-compiler/README.md)
-owns the source-free sequence from Terminal to image. Its entry is `compile.rs`;
-`pipeline.rs` owns the shared abstract-to-object sequencing for application
-entries, callbacks and component exports. Realization captures runtime
-provisions before the abstract, target and physical stages produce the image;
-those provisions belong to `native-artifact`, not to the source compilation
-products. Provider evidence contains no source-IR helpers: conversion from
-source to evidence stays with the source-aware producer, and lifetime partition
+owns the source-free sequence from Terminal to image. Its entry is `compile.rs`.
+The driver uses stage 03 to plan the application, its callbacks and component
+exports, then uses `pipeline.rs` for the common physical, encoding, layout
+and object operations. It carries runtime provisions through adapter planning
+and publishes the result for the interpreter.
+[Runtime inputs](omega/compilation/representations/published-runtime-input/src/lib.rs)
+
+The source-aware producer converts source information to provider evidence,
+and lifetime partition
 normalization belongs to shared language semantics. The native compiler's
 transitive production dependencies are enforced by `mbx xtask check-boundary`,
 including optional, build and target-specific edges.
@@ -1193,7 +1209,7 @@ separate admissions file.
 
 [Stage 03 provider planning](omega/compilation/pipeline/03_native-program-planning/src/provider_planning.rs)
 owns target supply selection and provider plan formation.
-[`provider-selection/src/boundary.rs`](omega/compilation/verification/provider-correspondence/src/boundary.rs)
+[Provider correspondence](omega/compilation/verification/provider-correspondence/src/boundary.rs)
 admits canonical boundary applications against the chosen plans.
 
 Psi projects checked task activation requirements, exact specialization and
@@ -1241,18 +1257,18 @@ template. Declaration strings and body eligibility are borrowed from the exact
 immutable owner, with no second cache or demand for portable publication.
 Emitted demand cannot replace unused declarations or dead concrete uses.
 
-`provider-selection/boundary_applications.rs` owns the canonical executable
-application operation: exact selected-row and provenance joins, checked body
-choice and numeric execution admission. Omega 00 builds operation-bound
-physical coverage from its result. Source and canonical admission share numeric
+The [boundary application verifier](omega/compilation/verification/provider-correspondence/src/boundary.rs)
+joins each selected row to its provenance, checked body choice and numeric
+execution admission. Stage 03 uses its result to establish physical operation
+coverage. Source and canonical admission share numeric
 satisfaction and callable, package and target selection; source eligibility
 also checks Product, provider application and lifetime coordinates, while
 canonical admission checks the nominal requirement and closed application.
 Neither invents the other's metadata. Unused invocation-local declarations are
 not forced into portable publication. Complete selected-plan binding belongs to
-`provider-selection/selected_binding.rs`: grants, qualification, boundary
-admission, reach resolution, physical-leaf aliases and Import application
-attachment run in their original order without typed trees or check facts. Psi
+the [selected provider verifier](omega/compilation/verification/provider-correspondence/src/binding.rs).
+It checks grants, qualification, boundary admission, reach resolution,
+physical-leaf aliases and Import applications in order using published facts. Psi
 projects selected declaration evidence from the exact source associations,
 deferring unavailable evidence until its admission phase. Named-provider
 derivation keeps the original declaration and capture scope and declaration-row
@@ -1309,7 +1325,7 @@ admits the retained pre-optimization composition and keeps its own entry
 receipt and native proposal. Distinct roots and callbacks stay in that same
 whole-program Terminal roster.
 
-Executable callback placement belongs to Omega 00: canonical callback
+Stage 03 settles executable callback placements. Canonical callback
 applications name their registrar operation, exact body, requirement and
 checked entry admission; target calling applications keep exact static binder
 ordinals, requirement identities and synchronous invocation membership. Fresh
@@ -1503,13 +1519,16 @@ resolution source text is diagnostic/debug payload, user literals stay program
 payload, and linker/display names are edge metadata. Scoped symbol-tree lookup
 is the baseline; an extra lookup map needs a measured reason.
 
-Recursive terms are flat in memory, not only on the wire. A scalar term,
-proposition, proof term or any other value whose children are values of its own
-kind is stored as a postorder table whose entries name earlier entries by handle,
-never as a tree of nested `Box`/`Vec` children. Every walk over one, including
-drop, clone and comparison, is a loop over that table, so a deep term costs
-memory, not stack (the owner's ruling of 2026-11-12, extending the
-[no-depth-limit ruling](../wiki/spec/build/compiler_request.md)).
+The 2026-11-12 depth ruling requires recursive scalar terms, propositions,
+proof terms and other self-nesting values to use flat in-memory postorder
+tables. Entries name earlier entries by handle. Walking, cloning, comparing
+and dropping a deep term must use bounded stack. Conversion remains open.
+For example, `ContentConservationTerm::Separate` still contains a vector of
+terms of its own kind, and compiler workers still request a 256 MiB stack.
+[Depth requirement](../wiki/spec/build/compiler_request.md)
+· [Content conservation terms](psi/compilation/representations/declaration-contracts/src/content.rs)
+· [Worker stack](psi/foundation/execution-admission/src/lib.rs)
+· [Open work](../TASKS.md)
 
 Working state belongs to an explicit compilation, checking or worker
 invocation. Put durable indexes beside their owning arena, and derived memos,
