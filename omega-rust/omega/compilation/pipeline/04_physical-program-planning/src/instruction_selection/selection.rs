@@ -699,6 +699,7 @@ pub(crate) mod construction {
                         )
                     })
             }),
+            target.target,
         )
         .map_err(|_| SelectedInstructionError::custody())?;
         let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(
@@ -943,7 +944,7 @@ pub(crate) mod field_bytes {
                 },
             )
             .unwrap();
-            let geometry = NativeGeometry::new(&[]).unwrap();
+            let geometry = NativeGeometry::new(&[], target::NativeTarget::linux_x64()).unwrap();
             for (available, requested, expected) in [
                 (Owned, MutableBorrow, true),
                 (Owned, WriteOnlyBorrow, true),

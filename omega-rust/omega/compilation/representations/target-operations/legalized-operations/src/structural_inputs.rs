@@ -196,8 +196,7 @@ pub mod structural_reference_input {
             if let Some((StructuralPathSegment::FixedRange { .. }, prefix)) = path.split_last() {
                 let (storage, _, elements) =
                     runtime_storage_projection(root, prefix, declarations)?;
-                let region =
-                    terminal_semantics::reference_storage_region(declarations.iter(), root, path)?;
+                let region = declarations.storage_region(root, path)?;
                 region.array?;
                 Some((storage, u32::try_from(region.byte_offset).ok()?, elements))
             } else {

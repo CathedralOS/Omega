@@ -6239,8 +6239,7 @@ pub(crate) fn apply(
                 || !match storage {
                     Some(storage) if storage.stored_scalar.is_none() => {
                         source_contract(function, custody, source.place).is_some_and(|root| {
-                            terminal_semantics::reference_storage_region_source_compatible(
-                                types.iter(),
+                            types.storage_view_source_compatible(
                                 root,
                                 &source.path,
                                 result.structural_type,
