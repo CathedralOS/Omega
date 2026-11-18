@@ -30,9 +30,11 @@ The tiny input has one machine. The imports input calls two overloads from anoth
 Build each revision with the pinned Rust toolchain and keep its benchmark executable. Running the same binary with `body imports 100` prints the elapsed resolver time, number of operations and output checksum. The input sources are compiled into the benchmark.
 
 ```sh
-mbx bench -p source-compiler --features test-support --bench resolver_timing --no-run
+mbx bench -p syntax-trees-to-symbol-resolved-trees --bench resolver_timing --no-run
 mbx build --release -p omega-bench
 ```
+
+On the integrated compiler, stage 01 owns this harness. Build the current executable with `mbx bench -p source-compiler --features test-support --bench resolver_timing --no-run`.
 
 For each row, run `omega-bench compare PLAN OUTPUT` with the two saved binaries, arguments `OPERATION INPUT OPERATIONS`, two warmups and sixteen pairs. Use the `reported_work` measurement with the checksum and number of operations recorded for that row. Declare the harness and three fixture files below as inputs. The runner validates their digests, ordering and checksums. The raw observations and execution order are archived in the task workspace at `/workspace/scratch/psi-resolver-benchmarks/pairs.csv` (SHA-256 `78cb1bbfe12ab40162e6939b71b58962c803bba650e9bea275e8fa25b7ae09a1`). The `paired/` directory beside it retains the plans, runner journals, reports and binaries. The [stage guide](../../../omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/resolution/README.md) explains each operation.
 
