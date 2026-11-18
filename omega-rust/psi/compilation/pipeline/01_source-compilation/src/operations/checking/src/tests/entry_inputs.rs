@@ -349,6 +349,7 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
     }
     let mut elaboration =
         crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
+    declare_body_models(&mut elaboration, &signatures);
     elaboration.private_inputs = vec![id(2)];
     let RouteVerdict::Accepted(accepted) = judge(Ok(elaboration)).unwrap() else {
         panic!("the non-returning call has a positive input")
@@ -405,13 +406,11 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
         signatures
     };
     let judged = |entry_requires| {
-        let mut elaboration = crate::lowering::lower_bodies(
-            id(1),
-            &bodies,
-            &signatures(entry_requires),
-            &IdTable::default(),
-        )
-        .unwrap();
+        let signatures = signatures(entry_requires);
+        let mut elaboration =
+            crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+                .unwrap();
+        declare_body_models(&mut elaboration, &signatures);
         elaboration.private_inputs = vec![id(2)];
         judge(Ok(elaboration)).unwrap()
     };
