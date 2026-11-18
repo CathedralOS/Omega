@@ -510,8 +510,10 @@ pub(crate) fn invocation<'a>(
                     "boundary call needs its structural qualification proof",
                 ));
             }
-            if !boundary.requires.is_empty()
-                || !boundary.normal_qualifications.is_empty()
+            if !terminal_semantics::structural_qualifications::formal_domains_cover_requirements(
+                &boundary.structural_parameters,
+                &boundary.requires,
+            ) || !boundary.normal_qualifications.is_empty()
                 || !boundary.scalar_domain_requirements.is_empty()
                 || !boundary.reference_outputs.is_empty()
                 || !boundary.content_guarantees.is_empty()

@@ -1929,6 +1929,7 @@ pub(crate) fn complete_machine_body(
     Ok(())
 }
 
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn lower_pending_lexical_inputs(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,
