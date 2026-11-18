@@ -949,7 +949,7 @@ fn struct_literal_retains_its_complete_authored_source_span() {
         "parse structured const declaration",
     );
     let declaration = crate::tests::root_const(&parsed, "structured const declaration");
-    let span = parsed.expressions.source_span(declaration.value).span;
+    let span = parsed.expressions.source_span(declaration.initializer).span;
     assert_eq!(&source[span.start..span.end], "Point { x: 1, y: 2 }");
 }
 
@@ -962,12 +962,12 @@ fn array_literal_retains_its_complete_authored_source_span() {
         let parsed = crate::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
         let declaration = crate::tests::root_const(&parsed, "array const declaration");
         assert!(matches!(
-            parsed.expressions.expression(declaration.value),
+            parsed.expressions.expression(declaration.initializer),
             ExpressionNode::ArrayLiteral(_)
         ));
         let start = source.find(initializer).unwrap();
         assert_eq!(
-            parsed.expressions.source_span(declaration.value),
+            parsed.expressions.source_span(declaration.initializer),
             source::SourceSpan::new(source_id, Span::new(start, start + initializer.len())),
             "{initializer}"
         );

@@ -49,7 +49,6 @@
 */
 
 use crate::tables::body_expressions;
-use std::collections::{HashMap, HashSet};
 
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -566,28 +565,6 @@ fn operator_token_binding<'program>(
 }
 
 /*
-    The declaration's own generic binder symbols. Each renders as its
-    first-occurrence position in the operand telescope (see
-    [`ShapeNormalizer`]), so renaming or reordering binders without changing
-    their occurrence relationships — `index<T>(&[T], u64) -> T` and
-    `index<U>(&[U], u64) -> U`, or `combine<T,U>(T,U)` and
-    `combine<A,B>(B,A)` — renders one shape and the declarations collide as
-    duplicates. Binders owned by another declaration — the attached data's
-    `T` inside `Vec2<T>` — are not in this set and keep their symbol
-    identity, so `Vec2<T>` and `Vec2<U>` under one owner stay distinct.
-*/
-fn own_binders(
-    program: &SymbolResolvedTrees,
-    type_parameters: HandleSpan<TypeParameter>,
-) -> HashSet<SymbolHandle> {
-    program
-        .data_type_parameters(type_parameters)
-        .iter()
-        .map(|parameter| parameter.symbol)
-        .collect()
-}
-
-/*
     One name position of an operand's resolved type reference.
 
     [`name_positions`] owns the inventory; a rule states which positions it
@@ -1045,16 +1022,10 @@ pub(crate) fn resolve_token_bound_domain_homes(program: &mut SymbolResolvedTrees
 */
 struct ShapeNormalizer<'program> {
     program: &'program SymbolResolvedTrees,
-    /*
-        The declaration's own binder symbols; every other symbol keeps its
-        resolved identity.
-    */
-    own_binders: HashSet<SymbolHandle>,
-    /*
-        Own binder symbol → its first-occurrence position in the telescope,
-        assigned during the single rendering pass.
-    */
-    ordinals: HashMap<SymbolHandle, usize>,
+    /// Only this declaration's binders, sorted by full generational symbol identity.
+    /// An encountered binder carries its first-use ordinal in the operand telescope.
+    binders: Vec<(SymbolHandle, Option<usize>)>,
+    next_ordinal: usize,
     /*
         Render authored spellings instead of identities: a diagnostic names
         `Wrapped`, not the arena slot that tells two same-spelled types apart.
@@ -1069,13 +1040,30 @@ impl<'program> ShapeNormalizer<'program> {
         program: &'program SymbolResolvedTrees,
         type_parameters: HandleSpan<TypeParameter>,
     ) -> Self {
-        Self {
+        let mut normalizer = Self {
             program,
-            own_binders: own_binders(program, type_parameters),
-            ordinals: HashMap::new(),
+            binders: Vec::new(),
+            next_ordinal: 0,
             display: false,
             callable_depth: 0,
             has_dependent_callable_operand: false,
+        };
+        normalizer.include_binders(type_parameters);
+        normalizer
+    }
+
+    fn binder_slot(&self, symbol: SymbolHandle) -> Result<usize, usize> {
+        self.binders.binary_search_by_key(
+            &(symbol.generation(), symbol.arena_index()),
+            |(binder, _)| (binder.generation(), binder.arena_index()),
+        )
+    }
+
+    fn include_binders(&mut self, type_parameters: HandleSpan<TypeParameter>) {
+        for parameter in self.program.data_type_parameters(type_parameters) {
+            if let Err(slot) = self.binder_slot(parameter.symbol) {
+                self.binders.insert(slot, (parameter.symbol, None));
+            }
         }
     }
 
@@ -1123,9 +1111,13 @@ impl<'program> ShapeNormalizer<'program> {
         if self.display {
             return spelling.to_owned();
         }
-        if self.own_binders.contains(&symbol) {
-            let ordinal = self.ordinals.len();
-            return format!("binder{}", *self.ordinals.entry(symbol).or_insert(ordinal));
+        if let Ok(slot) = self.binder_slot(symbol) {
+            let ordinal = self.binders[slot].1.get_or_insert_with(|| {
+                let ordinal = self.next_ordinal;
+                self.next_ordinal += 1;
+                ordinal
+            });
+            return format!("binder{ordinal}");
         }
         symbol_or_spelling(symbol, spelling)
     }
@@ -1137,10 +1129,9 @@ impl<'program> ShapeNormalizer<'program> {
         // This key distinguishes operand shapes, so the nested callable's
         // parameters and result participate. Predicates and effects remain
         // in its contract; they cannot distinguish enclosing token overloads.
-        let outer_binders = self.own_binders.clone();
-        let outer_ordinals = self.ordinals.clone();
-        self.own_binders
-            .extend(own_binders(self.program, signature.type_parameters));
+        let outer_binders = self.binders.clone();
+        let outer_ordinal = self.next_ordinal;
+        self.include_binders(signature.type_parameters);
         self.callable_depth += 1;
         let parameters = self
             .program
@@ -1206,8 +1197,8 @@ impl<'program> ShapeNormalizer<'program> {
             .as_ref()
             .map_or_else(|| "()".to_owned(), |result| self.type_shape(result));
         self.callable_depth -= 1;
-        self.own_binders = outer_binders;
-        self.ordinals = outer_ordinals;
+        self.binders = outer_binders;
+        self.next_ordinal = outer_ordinal;
         format!("machine<{binders}>({operands})->{result}")
     }
 

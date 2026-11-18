@@ -1,8 +1,7 @@
 use crate::errors::parse_error::ParseError;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use syntax_trees::identifier::Identifier;
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::statement::TableCall;
 
 pub(crate) fn root_binding_declaration(
@@ -121,29 +120,24 @@ pub(crate) fn expression_handle_to_statement_call(
         return None;
     };
 
-    let (receiver, target) = split_expression_call_handle(syntax_trees, &call)?;
+    // The whole callee carries indexed and computed receivers. A name path is
+    // available separately for calls that resolution can bind by spelling.
+    let receiver = if call.receiver.is_valid() {
+        syntax_trees
+            .copy_expression_to_statement_identifier_path(call.receiver)
+            .unwrap_or_default()
+    } else {
+        HandleSpan::empty()
+    };
     Some(TableCall {
         callee: call.callee,
         target_is_static: call.target_is_static,
         receiver,
-        target,
+        target: call.target,
         machine_arguments: call.machine_arguments,
         arguments: syntax_trees.copy_expression_handles_to_statement_table(call.arguments),
         evidence_arguments: call.evidence_arguments,
         operational_acknowledgement: call.operational_acknowledgement,
         discards_result: false,
     })
-}
-
-fn split_expression_call_handle(
-    syntax_trees: &mut SyntaxTrees,
-    call: &TableCallExpression,
-) -> Option<(HandleSpan<Identifier>, Identifier)> {
-    let receiver = if call.receiver.is_valid() {
-        syntax_trees.copy_expression_to_statement_identifier_path(call.receiver)?
-    } else {
-        HandleSpan::empty()
-    };
-
-    Some((receiver, call.target.clone()))
 }

@@ -32,6 +32,25 @@ fn callable_field_named_store_keeps_its_value_arguments() {
 }
 
 #[test]
+fn indexed_atomic_store_retains_its_destination() {
+    let typed = type_source(
+        "machine set(cells: &mut [AtomicU32; 2]) {
+            cells[0].store(17, NoOrdering);
+        }",
+    )
+    .unwrap();
+    assert!(
+        typed
+            .expression_table
+            .iter_expressions()
+            .any(|(_, node)| matches!(
+                node, TypedNode::Atomic(event)
+                    if event.ordering == AtomicOrderingPlan::Store(MemoryOrdering::NoOrdering)
+            ))
+    );
+}
+
+#[test]
 fn selected_cells_check_ordering_and_keep_the_event_and_its_result() {
     for (member, forbidden) in [
         ("load(Publish)", "atomic load"),

@@ -61,7 +61,6 @@
 2 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/declarations/generic_data/uses.rs
 4 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/declarations/trait_defaults.rs
 2 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/lowering/lowerer.rs
-3 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/lowering/machine.rs
 1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/names/scopes.rs
 1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/names/top_level.rs
 4 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/selections/authored_selections.rs

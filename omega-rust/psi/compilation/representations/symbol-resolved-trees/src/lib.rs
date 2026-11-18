@@ -28,7 +28,7 @@ need the receiver’s type can remain explicit pending selections for typing.
   - `evidence.rs`: mathematical definitions and propositions.
   - `callable_values.rs`: runtime callable signatures and their input scopes.
   - `type_system_and_names.rs`: symbol-resolved type references (`TypeReference`) and diagnostic name carriers (`DiagnosticName`).
-  - `expression.rs`: expression nodes and storage. The `expression/` directory contains display, copying and symbol remapping.
+  - `values.rs`: expression nodes, storage and display. `values/expression/` contains the symbol and table copiers.
   - `tables.rs`: publish and extend body tables. `lookup_indexes.rs`: revision-tracked symbol lookups.
   - `continuations.rs`: exact predecessor/successor handoffs for generated allocations,
     source activation, appended declarations and completed bodies. Pending syntax
@@ -80,10 +80,8 @@ pub mod storage {
 }
 mod type_system_and_names;
 pub use type_system_and_names::{names, type_system};
-pub mod expression;
-pub mod values {
-    pub use crate::expression;
-}
+pub mod values;
+pub use values::expression;
 
 struct PreparedOccurrenceRebase {
     expressions: expression::PreparedExpressionSelectionRebase,

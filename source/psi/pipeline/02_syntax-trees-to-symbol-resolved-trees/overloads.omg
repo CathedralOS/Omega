@@ -4,15 +4,17 @@
 public machine bind_visible_overloads(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
 crashes Trap
 {
-    transition { _ -> clear(resolver, sources, syntax, 0) }
+    transition { _ -> clear(resolver, sources, syntax, 0u64 as +Trapping) }
     machine clear(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         transition (index as -Trapping) < syntax.machine_count && index < 10240 {
             true -> clear_one(resolver, sources, syntax, index)
-            false -> next(resolver, sources, syntax, 0)
+            false -> next(resolver, sources, syntax, 0u64 as +Trapping)
         }
     }
-    machine clear_one(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
-        resolver.overload_heads[index as -Trapping] = OverloadLinks { all: 0, exported: 0 };
+    machine clear_one(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping)
+    requires index < 10240
+    {
+        resolver.overload_heads[index as -Trapping] = OverloadLinks { all: 0u64 as +Trapping, exported: 0u64 as +Trapping };
         transition { _ -> clear(resolver, sources, syntax, index + 1) }
     }
 
@@ -22,14 +24,18 @@ crashes Trap
             false -> done()
         }
     }
-    machine inspect(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine inspect(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping)
+    requires index < 131072
+    {
         let binding: ValueBinding = resolver.output.value_bindings[index as -Trapping];
         transition binding {
             ValueBinding::Machine { handle } -> bind(resolver, sources, syntax, index, handle)
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
-    machine bind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, handle: u64 in Trapping) {
+    machine bind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, handle: u64 in Trapping)
+    requires index < 131072
+    {
         let expression: Expression = syntax_trees_expression(syntax, index);
         let candidates: VisibleOverloads = visible_overloads(resolver, sources, syntax, handle, expression.source_span.source);
         resolver.output.value_bindings[index as -Trapping] = ValueBinding::Overloads { representative: handle, candidates: candidates };
@@ -47,10 +53,12 @@ crashes Trap
     let local: bool = resolver_same_package(sources, overload_unit_index(from), overload_unit_index(declared));
     transition seen && representative < 10240 {
         true -> family(resolver, sources, syntax, representative, item, local)
-        _ -> VisibleOverloads { first: 0, public_only: false }
+        _ -> VisibleOverloads { first: 0u64 as +Trapping, public_only: false }
     }
 
-    machine family(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, representative: u64 in Trapping, item: MachineItem, local: bool) -> VisibleOverloads {
+    machine family(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, representative: u64 in Trapping, item: MachineItem, local: bool) -> VisibleOverloads
+    requires representative < 10240
+    {
         let heads: OverloadLinks = resolver.overload_heads[representative as -Trapping];
         transition heads.all > 0 {
             true -> selected(heads, local)
@@ -60,14 +68,16 @@ crashes Trap
 
     machine build(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, representative: u64 in Trapping, item: MachineItem, local: bool) -> VisibleOverloads {
         let path: MachineOwner = machine_owner(&resolver.output, representative);
-        let empty: OverloadLinks = OverloadLinks { all: 0, exported: 0 };
+        let empty: OverloadLinks = OverloadLinks { all: 0u64 as +Trapping, exported: 0u64 as +Trapping };
         let heads: OverloadLinks = link_overloads(resolver, sources, syntax, item, path, syntax.machine_count as +Trapping, empty);
         transition representative < 10240 {
             true -> cache(resolver, representative, heads, local)
             _ -> invalid()
         }
     }
-    machine cache(resolver: &mut Resolver, representative: u64 in Trapping, heads: OverloadLinks, local: bool) -> VisibleOverloads {
+    machine cache(resolver: &mut Resolver, representative: u64 in Trapping, heads: OverloadLinks, local: bool) -> VisibleOverloads
+    requires representative < 10240
+    {
         resolver.overload_heads[representative as -Trapping] = heads;
         transition { _ -> selected(heads, local) }
     }
