@@ -153,19 +153,24 @@ impl SettledSupplyNative for SettledTargetSupply {
                     "provider plan needs its exact whole boundary trait selection",
                 ));
             };
-            let mut schemas = planning
-                .schemas
-                .iter()
-                .filter(|schema| schema.slot == slot.symbol);
+            let mut schemas = planning.schemas.iter().filter(|schema| {
+                schema.target == target
+                    && schema.slot == slot.symbol
+                    && slot.application_identity.as_ref().is_none_or(|identity| {
+                        schema.surface.root_application_identity() == Some(identity.as_str())
+                    })
+            });
             let (Some(source), None) = (schemas.next(), schemas.next()) else {
                 return Err(refuse(
                     "selected slot has no unique complete schema correspondence",
                 ));
             };
-            let mut schemas = module
-                .service_schemas
-                .iter()
-                .filter(|schema| schema.surface == source.surface);
+            let mut schemas = module.service_schemas.iter().filter(|schema| {
+                module.identities.text(schema.declaration) == Some(source.declaration.as_str())
+                    && module.identities.text(schema.application)
+                        == source.surface.root_application_identity()
+                    && schema.surface == source.surface
+            });
             let (Some(schema), None) = (schemas.next(), schemas.next()) else {
                 return Err(refuse(
                     "selected slot schema has no unique published declaration application",
@@ -315,7 +320,9 @@ fn realization_diagnostic(
 /// the accepted module. The source slot is never used as executable identity.
 #[derive(Debug, Clone)]
 pub struct SlotSchema {
+    pub target: String,
     pub slot: symbols::SymbolHandle,
+    pub declaration: String,
     pub surface: std::sync::Arc<effects::provider_plan::ServiceSurface>,
 }
 
@@ -326,27 +333,40 @@ pub struct SupplyPlanning<'a> {
     pub installation_requirements: &'a [BoundaryMachineId],
 }
 
-/// The schema of each slot a settled supply chose a provider for, projected
-/// from the accepted source's declaration of that slot
-/// (`AcceptedTerminalSource::slot_schema`). A slot with no schema is left
-/// out, and the plan of its provider is refused by the slot's requirement
-/// (`SettledTargetSupply::plans`).
-pub fn settled_slot_schemas(
-    accepted: &source_compiler::AcceptedTerminalSource,
-    settled: &SettledTargetSupply,
-) -> Vec<SlotSchema> {
-    let mut schemas = Vec::<SlotSchema>::new();
-    for requirement in settled.requirements() {
-        if requirement.supply.checked().is_none() {
-            continue;
-        }
-        let slot = requirement.reached.slot;
-        if schemas.iter().any(|schema| schema.slot == slot) {
-            continue;
-        }
-        if let Some(surface) = accepted.slot_schema(slot) {
-            schemas.push(SlotSchema { slot, surface });
-        }
-    }
-    schemas
+/// Project each accepted target's exact declared application using the same
+/// frozen source and application environment retained by the portable producer.
+pub fn published_slot_schemas(
+    publication: &source_compiler::SourcePublication,
+) -> Result<Vec<SlotSchema>, Vec<Diagnostic>> {
+    let typed = publication.accepted()?.source();
+    publication
+        .roster()?
+        .normalization
+        .providers
+        .iter()
+        .map(|selected| {
+            let scope = selected.schema.scope(typed).ok_or_else(|| {
+                vec![Diagnostic::error("selected provider lost its source schema application")]
+            })?;
+            let slot = scope.declaration.symbol;
+            let declaration = typed
+                .normalized_hermetic_symbol_identity(slot)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let projected = source_compiler::source_state::service_declarations::projection::from_typed_application(
+                source_compiler::source_state::provider_declarations::ProviderPlanningContext::new(
+                    typed,
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                ),
+                scope,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+            projected.validate_correspondence().map_err(|diagnostic| vec![diagnostic])?;
+            Ok(SlotSchema {
+                target: selected.target.clone(),
+                slot,
+                declaration,
+                surface: projected.declaration,
+            })
+        })
+        .collect()
 }

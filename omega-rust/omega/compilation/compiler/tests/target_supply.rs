@@ -1054,7 +1054,7 @@ fn plans(
             .map_err(first);
     }
     let accepted = publication.accepted().map_err(first)?;
-    let schemas = settled_supply::settled_slot_schemas(accepted, settled);
+    let schemas = settled_supply::published_slot_schemas(publication).map_err(first)?;
     settled
         .plans(SupplyPlanning {
             module: accepted.module(),
@@ -1082,7 +1082,7 @@ fn execution(
         )
         .map_err(first);
     }
-    let schemas = settled_supply::settled_slot_schemas(accepted, settled);
+    let schemas = settled_supply::published_slot_schemas(publication).map_err(first)?;
     native_program_planning::test_support::select_realization(
         accepted.module(),
         profile,
@@ -1618,7 +1618,8 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
     let accepted = publication
         .accepted()
         .expect("the product publication accepted");
-    let schemas = settled_supply::settled_slot_schemas(accepted, &settled);
+    let schemas = settled_supply::published_slot_schemas(&publication)
+        .expect("the accepted source publishes each selected application");
     let reached = settled.requirements()[0].reached.boundary;
     let mut missing = accepted.module().clone();
     missing
