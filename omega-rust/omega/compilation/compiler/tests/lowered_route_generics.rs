@@ -640,7 +640,8 @@ fn the_comparison_witness_lowers_and_corresponds() {
 }
 
 /// The route's verdict on each machine stage 04 generated from the machine
-/// named `template`, each as the root of its own closure.
+/// named `template`, each as the root of its own closure after source
+/// preparation completes its specialization headers.
 fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
     let _guard = lock_fixture_compilation();
     let frontier = unbuilt_frontier::fixture_frontier(fixture);
@@ -652,9 +653,18 @@ fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
         .iter()
         .filter(|specialization| specialization.template == declared)
         .map(|specialization| {
-            let closure =
-                typed_trees_to_terminal_psi::elaborate_closure(typed, specialization.instance);
-            match terminal_psi_to_terminal_psi::judge(closure) {
+            let prepared = generic_certificate_carry::prepare(&frontier, specialization.instance)
+                .unwrap_or_else(|reason| {
+                    panic!("{fixture}: generated body preparation must complete: {reason}")
+                });
+            let closure = prepared.closure.expect("prepare checked the closure");
+            let entry = semantic_vocabulary::MachineId::new(1).expect("1 is nonzero");
+            assert_eq!(
+                closure.machines.get(entry),
+                Some(&specialization.instance),
+                "{fixture}: preparation must retain the generated instance as its root"
+            );
+            match terminal_psi_to_terminal_psi::judge(Ok(closure)) {
                 Ok(terminal_psi_to_terminal_psi::RouteVerdict::Accepted { .. }) => {
                     "accepted".into()
                 }
