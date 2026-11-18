@@ -418,7 +418,8 @@ pub(in crate::function_fragments) fn admit(
             targeted,
             selected,
         )?;
-        let mut addresses = placed_reference::AddressReplay::new(targeted, selected);
+        let mut addresses =
+            placed_reference::AddressReplay::new(targeted, selected, physical.environment.target());
         let descriptor_replay = descriptor_tables::DescriptorReplay::new(targeted, selected)
             .map_err(Error::Mismatch)?;
         let structural = selected.structural.as_ref();
