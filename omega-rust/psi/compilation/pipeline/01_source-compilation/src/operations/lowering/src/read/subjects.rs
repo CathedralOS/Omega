@@ -382,13 +382,18 @@ impl Program<'_> {
                 {
                     return Ok(());
                 }
-                self.admitted_declarations.include(data.symbol);
                 // A declaration with type or const parameters has no record
                 // to resolve until a type applies it; it is read as written.
                 if data.type_parameters.is_empty() {
+                    self.admitted_declarations.include(data.symbol);
                     self.record(entry, data.symbol)?;
-                } else {
+                } else if data.requires_facts.is_empty() {
+                    self.admitted_declarations.include(data.symbol);
                     self.subject_data_template(entry, data)?;
+                } else {
+                    // Its predicate is formed with the declared binders rigid;
+                    // closing a caller's application supplies no such proof.
+                    self.generic_templates.push(data.symbol);
                 }
                 Ok(())
             })();
@@ -606,8 +611,8 @@ impl Program<'_> {
     /// application serves (`source_records::source_application`):
     ///
     /// - the header binds types and constants with copyable, address-free
-    ///   carriers, with no bound, lifetime, `requires`, cleanup, carry policy or
-    ///   quotient, each of which a declaration would owe a judgment for here;
+    ///   carriers, with no bound, lifetime, cleanup, carry policy or quotient;
+    ///   a declared predicate has its own generic formation check;
     /// - each member is an ordinary runtime field or payload field, and its
     ///   type is built from builtin scalars, the header's own type
     ///   parameters, fixed arrays whose length is a number or one of the
@@ -628,15 +633,13 @@ impl Program<'_> {
             || data.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
             || !data.lifetime_parameters.is_empty()
             || !data.conformance_bounds.is_empty()
-            || !data.requires_facts.is_empty()
             || data.properties.carry.is_some()
             || data.cleanup_selection.is_some()
             || data.quotient.is_some()
             || !data.retired_identities.is_empty()
         {
             return Err(unserved(
-                "generic data with lifetimes, bounds, requirements, cleanup, a quotient or \
-                 retired members",
+                "generic data with lifetimes, bounds, cleanup, a quotient or retired members",
             ));
         }
         let parameters = typed.data_type_parameters(data);
@@ -790,6 +793,39 @@ impl Program<'_> {
             | TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::Unit => Err(unserved()),
         }
+    }
+
+    /// Form the data predicate under its exact type binders. This module is
+    /// a checking input only; it creates no runtime value or callable entry.
+    pub(crate) fn generic_data(
+        &mut self,
+        declared: &crate::source_state::data::DataDefinition,
+    ) -> Checked<()> {
+        use crate::source_state::data::TypeParameterKind;
+        let diagnostic = MachineId::new(1).expect("1 is nonzero");
+        self.subject_data_template(diagnostic, declared)?;
+        let parameters = self.typed.data_type_parameters(declared);
+        if parameters
+            .iter()
+            .any(|parameter| parameter.kind != TypeParameterKind::Type)
+        {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Type("generic data invariant with const parameters"),
+            ));
+        }
+        self.scope = super::type_parameters::rigid_type_scope(parameters);
+        self.generic_binders
+            .extend(parameters.iter().map(|parameter| parameter.symbol));
+        let mut source = (*self.source_scope).clone();
+        source
+            .rigid_parameters
+            .extend(parameters.iter().map(|parameter| parameter.symbol));
+        self.source_scope = std::sync::Arc::new(source);
+        self.admitted_declarations.include(declared.symbol);
+        self.record_at(diagnostic, declared.predicate_subject_type)?;
+        Ok(())
     }
 
     /// A generic schema is checked in its own source binder namespace. The

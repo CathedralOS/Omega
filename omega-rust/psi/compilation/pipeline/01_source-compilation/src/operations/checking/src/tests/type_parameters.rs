@@ -1671,3 +1671,102 @@ fn a_nominal_const_extent_keeps_its_checking_input() {
     let verdict = judge(Ok(form)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
+
+/// A declared invariant belongs to each actual record application. The
+/// borrowed reader must use that fact; construction and formation still owe it.
+#[test]
+fn generic_record_predicates_are_formed_and_proved_at_their_actual_values() {
+    let positive = r#"// Expected exit: 0
+// The generic record's count bound justifies the borrowed subtraction.
+data Ticket [linear] { id: u32; }
+data Bounded<T> [linear]
+requires self.count <= self.limit
+{
+    payload: T;
+    count: u32;
+    limit: u32;
+}
+machine remaining(value: &Bounded<Ticket>) -> u32 requires true { value.limit - value.count }
+machine entry() -> u32 {
+    let packet: Bounded<Ticket> = Bounded {
+        payload: Ticket { id: 41u32 }, count: 3u32, limit: 7u32,
+    };
+    let distance: u32 = remaining(&packet);
+    let { payload, count as _, limit as _ } = move packet;
+    let { id as number } = move payload;
+    match number == 41u32 && distance == 4u32 { true -> 0u32, false -> 1u32 }
+}
+"#;
+    let negative = positive.replace("count: 3u32, limit: 7u32", "count: 8u32, limit: 7u32");
+    assert_ne!(positive, negative);
+    let unformed = r#"
+        data Unused<T> requires self.count - 1u32 <= self.limit {
+            payload: T; count: u32; limit: u32;
+        }
+        machine entry() -> u32 { 0u32 }
+    "#;
+    let observed = [positive, negative.as_str(), unformed].map(|text| {
+        let source = super::boundary_calls::typed(text);
+        let (source, _) = crate::preparation::prepare_typed_trees(
+            source,
+            &crate::preparation::PreparationRequest::settled(),
+        )
+        .expect("the actual generic application must be prepared");
+        let entry = super::boundary_calls::entry(&source);
+        let compilation = crate::lowering::prepare_compilation(
+            &source,
+            crate::lowering::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[None],
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        );
+        let judgments = crate::checking::judge_compilation(compilation.program);
+        for (position, judgment) in judgments.iter().enumerate() {
+            match judgment {
+                Ok(RouteVerdict::Accepted(_)) => eprintln!("form {position}: accepted"),
+                refused => eprintln!("form {position}: {refused:?}"),
+            }
+        }
+        super::entryless::whole_subject_result(judgments)
+    });
+    for (name, verdict) in ["valid bound", "invalid value", "unformed invariant"]
+        .into_iter()
+        .zip(&observed)
+    {
+        match verdict {
+            Ok(RouteVerdict::Accepted(_)) => eprintln!("{name}: accepted"),
+            refusal => eprintln!("{name}: {refusal:?}"),
+        }
+    }
+    let Ok(RouteVerdict::Accepted(accepted)) = &observed[0] else {
+        panic!(
+            "the actual invariant must justify the borrowed subtraction: {:?}",
+            observed[0]
+        );
+    };
+    accepted
+        .publish()
+        .expect("the closed application must publish");
+    assert!(
+        matches!(&observed[1], Ok(RouteVerdict::Rejected { unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::DataDomain { .. }))),
+        "the changed count must fail its construction invariant: {:?}",
+        observed[1]
+    );
+    assert!(
+        matches!(&observed[2], Ok(RouteVerdict::Rejected { violations, .. })
+        if violations.iter().any(|violation| violation.statement.contains(
+            "data domain: contract arithmetic is not proved total before its condition"
+        ))),
+        "an unused generic predicate must prove its arithmetic is defined: {:?}",
+        observed[2]
+    );
+}

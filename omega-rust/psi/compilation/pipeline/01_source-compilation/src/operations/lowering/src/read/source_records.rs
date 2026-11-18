@@ -142,11 +142,7 @@ fn source_application_in_scope(
                 "record application with type and lifetime arguments",
             ));
         }
-        if !template.conformance_bounds.is_empty()
-            || !data.conformance_bounds.is_empty()
-            || !template.requires_facts.is_empty()
-            || !data.requires_facts.is_empty()
-        {
+        if !template.conformance_bounds.is_empty() || !data.conformance_bounds.is_empty() {
             return Err(unavailable(
                 "record application whose generic premises are not lowered",
             ));
@@ -165,6 +161,8 @@ fn source_application_in_scope(
             || template.properties != data.properties
             || template.zero_gated != data.zero_gated
             || template.retired_identities != data.retired_identities
+            || template.requires_facts != data.requires_facts
+            || template.predicate_subject_symbol != data.predicate_subject_symbol
         {
             return Err(malformed(
                 machine,
@@ -1703,6 +1701,36 @@ mod tests {
                 .detail
                 .contains("record application with constrained parameters"),
             "{refusal:?}"
+        );
+    }
+
+    #[test]
+    fn an_application_cannot_replace_its_declared_predicate() {
+        use crate::source_state::{domain::ProofFact, expression::ExpressionNode};
+        let mut fixture = AppliedFixture::new(Default::default());
+        let reference = fixture.apply(fixture.u64_type, fixture.u64_type);
+        let expression = fixture
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let mut forged = fixture
+            .typed
+            .data_application_definition(reference)
+            .unwrap()
+            .clone();
+        forged.requires_facts = fixture
+            .typed
+            .proof_facts
+            .insert_many([ProofFact::Expression(expression)]);
+        fixture
+            .typed
+            .retain_data_application_definition(reference, forged, true);
+        let mut program = Program::new(&fixture.typed, false);
+        let refusal = program.record_at(machine(), reference).unwrap_err();
+        assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+        assert_eq!(
+            refusal.detail,
+            "record application changed its declaration's storage obligations"
         );
     }
 }
