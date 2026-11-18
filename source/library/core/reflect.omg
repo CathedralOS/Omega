@@ -321,9 +321,8 @@ public machine inspect_record_fields<T, machine Visitor, Context>(context: &mut 
 requires machine Visitor<Kind>(context: &mut Context, field: &FieldInfo);
 {}
 
-// Sum visitation reports exactly one active case, then common fields and only
-// that case's payload. Case identity is descriptive; guards and ordinary
-// subloan checks establish permission to project a payload.
+// Sum visitation reports the active case once and then visits its payload.
+// The case test and ordinary borrow checks govern access to the payload.
 public data CaseInfo<'text> {
     member_identity: &'text [u8];
     owner_identity: &'text [u8];

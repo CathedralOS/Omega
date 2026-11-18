@@ -245,11 +245,14 @@ custody or enable reconstruction of its authority.
 
 ## Sum coverage
 
-A sum visitor has an active-case callback and field callbacks. It first reports
-the selected semantic case exactly once, even for a case with no payload. It then
-visits common runtime fields once and the active payload's runtime fields, each
-in declaration order. Two nullary cases therefore remain distinguishable. A
-record visitor alone is not a complete sum serializer.
+A sum visitor reports the selected semantic case exactly once, then visits that
+case's runtime payload fields in declaration order. The case callback also runs
+for a case with no payload, so it can distinguish two such cases.
+
+Under [record or sum data](data_and_literals.md#records-sums-and-nested-declarations),
+a record can hold a sum in a field alongside its other fields. Apply a sum
+visitor to that field and compose the two visits explicitly when the caller
+needs both the record fields and the active case.
 
 Compile callback applications for every admitted case; execution projects only
 the selected payload after testing the actual discriminator. Semantic case
