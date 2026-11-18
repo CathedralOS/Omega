@@ -407,13 +407,13 @@ machine main() {
                 "{:?}",
                 controlled.access_policy
             );
-            let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            let prepared = source_compiler::lowering::prepare_compilation(
                 &frontier.typed,
-                typed_trees_to_terminal_psi::Compilation {
+                source_compiler::lowering::Compilation {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: source::DependencyScope::Product,
+                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -426,11 +426,11 @@ machine main() {
                 },
                 terminal_codec::TerminalPublication::Portable,
             );
-            terminal_psi_to_terminal_psi::judge_compilation(prepared.program)
+            source_compiler::checking::judge_compilation(prepared.program)
                 .into_iter()
                 .map(|row| {
                     let refused = matches!(&row,
-                        Ok(terminal_psi_to_terminal_psi::RouteVerdict::FallBack(refusal))
+                        Ok(source_compiler::checking::RouteVerdict::FallBack(refusal))
                         if refusal.detail == "declaration scalar domain access rules need retained operation checking");
                     (refused, format!("{row:?}"))
                 })
