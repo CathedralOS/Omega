@@ -456,6 +456,9 @@ enum Reached {
     Cycle,
     /// The one value every path supplies.
     Value(ValueId),
+    /// An authenticated zero establishment supplies this scalar's zero,
+    /// without inventing a scalar identity or structural availability.
+    Zero(ScalarType),
     /// An extent defined by this exact reaching descriptor producer.
     Extent(OperationId),
     /// Asked of a sum: the one case every path establishes it as.
@@ -652,6 +655,9 @@ pub(super) struct Reaching {
     observations: Observations,
     remaining: usize,
     crossed_entries: Vec<bool>,
+    // Entries whose current selector evaluations justify a reaching store.
+    // A later-discovered backedge retires this correspondence too.
+    selector_entries: Vec<BlockId>,
     used: Option<ProgramPoint>,
     #[cfg(test)]
     scanned_rows: usize,
@@ -1123,7 +1129,7 @@ impl<'a> Storage<'a> {
         // Entry observations occupy position zero. Install them before the
         // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(references, tables)?;
-        storage.log = storage.stores(references, value_types)?;
+        storage.log = storage.stores(references, value_types, tables)?;
         storage.cleanup_writes = crate::owned_cleanup::writes(module, lowered, references)?;
         storage.log_is_stated(tables)?;
         storage.cleanup_log_is_stated(tables)?;
@@ -1264,6 +1270,75 @@ impl<'a> Storage<'a> {
             }
         }
         first(self, beneath.len())
+    }
+
+    /// Only runtime scalar storage is zero. Extents, reference crossings and
+    /// representation views have their own meanings, even when shape() gives
+    /// them a scalar type. Every sum prefix must select its zero case.
+    fn zero_scalar(
+        &self,
+        root: PlaceId,
+        beneath: &[Segment],
+        concerns: Construct,
+    ) -> Checked<Option<ScalarType>> {
+        let shape = self.shape_with(root, beneath, concerns, |at, segment| {
+            Ok(match (at, segment) {
+                (_, Segment::Field(_)) => true,
+                (Shape::Typed(owner), Segment::Case(case)) => {
+                    matches!(&self.declaration(*owner, concerns)?.shape,
+                        StructuralTypeShape::Sum { cases } if cases.first().is_some_and(|first| first.id == *case))
+                }
+                (Shape::Typed(owner), Segment::FixedIndex(_) | Segment::RuntimeIndex { .. }) => {
+                    matches!(self.declaration(*owner, concerns)?.shape, StructuralTypeShape::FixedArray { .. })
+                }
+                _ => false,
+            })
+        })?;
+        Ok(match shape {
+            Some(Shape::Scalar(scalar_type)) if !matches!(scalar_type, ScalarType::Callable(_)) => {
+                Some(scalar_type)
+            }
+            _ => None,
+        })
+    }
+
+    /// Translate only an already established scalar result. This supplies
+    /// literal facts, never a made-up ValueId for custody or backing queries.
+    fn reached_scalar_term(
+        &self,
+        tables: &MachineTables,
+        reached: Reached,
+        concerns: Construct,
+    ) -> Checked<Option<(ScalarTerm, ScalarType)>> {
+        Ok(match reached {
+            Reached::Value(value) => {
+                let scalar_type =
+                    terminal_check_tables::row(&tables.values, value, self.machine, concerns)?
+                        .scalar_type;
+                Some((ScalarTerm::value(value, scalar_type), scalar_type))
+            }
+            Reached::Zero(scalar_type) => {
+                let term = match scalar_type {
+                    ScalarType::Boolean => ScalarTerm::Boolean(false),
+                    ScalarType::Integer(integer) => ScalarTerm::Integer {
+                        scalar_type: integer,
+                        value: semantic_vocabulary::IntegerValue::for_sign(integer.sign(), 0)
+                            .map_err(|_| self.foreign(concerns, "zero has no integer carrier"))?,
+                    },
+                    ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatLiteral(match format {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                            semantic_vocabulary::IeeeFloatValue::Binary32(0)
+                        }
+                        semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                            semantic_vocabulary::IeeeFloatValue::Binary64(0)
+                        }
+                    }),
+                    ScalarType::Callable(_) => return Ok(None),
+                };
+                Some((term, scalar_type))
+            }
+            _ => None,
+        })
     }
 
     /// Checks that every operation's owed clauses each have exactly one
@@ -1862,15 +1937,30 @@ impl<'a> Storage<'a> {
     /// the type the previous segment reached. A `Case` segment must name a
     /// declared case of the exact sum it is applied to.
     fn shape(&self, place: &Lineage, concerns: Construct) -> Checked<Shape<'a>> {
+        self.shape_with(place.root, &place.segments, concerns, |_, _| Ok(true))?
+            .ok_or_else(|| self.foreign(concerns, "an unfiltered shape omitted a segment"))
+    }
+
+    /// Resolve each typed segment once. A consumer may restrict the meanings
+    /// it observes, after the ordinary step is validated; zero cannot turn an
+    /// extent or a reference into scalar contents merely by sharing its type.
+    fn shape_with(
+        &self,
+        root: PlaceId,
+        segments: &[Segment],
+        concerns: Construct,
+        mut accepts: impl FnMut(&Shape<'a>, &Segment) -> Checked<bool>,
+    ) -> Checked<Option<Shape<'a>>> {
         // A root of a primitive type (a scalar home, a borrowed scalar
         // formal) is itself a scalar leaf.
-        let root = self.root_type(place.root, concerns)?;
+        let root = self.root_type(root, concerns)?;
         let mut at = match &self.declaration(root, concerns)?.shape {
             StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(*cell),
             StructuralTypeShape::PrimitiveScalar(scalar_type) => Shape::Scalar(*scalar_type),
             _ => Shape::Typed(root),
         };
-        for segment in &place.segments {
+        for segment in segments {
+            let accepted = accepts(&at, segment)?;
             at = match (at, segment) {
                 (
                     Shape::Typed(_) | Shape::Scalar(_),
@@ -2088,8 +2178,11 @@ impl<'a> Storage<'a> {
                     ));
                 }
             };
+            if !accepted {
+                return Ok(None);
+            }
         }
-        Ok(at)
+        Ok(Some(at))
     }
 
     /// Every leaf at or beneath `place`, as lineages: each scalar, and each
@@ -2706,10 +2799,17 @@ impl<'a> Storage<'a> {
             }
             // Only a store into the place or above it replaces it whole; one
             // beneath it or beside it leaves contents this route cannot name.
-            let Some(beneath) = row
+            let beneath = if let Some(suffix) = row
                 .backing
                 .relative_suffix(watched, &budget.crossed_entries)
-            else {
+            {
+                Some(suffix)
+            } else if matches!(asked, Asked::Contents(_)) {
+                self.stored_scalar_suffix(tables, row, watched, budget, concerns)?
+            } else {
+                None
+            };
+            let Some(beneath) = beneath else {
                 if matches!(row.stored, Stored::Vacated) {
                     return Ok(Supply::Direct(Reached::Unestablished));
                 }
@@ -2760,11 +2860,15 @@ impl<'a> Storage<'a> {
                 // discriminator, or a payload of another case.
                 (Stored::Case(_), _) => Reached::Unknown,
                 // A zero establishment holds the first declared case of every
-                // sum of the zero value.
+                // sum of the zero value. The zero operation's fresh destination
+                // supplies its type; the checked backing suffix supplies the
+                // queried path, independently of a borrowed logical subject.
                 (Stored::Zeroed, Asked::Case(_)) => self
-                    .zero_case(row.backing.place.root, beneath, concerns)?
+                    .zero_case(row.destination.root, beneath, concerns)?
                     .map_or(Reached::Unknown, Reached::Case),
-                (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
+                (Stored::Zeroed, Asked::Contents(_)) => self
+                    .zero_scalar(row.destination.root, beneath, concerns)?
+                    .map_or(Reached::Unknown, Reached::Zero),
                 (Stored::Established, Asked::Contents(_))
                     if beneath == [Segment::Extent]
                         && matches!(
@@ -3186,6 +3290,17 @@ impl<'a> Storage<'a> {
             solved = trace.solve(source);
         }
         trace.boundary = trace.equations[source].boundary.within(depth);
+        // A branch may discover a selector's re-entry after another branch
+        // already used its store. Retire that query's identity after the
+        // complete walk, rather than depending on predecessor visit order.
+        if trace
+            .selector_entries
+            .iter()
+            .any(|owner| trace.crossed_entries.get(index(owner.get())) != Some(&false))
+        {
+            solved = solved.without_identity();
+            trace.boundary = BoundaryDepth::Local;
+        }
         Ok(match solved.within(depth) {
             Reached::Cycle if matches!(asked, Asked::Window { .. }) => Reached::Unknown,
             Reached::Cycle => Reached::Unestablished,
@@ -3568,6 +3683,7 @@ impl<'a> Storage<'a> {
             observations: Observations::None,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
+            selector_entries: Vec::new(),
             used: None,
             #[cfg(test)]
             scanned_rows: 0,
@@ -3648,11 +3764,9 @@ impl<'a> Storage<'a> {
         if let Reached::Extent(producer) = reached {
             return self.extent_equation(references, tables, operation, producer, &budget);
         }
-        let Reached::Value(held) = reached else {
+        let Some((held, held_type)) = self.reached_scalar_term(tables, reached, concerns)? else {
             return Ok(None);
         };
-        let held_type =
-            terminal_check_tables::row(&tables.values, held, self.machine, concerns)?.scalar_type;
         if held_type != result.scalar_type {
             return Err(self.unsupported(
                 concerns,
@@ -3666,7 +3780,7 @@ impl<'a> Storage<'a> {
         }
         Ok(Some(Proposition::Equal(
             ScalarTerm::value(result.id, result.scalar_type),
-            ScalarTerm::value(held, held_type),
+            held,
         )))
     }
 
@@ -3813,6 +3927,7 @@ impl<'a> Storage<'a> {
                 }
             }
             Reached::Case(_)
+            | Reached::Zero(_)
             | Reached::Extent(_)
             | Reached::Unestablished
             | Reached::Cycle
@@ -3928,20 +4043,18 @@ impl<'a> Storage<'a> {
         let mut equations = Vec::new();
         for bound in self.bound_payloads(block)? {
             let mut budget = self.snapshot_budget();
-            let Reached::Value(held) = self.reaching(
+            let reached = self.reaching(
                 references,
                 tables,
                 Asked::Contents(&bound.leaf),
                 (block.id, usize::MAX),
                 &mut budget,
                 concerns,
-            )?
+            )?;
+            let Some((held, held_type)) = self.reached_scalar_term(tables, reached, concerns)?
             else {
                 continue;
             };
-            let held_type =
-                terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
-                    .scalar_type;
             if held_type != bound.parameter.scalar_type {
                 return Err(self.unsupported(
                     concerns,
@@ -3955,7 +4068,7 @@ impl<'a> Storage<'a> {
                 bound.edge,
                 Proposition::Equal(
                     ScalarTerm::value(bound.parameter.id, bound.parameter.scalar_type),
-                    ScalarTerm::value(held, held_type),
+                    held,
                 ),
             ));
         }
@@ -6918,21 +7031,20 @@ impl Held<'_, '_> {
                     "the descriptor's extent has no current endpoint correspondence",
                 ));
         }
-        let Reached::Value(held) = reached else {
+        let Some((held, held_type)) = storage
+            .reached_scalar_term(self.tables, reached, self.concerns)
+            .map_err(crate::Unbound::Refused)?
+        else {
             return Err(crate::Unbound::Unproved(
                 "the clause's observation has no reaching value identity",
             ));
         };
-        let held_type =
-            terminal_check_tables::row(&self.tables.values, held, storage.machine, self.concerns)
-                .map_err(crate::Unbound::Refused)?
-                .scalar_type;
         if held_type != scalar_type {
             return Err(crate::Unbound::Unsupported(
                 "a clause's observation holds a value of another type than its term",
             ));
         }
-        Ok(ScalarTerm::value(held, scalar_type))
+        Ok(held)
     }
 
     fn extent_of(
@@ -7066,6 +7178,7 @@ impl crate::Bindings for Held<'_, '_> {
         {
             Reached::Case(held) => Ok(held == case),
             Reached::Value(_)
+            | Reached::Zero(_)
             | Reached::Extent(_)
             | Reached::Established(_)
             | Reached::Unknown
@@ -7293,6 +7406,206 @@ mod observation_tests {
         assert_eq!(
             formal_observation_path(&[(&disjoint, 0), (&foreign, 1)], &recorded),
             None
+        );
+    }
+
+    #[test]
+    fn indexed_store_correspondence_expires_with_its_selector_entry() {
+        let source = r#"
+data Placement requires count <= 16 { count: u64; }
+data Plan { placements: [Placement; 2]; }
+machine entry(plan: &mut Plan, index: u64) -> u64 requires index < 2 {
+    let selected: u64 = index + 0;
+    plan.placements[selected].count = 1;
+    plan.placements[selected].count
+}
+"#;
+        let typed = crate::tests::rankings::typed_with_ranking_catalog(source);
+        let root = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap()
+            .symbol;
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[root],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program;
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
+        else {
+            panic!("the indexed storage program must prepare");
+        };
+        let input = prepared
+            .closure
+            .unwrap_or_else(|refusal| panic!("{}", refusal.detail));
+        let module = &input.module;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.operations().any(|operation| {
+                    operation
+                        .kind
+                        .structural_projections()
+                        .iter()
+                        .any(|projection| {
+                            projection
+                                .path
+                                .iter()
+                                .any(|step| step.runtime_index().is_some())
+                        })
+                })
+            })
+            .expect("an actual indexed machine");
+        let tables = input.tables.machines.get(machine.id).unwrap();
+        let graph = Graph::new(machine.id, machine, tables).unwrap();
+        let types = tables.values.map(|_, row| row.scalar_type);
+        let descriptor_graph = reference_graph(module, machine.id).unwrap();
+        let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
+            &module.structural_types,
+            &descriptor_graph,
+        );
+        let storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &graph,
+            tables,
+            &types,
+            &mut references,
+        )
+        .unwrap();
+        let (operation, leaf) = machine
+            .operations()
+            .find_map(|operation| {
+                let leaf = storage.read_leaf(operation).unwrap()?;
+                leaf.segments
+                    .iter()
+                    .any(|step| matches!(step, Segment::RuntimeIndex { .. }))
+                    .then_some((operation, leaf))
+            })
+            .expect("the source reads the selected count");
+        let selector = leaf
+            .segments
+            .iter()
+            .find_map(|step| {
+                if let Segment::RuntimeIndex { selector } = step {
+                    Some(*selector)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let ValueOrigin::Operation(definition) = tables.values.get(selector).unwrap().origin else {
+            panic!("the selected index must retain its evaluated operation");
+        };
+        let owner = graph
+            .locate(ProgramPoint::AfterOperation(definition))
+            .unwrap()
+            .0;
+        let (block, after) = graph
+            .locate(ProgramPoint::AfterOperation(operation.id))
+            .unwrap();
+        let row = storage
+            .log
+            .iter()
+            .find(|row| row.destination == leaf && matches!(row.stored, Stored::Value(_)))
+            .unwrap();
+        let Stored::Value(written) = row.stored else {
+            unreachable!()
+        };
+        let backing = storage
+            .backing(
+                &mut references,
+                &leaf,
+                block,
+                after - 1,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert!(
+            !row.backing.definitely_contains(&backing),
+            "physical containment must still require a captured selector"
+        );
+        let mut trace = storage.snapshot_budget();
+        trace.used = Some(ProgramPoint::AfterOperation(operation.id));
+        let current = storage
+            .reaching(
+                &mut references,
+                tables,
+                Asked::Contents(&leaf),
+                (block, after - 1),
+                &mut trace,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert_eq!(current, Reached::Value(written));
+        assert!(trace.selector_entries.contains(&owner));
+
+        // Retire the entry after discovery as a different equation branch can
+        // do. Reusing the completed query must not preserve the earlier seed.
+        trace.crossed_entries[index(owner.get())] = true;
+        let stale = storage
+            .reaching(
+                &mut references,
+                tables,
+                Asked::Contents(&leaf),
+                (block, after - 1),
+                &mut trace,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert_ne!(
+            stale,
+            Reached::Value(written),
+            "re-entry cannot reuse the old selector evaluation"
+        );
+
+        let mut before_definition = storage.snapshot_budget();
+        before_definition.used = Some(ProgramPoint::BlockEntry(owner));
+        assert!(
+            storage
+                .stored_scalar_suffix(
+                    tables,
+                    row,
+                    &backing,
+                    &mut before_definition,
+                    Construct::Operation(operation.id)
+                )
+                .unwrap()
+                .is_none(),
+            "a selector cannot justify a use before its definition"
+        );
+
+        let mut missing = tables.clone();
+        missing.values.get_mut(selector).unwrap().origin = ValueOrigin::MachineResult;
+        let mut unknown = storage.snapshot_budget();
+        unknown.used = Some(ProgramPoint::AfterOperation(operation.id));
+        assert!(
+            storage
+                .stored_scalar_suffix(
+                    &missing,
+                    row,
+                    &backing,
+                    &mut unknown,
+                    Construct::Operation(operation.id)
+                )
+                .unwrap()
+                .is_none(),
+            "an executable selector must retain its real definition"
         );
     }
 

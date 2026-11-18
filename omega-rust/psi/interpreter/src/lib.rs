@@ -35,6 +35,8 @@ mod boundary_effects;
 mod boundary_inputs;
 mod boundary_storage_inputs;
 mod boundary_values;
+mod call_observations;
+pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
 mod embedding;
 mod engine_calls;
 mod engine_custody;

@@ -1299,22 +1299,37 @@ impl Operand {
                 };
                 (identity, StaticMachineBindingValue::Const(reference))
             }
-            // Only a body-bearing machine application will run the
-            // structural binder judgment before copying the declaration.
             TypeParameterKind::Machine { contract }
-                if contract.structural().is_some()
+                if program.machine_parameter_contract_view(contract).is_some()
                     && program
                         .machine_by_symbol(program.symbols.get(parameter).parent)
                         .is_some() =>
             {
+                let chosen = named_callable(program, argument)?;
+                if let typed_trees::data::MachineParameterContract::Nominal {
+                    receiving_trait,
+                    receiving_arguments,
+                    requirement,
+                    ..
+                } = contract
+                {
+                    callable_binder::require_nominal_selection(
+                        program,
+                        parameter,
+                        chosen,
+                        *requirement,
+                        *receiving_trait,
+                        receiving_arguments,
+                    )?;
+                }
                 (
-                    Identity::Declaration(named_callable(program, argument)?),
+                    Identity::Declaration(chosen),
                     StaticMachineBindingValue::Machine(argument.clone()),
                 )
             }
             TypeParameterKind::Machine { .. } => {
                 return Err(unserved(
-                    "a static machine binder needs a structural contract on a body-bearing declaration",
+                    "a static machine binder needs a complete contract on a body-bearing declaration",
                 ));
             }
             TypeParameterKind::Value { .. } => {
@@ -2480,13 +2495,10 @@ fn generate(
         let StaticMachineBindingValue::Machine(argument) = &operand.value else {
             continue;
         };
-        let Some(typed_trees::data::MachineParameterContractView::Structural(binder)) =
-            program.retained_static_machine_contract(operand.parameter)
-        else {
-            return Err(Stop::Defect(
-                "a callable operand lost its structural binder",
-            ));
-        };
+        let binder = program
+            .retained_static_machine_contract(operand.parameter)
+            .ok_or(Stop::Defect("a callable operand lost its published binder"))?
+            .signature();
         let machine = program
             .machine_by_symbol(argument.symbol)
             .or_else(|| {

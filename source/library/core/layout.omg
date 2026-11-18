@@ -161,7 +161,7 @@ public trait PrivateCallbackSlot<T, Layout satisfies FixedLayout<T>, machine Req
 // machine: typed lowering records the exact conformance separately and build-
 // time evaluation emits a private-placement receipt while returning `plan`
 // unchanged. Runtime code receives no slot identity or callback address.
-public machine layout_plan_place_private(plan: LayoutPlan, offset: u64) -> LayoutPlan {
+public machine layout_plan_place_private(plan: LayoutPlan, offset: u64) -> LayoutPlan reaches terminates {
     plan
 }
 
@@ -169,7 +169,7 @@ public machine layout_plan_place_private(plan: LayoutPlan, offset: u64) -> Layou
 // The complete set must cover its source exactly and preserve every other
 // field in the layout. It has its own name because a free machine name selects
 // one declaration; the offset form above keeps `layout_plan_place_private`.
-public machine layout_plan_place_private_field(plan: LayoutPlan, representation: FieldPlan) -> LayoutPlan {
+public machine layout_plan_place_private_field(plan: LayoutPlan, representation: FieldPlan) -> LayoutPlan reaches terminates {
     plan
 }
 

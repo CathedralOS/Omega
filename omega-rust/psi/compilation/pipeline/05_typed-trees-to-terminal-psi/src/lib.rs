@@ -1210,7 +1210,8 @@ fn finish_reading_into<'source>(
             Unserved::Declaration(reason),
         )
     };
-    elaboration.static_reach_parameters = std::mem::take(&mut program.static_reach_parameters);
+    elaboration.static_reach_parameters =
+        program.static_reach_contexts(&mut elaboration.module, &source.calls)?;
     elaboration
         .static_reach_applications
         .sort_unstable_by_key(|row| (row.caller, row.site));
@@ -1525,7 +1526,8 @@ fn lower_program<'source>(
         terminal_codec::TerminalPublication::Portable => {
             terminal_psi::TerminalIdentityTableBuilder::default()
         }
-        terminal_codec::TerminalPublication::Invocation => {
+        terminal_codec::TerminalPublication::Invocation
+        | terminal_codec::TerminalPublication::LayoutPolicyInvocation => {
             terminal_psi::TerminalIdentityTableBuilder::for_invocation()
         }
     };

@@ -1690,28 +1690,8 @@ impl Program<'_> {
                 super::mathematics::integer_embedding(id, term, value_type)
             }
             ExpressionNode::Call(_) => unserved("call in a mathematical term"),
-            ExpressionNode::Integer(literal) if literal.landing().is_none() => {
-                let magnitude = if literal.is_negative() {
-                    literal.value_i64().map(i64::unsigned_abs)
-                } else {
-                    literal.value_u64()
-                };
-                // A mathematical integer has no carrier, so a literal past
-                // 64 bits is as much a literal as a small one: `addr::Bound`
-                // of a 64-bit address is 18446744073709551616.
-                let literal = magnitude
-                    .and_then(|magnitude| mathematical_literal(literal.is_negative(), magnitude))
-                    .or_else(|| {
-                        let wide = literal.decimal_value_i128()?;
-                        IntegerMathLiteral::new(wide < 0, wide.unsigned_abs()).ok()
-                    });
-                match literal {
-                    Some(literal) => Ok(IntegerMathTerm::IntegerLiteral(literal)),
-                    None => unserved("mathematical literal beyond 127 bits"),
-                }
-            }
-            ExpressionNode::Integer(_) => {
-                unserved("typed literal in a mathematical term without embed")
+            ExpressionNode::Integer(literal) => {
+                super::mathematics::mathematical_integer_literal(id, literal)
             }
             // numeric_values.md: wholly anonymous arithmetic is exact, and
             // contracts.md: "An anonymous integral final value can land in
