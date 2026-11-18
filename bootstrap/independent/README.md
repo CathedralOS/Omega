@@ -269,9 +269,9 @@ full-u64 `Wrapping` customers are not implemented by this I32 capability.
 Named `EvaluateBoth`, `ShortOnTrue` and `ShortOnFalse` compiler cases express
 eager and short-circuit control.
 
-The complete Epsilon source still packs to exactly 617,354 bytes and the same
-canonical Gamma/native evaluator artifacts. Only the source ownership changes:
-binary operator and scalar outcome declarations now have shared leaf files.
+Extracting the shared binary operator and scalar outcome declarations preserved
+the 617,354-byte Epsilon source and the canonical Gamma and native evaluator
+artifacts measured for that experiment.
 `epsilon/composition.py` selects those complete files plus the checked scalar
 implementation and a small named result adapter. It performs no host semantic
 extraction or dead-code selection. The compiler executable currently includes
@@ -412,3 +412,27 @@ source now reaches the lexer's nominal diagnostic parameter at coordinate
 64,677, beyond the previous first slice parameter at 38,291. Nominal values in
 stored methods and Console text output remain subsequent implementation work;
 this is a completed receiver/view capability, not an Omega compiler self-build.
+
+### Passing values into receiver methods and states
+
+The compiled Epsilon lexer can now pass its diagnostic code through a method
+and retain it while transferring to two states. A receiver method or state
+takes an immutable snapshot of each argument, in source order, then allocates
+its parameter homes. The same operation carries records, arrays, sums and
+views. A view still refers to its original backing array. A free function
+taking a Delta enum can receive a checked nullary constructor directly.
+
+On the 825,064-byte bootstrap compiler and construction entry at
+`b95769558667` (SHA-256
+`48f1b654605d1828c37af6e4472f2135367ecad1fc2435f2ef4919d862ab855f`),
+the native compiler previously stopped at the diagnostic parameter of
+`OmegaLexScan::reject`, byte 64,899. It now reaches byte 66,755, where
+`set_keyword` passes the constructed `OmegaTokenKind::Keyword` to `emit`.
+Constructing a sum value for a receiver argument still needs lowering.
+
+`python3 bootstrap/independent/successor_test.py --reuse-constructed --compile-epsilon`
+uses the verified native predecessors to exercise argument passing. The storage
+fixture passes a record as its first argument, mutates that same record in a
+later argument, and checks the original value after a state transfer. The unchanged
+lexer methods also run both valid and invalid diagnostic spans. The wrong-owner
+twin substitutes the scanner's token kind for its diagnostic code.

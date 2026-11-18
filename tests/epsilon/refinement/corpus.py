@@ -488,6 +488,9 @@ REJECTIONS = [
     ("missing entry", ECHO,
      swap(b"machine Main::main", b"machine Main::mains")),
     ("arity mismatch", RECURSION, swap(b"nest(6)", b"nest(6, 6)")),
+    ("wrong argument type at call", RECURSION, swap(b"nest(6)", b'nest("x")')),
+    ("resultless argument at argument", RECURSION,
+     swap(b"nest(6)", b"nest(self.console.write_byte(65))")),
     ("duplicate local", SCALARS,
      swap(b"let b: i32", b"let a: i32")),
     # Block-exit relations: a `return;` is ReturnNone and is admitted only

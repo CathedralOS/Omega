@@ -13,11 +13,12 @@ import struct
 import time
 import traceback
 
-SPEC = importlib.util.spec_from_file_location('epsilon_composition', Path(__file__).with_name('composition.py'))
+ROOT = Path(__file__).resolve().parents[3]
+COMPILER = ROOT / 'bootstrap/independent/epsilon'
+SPEC = importlib.util.spec_from_file_location('epsilon_composition', COMPILER / 'composition.py')
 composition = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(composition)
-ROOT = composition.ROOT
-FIXTURES = ROOT / 'tests/epsilon/compiled-native'
+FIXTURES = Path(__file__).resolve().parent
 CONSOLE = b'''boundary trait Console {
  machine exit_process(return_code: i32) -> never;
  machine write_byte(value: i32);
@@ -91,6 +92,22 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
             assert fields[12] == 0 and fields[13] == 0, fields
         request_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
 
+    # Keep the complete production reset, fail_stage and reject machines.
+    lexer = (base / 'lexer.epsilon').read_bytes()
+    source = ((base / 'representations.epsilon').read_bytes()
+              + lexer[:lexer.index(b'machine OmegaLexScan::emit(')] + boundary
+              + (FIXTURES / 'lexer_diagnostic_main.epsilon').read_bytes())
+    executable, diagnostic_report = program(source, 'lexer-diagnostic')
+    output = observe(executable)
+    assert output == reference(source, b'', 'lexer-diagnostic-reference') == b'\0' + struct.pack('<i', 42)
+    diagnostic_report['output'] = identity(output)
+
+    # Substitute a different sum owner at the same call and check its exact diagnostic.
+    offset = source.index(b'self.scanner.reject(self.diagnostic,')
+    invalid = source.replace(b'reject(self.diagnostic,', b'reject(self.scanner.token_kind,', 1)
+    assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
+    assert reference(invalid, b'', 'lexer-diagnostic-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
+
     source = boundary + (FIXTURES / 'storage_main.epsilon').read_bytes()
     executable, storage_report = program(source, 'storage-target')
     storage_report['cases'] = []
@@ -105,7 +122,14 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     actual = observe(executable, b'\2\1')
     assert actual == b'\0' + struct.pack('<i', 42) + b'A', actual
     storage_report['native_state_transfers'] = 300000
-    return {'request': request_report, 'storage': storage_report}
+
+    # A free function can take a literal enum. Reading a live parameter for
+    # that ABI needs a conversion before the compiler can emit a module.
+    offset = source.index(b'Marker::Set) == 1')
+    live = source[:offset] + source[offset:].replace(b'Marker::Set', b'tag', 1)
+    assert observe(compiler, live) == b'unsupported ' + str(offset).encode()
+    assert reference(live, b'\2', 'stored-pure-argument') == b'\1\10'
+    return {'request': request_report, 'lexer_diagnostic': diagnostic_report, 'storage': storage_report}
 
 
 def run(work, vm, producer, realize, seconds):
@@ -247,7 +271,7 @@ def run(work, vm, producer, realize, seconds):
                 b'\0' + struct.pack('<i', 0))
         report['stage'] = 'complete-lexical-module'
         checkpoint()
-        enum_spec = importlib.util.spec_from_file_location('epsilon_enum_controls', Path(__file__).with_name('enum_test.py'))
+        enum_spec = importlib.util.spec_from_file_location('epsilon_enum_controls', COMPILER / 'enum_test.py')
         enum_controls = importlib.util.module_from_spec(enum_spec)
         enum_spec.loader.exec_module(enum_controls)
         report['enum_customer'] = enum_controls.run(work, vm, producer, realize, seconds, composition, compiler)
