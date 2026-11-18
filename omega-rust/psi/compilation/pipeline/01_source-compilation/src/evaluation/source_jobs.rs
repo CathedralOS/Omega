@@ -4357,8 +4357,10 @@ pub(crate) mod tests {
             let executed = entry
                 .execute_invocation(&code, &admission, requirements, target(), &mut meter)
                 .unwrap();
+            let operation = executed.value.unwrap();
+            assert!(operation.private_layout_placements().is_empty());
             assert_eq!(
-                executed.value.unwrap(),
+                operation.into_value(),
                 BuildTimeValue::Text(vec![0, 255, b'x'])
             );
             assert!(executed.receipt.usage().total_units() > 0);
