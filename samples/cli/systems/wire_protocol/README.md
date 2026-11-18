@@ -1,30 +1,20 @@
 # Wire Protocol
 
-This sample is intended to encode a `SensorPacket` (nested `RoomHeader` +
-packed repeated `FixedVec<i32, 4>`
-samples + scalar `depth`) to a compact-binary buffer, then decode it back
-and verify every field. Success must exit **70**; the current source stops
-before executing that check.
+The sample encodes a sensor packet, decodes it, and checks the bytes, the fields,
+and both byte counts. The native program and the Psi interpreter each exit
+with status 70 after printing
+`PASS: 13 bytes round-tripped with every field intact (exit 70)`.
 
 ```sh
-mbx xtask sample-gate --filter cli/systems/wire_protocol < /dev/null
+mbx run -p omega -- run --both samples/cli/systems/wire_protocol/main.omg < /dev/null
 ```
 
-Wire layout (13 bytes):
+The packet carries room 300, samples `[150, -2]` in a fixed vector with capacity
+4, and depth −64. Its 13 bytes are `00 00 03 00 AC 02 01 03 AC 02 03 02 7F`.
+The format starts with era zero, followed by the nested room header, the packed
+samples and the zigzag-encoded depth. [main.omg](main.omg) checks each byte before
+reporting success.
 
-- era discriminator 0x00
-- field 0 (header): length-prefixed sub-message for RoomHeader { room_id: 300 }
-- field 1 (samples): packed `FixedVec` [150, -2] (2 of 4 slots live)
-- field 2 (depth): zigzag-encoded -64
-
-The original values and exact byte listing remain in [main.omg](main.omg).
-The policy's closed type comparisons and runtime reflection visitors still
-need [LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only).
-The remaining data-owned codec helpers need `STATIC-MACHINE-MIGRATION` in
-that same board. No successful check or native/Psi execution is claimed.
-
-The ordinary `authored_compact_binary_plan` policy takes its state explicitly
-and borrows each indexed `FieldKind` while choosing its placement.
-Its work witness is declared on `fill`, which participates in the recursive
-`fill`/`place` component. The acyclic `evaluate_compact_binary_plan` wrapper
-calls that component; lexical nesting supplies no inherited rank.
+`authored_compact_binary_plan` takes its state explicitly. It matches each
+field's type to its wire representation. The recursive `fill` and `place`
+states use the work bound declared on `fill`.
