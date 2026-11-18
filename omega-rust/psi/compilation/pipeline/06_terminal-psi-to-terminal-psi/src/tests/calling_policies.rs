@@ -4,7 +4,6 @@
 //! get the placement of each argument, so the checker has to judge that
 //! machine and everything it calls before any program can be entered.
 
-use super::boundary_calls::typed;
 use super::*;
 
 const VOCABULARY: &str = include_str!("../../../../../../../source/library/std/calling.omg");
@@ -67,6 +66,24 @@ pub(super) fn prepared(
         publication,
     )
     .program
+}
+
+// Calling-policy descriptions contain checked text. Capture the real Core
+// predicate declaration so the vocabulary's import keeps compiler authority.
+fn typed(text: &str) -> typed_trees::TypedTrees {
+    super::build_purpose::frontier_with_core(
+        text,
+        "machine build_entry() {}",
+        source::DependencyScope::Product,
+        &[(
+            "byte_observation.omg",
+            "byte_observation",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/byte_observation.omg"
+            )),
+        )],
+    )
 }
 
 fn judged(text: &str, roots: &[&str]) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
