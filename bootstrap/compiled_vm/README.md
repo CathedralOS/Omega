@@ -196,7 +196,7 @@ action stack. Every function and branch is visited, including unreachable code.
 The lowering calls named target operations such as `i_add` and `i_jeq`. Their
 encoders prepend little-endian fields. Reading them backwards gives each
 label its distance from the code end, which the compiler saves in an AVL map.
-After validation and the capacity check, the writer fills addresses and
+After validation and the capacity check, the writer encodes jump targets and
 outputs the fields in program order. Function and local name lookup compares
 exact source spans in lists.
 
@@ -659,19 +659,22 @@ For a register addition, the shared lowering calls `i_add`. Alpha writes
 opcode 3 and two register indices in one three-byte field. Linux x86-64
 loads the same two slots, appends `48 01 d8` for `add rax,rbx`, then stores
 the result. Each field adds its own width to the label positions used by
-later jumps. A forward jump holds the label identity until publication.
+later jumps. A jump holds the label identity until publication.
 
 For `(def main () Int 42)`, the generated input loop checks whether the read
 returned EOF. At Alpha tape offset `0x48`, the bytes `10 00 01` compare
 registers 0 and 1 for equality. The next eight bytes encode the destination
-`0xa1` in little-endian order. In the ELF, `48 39 d8 75 0c` at virtual
-address `0x40019b` compares the same values and skips over a jump on inequality.
-The next instruction loads `0x400291` into `rax`, and `ff e0` jumps there.
-Both destinations start the call after the input loop. The loop's backward
-jump returns to the read at tape offset `0x3c` or ELF address `0x40013e`.
+`0xa1` in little-endian order. In the ELF, `48 39 d8` compares the same values. The
+instruction at `0x40019e` is `0f 84 d6 00 00 00`, a jump on equality.
+Adding its signed displacement of 214 to the following address, `0x4001a4`,
+gives `0x40027a`. Both destinations start the call after the input loop.
+The loop's backward jump encodes `e9 c4 fe ff ff` at `0x400275`.
+Its displacement of −316 returns to the read at `0x40013e`, corresponding
+to Alpha tape offset `0x3c`.
 See the [Alpha assembler](alpha_backend.gamma) and [native assembler](../independent/native.gamma).
 
-The source-built native compiler with this layout is 1,543,898 bytes,
+At `a59d45e8bd77`, field layout still emitted absolute native jumps. Its
+source-built native compiler was 1,543,898 bytes,
 SHA-256 `04c864bd27c5ae5fb5870b2fb1339c63d7caf29541d53af3fbb8dc0f2e3eea89`.
 Two native self-rebuilds produced those same bytes. It compiled the
 35,123-byte Alpha-targeting compiler source into a native executable. That
