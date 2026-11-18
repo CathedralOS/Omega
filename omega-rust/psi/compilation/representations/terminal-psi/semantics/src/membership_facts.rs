@@ -858,7 +858,7 @@ fn bind_result(
 
 /// Join each published promise to its checked body once. A provider's normal
 /// guarantees are owed even when its implementation omits an explicit clause.
-fn prepare_promises(module: &TerminalModule) -> Judged<BTreeMap<MachineId, Vec<Fact>>> {
+fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
     // Pure predicates are still ordinary postconditions. Retain their header
     // rows, but do not invent an additional issuer obligation for their bodies.
     let predicates = module
@@ -877,7 +877,7 @@ fn prepare_promises(module: &TerminalModule) -> Judged<BTreeMap<MachineId, Vec<F
                 .map(|domain| Domain::Structural(domain.id)),
         )
         .collect::<BTreeSet<_>>();
-    let mut promises = BTreeMap::<MachineId, Vec<Fact>>::new();
+    let mut promises = Vec::new();
     let mut append = |machine: &TerminalMachine,
                       binding: ResultBinding,
                       rows: &[RuntimeDomainMembership]|
@@ -887,7 +887,7 @@ fn prepare_promises(module: &TerminalModule) -> Judged<BTreeMap<MachineId, Vec<F
             // Cases, indices and dereferences still owe formation evidence;
             // their conditional field types cannot establish that themselves.
             if fact.needs_projection_evidence() || !predicates.contains(&fact.domain) {
-                promises.entry(machine.id).or_default().push(fact);
+                promises.push((machine.id, fact));
             }
         }
         Ok(())
@@ -968,10 +968,8 @@ fn prepare_promises(module: &TerminalModule) -> Judged<BTreeMap<MachineId, Vec<F
         )?;
         append(machine, binding, &contract.proof.membership_ensures)?;
     }
-    for rows in promises.values_mut() {
-        rows.sort();
-        rows.dedup();
-    }
+    promises.sort();
+    promises.dedup();
     Ok(promises)
 }
 
@@ -1439,12 +1437,46 @@ fn transport_scalar_bindings(
 /// facts, not declared defaults or runtime custody owners.
 #[derive(Default)]
 pub(crate) struct MembershipFacts {
-    before: BTreeMap<(MachineId, DescriptorPosition), Facts>,
-    edges: BTreeMap<(MachineId, EdgeId), DescriptorPosition>,
-    cast_sources: BTreeMap<(MachineId, EdgeId, u32, bool), Option<DescriptorLocation>>,
+    machines: Vec<MachineMembershipFacts>,
+}
+
+struct MachineMembershipFacts {
+    machine: MachineId,
+    before: Vec<(DescriptorPosition, Facts)>,
+    edges: Vec<(EdgeId, DescriptorPosition)>,
+    cast_sources: Vec<CastMembershipSource>,
+}
+
+struct CastMembershipSource {
+    key: (EdgeId, u32, bool),
+    location: Option<DescriptorLocation>,
+}
+
+impl MachineMembershipFacts {
+    fn edge_position(&self, edge: EdgeId) -> Option<DescriptorPosition> {
+        self.edges
+            .binary_search_by_key(&edge, |(id, _)| *id)
+            .ok()
+            .map(|index| self.edges[index].1)
+    }
+
+    fn on_edge(&self, edge: EdgeId) -> Option<&Facts> {
+        let position = self.edge_position(edge)?;
+        self.before
+            .binary_search_by_key(&position, |(position, _)| *position)
+            .ok()
+            .map(|index| &self.before[index].1)
+    }
 }
 
 impl MembershipFacts {
+    fn machine(&self, id: MachineId) -> Option<&MachineMembershipFacts> {
+        self.machines
+            .binary_search_by_key(&id, |facts| facts.machine)
+            .ok()
+            .map(|index| &self.machines[index])
+    }
+
     pub(crate) fn scalar_on_edge(
         &self,
         module: &TerminalModule,
@@ -1453,9 +1485,8 @@ impl MembershipFacts {
         value: ValueId,
         domain: ScalarDomainId,
     ) -> bool {
-        self.edges
-            .get(&(machine, edge))
-            .and_then(|position| self.before.get(&(machine, *position)))
+        self.machine(machine)
+            .and_then(|machine| machine.on_edge(edge))
             .is_some_and(|facts| {
                 facts.proves(
                     module,
@@ -1474,36 +1505,37 @@ impl MembershipFacts {
         referent: bool,
         domain: StructuralDomainId,
     ) -> bool {
-        let Some(Some(location)) = self.cast_sources.get(&(
-            change.machine,
-            change.edge,
-            change.argument_ordinal,
-            referent,
-        )) else {
+        let Some(machine) = self.machine(change.machine) else {
             return false;
         };
-        self.edges
-            .get(&(change.machine, change.edge))
-            .and_then(|position| self.before.get(&(change.machine, *position)))
-            .is_some_and(|facts| {
-                facts.proves(
-                    module,
-                    &Fact {
-                        subject: Subject::Storage {
-                            version: ContentPlaceVersion::Current,
-                            location: location.clone(),
-                        },
-                        domain: Domain::Structural(domain),
+        let key = (change.edge, change.argument_ordinal, referent);
+        let Some(location) = machine
+            .cast_sources
+            .binary_search_by_key(&key, |source| source.key)
+            .ok()
+            .and_then(|index| machine.cast_sources[index].location.as_ref())
+        else {
+            return false;
+        };
+        machine.on_edge(change.edge).is_some_and(|facts| {
+            facts.proves(
+                module,
+                &Fact {
+                    subject: Subject::Storage {
+                        version: ContentPlaceVersion::Current,
+                        location: location.clone(),
                     },
-                )
-            })
+                    domain: Domain::Structural(domain),
+                },
+            )
+        })
     }
 }
 
-fn declared_roots(rows: impl IntoIterator<Item = Fact>, roots: &mut BTreeMap<PlaceId, Vec<Fact>>) {
+fn declared_roots(rows: impl IntoIterator<Item = Fact>, roots: &mut Vec<(PlaceId, Fact)>) {
     for fact in rows {
         if let Subject::Storage { location, .. } = &fact.subject {
-            roots.entry(location.root).or_default().push(fact);
+            roots.push((location.root, fact));
         }
     }
 }
@@ -1514,15 +1546,14 @@ fn observed_defaults(
     storage: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
     position: DescriptorPosition,
     location: &DescriptorLocation,
-    declarations: &BTreeMap<PlaceId, Vec<Fact>>,
+    declarations: &[(PlaceId, Fact)],
     state: &mut Facts,
 ) {
-    let Some(rows) = declarations.get(&location.root) else {
-        return;
-    };
-    introduce(module, machine, storage, position, rows.iter().filter(|fact| {
+    let first = declarations.partition_point(|(root, _)| *root < location.root);
+    let end = declarations.partition_point(|(root, _)| *root <= location.root);
+    introduce(module, machine, storage, position, declarations[first..end].iter().filter(|(_, fact)| {
         matches!(&fact.subject, Subject::Storage { location: subject, .. } if location.contains(subject))
-    }).cloned(), state);
+    }).map(|(_, fact)| fact.clone()), state);
 }
 
 fn returned_binding(
@@ -1641,7 +1672,9 @@ pub(crate) fn analyze_bodies(
             "runtime membership has duplicate machine storage graphs",
         ));
     }
-    let bodies = bodies.iter().copied().collect::<BTreeSet<_>>();
+    let mut bodies = bodies.to_vec();
+    bodies.sort_unstable();
+    bodies.dedup();
     if bodies.iter().any(|id| {
         graphs_by_id
             .binary_search_by_key(id, |graph| graph.id)
@@ -1654,7 +1687,7 @@ pub(crate) fn analyze_bodies(
     }
     let mut storage = DescriptorAnalysis::with_reference_slots(&module.structural_types, &graphs);
     for machine in &module.machines {
-        if !bodies.contains(&machine.id) {
+        if bodies.binary_search(&machine.id).is_err() {
             continue;
         }
         let graph = graphs_by_id
@@ -1673,10 +1706,16 @@ pub(crate) fn analyze_bodies(
                 "runtime membership storage aliases could not be resolved",
             )
         })?;
+        let mut machine_facts = MachineMembershipFacts {
+            machine: machine.id,
+            before: Vec::new(),
+            edges: Vec::new(),
+            cast_sources: Vec::new(),
+        };
         let mut events = BTreeMap::new();
         let mut arrivals = BTreeMap::new();
         let mut returns = BTreeMap::new();
-        let mut declarations = BTreeMap::new();
+        let mut declarations = Vec::new();
         declared_roots(seed_entry(module, machine)?, &mut declarations);
         for block in &machine.blocks {
             let mut declared = scalar_declarations(module, &block.parameters)?;
@@ -1702,12 +1741,24 @@ pub(crate) fn analyze_bodies(
                 })?,
             );
             for edge in block.terminator.edges() {
-                result.edges.insert((machine.id, edge), cut);
+                machine_facts.edges.push((edge, cut));
             }
             if let Some(binding) = returned_binding(machine, &block.terminator)? {
                 returns.insert(cut, binding);
             }
         }
+        declarations.sort_by_key(|(root, _)| *root);
+        let first_promise = promises.partition_point(|(id, _)| *id < machine.id);
+        let end_promise = promises.partition_point(|(id, _)| *id <= machine.id);
+        let machine_promises = &promises[first_promise..end_promise];
+        machine_facts.edges.sort_by_key(|(edge, _)| *edge);
+        machine_facts.edges.dedup_by(|later, earlier| {
+            if later.0 != earlier.0 {
+                return false;
+            }
+            *earlier = *later;
+            true
+        });
         let mut entry = Facts::default();
         introduce(
             module,
@@ -1778,7 +1829,7 @@ pub(crate) fn analyze_bodies(
                         &mut incoming,
                     );
                 }
-                for goal in promises.get(&machine.id).into_iter().flatten() {
+                for (_, goal) in machine_promises {
                     let goal = bind_return_fact(machine.id, binding, goal)?;
                     if let (Domain::Scalar(_), Subject::Storage { location, .. }) =
                         (goal.domain, &goal.subject)
@@ -1906,7 +1957,7 @@ pub(crate) fn analyze_bodies(
             .iter()
             .filter(|change| change.machine == machine.id)
         {
-            let Some(position) = result.edges.get(&(machine.id, change.edge)) else {
+            let Some(position) = machine_facts.edge_position(change.edge) else {
                 continue;
             };
             for referent in [false, true] {
@@ -1914,19 +1965,25 @@ pub(crate) fn analyze_bodies(
                 if referent {
                     source.path.push(DescriptorPathSegment::Referent);
                 }
-                let canonical = storage.location(machine.id, *position, &source);
-                result.cast_sources.insert(
-                    (machine.id, change.edge, change.argument_ordinal, referent),
-                    canonical,
-                );
+                let canonical = storage.location(machine.id, position, &source);
+                machine_facts.cast_sources.push(CastMembershipSource {
+                    key: (change.edge, change.argument_ordinal, referent),
+                    location: canonical,
+                });
             }
         }
-        result.before.extend(
-            effective
-                .into_iter()
-                .map(|(position, facts)| ((machine.id, position), facts)),
-        );
+        machine_facts.cast_sources.sort_by_key(|source| source.key);
+        machine_facts.cast_sources.dedup_by(|later, earlier| {
+            if later.key != earlier.key {
+                return false;
+            }
+            std::mem::swap(earlier, later);
+            true
+        });
+        machine_facts.before = effective.into_iter().collect();
+        result.machines.push(machine_facts);
     }
+    result.machines.sort_unstable_by_key(|facts| facts.machine);
     Ok(result)
 }
 
