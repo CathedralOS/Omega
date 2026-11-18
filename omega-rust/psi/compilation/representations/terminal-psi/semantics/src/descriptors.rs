@@ -15905,7 +15905,8 @@ pub mod descriptor_results {
                         | OperationKind::EstablishReference { source, .. } => {
                             let (source, _, capture) = captured_storage_source(
                                 &module.structural_types,
-                                source,
+                                source.place,
+                                &source.path,
                                 machine.structural_place_type(source.place)?,
                                 position,
                             )?;
@@ -16705,7 +16706,8 @@ pub mod descriptor_results {
                             let (source_location, mut backing_projection, capture) =
                                 captured_storage_source(
                                     &module.structural_types,
-                                    source,
+                                    source.place,
+                                    &source.path,
                                     *graph.place_types.get(&source.place)?,
                                     position,
                                 )?;
@@ -18027,36 +18029,31 @@ pub mod descriptor_results {
         }
 
         #[derive(Clone, Copy, PartialEq, Eq)]
-        enum CapturedBacking {
+        pub(crate) enum CapturedBacking {
             StorageAddress,
             DescriptorPayload,
             AccessInterpretation,
             ByteWindow,
         }
 
-        fn captured_storage_source(
+        pub(crate) fn captured_storage_source(
             types: &[StructuralTypeDeclaration],
-            source: &StructuralArgument,
+            source: PlaceId,
+            path: &[StructuralPathSegment],
             root_type: StructuralTypeId,
             position: DescriptorPosition,
         ) -> Option<(DescriptorLocation, Option<Projection>, CapturedBacking)> {
-            let prefix_length = source
-                .path
+            let prefix_length = path
                 .iter()
                 .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
-                .unwrap_or(source.path.len());
-            let location = descriptor_location(
-                types,
-                source.place,
-                root_type,
-                &source.path[..prefix_length],
-                None,
-            )?;
-            if prefix_length == source.path.len() {
+                .unwrap_or(path.len());
+            let location =
+                descriptor_location(types, source, root_type, &path[..prefix_length], None)?;
+            if prefix_length == path.len() {
                 return Some((location, None, CapturedBacking::StorageAddress));
             }
             let prefix_type = descriptor_location_type(types, root_type, &location.path)?;
-            let suffix = &source.path[prefix_length..];
+            let suffix = &path[prefix_length..];
             let prefix_shape = &find_structural_type(types, prefix_type)?.shape;
             let capture = if matches!(prefix_shape, StructuralTypeShape::ByteSequence(_)) {
                 CapturedBacking::ByteWindow

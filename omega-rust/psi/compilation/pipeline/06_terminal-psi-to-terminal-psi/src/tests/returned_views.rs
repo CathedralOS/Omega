@@ -149,9 +149,7 @@ fn a_provider_view_permission_cannot_be_claimed_as_owned_storage() {
 
 #[test]
 fn indexed_view_payloads_keep_their_actual_lender() {
-    use terminal_check_tables::bindings::{PlaceOrigin, Segment};
-    use terminal_check_tables::obligations::Lender;
-    let local = r#"
+    let program = r#"
 machine see(value: &u8) {}
 machine entry() {
     let values: [u8; 2] = [1, 2];
@@ -159,7 +157,13 @@ machine entry() {
     see(&view[0]);
 }
 "#;
-    let provider = r#"
+    assert_indexed_view_lender(program, false);
+}
+
+/// The provider-backed case also needs its executable call-flow account.
+#[test]
+fn provider_indexed_view_payloads_keep_their_actual_lender() {
+    let program = r#"
 data Token { id: u64; }
 boundary trait Fs { machine path(token: &Token) -> &[u8] ensures result.len > 0u64 reaches none crashes none; }
 machine see(value: &u8) {}
@@ -169,65 +173,69 @@ machine entry() reaches Fs invokes Fs {
     see(&view[0]);
 }
 "#;
-    for (source, provider) in [(local, false), (provider, true)] {
-        let mut input = elaborate(source).unwrap();
-        let verdict = crate::judge(Ok(input.clone()));
-        assert!(
-            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
-            "{verdict:?}"
-        );
-        let (machine, obligation, actual) = input
-            .tables
-            .machines
-            .iter()
-            .find_map(|(machine, tables)| {
-                tables.obligations.iter().find_map(|(obligation, row)| {
-                    let ObligationKind::Loan {
-                        captured, lender, ..
-                    } = row.kind
-                    else {
-                        return None;
-                    };
-                    matches!(
-                        tables.places.get(captured)?.origin,
-                        PlaceOrigin::Projection {
-                            segment: Segment::FixedIndex(_) | Segment::RuntimeIndex { .. },
-                            ..
-                        }
-                    )
-                    .then_some((machine, obligation, lender))
-                })
+    assert_indexed_view_lender(program, true);
+}
+
+fn assert_indexed_view_lender(source: &str, provider: bool) {
+    use terminal_check_tables::bindings::{PlaceOrigin, Segment};
+    use terminal_check_tables::obligations::Lender;
+    let mut input = elaborate(source).unwrap();
+    let verdict = crate::judge(Ok(input.clone()));
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "{verdict:?}"
+    );
+    let (machine, obligation, actual) = input
+        .tables
+        .machines
+        .iter()
+        .find_map(|(machine, tables)| {
+            tables.obligations.iter().find_map(|(obligation, row)| {
+                let ObligationKind::Loan {
+                    captured, lender, ..
+                } = row.kind
+                else {
+                    return None;
+                };
+                matches!(
+                    tables.places.get(captured)?.origin,
+                    PlaceOrigin::Projection {
+                        segment: Segment::FixedIndex(_) | Segment::RuntimeIndex { .. },
+                        ..
+                    }
+                )
+                .then_some((machine, obligation, lender))
             })
-            .expect("the indexed element has its own captured loan");
-        assert!(
-            if provider {
-                actual == Lender::Provider
-            } else {
-                matches!(actual, Lender::Loan(_))
-            },
-            "an element keeps the descriptor's actual lender: {actual:?}"
-        );
-        let ObligationKind::Loan { lender, .. } = &mut input
-            .tables
-            .machines
-            .get_mut(machine)
-            .unwrap()
-            .obligations
-            .get_mut(obligation)
-            .unwrap()
-            .kind
-        else {
-            unreachable!()
-        };
-        *lender = Lender::Owner;
-        let forged = crate::judge(Ok(input));
-        assert!(
-            matches!(forged,
-            Err(Refusal { reason: RefusalReason::ForeignIdentity, ref detail, .. })
-            if detail.starts_with("reborrow names a different immediate parent occurrence")),
-            "owning a view descriptor cannot grant ownership of its payload: {forged:?}"
-        );
-    }
+        })
+        .expect("the indexed element has its own captured loan");
+    assert!(
+        if provider {
+            actual == Lender::Provider
+        } else {
+            matches!(actual, Lender::Loan(_))
+        },
+        "an element keeps the descriptor's actual lender: {actual:?}"
+    );
+    let ObligationKind::Loan { lender, .. } = &mut input
+        .tables
+        .machines
+        .get_mut(machine)
+        .unwrap()
+        .obligations
+        .get_mut(obligation)
+        .unwrap()
+        .kind
+    else {
+        unreachable!()
+    };
+    *lender = Lender::Owner;
+    let forged = crate::judge(Ok(input));
+    assert!(
+        matches!(forged,
+        Err(Refusal { reason: RefusalReason::ForeignIdentity, ref detail, .. })
+        if detail.starts_with("reborrow names a different immediate parent occurrence")),
+        "owning a view descriptor cannot grant ownership of its payload: {forged:?}"
+    );
 }
 
 /// The twin: nothing says the returned view is not the one passed in, so the

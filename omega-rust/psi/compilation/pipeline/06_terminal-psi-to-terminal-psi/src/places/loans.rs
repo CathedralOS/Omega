@@ -303,6 +303,7 @@ impl<'a> Storage<'a> {
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
         raw: &super::Lineage,
+        path: &[terminal_psi::StructuralPathSegment],
         resource: BorrowedResource,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
@@ -326,14 +327,25 @@ impl<'a> Storage<'a> {
                     segments: raw.segments[..position].to_vec(),
                 };
                 let mut captured = self.capture_payload(references, &prefix, at, concerns)?;
-                if captured.exact {
-                    captured.region =
-                        match captured.region {
-                            LoanRegion::Storage(backing) => LoanRegion::Storage(
-                                self.project_backing(backing, &raw.segments[position..], concerns)?,
-                            ),
-                            region @ LoanRegion::Provider => region,
-                        };
+                if captured.exact && matches!(captured.region, LoanRegion::Storage(_)) {
+                    if path.len() != raw.segments.len() {
+                        return Err(
+                            self.foreign(concerns, "indexed borrow lost its canonical source path")
+                        );
+                    }
+                    // Replay the same actual argument as its block arrival.
+                    // The selector's proof and formation point belong to that
+                    // capture, not to a reconstructed storage path.
+                    let origins = references
+                        .borrowed_source_storage_family(self.machine, at, raw.root, path)
+                        .map_err(|detail| self.unsupported(concerns, detail))?;
+                    captured.region = LoanRegion::Storage(self.captured_backing(
+                        raw,
+                        &[],
+                        origins,
+                        None,
+                        concerns,
+                    )?);
                 }
                 return Ok(captured.region);
             }
@@ -812,7 +824,14 @@ impl<'a> Storage<'a> {
                 invocation: Some(invocation),
                 position,
                 access,
-                lineage: self.borrow_backing(references, &lent, resource, cut, concerns)?,
+                lineage: self.borrow_backing(
+                    references,
+                    &lent,
+                    &argument.path,
+                    resource,
+                    cut,
+                    concerns,
+                )?,
                 parent,
                 lender,
                 from,
@@ -869,7 +888,14 @@ impl<'a> Storage<'a> {
                     invocation: None,
                     position,
                     access,
-                    lineage: self.borrow_backing(references, &raw, resource, cut, concerns)?,
+                    lineage: self.borrow_backing(
+                        references,
+                        &raw,
+                        &region.path,
+                        resource,
+                        cut,
+                        concerns,
+                    )?,
                     parent,
                     lender,
                     from,
@@ -1118,7 +1144,7 @@ impl<'a> Storage<'a> {
             invocation: None,
             position: 0,
             access,
-            lineage: self.borrow_backing(references, &raw, resource, at, concerns)?,
+            lineage: self.borrow_backing(references, &raw, &source.path, resource, at, concerns)?,
             parent,
             lender,
             from,
@@ -1374,6 +1400,7 @@ impl<'a> Storage<'a> {
                 let backing = self.borrow_backing(
                     references,
                     &place,
+                    &[],
                     BorrowedResource::ViewPayload,
                     at,
                     concerns,
@@ -1689,7 +1716,14 @@ impl<'a> Storage<'a> {
                             "successor borrow exceeds its original parent access",
                         ));
                     }
-                    let backing = self.borrow_backing(references, &raw, resource, at, concerns)?;
+                    let backing = self.borrow_backing(
+                        references,
+                        &raw,
+                        &argument.path,
+                        resource,
+                        at,
+                        concerns,
+                    )?;
                     if let Some(descriptor) = from {
                         // Forwarding checks every input permission; it does not
                         // select one immediate parent for a new loan.
@@ -2138,7 +2172,14 @@ impl<'a> Storage<'a> {
                         invocation: None,
                         position,
                         access,
-                        lineage: self.borrow_backing(references, &raw, resource, at, concerns)?,
+                        lineage: self.borrow_backing(
+                            references,
+                            &raw,
+                            &argument.path,
+                            resource,
+                            at,
+                            concerns,
+                        )?,
                         parent,
                         lender,
                         from,

@@ -302,25 +302,6 @@ impl<'a> Storage<'a> {
         self.captured_backing(place, suffix, addresses, owner, concerns)
     }
 
-    /// Extend every actual address while retaining its capture and logical
-    /// subject. A projection does not correlate independently chosen addresses.
-    pub(super) fn project_backing(
-        &self,
-        mut backing: Backing,
-        suffix: &[Segment],
-        concerns: Construct,
-    ) -> Checked<Backing> {
-        for region in &mut backing.regions {
-            region.place.segments.extend_from_slice(suffix);
-            self.shape(&region.place, concerns)?;
-        }
-        backing.place.segments.extend_from_slice(suffix);
-        if let Some((_, subject)) = &mut backing.subject {
-            subject.segments.extend_from_slice(suffix);
-        }
-        Ok(backing)
-    }
-
     /// Ordinary uses and cleanup actions interpret the same authenticated
     /// addresses; only the replay point that supplies them differs.
     pub(super) fn captured_backing(
