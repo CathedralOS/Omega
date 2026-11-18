@@ -105,7 +105,7 @@ pub enum FunctionFragmentTextSectionManifestDecodeError {
     TrailingBytes,
 }
 
-optimization_core::truncated_from_adapter!(FunctionFragmentTextSectionManifestDecodeError);
+::wire::truncated_from_adapter!(FunctionFragmentTextSectionManifestDecodeError);
 
 register_homes::decode_error_display! { FunctionFragmentTextSectionManifestDecodeError, "invalid function-fragment text-section manifest" }
 

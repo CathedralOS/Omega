@@ -5,13 +5,13 @@
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm, ScalarType};
+use source_compiler::checking::RouteVerdict;
+use source_compiler::lowering::{Compilation, prepare_compilation};
 use terminal_check_tables::compilation::TerminalCompilation;
 use terminal_check_tables::edges::{Actual, Callee};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
 use terminal_psi::{BoundaryParameterKind, OperationKind};
-use terminal_psi_to_terminal_psi::RouteVerdict;
-use typed_trees_to_terminal_psi::{Compilation, prepare_compilation};
 
 // Preserved source SHA-256: 3e3e00c91368d7805f96ef210086bad767251abafc46ce5d0ad3c39cbc4a4154.
 const INVALID: &str = r#"// A machine value call must prove the public precondition for its actuals.
@@ -122,7 +122,7 @@ fn check_preserved_rejection() {
 
             entries: &[entry],
             subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &[],
             calling: None,
             providers: None,
@@ -256,7 +256,7 @@ fn check_preserved_rejection() {
     );
 
     let mut verdicts =
-        terminal_psi_to_terminal_psi::judge_compilation(TerminalCompilation::Prepared(prepared))
+        source_compiler::checking::judge_compilation(TerminalCompilation::Prepared(prepared))
             .into_iter();
     let verdict = verdicts
         .next()

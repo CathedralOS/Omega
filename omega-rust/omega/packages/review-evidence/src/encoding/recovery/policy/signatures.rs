@@ -19,7 +19,7 @@ pub(in crate::encoding::recovery) fn conformance_bound(
 pub(in crate::encoding::recovery) fn data_properties(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDataProperties, Error> {
-    use language_semantics::Multiplicity;
+    use declaration_contracts::Multiplicity;
     let multiplicity = super::tag!(reader => {
         0 => Multiplicity::Unrestricted,
         1 => Multiplicity::Affine,

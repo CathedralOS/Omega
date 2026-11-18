@@ -4,7 +4,9 @@ Wire envelope, round-trip, rejection precedence, and structural catalog tests fo
 Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v117), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
-use access_plans::{AccessFields, BoundaryReach, validate_placement};
+use access_admission::AccessFields;
+use access_admission::validate_placement;
+use access_vocabulary::BoundaryReach;
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use native_vocabulary::provenance::{

@@ -22,12 +22,12 @@ mod unix {
     use std::os::unix::net::UnixStream;
     use std::time::Duration;
 
-    pub(crate) struct PreparedChannel {
-        pub(crate) parent: UnixStream,
-        pub(crate) child: OwnedFd,
+    pub struct PreparedChannel {
+        pub parent: UnixStream,
+        pub child: OwnedFd,
     }
 
-    pub(crate) fn prepare(timeout: Duration) -> io::Result<PreparedChannel> {
+    pub fn prepare(timeout: Duration) -> io::Result<PreparedChannel> {
         let (original_parent, original_child) = UnixStream::pair()?;
         fn private_copy(stream: &UnixStream) -> io::Result<UnixStream> {
             use std::os::fd::AsRawFd;
@@ -115,11 +115,11 @@ mod windows {
         },
     };
 
-    pub(crate) struct PreparedChannel {
-        pub(crate) name: String,
+    pub struct PreparedChannel {
+        pub name: String,
         pipe: Channel,
     }
-    pub(crate) struct Channel {
+    pub struct Channel {
         handle: OwnedHandle,
         timeout: Duration,
     }
@@ -141,7 +141,7 @@ mod windows {
         owned(unsafe { CreateEventW(std::ptr::null(), 1, 0, std::ptr::null()) })
     }
 
-    pub(crate) fn prepare(timeout: Duration) -> io::Result<PreparedChannel> {
+    pub fn prepare(timeout: Duration) -> io::Result<PreparedChannel> {
         use std::sync::atomic::{AtomicU64, Ordering};
         static NEXT: AtomicU64 = AtomicU64::new(1);
         let ordinal = NEXT
@@ -176,7 +176,7 @@ mod windows {
     }
 
     impl PreparedChannel {
-        pub(crate) fn accept(self, child_process: u32) -> io::Result<Channel> {
+        pub fn accept(self, child_process: u32) -> io::Result<Channel> {
             let event = event()?;
             let mut operation = OVERLAPPED {
                 hEvent: event.as_raw_handle(),
@@ -339,6 +339,6 @@ mod windows {
 }
 
 #[cfg(unix)]
-pub(crate) use unix::*;
+pub use unix::*;
 #[cfg(windows)]
-pub(crate) use windows::*;
+pub use windows::*;

@@ -180,7 +180,7 @@ mod codec_tests {
 
     #[test]
     fn closed_carry_fact_recovers_without_a_nominal_domain() {
-        for (tag, permission) in language_semantics::CarryPermission::ALL
+        for (tag, permission) in declaration_contracts::CarryPermission::ALL
             .into_iter()
             .enumerate()
         {

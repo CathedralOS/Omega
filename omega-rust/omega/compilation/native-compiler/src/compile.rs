@@ -1,15 +1,14 @@
-// Compile retained Terminal (`compile`) or stop after runtime admission for
-// Terminal-only execution (`admit_runtime`). Each is one call: the request
-// already carries the completed scalar values, so preparation selects the work
-// and Omega 00 to 09 run once, in order. On any failure, the recoverable
-// `ExecutableImageEmissionRequest` is returned alongside the diagnostics.
+//! Compile a retained Terminal program to a native image, or return the
+//! provisions needed to run it in Psi. Both routes start with the completed
+//! scalar applications and admitted providers. A failure returns the image
+//! request with its original diagnostics.
 
 use crate::NativeCompileRequest;
 use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use crate::preparation::PreparedNativeCompilation;
 use diagnostics::Diagnostic;
-use image_emission::ExecutableImageEmissionRequest;
-use terminal_psi_to_abstract_operations::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
+use native_program_planning::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
+use target::ExecutableImageEmissionRequest;
 
 pub fn compile(
     retained: &RetainedTerminalArtifact,
@@ -61,12 +60,9 @@ fn produce(
         components: prepared_components,
     } = prepared;
     let result = (|| {
-        let scalar_input =
-            || {
-                scalars.map(|completed| {
-                    terminal_psi_to_abstract_operations::NativeScalarApplications { completed }
-                })
-            };
+        let scalar_input = || {
+            scalars.map(|completed| native_program_planning::NativeScalarApplications { completed })
+        };
         let artifact = retained.shared_artifact();
         let proposal = retained.native_realization_proposal().ok_or_else(|| {
             vec![Diagnostic::error(
@@ -94,7 +90,7 @@ fn produce(
             .collect::<Result<Vec<_>, _>>()?;
         let (input, execution) = {
             observation.enter(NativePipelineStage::TerminalToAbstract);
-            terminal_psi_to_abstract_operations::lower_native_execution(
+            native_program_planning::lower_native_execution(
                 proposal,
                 execution,
                 &private_entry_ram,
@@ -102,7 +98,7 @@ fn produce(
             )
         }?;
         let prepared = {
-            terminal_psi_to_abstract_operations::prepare_native_providers(
+            native_program_planning::prepare_native_providers(
                 proposal,
                 artifact,
                 RetainedNativeProviderInputs {

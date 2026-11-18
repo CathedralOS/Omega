@@ -1,0 +1,1180 @@
+use access_admission::test_support::*;
+use extent_contracts::{AddressSpaceId, ExtentProvenanceId, ExtentRights};
+
+fn extent_id<T>(
+    identity: u64,
+    constructor: fn(u64) -> Result<T, extent_contracts::ExtentDiagnostic>,
+) -> T {
+    constructor(identity).expect("normalized extent identity")
+}
+
+fn provider_issuance(seed: u64) -> extents::ExtentProviderIssuance {
+    let base = seed * 16;
+    extents::ExtentProviderIssuance::from_normalized_identities(std::array::from_fn(
+        |identity_index| base + (identity_index as u64 + 1),
+    ))
+    .expect("normalized provider issuance")
+}
+
+fn extent_rights(identities: &[u64]) -> ExtentRights {
+    ExtentRights::from_normalized_identities(identities.iter().copied().map(|identity| {
+        extent_id(
+            identity,
+            extent_contracts::ExtentRightId::from_normalized_identity,
+        )
+    }))
+}
+
+fn uart_extent(base: u64, length: u64) -> extents::Extent {
+    uart_extent_with_lineage(base, length, 1)
+}
+
+fn uart_extent_with_lineage(base: u64, length: u64, lineage: u64) -> extents::Extent {
+    uart_extent_with_root(base, length, 1, lineage)
+}
+
+fn uart_extent_with_root(base: u64, length: u64, provider: u64, lineage: u64) -> extents::Extent {
+    uart_root_grant(provider, lineage)
+        .mint(base, length)
+        .expect("UART extent")
+}
+
+fn uart_root_grant(provider: u64, lineage: u64) -> extents::ExtentRootGrant {
+    uart_root_grant_with_mapping(provider, lineage, 5, 6)
+}
+
+fn uart_root_grant_with_mapping(
+    provider: u64,
+    lineage: u64,
+    provenance: u64,
+    era: u64,
+) -> extents::ExtentRootGrant {
+    extents::ExtentRootGrant::from_admitted_provider(
+        provider_issuance(provider),
+        extent_id(
+            lineage,
+            extent_contracts::ExtentLineageId::from_normalized_identity,
+        ),
+        extent_id(2, AddressSpaceId::from_normalized_identity),
+        extent_rights(&[3, 4]),
+        extent_id(provenance, ExtentProvenanceId::from_normalized_identity),
+        extent_id(
+            era,
+            extent_contracts::MappingEraId::from_normalized_identity,
+        ),
+    )
+}
+
+mod initialization_resources {
+    use access_admission::AccessFields;
+    use access_admission::ValidatedPlacement;
+    use access_admission::validate_access_resources;
+    use access_admission::validate_initialization_resources;
+    use access_admission::validate_placement;
+    use access_admission::validate_resource_profile;
+    use access_vocabulary::AccessExposure;
+    use access_vocabulary::AtomicCapability;
+    use access_vocabulary::BoundaryReach;
+    use access_vocabulary::ExternalCapability;
+    use access_vocabulary::PeerWritability;
+    use access_vocabulary::ResourceProfile;
+    use access_vocabulary::ResourceRegion;
+    use access_vocabulary::StableCapability;
+
+    fn plan(expose_read: bool) -> ValidatedPlacement {
+        let layout = super::uart_layout();
+        let access = if expose_read {
+            super::access_plan(
+                &layout,
+                &[(
+                    "control",
+                    super::stable_word32_read(AccessExposure::Exported),
+                )],
+            )
+        } else {
+            AccessFields::inaccessible(&layout).expect("inaccessible access")
+        };
+        validate_placement(layout, access, super::uart_reach()).expect("placement")
+    }
+
+    fn region(offset: u64, length: u64, stable: StableCapability) -> ResourceRegion {
+        ResourceRegion {
+            offset,
+            length,
+            peer: PeerWritability::Exclusive,
+            stable,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: super::uart_reach(),
+        }
+    }
+
+    #[test]
+    fn relocation_checks_later_cells_without_enumerating_the_run() {
+        let plan = plan(true);
+        let count = 1_000_000_000;
+        let occupied = count * 12;
+        let source = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![region(0, occupied, StableCapability::Read)],
+            },
+            occupied,
+        )
+        .expect("source");
+        let destination = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![region(0, occupied, StableCapability::ReadWrite)],
+            },
+            occupied,
+        )
+        .expect("destination");
+        access_admission::validate_run_relocation_resources(
+            &plan,
+            count,
+            4096,
+            &source,
+            &destination,
+        )
+        .expect("a billion cells with one uniform supply region");
+
+        let late_write_only = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![
+                    region(0, occupied - 12, StableCapability::ReadWrite),
+                    region(occupied - 12, 12, StableCapability::Write),
+                ],
+            },
+            occupied,
+        )
+        .expect("late read permission removed");
+        let error = access_admission::validate_run_relocation_resources(
+            &plan,
+            count,
+            4096,
+            &source,
+            &late_write_only,
+        )
+        .expect_err("the last cell still owes the declared read access");
+        assert!(error.0.contains("Stable read=true"));
+    }
+
+    #[test]
+    fn relocation_requires_exact_windows_and_complete_source_reads() {
+        let plan = plan(false);
+        let readable = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![region(0, 24, StableCapability::Read)],
+            },
+            24,
+        )
+        .expect("source");
+        let writable = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![region(0, 24, StableCapability::Write)],
+            },
+            24,
+        )
+        .expect("destination");
+        access_admission::validate_run_relocation_resources(&plan, 2, 4096, &readable, &writable)
+            .expect("write-only destination is sufficient for inaccessible cells");
+        assert!(
+            access_admission::validate_run_relocation_resources(
+                &plan, 1, 4096, &readable, &writable
+            )
+            .expect_err("capacity is not occupied length")
+            .0
+            .contains("exact occupied")
+        );
+        assert!(
+            access_admission::validate_run_relocation_resources(
+                &plan, 2, 4097, &readable, &writable
+            )
+            .expect_err("alignment still matters")
+            .0
+            .contains("alignment")
+        );
+        assert!(
+            access_admission::validate_run_relocation_resources(
+                &plan, 2, 4096, &writable, &writable
+            )
+            .expect_err("source needs reads")
+            .0
+            .contains("Stable read")
+        );
+        assert!(
+            access_admission::validate_run_relocation_resources(
+                &plan,
+                u64::MAX,
+                0,
+                &readable,
+                &writable
+            )
+            .expect_err("count arithmetic is checked")
+            .0
+            .contains("overflows")
+        );
+    }
+
+    #[test]
+    fn relocation_distinguishes_no_cells_from_zero_footprint_cells() {
+        let empty =
+            validate_resource_profile(ResourceProfile::default(), 0).expect("empty profile");
+        assert!(
+            access_admission::validate_run_relocation_resources(
+                &plan(true),
+                0,
+                4096,
+                &empty,
+                &empty
+            )
+            .expect("an empty run needs no view of a cell")
+            .is_none()
+        );
+        let layout = layout_plans::LayoutPlanReport {
+            schema_report_fingerprint: 71,
+            entries: Vec::new(),
+            offsets: None,
+            size: Some(0),
+            align: 8,
+        };
+        let access = AccessFields::inaccessible(&layout).expect("zero-footprint fields");
+        let zero_sized = validate_placement(layout, access, BoundaryReach::default())
+            .expect("zero-footprint placement");
+        assert!(
+            access_admission::validate_run_relocation_resources(
+                &zero_sized,
+                u64::MAX,
+                4096,
+                &empty,
+                &empty
+            )
+            .expect("logical count does not enumerate zero-sized cells")
+            .is_some()
+        );
+        assert!(
+            access_admission::validate_run_relocation_resources(
+                &zero_sized,
+                1,
+                4097,
+                &empty,
+                &empty
+            )
+            .expect_err("zero bytes do not erase cell alignment")
+            .0
+            .contains("alignment")
+        );
+    }
+
+    #[test]
+    fn read_only_view_supply_does_not_authorize_initialization() {
+        let plan = plan(true);
+        let profile = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![region(0, 12, StableCapability::Read)],
+            },
+            12,
+        )
+        .expect("readable profile");
+        validate_access_resources(&plan, &profile).expect("view can read");
+        let error = validate_initialization_resources(&plan, &profile)
+            .expect_err("initialization must write");
+        assert!(error.0.contains("Stable write supply at byte 0"));
+    }
+
+    #[test]
+    fn initialization_covers_inaccessible_fields_and_padding() {
+        let plan = plan(false);
+        for regions in [
+            vec![
+                region(0, 4, StableCapability::Write),
+                region(8, 4, StableCapability::Write),
+            ],
+            vec![region(0, 8, StableCapability::Write)],
+            vec![region(4, 8, StableCapability::Write)],
+            Vec::new(),
+        ] {
+            let profile = validate_resource_profile(ResourceProfile { regions }, 12)
+                .expect("uncovered bytes supply nothing");
+            validate_access_resources(&plan, &profile).expect("no accessor demands");
+            let error = validate_initialization_resources(&plan, &profile)
+                .expect_err("whole image needs coverage");
+            assert!(error.0.contains("no resource supply at byte"));
+        }
+    }
+
+    #[test]
+    fn adjacent_different_supply_rows_cover_one_initial_image() {
+        let plan = plan(false);
+        let profile = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![
+                    region(4, 8, StableCapability::ReadWrite),
+                    region(0, 4, StableCapability::Write),
+                ],
+            },
+            12,
+        )
+        .expect("unordered disjoint rows normalize");
+        assert_eq!(profile.regions().len(), 2);
+        let compatible = validate_initialization_resources(&plan, &profile)
+            .expect("different additional capabilities do not forbid initialization");
+        assert_eq!(compatible.byte_length(), 12);
+        assert!(compatible.placement().base_congruence().admits(4096));
+        assert!(!compatible.placement().base_congruence().admits(4097));
+    }
+
+    #[test]
+    fn initialization_requires_reach_for_bytes_without_accessors() {
+        let plan = plan(false);
+        let profile = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![ResourceRegion {
+                    reach: BoundaryReach::default(),
+                    ..region(0, 12, StableCapability::Write)
+                }],
+            },
+            12,
+        )
+        .expect("write supply without required service");
+        let error = validate_initialization_resources(&plan, &profile)
+            .expect_err("inaccessible fields do not erase initialization reach");
+        assert!(error.0.contains("complete boundary reach at byte 0"));
+    }
+
+    #[test]
+    fn device_write_supply_does_not_turn_initialization_into_device_programming() {
+        let plan = plan(false);
+        let profile = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![ResourceRegion {
+                    external: super::word32_access(
+                        access_vocabulary::ExternalReadBehavior::None,
+                        true,
+                    ),
+                    ..region(0, 12, StableCapability::None)
+                }],
+            },
+            12,
+        )
+        .expect("valid external write supply");
+        let error = validate_initialization_resources(&plan, &profile)
+            .expect_err("initialization requires Stable storage");
+        assert!(error.0.contains("Stable write supply"));
+    }
+
+    #[test]
+    fn initialization_preserves_subsequent_access_demands_and_stops_at_image_end() {
+        let writable = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![
+                    region(0, 12, StableCapability::Write),
+                    region(12, 4, StableCapability::Read),
+                ],
+            },
+            16,
+        )
+        .expect("write supply followed by read-only storage");
+        validate_initialization_resources(&plan(false), &writable)
+            .expect("bytes beyond the image are not written");
+        let error = validate_initialization_resources(&plan(true), &writable)
+            .expect_err("the resulting view still needs read permission");
+        assert!(error.0.contains("requests Stable read=true"));
+    }
+
+    fn admitted(extent: &extents::Extent) -> crate::AdmittedResourceProfile {
+        crate::ResourceProfileGrant::from_admitted_provider(
+            access_vocabulary::ResourceProfileReceiptId::from_normalized_identity(41)
+                .expect("receipt"),
+            extent,
+            super::extent_rights(&[3]),
+            super::uart_reach(),
+        )
+        .expect("selected provider binding")
+        .admit(ResourceProfile {
+            regions: vec![region(0, extent.length(), StableCapability::ReadWrite)],
+        })
+        .expect("admitted complete profile")
+    }
+
+    #[test]
+    fn initialization_joins_exclusive_loan_and_concrete_alignment() {
+        let mut extent = super::uart_extent(4096, 32);
+        let profile = admitted(&extent);
+        {
+            let shared = extent.loan(0, 12).expect("shared loan");
+            assert!(
+                profile
+                    .initialization_compatibility(&shared, &plan(false))
+                    .expect_err("shared access cannot initialize")
+                    .0
+                    .contains("exclusive extent loan")
+            );
+        }
+        {
+            let unaligned = extent.loan_mut(1, 12).expect("exclusive unaligned loan");
+            assert!(
+                profile
+                    .initialization_compatibility(&unaligned, &plan(false))
+                    .expect_err("concrete base must satisfy the plan")
+                    .0
+                    .contains("base mod 4 = 0")
+            );
+        }
+        {
+            let aligned = extent.loan_mut(4, 12).expect("exclusive aligned subrange");
+            assert_eq!(
+                profile
+                    .initialization_compatibility(&aligned, &plan(false))
+                    .expect("the bound parent profile restricts to this loan")
+                    .byte_length(),
+                12
+            );
+        }
+        assert_eq!((extent.base(), extent.length()), (4096, 32));
+    }
+
+    #[test]
+    fn initialization_rejects_coincident_foreign_roots_and_mapping_epochs() {
+        let extent = super::uart_extent(4096, 32);
+        let profile = admitted(&extent);
+        for (mut foreign, fragment) in [
+            (super::uart_extent_with_root(4096, 32, 2, 1), "root origin"),
+            (super::uart_extent_with_lineage(4096, 32, 2), "root lineage"),
+            (
+                super::uart_root_grant_with_mapping(1, 1, 5, 7)
+                    .mint(4096, 32)
+                    .expect("new mapping epoch"),
+                "mapping era",
+            ),
+            (
+                super::uart_root_grant_with_mapping(1, 1, 8, 6)
+                    .mint(4096, 32)
+                    .expect("different provenance"),
+                "provenance",
+            ),
+        ] {
+            let loan = foreign.loan_mut(0, 12).expect("coincident foreign loan");
+            assert!(
+                profile
+                    .initialization_compatibility(&loan, &plan(false))
+                    .expect_err("equal geometry is not this profile's qualification")
+                    .0
+                    .contains(fragment)
+            );
+        }
+    }
+}
+
+mod resource_profiles {
+    use super::{
+        access_plan, extent_rights, reach, uart_access_plan, uart_extent, uart_extent_with_lineage,
+        uart_extent_with_root, uart_layout, uart_reach, uart_resource_profile_data,
+    };
+    use crate::ResourceProfileGrant;
+    use access_admission::EffectiveSupplyKind;
+    use access_admission::validate_access_resources;
+    use access_admission::validate_placement;
+    use access_admission::validate_resource_profile;
+    use access_vocabulary::AccessExposure;
+    use access_vocabulary::AtomicCapability;
+    use access_vocabulary::AtomicPermissions;
+    use access_vocabulary::AtomicTransferRule;
+    use access_vocabulary::BoundaryReach;
+    use access_vocabulary::BoundaryServiceReachId;
+    use access_vocabulary::ExternalCapability;
+    use access_vocabulary::ExternalRead;
+    use access_vocabulary::ExternalReadBehavior;
+    use access_vocabulary::FieldAccess;
+    use access_vocabulary::PeerWritability;
+    use access_vocabulary::ResourceProfile;
+    use access_vocabulary::ResourceProfileReceiptId;
+    use access_vocabulary::ResourceRegion;
+    use access_vocabulary::StableCapability;
+    use access_vocabulary::TransferRule;
+    use layout_plans::test_support::layout_field_entry;
+    use layout_plans::{LayoutPlacementReport, LayoutPlanReport};
+
+    #[test]
+    fn empty_profile_restriction_supplies_no_bytes_and_keeps_admission_identity() {
+        let extent = uart_extent(0x4000, 16);
+        let loan = extent.loan(16, 0).expect("empty loan at the end");
+        let admitted = ResourceProfileGrant::from_admitted_provider_loan(
+            ResourceProfileReceiptId::from_normalized_identity(41).expect("receipt"),
+            &loan,
+            extent_rights(&[3]),
+            BoundaryReach::default(),
+        )
+        .expect("empty loan still has exact backing authority")
+        .admit(ResourceProfile {
+            regions: Vec::new(),
+        })
+        .expect("no operations over an empty range");
+        let profile = admitted.restrict_to_loan(&loan).expect("same empty loan");
+        assert_eq!(profile.length(), 0);
+        assert!(profile.regions().is_empty());
+        assert!(profile.restrict(0, 1, &BoundaryReach::default()).is_err());
+        assert!(profile.restrict(1, 0, &BoundaryReach::default()).is_err());
+
+        let other = uart_extent_with_lineage(0x4000, 16, 63);
+        let other_loan = other.loan(16, 0).expect("same empty coordinates");
+        assert!(admitted.restrict_to_loan(&other_loan).is_err());
+        let nonempty = extent.loan(15, 1).expect("one real byte");
+        assert!(admitted.restrict_to_loan(&nonempty).is_err());
+
+        let parent = validate_resource_profile(
+            uart_resource_profile_data(16, &BoundaryReach::default()),
+            16,
+        )
+        .expect("parent profile");
+        for offset in [0, 8, 16] {
+            let empty = parent
+                .restrict(offset, 0, &BoundaryReach::default())
+                .expect("contained empty restriction");
+            assert_eq!(empty.length(), 0);
+            assert!(empty.regions().is_empty());
+        }
+        assert!(
+            validate_resource_profile(uart_resource_profile_data(16, &BoundaryReach::default()), 0)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn resource_profiles_normalize_disjoint_regions_and_restrict_subranges() {
+        let alternate_reach =
+            BoundaryServiceReachId::from_normalized_identity(8).expect("alternate reach");
+        let broad_reach = BoundaryReach::from_services([reach(), alternate_reach]);
+        let stable = ResourceRegion {
+            offset: 0,
+            length: 4,
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: broad_reach.clone(),
+        };
+        let profile = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![
+                    ResourceRegion {
+                        offset: 4,
+                        ..stable.clone()
+                    },
+                    stable.clone(),
+                    ResourceRegion {
+                        offset: 8,
+                        length: 8,
+                        peer: PeerWritability::Exclusive,
+                        stable: StableCapability::None,
+                        external: super::word32_access(ExternalReadBehavior::Repeatable, false),
+                        atomic: AtomicCapability::None,
+                        reach: broad_reach,
+                    },
+                ],
+            },
+            16,
+        )
+        .expect("disjoint profile");
+        assert_eq!(
+            profile.regions().len(),
+            2,
+            "adjacent identical regions normalize into one interval"
+        );
+        assert_eq!(profile.regions()[0].offset, 0);
+        assert_eq!(profile.regions()[0].length, 8);
+
+        let child = profile
+            .restrict(4, 8, &uart_reach())
+            .expect("subrange restriction");
+        assert_eq!(child.length(), 8);
+        assert_eq!(child.regions().len(), 2);
+        assert_eq!(
+            (child.regions()[0].offset, child.regions()[0].length),
+            (0, 4)
+        );
+        assert_eq!(
+            (child.regions()[1].offset, child.regions()[1].length),
+            (4, 4)
+        );
+        assert!(child.regions().iter().all(|region| {
+            region.reach.services().len() == 1 && region.reach.contains(reach())
+        }));
+
+        let overlap = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![
+                    stable,
+                    ResourceRegion {
+                        offset: 2,
+                        length: 4,
+                        peer: PeerWritability::Exclusive,
+                        stable: StableCapability::Read,
+                        external: ExternalCapability::None,
+                        atomic: AtomicCapability::None,
+                        reach: BoundaryReach::default(),
+                    },
+                ],
+            },
+            8,
+        )
+        .expect_err("overlapping resource regions must reject");
+        assert!(overlap.0.contains("overlap"));
+    }
+
+    #[test]
+    fn resource_compatibility_joins_observation_operations_width_and_reach() {
+        let plan = uart_access_plan();
+        let stable_profile = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![ResourceRegion {
+                    offset: 0,
+                    length: 12,
+                    peer: PeerWritability::Exclusive,
+                    stable: StableCapability::ReadWrite,
+                    external: ExternalCapability::None,
+                    atomic: AtomicCapability::None,
+                    reach: uart_reach(),
+                }],
+            },
+            12,
+        )
+        .expect("stable profile");
+        let compatibility = validate_access_resources(&plan, &stable_profile)
+            .expect("stable supply may conservatively satisfy external demand");
+        assert!(
+            compatibility
+                .fields()
+                .iter()
+                .all(|field| field.kind() == EffectiveSupplyKind::Stable)
+        );
+        assert_eq!(compatibility.base_congruence().modulus(), 4);
+        assert_eq!(compatibility.base_congruence().residue(), 0);
+
+        let read_only_external = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![ResourceRegion {
+                    offset: 0,
+                    length: 12,
+                    peer: PeerWritability::Exclusive,
+                    stable: StableCapability::None,
+                    external: super::word32_access(ExternalReadBehavior::Repeatable, false),
+                    atomic: AtomicCapability::None,
+                    reach: uart_reach(),
+                }],
+            },
+            12,
+        )
+        .expect("read-only external profile");
+        let error = validate_access_resources(&plan, &read_only_external)
+            .expect_err("read-only external supply cannot satisfy UART writes");
+        assert!(
+            error.0.contains("transmit") && error.0.contains("incompatible External"),
+            "canonical field order reports the first unsupported UART write: {error}"
+        );
+
+        let wrong_width = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![ResourceRegion {
+                    offset: 0,
+                    length: 12,
+                    peer: PeerWritability::Exclusive,
+                    stable: StableCapability::None,
+                    external: ExternalCapability::Access {
+                        read: ExternalReadBehavior::Repeatable,
+                        write: true,
+                        transfers: vec![TransferRule {
+                            width_bits: 64,
+                            alignment_bytes: 8,
+                        }],
+                    },
+                    atomic: AtomicCapability::None,
+                    reach: uart_reach(),
+                }],
+            },
+            12,
+        )
+        .expect("wrong-width profile remains structurally valid");
+        let error = validate_access_resources(&plan, &wrong_width)
+            .expect_err("transfer width must match exactly");
+        assert!(
+            error.0.contains("control") && error.0.contains("32-bit"),
+            "canonical field order reports the first width mismatch: {error}"
+        );
+
+        let stable_demand = validate_placement(
+            uart_layout(),
+            access_plan(
+                &uart_layout(),
+                &[(
+                    "status",
+                    super::stable_word32_read(AccessExposure::Exported),
+                )],
+            ),
+            uart_reach(),
+        )
+        .expect("stable demand");
+        let error = validate_access_resources(&stable_demand, &read_only_external)
+            .expect_err("external supply cannot satisfy Stable demand");
+        assert!(error.0.contains("requests Stable"));
+
+        let destructive_demand = validate_placement(
+            uart_layout(),
+            access_plan(
+                &uart_layout(),
+                &[(
+                    "status",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Take,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                )],
+            ),
+            uart_reach(),
+        )
+        .expect("destructive external demand");
+        let error = validate_access_resources(&destructive_demand, &read_only_external)
+            .expect_err("repeatable reads cannot satisfy destructive observation");
+        assert!(
+            error.0.contains("status") && error.0.contains("Take"),
+            "observation mismatch must name the destructive demand: {error}"
+        );
+
+        let atomic_layout = LayoutPlanReport {
+            schema_report_fingerprint: 93,
+            entries: vec![layout_field_entry(
+                "head",
+                LayoutPlacementReport::At { offset: 0 },
+            )],
+            offsets: Some(vec![0]),
+            size: Some(4),
+            align: 4,
+        };
+        let placement_fields = access_plan(
+            &atomic_layout,
+            &[(
+                "head",
+                FieldAccess::Atomic {
+                    transfer_width_bits: 32,
+                    operations: AtomicPermissions {
+                        load: true,
+                        fetch_add: true,
+                        ..AtomicPermissions::default()
+                    },
+                    exposure: AccessExposure::Exported,
+                },
+            )],
+        );
+        let atomic_demand =
+            validate_placement(atomic_layout, placement_fields, BoundaryReach::default())
+                .expect("atomic demand");
+        let load_only = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![ResourceRegion {
+                    offset: 0,
+                    length: 4,
+                    peer: PeerWritability::Exclusive,
+                    stable: StableCapability::None,
+                    external: ExternalCapability::None,
+                    atomic: AtomicCapability::Access {
+                        transfers: vec![AtomicTransferRule {
+                            transfer: TransferRule {
+                                width_bits: 32,
+                                alignment_bytes: 4,
+                            },
+                            operations: AtomicPermissions {
+                                load: true,
+                                ..AtomicPermissions::default()
+                            },
+                        }],
+                    },
+                    reach: BoundaryReach::default(),
+                }],
+            },
+            4,
+        )
+        .expect("load-only atomic profile");
+        let error = validate_access_resources(&atomic_demand, &load_only)
+            .expect_err("atomic operation demand must be an exact supply subset");
+        assert!(
+            error.0.contains("head") && error.0.contains("operation families"),
+            "atomic mismatch must name the field and operation family: {error}"
+        );
+    }
+
+    #[test]
+    fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
+        let layout = LayoutPlanReport {
+            schema_report_fingerprint: 94,
+            entries: vec![layout_field_entry(
+                "word",
+                LayoutPlacementReport::At { offset: 0 },
+            )],
+            offsets: Some(vec![0]),
+            size: Some(4),
+            align: 4,
+        };
+        let placement_fields = access_plan(
+            &layout,
+            &[(
+                "word",
+                FieldAccess::External {
+                    transfer_width_bits: 32,
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: AccessExposure::Exported,
+                },
+            )],
+        );
+        let placement = validate_placement(layout, placement_fields, BoundaryReach::default())
+            .expect("subrange placement");
+        let extent = uart_extent(0x4000, 16);
+        let profile = ResourceProfileGrant::from_admitted_provider(
+            ResourceProfileReceiptId::from_normalized_identity(41).expect("profile receipt"),
+            &extent,
+            extent_rights(&[3]),
+            BoundaryReach::default(),
+        )
+        .expect("profile grant")
+        .admit(ResourceProfile {
+            regions: vec![ResourceRegion {
+                offset: 4,
+                length: 4,
+                peer: PeerWritability::Exclusive,
+                stable: StableCapability::None,
+                external: super::word32_access(ExternalReadBehavior::Repeatable, false),
+                atomic: AtomicCapability::None,
+                reach: BoundaryReach::default(),
+            }],
+        })
+        .expect("sparse admitted profile");
+
+        {
+            let loan = extent.loan(4, 4).expect("covered subrange loan");
+            let restricted = profile
+                .restrict_to_loan(&loan)
+                .expect("resource region must rebase to the subrange loan");
+            let compatibility = validate_access_resources(&placement, &restricted)
+                .expect("covered supply satisfies demand");
+            assert_eq!(compatibility.fields()[0].offset(), 0);
+            assert_eq!(loan.base(), 0x4004);
+        }
+
+        let loan = extent.loan(0, 4).expect("uncovered subrange loan");
+        let restricted = profile.restrict_to_loan(&loan).expect("same backing");
+        let rejection = validate_access_resources(&placement, &restricted)
+            .expect_err("profile restriction must not fill uncovered parent bytes");
+        assert!(
+            rejection.0.contains("not covered"),
+            "uncovered subrange rejection must report missing supply"
+        );
+        drop(rejection);
+
+        let partition = extent
+            .partition_owned(4, 4)
+            .expect("owned subrange partition");
+        {
+            let loan = partition
+                .selected()
+                .loan(0, 4)
+                .expect("selected split loan");
+            let restricted = profile
+                .restrict_to_loan(&loan)
+                .expect("a conserved split must retain its root profile binding");
+            validate_access_resources(&placement, &restricted).expect("split supply");
+            assert_eq!(loan.base(), 0x4004);
+        }
+        let restored = partition.rejoin();
+        assert_eq!(restored.base(), 0x4000);
+        assert_eq!(restored.length(), 16);
+    }
+
+    #[test]
+    fn admitted_profile_rejects_coincident_independent_extent_root() {
+        let admitted_root = uart_extent_with_lineage(0x6000, 12, 61);
+        let profile = ResourceProfileGrant::from_admitted_provider(
+            ResourceProfileReceiptId::from_normalized_identity(62).expect("profile receipt"),
+            &admitted_root,
+            extent_rights(&[3]),
+            uart_reach(),
+        )
+        .expect("root-bound profile grant")
+        .admit(uart_resource_profile_data(12, &uart_reach()))
+        .expect("admitted root-bound profile");
+
+        let foreign_origin = uart_extent_with_root(0x6000, 12, 2, 61);
+        assert_ne!(foreign_origin.origin(), admitted_root.origin());
+        assert_eq!(foreign_origin.lineage_root(), admitted_root.lineage_root());
+        let loan = foreign_origin
+            .loan(0, 12)
+            .expect("coincident foreign-origin loan");
+        let rejection = profile
+            .restrict_to_loan(&loan)
+            .expect_err("coincident geometry and lineage must not replay another origin's profile");
+        assert!(
+            rejection.0.contains("sealed root origin"),
+            "cross-origin replay must identify the sealed-origin mismatch"
+        );
+
+        let coincident_root = uart_extent_with_lineage(0x6000, 12, 63);
+        assert_eq!(coincident_root.origin(), admitted_root.origin());
+        assert_ne!(coincident_root.lineage_root(), admitted_root.lineage_root());
+        let loan = coincident_root
+            .loan(0, 12)
+            .expect("coincident independent loan");
+        let rejection = profile.restrict_to_loan(&loan).expect_err(
+            "coincident geometry and provenance must not replay another root's profile",
+        );
+        assert!(
+            rejection.0.contains("root lineage"),
+            "cross-root replay must identify the root-lineage mismatch"
+        );
+    }
+
+    #[test]
+    fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
+        let conflicting_layout = LayoutPlanReport {
+            schema_report_fingerprint: 91,
+            entries: vec![
+                layout_field_entry("left", LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("right", LayoutPlacementReport::At { offset: 2 }),
+            ],
+            offsets: Some(vec![0, 2]),
+            size: Some(8),
+            align: 2,
+        };
+        let placement_fields = access_plan(
+            &conflicting_layout,
+            &[
+                (
+                    "left",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Read,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                ),
+                (
+                    "right",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Read,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                ),
+            ],
+        );
+        let conflicting = validate_placement(
+            conflicting_layout,
+            placement_fields,
+            BoundaryReach::default(),
+        )
+        .expect("relative geometry is structurally valid");
+        let profile = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![ResourceRegion {
+                    offset: 0,
+                    length: 8,
+                    peer: PeerWritability::Exclusive,
+                    stable: StableCapability::None,
+                    external: super::word32_access(ExternalReadBehavior::Repeatable, false),
+                    atomic: AtomicCapability::None,
+                    reach: BoundaryReach::default(),
+                }],
+            },
+            8,
+        )
+        .expect("alignment profile");
+        let error = validate_access_resources(&conflicting, &profile)
+            .expect_err("inconsistent field congruences must reject before admission");
+        assert!(
+            error.0.contains("right")
+                && error.0.contains("offset 2")
+                && error.0.contains("conflicts")
+        );
+
+        let layout = LayoutPlanReport {
+            schema_report_fingerprint: 92,
+            entries: vec![layout_field_entry(
+                "word",
+                LayoutPlacementReport::At { offset: 0 },
+            )],
+            offsets: Some(vec![0]),
+            size: Some(4),
+            align: 1,
+        };
+        let placement_fields = access_plan(
+            &layout,
+            &[(
+                "word",
+                FieldAccess::External {
+                    transfer_width_bits: 32,
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: AccessExposure::Exported,
+                },
+            )],
+        );
+        let placement = validate_placement(layout, placement_fields, BoundaryReach::default())
+            .expect("single-field placement");
+        let extent = uart_extent(0x1002, 4);
+        let loan = extent.loan(0, 4).expect("misaligned loan");
+        let resources = ResourceProfileGrant::from_admitted_provider(
+            ResourceProfileReceiptId::from_normalized_identity(22).expect("profile receipt"),
+            &extent,
+            extent_rights(&[3]),
+            BoundaryReach::default(),
+        )
+        .expect("profile grant")
+        .admit(ResourceProfile {
+            regions: vec![ResourceRegion {
+                offset: 0,
+                length: 4,
+                peer: PeerWritability::Exclusive,
+                stable: StableCapability::None,
+                external: super::word32_access(ExternalReadBehavior::Repeatable, false),
+                atomic: AtomicCapability::None,
+                reach: BoundaryReach::default(),
+            }],
+        })
+        .expect("admitted profile");
+        let restricted = resources.restrict_to_loan(&loan).expect("same backing");
+        let compatibility = validate_access_resources(&placement, &restricted)
+            .expect("relative geometry derives the base constraint");
+        assert_eq!(compatibility.base_congruence().modulus(), 4);
+        assert_eq!(compatibility.base_congruence().residue(), 0);
+        assert!(
+            !compatibility.base_congruence().admits(loan.base()),
+            "actual base must discharge the derived congruence"
+        );
+    }
+
+    #[test]
+    fn admitted_profile_restriction_preserves_rights_and_rejected_loan() {
+        let extent = uart_extent(0x3000, 12);
+        let profile = ResourceProfileGrant::from_admitted_provider(
+            ResourceProfileReceiptId::from_normalized_identity(31).expect("profile receipt"),
+            &extent,
+            extent_rights(&[4]),
+            uart_reach(),
+        )
+        .expect("profile grant")
+        .admit(ResourceProfile {
+            regions: vec![ResourceRegion {
+                offset: 0,
+                length: 12,
+                peer: PeerWritability::Exclusive,
+                stable: StableCapability::None,
+                external: super::word32_access(ExternalReadBehavior::Repeatable, true),
+                atomic: AtomicCapability::None,
+                reach: uart_reach(),
+            }],
+        })
+        .expect("admitted profile");
+        let extent = extent
+            .attenuate(extent_rights(&[3]))
+            .expect("attenuated extent");
+        let loan = extent.loan(0, 12).expect("UART loan");
+        let rejection = profile
+            .restrict_to_loan(&loan)
+            .expect_err("attenuated loan cannot recover profile-bound rights");
+        assert!(rejection.0.contains("lacks rights"));
+        assert_eq!(loan.base(), 0x3000);
+        assert_eq!(loan.length(), 12);
+    }
+
+    #[test]
+    fn hostile_shared_regions_never_supply_stable() {
+        let hostile_stable = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![ResourceRegion {
+                    offset: 0,
+                    length: 8,
+                    peer: PeerWritability::HostileShared,
+                    stable: StableCapability::Read,
+                    external: ExternalCapability::None,
+                    atomic: AtomicCapability::None,
+                    reach: BoundaryReach::default(),
+                }],
+            },
+            8,
+        )
+        .expect_err("stable supply over hostile-shared memory is incoherent");
+        assert!(
+            hostile_stable.0.contains("hostile-shared"),
+            "the rejection names the violated rule: {hostile_stable}"
+        );
+
+        let transfers = super::word32_transfers();
+        let hostile_external = validate_resource_profile(
+            ResourceProfile {
+                regions: vec![
+                    ResourceRegion {
+                        offset: 0,
+                        length: 4,
+                        peer: PeerWritability::HostileShared,
+                        stable: StableCapability::None,
+                        external: ExternalCapability::Access {
+                            read: ExternalReadBehavior::Repeatable,
+                            write: true,
+                            transfers: transfers.clone(),
+                        },
+                        atomic: AtomicCapability::None,
+                        reach: uart_reach(),
+                    },
+                    ResourceRegion {
+                        offset: 4,
+                        length: 4,
+                        peer: PeerWritability::Exclusive,
+                        stable: StableCapability::Read,
+                        external: ExternalCapability::None,
+                        atomic: AtomicCapability::None,
+                        reach: uart_reach(),
+                    },
+                ],
+            },
+            8,
+        )
+        .expect("hostile external supply is coherent beside exclusive stable");
+        assert_eq!(
+            hostile_external.regions().len(),
+            2,
+            "adjacent regions never merge across a peer boundary"
+        );
+
+        let child = hostile_external
+            .restrict(0, 4, &uart_reach())
+            .expect("restrict retains the hostile peer claim");
+        assert_eq!(child.regions()[0].peer, PeerWritability::HostileShared);
+
+        let profile_with = |peer: PeerWritability| {
+            validate_resource_profile(
+                ResourceProfile {
+                    regions: vec![ResourceRegion {
+                        offset: 0,
+                        length: 4,
+                        peer,
+                        stable: StableCapability::None,
+                        external: ExternalCapability::Access {
+                            read: ExternalReadBehavior::Repeatable,
+                            write: true,
+                            transfers: transfers.clone(),
+                        },
+                        atomic: AtomicCapability::None,
+                        reach: uart_reach(),
+                    }],
+                },
+                4,
+            )
+            .expect("peer claim alone cannot invalidate a profile")
+        };
+        assert_ne!(
+            profile_with(PeerWritability::Exclusive).identity(),
+            profile_with(PeerWritability::HostileShared).identity(),
+            "the peer claim participates in normalized identity"
+        );
+    }
+}

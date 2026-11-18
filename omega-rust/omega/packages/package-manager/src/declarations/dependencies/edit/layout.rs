@@ -101,13 +101,13 @@ pub(super) struct DependencyRow {
 pub(super) fn discover_build_layout(
     source: &str,
 ) -> Result<Option<Option<BuildLayout>>, BuildDependencyEditError> {
-    let source_compiler::ParsedText { tokens, syntax } = source_compiler::parse_text(source)
-        .map_err(|error| {
+    let source_syntax::ParsedText { tokens, syntax } =
+        source_syntax::parse_text(source).map_err(|error| {
             BuildDependencyEditError::InvalidBuild(match error {
-                source_compiler::SourceParseError::Lex { message } => {
+                source_syntax::SourceParseError::Lex { message } => {
                     DependencyProjectionError::Lex { message }
                 }
-                source_compiler::SourceParseError::Parse { message } => {
+                source_syntax::SourceParseError::Parse { message } => {
                     DependencyProjectionError::Parse { message }
                 }
             })
@@ -124,20 +124,20 @@ pub(super) fn discover_build_layout(
     let name_span = build.name.source_span().span;
     let Some(name_position) = semantic.iter().position(|index| {
         let token = &tokens[*index];
-        token.span == name_span && tokens.text(token) == BUILD_MACHINE_NAME
+        token.span == name_span && tokens.spelling(token) == BUILD_MACHINE_NAME
     }) else {
         return Ok(Some(None));
     };
     let expected_before = name_position
         .checked_sub(1)
         .and_then(|position| semantic.get(position))
-        .is_some_and(|index| tokens.text(&tokens[*index]) == "machine");
+        .is_some_and(|index| tokens.spelling(&tokens[*index]) == "machine");
     let expected_after = ["(", "builder", ":", "&", "mut", "Build", ")", "{"];
     if !expected_before
         || expected_after.iter().enumerate().any(|(offset, expected)| {
             semantic
                 .get(name_position + 1 + offset)
-                .is_none_or(|index| tokens.text(&tokens[*index]) != *expected)
+                .is_none_or(|index| tokens.spelling(&tokens[*index]) != *expected)
         })
     {
         return Ok(Some(None));
@@ -160,6 +160,9 @@ pub(super) fn discover_build_layout(
         .statements(entry.statements)
         .iter()
         .find_map(|handle| match syntax.statements.statement(*handle) {
+            StatementNode::Dispatch(handle) => {
+                Some(syntax.statements.dispatch(*handle).source_span.span.start)
+            }
             StatementNode::Transition(transition) => Some(transition.source_span.span.start),
             _ => None,
         })
@@ -196,7 +199,7 @@ fn entry_insertion_start(
     let mut start = None;
     for token in tokens[body_open + 1..body_close]
         .iter()
-        .filter(|token| !token.is_non_semantic())
+        .filter(|token| !token.is_trivia())
     {
         start.get_or_insert(token.span.start);
         if token.span.start >= bound {
@@ -226,16 +229,16 @@ fn semantic_indices(tokens: &TokenStream<'_>) -> Vec<usize> {
     tokens
         .iter()
         .enumerate()
-        .filter_map(|(index, token)| (!token.is_non_semantic()).then_some(index))
+        .filter_map(|(index, token)| (!token.is_trivia()).then_some(index))
         .collect()
 }
 
 fn matching_brace(tokens: &TokenStream<'_>, open: usize) -> Option<usize> {
     let mut depth = 0usize;
     for (index, token) in tokens.iter().enumerate().skip(open) {
-        match tokens.text(token).try_as_str() {
-            Some("{") => depth = depth.checked_add(1)?,
-            Some("}") => {
+        match token.punctuation() {
+            Some(PunctuationKind::LeftBrace) => depth = depth.checked_add(1)?,
+            Some(PunctuationKind::RightBrace) => {
                 depth = depth.checked_sub(1)?;
                 if depth == 0 {
                     return Some(index);
@@ -324,10 +327,18 @@ fn top_level_statements(
         if depth == 0 {
             start.get_or_insert(index);
         }
-        match tokens.text(&tokens[index]).try_as_str() {
-            Some("{" | "(" | "[") => depth += 1,
-            Some("}" | ")" | "]") => depth = depth.saturating_sub(1),
-            Some(";") if depth == 0 => {
+        match tokens[index].punctuation() {
+            Some(
+                PunctuationKind::LeftBrace
+                | PunctuationKind::LeftParen
+                | PunctuationKind::LeftBracket,
+            ) => depth += 1,
+            Some(
+                PunctuationKind::RightBrace
+                | PunctuationKind::RightParen
+                | PunctuationKind::RightBracket,
+            ) => depth = depth.saturating_sub(1),
+            Some(PunctuationKind::Semicolon) if depth == 0 => {
                 if let Some(first) = start.take() {
                     statements.push((first, index));
                 }
@@ -340,8 +351,8 @@ fn top_level_statements(
 
 fn compact_text(tokens: &TokenStream<'_>, (first, last): (usize, usize)) -> String {
     (first..=last)
-        .filter(|index| !tokens[*index].is_non_semantic())
-        .filter_map(|index| tokens.text(&tokens[index]).try_as_str())
+        .filter(|index| !tokens[*index].is_trivia())
+        .map(|index| tokens.spelling(&tokens[index]))
         .collect()
 }
 
@@ -349,4 +360,28 @@ fn line_indent(source: &str, offset: usize) -> Option<&str> {
     let line_start = source[..offset].rfind('\n').map_or(0, |index| index + 1);
     let prefix = &source[line_start..offset];
     prefix.chars().all(char::is_whitespace).then_some(prefix)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::discover_build_layout;
+
+    #[test]
+    fn quoted_delimiters_leave_the_build_body_and_dependency_row_intact() {
+        let source = r#"
+machine build(builder: &mut Build) {
+    Build::application(builder, "}");
+    _ = Build::dependency(builder, dependency::from_source(Source::Path { location: "(" }));
+}
+"#;
+        let layout = discover_build_layout(source).unwrap().unwrap().unwrap();
+        assert_eq!(layout.body_close_start, source.rfind('}').unwrap());
+        let [row] = layout.dependency_rows() else {
+            panic!("one dependency row");
+        };
+        assert_eq!(
+            &source[row.start..row.end],
+            r#"_ = Build::dependency(builder, dependency::from_source(Source::Path { location: "(" }));"#
+        );
+    }
 }

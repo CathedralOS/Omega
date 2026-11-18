@@ -1,0 +1,5 @@
+mod assembly_tests;
+mod call_result_selection_tests;
+mod domain_lookup_tests;
+mod pattern_binding_name_tests;
+mod primitive_family_binding_tests;

@@ -1,35 +1,28 @@
 # Compiler coordination
 
-This crate calls the compiler's stages in order; it does not load packages,
-evaluate builds, transform programs or draw visualizations. [lib.rs](src/lib.rs)
-offers two calls for any number of targets: opaque source preparation, then
-completion returning exactly what was asked. Application
-[`compile_sources`](../../build-system/orchestration/src/compile/source_compilation.rs)
-owns each single-use `CompileRequest` and runs Build between them. See the
-[pipeline map](../../../pipeline.md).
+The product coordinator prepares a request, gives Build its source continuation,
+and completes the requested products for the admitted targets. A source build
+moves from 00 input admission through 01 Psi compilation and 02 portable
+publication. Native requests continue at 03. The filesystem publication owner
+at 10 returns the receipts for installed outputs. [Coordinator](src/lib.rs) ·
+[Build caller](../../build-system/orchestration/src/compile/source_compilation.rs)
+· [Complete pipeline](../../../pipeline.md#connected-program-route)
 
-[Terminal production](../../../psi/compilation/terminal-production/README.md)
-publishes the module the lowered-form checker accepted, with its evidence and
-source owner. This crate supplies product policy and timings;
-[entry receipts](../../../psi/compilation/representations/terminal-psi/codec/src/entry_receipt.rs)
-belong to the codec. A product the compiler cannot yet produce is refused with
-`no product route yet`; no old lowering sequence runs.
+Psi lexes and parses each admitted source unit into an ordered syntax page.
+Resolution and typing keep their continuation across Build-generated source.
+Psi then prepares the typed program, lowers it, and checks the exact Terminal
+module. At 02 the publisher projects the accepted program, entry metadata and
+logical provider demand onto an immutable artifact. [Source stream](../../../psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs)
+· [Source acceptance](../../../psi/compilation/pipeline/01_source-compilation/src/operations/production/src/accepted.rs)
+· [Portable publication](../pipeline/02_portable-publication/src/provider_demand.rs)
 
-The separate [native compiler](../native-compiler/README.md) turns Terminal Psi
-into an image without reading source; this crate calls it after Terminal
-production. Code that needs those contracts uses `native-artifact`, `image-emission`, and Omega 00's `provider_admission`
-directly. Reports and publication come from `products`; this crate has no
-`report` or `artifact_publication` module. Root-level request/result exports
-are conveniences for the entry points.
-
-[target_batch.rs](src/target_batch.rs) admits the request and prepares one
-pending source/Build prefix; completion waits for its result, then dispatches
-the Check, Terminal or Native product, settling every target before producing
-Terminal Psi. Targets with the same checked source owner and
-the same Psi optimization share one Terminal production and its storage; each
-target keeps its own receipts and exclusion judgments. Native production
-receives the artifact explicitly and never calls Psi. All targets' roots and
-callbacks go into one shared list of Terminal entries.
+The target batch shares checked source and Terminal production between eligible
+requests. Each target retains its own Build choices and entry. Native planning
+joins the published choices and reached requirements to the target's providers
+and calling policies. The native compiler consumes those plans and the
+completed scalar values. [Target batch](src/target_batch.rs)
+· [Native planning](../pipeline/03_native-program-planning/src/execution.rs)
+· [Native compiler](../native-compiler/README.md)
 
 The crate-internal `produce_products` goes from checked source and selected
 targets to Terminal Psi when needed, then to the requested outputs. It is not
@@ -78,12 +71,14 @@ rollback once; Terminal, native production and the final receipt use those
 choices. A native request is carried by its native report settlement, not
 compared afterward with a separate requested-mode tag.
 
-The [session](src/checked/compilation_session.rs) owns the shared source/Build
-continuation and retained checking. Provider selection still runs before
-Terminal production, which needs the selected entry and callback roots and
-exclusion inputs; installation, permission comparison and trust admission run
-after it. Moving provider handoff after Terminal Psi is separate, unfinished
-work.
+The [session](src/checked/compilation_session.rs) retains the source and Build
+continuation. Source supplies the logical declarations and checked candidate
+bodies. Stage 02 publishes their identities with the reached requirements.
+Stage 03 binds target-specific calling plans to those identities. Native
+permission and trust admission use the target's selected execution evidence.
+[Published demand](../pipeline/02_portable-publication/src/provider_demand.rs)
+· [Target execution](../pipeline/03_native-program-planning/src/selected_execution.rs)
+
 The [product request owner](../products/src/compile_request.rs) expands
 explicit targets under one invocation policy, rejects duplicates and
 incompatible rollback, and admits evaluated Build requirements. It returns
@@ -115,11 +110,13 @@ the source continuation; component executables stay in this session.
 Package management supplies custody, consent and staging, not compiler calls
 or continuation tables.
 
-Independent-component requests, including lazy review descriptions, use the
-same [product sequence](src/target_batch.rs) as root products. The
-[component owner](src/product_execution.rs) prepares existing checked custody
-and, after shared Terminal production, completes the description and
-permission evidence; it has no batch loop or compiler entry of its own.
+A component request reaches the same product coordinator. The native component
+API consumes separately accepted exports and native realization inputs. The
+ordinary checked-component request refuses when that producer is unavailable.
+An application requiring independent components must also supply their verified
+products. [Component request](src/product_execution.rs)
+· [Native component API](../native-compiler/src/components.rs)
+
 [Product batching](src/checked/product_batch.rs) groups the admitted root and
 component continuations by complete source input and checks each group once.
 Members borrow its checked program and sealed source custody but keep their own
@@ -239,11 +236,11 @@ The [checked entrance](src/checked/checking.rs) shows the steps in order:
 [evaluate Build and continue generated source](src/checked/checking/build_continuation.rs),
 [check Product and seal source custody](src/checked/checking/source_checking.rs),
 then [prepare each target's complete selected execution](src/execution_settlement.rs).
-The Build coordinator calls the [Psi source continuation](../../../psi/compilation/source-compiler/src/source_compilation.rs)
+The Build coordinator calls the [Psi source continuation](../../../psi/compilation/pipeline/01_source-compilation/src/source_compilation.rs)
 for resolution, typing and generated-source completion, timing those calls
 directly. It owns package admission and Build authority, not the
 resolver/typing fixed points or their arenas.
-[Psi source checking](../../../psi/compilation/source-compiler/src/source_checking.rs)
+[Psi source checking](../../../psi/compilation/pipeline/01_source-compilation/src/source_checking.rs)
 then owns preparation, matching retained judgments, checking and product
 pruning. Build admission uses the same checking steps. Shared source
 projections and operator queries belong to the semantic checking libraries.
@@ -324,18 +321,17 @@ package system's
 [inputs](../../packages/package-compilation/README.md) packages; consumers
 depend on them directly, not on the package-command application.
 
-Target-neutral build evaluation stays in
-[Psi's compiler support](../../../psi/compilation/build-time-evaluation/README.md).
-Opaque representation admission belongs to
-[Psi checking](../../../psi/compilation/validation/representation-planning/README.md);
-provider selection and planning belong to
-[Omega provider realization](../realization/provider-planning/README.md), beside
-[selected execution](../realization/selected-dispatch/README.md).
-[Realization admission](../realization/trust-model/README.md) rebuilds trust
-obligations and reports. The [artifact utilities](../../foundation/artifacts/README.md)
-write host output and take opt-in measurements; they keep no semantic trust
-records. The separate [package manager](../../packages/package-manager/README.md)
-installs and updates packages.
+The Psi source compiler owns source-backed Build evaluation and preparation
+of opaque representations. Stage 03 plans native providers and selected
+execution. Provider correspondence and admission independently check
+declarations and trust evidence. Product measurements record opt-in timings,
+and the package manager installs and updates packages.
+[Build evaluation](../../../psi/compilation/pipeline/01_source-compilation/src/evaluation/)
+· [Source preparation](../../../psi/compilation/pipeline/01_source-compilation/src/source_checking.rs)
+· [Target planning](../pipeline/03_native-program-planning/src/lib.rs)
+· [Trust admission](../verification/provider-correspondence/src/trust/mod.rs)
+· [Measurements](../products/measurements/README.md)
+· [Package manager](../../packages/package-manager/README.md)
 
 ## Product boundaries and observations
 
@@ -350,7 +346,7 @@ to the [shared native proposal owner](../representations/abstract-operations/ver
 which checks the entry, selected implementations and callback occurrences. Its
 [execution preparation](../representations/abstract-operations/verified-optimization-input/src/native_execution.rs)
 then finds the functions that can run and completes their implementation
-choices, and [Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs)
+choices, and [Stage 03](../pipeline/03_native-program-planning/src/artifact_lowering/retained_terminal.rs)
 lowers and admits that checked selection. The compiler calls these steps
 without rebuilding their joins, and later stages read the shared record
 without importing its producer. A missing callback body is rejected during
@@ -377,14 +373,14 @@ text and separately replayed image. It writes no primary output
 and grants no authority to an executable path, installation, publication,
 deployment or runtime. Pending component work cannot be silently dropped.
 Unsupported Terminal Psi is rejected; no source-based route takes over.
-[Native artifacts](../backend/artifacts/native-artifact/README.md) lists the
+[Native artifacts](../pipeline/09_image-construction/native-artifact/README.md) lists the
 current limits on physical evidence.
 
 Compilation produces only the requested product and diagnostics: no optional
 JSON, HTML, text or Markdown debug dumps, disassembly reports or timing files,
 and no full/output-only observation policy.
 
-[Trust admission](../realization/trust-model/README.md) still rebuilds trust
+[Trust admission](../verification/provider-correspondence/src/trust/mod.rs) still rebuilds trust
 obligations, settles exact owner admissions and checks that target and report
 agree. Wire compatibility, capability validation, package locks and required
 product evidence remain mandatory. A check or retained-artifact compile need
@@ -402,7 +398,7 @@ encoder, so the byte format and identities do not change.
 
 ## Intrinsic settlement conversion
 
-[Native builtin projection](../realization/provider-admission/src/compiler_builtins.rs)
+[Native builtin projection](../verification/provider-admission/src/compiler_builtins.rs)
 checks the provenance of every selected plan, then joins the sorted intrinsic
 rows to what the Terminal program demands, keeping each row's original plan
 index. Duplicate demanded rows are rejected; undemanded rows need no
@@ -415,7 +411,7 @@ rejoins the proposals to the receiving target's catalog.
 
 ## Target set and realization
 
-[Explicit targets](../backend/target/src/explicit_target_set.rs) takes an
+[Explicit targets](../target-description/target/src/explicit_target_set.rs) takes an
 optional selection. Without one, every deployable profile the toolchain
 provides is realized. A given set must be nonempty; it is sorted and
 deduplicated, and wildcards and unknown targets are rejected. The selection only narrows realization: Psi
@@ -430,18 +426,11 @@ diagnostics, and one target's failure never hides another's. A success keeps
 its ordinary standalone artifact identity. The collection claims no support,
 test or audit status.
 
-The current implementation instead keeps one immutable source parse
-([package source preparation](../../packages/package-compilation/src/source/source_assembly.rs))
-and runs a child compilation per target configuration: per-target source
-assembly, declaration filtering, build evaluation, provider settlement and
-checking, with request-level policy copied into each.
-[Generated-source continuation](../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/README.md)
-owns appended source, and [checked settlement](#checked-settlement) owns the
-later ordered joins. The [pipeline route items](../../../../TASKS.md#pipeline-route)
-replace the child compilations with the single pass above. Until then each
-child prepares its own Terminal input, and sharing the parse never lets one
-child's checked target, providers, admissions or physical evidence serve as
-another child's authority.
+The source continuation is shared across the admitted target batch. Build can
+add generated source to its resolver and typing state. Native planning keeps
+each target's selected bodies, permissions, calling policy and physical evidence
+with its own product. [Target batch](src/target_batch.rs) ·
+[Source continuation](../../../psi/compilation/pipeline/01_source-compilation/src/source_compilation.rs)
 
 ## Checked settlement
 
@@ -465,14 +454,14 @@ authority.
 [Source checking](src/checked/checking/source_checking.rs) uses Product typing
 once, admits representation properties and seals source custody before target
 settlement; targets share the checked arenas and the sealed custody.
-[Provider binding](../realization/selected-dispatch/src/provider_binding.rs)
-belongs to Omega realization. It binds callback placements and provider
+[Provider binding](../verification/provider-correspondence/src/binding.rs)
+belongs to independent provider correspondence. It binds callback placements and provider
 grants, closes selected review and accepted service roles, and builds
 direct-call supplies without rewriting Psi's checked result. Psi derives
 candidate specializations from authored conformances, independently of runtime
 provider selection. On the lowered route, `SelectedExecution` keeps only the
 target and its settled provider plans
-([selected-dispatch](../realization/selected-dispatch/README.md)). Terminal
+([selected target execution](../pipeline/03_native-program-planning/src/selected_execution.rs)). Terminal
 production borrows it to build the provider proposal a target's conditions
 are checked against. Turning it into a checked compilation only assembles
 custody, not a late source phase.
@@ -487,11 +476,14 @@ specialization rows; reloading rebuilds them from Terminal Psi. Source checking
 and review keep their own source-side facts; external applications, intrinsic
 leaves and installation reach are held separately.
 
-Provider-dependent Product constants are currently rejected with an explicit
-`unimplemented:` diagnostic. Portable symbolic recipes must pass
-through Psi before realization closes them; selected runtime values cannot be
-folded into shared source. Admitted Build evaluation keeps its own evaluation
-authority. Target-neutral execution plans belong to Psi: one Omega authority
+The portable publication records which checked provider bodies scalar evaluation
+can reach. For supported folded constants, stage 03 attaches those plans'
+identities to a target-specific program. A receiving artifact must match the
+same target, candidates and plan digests. The portable source publication keeps
+its original identity. [Folded entry](../pipeline/03_native-program-planning/src/folded_entry.rs)
+· [Receiving checks](../representations/provider-plans/src/target_providers.rs)
+
+Admitted Build evaluation keeps its own evaluation authority. Target-neutral execution plans belong to Psi: one Omega authority
 pass joins each source requirement to an exact intrinsic or checked adapter
 and its plan commitment. Psi derives the Float operation and carriers or the
 provider entry, then itself validates source selection, operands, arithmetic
@@ -499,14 +491,12 @@ policy, signature, conformance and invocation admission. The coordinator
 neither classifies Float meaning nor rebuilds separate fact lists for these
 two supplies.
 
-[Selected execution](../realization/selected-dispatch/src/selected_execution.rs)
+[Selected execution](../pipeline/03_native-program-planning/src/selected_execution.rs)
 keeps Psi's checked execution plans instead of calling Psi again to rebuild
 them. Check-only task validation stays separate from native task demand read
 from the artifact. When both exist, source and role errors come before
 Terminal and task errors; native-source refusals come later, and native
-permission and trust admission still run after production. This remains a
-seam between source and realization; moving it out of the coordinator does not
-finish the separate task of installing providers after Terminal Psi.
+permission and trust admission still run after production. The selected target execution is a stage 03 result.
 
 Boundary calls stay canonical in the checked program. Ordinary compilation
 builds no receiver/requirement/entry-state dispatch associations, and neither
@@ -524,11 +514,10 @@ join.
 
 ## Native realization
 
-[Native-artifact emission](../backend/artifacts/native-artifact/src/lib.rs)
+[Native-artifact emission](../pipeline/09_image-construction/native-artifact/src/lib.rs)
 builds the final image and chooses between Direct and Dynamic ELF artifacts.
-The coordinator supplies source-free views of the selected plans and passes on
-the emitted object and retained evidence; the backend builds the complete
-product and replays it independently. The compiler has no artifact assembler.
+The native driver supplies the stage 08 object publication and the target image request.
+Stage 09 builds the product. Explicit audits can compare it with retained originals.
 
 The [native compiler](../native-compiler/README.md) consumes Terminal Psi and
 explicit realization inputs. Its public contracts are
@@ -566,7 +555,7 @@ instead of carrying a second plan copy and separate identity fields.
 Independent fragment, object and image replay still check the complete join.
 
 Direct compilation and retained Terminal re-entry share
-[source-binding preparation](../realization/provider-admission/src/source_evaluated_bindings.rs)
+[source-binding preparation](../verification/provider-admission/src/source_evaluated_bindings.rs)
 in the Terminal entry stage. It joins demanded imports and syscalls to exact
 selected plans, derives import execution and stack inputs when none are
 supplied, and rejects supplied lists that are incomplete or substituted. The
@@ -602,11 +591,11 @@ slots are published or that Independent execution works.
 Calling-policy execution takes a source-free `CallingPolicySignature`: the
 `BoundarySignatureGeometry`, the target and all callback obligations. Its
 input encoder and returned-plan validator sit together in
-[policy_signature.rs](../realization/provider-planning/src/calling_policy_plans/policy_signature.rs),
+[policy_signature.rs](../pipeline/03_native-program-planning/src/calling_policy_plans/policy_signature.rs),
 and native application publication uses the same geometry. Source symbols
 used by package review and layout preparation never reach the policy
 activation. The catalog builder in
-[terminal_signature.rs](../realization/provider-planning/src/calling_policy_plans/terminal_signature.rs)
+[terminal_signature.rs](../pipeline/03_native-program-planning/src/calling_policy_plans/terminal_signature.rs)
 produces the policy input directly and never builds a signature with
 placeholder source symbols. Policy entries and final applications borrow one
 Product publication owned by the invocation, fixed to the Psi optimization
@@ -614,8 +603,8 @@ chosen at source completion. Its roots are the authored entries, policy
 bodies, constant providers and boundary declarations, whatever targets are
 selected. There is no policy-only compilation. Named inspection keeps its own
 explicit root through the same Psi operation without replacing Product code.
-Preparation still reads source for ordinary and opaque layouts and for inline
-callback slots; moving that work after Terminal publication is unfinished.
+The source owner supplies the admitted layout and callback declarations. Native
+planning consumes the published artifacts and target evidence.
 Preparation completes the native telescope (full parameter list) and every
 callback destination before the single policy activation; provider schemas
 record that final application, so no partial plan is later replaced.
@@ -649,14 +638,14 @@ selected. Canonical callback applications and target calling applications stay
 separate inputs to the realization request. The
 [shared callback settlement](../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
 joins their exact requirement and static binder ordinal, then produces the
-[backend placement](../backend/plans/backend-plan/src/callback_artifacts.rs):
+[backend placement](../representations/provider-plans/src/callback_artifacts.rs):
 a direct callback parameter or record-field root with its native ordinal and
 placement. Stored inputs keep canonical applications, not derived placements;
 fresh and recovered products use the same placement step.
 Source preparation keeps only the declaration checks and callback roots needed
 to admit behavior before optimization, including unused registrar uses; ABI
 and context replay and occurrence joins stay separate. The
-[target-side carrier](../pipeline/02_abstract-operations-to-target-operations/src/coordination.rs)
+[target-side carrier](../pipeline/03_native-program-planning/src/target_lowering/coordination.rs)
 binds a Terminal operation, placement index, private function, native
 parameter application, registrar plan and context, and application commitment.
 Target lowering checks the one-slot relation. The commitment only records its

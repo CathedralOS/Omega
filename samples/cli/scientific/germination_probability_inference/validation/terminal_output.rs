@@ -35,7 +35,6 @@ fn run(root: PathBuf, output: PathBuf, work: u64, timeout: u64, names: Vec<Strin
             }
         });
         let observed=terminal_runtime::execute(TerminalRuntimeRequest {
-            native_image: None,
             native_provider: None,
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact,target:Some("linux_x86_64"),provisions:report.runtime_provisions(),provider_proposal:None,

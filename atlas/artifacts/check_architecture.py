@@ -28,6 +28,10 @@ def main():
                 assert page.locator('h1').inner_text()=='See how Omega fits together.'
                 page.get_by_role('link',name='Open compiler map',exact=True).click()
                 page.wait_for_function("document.querySelector('#compiler-overview').dataset.scale")
+                assert page.locator('#compiler-overview').get_attribute('data-view')=='proposed'
+                page.locator('.connected-jump').select_option('source-settlement')
+                assert page.locator('.connected-detail').get_by_role('link',name='Rust implementation at c329436ed22').is_visible()
+                page.get_by_role('button',name='Before migration',exact=True).click()
                 assert page.locator('.overview-node[data-endpoint="engine"]').count()==1
                 assert page.locator('.overview-node[data-endpoint="compiler"]').count()==1
                 model=json.loads(page.locator('#overview-model').text_content())
@@ -57,7 +61,7 @@ def main():
                     assert page.locator('.trace-explanation').is_visible()
                     canvas=page.locator('#compiler-overview')
                     current_position=canvas.get_attribute('data-camera')
-                    page.get_by_role('button',name='Proposed',exact=True).click()
+                    page.get_by_role('button',name='Stages 00–10',exact=True).click()
                     assert trace.input_value()==item['id']
                     repair=json.loads(page.locator('#overview-proposed-model').text_content())['repairs'][item['id']]
                     note=page.locator('.trace-explanation')
@@ -75,16 +79,16 @@ def main():
                                 document.querySelector('.connected-viewport').getBoundingClientRect().top - 22)<2;
                         }""",arg=last)
                     proposed_position=canvas.get_attribute('data-camera')
-                    page.get_by_role('button',name='Current',exact=True).click()
+                    page.get_by_role('button',name='Before migration',exact=True).click()
                     assert trace.input_value()==item['id'] and canvas.get_attribute('data-camera')==current_position
-                    page.get_by_role('button',name='Proposed',exact=True).click()
+                    page.get_by_role('button',name='Stages 00–10',exact=True).click()
                     assert canvas.get_attribute('data-camera')==proposed_position,(item['id'],proposed_position,canvas.get_attribute('data-camera'))
-                    page.get_by_role('button',name='Current',exact=True).click()
+                    page.get_by_role('button',name='Before migration',exact=True).click()
                 trace.select_option('')
                 page.locator('.connected-jump').select_option('installations')
-                page.get_by_role('button',name='Proposed',exact=True).click()
+                page.get_by_role('button',name='Stages 00–10',exact=True).click()
                 assert trace.input_value()=='handlers'
-                page.get_by_role('button',name='Current',exact=True).click()
+                page.get_by_role('button',name='Before migration',exact=True).click()
                 page.emulate_media(reduced_motion='no-preference')
                 trace.select_option('')
                 page.locator('.connected-jump').select_option('engine')
@@ -113,7 +117,7 @@ def main():
                 assert page.locator('.overview-edge.is-traced').count()==0
                 viewport.press('ArrowDown')
                 current_camera=page.locator('#compiler-overview').get_attribute('data-camera')
-                page.get_by_role('button',name='Proposed',exact=True).click()
+                page.get_by_role('button',name='Stages 00–10',exact=True).click()
                 assert page.locator('#compiler-overview').get_attribute('data-view')=='proposed'
                 proposed=json.loads(page.locator('#overview-proposed-model').text_content())
                 assert page.locator('.connected-viewport .connected-scene').count()==1
@@ -153,15 +157,18 @@ def main():
                 page.locator('.connected-detail-close').click()
                 assert page.evaluate('document.documentElement.scrollWidth')<=width+1
                 page.locator('.connected-jump').select_option('native-planning')
-                assert 'Open contract:' in page.locator('.connected-detail').inner_text()
+                assert 'Obligation in the recorded plan.' in page.locator('.connected-detail').inner_text()
+                page.locator('.connected-jump').select_option('object-stage-container')
+                assert 'Implemented on the migration branch.' in page.locator('.connected-detail').inner_text()
+                assert page.locator('.connected-detail').get_by_role('link',name='Root and private objects').count()==1
                 assert page.locator('.connected-detail').get_by_role('link',name='Read proposal',exact=True).count()==1
                 proposed_camera=page.locator('#compiler-overview').get_attribute('data-camera')
-                page.get_by_role('button',name='Current',exact=True).click()
+                page.get_by_role('button',name='Before migration',exact=True).click()
                 assert page.locator('#compiler-overview').get_attribute('data-camera')==current_camera
-                page.get_by_role('button',name='Proposed',exact=True).click()
+                page.get_by_role('button',name='Stages 00–10',exact=True).click()
                 assert page.locator('#compiler-overview').get_attribute('data-camera')==proposed_camera
                 assert page.locator('.overview-edge.is-traced').count()==0
-                page.get_by_role('button',name='Current',exact=True).click()
+                page.get_by_role('button',name='Before migration',exact=True).click()
                 page.locator('[data-camera="expand"]').click()
                 assert page.locator('.architecture').evaluate("e=>e.classList.contains('is-expanded')")
                 page.keyboard.press('Escape')

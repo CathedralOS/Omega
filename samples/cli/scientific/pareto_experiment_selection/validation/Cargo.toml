@@ -7,4 +7,4 @@ edition = "2024"
 sample-runner = { path = "../../sample-runner" }
 
 [dev-dependencies]
-effects = { path = "../../../../../omega-rust/omega/compilation/backend/plans/effects" }
+effects = { path = "../../../../../omega-rust/omega/compilation/representations/native-effects" }

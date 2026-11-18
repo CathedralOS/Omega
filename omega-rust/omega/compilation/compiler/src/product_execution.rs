@@ -16,7 +16,6 @@ use optimization_core::OptimizationSelections;
 use products::{
     CheckedProductReport, NativeProductRequest, ProductReportPlan, ProductReportRequest,
 };
-use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -32,6 +31,16 @@ impl CompilationProduct {
         match self {
             Self::Inspection(name) => Some(name),
             _ => None,
+        }
+    }
+
+    pub(crate) fn report_kind(&self) -> Option<products::RequestedCompileProduct> {
+        use products::RequestedCompileProduct as Report;
+        match self {
+            Self::Check => Some(Report::Check),
+            Self::Terminal(_) => Some(Report::TerminalArtifact),
+            Self::Native(_) => Some(Report::NativeArtifact),
+            Self::Inspection(_) => None,
         }
     }
 
@@ -111,11 +120,11 @@ pub enum CompilationProductError {
     Production(Vec<Diagnostic>),
     ProductionAttempt {
         diagnostics: Vec<Diagnostic>,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     },
     BuildConsentRequired {
         requests: Vec<package_compilation::build_execution::RestrictedBuildRequest>,
-        accounting: build_time_evaluation::SourceCompletionAccounting,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
     },
 }
 
@@ -169,7 +178,7 @@ impl From<CompilationProductError> for crate::CompileFailure {
 impl CompilationProductError {
     pub fn with_source_completion_accounting(
         self,
-        mut accounting: build_time_evaluation::SourceCompletionAccounting,
+        mut accounting: source_compiler::evaluation::SourceCompletionAccounting,
     ) -> Self {
         match self {
             Self::ProductionAttempt {
@@ -248,7 +257,6 @@ pub(crate) enum ProductRequest {
         package_inputs: Option<package_compilation::PackageCompilationInputs>,
         root: PathBuf,
         product: CompilationProduct,
-        permissions: Option<TerminalPermissionAcceptance>,
     },
     Component(CheckedCompilation),
 }
@@ -261,7 +269,6 @@ pub(crate) enum TerminalCompilation {
 pub(crate) struct TargetCompilation {
     realization: SelectedProductTarget,
     report: ProductReportPlan,
-    permissions: Option<TerminalPermissionAcceptance>,
     selections: OptimizationSelections,
 }
 
@@ -270,13 +277,11 @@ impl TargetCompilation {
         realization: SelectedProductTarget,
         _package_inputs: Option<package_compilation::PackageCompilationInputs>,
         report: ProductReportPlan,
-        permissions: Option<TerminalPermissionAcceptance>,
     ) -> Self {
         let selections = report.optimizations().clone();
         Self {
             realization,
             report,
-            permissions,
             selections,
         }
     }
@@ -310,29 +315,31 @@ impl TargetCompilation {
         let runtime_product = self
             .report
             .needs_terminal(&self.realization.custody.build_admission);
-        let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
+        let consent = self.realization.consent.take();
+        let advisories = self.realization.advisories.take();
         let checked = self.realization.into_checked_compilation()?;
         let accounting = checked.source_completion_accounting().clone();
         let report = (|| {
-            admit_permissions(
-                &checked,
-                &runtime_policy,
-                self.permissions.as_ref(),
-                runtime_product,
-            )?;
+            admit_permissions(&checked, consent.as_ref(), runtime_product)?;
             checked
                 .admit_trust()
                 .map_err(CompilationProductError::TrustAdmission)?;
             match self.report.prepare(&checked)? {
                 CheckedProductReport::Complete(report) => Ok(CompilationOutput::Report(
-                    report.with_advisories(advisories(&checked)),
+                    report.with_advisories(advisories.ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "compilation lost the requested source advisory report",
+                        )]
+                    })?),
                 )),
                 CheckedProductReport::Terminal {
                     mut settlement,
                     rollback,
                 } => {
+                    let published = checked.into_published()?;
+                    let proposal = produced.into_executable_proposal(&published)?;
                     let (terminal, _, _) =
-                        executable::prepare(&checked, produced, &self.selections, None)?;
+                        executable::prepare(&published, proposal, &self.selections, None)?;
                     *settlement.source_completion_accounting_mut() = accounting.clone();
                     settlement
                         .finish_terminal(terminal, rollback.into_receipt())
@@ -344,14 +351,28 @@ impl TargetCompilation {
                     request,
                     rollback,
                 } => {
+                    let published = checked.into_published()?;
+                    let proposal = produced.into_executable_proposal(&published)?;
                     let (terminal, accepted_package_permissions, retained_native_inputs) =
-                        executable::prepare(&checked, produced, &self.selections, Some(&request))?;
-                    if checked.execution().realization().composition_modes().any(|mode| {
-                        mode == language_semantics::declaration_selection::CompositionMode::Independent
-                    }) {
-                        return Err(CompilationProductError::Production(vec![Diagnostic::error(
-                            "native composition needs the selected independent components' verified products",
-                        )]));
+                        executable::prepare(
+                            &published,
+                            proposal,
+                            &self.selections,
+                            Some(&request),
+                        )?;
+                    if published
+                        .execution()
+                        .realization()
+                        .composition_modes()
+                        .any(|mode| {
+                            mode == declaration_contracts::selection::CompositionMode::Independent
+                        })
+                    {
+                        return Err(CompilationProductError::Production(vec![
+                            Diagnostic::error(
+                                "native composition needs the selected independent components' verified products",
+                            ),
+                        ]));
                     }
                     *settlement.source_completion_accounting_mut() = accounting.clone();
                     Ok(CompilationOutput::Native(Box::new(
@@ -378,31 +399,15 @@ impl TargetCompilation {
     }
 }
 
-/// The advisory diagnostics of the accepted source this compilation checked
-/// (`AcceptedTerminalSource::advisories`), each placed in its source file.
-/// They are warnings about a program that was accepted, so a compilation
-/// with no retained judgment simply has none.
-fn advisories(checked: &products::CheckedCompilation) -> Vec<Diagnostic> {
-    let Ok(accepted) = checked.terminal_publication().accepted() else {
-        return Vec::new();
-    };
-    let mut advisories = accepted.advisories().to_vec();
-    if let Some(sources) = accepted.source().symbols.source_map() {
-        crate::checked::checking::attribute_diagnostics(&mut advisories, &sources, None);
-    }
-    advisories
-}
-
 impl ProductRequest {
     pub(crate) fn plan(self) -> Result<TerminalCompilation, CompilationProductError> {
-        let (mut realization, package_inputs, root, product, permissions) = match self {
+        let (mut realization, package_inputs, root, product) = match self {
             Self::Requested {
                 realization,
                 package_inputs,
                 root,
                 product,
-                permissions,
-            } => (realization, package_inputs, root, product, permissions),
+            } => (realization, package_inputs, root, product),
             Self::Component(checked) => {
                 let accounting = checked.source_completion_accounting().clone();
                 if checked.sources().package_identity().is_none() {
@@ -429,10 +434,8 @@ impl ProductRequest {
         };
         let report = ProductReportPlan::new(root, requested, &realization.custody.build);
         if report.needs_terminal(&realization.custody.build_admission)
-            && let Err(diagnostics) = crate::terminal::prepare_entry_metadata(
-                &mut realization.custody,
-                package_inputs.as_ref(),
-            )
+            && let Err(diagnostics) =
+                crate::terminal::bind_folded_entry_dependencies(&mut realization.custody)
         {
             return Err(CompilationProductError::from(diagnostics)
                 .with_source_completion_accounting(
@@ -445,7 +448,6 @@ impl ProductRequest {
             realization,
             package_inputs,
             report,
-            permissions,
         )))
     }
 }
@@ -459,7 +461,7 @@ fn refuse_executable_product(product: &str) -> Vec<Diagnostic> {
 impl TerminalCompilation {
     pub(crate) fn source_completion_accounting(
         &self,
-    ) -> &build_time_evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         match self {
             Self::Product(product) => &product.realization.custody.source_completion_accounting,
             Self::Inspection(product) => product.source_completion_accounting(),
@@ -486,26 +488,18 @@ impl TerminalCompilation {
 
 fn admit_permissions(
     checked: &CheckedCompilation,
-    declarations: &review_evidence::permission_acceptance::PreparedRuntimePolicy,
-    permissions: Option<&TerminalPermissionAcceptance>,
+    consent: Option<&crate::checked::PreparedRuntimeConsent>,
     runtime_product: bool,
 ) -> Result<(), CompilationProductError> {
-    let input = review_evidence::permission_acceptance::RuntimePermissionInput::from_compilation(
-        declarations,
-        checked,
-    );
-    let permissions = match permissions {
-        Some(permissions) => permissions,
-        None => {
-            return refuse_unaccepted_assumed_bindings(
-                runtime_product,
-                checked.execution().plans().assumed_bindings().len(),
-            );
-        }
-    };
-    permissions
-        .validate(&input)
-        .map_err(CompilationProductError::TrustAdmission)
+    match consent {
+        Some(consent) => consent
+            .validate(checked)
+            .map_err(CompilationProductError::TrustAdmission),
+        None => refuse_unaccepted_assumed_bindings(
+            runtime_product,
+            checked.execution().plans().assumed_bindings().len(),
+        ),
+    }
 }
 
 /// Without a lock nobody has accepted anything, so a runtime product cannot

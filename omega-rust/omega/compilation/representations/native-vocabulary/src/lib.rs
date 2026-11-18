@@ -32,3 +32,5 @@ pub mod storage_projection;
 pub mod structural_stores;
 pub mod structural_type_catalog;
 pub mod values;
+
+pub mod emission;

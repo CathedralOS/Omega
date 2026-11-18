@@ -12,8 +12,8 @@ use crate::snapshot::ItemSnapshot;
 use crate::statement::{StatementNode, TableAssignment, TableCall};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
-use numerics::literals::IntegerLiteral;
-use source::{SourceId, SourceSpan, Span};
+use numeric_literals::IntegerLiteral;
+use source_text::{SourceId, SourceSpan, Span};
 
 fn shared_case_subject_syntax() -> (SyntaxTrees, ExpressionHandle, ExpressionHandle) {
     use crate::expression::{TableIndexedExpression, TableMembershipExpression};
@@ -285,13 +285,29 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
         builtin_operators: vec![span(20)],
         call_selections: Vec::new(),
     };
-    let constant = Item::Const(crate::item::ConstDefinition {
+    let mut definition = crate::item::ConstDefinition::from(crate::item::ConstSyntax {
         name: Identifier::generated("ENABLED"),
-        value,
-        normalization: Some(normalization.clone()),
+        initializer: authored_expression,
         ..Default::default()
     });
+    definition.preparation_mut().materialized_initializer = Some(value);
+    definition.preparation_mut().normalization = Some(normalization.clone());
+    let constant = Item::Const(definition);
     source.push_root_item(constant.clone());
+    let bytes =
+        compiler_storage::encode(&source, compiler_storage::RecordLimits::default()).unwrap();
+    let restored: SyntaxTrees =
+        compiler_storage::decode(&bytes, compiler_storage::RecordLimits::default()).unwrap();
+    assert_eq!(restored, source);
+    let snapshot = restored.snapshot();
+    let crate::snapshot::ItemSnapshot::Const { value: written, .. } = &snapshot.root_items[0]
+    else {
+        panic!("expected constant snapshot")
+    };
+    assert!(matches!(
+        **written,
+        crate::snapshot::ExpressionSnapshot::Unary { .. }
+    ));
     let mut cloned = source.clone();
     assert_eq!(cloned, source);
     cloned
@@ -321,24 +337,32 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
         let Item::Const(copied) = copied else {
             panic!("copied constant");
         };
-        let receipt = copied.normalization.expect("retained normalization");
+        let receipt = copied
+            .preparation()
+            .normalization
+            .as_ref()
+            .expect("retained normalization");
         assert_eq!(receipt.result_value, normalization.result_value);
         assert_eq!(receipt.selections, normalization.selections);
         assert_eq!(receipt.builtin_operators, normalization.builtin_operators);
-        assert_ne!(copied.value, value);
+        assert_ne!(copied.value(), value);
         assert_ne!(receipt.authored_expression, authored_expression);
-        assert_ne!(receipt.authored_expression, copied.value);
+        assert_eq!(receipt.authored_expression, copied.initializer);
+        assert_ne!(receipt.authored_expression, copied.value());
         assert!(
             destination
                 .expressions
-                .expression(copied.value)
+                .expression(copied.value())
                 .same_syntax(
                     &ExpressionNode::Boolean(true),
                     &destination.text,
                     &destination.text
                 )
         );
-        assert_eq!(destination.expressions.source_span(copied.value), span(20));
+        assert_eq!(
+            destination.expressions.source_span(copied.value()),
+            span(20)
+        );
         assert_eq!(
             destination
                 .expressions
@@ -390,21 +414,23 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
 #[test]
 fn semantic_nan_declaration_survives_copy_without_encoding() {
     use language_core::constant_value::EvaluatedConstant;
-    use numerics::literals::FloatFormat;
+    use numeric_literals::FloatFormat;
     for format in [FloatFormat::F32, FloatFormat::F64] {
         let mut source = SyntaxTrees::new(Default::default());
         let value = source
             .expressions
             .insert(ExpressionNode::UndeterminedNaN(format));
-        let constant = Item::Const(crate::item::ConstDefinition {
-            value,
-            normalization: Some(crate::item::ConstInitializerNormalization {
+        let mut definition = crate::item::ConstDefinition::from(crate::item::ConstSyntax {
+            initializer: value,
+            ..Default::default()
+        });
+        definition.preparation_mut().normalization =
+            Some(crate::item::ConstInitializerNormalization {
                 authored_expression: value,
                 result_value: EvaluatedConstant::UndeterminedNaN(format),
                 ..Default::default()
-            }),
-            ..Default::default()
-        });
+            });
+        let constant = Item::Const(definition);
         let mut destination = SyntaxTrees::new(Default::default());
         let Item::Const(copied) = destination.copy_item_from(&source, &constant) else {
             panic!("copied constant");
@@ -412,14 +438,18 @@ fn semantic_nan_declaration_survives_copy_without_encoding() {
         assert!(
             destination
                 .expressions
-                .expression(copied.value)
+                .expression(copied.value())
                 .same_syntax(
                     &ExpressionNode::UndeterminedNaN(format),
                     &destination.text,
                     &destination.text
                 )
         );
-        let receipt = copied.normalization.expect("retained semantic result");
+        let receipt = copied
+            .preparation()
+            .normalization
+            .as_ref()
+            .expect("retained semantic result");
         assert_eq!(
             receipt.result_value,
             EvaluatedConstant::UndeterminedNaN(format)
@@ -1146,7 +1176,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
 
 #[test]
 fn retained_name_pages_survive_clone_copy_and_owner_retirement() {
-    use source::{SourceId, SourceSpan, Span};
+    use source_text::{SourceId, SourceSpan, Span};
     use std::sync::Arc;
     let source: Arc<str> = Arc::from("first second");
     let mut original = SyntaxTrees::new(SourceId(1));
@@ -1189,7 +1219,7 @@ fn retained_name_pages_survive_clone_copy_and_owner_retirement() {
 
 #[test]
 fn contextual_syntax_equality_includes_detached_nodes_and_logical_name_text() {
-    use source::{SourceId, SourceSpan, Span};
+    use source_text::{SourceId, SourceSpan, Span};
     use std::sync::Arc;
     fn forest(spelling: &str) -> SyntaxTrees {
         let mut syntax = SyntaxTrees::new(SourceId(1));
@@ -1242,13 +1272,13 @@ fn constant_destination_debt_is_remapped_without_settling_or_refreshing_stale_in
         destination: destination_type,
         initializer: value,
     };
-    let mut constant = crate::item::ConstDefinition {
+    let mut constant = crate::item::ConstDefinition::from(crate::item::ConstSyntax {
         name,
         type_reference: destination_type,
-        value,
-        pending_qualification: Some(obligation.clone()),
+        initializer: value,
         ..Default::default()
-    };
+    });
+    constant.preparation_mut().pending_qualification = Some(obligation.clone());
     let mut destination = SyntaxTrees::new(Default::default());
     for _ in 0..8 {
         destination
@@ -1262,29 +1292,33 @@ fn constant_destination_debt_is_remapped_without_settling_or_refreshing_stale_in
     else {
         panic!("copied constant");
     };
-    assert_ne!(copied.value, value);
-    assert!(copied.qualification.is_none());
+    assert_ne!(copied.value(), value);
+    assert!(copied.preparation().qualification.is_none());
     let pending = copied
+        .preparation()
         .pending_qualification
+        .as_ref()
         .expect("pending destination retained");
     assert_eq!(pending.declaration, copied.name.source_span());
     assert_eq!(pending.destination, copied.type_reference);
-    assert_eq!(pending.initializer, copied.value);
+    assert_eq!(pending.initializer, copied.value());
 
     let stale = crate::item::ConstDestinationObligation {
         initializer: other,
         ..obligation
     };
-    constant.pending_qualification = Some(stale.clone());
+    constant.preparation_mut().pending_qualification = Some(stale.clone());
     let Item::Const(copied) = destination.copy_item_from(&source, &Item::Const(constant)) else {
         panic!("copied stale constant");
     };
-    assert!(copied.qualification.is_none());
+    assert!(copied.preparation().qualification.is_none());
     let pending = copied
+        .preparation()
         .pending_qualification
+        .as_ref()
         .expect("stale debt cannot vanish");
-    assert_eq!(pending, stale);
-    assert_ne!(pending.initializer, copied.value);
+    assert_eq!(pending, &stale);
+    assert_ne!(pending.initializer, copied.value());
 }
 
 #[test]

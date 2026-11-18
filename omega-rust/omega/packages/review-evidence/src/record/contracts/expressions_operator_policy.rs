@@ -102,13 +102,13 @@ impl PackageReviewNominalIdentity {
         let mut nominal = String::new();
         self.write_qualified_path(&mut nominal)
             .map_err(|_| "closed native application cannot retain its nominal method")?;
-        let path = language_semantics::type_identity::encoding::callable_declaration_path(
+        let path = application_identity::type_identity::encoding::callable_declaration_path(
             &self.path,
             &abi.requirement_identity,
         );
         let template =
-            language_semantics::type_identity::package_declaration_identity(package, &path);
-        language_semantics::type_identity::closed_callable_matches_calling_abi(
+            application_identity::type_identity::package_declaration_identity(package, &path);
+        application_identity::type_identity::closed_callable_matches_calling_abi(
             application,
             &template,
             &nominal,

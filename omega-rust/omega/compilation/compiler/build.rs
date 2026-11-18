@@ -8,7 +8,7 @@
 
 mod build_profile;
 
-use optimization_core::digest_encoder;
+use ::wire::digest_encoder;
 use std::error::Error;
 use std::fs;
 use std::io;

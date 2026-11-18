@@ -28,7 +28,6 @@ mod preparation;
 mod realization;
 mod request;
 mod scalar_completion;
-mod stage_audit;
 
 #[cfg(test)]
 mod physical_publication_tests;
@@ -39,18 +38,34 @@ pub use installation_evidence::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
-pub use observations::{NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations};
-pub use realization::RealizedNativeProduct;
-pub use request::NativeCompileRequest;
-pub use terminal_psi_to_abstract_operations::provider_admission::{
-    CompilerIntrinsicPlanProvenance, NativeBindingInput, SourceEvaluatedImportSettlement,
-    TerminalAuthorityPermissionPolicy, current_terminal_authority_policy,
-};
-pub use terminal_psi_to_abstract_operations::{
+pub use native_program_planning::{
     BoundaryApplicationSettlement, ComponentExportInput, ComponentNativeInputs,
     NativeProgramEntrySettlement, TerminalNativeProposalRequest,
 };
+pub use observations::{NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations};
+pub use provider_admission::provider_admission::{
+    CompilerIntrinsicPlanProvenance, NativeBindingInput, SourceEvaluatedImportSettlement,
+    TerminalAuthorityPermissionPolicy, current_terminal_authority_policy,
+};
+pub use realization::RealizedNativeProduct;
+pub use request::NativeCompileRequest;
 pub use verified_optimization_input::{
     decode_installation_assumptions, encode_installation_assumptions,
     retain_native_derivation_inputs,
+};
+
+mod provider_selection;
+pub use provider_selection::{
+    PublishedSelection, SelectedExecution, SelectedProviderRealization, SelectedProviderResult,
+    select_published_providers,
+};
+
+// Published native entry selection and explicitly requested provider-input inspection.
+pub use native_program_planning::{
+    plan_provider_execution_inputs, target_supply::TargetSupplyExecutionInputs,
+};
+
+pub use native_program_planning::program_entry::{
+    PublishedEntryNomination, SelectedCompilerProgramEntry,
+    plan_published_entry_calling_conventions,
 };

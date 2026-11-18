@@ -1325,7 +1325,7 @@ pub(crate) mod external_provider_wire {
     use super::machine_declaration_wire;
     use super::wire::{Reader, Writer};
     use super::wire_fields::{ExternalPackage, Field, Optional};
-    use language_semantics::ExternalBindingIdentity;
+    use declaration_contracts::ExternalBindingIdentity;
     use terminal_psi::TerminalIdentityIndex;
     use terminal_psi::{
         ExternalProviderConformance, ExternalProviderOwner, NominalDeclarationIdentity,
@@ -1398,7 +1398,7 @@ pub(crate) mod external_provider_wire {
         };
         let numeric_intrinsic = if reader.boolean()? {
             Some(
-                language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
+                declaration_contracts::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
                     reader.array()?,
                 )
                 .ok_or(CodecError::MalformedStructuralFoundation(
@@ -2517,7 +2517,7 @@ pub(crate) mod reach_application_wire {
                     argument: reader.string("reach const argument")?,
                 },
                 1 => ClosedReachParameter::Const {
-                    argument: language_semantics::const_value::CanonicalConstValue::from_atom(
+                    argument: application_identity::const_value::CanonicalConstValue::from_atom(
                         &reader.string("reach const argument")?,
                     )
                     .ok_or(CodecError::MalformedStructuralFoundation(
@@ -2605,9 +2605,9 @@ pub(crate) mod reach_application_wire {
         writer: &mut Writer,
         machine: &str,
         state: &str,
-        source: &language_semantics::ScopedPermissionEventSource<String>,
+        source: &declaration_contracts::ScopedPermissionEventSource<String>,
     ) -> Result<(), CodecError> {
-        use language_semantics::ScopedPermissionEventSource as Source;
+        use declaration_contracts::ScopedPermissionEventSource as Source;
         writer.string("carry acquisition machine", machine)?;
         writer.string("carry acquisition state", state)?;
         match source {
@@ -2644,11 +2644,11 @@ pub(crate) mod reach_application_wire {
         (
             String,
             String,
-            language_semantics::ScopedPermissionEventSource<String>,
+            declaration_contracts::ScopedPermissionEventSource<String>,
         ),
         CodecError,
     > {
-        use language_semantics::ScopedPermissionEventSource as Source;
+        use declaration_contracts::ScopedPermissionEventSource as Source;
         let machine = reader.string("carry acquisition machine")?;
         let state = reader.string("carry acquisition state")?;
         let source = match reader.u8()? {
@@ -2680,7 +2680,7 @@ pub(crate) mod reach_application_wire {
         blocking: &Dependency,
         carry: &[Carry],
     ) -> Result<(), CodecError> {
-        use language_semantics::SuspensionValueOrigin;
+        use declaration_contracts::SuspensionValueOrigin;
         writer.bytes(&base);
         encode_term(writer, suspension)?;
         encode_term(writer, blocking)?;
@@ -2713,7 +2713,7 @@ pub(crate) mod reach_application_wire {
             writer.string("carry type", &row.value_type)?;
             writer.len("carry acquisitions", row.claims.len())?;
             for arrival in &row.claims {
-                let language_semantics::ScopedPermissionClaimIdentity::Established {
+                let declaration_contracts::ScopedPermissionClaimIdentity::Established {
                     machine_symbol,
                     state_symbol,
                     source,
@@ -2727,12 +2727,12 @@ pub(crate) mod reach_application_wire {
                 encode_acquisition(writer, machine_symbol, state_symbol, source)?;
                 writer.u32(*ordinal);
                 match &arrival.provenance {
-                    language_semantics::ScopedPermissionProvenance::Unknown => {
+                    declaration_contracts::ScopedPermissionProvenance::Unknown => {
                         return Err(CodecError::MalformedStructuralFoundation(
                             "conditional carry acquisition join is unknown",
                         ));
                     }
-                    language_semantics::ScopedPermissionProvenance::Established {
+                    declaration_contracts::ScopedPermissionProvenance::Established {
                         machine_symbol,
                         state_symbol,
                         source,
@@ -2740,7 +2740,7 @@ pub(crate) mod reach_application_wire {
                         writer.u8(1);
                         encode_acquisition(writer, machine_symbol, state_symbol, source)?;
                     }
-                    language_semantics::ScopedPermissionProvenance::Joined {
+                    declaration_contracts::ScopedPermissionProvenance::Joined {
                         machine_symbol,
                         state_symbol,
                         source,
@@ -2760,7 +2760,7 @@ pub(crate) mod reach_application_wire {
     fn decode_operational(
         reader: &mut Reader<'_>,
     ) -> Result<([u8; 32], Dependency, Dependency, Vec<Carry>), CodecError> {
-        use language_semantics::SuspensionValueOrigin;
+        use declaration_contracts::SuspensionValueOrigin;
         let base = reader.array()?;
         let suspension = decode_term(reader)?;
         let blocking = decode_term(reader)?;
@@ -2787,7 +2787,7 @@ pub(crate) mod reach_application_wire {
             let claims = decode_counted(reader, |reader| {
                 let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
                 let claim_identity =
-                    language_semantics::ScopedPermissionClaimIdentity::Established {
+                    declaration_contracts::ScopedPermissionClaimIdentity::Established {
                         machine_symbol,
                         state_symbol,
                         source,
@@ -2796,12 +2796,12 @@ pub(crate) mod reach_application_wire {
                 let tag = reader.u8()?;
                 let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
                 let provenance = match tag {
-                    1 => language_semantics::ScopedPermissionProvenance::Established {
+                    1 => declaration_contracts::ScopedPermissionProvenance::Established {
                         machine_symbol,
                         state_symbol,
                         source,
                     },
-                    2 => language_semantics::ScopedPermissionProvenance::Joined {
+                    2 => declaration_contracts::ScopedPermissionProvenance::Joined {
                         machine_symbol,
                         state_symbol,
                         source,
@@ -2809,7 +2809,7 @@ pub(crate) mod reach_application_wire {
                     },
                     tag => return Err(CodecError::InvalidTag("carry acquisition join", tag)),
                 };
-                Ok(language_semantics::PermissionArrival {
+                Ok(declaration_contracts::PermissionArrival {
                     claim_identity,
                     provenance,
                 })
@@ -2962,13 +2962,14 @@ mod counted_collection_bound_tests {
 mod external_provider_tests {
     use super::{entry_tests::identity_table, module_wire::encode_raw, numeric_intrinsic_tests};
     use crate::{decode_module, encode_module, semantic_fingerprint};
-    use language_semantics::{ExternalBindingIdentity, numeric_intrinsics::NumericIntrinsic};
+    use declaration_contracts::ExternalBindingIdentity;
+    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
     use semantic_vocabulary::PackageKeyIdentity;
     use terminal_psi::*;
 
     fn module() -> TerminalModule {
         let mut module = numeric_intrinsic_tests::module(NumericIntrinsic::Negation(
-            numerics::literals::FloatFormat::F32,
+            numeric_literals::FloatFormat::F32,
         ));
         module.identities = identity_table(8);
         module.external_providers = vec![ExternalProviderConformance {
@@ -3105,7 +3106,9 @@ mod numeric_intrinsic_tests {
     use super::entry_tests::{identity_table, unit_machine};
     use super::module_wire::encode_raw;
     use crate::{decode_module, encode_module, semantic_fingerprint};
-    use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericResult, NumericType};
+    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+    use declaration_contracts::numeric_intrinsics::NumericResult;
+    use declaration_contracts::numeric_intrinsics::NumericType;
     use semantic_vocabulary::{
         BoundaryMachineId, MachineId, QualifiedScalarType, ScalarQualificationSetId, ScalarType,
     };
@@ -3166,7 +3169,7 @@ mod numeric_intrinsic_tests {
 
     #[test]
     fn numeric_meaning_survives_portable_round_trip_and_changes_program_identity() {
-        let meaning = language_semantics::numeric_intrinsics::NamedNumericIntrinsic::resolve(
+        let meaning = declaration_contracts::numeric_intrinsics::NamedNumericIntrinsic::resolve(
             "F64",
             "is_nan",
             numerics::arithmetic::ArithmeticDomain::Exact,
@@ -3192,7 +3195,7 @@ mod numeric_intrinsic_tests {
 
     #[test]
     fn numeric_boundary_refuses_substituted_parameters_results_and_evidence_roles() {
-        let meaning = NumericIntrinsic::Negation(numerics::literals::FloatFormat::F32);
+        let meaning = NumericIntrinsic::Negation(numeric_literals::FloatFormat::F32);
         for mutation in 0..4 {
             let mut module = module(meaning);
             let boundary = &mut module.boundary_machines[0];
@@ -3222,7 +3225,7 @@ mod numeric_intrinsic_tests {
 
     #[test]
     fn integer_width_numeric_meanings_round_trip_without_carrier_substitution() {
-        use language_semantics::numeric_intrinsics::PrimitiveIntegerComparisonOperation;
+        use declaration_contracts::numeric_intrinsics::PrimitiveIntegerComparisonOperation;
         use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
         for meaning in [
             NumericIntrinsic::IntegerComparison {
@@ -3249,7 +3252,7 @@ mod numeric_intrinsic_tests {
 
     #[test]
     fn numeric_meaning_wire_rejects_noncanonical_padding_unknown_rows_and_truncation() {
-        let meaning = NumericIntrinsic::Negation(numerics::literals::FloatFormat::F32);
+        let meaning = NumericIntrinsic::Negation(numeric_literals::FloatFormat::F32);
         let boundary = &module(meaning).boundary_machines[0];
         let mut writer = super::wire::Writer::default();
         <super::structural_signature_wire::BoundaryMachine as super::wire_fields::Field<_>>::write(
@@ -3526,11 +3529,11 @@ mod reference_transport_tests {
 
     #[test]
     fn opaque_storage_roles_round_trip_and_reject_redirected_carriers() {
-        use language_semantics::opaque_representations::{
-            OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition,
-            OpaqueRepresentationLifecycleDisposition, SelectedOpaqueApplication,
-            selected_application_commitment,
-        };
+        use application_identity::opaque_representations::OpaqueRepresentationApplicationOrigin;
+        use application_identity::opaque_representations::OpaqueRepresentationCopyDisposition;
+        use application_identity::opaque_representations::OpaqueRepresentationLifecycleDisposition;
+        use application_identity::opaque_representations::SelectedOpaqueApplication;
+        use application_identity::opaque_representations::selected_application_commitment;
         let mut module = inline_carrier_module(false);
         module.identities = identity_table(5);
         let mut carrier = module.structural_types[2].clone();
@@ -3556,7 +3559,7 @@ mod reference_transport_tests {
         module.structural_types.push(carrier);
         let identity_encoding = b"opaque storage correspondence codec control".to_vec();
         let (application_report_fingerprint, conformance_application_commitment) =
-            language_semantics::conformance_identity::source_identity_commitments(
+            application_identity::conformance_identity::source_identity_commitments(
                 &identity_encoding,
             );
         let lifecycle = OpaqueRepresentationLifecycleDisposition::Inert;
@@ -4410,8 +4413,9 @@ mod routed_scalar_tests {
 
     #[test]
     fn const_telescope_wire_round_trips_static_callable_records_and_refuses_bad_profiles() {
-        use language_semantics::conformance_identity::MachineApplicationCommitment;
-        use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        use application_identity::conformance_identity::MachineApplicationCommitment;
+        use application_identity::const_value::CanonicalConstValue;
+        use application_identity::const_value::DecodedCanonicalConstValue;
         use terminal_psi::ClosedReachParameter;
 
         let mut module = module();
@@ -4571,7 +4575,7 @@ mod routed_scalar_tests {
         // Even an empty application commits to its original callable. A
         // placeholder hash would fail before the acquisition and issuer checks.
         let commitment =
-            language_semantics::conformance_identity::MachineApplicationCommitment::new(
+            application_identity::conformance_identity::MachineApplicationCommitment::new(
                 module.identities.text(TerminalIdentityIndex(3)).unwrap(),
             )
             .unwrap()
@@ -4666,9 +4670,9 @@ mod routed_scalar_tests {
             ))
         );
         {
-            use language_semantics::{
-                ScopedPermissionClaimIdentity, ScopedPermissionEventSource, SuspensionValueOrigin,
-            };
+            use declaration_contracts::ScopedPermissionClaimIdentity;
+            use declaration_contracts::ScopedPermissionEventSource;
+            use declaration_contracts::SuspensionValueOrigin;
             let application = module.machines[0]
                 .closed_reach_application
                 .as_mut()
@@ -4707,14 +4711,14 @@ mod routed_scalar_tests {
                     environment_position: 0,
                 },
                 value_type: "Kept".into(),
-                claims: vec![language_semantics::PermissionArrival {
+                claims: vec![declaration_contracts::PermissionArrival {
                     claim_identity: ScopedPermissionClaimIdentity::Established {
                         machine_symbol: "helper".into(),
                         state_symbol: "helper::entry".into(),
                         source: ScopedPermissionEventSource::Statement { statement_index: 0 },
                         ordinal: 0,
                     },
-                    provenance: language_semantics::ScopedPermissionProvenance::Joined {
+                    provenance: declaration_contracts::ScopedPermissionProvenance::Joined {
                         machine_symbol: "helper".into(),
                         state_symbol: "helper::entry".into(),
                         source: ScopedPermissionEventSource::Call {
@@ -4879,7 +4883,7 @@ mod routed_scalar_tests {
             .as_mut()
             .unwrap()
             .conditional_carry[0]
-            .subject = language_semantics::SuspensionValueOrigin::CallArgument { position: 0 };
+            .subject = declaration_contracts::SuspensionValueOrigin::CallArgument { position: 0 };
         assert_eq!(
             decode_module(&encode_raw(&module).unwrap()),
             Err(crate::CodecError::MalformedStructuralFoundation(

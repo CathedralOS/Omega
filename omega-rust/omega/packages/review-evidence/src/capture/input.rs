@@ -7,11 +7,97 @@ findings from this same retained compilation.
 
 use diagnostics::Diagnostic;
 use products::CheckedCompilation;
-use typed_trees::TypedTrees;
+use source_compiler::source_state::TypedTrees;
+
+/// The source declarations available while preparing a policy. A completed
+/// source projection owns its findings and carries no reference to this view.
+#[derive(Clone, Copy)]
+pub(super) struct PolicySource<'a> {
+    candidate: &'a TypedTrees,
+    accepted: &'a source_compiler::AcceptedTerminalSource,
+    pub(super) publication: &'a source_compiler::SourcePublication,
+    build: &'a products::ComputedBuildConfig,
+    pub(super) admission: &'a products::BuildAdmission,
+    sources: &'a package_compilation::CheckedSourceCustody,
+}
+
+impl<'a> PolicySource<'a> {
+    fn new(
+        program: &'a std::sync::Arc<source_compiler::source_state::FrozenTypedTrees>,
+        candidate: &'a TypedTrees,
+        publication: &'a source_compiler::SourcePublication,
+        build: &'a products::ComputedBuildConfig,
+        admission: &'a products::BuildAdmission,
+        sources: &'a package_compilation::CheckedSourceCustody,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        sources
+            .require_owner(program)
+            .map_err(|error| vec![error])?;
+        publication
+            .require_source_owner(program)
+            .map_err(|error| vec![error])?;
+        if !std::ptr::eq(candidate, program.as_ref().as_ref()) {
+            return Err(vec![Diagnostic::error(
+                "package review candidate differs from the accepted source owner",
+            )]);
+        }
+        let accepted = publication.accepted()?;
+        if accepted.is_invocation() {
+            return Err(vec![Diagnostic::error(
+                "package review requires a portable package judgment",
+            )]);
+        }
+        let package = sources.package_identity();
+        if package.is_none() || publication.roster()?.subject != package {
+            return Err(vec![Diagnostic::error(
+                "package review requires the accepted package's complete declaration subject",
+            )]);
+        }
+        if build.selected_build_machine_symbol.is_some() != build.accepted_build.is_some() {
+            return Err(vec![Diagnostic::error(
+                "package review requires the selected Build's accepted judgment",
+            )]);
+        }
+        Ok(Self {
+            candidate,
+            accepted,
+            publication,
+            build,
+            admission,
+            sources,
+        })
+    }
+
+    pub(super) fn product(
+        source: &'a products::CheckedProductSource,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::new(
+            &source.program,
+            &source.program,
+            &source.terminal_publication,
+            &source.computed_build_config,
+            &source.admission,
+            &source.sources,
+        )
+    }
+
+    pub(super) fn typed(&self) -> &'a TypedTrees {
+        self.candidate
+    }
+    pub(super) fn accepted(&self) -> &'a source_compiler::AcceptedTerminalSource {
+        self.accepted
+    }
+    pub(super) fn sources(&self) -> &'a package_compilation::CheckedSourceCustody {
+        self.sources
+    }
+    pub(super) fn build(&self) -> &'a products::ComputedBuildConfig {
+        self.build
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct PackageReviewInput<'a> {
-    candidate: &'a TypedTrees,
+    pub(super) source: PolicySource<'a>,
     custody: &'a CheckedCompilation,
 }
 
@@ -20,54 +106,26 @@ impl<'a> PackageReviewInput<'a> {
         candidate: &'a TypedTrees,
         custody: &'a CheckedCompilation,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let source = custody.source_inspection().program();
-        custody
-            .sources()
-            .require_owner(source)
-            .map_err(|error| vec![error])?;
-        custody
-            .terminal_publication()
-            .require_source_owner(source)
-            .map_err(|error| vec![error])?;
-        if !std::ptr::eq(candidate, source.as_ref().as_ref()) {
-            return Err(vec![Diagnostic::error(
-                "package review candidate differs from the accepted source owner",
-            )]);
-        }
-        let accepted = custody.terminal_publication().accepted()?;
-        if accepted.is_invocation() {
-            return Err(vec![Diagnostic::error(
-                "package review requires a portable package judgment",
-            )]);
-        }
-        let package = custody.sources().package_identity();
-        if package.is_none() || custody.terminal_publication().roster()?.subject != package {
-            return Err(vec![Diagnostic::error(
-                "package review requires the accepted package's complete declaration subject",
-            )]);
-        }
-        if custody.build().selected_build_machine_symbol.is_some()
-            != custody.build().accepted_build.is_some()
-        {
-            return Err(vec![Diagnostic::error(
-                "package review requires the selected Build's accepted judgment",
-            )]);
-        }
-        Ok(Self { candidate, custody })
+        let source = PolicySource::new(
+            custody.source_inspection().program(),
+            candidate,
+            custody.terminal_publication(),
+            custody.build(),
+            custody.build_admission(),
+            custody.sources(),
+        )?;
+        Ok(Self { source, custody })
     }
 
     pub fn candidate(&self) -> &'a TypedTrees {
-        self.candidate
+        self.source.typed()
     }
-
     pub fn compilation(&self) -> &'a CheckedCompilation {
         self.custody
     }
 
-    /// Read the exact module whose judgment admitted this source, before
-    /// projecting its contracts or effects into inert review rows.
     pub fn module(&self) -> Result<&'a terminal_psi::TerminalModule, Vec<Diagnostic>> {
-        Ok(self.custody.terminal_publication().accepted()?.module())
+        Ok(self.source.accepted().module())
     }
 }
 

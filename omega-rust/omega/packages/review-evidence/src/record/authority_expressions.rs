@@ -13,7 +13,7 @@
 
 use super::contracts::PackageReviewArithmeticDomain;
 
-pub type PackageReviewPrimitiveType = typed_trees::types::PrimitiveType;
+pub type PackageReviewPrimitiveType = source_compiler::source_state::types::PrimitiveType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageReviewStructuralPredicatePathSegment {

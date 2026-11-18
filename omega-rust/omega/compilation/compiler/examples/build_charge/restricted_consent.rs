@@ -47,16 +47,16 @@ machine build(builder: &mut Build) crashes Trap {
     )
     .unwrap();
     let host = target::TargetProfile::host_if_supported().unwrap();
-    let staging = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
+    let staging = source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
         temporary.path().join("staging"),
-        build_time_evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+        source_compiler::evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();
     let output = staging.session_root().unwrap().join("output");
     let observed = Arc::new(Mutex::new(0));
     let mut expected = Vec::new();
     for resume in [false, true] {
-        let preparation = products::SourcePreparation::default();
+        let preparation = source_compiler::SourcePreparation::default();
         let mut timings = CompileTimings::default();
         let checkpoint = {
             let mut catalogue = preparation.catalogue().unwrap();
@@ -69,33 +69,29 @@ machine build(builder: &mut Build) crashes Trap {
             )
             .unwrap()
         };
-        let (_, mut syntax) = {
+        let (_, syntax) = {
             let mut catalogue = preparation.catalogue().unwrap();
             checkpoint
                 .assemble(None, &mut timings, &mut catalogue)
                 .unwrap()
         };
-        build_settings::select_build_helpers(
-            &mut syntax.syntax_trees,
-            host,
-            &syntax.build_scope_sources,
-        );
         let build_source = syntax.build_source;
         let sources = syntax.sources.clone();
         let generated = syntax.generated_source_custody;
-        let mut continuation = source_compiler::SourceCompilationRequest {
+        let (continuation, _) = source_compiler::SourceCompilationRequest {
             syntax: syntax.syntax_trees,
             source_items: syntax.source_items,
             root_sources: syntax.root_sources,
             frontends: preparation.frontends,
             build_helper_identity: host.target_name(),
+            build_sources: syntax.build_scope_sources,
+            build_stage: None,
             sources: syntax.sources,
             top_level_bindings: syntax.source_scoped_top_level_bindings,
             selection_authority: None,
         }
         .prepare(&mut source_compiler::UnmeasuredProduction)
         .unwrap();
-        let input = continuation.build_input();
         let before = counters::build_execution_count();
         // This direct evaluator owns an explicitly live standalone scope. The
         // ordinary package compiler continues to supply captured source custody.
@@ -105,8 +101,7 @@ machine build(builder: &mut Build) crashes Trap {
                     artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
                 pure_build_compilation: None,
                 root_path: &entry,
-                typed: input.typed,
-                pre_checks: input.pre_checks,
+                typed: continuation.typed(),
                 build_source,
                 sources: &sources,
                 package_inputs: None,

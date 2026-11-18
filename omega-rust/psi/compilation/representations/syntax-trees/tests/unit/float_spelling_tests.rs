@@ -1,6 +1,6 @@
 use crate::SyntaxEquivalent;
 use crate::float_spelling::*;
-use source::{SourceId, Span};
+use source_text::{SourceId, Span};
 use std::sync::Arc;
 
 #[test]

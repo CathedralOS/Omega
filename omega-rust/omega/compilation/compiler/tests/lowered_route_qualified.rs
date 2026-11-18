@@ -8,8 +8,8 @@ mod unbuilt_frontier;
 #[path = "support/qualified_operator_homes.rs"]
 mod qualified_operator_homes;
 
-use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
-use typed_trees_to_terminal_psi::{Compilation, elaborate};
+use source_compiler::checking::{RouteVerdict, judge};
+use source_compiler::lowering::{Compilation, elaborate};
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -24,7 +24,7 @@ fn route_verdict(fixture: &str, entry: &str) -> RouteVerdict {
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
             selected: &frontier.selected,
             calling: frontier
                 .normalization
@@ -79,7 +79,7 @@ fn module_qualification_does_not_attach_a_machine_to_data() {
     );
     let entry = unbuilt_frontier::program_machine(&frontier.typed, "main")
         .expect("the module's exact main declaration");
-    let verdict = judge(typed_trees_to_terminal_psi::elaborate_closure(
+    let verdict = judge(source_compiler::lowering::elaborate_closure(
         &frontier.typed,
         entry,
     ))

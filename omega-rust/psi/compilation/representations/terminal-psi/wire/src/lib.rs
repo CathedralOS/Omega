@@ -58,7 +58,7 @@ mod term_table;
 mod term_wire;
 pub(crate) use semantic_module::*;
 
-pub(crate) use optimization::codec_bytes;
+pub(crate) use ::wire::codec_bytes;
 
 /// The encoding steps `terminal_codec::ClosedTerminalModule` and its artifact
 /// envelope seal. Nothing else should call these: a module closed here is
@@ -158,9 +158,9 @@ pub use mathematical_proof_actual::{
 };
 pub(crate) mod cursor {
 
-    pub(crate) use optimization::cursor::Cursor;
+    pub(crate) use ::wire::cursor::Cursor;
 }
-pub(crate) use optimization::digest_encoder;
+pub(crate) use ::wire::digest_encoder;
 pub use sections::semantic_module::provider_candidate_wire::{
     decode_provider_candidate_record, encode_provider_candidate_record,
 };

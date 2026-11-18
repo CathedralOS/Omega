@@ -278,7 +278,7 @@ pub fn closed_owned_sequence_bounds(
     module: &terminal_psi::TerminalModule,
     included: impl Fn(semantic_vocabulary::MachineId) -> bool,
 ) -> Result<Vec<(StructuralTypeId, u64)>, &'static str> {
-    let mut bounds = semantic_vocabulary::IdTable::from_rows(
+    let mut bounds = arena::IdTable::from_rows(
         module
             .structural_types
             .iter()

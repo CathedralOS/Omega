@@ -52,7 +52,7 @@ impl PackagePolicyDomainShape {
     field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
     field_projection_accessors!(borrowed target_type: &PackageReviewTypeIdentity);
     field_projection_accessors!(sliced index_arguments: &[PackageReviewTypeIdentity]);
-    field_projection_accessors!(copied predicate_presence: language_semantics::DomainPredicatePresence);
+    field_projection_accessors!(copied predicate_presence: declaration_contracts::DomainPredicatePresence);
     field_projection_accessors!(sliced predicate_facts: &[PackageReviewContractFact]);
     field_projection_accessors!(copied classification: Option<PackageReviewDomainClassification>);
     field_projection_accessors!(sliced semantic_roles: &[PackageReviewDomainSemanticRole]);
@@ -73,7 +73,7 @@ impl PackagePolicyDataShape {
     field_projection_accessors!(copied lifetime_parameter_count: usize);
     field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
     field_projection_accessors!(borrowed kind: &PackageReviewDataKind);
-    field_projection_accessors!(copied supply: language_semantics::DataSupplyMode);
+    field_projection_accessors!(copied supply: declaration_contracts::DataSupplyMode);
     field_projection_accessors!(copied properties: PackageReviewDataProperties);
     field_projection_accessors!(copied zero_gated: bool);
     field_projection_accessors!(sliced invariants: &[PackageReviewContractFact]);

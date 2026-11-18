@@ -9,5 +9,7 @@ name = "tokens"
 path = "lib.rs"
 
 [dependencies]
+declaration-contracts = { path = "../declaration-contracts" }
+source-admission = { path = "../source-admission" }
+source-text = { path = "../../../foundation/source-text" }
 arena = { path = "../../../foundation/arena" }
-source = { path = "../../../foundation/source" }

@@ -5,20 +5,21 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+target-x86_64 = { path = "../../../target-description/target-x86_64" }
+target-aarch64 = { path = "../../../target-description/target-aarch64" }
+wire = { path = "../../../../../psi/foundation/wire" }
 target-vocabulary = { path = "../../target-operations/target-vocabulary" }
 native-vocabulary = { path = "../../native-vocabulary" }
 arena = { path = "../../../../../psi/foundation/arena" }
-register-environment = { path = "../../../backend/register-environment" }
-isa-aarch64 = { path = "../../../backend/isa/isa-aarch64" }
-isa-x86_64 = { path = "../../../backend/isa/isa-x86_64" }
-optimization-core = { path = "../../../../foundation/optimization-core" }
-register-model = { path = "../../../backend/register-model" }
+register-environment = { path = "../../../target-description/register-environment" }
+optimization-core = { path = "../../optimization-contracts" }
+register-model = { path = "../../../target-description/register-model" }
 register-homes = { path = "../../register-homes" }
 selected-instructions = { path = ".." }
-target = { path = "../../../backend/target" }
-semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+target = { path = "../../../target-description/target" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 
 [dev-dependencies]
-calling-conventions = { path = "../../../backend/calling-conventions" }
+calling-conventions = { path = "../../../target-description/calling-conventions" }
 legalized-operations = { path = "../../target-operations/legalized-operations" }

@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use optimization_core::digest_encoder::DomainDigestEncoder;
+use ::wire::digest_encoder::DomainDigestEncoder;
 use optimization_core::{OptimizationUnitIdentity, PrePhysicalOptimizationManifestIdentity};
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use terminal_psi::TerminalPsiIdentity;
@@ -255,7 +255,7 @@ mod tests {
         facts.encode(&mut bytes);
         assert_eq!(
             facts.identity_bytes(),
-            optimization_core::digest_encoder::content_identity(&bytes)
+            ::wire::digest_encoder::content_identity(&bytes)
         );
         let mut changed = roots(entry);
         changed.pre_physical =

@@ -13,7 +13,7 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use terminal_psi_to_terminal_psi::RouteVerdict;
+use source_compiler::checking::RouteVerdict;
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -67,7 +67,7 @@ fn verdicts(name: &str, source: &str) -> Vec<&'static str> {
 fn judged(
     name: &str,
     source: &str,
-) -> Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, source_compiler::checking::CompilationRefusal>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -82,15 +82,15 @@ fn judged(
 
 fn judge(
     frontier: &compiler::TypedFrontier,
-) -> Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>> {
-    terminal_psi_to_terminal_psi::judge_compilation(
-        typed_trees_to_terminal_psi::prepare_compilation(
+) -> Vec<Result<RouteVerdict, source_compiler::checking::CompilationRefusal>> {
+    source_compiler::checking::judge_compilation(
+        source_compiler::lowering::prepare_compilation(
             &frontier.typed,
-            typed_trees_to_terminal_psi::Compilation {
+            source_compiler::lowering::Compilation {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: source::DependencyScope::Product,
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization
@@ -484,7 +484,7 @@ fn closed_domain_applications_keep_carriers_and_indices_through_checking() {
             .0;
         let unit = typed
             .type_reference_table
-            .insert(typed_trees::types::TypeReferenceNode::Unit);
+            .insert(source_compiler::source_state::types::TypeReferenceNode::Unit);
         typed.tables.operators.get_mut(binding).return_type = unit;
         frontier.typed = typed.into();
         let found = judge(&frontier);
@@ -592,7 +592,9 @@ fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
         let [argument] = arguments else {
             panic!("one inferred type argument")
         };
-        let typed_trees::types::TypeReferenceNode::Named { symbol: actual, .. } = typed
+        let source_compiler::source_state::types::TypeReferenceNode::Named {
+            symbol: actual, ..
+        } = typed
             .type_reference_table
             .type_reference(argument.type_reference)
         else {
@@ -632,15 +634,21 @@ fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
                     typed.proof_fact_source_span(source),
                     typed.proof_fact_source_span(applied)
                 );
-                if !matches!(retained, typed_trees::domain::ProofFact::Expression(_)) {
+                if !matches!(
+                    retained,
+                    source_compiler::source_state::domain::ProofFact::Expression(_)
+                ) {
                     non_expression_facts += 1;
                 }
                 for root in typed.tables.proof_fact_expression_roots(applied) {
                     typed.subtree_for_each(
                         root,
-                        typed_trees::SubtreeEdges::default(),
+                        source_compiler::source_state::SubtreeEdges::default(),
                         |_, node| {
-                            if let typed_trees::expression::ExpressionNode::Call(call) = node {
+                            if let source_compiler::source_state::expression::ExpressionNode::Call(
+                                call,
+                            ) = node
+                            {
                                 for argument in
                                     typed.expression_table.static_machine_application_arguments(
                                         call.authored_machine_application,
@@ -1243,8 +1251,7 @@ fn judged_with_dependencies(
     directory: &str,
     entry: &str,
     dependencies: &[(&str, &str)],
-) -> Result<Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>>, Vec<String>>
-{
+) -> Result<Vec<Result<RouteVerdict, source_compiler::checking::CompilationRefusal>>, Vec<String>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -1545,7 +1552,7 @@ fn the_returning_path_past_a_call_that_never_returns_is_checked() {
 /// statement out of the lowered form does not excuse the name, and the
 /// program is rejected at the call. Typing finds that nothing in the program
 /// has the name and leaves a violation row on `main`; the reader that demands
-/// `main` raises it (`typed_trees::deferred_refusals`), lowered or not.
+/// `main` raises it (`source_compiler::source_state::deferred_refusals`), lowered or not.
 #[test]
 fn an_unknown_machine_after_a_call_that_never_returns_is_rejected() {
     let parts = judged_with_dependencies(

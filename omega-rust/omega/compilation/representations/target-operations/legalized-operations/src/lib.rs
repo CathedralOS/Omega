@@ -34,7 +34,7 @@ We group the target-legal representation into four subordinate owners beneath
    and representation-owned call/instruction shape checks.
 */
 
-pub(crate) use optimization_core::codec_bytes;
+pub(crate) use ::wire::codec_bytes;
 use optimization_core::{OptimizationUnitIdentity, OptimizationValidatorIdentity};
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use sha2::{Digest, Sha256};
@@ -46,6 +46,7 @@ pub use crate as legalized_operations;
 
 pub mod function_abi;
 pub use function_abi::LegalizedFunctionAbi;
+pub mod installed_interrupt_geometry;
 pub mod native_geometry;
 pub mod structural_inputs;
 
@@ -300,3 +301,6 @@ pub use identity::{
 
 #[cfg(test)]
 mod tests;
+
+mod selection;
+pub use selection::PreparedInstructionSelection;

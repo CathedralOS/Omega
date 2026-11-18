@@ -1,0 +1,21 @@
+[package]
+name = "calling-conventions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "calling_conventions"
+path = "src/lib.rs"
+
+[dependencies]
+application-identity = { path = "../../../../psi/compilation/representations/application-identity" }
+layout-planning = { path = "../../../../psi/compilation/layout-planning" }
+wire = { path = "../../../../psi/foundation/wire" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+runtime-abi = { path = "../runtime-abi" }
+layout-plans = { path = "../../../../psi/compilation/representations/storage-layout" }
+arena = { path = "../../../../psi/foundation/arena" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+target = { path = "../target" }

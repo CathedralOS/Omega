@@ -137,7 +137,7 @@ pub fn encode_target_structural_argument(
     crate::codec_bytes::push_encoded(bytes, argument.structural_type.get().to_le_bytes());
     encode_shape(bytes, argument.shape);
     crate::codec_bytes::push_encoded(bytes, argument.source_byte_offset.to_le_bytes());
-    optimization_core::encode_option_u64(bytes, argument.fixed_array_length);
+    wire::codec_bytes::encode_option_u64(bytes, argument.fixed_array_length);
     encode_option(bytes, argument.element_stride, |bytes, stride| {
         crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes())
     });
@@ -145,7 +145,7 @@ pub fn encode_target_structural_argument(
     for index in &argument.indices {
         super::normalized_foreign::encode_scalar_source(bytes, index.operand);
         crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
-        optimization_core::encode_option_u64(bytes, index.extent);
+        wire::codec_bytes::encode_option_u64(bytes, index.extent);
         crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
     }
     match &argument.source {
@@ -511,7 +511,7 @@ pub fn encode_record_initializers(
             } => {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
-                optimization_core::encode_option_u64(bytes, range_obligation.map(|id| id.get()));
+                wire::codec_bytes::encode_option_u64(bytes, range_obligation.map(|id| id.get()));
             }
             terminal_psi::RecordFieldValue::Structural(argument) => {
                 bytes.push(1);

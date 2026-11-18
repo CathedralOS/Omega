@@ -600,14 +600,14 @@ mod providers {
         requirement_identities
     });
 
-    record_variants!(language_semantics::service_surface::ServiceResultProjection {
+    record_variants!(declaration_contracts::service_surface::ServiceResultProjection {
         1 => Field(identity),
         2 => Case(identity),
         3 => FixedIndex(index),
     });
 
     record_fields!(
-        language_semantics::service_surface::ServiceNormalResultMembership { path, domain }
+        declaration_contracts::service_surface::ServiceNormalResultMembership { path, domain }
     );
 
     record_fields!(effects::provider_plan::ServiceResultClaim {
@@ -1347,9 +1347,9 @@ mod recovered {
         }
     }
 
-    super::record_fields!(source::Span { start, end });
+    super::record_fields!(source_text::Span { start, end });
 
-    impl RecordValue for source::SourceId {
+    impl RecordValue for source_text::SourceId {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.0.write(output)
         }
@@ -1608,29 +1608,29 @@ mod semantic {
         108 => QuotientDefine,
     });
 
-    record_variants!(language_semantics::CarryAddress {
+    record_variants!(declaration_contracts::CarryAddress {
         0 => Stable,
         1 => Movable,
     });
 
-    record_variants!(language_semantics::CarryCpu {
+    record_variants!(declaration_contracts::CarryCpu {
         0 => Origin,
         1 => Any,
     });
 
-    record_variants!(language_semantics::CarryHostThread {
+    record_variants!(declaration_contracts::CarryHostThread {
         0 => Origin,
         1 => Any,
     });
 
-    record_fields!(language_semantics::CarryPolicy {
+    record_fields!(declaration_contracts::CarryPolicy {
         suspension,
         cpu,
         host_thread,
         address
     });
 
-    record_variants!(language_semantics::CarrySuspension {
+    record_variants!(declaration_contracts::CarrySuspension {
         0 => Forbidden,
         1 => Allowed,
     });
@@ -1654,7 +1654,7 @@ mod semantic {
         2 => Note,
     });
 
-    record_variants!(language_semantics::DomainPredicatePresence {
+    record_variants!(declaration_contracts::DomainPredicatePresence {
         0 => Absent,
         1 => Present,
     });
@@ -1663,7 +1663,7 @@ mod semantic {
         0 => ProcessExit,
     });
 
-    record_variants!(numerics::literals::FloatFormat {
+    record_variants!(numeric_literals::FloatFormat {
         0 => F32,
         1 => F64,
     });
@@ -1675,7 +1675,7 @@ mod semantic {
         column
     });
 
-    record_fields!(source::SourceSpan { source_id, span });
+    record_fields!(source_text::SourceSpan { source_id, span });
 
     record_variants!(terminal_psi::TerminalAccessLifecycleOperation {
         0 => Initialize,
