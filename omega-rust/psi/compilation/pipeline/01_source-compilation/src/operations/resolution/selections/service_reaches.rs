@@ -18,9 +18,8 @@ use crate::source_resolved::signature::AuthoredServiceReachRow;
 use crate::source_resolved::signature::AuthoredServiceReachTarget;
 use crate::source_resolved::signature::StateSignature;
 use crate::source_symbols::SymbolTable;
-use declaration_contracts::{
-    ServiceReachId, ServiceReachRowId, ServiceReachRowTable, ServiceReachTable,
-};
+use crate::source_tables::{ServiceReachRowTable, ServiceReachTable};
+use declaration_contracts::{ServiceReachId, ServiceReachRowId};
 use diagnostics::Diagnostic;
 use std::fmt;
 use symbols::{SymbolHandle, SymbolKind};

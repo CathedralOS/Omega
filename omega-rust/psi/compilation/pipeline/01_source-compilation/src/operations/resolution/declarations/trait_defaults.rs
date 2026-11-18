@@ -33,11 +33,14 @@ use crate::resolution::declarations::declaration_selection::ConstantSelection;
 use crate::resolution::tables::syntax_expressions;
 use crate::resolution::tables::syntax_items;
 use crate::resolution::tables::syntax_type_references;
+#[cfg(any(test, feature = "test-support"))]
 use crate::source_inputs::SourceMap;
+#[cfg(any(test, feature = "test-support"))]
 use crate::source_symbols::SourceScopedTopLevelBinding;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::{HashMap, HashSet};
+#[cfg(any(test, feature = "test-support"))]
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use syntax_trees::SyntaxTrees;
@@ -98,6 +101,7 @@ struct RequirementInstance {
     substitution: HashMap<String, TypeReferenceHandle>,
 }
 
+#[cfg(any(test, feature = "test-support"))]
 pub fn synthesize_trait_defaults(
     syntax: &mut SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
