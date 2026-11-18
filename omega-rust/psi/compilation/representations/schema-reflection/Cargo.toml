@@ -6,6 +6,7 @@ version.workspace = true
 
 [dependencies]
 application-identity = { path = "../application-identity" }
+numerics = { path = "../scalar-values" }
 symbols = { path = "../declaration-identity" }
 wire = { path = "../../../foundation/wire" }
 compiler-storage = { path = "../../../foundation/compiler-storage" }
