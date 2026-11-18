@@ -401,7 +401,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         (42, -4, -4),
         (42, -4, 59),
         (42, 43, 44, 59),
-        (42, 42, 43, 44, 45, 59),
+        (42, 42, 43, 44, 43, 45, 59),
     )
     batches = range(len(expected_batches)) if batch is None else (batch,)
     for selected in batches:
@@ -434,7 +434,7 @@ def omega_utf8_customer(work, timeout, batch=None):
         assert offset == len(observation), "unexpected publication after the final artifact"
         print(f"Omega UTF-8 batch {selected}: {len(expected_batches[selected])} executables passed; {time.monotonic()-started:.3f}s", flush=True)
     if batch is None:
-        print("Omega UTF-8: twenty-four executables, 28 decoder boundaries, five arithmetic traps, one explicit trap, forty-six refusal/reset checks passed in six fresh processes", flush=True)
+        print("Omega UTF-8: twenty-five executables, 28 decoder boundaries, five arithmetic traps, one explicit trap, forty-six refusal/reset checks passed in six fresh processes", flush=True)
 
 
 def main():

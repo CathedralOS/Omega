@@ -198,6 +198,12 @@ terminal transfers until it reaches every caller, including transfer cycles.
 An unentered nested helper contributes nothing to its owner's bound. Its own
 body must still satisfy its contract.
 
+The incoming-edge table reserves 49,152 rows with four 32-bit integers
+apiece, or 786,432 logical payload bytes. Three 4,096-entry integer arrays
+hold the incoming list heads, blocking states and work queue, totaling
+49,152 more logical bytes. Evaluator memory measurements include its
+representation of these tables and the rest of the compiler.
+
 Every call to a possibly blocking callee needs its own `block` acknowledgement,
 including a call in an argument or a transfer in an unselected arm.
 Redundant acknowledgements preserve the caller's bound. The existing Alpha
@@ -750,3 +756,14 @@ returned `Incomplete` at packed byte 2,571 / unit byte 2,441. On line 71,
 That transfer needs its own checked envelope. Both observations ended at the
 refusal coordinate. The source graph has yet to reach checking of the
 `ByteRead` payload and the Console and ProcessExit services.
+
+With per-state blocking checks, the independent model ran the frozen
+`b95769558667` graph above and the 284-unit graph at `2486977ecd06`
+(3,822,983 source bytes, request
+`8f3357f02c77d9c2700ba3343d65d62ed24cf7424a4a23e9e65615b5e1714506`).
+Both runs parsed the marked `rows` target and returned `Incomplete` at
+the multiplication in its third argument, `input.package_count as u64 * 3`.
+The refusal is at line 71, column 65, packed byte 2,613 / unit byte 2,483.
+The production entry emitted the nine-byte observation
+`0002000000350a0000` on each input. Full-graph semantic checking and
+production of the Omega compiler binary remain open.
