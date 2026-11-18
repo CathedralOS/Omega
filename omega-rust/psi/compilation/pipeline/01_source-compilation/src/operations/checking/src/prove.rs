@@ -341,6 +341,13 @@ struct Bound {
     proof: ProofNode,
 }
 
+struct ComparisonSide {
+    literal: IntegerValue,
+    /// Present for an expression. A value's proof stays in the bound cache
+    /// until the comparison succeeds.
+    expression_proof: Option<ProofNode>,
+}
+
 /// A failed offset translation keeps the original relation for its fallback.
 enum OffsetTranslation {
     Translated(Bound),
@@ -427,6 +434,63 @@ fn exact_fact_hash_eligible(proposition: &Proposition) -> bool {
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => leaf(left) && leaf(right),
         _ => false,
+    }
+}
+
+/// Match an implication by its conclusion before attempting to prove its
+/// premise. Simple comparisons get their own keys. Other conclusions share
+/// a bucket with predicates of the same kind. Exact matching still decides
+/// which rows to try, in the order the premises supplied them.
+struct ImplicationConclusions {
+    hash_builder: RandomState,
+    positions: Vec<(u64, usize)>,
+}
+
+impl ImplicationConclusions {
+    fn new(facts: &[Fact]) -> Self {
+        let mut index = Self {
+            hash_builder: RandomState::new(),
+            positions: Vec::new(),
+        };
+        for (ordinal, fact) in facts.iter().enumerate() {
+            if let Proposition::Implication { conclusion, .. } = &fact.proposition {
+                index.positions.push((index.key(conclusion), ordinal));
+            }
+        }
+        index.positions.sort_unstable();
+        index
+    }
+
+    fn key(&self, proposition: &Proposition) -> u64 {
+        let endpoints = if exact_fact_hash_eligible(proposition) {
+            match proposition {
+                Proposition::Equal(left, right) => {
+                    // Equality matches in either order. Only the matching
+                    // rule below can decide whether the terms are equal.
+                    let mut keys = [
+                        self.hash_builder.hash_one(left),
+                        self.hash_builder.hash_one(right),
+                    ];
+                    keys.sort_unstable();
+                    Some(keys)
+                }
+                _ => Some([self.hash_builder.hash_one(proposition), 0]),
+            }
+        } else {
+            None
+        };
+        self.hash_builder
+            .hash_one((std::mem::discriminant(proposition), endpoints))
+    }
+
+    fn candidates(&self, goal: &Proposition) -> std::ops::Range<usize> {
+        if self.positions.is_empty() {
+            return 0..0;
+        }
+        let key = self.key(goal);
+        let start = self.positions.partition_point(|&(stored, _)| stored < key);
+        let end = self.positions.partition_point(|&(stored, _)| stored <= key);
+        start..end
     }
 }
 
@@ -715,7 +779,7 @@ pub(crate) struct Prover<'a> {
     facts: Vec<Fact>,
     exact_facts: ExactFacts,
     /// Actual implication facts, prepared once for goal-directed elimination.
-    implications: Vec<usize>,
+    implications: ImplicationConclusions,
     float_integer_equalities: float_integer::Equalities,
     /// Checked definitions for transport: Boolean values, literals, exact
     /// initial-content aliases, and semantic integer expressions retaining
@@ -966,13 +1030,7 @@ impl<'a> Prover<'a> {
             arrival_equations,
             arrival_definitions,
         } = crate::checking::known::Known::new(context, assumptions, axioms, values);
-        let implications = facts
-            .iter()
-            .enumerate()
-            .filter_map(|(index, fact)| {
-                matches!(fact.proposition, Proposition::Implication { .. }).then_some(index)
-            })
-            .collect();
+        let implications = ImplicationConclusions::new(&facts);
         let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::checking::known::TransportInputs::new(equations.len());
         let exact_facts = ExactFacts::new(&facts);
@@ -1919,8 +1977,8 @@ impl<'a> Prover<'a> {
     }
 
     fn by_implication(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        for position in 0..self.implications.len() {
-            let index = self.implications[position];
+        for position in self.implications.candidates(goal) {
+            let index = self.implications.positions[position].1;
             let Proposition::Implication {
                 premise,
                 conclusion,
@@ -2265,22 +2323,22 @@ impl<'a> Prover<'a> {
         if let Some(proof) = self.sum_order(&carrier_order) {
             return Ok(proof);
         }
-        let (left_literal, left_proof) = self.side(left, Direction::Upper)?;
-        let (right_literal, right_proof) = self.side(right, Direction::Lower)?;
+        let left_side = self.comparison_side(left, Direction::Upper)?;
+        let right_side = self.comparison_side(right, Direction::Lower)?;
         let ordered = integer
-            .compare(left_literal, right_literal)
+            .compare(left_side.literal, right_side.literal)
             .ok_or("bounds are not comparable")?;
         if ordered == Ordering::Greater || (strict && ordered == Ordering::Equal) {
             return Err("the bounds do not decide the comparison");
         }
         let literal = |value| ScalarTerm::integer(integer, value).map_err(|_| "bound literal");
-        let middle_left = match &left_proof {
-            Some(_) => literal(left_literal)?,
-            None => left.clone(),
+        let middle_left = match left {
+            ScalarTerm::Integer { .. } => left.clone(),
+            _ => literal(left_side.literal)?,
         };
-        let middle_right = match &right_proof {
-            Some(_) => literal(right_literal)?,
-            None => right.clone(),
+        let middle_right = match right {
+            ScalarTerm::Integer { .. } => right.clone(),
+            _ => literal(right_side.literal)?,
         };
         let middle = if strict {
             Proposition::LessThan(middle_left, middle_right)
@@ -2290,10 +2348,10 @@ impl<'a> Prover<'a> {
         let mut proof = self
             .closed(middle)
             .ok_or("the closed bound relation does not hold")?;
-        if let Some(left_proof) = left_proof {
+        if let Some(left_proof) = self.comparison_proof(left, Direction::Upper, left_side)? {
             proof = chain(left_proof, proof)?;
         }
-        if let Some(right_proof) = right_proof {
+        if let Some(right_proof) = self.comparison_proof(right, Direction::Lower, right_side)? {
             proof = chain(proof, right_proof)?;
         }
         Ok(proof)
@@ -2998,18 +3056,23 @@ impl<'a> Prover<'a> {
         Some((next, proof, strict))
     }
 
-    /// A literal side is its own bound; a value side takes its best bound.
-    fn side(
+    /// Settle each endpoint in order, leaving value proofs in the cache.
+    fn comparison_side(
         &mut self,
         term: &ScalarTerm,
         direction: Direction,
-    ) -> Result<(IntegerValue, Option<ProofNode>), Unproven> {
+    ) -> Result<ComparisonSide, Unproven> {
         match term {
-            ScalarTerm::Integer { value, .. } => Ok((*value, None)),
-            ScalarTerm::Value { id, .. } => {
-                let bound = self.bound(*id, direction).ok_or("value has no bound")?;
-                Ok((bound.literal, Some(bound.proof)))
-            }
+            ScalarTerm::Integer { value, .. } => Ok(ComparisonSide {
+                literal: *value,
+                expression_proof: None,
+            }),
+            ScalarTerm::Value { id, .. } => Ok(ComparisonSide {
+                literal: self
+                    .bound_literal(*id, direction)
+                    .ok_or("value has no bound")?,
+                expression_proof: None,
+            }),
             _ => {
                 let integer = term
                     .scalar_type()
@@ -3041,8 +3104,32 @@ impl<'a> Prover<'a> {
                     (Err(_), Some(definition)) => definition,
                     (Err(reason), None) => return Err(reason),
                 };
-                Ok((bound.literal, Some(bound.proof)))
+                Ok(ComparisonSide {
+                    literal: bound.literal,
+                    expression_proof: Some(bound.proof),
+                })
             }
+        }
+    }
+
+    fn comparison_proof(
+        &mut self,
+        term: &ScalarTerm,
+        direction: Direction,
+        side: ComparisonSide,
+    ) -> Result<Option<ProofNode>, Unproven> {
+        match term {
+            // The endpoint search either completed the slot or reused one
+            // owned by an outer search. Neither can change while this
+            // comparison settles the other endpoint.
+            ScalarTerm::Value { id, .. } => {
+                let bound = self
+                    .copy_cached_bound(*id, direction)
+                    .ok_or("value has no bound")?;
+                debug_assert_eq!(side.literal, bound.literal);
+                Ok(Some(bound.proof))
+            }
+            _ => Ok(side.expression_proof),
         }
     }
 
@@ -3141,6 +3228,10 @@ impl<'a> Prover<'a> {
     /// The best bound on `value` in `direction`, memoized for this goal set.
     fn bound(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
         self.bound_literal(value, direction)?;
+        self.copy_cached_bound(value, direction)
+    }
+
+    fn copy_cached_bound(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
         #[cfg(test)]
         {
             self.activity.bound_certificate_copies += 1;

@@ -214,14 +214,6 @@ public data OutputCompletion {
     case Sealed(receipt: OutputReceipt);
     case Retry(obligation: RequiredOutput, file: BuildPath);
 }
-// Legacy privileged-service settings retained in the Build value.
-// Hardware authority belongs to each output's selected target and provider
-// contracts under wiki/spec/build/permissions.md#freestanding-machine-owner-authority.
-// These Booleans do not establish the caller's scoped authority.
-public data PrivilegedServices {
-    port_io: bool;
-    interrupt_table: bool;
-}
 // Build-owned ELF loader selection
 // (wiki/spec/build/configuration.md#elf-executable-loader-selection): the
 // exact `PT_INTERP` pathname one Linux target's dynamically linked output asks
@@ -272,7 +264,6 @@ public data Build<'storage> {
     identifier: &'storage [u8];
     elf_interpreter: ElfInterpreterSelection<'storage>;
     optimizations: Optimizations;
-    privileged_services: PrivilegedServices;
     source: BuildSource;
     inputs: BuildInputs;
     output: BuildOutput;

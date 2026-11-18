@@ -1,6 +1,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_dup_source");
-    builder.freestanding = true;
     let dep_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "dep" }));
     let dep_registration_2: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "dep" }));
 }

@@ -2406,10 +2406,9 @@ fn copied_statements_substitute_nested_callback_types_and_keep_the_original_sele
 }
 
 #[test]
-fn closed_callback_type_requirements_are_proved_and_retained() {
+fn closed_callback_requirements_are_retained_for_the_lowered_checker() {
     use crate::source_state::expression::{BinaryOperator, TableBinaryExpression};
     for case in 0..4 {
-        let admissible = case == 0;
         let (mut source, consumer, _) = statement_callback_source();
         let parameter = named(&mut source.program, source.forward.parameter, "T");
         let byte = named(
@@ -2462,36 +2461,79 @@ fn closed_callback_type_requirements_are_proved_and_retained() {
             .position(|machine| machine.symbol == source.forward.machine)
             .unwrap();
         source.program.machine_mut(position).contracts = contracts;
-        let result = prepare(&mut source.program);
-        if admissible {
-            result.unwrap();
-            let receipt = source
-                .program
-                .machine_specializations
-                .iter()
-                .find(|row| row.template == consumer.machine)
-                .unwrap();
-            let StaticMachineBindingValue::Machine(selected) = source
-                .program
-                .specialization_binding(receipt, consumer.callback)
-                .unwrap()
+        // Preparation copies the clause, including one the checker must reject.
+        // It does not prove that the selected callback refines its binder.
+        prepare(&mut source.program).unwrap();
+        let receipt = source
+            .program
+            .machine_specializations
+            .iter()
+            .find(|row| row.template == consumer.machine)
+            .unwrap();
+        let requirements = source
+            .program
+            .static_callback_requirements(receipt.binding_application)
+            .expect("the selected callback keeps its applied binder");
+        assert_eq!(requirements.len(), 1);
+        assert_eq!(requirements[0].parameter, consumer.callback);
+        let StaticMachineBindingValue::Machine(selected) = source
+            .program
+            .specialization_binding(receipt, consumer.callback)
+            .unwrap()
+        else {
+            panic!("callback")
+        };
+        let callback = source
+            .program
+            .machine_by_symbol(source.program.symbols.get(selected.symbol).parent)
+            .unwrap();
+        let Some([contract]) = source.program.machine_contracts(callback).as_array() else {
+            panic!("the selected callback must retain its one clause")
+        };
+        assert_eq!(contract.kind, SignatureContractKind::Requires);
+        let Some([ProofFact::Expression(predicate)]) = source
+            .program
+            .proof_facts
+            .span_or_empty(contract.facts)
+            .as_array()
+        else {
+            panic!("the callback requirement must retain its expression")
+        };
+        if case == 3 {
+            let ExpressionNode::Name(item) = source.program.expression_table.expression(*predicate)
             else {
-                panic!("callback")
+                panic!("the runtime input requirement must remain visible")
             };
-            let callback = source
-                .program
-                .machine_by_symbol(source.program.symbols.get(selected.symbol).parent)
-                .unwrap();
+            let entry = only_state(&source.program, callback.symbol);
             assert_eq!(
-                source.program.machine_contracts(callback).len(),
-                1,
-                "proving a clause does not discard it"
+                item.symbol,
+                source.program.state_parameters(entry)[0].symbol
             );
         } else {
-            assert!(
-                result.unwrap_err()[0]
-                    .message
-                    .contains("does not satisfy the callback binder")
+            let ExpressionNode::Binary(equation) =
+                source.program.expression_table.expression(*predicate)
+            else {
+                panic!("the type requirement must remain an equation")
+            };
+            assert_eq!(equation.operator, BinaryOperator::Equal);
+            let [
+                ExpressionNode::TypeExpression(left),
+                ExpressionNode::TypeExpression(right),
+            ] = [
+                source.program.expression_table.expression(equation.left),
+                source.program.expression_table.expression(equation.right),
+            ]
+            else {
+                panic!("the requirement must keep its type operands")
+            };
+            assert_eq!(named_symbol(&source.program, *left), source.byte);
+            assert_eq!(
+                named_symbol(&source.program, *right),
+                match case {
+                    0 => source.byte,
+                    1 => source.boolean,
+                    _ => source.relay.parameter,
+                }
             );
         }
     }

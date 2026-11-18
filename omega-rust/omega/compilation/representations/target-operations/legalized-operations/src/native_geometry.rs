@@ -5,8 +5,128 @@
 //! discard preparation by accepting only a slice of declarations.
 
 use arena::NonDenseIdentities;
-pub use calling_conventions::terminal_layout::NativeGeometry;
-use terminal_psi::StructuralTypeDeclaration;
+use calling_conventions::terminal_layout::NativeGeometry as PhysicalGeometry;
+use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId, TargetCarrierLayout};
+use target::NativeTarget;
+use terminal_psi::{StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration};
+use terminal_semantics::{ReferenceStorageRegion, StorageGeometryError};
+
+/// The current physical resolver and the selected target needed by the shared
+/// storage-view judgment. A declaration slice alone cannot supply sum tags or
+/// distinguish physical reference and sequence carriers from source layouts.
+pub struct NativeGeometry<'a> {
+    physical: PhysicalGeometry<'a>,
+    carriers: TargetCarrierLayout,
+}
+
+impl<'a> NativeGeometry<'a> {
+    pub fn new(
+        declarations: &'a [StructuralTypeDeclaration],
+        target: NativeTarget,
+    ) -> Result<Self, NonDenseIdentities> {
+        Self::with_owned_sequence_bounds(declarations, &[], target)
+    }
+
+    pub fn with_owned_sequence_bounds(
+        declarations: &'a [StructuralTypeDeclaration],
+        bounds: &'a [(StructuralTypeId, u64)],
+        target: NativeTarget,
+    ) -> Result<Self, NonDenseIdentities> {
+        Ok(Self {
+            physical: PhysicalGeometry::with_owned_sequence_bounds(declarations, bounds)?,
+            carriers: runtime_abi::target_carrier_layout(target),
+        })
+    }
+
+    fn storage_geometry(
+        &self,
+    ) -> terminal_semantics::ReferenceStorageGeometry<
+        std::slice::Iter<'_, StructuralTypeDeclaration>,
+        fn(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+        &Self,
+    > {
+        terminal_semantics::ReferenceStorageGeometry::new(
+            self.iter(),
+            unresolved_extent as fn(_) -> _,
+        )
+        .with_target_carriers(Some(self.carriers))
+        .with_record_storage(self)
+    }
+
+    pub fn storage_region(
+        &self,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<ReferenceStorageRegion> {
+        self.storage_geometry().region(root, path)
+    }
+
+    pub fn storage_view_source_compatible(
+        &self,
+        source: StructuralTypeId,
+        path: &[StructuralPathSegment],
+        reference: StructuralTypeId,
+        stored: Option<ScalarType>,
+    ) -> bool {
+        self.storage_geometry()
+            .view_source_compatible(source, path, reference, stored)
+    }
+}
+
+impl<'a> std::ops::Deref for NativeGeometry<'a> {
+    type Target = PhysicalGeometry<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.physical
+    }
+}
+
+impl terminal_semantics::RecordStorageResolver for &NativeGeometry<'_> {
+    fn carrier_layout(
+        &self,
+        owner: StructuralTypeId,
+        carrier: &StructuralFieldType,
+    ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+        let shape = self.physical.field_shape(carrier, owner).map_err(|error| {
+            use calling_conventions::terminal_layout::TerminalLayoutError as Native;
+            match error {
+                Native::UnknownStructuralType(id) => StorageGeometryError::MissingType(id),
+                Native::RecursiveStructuralType(id) => StorageGeometryError::RecursiveType(id),
+                Native::StructuralTypeTooLarge(_) => StorageGeometryError::Overflow,
+                Native::UnclosedScalarType(scalar) => {
+                    StorageGeometryError::UnsupportedScalar(scalar)
+                }
+                Native::UnclosedArrayExtent(id)
+                | Native::UnclosedOwnedSequence(id)
+                | Native::UnclosedTargetLayout(id)
+                | Native::ReentrantLayoutQuery(id) => StorageGeometryError::UnresolvedLayout(id),
+                Native::InvalidStorageGeometry(id) => {
+                    StorageGeometryError::InvalidRecordStorage(id)
+                }
+                Native::UnclosedOpaqueRepresentation(id)
+                | Native::UnsupportedStructuralSum(id)
+                | Native::EmptyStructuralType(id) => StorageGeometryError::UnsupportedType(id),
+            }
+        })?;
+        Ok(Some((
+            u64::from(shape.byte_size),
+            u64::from(shape.alignment),
+        )))
+    }
+
+    fn realization(
+        &self,
+        record: StructuralTypeId,
+        _application: terminal_psi::LayoutApplicationId,
+    ) -> Result<&terminal_psi::TargetLayoutRealization, StorageGeometryError> {
+        // This owner consumes closed native declarations, not an earlier
+        // module's publication. Missing physical layout remains a refusal.
+        Err(StorageGeometryError::UnresolvedLayout(record))
+    }
+}
+
+fn unresolved_extent(application: ScalarApplicationId) -> Result<u64, StorageGeometryError> {
+    Err(StorageGeometryError::UnresolvedExtent(application))
+}
 
 /// Function contracts normally borrow one shared catalog. Prepare that catalog
 /// once, while still accepting separately retained catalogs in received plans.
@@ -23,6 +143,7 @@ impl<'a> NativeGeometries<'a> {
                 &'a [(semantic_vocabulary::StructuralTypeId, u64)],
             ),
         >,
+        target: NativeTarget,
     ) -> Result<Self, NonDenseIdentities> {
         let mut catalogs = declarations.collect::<Vec<_>>();
         catalogs.sort_unstable_by_key(|(rows, bounds)| Self::key(rows, bounds));
@@ -30,7 +151,9 @@ impl<'a> NativeGeometries<'a> {
         Ok(Self {
             catalogs: catalogs
                 .into_iter()
-                .map(|(rows, bounds)| NativeGeometry::with_owned_sequence_bounds(rows, bounds))
+                .map(|(rows, bounds)| {
+                    NativeGeometry::with_owned_sequence_bounds(rows, bounds, target)
+                })
                 .collect::<Result<_, _>>()?,
         })
     }
@@ -161,6 +284,7 @@ mod tests {
                 (rows.as_slice(), small.as_slice()),
             ]
             .into_iter(),
+            target::NativeTarget::linux_x64(),
         )
         .unwrap();
         assert_eq!(prepared.catalogs.len(), 2);
@@ -171,6 +295,24 @@ mod tests {
         assert_eq!(
             prepared.get(&rows, &large).unwrap().shape(owned).unwrap(),
             ValueShape::integer(32, 8)
+        );
+        assert_eq!(
+            prepared
+                .get(&rows, &small)
+                .unwrap()
+                .storage_region(owned, &[])
+                .unwrap()
+                .byte_length,
+            16
+        );
+        assert_eq!(
+            prepared
+                .get(&rows, &large)
+                .unwrap()
+                .storage_region(owned, &[])
+                .unwrap()
+                .byte_length,
+            32
         );
         assert!(prepared.get(&rows, &[]).is_none());
     }
@@ -206,6 +348,7 @@ mod tests {
                 (declarations.as_slice(), &[][..]),
             ]
             .into_iter(),
+            target::NativeTarget::linux_x64(),
         )
         .unwrap();
         assert_eq!(prepared.catalogs.len(), 1);
@@ -223,7 +366,13 @@ mod tests {
             geometry::shape(root, first),
             Some(ValueShape::integer(32, 16))
         );
-        assert!(NativeGeometry::new(&[declarations[0].clone(), declarations[0].clone()]).is_err());
+        assert!(
+            NativeGeometry::new(
+                &[declarations[0].clone(), declarations[0].clone()],
+                target::NativeTarget::linux_x64()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -241,7 +390,8 @@ mod tests {
                 },
             ),
         ];
-        let prepared = NativeGeometry::new(&declarations).unwrap();
+        let prepared =
+            NativeGeometry::new(&declarations, target::NativeTarget::linux_x64()).unwrap();
         assert_eq!(
             geometry::shape(scalar, &prepared),
             Some(ValueShape::integer(2, 2))
@@ -306,7 +456,8 @@ mod tests {
             StructuralPathSegment::FixedIndex(2),
         ];
         {
-            let prepared = NativeGeometry::new(&declarations).unwrap();
+            let prepared =
+                NativeGeometry::new(&declarations, target::NativeTarget::linux_x64()).unwrap();
             assert_eq!(
                 geometry::field_storage_shape(&field, &prepared, root),
                 Some(ValueShape::integer(24, 4))
@@ -323,7 +474,8 @@ mod tests {
             byte_offset: 8,
             element_stride: 3,
         });
-        let prepared = NativeGeometry::new(&declarations).unwrap();
+        let prepared =
+            NativeGeometry::new(&declarations, target::NativeTarget::linux_x64()).unwrap();
         assert!(geometry::project(root, &path, &prepared).is_none());
     }
 
@@ -388,7 +540,8 @@ mod tests {
                 unreachable!()
             };
             fields[0].inline_carrier = inline_carrier;
-            let prepared = NativeGeometry::new(&declarations).unwrap();
+            let prepared =
+                NativeGeometry::new(&declarations, target::NativeTarget::linux_x64()).unwrap();
             let projection = geometry::descriptor_source_geometry(root, &path, &prepared);
             assert_eq!(
                 projection.as_ref().map(|geometry| geometry.selected),

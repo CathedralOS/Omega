@@ -62,6 +62,155 @@ machine both(held: &mut Source, value: &u32) -> u32 { 1 }
 machine replace(held: &mut Source) { }
 "#;
 
+#[test]
+fn an_indexed_case_payload_proves_a_recursive_arrival() {
+    const SOURCE: &str = r#"
+domain i64::FileHandle requires self != -1;
+data Frame [copy] {
+    case Empty;
+    case Directory(handle: i64 in FileHandle);
+}
+machine entry(frames: &mut [Frame; 2], depth: u64, restart: u8) -> i64
+requires depth > 0 && depth <= 2 && restart <= 1 {
+    transition { _ -> block next(frames, depth, restart) }
+    machine next(frames: &mut [Frame; 2], depth: u64, restart: u8) -> i64
+    requires depth > 0 && depth <= 2 && restart <= 1 {
+        transition frames[depth - 1] {
+            Frame::Directory { handle } -> block directory(frames, depth, restart, handle)
+            Frame::Empty -> 0i64
+        }
+    }
+    machine directory(frames: &mut [Frame; 2], depth: u64, restart: u8,
+        handle: i64 in FileHandle) -> i64
+    requires depth > 0 && depth <= 2 && restart <= 1 {
+        transition restart == 1 {
+            true -> block next(frames, depth, 0u8)
+            false -> (handle as -FileHandle)
+        }
+    }
+}
+"#;
+
+    let negative = SOURCE.replacen(
+        "    requires depth > 0 && depth <= 2 && restart <= 1 {\n        transition restart",
+        "    requires depth > 0 && depth < 2 && restart <= 1 {\n        transition restart",
+        1,
+    );
+    assert_ne!(negative, SOURCE);
+
+    for (source, accepts) in [(negative.as_str(), false), (SOURCE, true)] {
+        let typed = boundary_calls::typed(source);
+        let entry = boundary_calls::entry(&typed);
+        let elaboration = crate::lowering::elaborate_for(
+            &typed,
+            super::build_purpose::roster(
+                &[entry],
+                &[],
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .expect("the indexed frame cycle lowers");
+
+        // Each lowered copy of the nested cycle may contain this authored
+        // call. Bind its source position to the destination's actual arrival.
+        let callee_start = source.find("block directory(").unwrap() + "block ".len();
+        let mut arrivals = Vec::new();
+        for (machine, sources) in elaboration.sources.iter() {
+            let tables = elaboration.tables.machines.get(machine).unwrap();
+            for (edge, origin) in sources.edges.iter() {
+                if origin
+                    .span()
+                    .is_none_or(|span| span.span.start != callee_start)
+                {
+                    continue;
+                }
+                let edge_row = tables.edges.get(edge).unwrap();
+                let terminal_check_tables::edges::Destination::Block(head) = edge_row.destination
+                else {
+                    panic!("the authored call must transfer to a block");
+                };
+                let (_, member) = sources
+                    .heads
+                    .iter()
+                    .find(|(block, _)| *block == head)
+                    .unwrap();
+                assert_eq!(elaboration.names.get(*member).unwrap().machine, "directory");
+                let lowered = elaboration.module.machine(machine).unwrap();
+                let from = lowered
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == edge_row.source)
+                    .unwrap();
+                assert!(matches!(&from.terminator,
+                    terminal_psi::Terminator::Jump { edge: jump, target, arguments, structural_arguments, .. }
+                    if *jump == edge && *target == head
+                        && arguments.len() == 3 && structural_arguments.len() == 1));
+                let (obligation, row) = tables
+                    .obligations
+                    .iter()
+                    .find(|(_, row)| row.kind == (ObligationKind::ArrivalInvariant { edge }))
+                    .expect("the terminal directory edge owes an arrival invariant");
+                assert_eq!(row.created_at, ProgramPoint::Edge(edge));
+                assert_eq!(sources.obligations.get(obligation), Some(origin));
+                assert!(
+                    elaboration
+                        .module
+                        .scalar_block_invariants
+                        .iter()
+                        .any(|invariant| invariant.machine == machine
+                            && invariant.header == head
+                            && invariant
+                                .arrivals
+                                .iter()
+                                .any(|arrival| arrival.edge == edge
+                                    && arrival.obligation == obligation))
+                );
+                arrivals.push((machine, obligation, edge, *origin));
+            }
+        }
+        assert!(
+            !arrivals.is_empty(),
+            "lowering must retain the directory arrival"
+        );
+
+        let verdict = judge(Ok(elaboration)).unwrap();
+        let directory_refused = matches!(&verdict, RouteVerdict::Rejected {
+            formations, violations, unproved, unestablished, conflicts, exceeded
+        } if formations.is_empty() && violations.is_empty() && unestablished.is_empty()
+            && conflicts.is_empty() && exceeded.is_empty() && !unproved.is_empty()
+            && unproved.iter().all(|row| {
+                row.cause == UnprovedCause::NoDerivation
+                    && row.statement.contains("call directory from next")
+                    && arrivals.iter().any(|&(machine, obligation, edge, origin)| {
+                        row.machine == machine && row.obligation == obligation
+                            && row.kind == (ObligationKind::ArrivalInvariant { edge })
+                            && row.site == origin
+                    })
+            }));
+        if accepts {
+            match verdict {
+                RouteVerdict::Accepted(accepted) => {
+                    accepted.publish_invocation().unwrap();
+                }
+                refused if directory_refused => {
+                    panic!(
+                        "the indexed case payload did not prove its recursive arrival: {refused:?}"
+                    );
+                }
+                other => {
+                    panic!("unexpected outcome for the unchanged recursive arrival: {other:?}")
+                }
+            }
+        } else {
+            assert!(
+                directory_refused,
+                "tightening directory's depth bound must refuse its authored recursive arrival: {verdict:?}"
+            );
+        }
+    }
+}
+
 /// Build's Source dispatch forwards a shared builder and the selected payload.
 /// Its Git case contains another sum, passed to the helper that selects it.
 #[test]

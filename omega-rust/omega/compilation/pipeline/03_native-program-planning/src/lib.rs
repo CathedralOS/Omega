@@ -43,7 +43,10 @@ pub use target_supply::SelectedProviderRealization;
 #[cfg(feature = "test-support")]
 pub mod test_support {
     use super::{SelectedExecution, target_supply::RealizedTargetSupply};
-    pub use crate::abstract_optimization::build_verified_psi_optimization_unit;
+    pub use crate::abstract_optimization::{
+        VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
+    };
+    pub use verified_optimization_input::{ObligationEvidence, VerifiedPsiOptimizationInput};
     pub fn select_realization(
         module: &terminal_psi::TerminalModule,
         profile: Option<target::TargetProfile>,

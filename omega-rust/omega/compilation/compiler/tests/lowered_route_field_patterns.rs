@@ -1,4 +1,4 @@
-//! A field-value case pattern tests payload only after selecting its tag.
+//! Payload reads require the selected tag, whether set by a pattern or by case tests.
 
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
@@ -36,6 +36,35 @@ fn judge_frontier(name: &str, frontier: &compiler::TypedFrontier) -> RouteVerdic
         },
     );
     judge(lowered).unwrap_or_else(|defect| panic!("{name}: route defect: {defect:?}"))
+}
+
+#[test]
+fn a_payload_read_requires_all_other_cases_to_be_excluded() {
+    let positive = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/fixtures/run/contracts/case_refutation/main.omg"
+    ));
+    let negative = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/fixtures/fail/contracts/case_refutation/main.omg"
+    ));
+    let expected = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../tests/fixtures/fail/contracts/case_refutation/expected.txt"
+    ));
+
+    let found = verdict("case_refutation", positive);
+    assert!(matches!(found, RouteVerdict::Accepted(_)), "{found:?}");
+    let found = verdict("one_case_still_possible", negative);
+    let RouteVerdict::Rejected { unestablished, .. } = found else {
+        panic!("{found:?}");
+    };
+    assert!(
+        unestablished
+            .iter()
+            .any(|failure| failure.detail == expected.trim()),
+        "{unestablished:?}"
+    );
 }
 
 #[test]

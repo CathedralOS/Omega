@@ -4259,15 +4259,13 @@ pub(crate) mod reference_input {
             }
         } else {
             match storage {
-                Some(storage) if storage.stored_scalar.is_none() => {
-                    terminal_semantics::reference_storage_region_source_compatible(
-                        declarations.iter(),
+                Some(storage) if storage.stored_scalar.is_none() => declarations
+                    .storage_view_source_compatible(
                         root,
                         &source.path,
                         result.structural_type,
                         storage.stored_scalar,
-                    )
-                }
+                    ),
                 Some(storage) => actual.is_some_and(|actual| {
                     terminal_semantics::reference_storage_source_compatible(
                         declarations.iter(),
@@ -4635,6 +4633,465 @@ pub(crate) mod reference_input {
             })
         }
 
+        // These are the native declarations captured from the unchanged
+        // CLayout Words16 + tail16 view of Receiver's byte field. The scalar
+        // inline carrier is renamed 16 -> 5 and unreferenced declarations
+        // are omitted. The source/target geometry and row stay exact.
+        fn storage_view_function(
+            byte_length: u64,
+            misaligned: bool,
+        ) -> legalized_operations::LegalizedScalarFunction {
+            use calling_conventions::{
+                CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+            };
+            use legalized_operations::{
+                LegalizedCallUnitParameter, LegalizedScalarBlock, LegalizedScalarFunction,
+                LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarReturn,
+                LegalizedScalarReturnValue, LegalizedScalarTerminator, LegalizedStructuralContract,
+            };
+            use native_vocabulary::provenance::EffectLink;
+            use semantic_vocabulary::{
+                AuthoredFieldStorage, AuthoredRecordStorage, BlockId, EdgeId, MachineId,
+                OperationId, StructuralCaseId, StructuralPlaceKind,
+            };
+            use terminal_psi::{
+                ArrayExtent, ReferenceStorageView, StructuralCaseDeclaration,
+                StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+                StructuralPlaceDeclaration,
+            };
+
+            let integer =
+                |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+            let plain = |identity, shape| StructuralTypeDeclaration {
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                ..declaration(identity, shape)
+            };
+            let word = |id, identity, offset| StructuralFieldDeclaration {
+                id: StructuralFieldId::new(id).unwrap(),
+                inline_carrier: Some(type_id(5)),
+                storage: Some(AuthoredFieldStorage::Direct {
+                    byte_offset: offset,
+                }),
+                ..field(identity, StructuralFieldType::Scalar(integer(64)))
+            };
+            let mut receiver_fields = vec![
+                StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    ..field(6, StructuralFieldType::Structural(type_id(1)))
+                },
+                StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(2).unwrap(),
+                    inline_carrier: Some(type_id(5)),
+                    ..field(7, StructuralFieldType::Scalar(integer(64)))
+                },
+                StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(3).unwrap(),
+                    ..field(8, StructuralFieldType::Structural(type_id(3)))
+                },
+            ];
+            if misaligned {
+                receiver_fields.insert(2, field(20, StructuralFieldType::Scalar(integer(8))));
+            }
+            let types = vec![
+                plain(
+                    1,
+                    StructuralTypeShape::Sum {
+                        cases: (1..=2)
+                            .map(|identity| StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
+                                id: StructuralCaseId::new(u64::from(identity)).unwrap(),
+                                identity: TerminalIdentityIndex(identity),
+                                fields: Vec::new(),
+                            })
+                            .collect(),
+                    },
+                ),
+                plain(2, StructuralTypeShape::PrimitiveScalar(integer(8))),
+                plain(
+                    3,
+                    StructuralTypeShape::FixedArray {
+                        element: type_id(2),
+                        length: ArrayExtent::Literal(byte_length),
+                    },
+                ),
+                plain(
+                    4,
+                    StructuralTypeShape::Record {
+                        fields: receiver_fields,
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                ),
+                plain(5, StructuralTypeShape::PrimitiveScalar(integer(64))),
+                plain(
+                    6,
+                    StructuralTypeShape::Record {
+                        fields: vec![word(6, 10, 0), word(7, 11, 8)],
+                        storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                            byte_size: 16,
+                            byte_alignment: 8,
+                        }),
+                    },
+                ),
+                plain(
+                    7,
+                    StructuralTypeShape::FixedArray {
+                        element: type_id(2),
+                        length: ArrayExtent::Literal(16),
+                    },
+                ),
+                plain(
+                    8,
+                    StructuralTypeShape::Record {
+                        fields: vec![
+                            StructuralFieldDeclaration {
+                                id: StructuralFieldId::new(8).unwrap(),
+                                ..field(15, StructuralFieldType::Structural(type_id(6)))
+                            },
+                            StructuralFieldDeclaration {
+                                id: StructuralFieldId::new(9).unwrap(),
+                                ..field(16, StructuralFieldType::Structural(type_id(7)))
+                            },
+                        ],
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                ),
+                StructuralTypeDeclaration {
+                    multiplicity: StructuralMultiplicity::Affine,
+                    ..plain(
+                        9,
+                        StructuralTypeShape::Reference {
+                            referent: type_id(8),
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    )
+                },
+            ];
+            let source_place = PlaceId::new(1).unwrap();
+            let result_place = PlaceId::new(2).unwrap();
+            let operation = OperationId::new(2).unwrap();
+            let shape = ValueShape::borrowed_reference(if misaligned { 56 } else { 48 }, 8);
+            let call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+                &CallSignature {
+                    parameters: vec![shape],
+                    result: None,
+                },
+            )
+            .unwrap();
+            let parameter = StructuralParameterDeclaration {
+                place: source_place,
+                position: 0,
+                structural_type: type_id(4),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            };
+            let row = LegalizedScalarInstruction {
+                operation,
+                result: None,
+                kind: LegalizedScalarInstructionKind::EstablishReference {
+                    result: StructuralOperationResult {
+                        place: result_place,
+                        structural_type: type_id(9),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                    source: StructuralArgument {
+                        place: source_place,
+                        path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(8))],
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    storage: Some(ReferenceStorageView {
+                        byte_offset: ValueId::new(2).unwrap(),
+                        stored_scalar: None,
+                    }),
+                    indices: Vec::new(),
+                    shape: ValueShape::integer(8, 8),
+                },
+                work: Vec::new(),
+                effect: EffectLink {
+                    input: 0,
+                    output: 0,
+                },
+                ownership: Vec::new(),
+            };
+            LegalizedScalarFunction {
+                machine: MachineId::new(2).unwrap(),
+                attachment: None,
+                provenance: Default::default(),
+                parameters: Vec::new(),
+                structural: Some(LegalizedStructuralContract {
+                    result: None,
+                    structural_types: types.into(),
+                    parameters: vec![LegalizedCallUnitParameter {
+                        semantic: parameter,
+                        target: target_vocabulary::TargetStructuralParameter {
+                            place: source_place,
+                            structural_type: type_id(4),
+                            multiplicity: StructuralMultiplicity::Unrestricted,
+                            access: StructuralAccess::SharedBorrow,
+                            projected_qualifications: Vec::new(),
+                            shape,
+                            placement: call_plan.parameters[0].clone(),
+                        },
+                    }],
+                    structural_places: vec![
+                        StructuralPlaceDeclaration {
+                            id: source_place,
+                            kind: StructuralPlaceKind::Parameter { position: 0 },
+                        },
+                        StructuralPlaceDeclaration {
+                            id: result_place,
+                            kind: StructuralPlaceKind::OperationResult {
+                                producer: operation,
+                                structural_type: type_id(9),
+                            },
+                        },
+                    ],
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                }),
+                call_plan,
+                entry_block: BlockId::new(1).unwrap(),
+                blocks: vec![LegalizedScalarBlock {
+                    id: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new().into(),
+                    instructions: vec![row],
+                    terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
+                        edge: EdgeId::new(1).unwrap(),
+                        value: LegalizedScalarReturnValue::Unit,
+                        work: Vec::new(),
+                        effect: EffectLink {
+                            input: 0,
+                            output: 0,
+                        },
+                        ownership: Vec::new(),
+                    }),
+                }],
+                ownership_frontier_facts: Vec::new(),
+            }
+        }
+
+        #[test]
+        fn storage_view_establishment_keeps_prepared_native_geometry() {
+            use crate::instruction_selection::native_geometry::{NativeFunction, NativeGeometry};
+            use calling_conventions::ValueShape;
+            use legalized_operations::LegalizedScalarInstructionKind;
+
+            for (length, misaligned, accepted) in
+                [(31, false, false), (32, true, false), (32, false, true)]
+            {
+                let function = storage_view_function(length, misaligned);
+                let catalog = &function.structural.as_ref().unwrap().structural_types;
+                let geometry =
+                    NativeGeometry::new(catalog, target::NativeTarget::linux_x64()).unwrap();
+                let prepared = NativeFunction::new(&function, &geometry);
+                let row = &function.blocks[0].instructions[0];
+                let LegalizedScalarInstructionKind::EstablishReference {
+                    result,
+                    source,
+                    shape,
+                    ..
+                } = &row.kind
+                else {
+                    unreachable!()
+                };
+                assert_eq!(*shape, ValueShape::integer(8, 8));
+                assert_eq!(super::root_type(&prepared, source.place), Some(type_id(4)));
+                assert_eq!(
+                    crate::instruction_selection::selection::aggregate_result_input::home(
+                        &prepared,
+                        result.place
+                    ),
+                    Some((row.operation, result))
+                );
+                let projected =
+                    super::reference_formation_geometry(type_id(4), &source.path, &geometry)
+                        .unwrap();
+                assert_eq!(projected.byte_offset, if misaligned { 17 } else { 16 });
+                assert_eq!(projected.selected.as_structural(), Some(type_id(3)));
+                assert!(projected.elements.is_empty());
+                assert!(projected.pointer_slots.is_empty());
+                assert_eq!(geometry.shape(type_id(4)).unwrap().alignment, 8);
+                assert_eq!(
+                    function.structural.as_ref().unwrap().parameters[0]
+                        .target
+                        .shape,
+                    ValueShape::borrowed_reference(
+                        geometry.shape(type_id(4)).unwrap().byte_size,
+                        8
+                    )
+                );
+                assert_eq!(
+                    geometry.shape(type_id(8)).unwrap(),
+                    ValueShape::integer(32, 8)
+                );
+
+                if accepted {
+                    let mut wrong_shape = function.clone();
+                    let LegalizedScalarInstructionKind::EstablishReference { shape, .. } =
+                        &mut wrong_shape.blocks[0].instructions[0].kind
+                    else {
+                        unreachable!()
+                    };
+                    *shape = ValueShape::integer(16, 8);
+                    let wrong_geometry = NativeGeometry::new(
+                        &wrong_shape.structural.as_ref().unwrap().structural_types,
+                        target::NativeTarget::linux_x64(),
+                    )
+                    .unwrap();
+                    assert!(
+                        super::establishment(
+                            &NativeFunction::new(&wrong_shape, &wrong_geometry),
+                            &wrong_shape.blocks[0].instructions[0]
+                        )
+                        .is_none()
+                    );
+                    let mut owned_source = function.clone();
+                    let LegalizedScalarInstructionKind::EstablishReference { source, .. } =
+                        &mut owned_source.blocks[0].instructions[0].kind
+                    else {
+                        unreachable!()
+                    };
+                    source.access = StructuralAccess::Owned;
+                    let owned_geometry = NativeGeometry::new(
+                        &owned_source.structural.as_ref().unwrap().structural_types,
+                        target::NativeTarget::linux_x64(),
+                    )
+                    .unwrap();
+                    assert!(
+                        super::establishment(
+                            &NativeFunction::new(&owned_source, &owned_geometry),
+                            &owned_source.blocks[0].instructions[0]
+                        )
+                        .is_none()
+                    );
+                }
+                let address = super::establishment(&prepared, row);
+                if accepted {
+                    let address =
+                        address.expect("aligned 32-byte field needs its prepared native geometry");
+                    assert_eq!(address.place, source.place);
+                    assert_eq!(address.byte_offset, 16);
+                    assert!(!address.load_pointer);
+                    assert!(!address.load_codec);
+                    assert!(address.codec.is_none());
+                    assert!(address.indices.is_empty());
+                    assert!(address.pointer_slots.is_empty());
+                } else {
+                    assert!(
+                        address.is_none(),
+                        "short or misaligned field must remain refused"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn storage_view_ranges_keep_exact_extent_and_projection() {
+            use crate::instruction_selection::native_geometry::{NativeFunction, NativeGeometry};
+            use legalized_operations::LegalizedScalarInstructionKind;
+
+            for (end, accepted) in [(32, true), (31, false), (33, false)] {
+                let mut function = storage_view_function(32, false);
+                let LegalizedScalarInstructionKind::EstablishReference { source, .. } =
+                    &mut function.blocks[0].instructions[0].kind
+                else {
+                    unreachable!()
+                };
+                source
+                    .path
+                    .push(StructuralPathSegment::FixedRange { start: 0, end });
+                let geometry = NativeGeometry::new(
+                    &function.structural.as_ref().unwrap().structural_types,
+                    target::NativeTarget::linux_x64(),
+                )
+                .unwrap();
+                let prepared = NativeFunction::new(&function, &geometry);
+                let row = &function.blocks[0].instructions[0];
+                let LegalizedScalarInstructionKind::EstablishReference { source, .. } = &row.kind
+                else {
+                    unreachable!()
+                };
+                let projected =
+                    super::reference_formation_geometry(type_id(4), &source.path, &geometry);
+                let region = geometry.storage_region(type_id(4), &source.path);
+                if end <= 32 {
+                    assert_eq!(projected.unwrap().byte_offset, 16);
+                    let region = region.unwrap();
+                    assert_eq!(region.byte_offset, 16);
+                    assert_eq!(region.byte_length, end);
+                    assert!(region.array.is_some());
+                } else {
+                    assert!(projected.is_none());
+                    assert!(region.is_none());
+                }
+                let address = super::establishment(&prepared, row);
+                assert_eq!(address.is_some(), accepted, "range end {end}");
+                if let Some(address) = address {
+                    assert_eq!(address.byte_offset, 16);
+                    assert_eq!(address.place, PlaceId::new(1).unwrap());
+                }
+            }
+        }
+
+        #[test]
+        fn storage_view_geometry_does_not_grant_validity_or_missing_layout() {
+            use crate::instruction_selection::native_geometry::{NativeFunction, NativeGeometry};
+
+            for unresolved in [false, true] {
+                let mut function = storage_view_function(32, false);
+                let words = function
+                    .structural
+                    .as_mut()
+                    .unwrap()
+                    .structural_types
+                    .make_mut()
+                    .iter_mut()
+                    .find(|row| row.id == type_id(6))
+                    .unwrap();
+                let StructuralTypeShape::Record { fields, storage } = &mut words.shape else {
+                    unreachable!()
+                };
+                if unresolved {
+                    *storage = StructuralRecordStorage::TargetLayout(
+                        terminal_psi::LayoutApplicationId(77),
+                    );
+                } else {
+                    // Equal native footprint cannot manufacture a reference
+                    // permission from arbitrary source bytes.
+                    fields[0].field_type = StructuralFieldType::Structural(type_id(9));
+                    fields[0].inline_carrier = None;
+                }
+                let geometry = NativeGeometry::new(
+                    &function.structural.as_ref().unwrap().structural_types,
+                    target::NativeTarget::linux_x64(),
+                )
+                .unwrap();
+                if unresolved {
+                    assert!(geometry.shape(type_id(8)).is_err());
+                } else {
+                    assert_eq!(
+                        geometry.shape(type_id(8)).unwrap(),
+                        calling_conventions::ValueShape::integer(32, 8)
+                    );
+                }
+                let prepared = NativeFunction::new(&function, &geometry);
+                assert!(
+                    super::establishment(&prepared, &function.blocks[0].instructions[0]).is_none()
+                );
+            }
+        }
+
         #[test]
         fn resident_address_uses_authenticated_field_without_replacing_owner() {
             let types = catalog();
@@ -4651,7 +5108,11 @@ pub(crate) mod reference_input {
                 vec![StructuralPathSegment::Field(TerminalIdentityIndex(11))]
             );
             let native_geometry =
-                crate::instruction_selection::native_geometry::NativeGeometry::new(&types).unwrap();
+                crate::instruction_selection::native_geometry::NativeGeometry::new(
+                    &types,
+                    target::NativeTarget::linux_x64(),
+                )
+                .unwrap();
             let geometry = crate::instruction_selection::reference_formation_geometry(
                 type_id(1),
                 &physical.path,
@@ -4691,7 +5152,11 @@ pub(crate) mod reference_input {
             assert_eq!(&physical.path[..source.path.len()], source.path.as_slice());
             assert_eq!(physical.place, source.place);
             let native_geometry =
-                crate::instruction_selection::native_geometry::NativeGeometry::new(&types).unwrap();
+                crate::instruction_selection::native_geometry::NativeGeometry::new(
+                    &types,
+                    target::NativeTarget::linux_x64(),
+                )
+                .unwrap();
             let geometry = crate::instruction_selection::reference_formation_geometry(
                 type_id(4),
                 &physical.path,

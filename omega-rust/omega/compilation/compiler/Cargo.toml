@@ -288,6 +288,10 @@ path = "tests/lowered_route_field_patterns.rs"
 
 # Independent receiver admission of the existing Windows filesystem customer.
 [[test]]
+name = "lowered_route_reflection"
+path = "tests/lowered_route_reflection.rs"
+
+[[test]]
 name = "filesystem_receiver"
 path = "tests/filesystem_receiver.rs"
 

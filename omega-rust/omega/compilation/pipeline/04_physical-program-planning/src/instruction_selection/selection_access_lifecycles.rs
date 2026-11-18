@@ -2419,10 +2419,6 @@ pub(crate) mod resource_profile {
                     access: StructuralAccess::SharedBorrow,
                 });
                 types.expose_scalar_fields();
-                let native_geometry =
-                    crate::instruction_selection::native_geometry::NativeGeometry::new(&types.0)
-                        .unwrap();
-                let profile_layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
                 let boundary = BoundaryMachineId::new(8).unwrap();
                 let plan = TerminalAccessLifecyclePlan {
                     target: None,
@@ -2449,6 +2445,14 @@ pub(crate) mod resource_profile {
                     placement: aligned_placement(),
                 };
                 for target in targets() {
+                    let native_geometry =
+                        crate::instruction_selection::native_geometry::NativeGeometry::new(
+                            &types.0, target,
+                        )
+                        .unwrap();
+                    let profile_layout =
+                        ProfileLayout::derive(&native_geometry, profile_type).unwrap();
+
                     for projection in [
                         InputProjection::Root,
                         InputProjection::Field,
@@ -2843,14 +2847,14 @@ pub(crate) mod resource_profile {
                 let mut declarations = Types::default();
                 let profile_type = declarations.profile();
                 declarations.expose_scalar_fields();
-                let native_geometry =
-                    crate::instruction_selection::native_geometry::NativeGeometry::new(
-                        &declarations.0,
-                    )
-                    .unwrap();
-                let layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
-
                 for target in targets() {
+                    let native_geometry =
+                        crate::instruction_selection::native_geometry::NativeGeometry::new(
+                            &declarations.0,
+                            target,
+                        )
+                        .unwrap();
+                    let layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
                     for (count, base, length) in [
                         (1_000_000_000, 4096, 1_000_000_000 * footprint),
                         (1, 4097, footprint),
@@ -3293,11 +3297,14 @@ pub(crate) mod resource_profile {
             let mut declarations = Types::default();
             let profile_type = declarations.profile();
             declarations.expose_scalar_fields();
-            let native_geometry =
-                crate::instruction_selection::native_geometry::NativeGeometry::new(&declarations.0)
-                    .unwrap();
-            let layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
             for target in targets() {
+                let native_geometry =
+                    crate::instruction_selection::native_geometry::NativeGeometry::new(
+                        &declarations.0,
+                        target,
+                    )
+                    .unwrap();
+                let layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
                 with_builder(target, |builder, row| {
                     let profile = profile_home(builder, row);
                     let place = profile.place;
@@ -3762,11 +3769,14 @@ pub(crate) mod resource_profile {
             let mut declarations = Types::default();
             let profile_type = declarations.profile();
             declarations.expose_scalar_fields();
-            let native_geometry =
-                crate::instruction_selection::native_geometry::NativeGeometry::new(&declarations.0)
-                    .unwrap();
-            let layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
             for target in targets() {
+                let native_geometry =
+                    crate::instruction_selection::native_geometry::NativeGeometry::new(
+                        &declarations.0,
+                        target,
+                    )
+                    .unwrap();
+                let layout = ProfileLayout::derive(&native_geometry, profile_type).unwrap();
                 for (placement_position, placement) in placements.iter().enumerate() {
                     with_builder(target, |builder, row| {
                         let profile = profile_home(builder, row);
@@ -4699,6 +4709,7 @@ pub(crate) mod tests {
             };
         let geometries = crate::instruction_selection::native_geometry::NativeGeometries::new(
             std::iter::empty(),
+            target,
         )
         .unwrap();
         let backings = crate::instruction_selection::selection::foreign_scalar_backings::ForeignScalarBackings::new(
@@ -5412,8 +5423,11 @@ pub(crate) mod tests {
                 },
             ),
         ];
-        let types =
-            crate::instruction_selection::native_geometry::NativeGeometry::new(&types).unwrap();
+        let types = crate::instruction_selection::native_geometry::NativeGeometry::new(
+            &types,
+            target::NativeTarget::linux_x64(),
+        )
+        .unwrap();
         let field = StructuralFieldDeclaration {
             declaration_identity: Default::default(),
             inline_carrier: None,
@@ -5649,9 +5663,10 @@ pub(crate) mod tests {
     #[test]
     fn resident_complete_image_stages_commits_and_decodes_without_touching_rejected_backing() {
         let (types, plan) = image_fixture();
-        let types =
-            crate::instruction_selection::native_geometry::NativeGeometry::new(&types).unwrap();
         for target in targets() {
+            let types =
+                crate::instruction_selection::native_geometry::NativeGeometry::new(&types, target)
+                    .unwrap();
             for supplied in [0, 1] {
                 with_builder(target, |builder, row| {
                     let owner = PlaceId::new(9).unwrap();
@@ -5792,9 +5807,10 @@ pub(crate) mod tests {
             byte_offset: 16,
             element_stride: 8,
         });
-        let types =
-            crate::instruction_selection::native_geometry::NativeGeometry::new(&types).unwrap();
         for target in targets() {
+            let types =
+                crate::instruction_selection::native_geometry::NativeGeometry::new(&types, target)
+                    .unwrap();
             with_builder(target, |builder, row| {
                 let owner = PlaceId::new(9).unwrap();
                 let scratch = owner;

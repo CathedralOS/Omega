@@ -466,6 +466,8 @@ enum Reached {
     Extent(OperationId),
     /// Asked of a sum: the one case every path establishes it as.
     Case(StructuralCaseId),
+    /// Every path rules out the case asked about.
+    ExcludedCase,
     /// Every path supplies part of an established value without naming one
     /// scalar identity. The depth counts ancestors the leaf still shares
     /// with that value. A transfer can retain the field's own type evidence
@@ -532,7 +534,17 @@ enum BytePredicateState {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum QueryKind {
     Contents,
-    Case,
+    Case(Option<StructuralCaseId>),
+}
+
+/// A selected case answers the discriminator query directly, or rules out
+/// a different case when the query asks for an exclusion.
+fn case_selection(selected: StructuralCaseId, excluded: Option<StructuralCaseId>) -> Reached {
+    match excluded {
+        None => Reached::Case(selected),
+        Some(case) if case != selected => Reached::ExcludedCase,
+        Some(_) => Reached::Unknown,
+    }
 }
 
 /// What reaches one equation: a real store, entry, or case selection, or
@@ -787,8 +799,8 @@ enum Shape<'a> {
 enum Asked<'q> {
     /// What this scalar leaf, or this sum's discriminator, holds.
     Contents(&'q Lineage),
-    /// Which case this sum is established as.
-    Case(&'q Lineage),
+    /// The selected case, or whether the given case is excluded.
+    Case(&'q Lineage, Option<StructuralCaseId>),
     /// Whether the invariant window that the operation `by` opened on
     /// `place` is still open: dependent_values.md, "Otherwise the write
     /// opens a window on the place ... The domain must be proved again at
@@ -808,7 +820,7 @@ enum Asked<'q> {
 impl<'q> Asked<'q> {
     fn place(self) -> &'q Lineage {
         match self {
-            Self::Contents(place) | Self::Case(place) => place,
+            Self::Contents(place) | Self::Case(place, _) => place,
             Self::Window { backing, .. } => &backing.place,
         }
     }
@@ -819,7 +831,7 @@ impl<'q> Asked<'q> {
     {
         match self {
             Self::Contents(_) => Asked::Contents(place),
-            Self::Case(_) => Asked::Case(place),
+            Self::Case(_, excluded) => Asked::Case(place, excluded),
             Self::Window {
                 backing,
                 by,
@@ -864,7 +876,7 @@ impl<'q> Asked<'q> {
         }
         match self {
             Self::Contents(_) => true,
-            Self::Case(_) => {
+            Self::Case(..) => {
                 !watched.strictly_contains(&row.backing)
                     && !watched.current_subject_strictly_contains(&row.backing, crossed)
             }
@@ -2883,6 +2895,7 @@ impl<'a> Storage<'a> {
                             asked,
                             &captured,
                             (row.block, row.position),
+                            0,
                             budget,
                             concerns,
                         )?;
@@ -2897,6 +2910,7 @@ impl<'a> Storage<'a> {
                         asked,
                         watched,
                         (row.block, row.position - 1),
+                        0,
                         budget,
                         concerns,
                     )?
@@ -2905,7 +2919,7 @@ impl<'a> Storage<'a> {
             let reached = match (&row.stored, asked) {
                 (Stored::UnknownPayloadWrite { .. }, _) => Reached::Unknown,
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
-                (Stored::Vacated, Asked::Case(_)) => Reached::Unknown,
+                (Stored::Vacated, Asked::Case(..)) => Reached::Unknown,
                 (Stored::Vacated, Asked::Window { .. }) => {
                     unreachable!("windows are handled above")
                 }
@@ -2913,7 +2927,9 @@ impl<'a> Storage<'a> {
                     Reached::Value(*value)
                 }
                 (Stored::Value(_), _) => Reached::Unknown,
-                (Stored::Case(case), Asked::Case(_)) if beneath.is_empty() => Reached::Case(*case),
+                (Stored::Case(case), Asked::Case(_, excluded)) if beneath.is_empty() => {
+                    case_selection(*case, excluded)
+                }
                 // The payload leaves of a construction have stores of their
                 // own, which come after this one; what is left is the sum's
                 // discriminator, or a payload of another case.
@@ -2922,9 +2938,9 @@ impl<'a> Storage<'a> {
                 // sum of the zero value. The zero operation's fresh destination
                 // supplies its type; the checked backing suffix supplies the
                 // queried path, independently of a borrowed logical subject.
-                (Stored::Zeroed, Asked::Case(_)) => self
+                (Stored::Zeroed, Asked::Case(_, excluded)) => self
                     .zero_case(row.destination.root, beneath, concerns)?
-                    .map_or(Reached::Unknown, Reached::Case),
+                    .map_or(Reached::Unknown, |case| case_selection(case, excluded)),
                 (Stored::Zeroed, Asked::Contents(_)) => self
                     .zero_scalar(row.destination.root, beneath, concerns)?
                     .map_or(Reached::Unknown, Reached::Zero),
@@ -2982,7 +2998,7 @@ impl<'a> Storage<'a> {
                         Reached::Unknown
                     }
                 }
-                (Stored::Established, Asked::Case(_)) => Reached::Unknown,
+                (Stored::Established, Asked::Case(..)) => Reached::Unknown,
                 // A window is answered by the row alone, above.
                 (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
                     return Err(
@@ -2990,27 +3006,53 @@ impl<'a> Storage<'a> {
                     );
                 }
                 (Stored::Moved(source), _) => {
-                    let mut source = source.clone();
-                    source.segments.extend_from_slice(beneath);
+                    let carry_depth = !weakened
+                        && budget.observations == Observations::Boundary
+                        && matches!(asked, Asked::Contents(_))
+                        && !matches!(budget.used, Some(ProgramPoint::BeforeCleanup { .. }))
+                        && budget.crossed_entries.get(index(row.block.get())) == Some(&false)
+                        && !beneath.is_empty()
+                        && beneath.iter().all(|step| {
+                            matches!(
+                                step,
+                                Segment::Field(_) | Segment::Case(_) | Segment::FixedIndex(_)
+                            )
+                        });
+                    let mut leaf = source.clone();
+                    leaf.segments.extend_from_slice(beneath);
                     let asked = match asked {
-                        Asked::Contents(_) => Asked::Contents(&source),
-                        Asked::Case(_) => Asked::Case(&source),
+                        Asked::Contents(_) => Asked::Contents(&leaf),
+                        Asked::Case(_, excluded) => Asked::Case(&leaf, excluded),
                         Asked::Window { .. } => {
                             return Err(self.foreign(concerns, "a window is followed into a copy"));
                         }
                     };
-                    // The source as it was just before the store.
-                    let supply = self
-                        .reaching_supply(
-                            references,
+                    // Follow the source at the transfer's prestate. Only
+                    // the operand's own selectors can justify its typing;
+                    // the suffix from the destination must be static.
+                    let before = row.position - 1;
+                    let supply = if carry_depth {
+                        let backing =
+                            self.backing(references, &leaf, row.block, before, concerns)?;
+                        let at = (row.block, before);
+                        let depth = self.borrowed_transfer_depth(
                             tables,
-                            asked,
-                            row.block,
-                            row.position - 1,
-                            budget,
+                            &leaf,
+                            &backing,
+                            source,
+                            &row.destination,
+                            at,
                             concerns,
+                        )?;
+                        self.reaching_backing_supply(
+                            references, tables, asked, &backing, at, depth, budget, concerns,
                         )?
-                        .within(beneath.len());
+                    } else {
+                        self.reaching_supply(
+                            references, tables, asked, row.block, before, budget, concerns,
+                        )?
+                    }
+                    .within(beneath.len());
                     return Ok(if weakened {
                         supply.without_identity()
                     } else {
@@ -3026,6 +3068,62 @@ impl<'a> Storage<'a> {
         }
     }
 
+    /// Follow a branch's Boolean value back to a membership observation in
+    /// the same block. Matching a Boolean literal compares against that
+    /// literal, so the matching edge can either affirm or refute the test.
+    fn membership_test(
+        &self,
+        tables: &MachineTables,
+        (mut value, mut holds): (ValueId, bool),
+        block: BlockId,
+        concerns: Construct,
+    ) -> Checked<Option<(&'a Operation, usize, bool)>> {
+        let producer = |value| {
+            let origin =
+                terminal_check_tables::row(&tables.values, value, self.machine, concerns)?.origin;
+            match origin {
+                ValueOrigin::Operation(id) => self.operation(id, concerns).map(Some),
+                _ => Ok(None),
+            }
+        };
+        let literal = |value| -> Checked<Option<bool>> {
+            Ok(match producer(value)?.map(|operation| &operation.kind) {
+                Some(OperationKind::BooleanConstant { value }) => Some(*value),
+                _ => None,
+            })
+        };
+        let mut before = usize::MAX;
+        while let Some(operation) = producer(value)? {
+            let (owner, after) = self
+                .graph
+                .locate(ProgramPoint::AfterOperation(operation.id))?;
+            if owner != block || after >= before {
+                return Ok(None);
+            }
+            before = after;
+            match operation.kind {
+                OperationKind::StructuralCaseMembership { .. } => {
+                    return Ok(Some((operation, after, holds)));
+                }
+                OperationKind::BooleanNot { operand } => {
+                    value = operand;
+                    holds = !holds;
+                }
+                OperationKind::BooleanEqual { left, right } => {
+                    let (operand, expected) = match (literal(left)?, literal(right)?) {
+                        (Some(expected), None) => (right, expected),
+                        (None, Some(expected)) => (left, expected),
+                        _ => return Ok(None),
+                    };
+                    value = operand;
+                    holds = holds == expected;
+                }
+                _ => return Ok(None),
+            }
+        }
+        Ok(None)
+    }
+
     /// What taking an edge from `from` into `into` establishes about the
     /// case of `sum`, when it establishes anything.
     /// structural_access.md: "A dominating membership test or dispatch
@@ -3034,24 +3132,22 @@ impl<'a> Storage<'a> {
     /// - An edge of a `StructuralCase` on exactly this place establishes
     ///   its case. When several of its edges enter the block, as into a
     ///   wildcard arm, no one case is established.
-    /// - The true edge of a `Conditional` whose condition is the result of
-    ///   a `StructuralCaseMembership` on exactly this place establishes the
-    ///   tested case, when the test stands in the branching block and no
-    ///   write to the sum or a place above it follows the test there.
+    /// - A conditional edge that affirms a membership test of this place
+    ///   establishes the case. A refuting edge excludes it. The test must
+    ///   stand in the branching block with no intervening write to the sum
+    ///   or a place above it.
     ///
     /// A membership whose path crosses a runtime element reads "some
     /// element": it "names no canonical sum and keys no case fact"
     /// (structural_access.md, case observation), so its true edge
     /// establishes nothing either.
-    ///
-    /// The false edge establishes nothing: "Otherwise the case holds when
-    /// every other declared case of that sum is refuted" needs proof about
-    /// the other cases and is not decided here.
-    fn edge_selects(
+    #[allow(clippy::too_many_arguments)]
+    fn case_on_edge(
         &self,
         references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         watched: &Backing,
+        excluded: Option<StructuralCaseId>,
         (from, into): (BlockId, BlockId),
         crossed: &[bool],
         concerns: Construct,
@@ -3067,33 +3163,38 @@ impl<'a> Storage<'a> {
                     return Ok(None);
                 }
                 let mut entering = cases.iter().filter(|edge| edge.target == into);
-                Ok(match (entering.next(), entering.next()) {
-                    (Some(edge), None) => Some(Reached::Case(edge.case)),
-                    (Some(_), Some(_)) => Some(Reached::Unknown),
-                    (None, _) => None,
-                })
+                Ok(entering.next().map(|first| {
+                    entering.fold(case_selection(first.case, excluded), |reached, edge| {
+                        reached.merge(case_selection(edge.case, excluded))
+                    })
+                }))
             }
             Terminator::Conditional {
                 condition,
                 when_true,
                 when_false,
             } => {
-                if when_true.target != into || when_false.target == into {
-                    return Ok(None);
-                }
-                let origin =
-                    terminal_check_tables::row(&tables.values, *condition, self.machine, concerns)?
-                        .origin;
-                let ValueOrigin::Operation(test) = origin else {
+                let taken = match (when_true.target == into, when_false.target == into) {
+                    (true, false) => true,
+                    (false, true) => false,
+                    _ => return Ok(None),
+                };
+                let Some((
+                    Operation {
+                        kind: OperationKind::StructuralCaseMembership { source, path, case },
+                        ..
+                    },
+                    after,
+                    selected,
+                )) = self.membership_test(tables, (*condition, taken), from, concerns)?
+                else {
                     return Ok(None);
                 };
-                let (tested_in, after) = self.graph.locate(ProgramPoint::AfterOperation(test))?;
-                if tested_in != from {
-                    return Ok(None);
-                }
-                let OperationKind::StructuralCaseMembership { source, path, case } =
-                    &self.operation(test, concerns)?.kind
-                else {
+                let fact = if selected {
+                    case_selection(*case, excluded)
+                } else if excluded == Some(*case) {
+                    Reached::ExcludedCase
+                } else {
                     return Ok(None);
                 };
                 if self.stored_at(*source, path, concerns)? != *sum
@@ -3122,13 +3223,13 @@ impl<'a> Storage<'a> {
                 let retired = self.log.iter().any(|row| {
                     row.block == from
                         && row.position > after
-                        && (Asked::Case(sum).ended_by(&tested.storage, row, crossed)
+                        && (Asked::Case(sum, excluded).ended_by(&tested.storage, row, crossed)
                             || tested
                                 .pointers
                                 .iter()
                                 .any(|pointer| overlap(&row.backing, pointer)))
                 });
-                Ok((!retired).then_some(Reached::Case(*case)))
+                Ok((!retired).then_some(fact))
             }
             _ => Ok(None),
         }
@@ -3492,7 +3593,7 @@ impl<'a> Storage<'a> {
             // descriptor has expired. Looking up that name again can either
             // lose the debt or redirect it to a different referent.
             Asked::Window { backing, .. } => backing.clone(),
-            Asked::Contents(_) | Asked::Case(_) => {
+            Asked::Contents(_) | Asked::Case(..) => {
                 let cleanup = budget.used.and_then(|point| match point {
                     ProgramPoint::BeforeCleanup {
                         edge,
@@ -3515,6 +3616,7 @@ impl<'a> Storage<'a> {
             asked,
             &resolved,
             (block, up_to),
+            0,
             budget,
             concerns,
         )
@@ -3527,6 +3629,7 @@ impl<'a> Storage<'a> {
         asked: Asked<'_>,
         resolved: &Backing,
         (block, up_to): (BlockId, usize),
+        rebase_depth: usize,
         budget: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Supply> {
@@ -3534,13 +3637,18 @@ impl<'a> Storage<'a> {
         let asked = asked.at(&resolved.place);
         let key = match asked {
             Asked::Contents(_) => Some((block, up_to, resolved.place.clone(), QueryKind::Contents)),
-            Asked::Case(_) => Some((block, up_to, resolved.place.clone(), QueryKind::Case)),
+            Asked::Case(_, excluded) => Some((
+                block,
+                up_to,
+                resolved.place.clone(),
+                QueryKind::Case(excluded),
+            )),
             Asked::Window { .. } => None,
         };
         let projection = if original == &resolved.place {
             usize::MAX
         } else {
-            0
+            rebase_depth
         };
         if let Some(key) = &key
             && let Some(&address) = budget.keys.get(key)
@@ -3753,7 +3861,7 @@ impl<'a> Storage<'a> {
                             source.segments.extend_from_slice(beneath);
                             let asked = match asked {
                                 Asked::Contents(_) => Asked::Contents(&source),
-                                Asked::Case(_) => Asked::Case(&source),
+                                Asked::Case(_, excluded) => Asked::Case(&source, excluded),
                                 Asked::Window { .. } => {
                                     unreachable!("windows close at the binding")
                                 }
@@ -3804,7 +3912,7 @@ impl<'a> Storage<'a> {
                         // Which case a formal holds at entry is not known, and
                         // other storage holds nothing there; that it holds
                         // nothing is the contents question's answer to give.
-                        (Asked::Case(_), _) => Supply::Direct(Reached::Unknown),
+                        (Asked::Case(..), _) => Supply::Direct(Reached::Unknown),
                         (
                             Asked::Contents(_),
                             StructuralPlaceKind::BlockParameter { .. }
@@ -3831,11 +3939,12 @@ impl<'a> Storage<'a> {
                         budget.add_supply(destination, Supply::Direct(changed));
                         continue;
                     }
-                    if matches!(asked, Asked::Case(_))
-                        && let Some(selected) = self.edge_selects(
+                    if let Asked::Case(_, excluded) = asked
+                        && let Some(selected) = self.case_on_edge(
                             references,
                             tables,
                             resolved,
+                            excluded,
                             (*predecessor, block),
                             &budget.crossed_entries,
                             concerns,
@@ -4116,6 +4225,7 @@ impl<'a> Storage<'a> {
                 }
             }
             Reached::Case(_)
+            | Reached::ExcludedCase
             | Reached::Zero(_)
             | Reached::Extent(_)
             | Reached::Unestablished
@@ -4673,17 +4783,17 @@ impl<'a> Storage<'a> {
                     root: place.root,
                     segments: place.segments[..length].to_vec(),
                 };
-                let mut budget = self.budget();
-                budget.used = Some(point);
-                if self.reaching(
+                let mut observation = Held {
+                    point: Some(point),
+                    storage: self,
                     references,
                     tables,
-                    Asked::Case(&sum),
-                    (block, up_to),
-                    &mut budget,
+                    place: &sum,
+                    block,
+                    up_to,
                     concerns,
-                )? != Reached::Case(*case)
-                {
+                };
+                if observation.case_at(&sum, *case)? != Some(true) {
                     return Ok(Err(refusal(
                         RefusalReason::Unestablished,
                         self.machine,
@@ -7292,6 +7402,48 @@ impl<'a> InputPlaces<'a> for AtCall<'_, 'a> {
 }
 
 impl Held<'_, '_> {
+    /// A selected case answers directly. Otherwise, each other declared case
+    /// must be excluded on every arrival to the same storage.
+    fn case_at(&mut self, sum: &Lineage, case: StructuralCaseId) -> Checked<Option<bool>> {
+        let storage = self.storage;
+        let concerns = self.concerns;
+        let mut read = |excluded| {
+            let mut budget = storage.budget();
+            budget.used = self.point;
+            storage.reaching(
+                self.references,
+                self.tables,
+                Asked::Case(sum, excluded),
+                (self.block, self.up_to),
+                &mut budget,
+                concerns,
+            )
+        };
+        if let Reached::Case(selected) = read(None)? {
+            return Ok(Some(selected == case));
+        }
+
+        let Shape::Typed(sum_type) = storage.shape(sum, concerns)? else {
+            return Ok(None);
+        };
+        let StructuralTypeShape::Sum { cases } = &storage.declaration(sum_type, concerns)?.shape
+        else {
+            return Ok(None);
+        };
+        if !cases.iter().any(|declared| declared.id == case) {
+            return Ok(None);
+        }
+        if read(Some(case))? == Reached::ExcludedCase {
+            return Ok(Some(false));
+        }
+        for other in cases.iter().filter(|declared| declared.id != case) {
+            if read(Some(other.id))? != Reached::ExcludedCase {
+                return Ok(None);
+            }
+        }
+        Ok(Some(true))
+    }
+
     /// Scalar fields and descriptor lengths both use the contents reaching
     /// this observation point. A descriptor producer can supply its exact
     /// endpoint term without a new runtime measurement.
@@ -7485,33 +7637,11 @@ impl crate::checking::Bindings for Held<'_, '_> {
         case: StructuralCaseId,
     ) -> Result<bool, crate::checking::Unbound> {
         let sum = self.beneath(root, path)?;
-        let storage = self.storage;
-        let mut budget = storage.budget();
-        budget.used = self.point;
-        match storage
-            .reaching(
-                self.references,
-                self.tables,
-                Asked::Case(&sum),
-                (self.block, self.up_to),
-                &mut budget,
-                self.concerns,
-            )
+        self.case_at(&sum, case)
             .map_err(crate::checking::Unbound::Refused)?
-        {
-            Reached::Case(held) => Ok(held == case),
-            Reached::Value(_)
-            | Reached::Zero(_)
-            | Reached::Extent(_)
-            | Reached::Established(_)
-            | Reached::Unknown
-            | Reached::Unestablished
-            | Reached::Cycle
-            | Reached::Open
-            | Reached::Closed => Err(crate::checking::Unbound::Unproved(
+            .ok_or(crate::checking::Unbound::Unproved(
                 "the case the data requires clause tests is not established by structure here",
-            )),
-        }
+            ))
     }
 }
 

@@ -9293,7 +9293,11 @@ mod diagnostic_tests {
             identities: Default::default(),
             functions: Vec::new(),
         };
-        let geometry = crate::preparation::native_geometry::NativeGeometry::new(&[]).unwrap();
+        let geometry = crate::preparation::native_geometry::NativeGeometry::new(
+            &[],
+            target::NativeTarget::linux_x64(),
+        )
+        .unwrap();
         let input =
             crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &types);
         let machine = MachineId::new(7).unwrap();

@@ -12,9 +12,9 @@ This probe writes application configuration through the `builder` value.
   `Optimizations::emit_report` increments `human_report`. Check mode rejects
   `--disable-optimization` because it executes no optimization stage.
 
-The Build declaration includes `freestanding` and `privileged_services`
-for compatibility. Build normalization discards their values. Target profiles
-and provider contracts determine hardware authority for each output.
+The Build declaration retains `freestanding` for compatibility. Build
+normalization discards its value. Target profiles and provider contracts
+determine hardware authority for each output.
 [Build permissions](../../../../wiki/spec/build/permissions.md#where-the-operation-can-run)
 
 Package admission currently stops at `no product route yet: selected Psi

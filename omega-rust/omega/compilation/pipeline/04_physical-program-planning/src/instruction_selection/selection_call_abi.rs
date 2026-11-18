@@ -822,8 +822,11 @@ pub(crate) mod input_site {
                     .collect(),
                 ownership_frontier_facts: Vec::new(),
             };
-            let geometry =
-                crate::instruction_selection::native_geometry::NativeGeometry::new(&[]).unwrap();
+            let geometry = crate::instruction_selection::native_geometry::NativeGeometry::new(
+                &[],
+                target::NativeTarget::linux_x64(),
+            )
+            .unwrap();
             {
                 let source = crate::instruction_selection::native_geometry::NativeInput::new(
                     &function, &geometry,

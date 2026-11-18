@@ -75,12 +75,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Reference collection scans every callable application for each machine
-- Category: Re-deriving
-- Where: [owner query](omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_state/src/callable_applications.rs#L8547), [reference visitor](omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_state/src/references.rs#L4023)
-- Saw: Each visited machine calls `requirement_invocation_signatures`, which scans the whole applied-signature arena to select rows with that machine's lexical owner. A brief sample of the original Console binding test reached this iterator during private input contract collection; it does not establish the operation's share of elapsed time.
-- Cost: For M visited machines and S signatures, owner selection inspects M*S rows. Prepare the existing owner associations once per immutable walk, retaining full owner handles, both owner variants, every distinct signature and their original order. Keep unread outside callers visible so helper contracts cannot become narrower.
-- Reported: 2026-11-18, Codex, while completing the original Console binding acceptance
+### Descriptor lifetime queries repeat the same graph walk
+- Category: One idea, several implementations
+- Where: [descriptor lifetime queries](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L1221), [descriptor transport](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L1487)
+- Saw: Entry and successor lifetime queries compute where each descriptor can survive. The solver computes those same locations internally to seed the all-arrivals authorization check. Local lifetime queries repeat the walk when authorization exists.
+- Cost: These paths solve the same graph twice. Share the first result while keeping the distinction between a descriptor that can survive on one arrival and one authorized on every arrival.
+- Reported: 2026-11-18, Codex, while investigating the Console binding test timeout.
 
 ### Individual proof citations copy their entire compound premise
 - Category: Verifying costs more than writing
@@ -134,14 +134,14 @@ framework or a list of unimplemented features.
 ### Build still validates retired hardware settings
 - Category: Zombie machinery
 - Where: [Build shape](omega-rust/omega/packages/build-declarations/src/prelude.rs#L266), [return decoding](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs), [Source assembly](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/machine.rs#L4063), [review projection](omega-rust/omega/packages/review-evidence/src/capture/callables.rs#L719), [per-output authority](wiki/spec/build/permissions.md#where-the-operation-can-run)
-- Saw: Build return decoding requires the legacy `freestanding` Boolean and accepts an optional `privileged_services` record. Target and provider contracts supply each output’s hardware authority. The checked core mask helpers and receiving classification report `InterruptControl` for mask changes. Source assembly and package instruction-authority projection still refuse their unsupported routes.
-- Cost: Retire the authored fields and carry the instruction's exact service through Source, helpers and package review. Check the selected provider for each output. A mixed firmware/hosted build must refuse the hosted mask change when its provider lacks authority. A package update that adds a page-table write must report added `MachineControl` for acceptance.
+- Saw: Build return decoding still requires the legacy `freestanding` Boolean. Target and provider contracts supply each output’s hardware authority. The checked core mask helpers and receiving classification report `InterruptControl` for mask changes. Source assembly and package instruction-authority projection still refuse their unsupported routes.
+- Cost: Retire the authored `freestanding` field and carry the instruction's exact service through Source, helpers and package review. Check the selected provider for each output. A mixed firmware/hosted build must refuse the hosted mask change when its provider lacks authority. A package update that adds a page-table write must report added `MachineControl` for acceptance.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### Changing storage analysis rebuilds the native compiler
 - Category: Verifying costs more than writing
 - Where: [semantic analysis package](omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml), [declaration lookup in optimization](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs#L619), [target descriptor inputs](omega-rust/omega/compilation/representations/target-operations/target-vocabulary/src/descriptor_input.rs)
-- Saw: Changing only the private descriptor replay cache and its error reporting rebuilt 64 packages and took 14m 17s before the original Console test could run. Some native consumers need only declaration or structural-path lookups from the same package; ownership analysis and explicit image validators genuinely need the full analysis. `target-operations` also declares an unused direct dependency, although removing it alone leaves a transitive dependency. Source and build evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-3776-original-binding-control-49/native-terminal-semantics-coupling.json`.
+- Saw: Changing only the private descriptor replay cache and its error reporting rebuilt 64 packages and took 14m 17s before the original Console test could run. Some native consumers need only declaration or structural-path lookups from the same package; ownership analysis and explicit image validators genuinely need the full analysis. Removing the unused direct dependency from `target-operations` left `target-vocabulary`'s dependency on the analysis crate. Source and build evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-3776-original-binding-control-49/native-terminal-semantics-coupling.json`.
 - Cost: Edits to the analysis invalidate native consumers of small lookup functions. Move the declaration and path queries out of the full analysis crate, keep each judgment implemented once, and remove unused direct dependencies. Measure the same Console edit/build/run loop before claiming a build-time improvement.
 - Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
 

@@ -979,12 +979,14 @@ fn derive_expected_functions(
         crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
             &abstract_plan.structural_types,
             abstract_plan.structural_types.owned_sequence_bounds(),
+            target.target,
         )
         .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let unit_geometry =
         crate::preparation::native_geometry::NativeGeometry::with_owned_sequence_bounds(
             &unit.structural_types,
             unit.structural_types.owned_sequence_bounds(),
+            target.target,
         )
         .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
     let abstract_plan = &crate::preparation::native_geometry::NativeInput::with_types(
