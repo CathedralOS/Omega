@@ -283,10 +283,18 @@ pub(crate) mod capabilities {
             .map(|declaration| (declaration.id, declaration))
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut storage_roots = BTreeSet::new();
-        let callable_values = terminal_semantics::callable_values::terminal_callable_values(
-            program.catalogs.as_ref().as_ref(),
-        )
-        .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
+        let module = program.catalogs.as_ref().as_ref();
+        let callable_values =
+            terminal_semantics::callable_values::terminal_callable_values_with_error_context(
+                module,
+            )
+            .map_err(|error| {
+                if let Some(boundary) = error.missing_boundary(module) {
+                    TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary)
+                } else {
+                    TerminalInterpretError::ScalarApplicationEvaluation(error.in_module(module))
+                }
+            })?;
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];
