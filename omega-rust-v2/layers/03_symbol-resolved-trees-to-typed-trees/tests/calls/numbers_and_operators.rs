@@ -87,3 +87,44 @@ fn operator_grouping_survives_typing_with_each_intermediate_result() {
         assert_eq!(error.message, format!("no matching operator && for bool and {carrier}"));
     }
 }
+
+#[test]
+fn every_binder_of_an_unsuffixed_number_is_refused_at_its_initializer() {
+    // numeric_values.md "Literal landing and destinations": a later use never
+    // chooses a binding's type, whether the binder is a whole let, a tuple
+    // component, a match arm or a named constant.
+    let send = "machine send(v: u8) -> u8 { v }";
+    for (body, initializer) in [
+        ("machine f() -> u8 { let a = 5; send(a) }", "5"),
+        ("machine f() -> u8 { let (a, _) = (5, 6); send(a) }", "(5, 6)"),
+        ("machine f() -> u8 { let (a, _) = (5, 6u8); send(a) }", "(5, 6u8)"),
+        ("machine f() { let t = (5, 6); }", "(5, 6)"),
+        ("machine f() { let _ = 5; }", "5"),
+        ("machine f() -> u8 { match 5 { a -> send(a), } }", "5"),
+        ("machine f() -> u8 { match 5 { a -> a, } }", "5"),
+        ("machine f() -> u8 { match (5, 6u8) { (a, _) -> send(a), } }", "(5, 6u8)"),
+    ] {
+        let code = format!("{send} {body}");
+        let err = check(&[("a.omg", &code)]).err().unwrap_or_else(|| panic!("accepted {body}"));
+        assert_eq!(err.span.slice(code.as_bytes()).unwrap(), initializer.as_bytes(), "{body}: {err:?}");
+        assert!(err.message.contains("unsuffixed numeric binding must declare its type"), "{body}: {err:?}");
+    }
+    for (constant, initializer) in [("const T = (5, 6);", "(5, 6)"), ("const T = (300, 6);", "(300, 6)"), ("const T = 5;", "5")] {
+        let code = format!("{constant} machine f() {{}}");
+        let err = check(&[("a.omg", &code)]).err().unwrap_or_else(|| panic!("accepted {constant}"));
+        assert_eq!(err.span.slice(code.as_bytes()).unwrap(), initializer.as_bytes(), "{constant}: {err:?}");
+        assert!(err.message.contains("constant requires a concrete value type"), "{constant}: {err:?}");
+    }
+    // Suffixes and annotations state the type in the declaration itself.
+    for body in [
+        "machine f() -> u8 { let (a, _) = (5u8, 6u8); send(a) }",
+        "machine f() -> u8 { let a: u8 = 5; send(a) }",
+        "machine f() -> u8 { match 5u8 { a -> send(a), } }",
+        "machine f() -> u8 { match (5, 6u8) { (_, b) -> send(b), } }",
+        "machine f() -> u8 { match 5 { 5 -> 1, _ -> 0, } }",
+    ] {
+        check(&[("a.omg", &format!("{send} {body}"))]).unwrap_or_else(|e| panic!("{body}: {e:?}"));
+    }
+    let stage = check(&[("a.omg", "const T = (5u8, 6u8); const U: u8 = 5; machine f() -> u8 { let (a, _) = T; a }")]).unwrap();
+    assert_eq!(stage.landings.len(), 3);
+}

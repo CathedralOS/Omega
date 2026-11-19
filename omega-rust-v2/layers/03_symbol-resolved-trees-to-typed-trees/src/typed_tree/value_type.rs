@@ -236,6 +236,16 @@ impl ValueType {
         }
         self == expected
     }
+    /// An unsuffixed number has no carrier until a destination lands it, and a
+    /// tuple literal leaves its components unlanded. A binding or constant
+    /// whose type still holds one would let a later use choose that type.
+    pub(crate) fn holds_anonymous_number(&self) -> bool {
+        match self {
+            Self::Exact { .. } => true,
+            Self::Tuple(items) => items.iter().any(Self::holds_anonymous_number),
+            _ => false,
+        }
+    }
     pub(crate) fn numeric(&self) -> bool {
         matches!(self, Self::Integer { .. } | Self::IndexedInteger { .. } | Self::Float32 | Self::Float64)
     }
