@@ -1,20 +1,20 @@
-//! Explicitly replay a bridge against its canonical request. The native driver can
-//! invoke the planner and encoder for this check after image construction.
-use diagnostics::Diagnostic;
-use native_encoding::native_entry_bridge::encode_native_entry_bridge;
-pub type EncodedNativeEntryBridge =
-    native_encoding::native_entry_bridge::NativeEntryBridge<entry_planning::PhysicalRecipeOrigin>;
-use native_encoding::native_foreign_bridge::encode_native_foreign_bridge;
-pub type EncodedNativeForeignBridge = native_encoding::native_foreign_bridge::NativeForeignBridge<
-    entry_planning::PhysicalRecipeOrigin,
->;
+//! Cross-target entry bridge tests compare completed recipes with the
+//! independent published-byte check and a replay of the issued request.
 use entry_planning::native_entry_bridge::{
-    NativeEntryBridgeError as Error, plan_installed_interrupt_entry_bridge,
-    plan_native_entry_bridge,
+    NativeEntryBridgeError as Error, NativeEntryBridgeRequest,
+    plan_installed_interrupt_entry_bridge, plan_native_entry_bridge,
 };
-use entry_planning::native_foreign_bridge::{NativeForeignBridgeError, plan_native_foreign_bridge};
+use native_encoding::native_entry_bridge::encode_native_entry_bridge;
+type EncodedNativeEntryBridge =
+    native_encoding::native_entry_bridge::NativeEntryBridge<entry_planning::PhysicalRecipeOrigin>;
 
-pub fn validate_native_entry_bridge(bridge: &EncodedNativeEntryBridge) -> Result<(), Error> {
+fn emit_native_entry_bridge(
+    request: NativeEntryBridgeRequest,
+) -> Result<EncodedNativeEntryBridge, Error> {
+    plan_native_entry_bridge(request).and_then(encode_native_entry_bridge)
+}
+
+fn validate_native_entry_bridge(bridge: &EncodedNativeEntryBridge) -> Result<(), Error> {
     verify_entry_translation(bridge, bridge.bytes())
 }
 
@@ -32,34 +32,6 @@ fn verify_entry_translation(bridge: &EncodedNativeEntryBridge, bytes: &[u8]) -> 
     Ok(())
 }
 
-pub fn validate_native_foreign_bridge(
-    bridge: &EncodedNativeForeignBridge,
-) -> Result<(), NativeForeignBridgeError> {
-    let plan = plan_native_foreign_bridge(bridge.request().clone())?;
-    if encode_native_foreign_bridge(plan)? != *bridge {
-        return Err(NativeForeignBridgeError::ReplayMismatch);
-    }
-    Ok(())
-}
-
-pub fn validate_stack_switch(
-    bridge: &EncodedNativeEntryBridge,
-    switch: &native_encoding::physical_stack_switch::StackSwitch,
-) -> Result<(), Diagnostic> {
-    let invalid = |reason: &str| Diagnostic::error(format!("physical image entry: {reason}"));
-    let plan = plan_native_entry_bridge(bridge.request().clone())
-        .map_err(|error| invalid(&error.to_string()))?;
-    let switch_plan = entry_planning::physical_stack_switch::plan(plan)?;
-    let (canonical, expected_switch) = native_encoding::physical_stack_switch::encode(switch_plan)?;
-    if canonical != *bridge {
-        return Err(invalid("physical switch replay changed its entry bridge"));
-    }
-    if expected_switch != *switch {
-        return Err(invalid("private stack differs from its exact invocation"));
-    }
-    Ok(())
-}
-#[cfg(test)]
 mod entry_tests {
     use super::*;
     use arena::Arena;
@@ -72,7 +44,6 @@ mod entry_tests {
         StateEffectsEvidence, StateFootprintEvidence, ValueShape,
     };
     use entry_planning::native_entry_bridge::{NativeEntryBridgeRequest, NativeEntryParameter};
-    use image_fixtures::emit_native_entry_bridge;
     use target::{Architecture, NativeTarget};
 
     fn request(

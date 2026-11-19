@@ -1,8 +1,6 @@
 //! Compile an authorized Psi program for one receiving target.
 #![forbid(unsafe_code)]
 
-#[path = "replay/bridges.rs"]
-pub mod bridge_replay;
 mod pipeline;
 
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
