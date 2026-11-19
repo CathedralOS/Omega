@@ -1,0 +1,3 @@
+cannot prove automatic cleanup requires
+drop_room
+room.count == 10

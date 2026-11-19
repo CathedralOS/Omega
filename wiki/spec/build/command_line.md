@@ -16,7 +16,6 @@ justify its name.
 ```text
 omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
 omega run [--engine native|psi | --both] [--target <name>] <root.omg>
-omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
 omega packages audit [--project <dir>] [--target <name>]... [--details] ...
@@ -27,12 +26,6 @@ omega psi inspect --artifact <file>
 ```
 
 These forms show routing, not an exhaustive restatement of existing options.
-V2 implements `omega source parse` as a whole-file syntax check. Success
-exits silently with status 0. File-read, lexer and parser errors go to stderr
-with status 1. Source refusals include the path, one-based line and byte
-column, and byte range. Invalid usage exits with status 2. Use `--` before
-a file name beginning with a dash.
-
 Package install and update have these acquisition, review, resume and discard
 forms:
 

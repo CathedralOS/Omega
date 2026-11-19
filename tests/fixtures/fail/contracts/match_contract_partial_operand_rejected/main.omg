@@ -1,0 +1,4 @@
+machine partial(divisor: u32) -> u32
+ensures result == (match divisor { (1u32 / divisor) -> 1u32, _ -> 0u32 })
+{ 0u32 }
+machine main() {}

@@ -1,0 +1,3 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "indexed_element_mut_loan_held");
+}

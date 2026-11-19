@@ -1,0 +1,21 @@
+--- a/bootstrap/compiled_vm/compiler.gamma
++++ b/bootstrap/compiled_vm/compiler.gamma
+@@ -115 +115 @@
+-    (s2 Int (e2 s1 1 248 805306368))
++    (s2 Int (gc_setup s1))
+@@ -213 +213 @@
+-    (e_finish (if application (e_application h) (e_scalar h)) application)))
++    (gc_runtime (e_finish (if application (e_application h) (e_scalar h)) application))))
+@@ -473,6 +473 @@
+-(def e_pair ((s Int)) Int
+-  (let ((a Int (e_add (e2 s 2 10 248) 10 32))
+-        (b Int (e_bound a 10 137438953472 3))
+-        (c Int (e2 b 2 4 248)) (d Int (e_pair_fields c 0))
+-        (e Int (e2 d 2 0 4)))
+-    (e2 e 1 1 1)))
++(def e_pair ((s Int)) Int (e1 s 19 32))
+@@ -618,2 +613,2 @@
+-        (f Int (e_push e)) (g Int (e_add f 246 (* 16 locals))))
+-    (e_bound g 246 134217728 2)))
++        (f Int (e_push e)))
++    (gc_reserve_locals f locals)))

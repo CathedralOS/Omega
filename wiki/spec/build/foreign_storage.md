@@ -27,7 +27,7 @@ native arguments are not equivalent to a record containing them. See
 
 | Disposition | Required contract |
 | --- | --- |
-| Call-scoped | `@T`, `@[T]`, `@write T`, `@write [T]`, `@mut T`, or `@mut [T]` grants only its exact access until return. |
+| Call-scoped | `&T`, `&[T]`, `&write T`, `&write [T]`, `&mut T`, or `&mut [T]` grants only its exact access until return. |
 | Retained after return | A linear protocol result owns stable backing, an explicitly lifetime-parameterized result retains a checked loan, or a permitted semantic snapshot uses private stable backing. |
 | Process-lifetime | Authority moves into an already-established static/process-lifetime root. There is no general permanent-custodian spelling. |
 
@@ -40,7 +40,7 @@ splits an exact separated subextent from the remainder still in flight.
 
 Published results and ordinary conservation determine whether use survives
 return. Consuming `Buffer` into `PendingWrite` can transfer its content;
-`submit(@buffer) -> PendingWrite` cannot create owned retention. An explicit
+`submit(&buffer) -> PendingWrite` cannot create owned retention. An explicit
 `PendingWrite<'a>` may instead retain a compatible checked loan for `'a`.
 Infer unambiguous consumed-input-to-result mappings; an ambiguous mapping needs
 an ordinary postcondition establishing the exact correspondence. Unsupported
@@ -128,7 +128,7 @@ build time without runtime ledger entries. See
 ## Write-only foreign access
 
 The ordinary [write-only rules](../terminal-psi/structural_access.md#write-only-authority)
-govern `@write T`: an existing valid referent, no observation or access widening,
+govern `&write T`: an existing valid referent, no observation or access widening,
 discardable displaced content, validity after replacement, and exact outcome
 write frames. Checked providers enforce these through their call closure; opaque
 compliance requires admitted evidence unless isolation enforces it.
@@ -138,7 +138,7 @@ facts over the untouched complement survive. Its returned count cannot establish
 a value absent at entry. Write-only access transfers no durable custody.
 Identity-only retention is a stable keepalive claim lending no view. Typed
 construction into storage with no live `T` is a separate feature, not another
-interpretation of `@write`.
+interpretation of `&write`.
 
 No compiler-side runtime ledger substitutes for the selected provider's actual
 retention and completion contract for lifetime-borrowed, moved and

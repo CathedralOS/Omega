@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "`holder.token` must hold a value again"
-  ]
-}

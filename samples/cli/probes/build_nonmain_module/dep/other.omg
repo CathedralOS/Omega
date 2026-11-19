@@ -1,0 +1,3 @@
+public machine other_v() -> i32 {
+    7
+}

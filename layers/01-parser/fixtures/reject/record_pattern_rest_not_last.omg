@@ -1,3 +1,0 @@
-machine f(p: Point) -> u32 {
-    match p { Point { .., x } -> x }
-}

@@ -1,0 +1,45 @@
+// TimedWait is a one-member boundary trait. Its poll requirement reaches
+// Clock explicitly. The selected checked provider returns 0 for the 20ms
+// wait and 1 for every other timeout, so a mis-selected body cannot pass
+// both calls. Expected exit: 0.
+
+boundary trait Clock { machine tick() reaches crashes none; }
+
+boundary trait TimedWait {
+    machine poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32) -> i32
+    reaches
+        Clock crashes none;
+}
+
+data TimedWaitPoll {}
+
+machine TimedWaitPoll::poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32) -> i32
+satisfies TimedWait::poll
+{
+    transition descriptors == 0 && descriptor_count == 0 && timeout_milliseconds == 20 {
+        true -> 0
+        _ -> 1
+    }
+}
+
+data Waiter {}
+
+machine Waiter::wait() -> i32 reaches Clock {
+    transition {
+        _ -> at_once()
+    }
+    machine at_once() -> i32 {
+        TimedWait::poll(0, 0, 20)
+    }
+}
+
+machine entry_start() reaches Clock crashes Trap {
+    let matched: i32 = Waiter::wait();
+    let other: i32 = TimedWait::poll(0, 0, 5);
+    transition matched == 0 && other == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

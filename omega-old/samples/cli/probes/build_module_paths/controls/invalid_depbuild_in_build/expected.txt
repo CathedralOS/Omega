@@ -1,2 +1,0 @@
-checked compilation failed for package `invalid_depbuild_in_build`
-import `kit::build` does not select one declaration, callable family, or module in its checked package

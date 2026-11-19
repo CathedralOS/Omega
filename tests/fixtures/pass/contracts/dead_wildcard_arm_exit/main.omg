@@ -1,0 +1,31 @@
+// Every declared case of `Light` has an arm before the `_` in `next` and in
+// `weight`, so neither `_` arm can run: each is reported once and the program
+// still runs. `short` names only two cases, so its `_` arm is reached by
+// `Light::Red` and stays quiet.
+data Light {
+    case Green;
+    case Amber;
+    case Red;
+}
+machine next(light: Light) -> u64 {
+    transition light {
+        Light::Green -> (1u64)
+        Light::Amber -> (2u64)
+        Light::Red -> (3u64)
+        _ -> (99u64)
+    }
+}
+machine weight(light: Light) -> u64 {
+    match light { Light::Green -> 10u64, Light::Amber -> 20u64, Light::Red -> 30u64, _ -> 0u64 }
+}
+machine short(light: Light) -> u64 {
+    match light { Light::Green -> 5u64, Light::Amber -> 6u64, _ -> 7u64 }
+}
+machine main() crashes Trap {
+    transition next(Light::Amber) + weight(Light::Red) + short(Light::Red) == 39u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

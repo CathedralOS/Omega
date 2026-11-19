@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "argument `bytes` for state `last` expects `&[u8; 4]`"
-  ]
-}

@@ -1,0 +1,241 @@
+// Canonical Git cache entry construction and remote object-format discovery.
+//
+// `create_git_cache_entry` initializes a bare Git repository inside a staged
+// `PendingCacheEntry` using an empty template directory, discovers whether the
+// remote uses SHA-1 or SHA-256 (either from a known full object ID or via
+// `git ls-remote --symref`), replaces the repository `config` with the
+// compiler-owned canonical configuration, writes and syncs `GIT_CACHE_METADATA`
+// (`0600` on Unix), verifies the staged repository through
+// `VerifiedGitRepository::open`, drops the open metadata handle so Windows
+// permits the directory rename, and atomically publishes the cache entry.
+
+use std::ffi::{OsStr, OsString};
+use std::io::Write;
+use std::path::Path;
+
+use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::fs::{Dir as CapabilityDirectory, OpenOptions as CapabilityOpenOptions};
+#[cfg(unix)]
+use cap_std::fs::{
+    OpenOptionsExt as CapabilityOpenOptionsExt, PermissionsExt as CapabilityPermissionsExt,
+};
+use resolver_execution::ResolverExecutionPhase;
+
+use crate::SourceResolveError;
+use crate::custody::platform::verify_capability_cache_node_owner_and_mode;
+use crate::custody::publication::PendingCacheEntry;
+use crate::custody::tree::CacheCustodyKind;
+use crate::git::cache::configuration::replace_canonical_git_control_file;
+use crate::git::executable::executor::GitExecutor;
+use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
+use crate::git::git_command::{run_git, run_git_bytes_stdout};
+use crate::git::objects::identity::{git_object_algorithm, is_object_id};
+use crate::git::request::GitExecutionTransport;
+use crate::identity::GitObjectIdAlgorithm;
+use crate::limits::{
+    GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, GIT_CONFIG_SHA256, LocalSourceLimits,
+};
+use crate::tree::filesystem::IoResultAt;
+
+use super::identity::git_cache_metadata;
+use super::repository::VerifiedGitRepository;
+use crate::error::cache_invalid;
+
+pub(crate) fn create_git_cache_entry(
+    executor: &GitExecutor,
+    cache_dir: &Path,
+    cache_directory: &CapabilityDirectory,
+    entry_root: &Path,
+    entry_name: &OsStr,
+    cache_identity: &str,
+    locator_identity: &str,
+    fetch_locator: &str,
+    requested_rev: &str,
+    execution_transport: GitExecutionTransport,
+    limits: LocalSourceLimits,
+    known_format: Option<GitObjectIdAlgorithm>,
+) -> Result<(), SourceResolveError> {
+    let mut pending = PendingCacheEntry::create(cache_dir, cache_directory, cache_identity)?;
+    let repository = pending.root.join(GIT_CACHE_REPOSITORY);
+    let empty_template = pending.root.join("empty-template");
+    pending.create_private_directory("empty-template", &empty_template)?;
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let object_format_result = match known_format {
+        Some(format) => Ok(format),
+        None => discover_git_object_format(executor, &pending.root, fetch_locator, requested_rev),
+    };
+    let object_format = reconcile_git_cache_operation_result(
+        object_format_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
+    let mut init_arguments = vec![
+        OsString::from("init"),
+        OsString::from("--quiet"),
+        OsString::from("--bare"),
+    ];
+    if object_format == GitObjectIdAlgorithm::Sha256 {
+        init_arguments.push(OsString::from("--object-format=sha256"));
+    }
+    init_arguments.push(OsString::from("--template"));
+    init_arguments.push(OsString::from("empty-template"));
+    init_arguments.push(OsString::from(GIT_CACHE_REPOSITORY));
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let init_result = run_git(
+        executor,
+        &pending.root,
+        ResolverExecutionPhase::RepositoryInitialization,
+        init_arguments.iter(),
+    );
+    reconcile_git_cache_operation_result(
+        init_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
+    let canonical_config = match object_format {
+        GitObjectIdAlgorithm::Sha1 => GIT_CONFIG_SHA1,
+        GitObjectIdAlgorithm::Sha256 => GIT_CONFIG_SHA256,
+    };
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let config_result = replace_canonical_git_control_file(
+        pending.directory()?,
+        OsStr::new(GIT_CACHE_REPOSITORY),
+        &repository,
+        canonical_config,
+    );
+    reconcile_git_cache_operation_result(
+        config_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
+    pending
+        .directory()?
+        .remove_dir("empty-template")
+        .at(&empty_template)?;
+
+    let metadata_path = pending.root.join(GIT_CACHE_METADATA);
+    let mut metadata_options = CapabilityOpenOptions::new();
+    metadata_options
+        .write(true)
+        .create_new(true)
+        .follow(FollowSymlinks::No);
+    #[cfg(unix)]
+    metadata_options.mode(0o600);
+    let mut metadata = pending
+        .directory()?
+        .open_with(GIT_CACHE_METADATA, &metadata_options)
+        .at(&metadata_path)?;
+    #[cfg(unix)]
+    {
+        let mut permissions = metadata.metadata().at(&metadata_path)?.permissions();
+        permissions.set_mode(0o600);
+        metadata.set_permissions(permissions).at(&metadata_path)?;
+    }
+    metadata
+        .write_all(&git_cache_metadata(
+            locator_identity,
+            requested_rev,
+            execution_transport,
+        ))
+        .at(&metadata_path)?;
+    metadata.sync_all().at(&metadata_path)?;
+    let metadata_custody = metadata.metadata().at(&metadata_path)?;
+    verify_capability_cache_node_owner_and_mode(
+        CacheCustodyKind::Git,
+        &metadata_path,
+        &metadata_custody,
+    )?;
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::OsMetadataExt;
+
+        if metadata_custody.mode() & 0o777 != 0o600 {
+            return Err(cache_invalid(
+                &metadata_path,
+                "resolver metadata does not have exact private mode 0600",
+            ));
+        }
+    }
+
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let verification_result = VerifiedGitRepository::open(
+        &pending.parent,
+        &pending.stage_name,
+        &pending.root,
+        locator_identity,
+        requested_rev,
+        execution_transport,
+        limits,
+    );
+    reconcile_git_cache_operation_result(
+        verification_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
+    drop(metadata);
+    pending.publish(cache_dir, entry_root, entry_name)?;
+    Ok(())
+}
+
+fn discover_git_object_format(
+    executor: &GitExecutor,
+    working_directory: &Path,
+    url: &str,
+    requested_rev: &str,
+) -> Result<GitObjectIdAlgorithm, SourceResolveError> {
+    if is_object_id(requested_rev) {
+        return git_object_algorithm(requested_rev);
+    }
+    let output = run_git_bytes_stdout(
+        executor,
+        working_directory,
+        ResolverExecutionPhase::TransportDiscovery,
+        [
+            OsStr::new("ls-remote"),
+            OsStr::new("--symref"),
+            OsStr::new("--"),
+            OsStr::new(url),
+            OsStr::new("HEAD"),
+            OsStr::new(requested_rev),
+        ],
+    )?;
+    parse_git_remote_object_format(&output, working_directory)
+}
+
+pub(crate) fn parse_git_remote_object_format(
+    output: &[u8],
+    working_directory: &Path,
+) -> Result<GitObjectIdAlgorithm, SourceResolveError> {
+    let mut selected = None;
+    for line in output.split(|byte| *byte == b'\n') {
+        if line.is_empty() || line.starts_with(b"ref: ") {
+            continue;
+        }
+        let Some(separator) = line.iter().position(|byte| *byte == b'\t') else {
+            return Err(cache_invalid(
+                working_directory,
+                "Git object-format discovery returned a malformed row",
+            ));
+        };
+        let oid = std::str::from_utf8(&line[..separator]).map_err(|_| {
+            cache_invalid(
+                working_directory,
+                "Git object-format discovery returned a non-ASCII object ID",
+            )
+        })?;
+        let algorithm = git_object_algorithm(oid)?;
+        if selected.is_some_and(|selected| selected != algorithm) {
+            return Err(cache_invalid(
+                working_directory,
+                "Git object-format discovery returned mixed hash algorithms",
+            ));
+        }
+        selected = Some(algorithm);
+    }
+    selected.ok_or_else(|| {
+        cache_invalid(
+            working_directory,
+            "Git object-format discovery returned no selected object ID",
+        )
+    })
+}

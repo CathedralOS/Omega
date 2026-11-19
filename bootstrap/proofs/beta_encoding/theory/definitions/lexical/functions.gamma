@@ -1,0 +1,22 @@
+; Functions in order: source_byte, separator, comment_end, hex_digit.
+; Each selects its sole Byte argument and covers all 256 constructors.
+(def beta_lexical_definitions ((function Int)) Int
+  (if (eq function 5) 0
+    (let definition Int (beta_lexical_function function)
+      (beta_lexical_definitions (+ function 1)))))
+
+(def beta_lexical_function ((function Int)) Int
+  (let hexadecimal Int (eq function 4)
+    (let length Int (beta_theory_word (if hexadecimal 2134 2054))
+      (let signature Int (beta_theory_fields3 (if hexadecimal 4 2) 1 1)
+        (let mode Int (beta_theory_fields3 1 0 256)
+          (beta_lexical_cases function 0))))))
+
+(def beta_lexical_cases ((function Int) (byte Int)) Int
+  (if (eq byte 256) 0
+    (let clause Int
+      (if (eq function 4)
+        (beta_hexadecimal_clause byte (beta_hexadecimal_value byte))
+        (beta_constant_clause (+ byte 1)
+          (+ 257 (beta_lexical_boolean function byte))))
+      (beta_lexical_cases function (+ byte 1)))))

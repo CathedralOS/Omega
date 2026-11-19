@@ -1,0 +1,44 @@
+// Complete windows_x86_64 `Clock` provider closure. kernel32 `Sleep(DWORD)`
+// treats 0xFFFFFFFF as `INFINITE`, so binding `Clock::sleep` straight to it
+// would make the largest `u32` count wait forever on Windows while the Linux
+// and Darwin providers return after about 49.7 days. The leaf states `Sleep`
+// through the one-member `WindowsClockWait` trait, and
+// `WindowsX8664Clock::sleep` is the checked adapter that never passes
+// `INFINITE` to it.
+// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep
+
+// The raw kernel32 wait. It is the `Clock` service's own wait, so the
+// one-member trait reaches `Clock` and the adapter calling it stays inside
+// `Clock::sleep`'s ceiling. Only this target satisfies the trait.
+boundary trait WindowsClockWait {
+    machine sleep(milliseconds: u32)
+    reaches
+        Clock
+    blocks
+    crashes none;
+}
+
+// Every count below `u32 maximum` is a finite `Sleep`. The maximum itself is
+// `INFINITE`, so it waits in two halves, each finite, for the same total.
+public WindowsX8664Clock satisfies Clock {
+    machine sleep(milliseconds: u32)
+    reaches Clock
+    invokes WindowsClockWait
+    blocks
+    {
+        transition milliseconds == 4294967295 {
+            true -> block in_halves()
+            _ -> block at_once(milliseconds)
+        }
+
+        machine at_once(milliseconds: u32) {
+            block WindowsClockWait::sleep(milliseconds);
+        }
+
+        // 2147483647 + 2147483648 == 4294967295.
+        machine in_halves() {
+            block WindowsClockWait::sleep(2147483647);
+            block WindowsClockWait::sleep(2147483648);
+        }
+    }
+}

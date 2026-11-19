@@ -1,3 +1,0 @@
-machine build(context: &mut Build) {
-    Build::application(context, "valid_renamed_param");
-}

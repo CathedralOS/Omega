@@ -1,0 +1,40 @@
+; An empty input runs the authored scanner. A shaped test value can also be
+; supplied directly to the compiled method, including states invalid in Epsilon.
+(def test_digits_u32 ((input Bytes) (offset Int)) Int
+  (+ (bytes_get input offset) (* 256 (+ (bytes_get input (+ offset 1))
+    (* 256 (+ (bytes_get input (+ offset 2)) (* 256 (bytes_get input (+ offset 3)))))))))
+
+(def test_digits_value ((kind Int) (low Int) (high Int)) EpsilonRuntimeValue
+  (let name EpsilonName (EpsilonNameSpan low high)
+    (let typeValue EpsilonType (EpsilonNamedType 0 0 name)
+      (if (eq kind 1) (EpsilonRuntimeAggregate typeValue NoEpsilonRuntimeChildren)
+        (if (eq kind 4) (EpsilonRuntimeAggregate typeValue (EpsilonRuntimeRecordChildren NoEpsilonRuntimeFieldChildren))
+          (if (eq kind 5) (EpsilonRuntimeAggregate typeValue (EpsilonRuntimeIndexedChildren 0 EmptyEpsilonRuntimeArrayTree))
+            (if (eq kind 6) (EpsilonRuntimeInteger 0)
+              (let parameters EpsilonParameterList (if (eq kind 3) (MoreEpsilonParameters
+                (EpsilonParameterSyntax 0 0 name (EpsilonI32Type 0 0)) NoEpsilonParameters) NoEpsilonParameters)
+                (let values EpsilonRuntimePayloads (if (eq kind 2)
+                  (MoreEpsilonRuntimePayloads (EpsilonRuntimeInteger 0) NoEpsilonRuntimePayloads) NoEpsilonRuntimePayloads)
+                  (EpsilonRuntimeSumValue (EpsilonResolvedSumCaseSyntax low high name parameters) values))))))))))
+
+(def test_digits_observation ((outcome EpsilonEvaluatorOutcome)) Bytes
+  (match outcome
+    ((EpsilonEvaluatorValue value place store output)
+      (match value
+        ((EpsilonRuntimeInteger integer) (bytes_single integer))
+        ((EpsilonRuntimeSumValue selected payloads) "unexpected case")
+        ((EpsilonRuntimeAggregate typeValue children) "unexpected aggregate")
+        ((EpsilonRuntimeViewValue view) "unexpected view")))
+    ((EpsilonEvaluatorTrap kind output) "unexpected trap")
+    ((EpsilonEvaluatorResultless store output) "unexpected falloff")
+    ((EpsilonEvaluatorExit code output) "unexpected exit")
+    ((EpsilonEvaluatorInternal offset) (epsilon_compiled_internal_observation offset))))
+
+(def test_digits_entry ((mainType EpsilonType) (input Bytes)) Bytes
+  (if (eq (bytes_length input) 0) (epsilon_compiled_entry input)
+    (let receiver EpsilonRuntimePlace (EpsilonRuntimePlaceAt 1 NoEpsilonRuntimePath mainType)
+      (let store EpsilonRuntimeStore (EpsilonRuntimeStoreState 2 (MoreEpsilonRuntimeRoots 1
+        (epsilon_runtime_zero_value mainType) NoEpsilonRuntimeRoots) (EpsilonRuntimeConsoleInputAt "" 0))
+        (let value EpsilonRuntimeValue
+          (test_digits_value (bytes_get input 0) (test_digits_u32 input 1) (test_digits_u32 input 5))
+          (test_digits_observation (ep_owned_4_Main_probe receiver value store "")))))))

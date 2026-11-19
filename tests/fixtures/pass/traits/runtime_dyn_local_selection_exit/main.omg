@@ -1,0 +1,55 @@
+// A stored machine selected from a named implementation calls that exact
+// member. `Decoy::code` is a deliberate look-alike that returns 4. The selected
+// member reads the explicitly passed item's value, 0 -> exit 70.
+use omega::language::core::ProcessExit;
+
+trait Shape<T> {
+    machine code(subject: &T) -> i32;
+}
+
+data Item [copy] {
+    value: i32;
+}
+
+Decoy satisfies Shape<Item> {
+    machine code(item: &Item) -> i32 {
+        transition {
+            _ -> 4
+        }
+    }
+}
+
+Primary satisfies Shape<Item> {
+    machine code(subject: &Item) -> i32 {
+        transition {
+            _ -> subject.value
+        }
+    }
+}
+
+data Main {
+    item: Item;
+}
+
+machine run(main: &mut Main) reaches ProcessExit {
+    let selected: machine(subject: &Item) -> i32 reaches none crashes none = Primary::code;
+    let result: i32 = selected(&main.item);
+    transition result == 0 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+
+    machine good(main: &mut Main) {
+        ProcessExit::exit_process(70);
+    }
+
+    machine bad(main: &mut Main) {
+        ProcessExit::exit_process(71);
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mut entry_storage: Main;
+    run(&mut entry_storage);
+}

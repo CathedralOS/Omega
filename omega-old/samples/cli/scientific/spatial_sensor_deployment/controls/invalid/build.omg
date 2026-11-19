@@ -1,5 +1,0 @@
-// Checking this deliberately invalid project requires no foreign entry schema.
-// There is no native image: the authored exclusive-loan violation must reject.
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_sensor_loan");
-}

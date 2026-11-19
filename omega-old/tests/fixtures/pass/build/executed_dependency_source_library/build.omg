@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    declare_package(builder);
-}
-
-machine declare_package(builder: &mut Build) {
-    Build::package(builder, "executed_dependency_source_library");
-}

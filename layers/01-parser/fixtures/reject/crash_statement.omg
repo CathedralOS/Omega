@@ -1,4 +1,0 @@
-// V1 accepts `crash Trap;`. It is not in this grammar.
-machine f() {
-    crash Trap;
-}

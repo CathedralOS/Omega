@@ -1,0 +1,1 @@
+this quoted literal is a shared view of bytes, `&[u8]`

@@ -1,0 +1,21 @@
+// A completed u8 value keeps 0..255 when widened to i32 and placed in a bounded record.
+// Expected exit: 0.
+data Bound [copy] requires self.value >= 0 && self.value <= 255 { value: i32; }
+trait SelectedProbe {
+    machine convert(value: u8) -> Bound;
+    machine start() crashes Trap;
+}
+Actual satisfies SelectedProbe {
+    machine convert(value: u8) -> Bound { Bound { value: value as i32 } }
+    machine start() crashes Trap {
+        let low: Bound = Actual::convert(0);
+        let high: Bound = Actual::convert(255);
+        transition low.value == 0 && high.value == 255 {
+            true -> done()
+            _ -> bad()
+        }
+        machine done() {}
+        machine bad() { crash Trap; }
+    }
+}
+machine main() crashes Trap { Actual::start(); }

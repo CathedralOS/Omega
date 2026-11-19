@@ -1,3 +1,0 @@
-data Shape {
-    case (radius: u32);
-}

@@ -1,0 +1,1 @@
+public machine value() -> u64 { 7 }

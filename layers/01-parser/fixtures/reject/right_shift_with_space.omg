@@ -1,4 +1,0 @@
-// Right shift is two `>` with nothing between them.
-machine f(a: u32, b: u32) {
-    _ = a > > b;
-}

@@ -1,0 +1,24 @@
+module byte_observation;
+
+// These bodyless observations have exact closed-catalog supply. Their ordinary
+// signatures do not authorize a same-spelled declaration in another source.
+// Results describe the currently observed bytes; they grant no owned access.
+public machine valid_utf8<'input>(bytes: &'input [u8]) -> bool
+reaches none
+crashes none
+terminates;
+
+public machine no_nul<'input>(bytes: &'input [u8]) -> bool
+reaches none
+crashes none
+terminates;
+
+public machine ascii_only<'input>(bytes: &'input [u8]) -> bool
+reaches none
+crashes none
+terminates;
+
+public machine non_empty<'input>(bytes: &'input [u8]) -> bool
+reaches none
+crashes none
+terminates;

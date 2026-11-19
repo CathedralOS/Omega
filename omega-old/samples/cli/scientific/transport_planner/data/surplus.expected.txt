@@ -1,3 +1,0 @@
-INFEASIBLE: unequal totals
-supply +0005
-demand +0003

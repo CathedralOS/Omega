@@ -1,4 +1,0 @@
-// `let` begins a statement only when a pattern can follow it.
-machine f() {
-    let 5 = value;
-}

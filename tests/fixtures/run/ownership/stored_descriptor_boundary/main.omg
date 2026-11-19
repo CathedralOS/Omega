@@ -1,0 +1,19 @@
+// The checked boundary returns the mutable descriptor in its original slot.
+// Expected exit: 0
+boundary trait Probe {
+    machine selected() -> u64 reaches Probe crashes none;
+    machine retained(input: &mut &mut [u8]) reaches Probe crashes none;
+}
+CheckedProbe satisfies Probe {
+    machine selected() -> u64 reaches Probe { 7 }
+    machine retained(input: &mut &mut [u8]) reaches Probe {}
+}
+machine main() reaches Probe crashes Trap {
+    let selected: u64 = Probe::selected();
+    let mut backing: [u8; 2] = [41u8, 19u8];
+    let mut window: &mut [u8] = &mut backing[..];
+    Probe::retained(&mut window);
+    transition selected == 7 && window.len == 2u64 { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

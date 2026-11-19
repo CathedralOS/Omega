@@ -1,0 +1,2 @@
+public boundary trait ProcessInput {}
+public boundary trait ProcessOutput {}

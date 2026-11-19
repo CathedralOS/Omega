@@ -1,0 +1,13 @@
+// The requirement held for the entry value of `count`, but the local was
+// overwritten with 0, so `count < 5` is reachable and its subtraction rejects.
+machine pick(start: u64) -> u64
+requires start >= 10
+{
+    let mut count: u64 = start;
+    count = 0u64;
+    transition count < 5 {
+        true -> (count - 100u64)
+        false -> (count)
+    }
+}
+machine main() {}

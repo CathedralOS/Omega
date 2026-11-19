@@ -1,0 +1,4 @@
+public let strict(value: f64): core::Strict<0> = value < 0.25;
+trait Fraction { machine get() -> f64 ensures strict(result); }
+Quarter satisfies Fraction { machine get() -> f64 ensures result <= 0.25 && result >= 0.25 { 0.25 } }
+machine main() {}

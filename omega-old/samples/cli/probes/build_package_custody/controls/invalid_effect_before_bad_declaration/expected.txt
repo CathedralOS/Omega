@@ -1,3 +1,0 @@
-source adapter failed for product dependency row 0 of package `invalid_effect_before_bad_declaration`
-cannot establish canonical external source path
-missing_package

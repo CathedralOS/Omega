@@ -1,3 +1,0 @@
-error DigitOutsideRadix at 1:13 bytes 12..13
-  text: 2
-  this digit is too large for the literal's radix

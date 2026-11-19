@@ -39,7 +39,7 @@ names from source folders. The universal `omega-program` filename is replaced.
 
 An explicit authored identifier supplies GUI CodeDirectory signing identity and
 `CFBundleIdentifier`. The ordinary Build field is `builder.identifier`, a
-`@[u8]` member validated separately from the filename as nonempty ASCII in
+`&[u8]` member validated separately from the filename as nonempty ASCII in
 `A-Z a-z 0-9 . -` with no empty `.`-separated segment; it proves neither
 globally unique ownership nor authenticity.
 

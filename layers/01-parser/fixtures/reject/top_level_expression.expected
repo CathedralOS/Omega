@@ -1,4 +1,0 @@
-error UnexpectedToken at 1:1 bytes 0..4
-  found: main
-  expected: a declaration
-  expected a declaration

@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "signed_64bit_bitwise_or_bound_other_machine_invalid");
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-}

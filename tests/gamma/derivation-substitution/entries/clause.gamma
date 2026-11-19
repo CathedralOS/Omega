@@ -1,0 +1,5 @@
+; The checked right root also selects an ordinal one less than its identity.
+(def substitution_test_execute ((grounded Int)) Int
+  (substitution_test_observe (substitution_test_unfold (comparison_start grounded)
+    (substitution_test_left grounded) (substitution_test_right grounded)
+    (- (substitution_test_right grounded) 1))))

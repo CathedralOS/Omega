@@ -1,0 +1,2 @@
+// Named U16 conversions belong to a module, not a data carrier.
+module U16;

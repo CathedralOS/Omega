@@ -1,0 +1,46 @@
+; Function 56: word_compare_right(left0, ..., left7, right).
+; Match argument 8 against Word=277: slots 0..7 bind left bytes and 9..16
+; bind right bytes, both least significant first. Selected slot 8 is unbound.
+(def beta_ordering_word_right_definition () Int
+  (let length Int (beta_theory_word 156)
+    (let signature Int (beta_theory_word 8)
+      (let arity Int (beta_theory_word 9)
+        (let left_sorts Int (beta_theory_repeated_word 1 8)
+          (let right_sort Int (beta_theory_word 5)
+            (let mode Int (beta_theory_fields3 1 8 1)
+              (let clause Int (beta_theory_fields3 141 277 31)
+                (let left Int (beta_theory_variables 0 8)
+                  (let right Int (beta_theory_variables 9 8)
+                    (let low Int (beta_binary_template 55 1 9)
+                      (let higher Int (beta_ordering_word_bytes 1)
+                        (beta_theory_word 31)))))))))))))
+
+; Row 17 compares byte zero. Each next byte emits its comparison then places
+; that more significant result before the accumulated lower-byte comparison.
+; Rows 18/19 through 30/31 add bytes 1..7, so row 31 starts with byte 7.
+(def beta_ordering_word_bytes ((byte Int)) Int
+  (if (eq byte 8) 0
+    (let compared Int (beta_binary_template 55 (+ byte 1) (+ byte 9))
+      (let combined Int (beta_binary_template 54
+        (+ 16 (* 2 byte)) (+ 15 (* 2 byte)))
+        (beta_ordering_word_bytes (+ byte 1))))))
+
+; Function 57: word_compare(left, right). Slot 1 is the unselected right Word;
+; slots 2..9 hold the left Word's bytes. Row 10 calls function 56 in that order.
+(def beta_ordering_word_definition () Int
+  (let length Int (beta_theory_word 51)
+    (let signature Int (beta_theory_fields3 8 2 5)
+      (let right_sort Int (beta_theory_word 5)
+        (let mode Int (beta_theory_fields3 1 0 1)
+          (let clause Int (beta_theory_fields3 43 277 10)
+            (let left Int (beta_theory_variables 2 8)
+              (let right Int (beta_variable_template 1)
+                (let application Int (beta_theory_fields3 12 2 56)
+                  (let arity Int (beta_theory_word 9)
+                    (let children Int (beta_ordering_word_arguments 1)
+                      (beta_theory_word 10))))))))))))
+
+(def beta_ordering_word_arguments ((row Int)) Int
+  (if (eq row 10) 0
+    (let child Int (beta_theory_word row)
+      (beta_ordering_word_arguments (+ row 1)))))

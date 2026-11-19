@@ -1,0 +1,597 @@
+// LAYOUT POLICIES (wiki/spec/layouts/plans.md):
+// Layout is a library, not a language axiom. A policy is an ordinary named
+// implementation of `FixedLayout<T>`. Its exact `plan(schema, target)` call
+// runs through semantic-evaluation admission with no effects and a termination
+// guarantee. The compiler supplies the exact `Schema` and immutable target,
+// validates the returned `LayoutPlan` (a bad plan is a compile error, never
+// unsafety), and derives codecs / projections / value types from it.
+//
+// v1 SHAPES: plan entries carry compiler-issued field keys rather than using
+// array position as identity. Repeating a key permits fragmented placement of
+// one logical source. Keys are opaque handles copied from SchemaField; the
+// compiler normalizes them back to field names before identity/reporting.
+//
+// COUNT CARRIERS: nonnegative byte sizes, alignments, offsets, widths, counts,
+// indices, tags, and opaque compiler keys use u64, distinct from addr. Signed
+// carriers remain only where a value is genuinely signed or an explicitly
+// retained sentinel requires one.
+
+
+// One field of a schema, target-resolved by the compiler: byte size,
+// alignment, shape, and declared identity (-1 in the numeric mirror when
+// unnumbered). Fixed arrays are one Repeated field; their layout source
+// follows the exact element, including explicitly selected representations. Byte sizes retain their full u64 range;
+// allocation and placement consumers check their own geometry. The compiler
+// supplies established fields by value, including valid inactive-tail placeholders; zeroed storage
+// alone does not establish a SchemaField.
+public data SchemaField requires align >= 1, align <= 16 {
+    key: u64;
+    size: u64;
+    align: u64;
+    identity: Optional<u64>;
+    // Transitional compatibility mirror; -1 means unnumbered. New policies
+    // consume `identity`.
+    number: i64;
+    kind: FieldKind;
+    layout_source: FieldLayoutSource;
+}
+
+// Describes where the field's target geometry comes from, not permission to
+// access it. Fixed arrays inherit their element's source. An explicitly
+// selected representation owns its interior; default records and references
+// never inherit a selection merely from one of their descendants.
+public data FieldLayoutSource {
+    case Default;
+    case Scalar;
+    case Explicit;
+}
+
+// A schema: numbered fields follow stable identity order; unnumbered fields
+// follow declaration order. At most
+// 32 fields in the pilot slice (plan validation rejects more).
+// A schema field's SHAPE fact -- what a grammar policy needs to choose a
+// placement (a scalar varint-encodes; text/nested/repeated payloads are
+// length-prefixed). ZII: the zero case is Scalar.
+public data FieldKind {
+    case Scalar;
+    case Text;
+    case Nested;
+    case Repeated;
+}
+
+// One reflected sum case. Stable identity is schema metadata; declaration
+// position remains the independent home-layout discriminant. Payload fields
+// have their own numbered scope and tombstones.
+public data SchemaCase requires payload_field_count <= 32, retired_payload_identity_count <= 32 {
+    key: u64;
+    identity: Optional<u64>;
+    payload_fields: [SchemaField; 32];
+    payload_field_count: u64;
+    retired_payload_identities: [u64; 32];
+    retired_payload_identity_count: u64;
+}
+
+public data Schema requires field_count <= 32, retired_field_identity_count <= 32,
+    case_count <= 32, retired_case_identity_count <= 32 {
+    fields: [SchemaField; 32];
+    field_count: u64;
+    retired_field_identities: [u64; 32];
+    retired_field_identity_count: u64;
+    cases: [SchemaCase; 32];
+    case_count: u64;
+    retired_case_identities: [u64; 32];
+    retired_case_identity_count: u64;
+}
+
+// One field's REPRESENTATION -- the closed vocabulary the compiler knows how to
+// read and lower (wiki/spec/layouts/plans.md). Policies CHOOSE representations from
+// this sum; a new representation KIND is a compiler release, never user-invented.
+// The validator walks `At`, `Bits`, and `IntegerAt`. `stored_width` is a bit
+// width; `offset` remains byte-denominated. `At` or a complete repeated `Bits`
+// tiling has live direct plan-laid projection. A fixed primitive array admits
+// one whole-extent `At`, not scalar `Bits` or `IntegerAt`. `IntegerAt` is normalized for
+// consumers and is the only fixed-layout spelling for a foreign integer whose
+// stored width differs from its semantic carrier. Direct owned/reference-backed
+// and runtime-indexed projection widen according to `interpretation`. Direct
+// stable-owned mutation is live when the compiler derives total-write evidence;
+// read-only interpreter record views use the same decode. Concrete proved-fit
+// mutation remains fail-closed. Tagged/wire placements remain consumers of the
+// wire-plan path today.
+public data IntegerInterpretation {
+    case Signed;
+    case Unsigned;
+}
+
+public data FieldPlan {
+    case At(offset: u64);
+    case IntegerAt(
+        offset: u64,
+        stored_width: u64,
+        interpretation: IntegerInterpretation
+    );
+    case Bits(
+        container: u64,
+        container_width: u64,
+        destination_lsb: u64,
+        source_lsb: u64,
+        width: u64
+    );
+    case Varint(tag: u64);
+    case LengthPrefixed(tag: u64);
+}
+
+public data FieldEntry {
+    key: u64;
+    representation: FieldPlan;
+}
+
+// A validated layout plan. Entries may appear in any order; `key` names
+// the schema field and may repeat only for `Bits` fragments. Positions past
+// `entry_count` are meaningless. The compiler checks field coverage, exact
+// source tiling for fragments, destination bounds/overlap, and fixed-plan
+// size/alignment before anything trusts the plan. Native layout evaluation
+// retains a compiler-private demand catalog beside this semantic value; each
+// entry comes from an executed `layout_plan_place_private` call citing one exact
+// named `PrivateCallbackSlot<T, Layout, Requirement>` implementation. Neither raw
+// slot identities nor callback addresses enter this record.
+public data LayoutPlan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+
+// Compiler-known relationship for one semantic-field-free native slot.
+// `Layout` is the selected fixed-layout implementation whose plan may place the slot;
+// the machine argument is an exact signature-free callback requirement. A
+// named implementation such as
+// `CallbackSlot satisfies PrivateCallbackSlot<Record, Spread, Callback::call> { }` is
+// inert until that layout policy explicitly cites it through
+// `layout_plan_place_private<Implementation>`; another policy cannot place it. A
+// callback occupying a whole foreign ABI parameter is instead declared once in
+// its registrar requirement's native telescope; it is not a layout slot and
+// does not use this relationship.
+public trait PrivateCallbackSlot<T, Layout satisfies FixedLayout<T>, machine Requirement> {
+}
+
+// The ordinary value signature is an identity operation so helpers can compose
+// plans without exposing a private field in `LayoutPlan`. The one authored static
+// argument is sealed compiler metadata, not a generic parameter of this
+// machine: typed lowering records the exact conformance separately and build-
+// time evaluation emits a private-placement receipt while returning `plan`
+// unchanged. Runtime code receives no slot identity or callback address.
+public machine layout_plan_place_private(plan: LayoutPlan, offset: u64) -> LayoutPlan reaches terminates {
+    plan
+}
+
+// The field-plan form, so several Bits placements may fill one private slot.
+// The complete set must cover its source exactly and preserve every other
+// field in the layout. It has its own name because a free machine name selects
+// one declaration; the offset form above keeps `layout_plan_place_private`.
+public machine layout_plan_place_private_field(plan: LayoutPlan, representation: FieldPlan) -> LayoutPlan reaches terminates {
+    plan
+}
+
+use omega::language::core::reflect::TypeSchema;
+use omega::language::core::reflect::CallableInfo;
+use omega::language::core::reflect::FieldInfo;
+use omega::language::core::access;
+
+// Access-policy vocabulary (wiki/spec/resources/access.md). LayoutPlan owns
+// geometry; AccessPlan retains a semantic schema, explicit issuance choice,
+// caller restrictions, observation demands and required boundary reach.
+// These records are ordinary library data: the compiler evaluates policy
+// machines and independently validates their returned values, but source code
+// cannot construct lowering authority from the records alone.
+
+public data Exposure {
+    case Exported;
+    case BindingPrivate;
+}
+
+public data Observation {
+    case Stable;
+    case External;
+    case Atomic;
+}
+
+public data ExternalRead {
+    case None;
+    case Read;
+    case Take;
+}
+
+// Closed runtime results for the atomic compare/exchange permission family.
+// These are ordinary flat core data, not requirements: T alone determines
+// their runtime shape.  Comparison keys and selected encoding laws remain
+// checked call evidence and therefore never parameterize these carriers.
+// Declaration order is the canonical wire/runtime tag order: expected
+// failure first, committed success second, and an uncommitted single attempt
+// third only where that state exists.
+public data AtomicCompareExchangeOutcome<T> {
+    case Mismatched(observed: T);
+    case Exchanged;
+}
+
+public data AtomicCompareExchangeOnceOutcome<T [copy]> [copy] {
+    case Mismatched(observed: T);
+    case Exchanged;
+    case Uncommitted(observed: T);
+}
+
+public data AtomicTryExchangeOutcome<T> {
+    case Mismatched(proposed: T);
+    case Exchanged(displaced: T);
+}
+
+public data AtomicTryExchangeOnceOutcome<T> {
+    case Mismatched(proposed: T);
+    case Exchanged(displaced: T);
+    case Uncommitted(proposed: T);
+}
+
+public data AtomicOperations [copy] {
+    load: bool;
+    store: bool;
+    fetch_add: bool;
+    fetch_sub: bool;
+    fetch_xor: bool;
+    fetch_or: bool;
+    fetch_and: bool;
+    swap: bool;
+    compare_exchange: bool;
+    compare_exchange_once: bool;
+    try_exchange: bool;
+    try_exchange_once: bool;
+}
+
+// Transfer width and alignment are byte-count facts. Access authors do not
+// choose offsets; validated layout geometry supplies those.
+public data TransferRule [copy] {
+    width_bits: u64;
+    alignment_bytes: u64;
+}
+
+// Invalid observation/operation cross-products are unrepresentable. The
+// effective transfer rule comes from the validated layout/resource join.
+public data FieldAccess {
+    case Inaccessible;
+    case Stable(
+        read: bool,
+        write: bool,
+        exposure: Exposure
+    );
+    case External(
+        read: ExternalRead,
+        write: bool,
+        exposure: Exposure
+    );
+    case Atomic(
+        operations: AtomicOperations,
+        exposure: Exposure
+    );
+}
+
+public data AccessFieldEntry<'text> {
+    field: FieldInfo<'text>;
+    access: FieldAccess;
+}
+
+// A normalized static set of boundary-service keys. Suspension and blocking
+// are independent contract axes and never enter this record.
+public data BoundaryReach requires service_count <= 32 {
+    services: [u64; 32];
+    service_count: u64;
+}
+
+// A policy states its issuer choice explicitly. The first case is the
+// ordinary zero value, so omitted or zeroed issuance permits nobody.
+public data Issuance<'text> {
+    case Only(routes: [CallableInfo<'text>]);
+    case Unrestricted;
+}
+
+// A region describes a semantic subject or member, independently of layout.
+// The receiving validator authenticates its schema and member correspondence.
+public data AccessRegion<'text> {
+    case Subject(schema: TypeSchema<'text>);
+    case Field(field: FieldInfo<'text>);
+}
+
+public data AccessCallerRule<'text> {
+    region: AccessRegion<'text>;
+    callers: [CallableInfo<'text>];
+}
+
+// Access policies describe restrictions and observation demands. Geometry is
+// selected separately through FixedLayout; neither result supplies backing.
+// Counts bound private construction storage, not semantic identities. Active
+// rows must be validated in full; overflow is rejected, never truncated.
+public data AccessPlan<'text>
+requires field_count <= 32, reader_count <= 32, writer_count <= 32
+{
+    schema: TypeSchema<'text>;
+    issuance: Issuance<'text>;
+    fields: [AccessFieldEntry<'text>; 32];
+    field_count: u64;
+    readers: [AccessCallerRule<'text>; 32];
+    reader_count: u64;
+    writers: [AccessCallerRule<'text>; 32];
+    writer_count: u64;
+    reach: BoundaryReach;
+}
+
+public IssuedBy<const R: CallableInfo> satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Only { routes: [R] })
+    }
+}
+
+public IssuedByAny<const N: u64, const Routes: [CallableInfo; N]> satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Only { routes: Routes })
+    }
+}
+
+public data RelativeRange [copy] {
+    offset: u64;
+    length: u64;
+}
+
+public data StableCapability {
+    case None;
+    case Read;
+    case Write;
+    case ReadWrite;
+}
+
+public data ExternalReadBehavior {
+    case None;
+    case Repeatable;
+    case Destructive;
+}
+
+public data TransferRules requires rule_count <= 16 {
+    entries: [TransferRule; 16];
+    rule_count: u64;
+}
+
+public data ExternalCapability {
+    case None;
+    case Access(
+        read: ExternalReadBehavior,
+        write: bool,
+        transfers: TransferRules
+    );
+}
+
+public data AtomicTransferRule {
+    transfer: TransferRule;
+    operations: AtomicOperations;
+}
+
+public data AtomicTransferRules requires rule_count <= 16 {
+    entries: [AtomicTransferRule; 16];
+    rule_count: u64;
+}
+
+public data AtomicCapability {
+    case None;
+    case Access(transfers: AtomicTransferRules);
+}
+
+// This is an admitted backing property, not a claim that borrowing a value
+// excludes a device or another process. A hostile writable peer forbids Stable
+// supply even when the caller holds an exclusive Omega borrow. Revocation and
+// cross-core invalidation belong to the provider before it offers Exclusive.
+public data PeerWritability {
+    case Exclusive;
+    case HostileShared;
+}
+
+public data ResourceRegion {
+    range: RelativeRange;
+    peer: PeerWritability;
+    stable: StableCapability;
+    external: ExternalCapability;
+    atomic: AtomicCapability;
+    reach: BoundaryReach;
+}
+
+public data ResourceProfile requires region_count <= 32 {
+    regions: [ResourceRegion; 32];
+    region_count: u64;
+}
+
+// A selected provider describes supply for this existing grant through an
+// ordinary boundary call. The returned data alone is not placement authority:
+// an establishing consumer must bind the successful invocation and its complete
+// normalized result to the original qualified range. Copying or changing a
+// profile, or calling an implementation directly, establishes nothing. This
+// requirement supplies neither vacancy nor already initialized content. Role
+// distinguishes independently selected backing policies in one artifact. It is
+// a static selector, not evidence of that backing or permission to access it.
+public boundary trait ResourceProfileSupply<Role> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile reaches none crashes none;
+}
+
+public data AccessOutcome<View, Returned, Reason> {
+    case Ready(view: View);
+    case Rejected(returned: Returned, reason: Reason);
+}
+
+public data AccessReturn<Source, Custody> {
+    source: Source;
+    custody: Custody;
+}
+
+// A borrowed view moves no storage into the operation. Rejection releases its
+// loan; this ordinary empty record carries no grant or content qualification.
+public data AccessBorrowReturn {}
+
+// Dynamic incompatibility is ordinary data. Malformed admitted assertions,
+// physical faults and missing static custody are not recoverable cases here.
+public data AccessInitializationFailure {
+    case RangeTooSmall(required: u64, available: u64);
+    case Misaligned(modulus: u64, residue: u64);
+    case IncompatibleSupply;
+}
+
+// A successful extraction has a selected owned case, so the boundary's exact
+// storage payload is the vacancy issuance subject. The public wrapper below
+// forwards that evidence into AccessReturn; it is not another issuer.
+public data AccessExtraction<Storage, Value> {
+    case Moved(storage: Storage, value: Value);
+}
+
+// These requirements describe actual execution, not a source-level cast or
+// permission granted by a result annotation. The selected implementation must
+// retain the original backing/profile occurrence and complete every write or
+// move before publishing the corresponding case. An ordinary call to a provider
+// implementation is not the admitted requirement occurrence named by Extent's
+// protected establishment routes.
+public boundary trait AccessLifecycle<P, T> {
+    machine initialize(
+        storage: Extent in Granted & Vacant,
+        value: T
+    ) -> AccessOutcome<
+        Extent in Granted & Resident<P, T>,
+        AccessReturn<Extent in Granted & Vacant, T>,
+        AccessInitializationFailure
+    >
+    reaches ResourceProfileSupply
+    crashes none;
+
+    machine move_out(storage: Extent in Granted & Resident<P, T>)
+        -> AccessExtraction<Extent in Granted & Vacant, T>
+    reaches ResourceProfileSupply
+    crashes none;
+}
+
+// Storage is the independent LayoutStorage<T, Layout> application, not an
+// owned T wrapper. Realization must authenticate its denoted T and exact
+// placement, preserving the semantic value and Resident<P, T> lineage.
+// Ordinary provider orchestration keeps profile selection, call ordering and
+// ownership transport in the language. The private primitives are the memory
+// operations, not substitutes for the selected profile invocation. Their
+// realization must join the completed call to this exact storage and complete
+// result before treating the profile as admitted supply. The private operation
+// borrows that result: passing plain profile data by value would make an
+// independent copy, which carries no selected-call origin.
+public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
+    machine initialize(
+        storage: Extent in Granted & Vacant,
+        value: T
+    ) -> AccessOutcome<
+        Extent in Granted & Resident<P, T>,
+        AccessReturn<Extent in Granted & Vacant, T>,
+        AccessInitializationFailure
+    >
+    reaches ResourceProfileSupply
+    {
+        let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
+            &storage as &Extent in Granted
+        );
+        access::initialize_from_profile<P, T, Storage, Role>(storage, value, &profile)
+    }
+
+    machine move_out(storage: Extent in Granted & Resident<P, T>)
+        -> AccessExtraction<Extent in Granted & Vacant, T>
+    reaches ResourceProfileSupply
+    {
+        // Resident preserves the value and backing, not permission to read
+        // every byte. Reobserve the same grant's admitted supply before decode.
+        let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
+            &storage as &Extent in Granted
+        );
+        access::extract_resident<P, T, Storage, Role>(storage, &profile)
+    }
+}
+
+// `C` is the authored custody record for the non-runtime fields of `T` under
+// access policy `P`; a named implementation of this exact application is the
+// agreement the compiler checks. The custody record is an ordinary argument,
+// never a subject that owns the implementation.
+public trait AccessCustody<C, P, T> {
+}
+
+// Granular accessor requirements. These are ordinary generic contracts so
+// helpers can accept one accessor without receiving the whole access view.
+// The compiler derives conforming accessor types from a normalized access plan;
+// source cannot construct the opaque template or use it as access evidence.
+public trait Readable<Field, T> {
+    machine read(accessor: &Field) -> T;
+}
+
+public trait DestructiveRead<Field, T> {
+    machine take(accessor: &mut Field) -> T;
+}
+
+public trait Writable<Field, T> {
+    machine write(accessor: &mut Field, value: T);
+}
+
+// Exact compiler-supplied primitives, not blanket conformance evidence. The
+// compiler closes these applications only for a field accessor issued by the
+// selected access plan, with its exact value type and operation permission.
+// Ordinary generic helpers must declare an explicit operation requirement;
+// an unconstrained type parameter cannot acquire field access by forwarding.
+public boundary machine read<Accessor, Value>(field: &Accessor) -> Value
+satisfies Readable<Accessor, Value>::read;
+public boundary machine write<Accessor, Value>(field: &mut Accessor, value: Value)
+satisfies Writable<Accessor, Value>::write;
+
+public boundary data Accessor<T>;
+
+boundary machine Accessor::read<T>(accessor: &Accessor<T>) -> T
+satisfies Readable<Accessor<T>, T>::read;
+
+boundary machine Accessor::take<T>(accessor: &mut Accessor<T>) -> T
+satisfies DestructiveRead<Accessor<T>, T>::take;
+
+boundary machine Accessor::write<T>(accessor: &mut Accessor<T>, value: T)
+satisfies Writable<Accessor<T>, T>::write;
+
+// The policy interface. plan() declares no effects, so implementations HAVE
+// none -- that absence is what makes them build-time-evaluable.
+// Compiler-issued immutable representation facts for this exact target.
+// Authored code cannot construct this opaque compile-time input or gain
+// host services, private source access, storage backing or execution authority.
+public boundary data LayoutTarget;
+
+// An immutable borrowed snapshot of the compiler-issued policy context.
+// The context has no authored constructor or executable storage representation.
+public data LayoutTargetFacts<'target> [copy] {
+    profile: &'target [u8];
+    pointer_size: u64;
+    pointer_alignment: u64;
+    little_endian: bool;
+}
+
+// Semantic evaluation supplies the exact issuer's snapshot. This ordinary
+// primitive declaration exposes its checked result shape; it grants no target,
+// storage or Build authority to an authored value.
+public boundary machine layout_target_facts<'target>(target: &'target LayoutTarget)
+    -> LayoutTargetFacts<'target>
+reaches none
+terminates;
+
+// The compiler retains and validates the exact semantic type, policy,
+// target and returned geometry; this adds no wrapper or independent T header.
+public boundary data LayoutStorage<T, Policy satisfies FixedLayout<T>>;
+
+public trait FixedLayout<T> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+    reaches none
+    terminates;
+}
+
+// An access policy evaluates one complete `AccessPlan` from the reflected
+// schema. It may call ordinary layout policies and helpers; such a call returns
+// plan data, not a validation certificate. The compiler independently validates
+// semantic regions, issuance, operations and reach of the returned plan,
+// then joins the independently validated layout and backing supply.
+public trait AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan;
+}

@@ -1,0 +1,453 @@
+/*
+Per-entry cache lock acquisition and path-identity verification (`CacheEntryLock`
+and `CacheLockBudget`).
+
+`open_verified_cache_lock` opens or creates the lock file beneath its retained
+parent via `open_or_create_lock_file` (tolerating cold-key creation races on
+macOS without following symbolic links) and proves the opened handle matches
+the regular, private file currently named by the parent. `Drop` unlocks the
+file without unlinking the inode so concurrent waiters never lock a displaced
+inode while newcomers lock a replacement.
+*/
+
+use super::platform::{
+    same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
+    verify_macos_open_cache_extended_acl_custody,
+};
+#[cfg(test)]
+use super::publication::direct_cache_child_name;
+use super::tree::{CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root};
+use crate::SourceResolveError;
+use crate::limits::PROCESS_POLL_INTERVAL;
+use crate::tree::filesystem::{IoResultAt, io_error, open_absolute_directory_nofollow};
+use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
+use platform_custody::lock_file::open_or_create_lock_file;
+use std::ffi::{OsStr, OsString};
+use std::fs::File;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+pub(crate) trait CacheLockBudget {
+    fn verify_cache_lock_budget(&self) -> Result<(), SourceResolveError>;
+    fn remaining_cache_lock_time(&self) -> Result<Duration, SourceResolveError>;
+}
+
+pub(crate) struct CacheEntryLock {
+    pub(crate) file: File,
+    pub(crate) parent: CapabilityDirectory,
+    pub(crate) kind: CacheCustodyKind,
+    pub(crate) path: PathBuf,
+    pub(crate) lock_name: OsString,
+}
+
+impl CacheEntryLock {
+    fn open_from_retained_parent(
+        kind: CacheCustodyKind,
+        parent_path: &Path,
+        retained_parent: &CapabilityDirectory,
+        lock_name: &OsStr,
+    ) -> Result<(File, CapabilityDirectory, OsString), SourceResolveError> {
+        let path = parent_path.join(lock_name);
+        let parent = retained_parent.try_clone().at(parent_path)?;
+        verify_retained_cache_parent_path(kind, parent_path, &parent)?;
+        let file = open_verified_cache_lock(kind, &path, &parent, lock_name)?;
+        Ok((file, parent, lock_name.to_os_string()))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn open_retained(
+        kind: CacheCustodyKind,
+        path: &Path,
+    ) -> Result<(File, CapabilityDirectory, OsString), SourceResolveError> {
+        let parent_path = path.parent().ok_or_else(|| {
+            cache_custody_invalid(kind, path, "cache lock has no publication parent")
+        })?;
+        verify_cache_custody_root(parent_path, kind)?;
+        let parent = open_absolute_directory_nofollow(parent_path)
+            .map_err(|error| cache_custody_invalid(kind, parent_path, error.to_string()))?;
+        let lock_name = direct_cache_child_name(kind, parent_path, path)?.to_os_string();
+        let file = open_verified_cache_lock(kind, path, &parent, &lock_name)?;
+        Ok((file, parent, lock_name))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn open_git(path: &Path) -> Result<File, SourceResolveError> {
+        let (file, _, _) = Self::open_retained(CacheCustodyKind::Git, path)?;
+        Ok(file)
+    }
+
+    #[cfg(all(test, unix))]
+    pub(crate) fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
+        file.lock().at(path)?;
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::Git,
+            path: path.to_path_buf(),
+            lock_name,
+        })
+    }
+
+    #[cfg(all(test, unix))]
+    pub(crate) fn acquire_within(
+        path: &Path,
+        budget: &impl CacheLockBudget,
+    ) -> Result<Self, SourceResolveError> {
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
+        loop {
+            budget.verify_cache_lock_budget()?;
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    let remaining = budget.remaining_cache_lock_time()?;
+                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+                }
+                Err(std::fs::TryLockError::Error(error)) => {
+                    return Err(io_error(path, error));
+                }
+            }
+        }
+        if let Err(error) = budget.verify_cache_lock_budget() {
+            let _ = file.unlock();
+            return Err(error);
+        }
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::Git,
+            path: path.to_path_buf(),
+            lock_name,
+        })
+    }
+
+    pub(crate) fn acquire_from_parent(
+        parent_path: &Path,
+        retained_parent: &CapabilityDirectory,
+        lock_name: &OsStr,
+        budget: &impl CacheLockBudget,
+    ) -> Result<Self, SourceResolveError> {
+        let path = parent_path.join(lock_name);
+        let (file, parent, lock_name) = Self::open_from_retained_parent(
+            CacheCustodyKind::Git,
+            parent_path,
+            retained_parent,
+            lock_name,
+        )?;
+        loop {
+            budget.verify_cache_lock_budget()?;
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    let remaining = budget.remaining_cache_lock_time()?;
+                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+                }
+                Err(std::fs::TryLockError::Error(error)) => {
+                    return Err(io_error(&path, error));
+                }
+            }
+        }
+        if let Err(error) = budget.verify_cache_lock_budget() {
+            let _ = file.unlock();
+            return Err(error);
+        }
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, &path, &parent, &lock_name, &file)?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::Git,
+            path,
+            lock_name,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn acquire_local(
+        path: &Path,
+        timeout: Duration,
+    ) -> Result<Self, SourceResolveError> {
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::LocalSnapshot, path)?;
+        let started = Instant::now();
+        loop {
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    let Some(remaining) = timeout.checked_sub(started.elapsed()) else {
+                        return Err(local_snapshot_lock_timed_out(path, timeout));
+                    };
+                    if remaining.is_zero() {
+                        return Err(local_snapshot_lock_timed_out(path, timeout));
+                    }
+                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+                }
+                Err(std::fs::TryLockError::Error(error)) => {
+                    return Err(io_error(path, error));
+                }
+            }
+        }
+        if started.elapsed() >= timeout {
+            let _ = file.unlock();
+            return Err(local_snapshot_lock_timed_out(path, timeout));
+        }
+        verify_cache_lock_path_identity(
+            CacheCustodyKind::LocalSnapshot,
+            path,
+            &parent,
+            &lock_name,
+            &file,
+        )?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::LocalSnapshot,
+            path: path.to_path_buf(),
+            lock_name,
+        })
+    }
+
+    pub(crate) fn acquire_local_from_parent(
+        parent_path: &Path,
+        retained_parent: &CapabilityDirectory,
+        lock_name: &OsStr,
+        timeout: Duration,
+    ) -> Result<Self, SourceResolveError> {
+        let path = parent_path.join(lock_name);
+        let (file, parent, lock_name) = Self::open_from_retained_parent(
+            CacheCustodyKind::LocalSnapshot,
+            parent_path,
+            retained_parent,
+            lock_name,
+        )?;
+        let started = Instant::now();
+        loop {
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    let Some(remaining) = timeout.checked_sub(started.elapsed()) else {
+                        return Err(local_snapshot_lock_timed_out(&path, timeout));
+                    };
+                    if remaining.is_zero() {
+                        return Err(local_snapshot_lock_timed_out(&path, timeout));
+                    }
+                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+                }
+                Err(std::fs::TryLockError::Error(error)) => {
+                    return Err(io_error(&path, error));
+                }
+            }
+        }
+        if started.elapsed() >= timeout {
+            let _ = file.unlock();
+            return Err(local_snapshot_lock_timed_out(&path, timeout));
+        }
+        verify_cache_lock_path_identity(
+            CacheCustodyKind::LocalSnapshot,
+            &path,
+            &parent,
+            &lock_name,
+            &file,
+        )?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::LocalSnapshot,
+            path,
+            lock_name,
+        })
+    }
+
+    pub(crate) fn parent(&self) -> &CapabilityDirectory {
+        &self.parent
+    }
+
+    pub(crate) fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
+        verify_cache_lock_path_identity(
+            self.kind,
+            &self.path,
+            &self.parent,
+            &self.lock_name,
+            &self.file,
+        )
+    }
+}
+
+fn open_verified_cache_lock(
+    kind: CacheCustodyKind,
+    path: &Path,
+    parent: &CapabilityDirectory,
+    lock_name: &OsStr,
+) -> Result<File, SourceResolveError> {
+    let capability_file = open_or_create_lock_file(parent, lock_name).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not open cache lock without following links: {error}"),
+        )
+    })?;
+    let handle_metadata = capability_file.metadata().at(path)?;
+    let path_metadata = parent.symlink_metadata(lock_name).at(path)?;
+    if !handle_metadata.is_file()
+        || path_metadata.file_type().is_symlink()
+        || !path_metadata.is_file()
+        || !same_capability_file_identity(&handle_metadata, &path_metadata)
+    {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache lock is not a stable regular file beneath its retained parent",
+        ));
+    }
+    verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
+    let file = capability_file.into_std();
+    verify_macos_open_cache_extended_acl_custody(kind, path, &file)?;
+    Ok(file)
+}
+
+fn local_snapshot_lock_timed_out(path: &Path, timeout: Duration) -> SourceResolveError {
+    SourceResolveError::LocalSnapshotLockTimedOut {
+        path: path.to_path_buf(),
+        timeout_millis: u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX),
+    }
+}
+
+pub(crate) fn verify_cache_lock_path_identity(
+    kind: CacheCustodyKind,
+    path: &Path,
+    parent: &CapabilityDirectory,
+    lock_name: &OsStr,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    let path_metadata = parent.symlink_metadata(lock_name).at(path)?;
+    if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache lock was replaced while being acquired",
+        ));
+    }
+    let handle_metadata = file.metadata().at(path)?;
+    if !handle_metadata.is_file()
+        || !same_std_and_capability_file_identity(&handle_metadata, &path_metadata)
+    {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache lock path does not identify the locked file",
+        ));
+    }
+    verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
+    verify_macos_open_cache_extended_acl_custody(kind, path, file)?;
+
+    let parent_path = path
+        .parent()
+        .ok_or_else(|| cache_custody_invalid(kind, path, "cache lock has no publication parent"))?;
+    verify_retained_cache_parent_path(kind, parent_path, parent)
+}
+
+pub(crate) fn verify_retained_cache_parent_path(
+    kind: CacheCustodyKind,
+    parent_path: &Path,
+    retained_parent: &CapabilityDirectory,
+) -> Result<(), SourceResolveError> {
+    verify_cache_custody_root(parent_path, kind)?;
+    let current_parent = open_absolute_directory_nofollow(parent_path)
+        .map_err(|error| cache_custody_invalid(kind, parent_path, error.to_string()))?;
+    let retained_metadata = retained_parent.dir_metadata().map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            parent_path,
+            format!("could not inspect the retained cache parent: {error}"),
+        )
+    })?;
+    let current_metadata = current_parent.dir_metadata().map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            parent_path,
+            format!("could not inspect the current cache parent: {error}"),
+        )
+    })?;
+    if !same_capability_file_identity(&retained_metadata, &current_metadata) {
+        return Err(cache_custody_invalid(
+            kind,
+            parent_path,
+            "cache parent pathname no longer identifies the retained directory",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn same_std_and_capability_file_identity(
+    left: &std::fs::Metadata,
+    right: &CapabilityMetadata,
+) -> bool {
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::MetadataExt;
+
+        left.dev() == right.dev() && left.ino() == right.ino()
+    }
+    #[cfg(windows)]
+    {
+        use cap_primitives::fs::_WindowsByHandle;
+        use std::os::windows::fs::MetadataExt;
+        matches!(
+            (left.volume_serial_number(), left.file_index(), right.volume_serial_number(), right.file_index()),
+            (Some(left_volume), Some(left_index), Some(right_volume), Some(right_index))
+                if left_volume == right_volume && left_index == right_index
+        )
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (left, right);
+        false
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn verify_cache_lock_path_identity_for_test(
+    kind: CacheCustodyKind,
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    let parent_path = path.parent().expect("test cache lock has a parent");
+    let canonical_parent = parent_path.canonicalize().at(parent_path)?;
+    let lock_name = path.file_name().expect("test cache lock has a name");
+    let canonical_path = canonical_parent.join(lock_name);
+    let parent = open_absolute_directory_nofollow(&canonical_parent).at(&canonical_parent)?;
+    verify_cache_lock_path_identity(kind, &canonical_path, &parent, lock_name, file)
+}
+
+impl Drop for CacheEntryLock {
+    fn drop(&mut self) {
+        let _ = self.file.unlock();
+    }
+}
+
+#[cfg(all(test, any(unix, windows)))]
+mod file_identity_tests {
+    use super::same_std_and_capability_file_identity;
+
+    #[test]
+    fn open_file_identity_matches_duplicates_and_rejects_other_files() {
+        let root = crate::test_support::temp_root("release-file-identity");
+        std::fs::create_dir_all(&root).expect("create fixture");
+        {
+            let first = std::fs::File::create(root.join("first")).expect("create first");
+            let second = std::fs::File::create(root.join("second")).expect("create second");
+            let duplicate =
+                cap_std::fs::File::from_std(first.try_clone().expect("duplicate first"));
+            let capability = duplicate.metadata().expect("capability metadata");
+            assert!(same_std_and_capability_file_identity(
+                &first.metadata().expect("first metadata"),
+                &capability,
+            ));
+            assert!(!same_std_and_capability_file_identity(
+                &second.metadata().expect("second metadata"),
+                &capability,
+            ));
+        }
+        std::fs::remove_dir_all(root).expect("remove fixture");
+    }
+}

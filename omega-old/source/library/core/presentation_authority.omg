@@ -1,5 +1,0 @@
-public boundary trait WindowManagement {}
-public boundary trait SurfacePresentation {}
-public boundary trait WindowEventObservation {}
-public boundary trait WindowEventDispatch {}
-public boundary trait GlobalInputObservation {}

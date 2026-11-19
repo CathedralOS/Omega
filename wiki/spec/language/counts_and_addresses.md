@@ -25,8 +25,8 @@ The compiler-known core query `address_of` exposes an ordinary storage
 reference's referent or one selected executable machine application:
 
 ```omega
-let storage_address = address_of(@myVar);
-let machine_address = address_of::<Something::SomeFunc<u32>>();
+let storage_address = address_of(&myVar);
+let machine_address = address_of<Something::SomeFunc<u32>>();
 ```
 
 The storage operand identifies the referent, not the temporary reference
@@ -138,12 +138,12 @@ alignment than the type's minimum; it need not expose the greatest divisor of
 a physical numeric address.
 
 ```omega
-const required_alignment: u64 = align_of::<u8>();
+const required_alignment: u64 = align_of<u8>();
 let packet_alignment: u64 = align_of(packet);
 ```
 
 For an ordinary addressable place, the query observes that place's storage.
-For `@T` or `@mut T`, it observes the referent, not the reference descriptor.
+For `&T` or `&mut T`, it observes the referent, not the reference descriptor.
 For a borrowed slice, it observes the first element's location, not the slice
 descriptor; this form requires a nonempty slice. It does not claim that every
 element shares that alignment: element offsets and stride still matter.
@@ -155,7 +155,7 @@ The operand is observed once without moving its value or reading element bytes.
 Ordinary storage, borrow and lifetime obligations remain in force. The query
 neither creates nor retains an access loan, initializes storage, strengthens
 permissions or authorizes a memory operation. An empty slice cannot justify an
-implicit `@slice[0]`; guard or use an independently justified backing view first.
+implicit `&slice[0]`; guard or use an independently justified backing view first.
 
 The result names the observed location at that point. Mutating data bytes does
 not itself move the location, but replacing the view, changing its offset,
@@ -221,7 +221,7 @@ An ordinary range may describe bytes beginning at an entry:
 
 ```omega
 let region = Extent {
-    base: address_of::<Obstacle::check>(),
+    base: address_of<Obstacle::check>(),
     length: 2048
 };
 ```
@@ -243,7 +243,7 @@ facts under [invocation contracts](state_contracts.md#mutation-and-subject-ident
 Range windows have the separate obligations in [numeric values](numeric_values.md#collection-bounds).
 
 A fixed array `[T; N]` has length exactly `N`. A reference to it is not a view
-of its elements; [`@array[..]`](expressions.md#views-of-a-fixed-array) forms
+of its elements; [`&array[..]`](expressions.md#views-of-a-fixed-array) forms
 one, whose length is known to be `N`. A growable collection's live length
 is nonnegative and at most its capacity; indexing uses that live length, not
 unused capacity. Domain qualification does not change either rule:

@@ -1,4 +1,0 @@
-// A subject cannot be a record literal unless it is in parentheses.
-machine f() -> u32 {
-    match Point { x: 1 } { _ -> 0 }
-}

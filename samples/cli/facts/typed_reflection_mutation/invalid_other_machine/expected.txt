@@ -1,0 +1,2 @@
+the type arguments of this application do not meet its requirement
+increment$specialized$named(name(u64))

@@ -1,0 +1,16 @@
+
+(data EpsilonExpression
+  (EpsilonIntegerExpression Int Int EpsilonIntegerLiteral)
+  (EpsilonCharacterExpression Int Int EpsilonCharacterLiteral)
+  (EpsilonStringExpression Int Int EpsilonStringLiteral)
+  (EpsilonTrueExpression Int Int)
+  (EpsilonFalseExpression Int Int)
+  (EpsilonNameExpression Int Int EpsilonName)
+  (EpsilonQualifiedExpression Int Int EpsilonName EpsilonName EpsilonOptionalArguments)
+  (EpsilonGroupedExpression Int Int EpsilonExpression)
+  (EpsilonFieldExpression Int Int EpsilonExpression EpsilonName)
+  (EpsilonCallExpression Int Int EpsilonExpression EpsilonExpressionList)
+  (EpsilonIndexExpression Int Int EpsilonExpression EpsilonExpression)
+  (EpsilonSliceExpression Int Int EpsilonExpression EpsilonOptionalExpression EpsilonOptionalExpression)
+  (EpsilonNegateExpression Int Int EpsilonExpression)
+  (EpsilonBinaryExpression Int Int EpsilonBinaryOperator Int Int EpsilonExpression EpsilonExpression))

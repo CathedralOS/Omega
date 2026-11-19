@@ -1,1 +1,0 @@
-required output `out.bin` of `build` failed: deliberate failure probe

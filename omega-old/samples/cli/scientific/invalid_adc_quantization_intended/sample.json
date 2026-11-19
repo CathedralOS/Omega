@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_any_contains": [
-    "division",
-    "divisor"
-  ],
-  "rejection_casefold": true
-}

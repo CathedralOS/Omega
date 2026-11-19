@@ -1,4 +1,0 @@
-error UnexpectedToken at 2:1 bytes 61..67
-  found: public
-  expected: a declaration
-  expected a declaration

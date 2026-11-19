@@ -1,0 +1,35 @@
+// Fallible conversion is an explicitly selected ordinary implementation.
+// Both endpoints and the error carrier belong to its exact application; a
+// representation name or equal storage geometry selects no conversion.
+// Allocators, buffers and other resources must be explicit in Source when
+// needed. Err exposes no partially established Destination.
+public data Result<Value, Error> {
+    #0 case Err(error: Error);
+    #1 case Ok(value: Value);
+}
+
+public trait TryFrom<Source, Destination, Error> {
+    machine try_from(source: Source) -> Result<Destination, Error>;
+}
+
+public machine convert<Source, Destination, Error,
+    Selected satisfies TryFrom<Source, Destination, Error>>
+    (source: Source) -> Result<Destination, Error>
+{
+    Selected::try_from(source)
+}
+
+// Composition crosses the semantic intermediate through the selected maps.
+// A failed first conversion never invokes the second. Both maps publish the
+// same explicit error carrier; adapters between error vocabularies are ordinary
+// authored conversions, rather than implicit error coercions.
+public machine compose<Source, Intermediate, Destination, Error,
+    First satisfies TryFrom<Source, Intermediate, Error>,
+    Second satisfies TryFrom<Intermediate, Destination, Error>>
+    (source: Source) -> Result<Destination, Error>
+{
+    transition First::try_from(source) {
+        Result::Err { error as failure } -> Result::Err { error: failure }
+        Result::Ok { value as value } -> Second::try_from(value)
+    }
+}

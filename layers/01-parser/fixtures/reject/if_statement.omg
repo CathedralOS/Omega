@@ -1,6 +1,0 @@
-// Decision 1: there is no `if` statement.
-machine f(ready: bool) {
-    if ready {
-        go();
-    }
-}

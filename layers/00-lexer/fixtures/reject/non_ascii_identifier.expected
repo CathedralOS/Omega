@@ -1,3 +1,0 @@
-error NonAsciiOutsideCommentOrQuoted at 1:8 bytes 7..9
-  text: \x{c3}\x{a9}
-  a non-ASCII character may appear only inside a comment or a quoted literal

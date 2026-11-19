@@ -1,3 +1,0 @@
-regions=000000002
-region start=000000003 end=000000003 area_milli=000006000 centroid_micro=503000000 candidates=000000001 nearest=000000001 status=unique ids=000000001,
-region start=000000010 end=000000011 area_milli=000011000 centroid_micro=510696970 candidates=000000002 nearest=000000002 status=ambiguous ids=000000002,000000003,

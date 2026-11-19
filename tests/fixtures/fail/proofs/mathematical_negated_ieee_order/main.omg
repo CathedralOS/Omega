@@ -1,0 +1,6 @@
+let below(value: f64): core::Strict<0> = !(value > 5.0f64);
+machine unjustified(value: f64)
+requires below(value)
+ensures value <= 5.0f64
+{}
+machine main() {}

@@ -1,6 +1,0 @@
-acoustic thickness echoes: ns / um / m_per_s
-echo 1 primary layer=1 thickness_um=500
-echo 2 primary layer=2 thickness_um=500
-echo 3 primary layer=3 thickness_um=500
-echo 4 primary layer=4 thickness_um=500
-complete

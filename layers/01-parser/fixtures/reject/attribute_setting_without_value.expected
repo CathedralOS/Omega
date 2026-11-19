@@ -1,4 +1,0 @@
-error UnexpectedToken at 1:29 bytes 28..29
-  found: )
-  expected: `:`
-  expected `:`

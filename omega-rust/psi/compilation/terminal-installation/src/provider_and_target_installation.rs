@@ -1,0 +1,1443 @@
+/*
+Catalog provider and assumed-binding installation (`provider_installation`),
+component providers and memberships (`component_provider` and
+`component_memberships`), and artifact-bound target observation context
+(`target_context`).
+*/
+
+pub(crate) mod provider_installation {
+    use semantic_vocabulary::{BoundaryMachineId, MachineId};
+    use std::collections::{BTreeMap, BTreeSet};
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
+    pub struct ProviderInstallationSelection {
+        pub boundary: BoundaryMachineId,
+        pub provider_identity: String,
+        pub provider_declaration: String,
+        pub candidate: MachineId,
+    }
+
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+    )]
+    pub struct AssumedBindingSelection {
+        pub required: BoundaryMachineId,
+        pub supplied_requirement: BoundaryMachineId,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AdmittedAssumedBinding {
+        pub required: BoundaryMachineId,
+        pub supplied_requirement: BoundaryMachineId,
+        pub implementation: MachineId,
+        pub selected_requirement: BoundaryMachineId,
+        pub supply_path: Vec<BoundaryMachineId>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AdmittedProviderSelections {
+        code_identity: terminal_codec::TerminalExecutionIdentity,
+        providers: BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
+        assumed_bindings: Vec<AdmittedAssumedBinding>,
+        folded_constant_target: Option<String>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) struct AdmittedProviderSelection {
+        candidate: MachineId,
+        provider_declaration: terminal_psi::NominalDeclarationIdentity,
+        declaration_application: terminal_psi::TerminalIdentityIndex,
+        receiving_application: terminal_psi::TerminalIdentityIndex,
+        receiving_region_arguments: Vec<terminal_psi::TerminalIdentityIndex>,
+    }
+
+    impl AdmittedProviderSelections {
+        pub fn is_subset_of(&self, complete: &Self) -> bool {
+            self.code_identity == complete.code_identity
+                && self
+                    .providers
+                    .iter()
+                    .all(|(boundary, selected)| complete.providers.get(boundary) == Some(selected))
+                && self
+                    .assumed_bindings
+                    .iter()
+                    .all(|assumed| complete.assumed_bindings.contains(assumed))
+                && self
+                    .folded_constant_target
+                    .as_ref()
+                    .is_none_or(|target| complete.folded_constant_target.as_ref() == Some(target))
+        }
+
+        pub fn admit_folded_constant_closure(
+            mut self,
+            artifact: terminal_codec::TerminalArtifactView<'_>,
+            target: &str,
+            plan_preimages: &[Vec<u8>],
+        ) -> Result<Self, String> {
+            if self.code_identity
+                != terminal_codec::TerminalExecutionIdentity::portable(artifact.identity())
+            {
+                return Err("folded constant closure names another Terminal artifact".into());
+            }
+            let module = artifact.module();
+            module
+                .folded_constants
+                .validate(module)
+                .map_err(str::to_owned)?;
+            if module.folded_constants.target.as_deref() != Some(target) {
+                return Err("folded constant closure belongs to another target".into());
+            }
+            let expected: Vec<_> = module
+                .folded_constants
+                .dependencies
+                .iter()
+                .filter(|dependency| dependency.target == target)
+                .cloned()
+                .collect();
+            module
+                .folded_constants
+                .validate_plan_inputs(target, plan_preimages)
+                .map_err(str::to_owned)?;
+            let mut historical = Vec::new();
+            for dependency in &expected {
+                let Some(association) = &dependency.candidate else {
+                    continue;
+                };
+                let candidate = module
+                    .provider_candidates
+                    .iter()
+                    .find(|candidate| {
+                        candidate.boundary == association.boundary
+                            && candidate.candidate == association.machine
+                            && candidate.provider_declaration == association.declaration
+                            && candidate.source_requirement_identity == dependency.requirement
+                    })
+                    .ok_or("folded constant historical candidate is absent")?;
+                if self.providers.contains_key(&candidate.boundary)
+                    && !self.contains_candidate(candidate)
+                {
+                    return Err(
+                        "runtime provider substitutes the folded constant realization".into(),
+                    );
+                }
+                historical.push(ProviderInstallationSelection {
+                    boundary: candidate.boundary,
+                    candidate: candidate.candidate,
+                    provider_identity: module
+                        .identities
+                        .text(candidate.provider_identity)
+                        .ok_or("historical provider identity is absent")?
+                        .into(),
+                    provider_declaration: module
+                        .identities
+                        .text(candidate.provider_declaration.identity())
+                        .ok_or("historical selecting declaration is absent")?
+                        .into(),
+                });
+            }
+            historical.sort();
+            historical.dedup();
+            admit_provider_selections(
+                module,
+                terminal_codec::TerminalExecutionIdentity::portable(artifact.identity()),
+                &historical,
+                &[],
+            )
+            .map_err(|error| format!("folded constant catalog admission rejected: {error:?}"))?;
+            self.folded_constant_target = Some(target.to_owned());
+            Ok(self)
+        }
+
+        pub fn folded_constant_target(&self) -> Option<&str> {
+            self.folded_constant_target.as_deref()
+        }
+        pub fn contains_candidate(
+            &self,
+            candidate: &terminal_psi::ProviderCandidateConformance,
+        ) -> bool {
+            self.providers
+                .get(&candidate.boundary)
+                .is_some_and(|installed| {
+                    installed.candidate == candidate.candidate
+                        && installed.provider_declaration == candidate.provider_declaration
+                        && installed.declaration_application == candidate.declaration_application
+                        && installed.receiving_application == candidate.receiving_application
+                        && installed.receiving_region_arguments
+                            == candidate.receiving_region_arguments
+                })
+        }
+
+        pub const fn terminal_psi(&self) -> terminal_psi::TerminalPsiIdentity {
+            self.code_identity.semantic()
+        }
+
+        pub fn execution_identity(&self) -> &terminal_codec::TerminalExecutionIdentity {
+            &self.code_identity
+        }
+
+        pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
+            &self.assumed_bindings
+        }
+
+        pub fn receiving_application(
+            &self,
+            boundary: BoundaryMachineId,
+        ) -> terminal_psi::TerminalIdentityIndex {
+            self.providers.get(&boundary).map_or(
+                terminal_psi::TerminalIdentityIndex::default(),
+                |selection| selection.receiving_application,
+            )
+        }
+
+        pub fn receiving_region_arguments(
+            &self,
+            boundary: BoundaryMachineId,
+        ) -> &[terminal_psi::TerminalIdentityIndex] {
+            self.providers.get(&boundary).map_or(&[], |selection| {
+                selection.receiving_region_arguments.as_slice()
+            })
+        }
+
+        pub fn providers(&self) -> impl Iterator<Item = (BoundaryMachineId, MachineId)> + '_ {
+            self.providers
+                .iter()
+                .map(|(&boundary, selection)| (boundary, selection.candidate))
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum ProviderInstallationError {
+        SemanticDecode(terminal_codec::CodecError),
+        UnknownOrDuplicateSelection {
+            boundary: BoundaryMachineId,
+            candidate: MachineId,
+        },
+        AssumedBindingRejected {
+            required: BoundaryMachineId,
+            supplied_requirement: BoundaryMachineId,
+            reason: AssumedBindingRejection,
+        },
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum AssumedBindingRejection {
+        UnknownRequirement,
+        UnknownSuppliedRequirement,
+        CompetingCheckedSupply,
+        CompetingAssumption,
+        UnselectedSupply,
+        CyclicSupply,
+        IncompatibleRuntimeShape,
+        IncompatibleOperationalContract,
+        UnsupportedAssumedAuthority,
+    }
+
+    pub fn admit_provider_installation_from_artifact(
+        semantic_bytes: &[u8],
+        selections: &[ProviderInstallationSelection],
+    ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
+        admit_provider_installation_with_assumed_bindings_from_artifact(
+            semantic_bytes,
+            selections,
+            &[],
+        )
+    }
+
+    pub fn admit_provider_execution_installation(
+        code: terminal_codec::TerminalExecutionView<'_>,
+        selections: &[ProviderInstallationSelection],
+        assumptions: &[AssumedBindingSelection],
+    ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
+        admit_provider_selections(
+            code.module(),
+            code.custody_identity(),
+            selections,
+            assumptions,
+        )
+    }
+
+    pub fn admit_provider_installation(
+        artifact: terminal_codec::TerminalArtifactView<'_>,
+        selections: &[ProviderInstallationSelection],
+        assumptions: &[AssumedBindingSelection],
+    ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
+        admit_provider_selections(
+            artifact.module(),
+            terminal_codec::TerminalExecutionIdentity::portable(artifact.identity()),
+            selections,
+            assumptions,
+        )
+    }
+
+    pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
+        semantic_bytes: &[u8],
+        selections: &[ProviderInstallationSelection],
+        assumptions: &[AssumedBindingSelection],
+    ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
+        let module = terminal_codec::decode_module(semantic_bytes)
+            .map_err(ProviderInstallationError::SemanticDecode)?;
+        let identity = terminal_codec::terminal_psi_identity(&module)
+            .map_err(ProviderInstallationError::SemanticDecode)?;
+        admit_provider_selections(
+            &module,
+            terminal_codec::TerminalExecutionIdentity::portable(identity),
+            selections,
+            assumptions,
+        )
+    }
+
+    fn admit_provider_selections(
+        module: &terminal_psi::TerminalModule,
+        identity: terminal_codec::TerminalExecutionIdentity,
+        selections: &[ProviderInstallationSelection],
+        assumptions: &[AssumedBindingSelection],
+    ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
+        let mut installed = BTreeMap::new();
+        if !selections.is_empty() {
+            let mut candidates_by_boundary = BTreeMap::<
+                BoundaryMachineId,
+                Vec<&terminal_psi::ProviderCandidateConformance>,
+            >::new();
+            for candidate in &module.provider_candidates {
+                candidates_by_boundary
+                    .entry(candidate.boundary)
+                    .or_default()
+                    .push(candidate);
+            }
+            let callable_boundaries: BTreeSet<BoundaryMachineId> = module
+                .boundary_machines
+                .iter()
+                .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
+                .map(|boundary| boundary.id)
+                .collect();
+            for selection in selections {
+                let mut candidates = candidates_by_boundary
+                    .get(&selection.boundary)
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .filter(|candidate| {
+                        module.identities.text(candidate.provider_identity)
+                            == Some(selection.provider_identity.as_str())
+                            && module
+                                .identities
+                                .text(candidate.provider_declaration.identity())
+                                == Some(selection.provider_declaration.as_str())
+                            && candidate.candidate == selection.candidate
+                    });
+                let candidate = candidates.next();
+                if selection.provider_identity.is_empty()
+                    || selection.provider_declaration.is_empty()
+                    || !callable_boundaries.contains(&selection.boundary)
+                    || installed.contains_key(&selection.boundary)
+                    || candidates.next().is_some()
+                {
+                    return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
+                        boundary: selection.boundary,
+                        candidate: selection.candidate,
+                    });
+                }
+                let Some(candidate) = candidate else {
+                    return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
+                        boundary: selection.boundary,
+                        candidate: selection.candidate,
+                    });
+                };
+                installed.insert(
+                    selection.boundary,
+                    AdmittedProviderSelection {
+                        candidate: candidate.candidate,
+                        provider_declaration: candidate.provider_declaration.clone(),
+                        declaration_application: candidate.declaration_application,
+                        receiving_application: candidate.receiving_application,
+                        receiving_region_arguments: candidate.receiving_region_arguments.clone(),
+                    },
+                );
+            }
+        }
+        let assumed_bindings = admit_assumed_bindings(module, &installed, assumptions)?;
+        Ok(AdmittedProviderSelections {
+            code_identity: identity,
+            providers: installed,
+            assumed_bindings,
+            folded_constant_target: None,
+        })
+    }
+
+    fn same_structural_input_carriers(
+        required: &[terminal_psi::StructuralParameterDeclaration],
+        supplied: &[terminal_psi::StructuralParameterDeclaration],
+    ) -> bool {
+        required.len() == supplied.len()
+            && required.iter().zip(supplied).all(|(required, supplied)| {
+                required.position == supplied.position
+                    && required.structural_type == supplied.structural_type
+                    && required.multiplicity == supplied.multiplicity
+                    && required.access == supplied.access
+            })
+    }
+
+    /// Whether the supplied requirement's operational contract can stand in
+    /// for the required one. Its published reach ceiling must fit inside the
+    /// required ceiling member for member: the owning service is catalogue
+    /// ownership, not reach (`wiki/spec/language/effects.md`), so a supplied
+    /// ceiling that names its own owner reaches that service like any other
+    /// member and needs the required ceiling to permit it.
+    fn operational_contract_fits(
+        required: &terminal_psi::BoundaryMachineDeclaration,
+        supplied: &terminal_psi::BoundaryMachineDeclaration,
+    ) -> bool {
+        required.kind == supplied.kind
+            && required.completion == supplied.completion
+            && (!required.unconditional_termination || supplied.unconditional_termination)
+            && required.crash_routes == supplied.crash_routes
+            && supplied
+                .published_service_ceiling
+                .iter()
+                .all(|service| required.published_service_ceiling.contains(service))
+    }
+
+    fn admit_assumed_bindings(
+        module: &terminal_psi::TerminalModule,
+        installed: &BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
+        assumptions: &[AssumedBindingSelection],
+    ) -> Result<Vec<AdmittedAssumedBinding>, ProviderInstallationError> {
+        let boundary_ids: BTreeSet<BoundaryMachineId> = module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
+            .map(|boundary| boundary.id)
+            .collect();
+        let mut admitted = Vec::new();
+        for assumption in assumptions {
+            let reject = |reason| ProviderInstallationError::AssumedBindingRejected {
+                required: assumption.required,
+                supplied_requirement: assumption.supplied_requirement,
+                reason,
+            };
+            if !boundary_ids.contains(&assumption.required) {
+                return Err(reject(AssumedBindingRejection::UnknownRequirement));
+            }
+            if installed.contains_key(&assumption.required) {
+                return Err(reject(AssumedBindingRejection::CompetingCheckedSupply));
+            }
+            if admitted
+                .iter()
+                .any(|binding: &AdmittedAssumedBinding| binding.required == assumption.required)
+            {
+                return Err(reject(AssumedBindingRejection::CompetingAssumption));
+            }
+            if !boundary_ids.contains(&assumption.supplied_requirement) {
+                return Err(reject(AssumedBindingRejection::UnknownSuppliedRequirement));
+            }
+            let required =
+                terminal_psi::find_boundary_machine(&module.boundary_machines, assumption.required)
+                    .unwrap();
+            let supplied = terminal_psi::find_boundary_machine(
+                &module.boundary_machines,
+                assumption.supplied_requirement,
+            )
+            .unwrap();
+            let qualified_result = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
+                matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
+                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty())
+            };
+            if !required.program_local_root_introductions.is_empty()
+                || !supplied.program_local_root_introductions.is_empty()
+                || !required.content_guarantees.is_empty()
+                || !supplied.content_guarantees.is_empty()
+                || qualified_result(required)
+                || qualified_result(supplied)
+            {
+                return Err(reject(AssumedBindingRejection::UnsupportedAssumedAuthority));
+            }
+            if required.parameter_order != supplied.parameter_order
+                || required.scalar_parameters != supplied.scalar_parameters
+                || !same_structural_input_carriers(
+                    &required.structural_parameters,
+                    &supplied.structural_parameters,
+                )
+                || required.result != supplied.result
+                || !terminal_semantics::boundary_result_lifetimes_match(
+                    module, required, module, supplied,
+                )
+                .unwrap_or(false)
+                || required.reference_outputs != supplied.reference_outputs
+                || required.attachment != supplied.attachment
+            {
+                return Err(reject(AssumedBindingRejection::IncompatibleRuntimeShape));
+            }
+            if !operational_contract_fits(required, supplied) {
+                return Err(reject(
+                    AssumedBindingRejection::IncompatibleOperationalContract,
+                ));
+            }
+            let mut visiting = BTreeSet::from([assumption.required]);
+            let mut supply_path = Vec::new();
+            let mut requirement = assumption.supplied_requirement;
+            let implementation = loop {
+                if let Some(candidate) = installed.get(&requirement) {
+                    break candidate.candidate;
+                }
+                if !visiting.insert(requirement) {
+                    return Err(reject(AssumedBindingRejection::CyclicSupply));
+                }
+                let Some(next) = assumptions.iter().find(|link| link.required == requirement)
+                else {
+                    return Err(reject(AssumedBindingRejection::UnselectedSupply));
+                };
+                supply_path.push(requirement);
+                requirement = next.supplied_requirement;
+            };
+            admitted.push(AdmittedAssumedBinding {
+                required: assumption.required,
+                supplied_requirement: assumption.supplied_requirement,
+                implementation,
+                selected_requirement: requirement,
+                supply_path,
+            });
+        }
+        Ok(admitted)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::operational_contract_fits;
+        use semantic_vocabulary::{BoundaryMachineId, ServiceId};
+        use terminal_psi::{
+            BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
+            NominalDeclarationIdentity, TerminalIdentityTableBuilder,
+        };
+
+        fn service(id: u64) -> ServiceId {
+            ServiceId::new(id).unwrap()
+        }
+
+        fn requirement(id: u64, owner: u64, ceiling: &[u64]) -> BoundaryMachineDeclaration {
+            let identity = TerminalIdentityTableBuilder::default().intern("test::Slot::call");
+            let ceiling: Vec<ServiceId> = ceiling.iter().copied().map(service).collect();
+            BoundaryMachineDeclaration {
+                id: BoundaryMachineId::new(id).unwrap(),
+                declaration: None,
+                numeric_intrinsic: None,
+                role: BoundaryDeclarationRole::Callable,
+                kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                unconditional_termination: true,
+                identity,
+                owner: NominalDeclarationIdentity::new(identity),
+                attachment: None,
+                parameter_order: Vec::new(),
+                scalar_parameters: Vec::new(),
+                crash_routes: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: BoundaryMachineResult::Unit,
+                result_reference_regions: Vec::new(),
+                result_lifetimes: None,
+                requires: Vec::new(),
+                membership_ensures: Vec::new(),
+                normal_qualifications: Vec::new(),
+                scalar_domain_requirements: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                reference_outputs: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                fixed_service_reach: ceiling.clone(),
+                service_reach_is_installation_bound: false,
+                owning_service: Some(service(owner)),
+                published_service_ceiling: ceiling,
+                published_synchronous_entries: Vec::new(),
+            }
+        }
+
+        // A supply whose ceiling names its own owning slot reaches that slot;
+        // a requirement declared `reaches none` cannot be stood in for by it.
+        #[test]
+        fn supplied_owner_in_its_ceiling_must_fit_the_required_ceiling() {
+            let required = requirement(1, 10, &[]);
+            assert!(operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[])
+            ));
+            assert!(!operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[20])
+            ));
+            assert!(operational_contract_fits(
+                &requirement(1, 10, &[20]),
+                &requirement(2, 20, &[20]),
+            ));
+            assert!(!operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[30])
+            ));
+        }
+
+        // The required owner held only as catalogue ownership contributes
+        // nothing a narrower supply must match.
+        #[test]
+        fn required_owner_outside_its_ceiling_permits_nothing_extra() {
+            let required = requirement(1, 10, &[]);
+            assert!(!operational_contract_fits(
+                &required,
+                &requirement(2, 20, &[10])
+            ));
+        }
+    }
+}
+
+pub(crate) mod component_provider {
+    use semantic_vocabulary::{BoundaryMachineId, MachineId};
+    use terminal_codec::{TerminalArtifactView, TerminalExecutionIdentity, TerminalExecutionView};
+    use terminal_psi::TerminalPsiIdentity;
+
+    use crate::{
+        AdmittedProviderSelections, ProviderInstallationSelection, admit_provider_installation,
+    };
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AdmittedComponentProvider {
+        receiver: TerminalExecutionIdentity,
+        receiving_boundary: BoundaryMachineId,
+        provider: TerminalPsiIdentity,
+        provider_boundary: BoundaryMachineId,
+        candidate: MachineId,
+        selection: AdmittedProviderSelections,
+        input_memberships: crate::component_memberships::InputMemberships,
+        result_memberships: crate::component_memberships::Memberships,
+    }
+
+    impl AdmittedComponentProvider {
+        pub const fn receiver(&self) -> &TerminalExecutionIdentity {
+            &self.receiver
+        }
+        pub const fn receiving_boundary(&self) -> BoundaryMachineId {
+            self.receiving_boundary
+        }
+        pub const fn provider(&self) -> TerminalPsiIdentity {
+            self.provider
+        }
+        pub const fn provider_boundary(&self) -> BoundaryMachineId {
+            self.provider_boundary
+        }
+        pub const fn candidate(&self) -> MachineId {
+            self.candidate
+        }
+        pub const fn selection(&self) -> &AdmittedProviderSelections {
+            &self.selection
+        }
+
+        pub fn input_membership(
+            &self,
+            input: usize,
+            domain: semantic_vocabulary::StructuralDomainId,
+        ) -> Option<semantic_vocabulary::StructuralDomainId> {
+            self.input_memberships
+                .get(input)?
+                .iter()
+                .find(|(source, _)| *source == domain)
+                .map(|(_, target)| *target)
+        }
+        pub fn result_membership(
+            &self,
+            domain: semantic_vocabulary::StructuralDomainId,
+        ) -> Option<semantic_vocabulary::StructuralDomainId> {
+            self.result_memberships
+                .iter()
+                .find(|(source, _)| *source == domain)
+                .map(|(_, target)| *target)
+        }
+    }
+
+    pub fn admit_component_provider<'receiver>(
+        receiver: impl Into<TerminalExecutionView<'receiver>>,
+        receiving_boundary: BoundaryMachineId,
+        provider: TerminalArtifactView<'_>,
+        selected: &ProviderInstallationSelection,
+    ) -> Result<AdmittedComponentProvider, String> {
+        let receiver = receiver.into();
+        let receiving = receiver
+            .module()
+            .boundary_machines
+            .iter()
+            .find(|row| row.id == receiving_boundary)
+            .ok_or("component import names no receiving boundary")?;
+        let supplying = provider
+            .module()
+            .boundary_machines
+            .iter()
+            .find(|row| row.id == selected.boundary)
+            .ok_or("component export names no producing boundary")?;
+        let left = &receiver.module().identities;
+        let right = &provider.module().identities;
+        if !left
+            .text(receiving.identity)
+            .zip(right.text(supplying.identity))
+            .is_some_and(|(left, right)| !left.is_empty() && left == right)
+            || !receiving
+                .owner
+                .same_identity_as(left, &supplying.owner, right)
+        {
+            return Err("component import/export name different requirement declarations".into());
+        }
+        let (Some(receiving_contract), Some(supplying_contract)) =
+            (&receiving.declaration, &supplying.declaration)
+        else {
+            return Err("component import/export lacks a checked callable contract".into());
+        };
+        if !receiving_contract.same_identity_as(
+            receiver.module(),
+            supplying_contract,
+            provider.module(),
+        ) || receiving.completion != supplying.completion
+            || receiving.unconditional_termination != supplying.unconditional_termination
+            || receiving.parameter_order != supplying.parameter_order
+            || receiving.scalar_parameters != supplying.scalar_parameters
+        {
+            return Err("component import/export checked callable contracts differ".into());
+        }
+        if !terminal_semantics::boundary_result_lifetimes_match(
+            receiver.module(),
+            receiving,
+            provider.module(),
+            supplying,
+        )
+        .map_err(str::to_owned)?
+        {
+            return Err("component import/export declared result lifetimes differ".into());
+        }
+        let selection = admit_provider_installation(provider, std::slice::from_ref(selected), &[])
+            .map_err(|error| format!("component export provider admission: {error:?}"))?;
+        let input_memberships = crate::component_memberships::admit_input_memberships(
+            receiver.module(),
+            receiving,
+            provider.module(),
+            supplying,
+        )?;
+        let result_memberships = crate::component_memberships::admit_result_memberships(
+            receiver.module(),
+            receiving,
+            provider.module(),
+            supplying,
+        )?;
+        Ok(AdmittedComponentProvider {
+            receiver: receiver.custody_identity(),
+            receiving_boundary,
+            provider: provider.identity(),
+            provider_boundary: selected.boundary,
+            candidate: selected.candidate,
+            selection,
+            input_memberships,
+            result_memberships,
+        })
+    }
+}
+
+pub(crate) mod component_memberships {
+    use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
+    use terminal_psi::{
+        BoundaryMachineDeclaration, BoundaryMachineResult, NominalDeclarationIdentity,
+        StructuralDomainDeclaration, StructuralEstablishmentRoute, TerminalModule,
+    };
+
+    pub(crate) type Memberships = Vec<(StructuralDomainId, StructuralDomainId)>;
+    pub(crate) type InputMemberships = Vec<Memberships>;
+
+    pub(crate) fn admit_input_memberships(
+        receiver: &TerminalModule,
+        required: &BoundaryMachineDeclaration,
+        provider: &TerminalModule,
+        supplied: &BoundaryMachineDeclaration,
+    ) -> Result<InputMemberships, String> {
+        if required.structural_parameters.len() != supplied.structural_parameters.len() {
+            return Err("component input membership arities differ".into());
+        }
+        required
+            .structural_parameters
+            .iter()
+            .zip(&supplied.structural_parameters)
+            .map(|(left, right)| {
+                admit_memberships(
+                    receiver,
+                    left.structural_type,
+                    &left.qualifications,
+                    provider,
+                    right.structural_type,
+                    &right.qualifications,
+                )
+                .map_err(|reason| format!("component input {reason}"))
+            })
+            .collect()
+    }
+
+    pub(crate) fn admit_result_memberships(
+        receiver: &TerminalModule,
+        required: &BoundaryMachineDeclaration,
+        provider: &TerminalModule,
+        supplied: &BoundaryMachineDeclaration,
+    ) -> Result<Memberships, String> {
+        match (&supplied.result, &required.result) {
+            (BoundaryMachineResult::Unit, BoundaryMachineResult::Unit) => Ok(Vec::new()),
+            (BoundaryMachineResult::Scalar(left), BoundaryMachineResult::Scalar(right))
+                if left == right =>
+            {
+                Ok(Vec::new())
+            }
+            (BoundaryMachineResult::Structural(left), BoundaryMachineResult::Structural(right)) => {
+                if !left.projected_qualifications.is_empty()
+                    || !right.projected_qualifications.is_empty()
+                {
+                    return Err("component result requires projected membership transfer".into());
+                }
+                admit_memberships(
+                    provider,
+                    left.structural_type,
+                    &left.qualifications,
+                    receiver,
+                    right.structural_type,
+                    &right.qualifications,
+                )
+                .map_err(|reason| format!("component result {reason}"))
+            }
+            _ => Err("component result kinds or scalar contracts differ".into()),
+        }
+    }
+
+    fn admit_memberships(
+        source_module: &TerminalModule,
+        source_type: StructuralTypeId,
+        source_required: &[StructuralDomainId],
+        target_module: &TerminalModule,
+        target_type: StructuralTypeId,
+        target_required: &[StructuralDomainId],
+    ) -> Result<Memberships, String> {
+        let mut bindings = Vec::new();
+        for source in source_module
+            .structural_domains
+            .iter()
+            .filter(|row| row.carrier == source_type)
+        {
+            let mut matches = target_module.structural_domains.iter().filter(|row| {
+                row.carrier == target_type && same_domain(source_module, source, target_module, row)
+            });
+            if let Some(destination) = matches.next() {
+                if matches.next().is_some() {
+                    return Err("has ambiguous membership theories".into());
+                }
+                bindings.push((source.id, destination.id));
+            }
+        }
+        let mut mapped = source_required
+            .iter()
+            .map(|source| {
+                bindings
+                    .iter()
+                    .find(|(domain, _)| domain == source)
+                    .map(|(_, domain)| *domain)
+                    .ok_or_else(|| "membership theories differ".to_owned())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        mapped.sort();
+        if mapped != target_required {
+            return Err("membership requirements differ".into());
+        }
+        Ok(bindings)
+    }
+
+    fn same_domain(
+        left: &TerminalModule,
+        source: &StructuralDomainDeclaration,
+        right: &TerminalModule,
+        target: &StructuralDomainDeclaration,
+    ) -> bool {
+        if source
+            .required_domain_closure(&left.structural_domains)
+            .is_none()
+            || target
+                .required_domain_closure(&right.structural_domains)
+                .is_none()
+        {
+            return false;
+        }
+        let mut pending = vec![(source, target)];
+        let mut paired = Vec::new();
+        while let Some((source, target)) = pending.pop() {
+            if paired.iter().any(|(a, b)| {
+                (*a == source.id || *b == target.id) && (*a != source.id || *b != target.id)
+            }) {
+                return false;
+            }
+            if paired.contains(&(source.id, target.id)) {
+                continue;
+            }
+            if !same_domain_definition(left, source, right, target) {
+                return false;
+            }
+            paired.push((source.id, target.id));
+            let (Some(source_required), Some(target_required)) =
+                (&source.required_memberships, &target.required_memberships)
+            else {
+                return false;
+            };
+            if source_required.len() != target_required.len() {
+                return false;
+            }
+            for required in source_required {
+                let Some(source_parent) = required_domain(left, source, *required) else {
+                    return false;
+                };
+                let mut matches = target_required.iter().filter_map(|required| {
+                    required_domain(right, target, *required).filter(|parent| {
+                        NominalDeclarationIdentity::new(source_parent.identity).same_identity_as(
+                            &left.identities,
+                            &NominalDeclarationIdentity::new(parent.identity),
+                            &right.identities,
+                        )
+                    })
+                });
+                let Some(target_parent) = matches.next() else {
+                    return false;
+                };
+                if matches.next().is_some() {
+                    return false;
+                }
+                pending.push((source_parent, target_parent));
+            }
+        }
+        true
+    }
+
+    fn required_domain<'a>(
+        module: &'a TerminalModule,
+        child: &StructuralDomainDeclaration,
+        domain: semantic_vocabulary::DomainSemanticId,
+    ) -> Option<&'a StructuralDomainDeclaration> {
+        let mut matches = module
+            .structural_domains
+            .iter()
+            .filter(|row| row.semantic_domain == domain && row.carrier == child.carrier);
+        let row = matches.next()?;
+        matches.next().is_none().then_some(row)
+    }
+
+    fn same_domain_definition(
+        left: &TerminalModule,
+        source: &StructuralDomainDeclaration,
+        right: &TerminalModule,
+        target: &StructuralDomainDeclaration,
+    ) -> bool {
+        if source.establishment_routes.is_none() != target.establishment_routes.is_none()
+            || !terminal_semantics::structural_qualifications::same_access_policy(
+                left, source, right, target,
+            )
+        {
+            return false;
+        }
+        let same_name = |a, b| {
+            NominalDeclarationIdentity::new(a).same_identity_as(
+                &left.identities,
+                &NominalDeclarationIdentity::new(b),
+                &right.identities,
+            )
+        };
+        let carrier = |module: &TerminalModule, id| {
+            module
+                .structural_types
+                .iter()
+                .find(|row| row.id == id)
+                .map(|row| row.identity)
+        };
+        if !source.complete_predicate_theory
+            || !target.complete_predicate_theory
+            || !same_name(source.identity, target.identity)
+            || !carrier(left, source.carrier)
+                .zip(carrier(right, target.carrier))
+                .is_some_and(|(a, b)| same_name(a, b))
+            || source.byte_predicate != target.byte_predicate
+            || source
+                .content_projection
+                .as_ref()
+                .map(|row| (&row.algebra, &row.expression))
+                != target
+                    .content_projection
+                    .as_ref()
+                    .map(|row| (&row.algebra, &row.expression))
+        {
+            return false;
+        }
+        match (&source.predicate, &target.predicate) {
+            (Some(a), Some(b))
+                if a.proposition == b.proposition
+                    && terminal_semantics::domain_predicate_observes_no_storage(
+                        left.structural_types.iter(),
+                        source.carrier,
+                        a,
+                    )
+                    && terminal_semantics::domain_predicate_observes_no_storage(
+                        right.structural_types.iter(),
+                        target.carrier,
+                        b,
+                    ) => {}
+            _ => return false,
+        }
+        let routes = |module: &TerminalModule, domain: &StructuralDomainDeclaration| {
+            let mut rows = domain
+                .establishment_routes
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(|route| {
+                    let kind = match route {
+                        StructuralEstablishmentRoute::CheckedRequirement { .. } => 0,
+                        StructuralEstablishmentRoute::ExactMachine { .. } => 1,
+                        StructuralEstablishmentRoute::BoundaryRequirement { .. } => 2,
+                    };
+                    let declaration = route.declaration();
+                    let identity = route.identity();
+                    if module.identities.is_invocation_local(identity)
+                        || module
+                            .identities
+                            .is_invocation_local(declaration.identity())
+                    {
+                        return None;
+                    }
+                    let owner = module
+                        .identities
+                        .text(declaration.identity())
+                        .filter(|name| !name.is_empty())?;
+                    module
+                        .identities
+                        .text(identity)
+                        .filter(|name| !name.is_empty())
+                        .map(|name| (kind, owner.to_owned(), name.to_owned()))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            rows.sort();
+            Some(rows)
+        };
+        routes(left, source)
+            .zip(routes(right, target))
+            .is_some_and(|(a, b)| a == b)
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{DomainSemanticId, MachineId, PlaceId, Proposition};
+        use terminal_psi::{
+            StructuralDomainPredicate, StructuralRecordStorage, StructuralTypeDeclaration,
+            StructuralTypeShape, TerminalIdentityTableBuilder,
+        };
+
+        fn module(
+            domain: u64,
+            carrier: u64,
+            pad_identity: bool,
+            deny_issuance: bool,
+        ) -> TerminalModule {
+            let mut identities = TerminalIdentityTableBuilder::default();
+            if pad_identity {
+                identities.intern("unrelated declaration");
+            }
+            let carrier_identity = identities.intern("test::Cell");
+            let domain_identity = identities.intern("test::Cell::Controlled");
+            let carrier = StructuralTypeId::new(carrier).unwrap();
+            let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+            module.identities = identities.build();
+            module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                id: carrier,
+                identity: carrier_identity,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                shape: StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::Packed,
+                    fields: Vec::new(),
+                },
+            });
+            module.structural_domains.push(StructuralDomainDeclaration {
+                subject_identity: Default::default(),
+                access_policy: None,
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: true,
+                predicate: Some(StructuralDomainPredicate {
+                    subject: PlaceId::new(1).unwrap(),
+                    proposition: Proposition::Truth,
+                }),
+                id: StructuralDomainId::new(domain).unwrap(),
+                semantic_domain: DomainSemanticId::new(domain).unwrap(),
+                identity: domain_identity,
+                carrier,
+                content_projection: None,
+                byte_predicate: None,
+                establishment_routes: deny_issuance.then(Vec::new),
+            });
+            module
+        }
+
+        fn policy_module(carrier: u64, pad: bool, with_cases: bool) -> TerminalModule {
+            use schema_reflection::CaseDescription;
+            use schema_reflection::DeclarationDescription;
+            use schema_reflection::FieldDescription;
+            use schema_reflection::SchemaNode;
+            use schema_reflection::SchemaNodeHandle;
+            use schema_reflection::SchemaQueryAuthority;
+            use schema_reflection::SchemaShape;
+            use schema_reflection::SemanticSchemaGraph;
+            use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
+            use terminal_psi::{
+                BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
+                StructuralFieldType, StructuralPathSegment,
+            };
+            let mut module = module(carrier, carrier, pad, false);
+            let mut identities = std::mem::take(&mut module.identities).into_builder();
+            module.structural_types[0].declaration_identity = identities.intern("test::Cell");
+            module.structural_domains[0].subject_identity = identities.intern("test::Cell");
+            let root = SchemaNodeHandle::from_index(1);
+            let left = SchemaNodeHandle::from_index(2);
+            let right = SchemaNodeHandle::from_index(3);
+            let value = SchemaNodeHandle::from_index(4);
+            let mut nodes = vec![
+                SchemaNode::Invalid,
+                SchemaNode::Declaration(DeclarationDescription {
+                    owner_identity: "test::Cell".into(),
+                    identity_is_hermetic: true,
+                    name: "Cell".into(),
+                    shape: if with_cases {
+                        SchemaShape::Sum
+                    } else {
+                        SchemaShape::Empty
+                    },
+                    supply: "Ordinary".into(),
+                    multiplicity: "Unrestricted".into(),
+                    carry: None,
+                    type_parameters: Vec::new(),
+                    lifetime_parameters: Vec::new(),
+                    application_identity: Some("test::Cell".into()),
+                    members: if with_cases {
+                        vec![left, right]
+                    } else {
+                        Vec::new()
+                    },
+                    retired_identities: Vec::new(),
+                }),
+            ];
+            let region = if with_cases {
+                let case = StructuralCaseId::new(carrier + 1).unwrap();
+                let key = identities.intern("value");
+                module.structural_types[0].shape = StructuralTypeShape::Sum {
+                    cases: vec![
+                        StructuralCaseDeclaration {
+                            declaration_identity: identities.intern("test::Cell::Left"),
+                            id: case,
+                            identity: identities.intern("Left"),
+                            fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: identities.intern("test::Cell::Left::value"),
+                                inline_carrier: None,
+                                id: StructuralFieldId::new(carrier + 3).unwrap(),
+                                identity: key,
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(
+                                    semantic_vocabulary::ScalarType::Boolean,
+                                ),
+                                storage: None,
+                            }],
+                        },
+                        StructuralCaseDeclaration {
+                            declaration_identity: identities.intern("test::Cell::Right"),
+                            id: StructuralCaseId::new(carrier + 2).unwrap(),
+                            identity: identities.intern("Right"),
+                            fields: Vec::new(),
+                        },
+                    ],
+                };
+                nodes.extend([
+                    SchemaNode::Case(CaseDescription {
+                        member_identity: "test::Cell::Left".into(),
+                        name: "Left".into(),
+                        declaration_position: 0,
+                        stable_number: None,
+                        payload_fields: vec![value],
+                        retired_payload_identities: Vec::new(),
+                    }),
+                    SchemaNode::Case(CaseDescription {
+                        member_identity: "test::Cell::Right".into(),
+                        name: "Right".into(),
+                        declaration_position: 1,
+                        stable_number: None,
+                        payload_fields: Vec::new(),
+                        retired_payload_identities: Vec::new(),
+                    }),
+                    SchemaNode::Field(FieldDescription {
+                        member_identity: "test::Cell::Left::value".into(),
+                        name: "value".into(),
+                        declaration_position: 0,
+                        stable_number: None,
+                        erased: false,
+                        qualified_type: "bool".into(),
+                        nominal_references: Vec::new(),
+                        owner_case: left,
+                    }),
+                ]);
+                (
+                    value,
+                    Some(vec![
+                        StructuralPathSegment::Case(case),
+                        StructuralPathSegment::Field(key),
+                    ]),
+                )
+            } else {
+                (root, Some(Vec::new()))
+            };
+            let schema = SemanticSchemaGraph::from_nodes(
+                nodes,
+                root,
+                SchemaQueryAuthority::OwningScope {
+                    requester_identity: "test::Cell::Controlled".into(),
+                },
+            )
+            .unwrap();
+            module.structural_domains[0].access_policy =
+                Some(terminal_psi::StructuralDomainAccessPlan {
+                    schema,
+                    issuance: None,
+                    readers: vec![(region, Vec::new())],
+                    writers: Vec::new(),
+                    observations: Vec::new(),
+                    reach: Default::default(),
+                });
+            module.identities = identities.build();
+            module
+        }
+
+        // Equal definitions use different local numbers. Changing an empty
+        // subject, a case owner or an explicit denial must still change the
+        // admitted policy; a matching name cannot supply missing source data.
+        #[test]
+        fn component_policies_keep_their_actual_source_roots_and_case_fields() {
+            use schema_reflection::SchemaNode;
+            use schema_reflection::SchemaNodeHandle;
+            use schema_reflection::SemanticSchemaGraph;
+            for with_cases in [false, true] {
+                let source = policy_module(1, false, with_cases);
+                let target = policy_module(9, true, with_cases);
+                let compatible = |target: &TerminalModule| {
+                    let source_domain = &source.structural_domains[0];
+                    let target_domain = &target.structural_domains[0];
+                    admit_memberships(
+                        &source,
+                        source_domain.carrier,
+                        &[source_domain.id],
+                        target,
+                        target_domain.carrier,
+                        &[target_domain.id],
+                    )
+                    .is_ok()
+                };
+                assert!(
+                    compatible(&target),
+                    "resolve each module's own case, field and identity numbers"
+                );
+                let change_schema =
+                    |target: &mut TerminalModule, edit: fn(&mut Vec<SchemaNode>)| {
+                        let plan = target.structural_domains[0].access_policy.as_mut().unwrap();
+                        let mut nodes = plan.schema.nodes().to_vec();
+                        edit(&mut nodes);
+                        plan.schema = SemanticSchemaGraph::from_nodes(
+                            nodes,
+                            plan.schema.root(),
+                            plan.schema.authority().clone(),
+                        )
+                        .unwrap();
+                    };
+                let mut unrelated = target.clone();
+                change_schema(&mut unrelated, |nodes| {
+                    let SchemaNode::Declaration(root) = &mut nodes[1] else {
+                        unreachable!()
+                    };
+                    root.owner_identity = "test::Other".into();
+                });
+                assert!(
+                    !compatible(&unrelated),
+                    "even an empty field roster needs its actual nominal root"
+                );
+                let mut application = target.clone();
+                change_schema(&mut application, |nodes| {
+                    let SchemaNode::Declaration(root) = &mut nodes[1] else {
+                        unreachable!()
+                    };
+                    root.application_identity = Some("test::Cell<Other>".into());
+                });
+                assert!(
+                    !compatible(&application),
+                    "the nominal root cannot replace its selected application"
+                );
+                let mut widened = target.clone();
+                widened.structural_domains[0]
+                    .access_policy
+                    .as_mut()
+                    .unwrap()
+                    .readers
+                    .clear();
+                assert!(
+                    !compatible(&widened),
+                    "an absent reader row cannot replace an explicit empty denial"
+                );
+                if with_cases {
+                    let mut wrong_case = target.clone();
+                    change_schema(&mut wrong_case, |nodes| {
+                        let SchemaNode::Case(left) = &mut nodes[2] else {
+                            unreachable!()
+                        };
+                        left.payload_fields.clear();
+                        let SchemaNode::Case(right) = &mut nodes[3] else {
+                            unreachable!()
+                        };
+                        right.payload_fields.push(SchemaNodeHandle::from_index(4));
+                        let SchemaNode::Field(field) = &mut nodes[4] else {
+                            unreachable!()
+                        };
+                        field.owner_case = SchemaNodeHandle::from_index(3);
+                    });
+                    assert!(
+                        !compatible(&wrong_case),
+                        "an existing field cannot borrow another case's source owner"
+                    );
+                    let mut synthetic = target.clone();
+                    synthetic.structural_types[0]
+                        .shape
+                        .fields_mut()
+                        .next()
+                        .unwrap()
+                        .declaration_identity = Default::default();
+                    assert!(
+                        !compatible(&synthetic),
+                        "a matching field key cannot replace its source declaration"
+                    );
+                }
+            }
+        }
+
+        // Provider membership compatibility compares the actual declarations,
+        // including issuer choice, even when each module numbers them differently.
+        #[test]
+        fn component_memberships_distinguish_empty_denial_from_unrestricted_issuance() {
+            for deny in [false, true] {
+                let receiver = module(1, 1, false, deny);
+                let provider = module(7, 9, true, deny);
+                let source = &receiver.structural_domains[0];
+                let target = &provider.structural_domains[0];
+                assert_ne!(source.identity, target.identity);
+                assert_eq!(
+                    admit_memberships(
+                        &receiver,
+                        source.carrier,
+                        &[source.id],
+                        &provider,
+                        target.carrier,
+                        &[target.id]
+                    )
+                    .unwrap(),
+                    [(source.id, target.id)],
+                );
+
+                let mismatched = module(7, 9, true, !deny);
+                let target = &mismatched.structural_domains[0];
+                let reason = admit_memberships(&receiver, source.carrier, &[source.id], &mismatched, target.carrier, &[target.id])
+                    .expect_err("an empty issuer denial cannot substitute for unrestricted issuance in either direction");
+                assert!(reason.contains("membership theories differ"), "{reason}");
+            }
+        }
+    }
+}
+
+pub(crate) mod target_context {
+    use terminal_psi::{TargetMachineCallable, TerminalPsiIdentity};
+
+    /// Bind target-dependent observations to one code artifact. This context
+    /// does not choose a source body or authorize any boundary provider.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TerminalTargetContext {
+        terminal_psi: TerminalPsiIdentity,
+        target: String,
+    }
+
+    impl TerminalTargetContext {
+        pub fn resolve_entry(
+            selected: Option<&Self>,
+            identity: TerminalPsiIdentity,
+            module: &terminal_psi::TerminalModule,
+            root: TargetMachineCallable,
+        ) -> Result<semantic_vocabulary::MachineId, TerminalEntryError> {
+            if selected.is_some_and(|selected| selected.terminal_psi != identity) {
+                return Err(TerminalEntryError::TerminalIdentityMismatch);
+            }
+            let TargetMachineCallable::Machine(machine) = root else {
+                return Err(TerminalEntryError::NonExecutableEntry(root));
+            };
+            if module.machine(machine).is_none() {
+                return Err(TerminalEntryError::MissingMachine(machine));
+            }
+            Ok(machine)
+        }
+
+        pub fn entry(
+            &self,
+            identity: TerminalPsiIdentity,
+            module: &terminal_psi::TerminalModule,
+            root: TargetMachineCallable,
+        ) -> Result<semantic_vocabulary::MachineId, TerminalEntryError> {
+            Self::resolve_entry(Some(self), identity, module, root)
+        }
+
+        pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+            self.terminal_psi
+        }
+
+        pub fn target(&self) -> &str {
+            &self.target
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum TerminalEntryError {
+        TerminalIdentityMismatch,
+        MissingMachine(semantic_vocabulary::MachineId),
+        NonExecutableEntry(TargetMachineCallable),
+    }
+
+    impl std::fmt::Display for TerminalEntryError {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::MissingMachine(machine) => {
+                    write!(formatter, "entry machine {machine:?} is absent")
+                }
+                Self::TerminalIdentityMismatch => {
+                    formatter.write_str("entry context names a different Psi artifact")
+                }
+                Self::NonExecutableEntry(root) => {
+                    write!(formatter, "entry {root:?} is not an executable machine")
+                }
+            }
+        }
+    }
+
+    impl std::error::Error for TerminalEntryError {}
+
+    pub fn terminal_target_context<'code>(
+        artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
+        target: &str,
+    ) -> TerminalTargetContext {
+        let artifact = artifact.into();
+        TerminalTargetContext {
+            terminal_psi: artifact.identity(),
+            target: target.to_owned(),
+        }
+    }
+}

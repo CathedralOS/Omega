@@ -1,0 +1,66 @@
+// Nested domain Nested requires self in Small, and inherited domain Nested::Inherited establishes self < 5, so 5 - held is exact.
+// Expected exit: 0.
+domain u64::Small requires self < 5;
+domain u64::Nested requires self in Small;
+domain u64::Nested::Inherited;
+
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedConsume {
+    machine consume(held: u64 in Nested::Inherited) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Consume satisfies SelectedConsume {
+    machine consume(held: u64 in Nested::Inherited) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     5 - held 
+    }
+}
+
+ArmConsume satisfies SelectedConsume {
+    machine consume(held: u64 in Nested::Inherited) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     5 - held 
+    }
+}
+
+machine main() crashes Trap {
+    let held: u64 in Nested::Inherited = 3;
+    transition SelectedConsume::consume(held) == 2 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

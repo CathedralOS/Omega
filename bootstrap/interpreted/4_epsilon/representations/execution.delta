@@ -1,0 +1,7 @@
+
+; Staging internal failures remain distinct from Epsilon observations.
+(data EpsilonEvaluatorSliceOutcome
+  (EpsilonEvaluatorSliceExit Int Bytes)
+  (EpsilonEvaluatorSliceTrap Int Bytes)
+  (EpsilonEvaluatorSliceRejected EpsilonRejectReason Int)
+  (EpsilonEvaluatorSliceInternal Int))

@@ -1,0 +1,20 @@
+// The buffer starts at an aligned offset in its enclosing record.
+data Word [copy] { value: u64; }
+
+data Receiver [copy] {
+    prefix: u64;
+    bytes: [u8; 8];
+}
+
+machine read_word(receiver: &Receiver) -> u64 {
+    let word: &Word = &receiver.bytes as &Word;
+    word.value
+}
+
+machine main() crashes Trap {
+    let receiver: Receiver = Receiver { prefix: 17, bytes: [42, 0, 0, 0, 0, 0, 0, 0] };
+    let value: u64 = read_word(&receiver);
+    transition value == 42 { true -> done() false -> fail() }
+    machine done() {}
+    machine fail() { crash Trap; }
+}

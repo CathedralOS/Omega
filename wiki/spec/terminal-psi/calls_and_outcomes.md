@@ -359,7 +359,7 @@ companion joins it to CPU/thread preservation, exact stack demand and lease,
 runtime provider, and preservation evidence. Those selections do not enter
 target-neutral Terminal semantics or weaken its frontier.
 
-`Task::request_cancel(@task)` introduces no parked-state exit and retains the external
+`Task::request_cancel(&task)` introduces no parked-state exit and retains the external
 `Task<T>` claim. It changes the eventual ordinary outcome at a checked safe
 point; `Task::finish(move task)` consumes the claim through its explicit owned
 parameter. Crash remains a no-successor outcome.

@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "borrowed_store_call");
+    Build::select_provider<Inspect, WindowsInspect>(builder, windows_x86_64);
+    Build::select_provider<Inspect, LinuxX86Inspect>(builder, linux_x86_64);
+    Build::select_provider<Inspect, MacInspect>(builder, macos_arm64);
+    Build::select_provider<Inspect, LinuxArmInspect>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

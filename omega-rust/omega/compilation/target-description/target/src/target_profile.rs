@@ -1,0 +1,1054 @@
+/*
+We define our canonical deployment-profile catalog (`TargetProfile`), the
+target-owned program-entry slot contracts (`ProgramEntrySlotDeclaration`),
+the bundled hosted-syscall provider catalog (`HostedIntrinsicBundle`), and
+the realized native target triples (`NativeTarget`). Recognition in
+`TargetProfile` is distinct from native realization in `NativeTarget`:
+profiles realized outside this compiler (such as `alpha_bootstrap`) remain
+valid catalog identities while refusing native realization.
+*/
+
+use diagnostics::Diagnostic;
+use sha2::{Digest, Sha256};
+
+pub const CASE_TAG_BYTE_SIZE: u64 = 4;
+pub const CASE_TAG_BYTE_ALIGNMENT: u64 = 4;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Architecture {
+    Aarch64,
+    X86_64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectFormat {
+    Elf,
+    MachO,
+    Coff,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum TargetProfile {
+    LinuxArm64,
+    LinuxX64,
+    MacosArm64,
+    MacosX64,
+    WindowsX64,
+    UefiX64,
+    CrossPlatformCli,
+    LocalUnchecked,
+    AlphaBootstrap,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetProfileIdentity(&'static str);
+
+impl TargetProfileIdentity {
+    pub const fn as_str(self) -> &'static str {
+        self.0
+    }
+}
+
+pub use semantic_vocabulary::{ProgramEntrySchema, ProgramEntryVisibleParameters};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramEntryCallingConvention {
+    MicrosoftX64,
+    Aapcs64,
+    SystemVAMD64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum ProgramEntryPhysicalContractPackage {
+    UefiX64,
+    MacosArm64,
+    MacosX64,
+    LinuxX86_64,
+    LinuxArm64,
+    WindowsX64,
+}
+
+impl ProgramEntryPhysicalContractPackage {
+    pub const fn manifest_identity(self) -> &'static str {
+        match self {
+            Self::UefiX64 => "omega::language::std::targets::uefi_x86_64::entry",
+            Self::MacosArm64 => "omega::language::std::targets::macos_arm64::entry",
+            Self::MacosX64 => "omega::language::std::targets::macos_x86_64::entry",
+            Self::LinuxX86_64 => "omega::language::std::targets::linux_x86_64::entry",
+            Self::LinuxArm64 => "omega::language::std::targets::linux_arm64::entry",
+            Self::WindowsX64 => "omega::language::std::targets::windows_x86_64::entry",
+        }
+    }
+
+    pub const fn package_relative_source(self) -> &'static str {
+        match self {
+            Self::UefiX64 => "targets/uefi_x86_64/entry.omg",
+            Self::MacosArm64 => "targets/macos_arm64/entry.omg",
+            Self::MacosX64 => "targets/macos_x86_64/entry.omg",
+            Self::LinuxX86_64 => "targets/linux_x86_64/entry.omg",
+            Self::LinuxArm64 => "targets/linux_arm64/entry.omg",
+            Self::WindowsX64 => "targets/windows_x86_64/entry.omg",
+        }
+    }
+
+    pub const fn contract_name(self) -> &'static str {
+        match self {
+            Self::UefiX64 => "UEFI",
+            Self::MacosArm64 => "macOS ARM64",
+            Self::MacosX64 => "macOS x86-64",
+            Self::LinuxX86_64 => "Linux x86-64",
+            Self::LinuxArm64 => "Linux ARM64",
+            Self::WindowsX64 => "Windows x86-64",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostedIntrinsicBundle {
+    LinuxArm64,
+    LinuxX64,
+    MacosArm64,
+    MacosX64,
+}
+
+impl HostedIntrinsicBundle {
+    pub const ALL: [Self; 4] = [
+        Self::LinuxArm64,
+        Self::LinuxX64,
+        Self::MacosArm64,
+        Self::MacosX64,
+    ];
+
+    pub const fn target_profile(self) -> TargetProfile {
+        match self {
+            Self::LinuxArm64 => TargetProfile::LinuxArm64,
+            Self::LinuxX64 => TargetProfile::LinuxX64,
+            Self::MacosArm64 => TargetProfile::MacosArm64,
+            Self::MacosX64 => TargetProfile::MacosX64,
+        }
+    }
+
+    pub const fn target_name(self) -> &'static str {
+        self.target_profile().target_name()
+    }
+
+    pub const fn console_source(self) -> &'static str {
+        match self {
+            Self::LinuxArm64 => "targets/linux_arm64/console_impl.omg",
+            Self::LinuxX64 => "targets/linux_x86_64/console_impl.omg",
+            Self::MacosArm64 => "targets/macos_arm64/console_impl.omg",
+            Self::MacosX64 => "targets/macos_x86_64/console_impl.omg",
+        }
+    }
+
+    pub fn from_target_name(target_name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|bundle| bundle.target_name() == target_name)
+    }
+
+    pub fn from_native_target(target: NativeTarget) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|bundle| bundle.target_profile().native_realization() == Some(target))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProgramEntrySlotDeclaration {
+    pub owner: TargetProfile,
+    pub slot_name: &'static str,
+    pub schema: ProgramEntrySchema,
+    pub semantic_arrival_requirement: &'static str, // Stable semantic installation edge; never the platform ABI.
+    pub physical_arrival_requirement: Option<&'static str>, // Target-fixed physical environment arrival.
+    pub physical_contract_package: Option<ProgramEntryPhysicalContractPackage>, // Exact closed toolchain package that owns the physical requirement.
+    pub boundary_schema: Option<&'static str>, // Source boundary schema whose evaluated `Calling<C>` plan owns the physical entry contract.
+    pub physical_calling_convention: Option<ProgramEntryCallingConvention>, // Calling convention for the target-fixed physical arrival.
+    pub semantic_calling_convention: Option<ProgramEntryCallingConvention>, // Private ABI used by the generated bridge to call the selected semantic continuation.
+    pub visible_parameters: ProgramEntryVisibleParameters,
+}
+
+pub struct ProgramEntrySlots;
+
+impl semantic_vocabulary::ProgramEntrySourceCatalog for ProgramEntrySlots {
+    fn source_contract(
+        &self,
+        slot: &str,
+    ) -> Result<semantic_vocabulary::ProgramEntrySourceContract, String> {
+        let (owner, name) = slot.rsplit_once("::").ok_or_else(|| {
+            format!("root slot `{slot}` is not target-qualified; expected `target::ProgramEntry`")
+        })?;
+        let profile = TargetProfile::from_root_slot_owner(owner).map_err(|_| {
+            format!("root slot `{slot}` belongs to unknown target profile `{owner}`")
+        })?;
+        let required = profile.required_root_slot(name).ok_or_else(|| {
+            format!(
+                "target profile `{}` declares no required root slot `{slot}`",
+                profile.target_name()
+            )
+        })?;
+        let slot = required.program_entry().ok_or_else(|| {
+            format!("root slot `{slot}` does not have a supported ProgramEntry signature")
+        })?;
+        Ok(slot.source_contract())
+    }
+}
+
+impl ProgramEntrySlotDeclaration {
+    pub const fn source_contract(self) -> semantic_vocabulary::ProgramEntrySourceContract {
+        semantic_vocabulary::ProgramEntrySourceContract {
+            owner: self.owner.root_slot_owner_name(),
+            slot_name: self.slot_name,
+            schema: self.schema,
+            semantic_arrival_requirement: self.semantic_arrival_requirement,
+            visible_parameters: self.visible_parameters,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetRequiredRootSlotDeclaration {
+    ProgramEntry(ProgramEntrySlotDeclaration),
+}
+
+impl TargetRequiredRootSlotDeclaration {
+    pub const fn owner(self) -> TargetProfile {
+        match self {
+            Self::ProgramEntry(slot) => slot.owner,
+        }
+    }
+
+    pub const fn slot_name(self) -> &'static str {
+        match self {
+            Self::ProgramEntry(slot) => slot.slot_name,
+        }
+    }
+
+    pub const fn program_entry(self) -> Option<ProgramEntrySlotDeclaration> {
+        match self {
+            Self::ProgramEntry(slot) => Some(slot),
+        }
+    }
+}
+
+impl From<ProgramEntrySlotDeclaration> for TargetRequiredRootSlotDeclaration {
+    fn from(slot: ProgramEntrySlotDeclaration) -> Self {
+        Self::ProgramEntry(slot)
+    }
+}
+
+impl TargetProfile {
+    pub fn admit_address_representation(self) -> Result<(), String> {
+        if self.address_model().is_some_and(|model| {
+            model != semantic_vocabulary::IntegerType::supported_address_representation()
+        }) {
+            return Err(format!(
+                "target `{}` address model has no supported Terminal representation",
+                self.target_name()
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn address_model(self) -> Option<semantic_vocabulary::IntegerType> {
+        match self {
+            Self::LinuxArm64
+            | Self::LinuxX64
+            | Self::MacosArm64
+            | Self::MacosX64
+            | Self::WindowsX64
+            | Self::UefiX64 => semantic_vocabulary::IntegerType::address(64).ok(),
+            Self::CrossPlatformCli | Self::LocalUnchecked | Self::AlphaBootstrap => None,
+        }
+    }
+
+    pub const ALL: [Self; 9] = [
+        Self::LinuxArm64,
+        Self::LinuxX64,
+        Self::MacosArm64,
+        Self::MacosX64,
+        Self::WindowsX64,
+        Self::UefiX64,
+        Self::CrossPlatformCli,
+        Self::LocalUnchecked,
+        Self::AlphaBootstrap,
+    ];
+
+    pub const fn identity(self) -> TargetProfileIdentity {
+        TargetProfileIdentity(match self {
+            Self::LinuxArm64 => "omega.target-profile.v1:linux_arm64",
+            Self::LinuxX64 => "omega.target-profile.v1:linux_x86_64",
+            Self::MacosArm64 => "omega.target-profile.v1:macos_arm64",
+            Self::MacosX64 => "omega.target-profile.v1:macos_x86_64",
+            Self::WindowsX64 => "omega.target-profile.v1:windows_x86_64",
+            Self::UefiX64 => "omega.target-profile.v1:uefi_x86_64",
+            Self::CrossPlatformCli => "omega.target-profile.v1:cross_platform_cli",
+            Self::LocalUnchecked => "omega.target-profile.v1:local_unchecked",
+            Self::AlphaBootstrap => "omega.target-profile.v1:alpha_bootstrap",
+        })
+    }
+
+    pub fn host() -> Self {
+        Self::host_if_supported().expect("unsupported host profile for Omega native planning")
+    }
+
+    pub fn host_if_supported() -> Option<Self> {
+        if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+            Some(Self::MacosArm64)
+        } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+            Some(Self::MacosX64)
+        } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+            Some(Self::LinuxArm64)
+        } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+            Some(Self::LinuxX64)
+        } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+            Some(Self::WindowsX64)
+        } else {
+            None
+        }
+    }
+
+    pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
+        let Some(target_name) = target_name else {
+            return Ok(Self::host());
+        };
+        Self::from_canonical_target_name(target_name).map_err(|_| {
+            Diagnostic::error(format!(
+                "unknown target profile `{target_name}`; expected linux_arm64, linux_x86_64, macos_arm64, macos_x86_64, windows_x86_64, uefi_x86_64, cross_platform_cli, local_unchecked, or alpha_bootstrap"
+            ))
+        })
+    }
+
+    pub fn from_canonical_target_name(target_name: &str) -> Result<Self, Diagnostic> {
+        Self::ALL
+            .into_iter()
+            .find(|profile| profile.target_name() == target_name)
+            .ok_or_else(|| {
+                Diagnostic::error(format!("unknown canonical target profile `{target_name}`"))
+            })
+    }
+
+    pub fn from_root_slot_owner(owner: &str) -> Result<Self, Diagnostic> {
+        Self::from_canonical_target_name(owner)
+            .map_err(|_| Diagnostic::error(format!("unknown target root-slot owner `{owner}`")))
+    }
+
+    pub const fn target_name(self) -> &'static str {
+        match self {
+            Self::LinuxArm64 => "linux_arm64",
+            Self::LinuxX64 => "linux_x86_64",
+            Self::MacosArm64 => "macos_arm64",
+            Self::MacosX64 => "macos_x86_64",
+            Self::WindowsX64 => "windows_x86_64",
+            Self::UefiX64 => "uefi_x86_64",
+            Self::CrossPlatformCli => "cross_platform_cli",
+            Self::LocalUnchecked => "local_unchecked",
+            Self::AlphaBootstrap => "alpha_bootstrap",
+        }
+    }
+
+    pub const fn build_case_name(self) -> &'static str {
+        match self {
+            Self::LinuxArm64 => "LinuxArm64",
+            Self::LinuxX64 => "LinuxX86_64",
+            Self::MacosArm64 => "MacosArm64",
+            Self::MacosX64 => "MacosX86_64",
+            Self::WindowsX64 => "WindowsX86_64",
+            Self::UefiX64 => "UefiX86_64",
+            Self::CrossPlatformCli => "CrossPlatformCli",
+            Self::LocalUnchecked => "LocalUnchecked",
+            Self::AlphaBootstrap => "AlphaBootstrap",
+        }
+    }
+
+    pub fn from_build_case_name(case: &str) -> Option<Self> {
+        match case {
+            "LinuxArm64" => Some(Self::LinuxArm64),
+            "LinuxX86_64" => Some(Self::LinuxX64),
+            "MacosArm64" => Some(Self::MacosArm64),
+            "MacosX86_64" => Some(Self::MacosX64),
+            "WindowsX86_64" => Some(Self::WindowsX64),
+            "UefiX86_64" => Some(Self::UefiX64),
+            "CrossPlatformCli" => Some(Self::CrossPlatformCli),
+            "LocalUnchecked" => Some(Self::LocalUnchecked),
+            "AlphaBootstrap" => Some(Self::AlphaBootstrap),
+            _ => None,
+        }
+    }
+
+    pub const fn root_slot_owner_name(self) -> &'static str {
+        match self {
+            Self::LinuxArm64 => "linux_arm64",
+            Self::LinuxX64 => "linux_x86_64",
+            Self::MacosArm64 => "macos_arm64",
+            Self::MacosX64 => "macos_x86_64",
+            Self::WindowsX64 => "windows_x86_64",
+            Self::UefiX64 => "uefi_x86_64",
+            Self::CrossPlatformCli => "cross_platform_cli",
+            Self::LocalUnchecked => "local_unchecked",
+            Self::AlphaBootstrap => "alpha_bootstrap",
+        }
+    }
+
+    pub fn native_realization(self) -> Option<NativeTarget> {
+        match self {
+            Self::AlphaBootstrap => None,
+            profile => Some(profile.native_target()),
+        }
+    }
+
+    pub fn layout_target_facts(self) -> Option<layout_plans::LayoutTargetFacts> {
+        self.address_model()?;
+        let native = self.native_realization()?;
+        Some(layout_plans::LayoutTargetFacts {
+            profile: self.target_name().to_owned(),
+            pointer_size: native.pointer_size as u64,
+            pointer_alignment: native.pointer_alignment as u64,
+            case_tag_size: CASE_TAG_BYTE_SIZE,
+            case_tag_alignment: CASE_TAG_BYTE_ALIGNMENT,
+            little_endian: true,
+        })
+    }
+
+    pub fn native_target(self) -> NativeTarget {
+        match self {
+            Self::LinuxArm64 => NativeTarget::linux_arm64(),
+            Self::LinuxX64 => NativeTarget::linux_x64(),
+            Self::MacosArm64 => NativeTarget::macos_arm64(),
+            Self::MacosX64 => NativeTarget::macos_x64(),
+            Self::WindowsX64 => NativeTarget::windows_x64(),
+            Self::UefiX64 => NativeTarget::uefi_x64(),
+            Self::CrossPlatformCli | Self::LocalUnchecked => NativeTarget::host(),
+            Self::AlphaBootstrap => {
+                unreachable!("alpha_bootstrap has no Rust native realization")
+            }
+        }
+    }
+
+    pub const fn program_entry_slot(self) -> ProgramEntrySlotDeclaration {
+        let (
+            schema,
+            visible_parameters,
+            boundary_schema,
+            physical_arrival_requirement,
+            physical_contract_package,
+            physical_calling_convention,
+            semantic_calling_convention,
+        ) = match self {
+            Self::UefiX64 => (
+                ProgramEntrySchema::ProgramStorageApplication,
+                ProgramEntryVisibleParameters::ImageAndInitialStorage,
+                Some("UefiApplication"),
+                Some("UefiPhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::UefiX64),
+                Some(ProgramEntryCallingConvention::MicrosoftX64),
+                Some(ProgramEntryCallingConvention::MicrosoftX64),
+            ),
+            Self::MacosArm64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("MacosApplication"),
+                Some("MacosArm64PhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::MacosArm64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
+            ),
+            Self::LinuxX64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("LinuxX86_64Application"),
+                Some("LinuxX86_64PhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::LinuxX86_64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
+            ),
+            Self::LinuxArm64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("LinuxArm64Application"),
+                Some("LinuxArm64PhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::LinuxArm64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
+            ),
+            Self::MacosX64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("MacosX64Application"),
+                Some("MacosX64PhysicalEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::MacosX64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
+                Some(ProgramEntryCallingConvention::SystemVAMD64),
+            ),
+            Self::WindowsX64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("WindowsX86_64Application"),
+                Some("WindowsProcessEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::WindowsX64),
+                Some(ProgramEntryCallingConvention::MicrosoftX64),
+                Some(ProgramEntryCallingConvention::MicrosoftX64),
+            ),
+            _ => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+        };
+        ProgramEntrySlotDeclaration {
+            owner: self,
+            slot_name: "ProgramEntry",
+            schema,
+            semantic_arrival_requirement: "ProgramStorageEntry::enter",
+            physical_arrival_requirement,
+            physical_contract_package,
+            boundary_schema,
+            physical_calling_convention,
+            semantic_calling_convention,
+            visible_parameters,
+        }
+    }
+
+    pub fn required_root_slots(
+        self,
+    ) -> impl ExactSizeIterator<Item = TargetRequiredRootSlotDeclaration> {
+        [TargetRequiredRootSlotDeclaration::ProgramEntry(
+            self.program_entry_slot(),
+        )]
+        .into_iter()
+    }
+
+    pub fn required_root_slot(self, slot_name: &str) -> Option<TargetRequiredRootSlotDeclaration> {
+        self.required_root_slots()
+            .find(|slot| slot.slot_name() == slot_name)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeTarget {
+    pub architecture: Architecture,
+    pub object_format: ObjectFormat,
+    pub pointer_size: usize,
+    pub pointer_alignment: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetWireIdentityError {
+    UnknownArchitecture(u8),
+    UnknownObjectFormat(u8),
+    LayoutOverflow,
+}
+
+impl NativeTarget {
+    pub fn identity_bytes(&self) -> [u8; 18] {
+        let mut bytes = [0u8; 18];
+        bytes[0] = match self.architecture {
+            Architecture::Aarch64 => 0,
+            Architecture::X86_64 => 1,
+        };
+        bytes[1] = match self.object_format {
+            ObjectFormat::Elf => 0,
+            ObjectFormat::MachO => 1,
+            ObjectFormat::Coff => 2,
+        };
+        crate::codec_bytes::patch_encoded(&mut bytes, 2, (self.pointer_size as u64).to_le_bytes());
+        crate::codec_bytes::patch_encoded(
+            &mut bytes,
+            10,
+            (self.pointer_alignment as u64).to_le_bytes(),
+        );
+        bytes
+    }
+
+    pub fn wire_identity_bytes(&self) -> [u8; 18] {
+        let mut bytes = [0u8; 18];
+        bytes[0] = match self.architecture {
+            Architecture::Aarch64 => 1,
+            Architecture::X86_64 => 2,
+        };
+        bytes[1] = match self.object_format {
+            ObjectFormat::Elf => 1,
+            ObjectFormat::MachO => 2,
+            ObjectFormat::Coff => 3,
+        };
+        crate::codec_bytes::patch_encoded(&mut bytes, 2, (self.pointer_size as u64).to_le_bytes());
+        crate::codec_bytes::patch_encoded(
+            &mut bytes,
+            10,
+            (self.pointer_alignment as u64).to_le_bytes(),
+        );
+        bytes
+    }
+
+    pub fn from_wire_identity_bytes(encoded: &[u8; 18]) -> Result<Self, TargetWireIdentityError> {
+        let architecture = match encoded[0] {
+            1 => Architecture::Aarch64,
+            2 => Architecture::X86_64,
+            tag => return Err(TargetWireIdentityError::UnknownArchitecture(tag)),
+        };
+        let object_format = match encoded[1] {
+            1 => ObjectFormat::Elf,
+            2 => ObjectFormat::MachO,
+            3 => ObjectFormat::Coff,
+            tag => return Err(TargetWireIdentityError::UnknownObjectFormat(tag)),
+        };
+        let pointer_size = usize::try_from(u64::from_le_bytes(
+            encoded[2..10].try_into().expect("a 64-bit pointer field"),
+        ))
+        .map_err(|_| TargetWireIdentityError::LayoutOverflow)?;
+        let pointer_alignment = usize::try_from(u64::from_le_bytes(
+            encoded[10..18].try_into().expect("a 64-bit pointer field"),
+        ))
+        .map_err(|_| TargetWireIdentityError::LayoutOverflow)?;
+        Ok(Self {
+            architecture,
+            object_format,
+            pointer_size,
+            pointer_alignment,
+        })
+    }
+
+    pub fn encode_identity(&self, hasher: &mut Sha256) {
+        hasher.update(self.identity_bytes());
+    }
+
+    pub fn host() -> Self {
+        Self {
+            architecture: host_architecture(),
+            object_format: host_object_format(),
+            pointer_size: std::mem::size_of::<usize>(),
+            pointer_alignment: std::mem::align_of::<usize>(),
+        }
+    }
+
+    pub fn host_if_supported() -> Option<Self> {
+        TargetProfile::host_if_supported().map(|profile| profile.native_target())
+    }
+
+    pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
+        match target_name {
+            None => Self::host_if_supported().ok_or_else(|| {
+                Diagnostic::error(
+                    "no target profile named and this host has no catalogued Omega \
+                     deployment profile; name an exact target profile explicitly"
+                        .to_owned(),
+                )
+            }),
+            Some(target_name) => match TargetProfile::from_omega_target_name(Some(target_name))? {
+                TargetProfile::AlphaBootstrap => Err(Diagnostic::error(format!(
+                    "native realization for target profile `{target_name}` is not implemented"
+                ))),
+                profile => Ok(profile.native_target()),
+            },
+        }
+    }
+
+    pub fn linux_arm64() -> Self {
+        Self {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Elf,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
+    pub fn linux_x64() -> Self {
+        Self {
+            architecture: Architecture::X86_64,
+            object_format: ObjectFormat::Elf,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
+    pub fn macos_arm64() -> Self {
+        Self {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::MachO,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
+    pub fn macos_x64() -> Self {
+        Self {
+            architecture: Architecture::X86_64,
+            object_format: ObjectFormat::MachO,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
+    pub fn windows_x64() -> Self {
+        Self {
+            architecture: Architecture::X86_64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
+    pub fn uefi_x64() -> Self {
+        Self {
+            architecture: Architecture::X86_64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+}
+
+fn host_architecture() -> Architecture {
+    if cfg!(target_arch = "aarch64") {
+        Architecture::Aarch64
+    } else if cfg!(target_arch = "x86_64") {
+        Architecture::X86_64
+    } else {
+        panic!("unsupported host architecture for Omega native planning")
+    }
+}
+
+fn host_object_format() -> ObjectFormat {
+    if cfg!(target_os = "macos") {
+        ObjectFormat::MachO
+    } else if cfg!(target_os = "windows") {
+        ObjectFormat::Coff
+    } else {
+        ObjectFormat::Elf
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat,
+        ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntryVisibleParameters,
+        TargetProfile, TargetRequiredRootSlotDeclaration, TargetWireIdentityError,
+    };
+
+    macro_rules! eq {
+        ($left:expr => $right:expr) => {
+            assert_eq!($left, $right);
+        };
+    }
+
+    #[test]
+    fn hosted_intrinsic_bundles_round_trip_through_their_target_names() {
+        for bundle in HostedIntrinsicBundle::ALL {
+            let name = bundle.target_name();
+            assert_eq!(HostedIntrinsicBundle::from_target_name(name), Some(bundle));
+            assert_eq!(
+                TargetProfile::from_canonical_target_name(name).ok(),
+                Some(bundle.target_profile())
+            );
+            let prefix = format!("targets/{name}/");
+            assert_eq!(bundle.console_source(), format!("{prefix}console_impl.omg"));
+        }
+    }
+
+    #[test]
+    fn bundled_but_unadmitted_targets_select_no_hosted_intrinsic_bundle() {
+        for unadmitted in [TargetProfile::WindowsX64, TargetProfile::UefiX64] {
+            assert_eq!(
+                HostedIntrinsicBundle::from_target_name(unadmitted.target_name()),
+                None,
+                "{unadmitted:?} must not be admitted by spelling alone"
+            );
+        }
+        eq!(HostedIntrinsicBundle::from_target_name("linux-x86_64") => None);
+    }
+
+    #[test]
+    fn hosted_program_entry_slot_hides_physical_storage_roots() {
+        let slot = TargetProfile::WindowsX64.program_entry_slot();
+        assert_eq!(slot.owner, TargetProfile::WindowsX64);
+        assert_eq!(slot.slot_name, "ProgramEntry");
+        assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
+        eq!(slot.semantic_arrival_requirement => "ProgramStorageEntry::enter");
+        assert_eq!(slot.boundary_schema, Some("WindowsX86_64Application"));
+        eq!(slot.physical_arrival_requirement => Some("WindowsProcessEntry::enter"));
+        assert_eq!(
+            slot.physical_contract_package,
+            Some(ProgramEntryPhysicalContractPackage::WindowsX64)
+        );
+        let physical_package = slot
+            .physical_contract_package
+            .expect("Windows x86-64 must select its closed physical-contract package");
+        assert_eq!(
+            physical_package.manifest_identity(),
+            "omega::language::std::targets::windows_x86_64::entry"
+        );
+        eq!(physical_package.package_relative_source() => "targets/windows_x86_64/entry.omg");
+        assert_eq!(physical_package.contract_name(), "Windows x86-64");
+        assert_eq!(
+            slot.physical_calling_convention,
+            Some(super::ProgramEntryCallingConvention::MicrosoftX64)
+        );
+        assert_eq!(
+            slot.semantic_calling_convention,
+            Some(super::ProgramEntryCallingConvention::MicrosoftX64)
+        );
+        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+    }
+
+    #[test]
+    fn uefi_program_entry_slot_exposes_exact_storage_root_shape() {
+        let slot = TargetProfile::UefiX64.program_entry_slot();
+        assert_eq!(slot.schema, ProgramEntrySchema::ProgramStorageApplication);
+        assert_eq!(slot.boundary_schema, Some("UefiApplication"));
+        eq!(slot.physical_arrival_requirement => Some("UefiPhysicalEntry::enter"));
+        eq!(slot.physical_contract_package => Some(ProgramEntryPhysicalContractPackage::UefiX64));
+        let physical_package = slot
+            .physical_contract_package
+            .expect("UEFI must select its closed physical-contract package");
+        assert_eq!(
+            physical_package.manifest_identity(),
+            "omega::language::std::targets::uefi_x86_64::entry"
+        );
+        eq!(physical_package.package_relative_source() => "targets/uefi_x86_64/entry.omg");
+        assert_eq!(
+            slot.physical_calling_convention,
+            Some(super::ProgramEntryCallingConvention::MicrosoftX64)
+        );
+        assert_eq!(
+            slot.semantic_calling_convention,
+            Some(super::ProgramEntryCallingConvention::MicrosoftX64)
+        );
+        eq!(slot.visible_parameters => ProgramEntryVisibleParameters::ImageAndInitialStorage);
+    }
+
+    #[test]
+    fn retired_cli_aliases_reject_at_every_name_boundary() {
+        for (retired, canonical, profile, identity) in [
+            (
+                "linux_x64",
+                "linux_x86_64",
+                TargetProfile::LinuxX64,
+                "omega.target-profile.v1:linux_x86_64",
+            ),
+            (
+                "windows_x64",
+                "windows_x86_64",
+                TargetProfile::WindowsX64,
+                "omega.target-profile.v1:windows_x86_64",
+            ),
+            (
+                "uefi_x64",
+                "uefi_x86_64",
+                TargetProfile::UefiX64,
+                "omega.target-profile.v1:uefi_x86_64",
+            ),
+        ] {
+            let diagnostic = TargetProfile::from_omega_target_name(Some(retired))
+                .expect_err("retired CLI alias must reject at the request boundary");
+            assert!(
+                diagnostic
+                    .message
+                    .contains(&format!("unknown target profile `{retired}`")),
+                "{diagnostic:?}"
+            );
+            assert!(
+                TargetProfile::from_canonical_target_name(retired).is_err(),
+                "{retired} must stay unknown below the request boundary"
+            );
+            eq!(TargetProfile::from_omega_target_name(Some(canonical)).unwrap() => profile);
+            assert_eq!(profile.target_name(), canonical);
+            assert_eq!(profile.identity().as_str(), identity);
+            eq!(TargetProfile::from_root_slot_owner(canonical).unwrap() => profile);
+            assert!(TargetProfile::from_root_slot_owner(retired).is_err());
+        }
+    }
+
+    #[test]
+    fn required_root_catalog_is_complete_ordered_and_target_owned() {
+        for profile in TargetProfile::ALL {
+            let slots = profile.required_root_slots().collect::<Vec<_>>();
+            assert_eq!(slots.len(), 1);
+            let TargetRequiredRootSlotDeclaration::ProgramEntry(slot) = slots[0];
+            assert_eq!(slot, profile.program_entry_slot());
+            assert_eq!(slot.owner, profile);
+            eq!(profile.required_root_slot("ProgramEntry") => Some(slot.into()));
+            assert_eq!(profile.required_root_slot("NotDeclared"), None);
+        }
+    }
+
+    #[test]
+    fn build_target_cases_round_trip_every_exact_profile() {
+        for profile in TargetProfile::ALL {
+            eq!(TargetProfile::from_build_case_name(profile.build_case_name()) => Some(profile));
+        }
+        assert_eq!(TargetProfile::from_build_case_name("Host"), None);
+        assert_eq!(TargetProfile::from_build_case_name("WindowsX64"), None);
+    }
+
+    #[test]
+    fn alpha_bootstrap_is_an_ordinary_recognized_profile() {
+        let profile = TargetProfile::AlphaBootstrap;
+
+        eq!(TargetProfile::from_root_slot_owner("alpha_bootstrap").unwrap() => profile);
+        eq!(TargetProfile::from_omega_target_name(Some("alpha_bootstrap")).unwrap() => profile);
+        eq!(TargetProfile::from_canonical_target_name("alpha_bootstrap").unwrap() => profile);
+        assert_eq!(profile.target_name(), "alpha_bootstrap");
+        assert_eq!(profile.root_slot_owner_name(), "alpha_bootstrap");
+        eq!(profile.identity().as_str() => "omega.target-profile.v1:alpha_bootstrap");
+        assert_eq!(profile.build_case_name(), "AlphaBootstrap");
+
+        let slot = profile.program_entry_slot();
+        assert_eq!(slot.owner, profile);
+        assert_eq!(slot.slot_name, "ProgramEntry");
+        assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
+        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+        assert_eq!(slot.physical_contract_package, None);
+        eq!(slot.semantic_arrival_requirement => "ProgramStorageEntry::enter");
+        assert_eq!(
+            profile
+                .required_root_slot("ProgramEntry")
+                .map(|slot| slot.slot_name()),
+            Some("ProgramEntry")
+        );
+    }
+
+    #[test]
+    fn alpha_bootstrap_selection_reports_not_implemented() {
+        let diagnostic = NativeTarget::from_omega_target_name(Some("alpha_bootstrap")).unwrap_err();
+        assert_eq!(
+            diagnostic.to_string(),
+            "error: native realization for target profile `alpha_bootstrap` is not implemented"
+        );
+
+        for unknown in [
+            "alpha",
+            "alpha-bootstrap",
+            "alpha_bootstrap_",
+            "alpha_bootstrap::ProgramEntry",
+        ] {
+            assert!(
+                TargetProfile::from_root_slot_owner(unknown).is_err(),
+                "{unknown} must stay an unknown target profile"
+            );
+            assert!(
+                TargetProfile::from_omega_target_name(Some(unknown)).is_err(),
+                "{unknown} must stay an unknown target profile"
+            );
+        }
+    }
+
+    #[test]
+    fn macos_x64_profile_catalogues_the_intel_macos_host() {
+        let profile = TargetProfile::MacosX64;
+        eq!(TargetProfile::ALL.iter().position(|p| *p == profile) => Some(3));
+        eq!(TargetProfile::from_omega_target_name(Some("macos_x86_64")).unwrap() => profile);
+        eq!(TargetProfile::from_canonical_target_name("macos_x86_64").unwrap() => profile);
+        eq!(TargetProfile::from_root_slot_owner("macos_x86_64").unwrap() => profile);
+        eq!(TargetProfile::from_build_case_name("MacosX86_64") => Some(profile));
+        assert_eq!(profile.target_name(), "macos_x86_64");
+        assert_eq!(profile.root_slot_owner_name(), "macos_x86_64");
+        eq!(profile.identity().as_str() => "omega.target-profile.v1:macos_x86_64");
+        assert_eq!(profile.build_case_name(), "MacosX86_64");
+
+        let native = profile.native_target();
+        assert_eq!(native.architecture, super::Architecture::X86_64);
+        assert_eq!(native.object_format, super::ObjectFormat::MachO);
+        assert_eq!(native.pointer_size, 8);
+        assert_eq!(native.pointer_alignment, 8);
+        assert_eq!(profile.native_realization(), Some(native));
+
+        let slot = profile.program_entry_slot();
+        assert_eq!(slot.owner, profile);
+        assert_eq!(slot.slot_name, "ProgramEntry");
+        assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
+        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+        assert_eq!(slot.boundary_schema, Some("MacosX64Application"));
+        eq!(slot.physical_arrival_requirement => Some("MacosX64PhysicalEntry::enter"));
+        eq!(slot.physical_contract_package => Some(ProgramEntryPhysicalContractPackage::MacosX64));
+        let physical_package = slot
+            .physical_contract_package
+            .expect("macOS x86-64 must select its closed physical-contract package");
+        assert_eq!(
+            physical_package.manifest_identity(),
+            "omega::language::std::targets::macos_x86_64::entry"
+        );
+        eq!(physical_package.package_relative_source() => "targets/macos_x86_64/entry.omg");
+        assert_eq!(physical_package.contract_name(), "macOS x86-64");
+        assert_eq!(
+            slot.physical_calling_convention,
+            Some(super::ProgramEntryCallingConvention::SystemVAMD64)
+        );
+        assert_eq!(
+            slot.semantic_calling_convention,
+            Some(super::ProgramEntryCallingConvention::SystemVAMD64)
+        );
+        eq!(slot.semantic_arrival_requirement => "ProgramStorageEntry::enter");
+        assert_eq!(
+            profile
+                .required_root_slot("ProgramEntry")
+                .map(|slot| slot.slot_name()),
+            Some("ProgramEntry")
+        );
+    }
+
+    #[test]
+    fn omitted_target_name_resolves_through_the_catalogued_host_profile() {
+        let resolved = NativeTarget::from_omega_target_name(None);
+        match TargetProfile::host_if_supported() {
+            Some(profile) => {
+                let target = resolved.expect("catalogued host must resolve");
+                assert_eq!(target, profile.native_target());
+                assert_eq!(target, NativeTarget::host());
+                assert_eq!(NativeTarget::host_if_supported(), Some(target));
+            }
+            None => {
+                assert_eq!(NativeTarget::host_if_supported(), None);
+                let diagnostic = resolved.expect_err("uncatalogued host must refuse");
+                assert!(
+                    diagnostic
+                        .to_string()
+                        .contains("no catalogued Omega deployment profile")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn wire_identity_round_trips_through_its_single_table() {
+        for target in [
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::linux_x64(),
+            NativeTarget::macos_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget {
+                architecture: Architecture::Aarch64,
+                object_format: ObjectFormat::Elf,
+                pointer_size: 8,
+                pointer_alignment: 4,
+            },
+        ] {
+            assert_eq!(
+                NativeTarget::from_wire_identity_bytes(&target.wire_identity_bytes()),
+                Ok(target)
+            );
+        }
+        assert_eq!(
+            NativeTarget::from_wire_identity_bytes(&[
+                9, 1, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0,
+            ]),
+            Err(TargetWireIdentityError::UnknownArchitecture(9))
+        );
+        assert_eq!(
+            NativeTarget::from_wire_identity_bytes(&[
+                1, 9, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0,
+            ]),
+            Err(TargetWireIdentityError::UnknownObjectFormat(9))
+        );
+        assert_eq!(
+            NativeTarget::from_wire_identity_bytes(&[0; 18]),
+            Err(TargetWireIdentityError::UnknownArchitecture(0))
+        );
+    }
+}

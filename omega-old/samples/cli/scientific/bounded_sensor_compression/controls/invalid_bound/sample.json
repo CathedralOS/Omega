@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "cannot prove index `16` is within length 16"
-  ]
-}

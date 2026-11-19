@@ -1,0 +1,39 @@
+
+(data EpsilonOptionalPlaceType
+  (NoEpsilonPlaceType)
+  (SomeEpsilonPlaceType EpsilonType))
+
+(data EpsilonExpressionResult
+  (EpsilonValueExpressionResult EpsilonType EpsilonOptionalPlaceType)
+  (EpsilonResultlessExpressionResult)
+  (EpsilonNeverExpressionResult))
+
+(data EpsilonTypedExpression
+  (EpsilonTypedExpressionSyntax EpsilonExpression EpsilonExpressionResult))
+
+(data EpsilonTypedExpressionList
+  (NoEpsilonTypedExpressions)
+  (MoreEpsilonTypedExpressions EpsilonTypedExpression EpsilonTypedExpressionList))
+
+(data EpsilonExpressionResultLookup
+  (NoEpsilonExpressionResult)
+  (OneEpsilonExpressionResult EpsilonExpressionResult))
+
+(data EpsilonLocalBindingTypeLookup
+  (NoEpsilonLocalBindingType)
+  (OneEpsilonLocalBindingType EpsilonType))
+
+(data EpsilonArgumentTypeJoin
+  (EpsilonArgumentsCompatible)
+  (EpsilonArgumentsIncomplete)
+  (EpsilonArgumentsTypeMismatch))
+
+; Grammar-selected expression use is semantic. In particular, a call head,
+; discarded postfix statement, and transition continuation cannot share one
+; Boolean "not a value" bucket: D36 assigns them different callable namespaces
+; and category failures before arity or argument typing.
+(data EpsilonExpressionUse
+  (EpsilonOrdinaryExpressionUse)
+  (EpsilonCallHeadExpressionUse)
+  (EpsilonPostfixStatementExpressionUse Int)
+  (EpsilonTransitionContinuationExpressionUse EpsilonDeclaration Int))

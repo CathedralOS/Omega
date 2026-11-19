@@ -1,5 +1,0 @@
-// Decision 4 holds for a data declaration's `requires` too.
-data Bounded requires self.low <= self.high; {
-    low: u8;
-    high: u8;
-}

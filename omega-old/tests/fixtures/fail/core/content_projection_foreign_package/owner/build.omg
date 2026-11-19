@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "content_qualification_owner");
-}

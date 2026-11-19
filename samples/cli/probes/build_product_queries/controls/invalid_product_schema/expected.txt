@@ -1,0 +1,1 @@
+product schema `kit` names no data declaration in this build occurrence's package

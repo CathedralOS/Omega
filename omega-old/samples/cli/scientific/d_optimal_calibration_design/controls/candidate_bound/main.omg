@@ -1,3 +1,0 @@
-// Intended source-invalid: candidate index 12 exceeds the fixed 12-slot bound.
-data Candidates { settings: [i64 in Wrapping; 12]; }
-machine outside(candidates: &Candidates) -> i64 in Wrapping { candidates.settings[12] }

@@ -1,3 +1,0 @@
-machine f() {
-    _ = Point { .., x: 1 };
-}

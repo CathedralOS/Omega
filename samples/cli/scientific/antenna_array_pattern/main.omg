@@ -1,0 +1,192 @@
+use omega::language::core::ProcessExit;
+use omega::language::core::abs_f64;
+use omega::language::core::max_f64;
+
+// Expected exit: 0.
+// Selector and phase-reduction ladders use explicit exhaustive dispatches.
+// Expected output contains: antenna_array_pattern complete
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
+use domain::array;
+use domain::array::Geometry;
+use domain::array::valid;
+use domain::array::pattern_power;
+use domain::array::amplitude;
+use domain::array::duplicates;
+use data::fixtures;
+use data::fixtures::fixtures_load;
+use data::expected;
+use data::expected::expected_power;
+use data::expected::normalized;
+
+data Main {
+    geometry: Geometry;
+    selection: i32;
+    all: bool;
+    sample: i32;
+    powers: [f64; 9];
+    amplitude: f64;
+    power: f64;
+    normalized: f64;
+    symmetry: f64;
+}
+machine number(main: &mut Main, value: f64) reaches Console {
+    let converted: i32 in Saturating = I32::from_f64(value);
+    let integer: i32 = converted as i32;
+    transition { _ -> digits(main, integer, 1000000000) }
+    machine digits(main: &mut Main, integer: i32, divisor: i32) {
+        Console::write_byte(48 + (integer / divisor) % 10);
+        transition divisor >= 10 { true -> digits(main, integer, divisor / 10) false -> done() }
+    }
+    machine done() { }
+}
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    Console::write_line("antenna_array_pattern scalar far-field u=-1:0.25:1; powers in millionths");
+    let first: ByteRead = block Console::read_byte();
+    transition first {
+        ByteRead::Eof -> suite(main)
+        ByteRead::Byte { value } -> select(main, value)
+    }
+    machine select(main: &mut Main, value: i32) {
+        transition value {
+            10 -> blank_suite(main)
+            97 -> selected_suite(main)
+            _ -> select_digit(main, value)
+        }
+    }
+    machine select_digit(main: &mut Main, value: i32) {
+        transition value >= 48 && value <= 54 { true -> selected(main, value - 48) false -> invalid_input(main) }
+    }
+    machine selected(main: &mut Main, selection: i32) {
+        main.selection = selection;
+        main.all = false;
+        transition { _ -> tail(main) }
+    }
+    machine selected_suite(main: &mut Main) {
+        main.selection = 0; main.all = true;
+        transition { _ -> tail(main) }
+    }
+    machine tail(main: &mut Main) {
+        let tail: ByteRead = block Console::read_byte();
+        transition tail {
+            ByteRead::Eof -> load(main)
+            ByteRead::Byte { value } -> tail_check(main, value)
+        }
+    }
+    machine tail_check(main: &mut Main, value: i32) {
+        transition value == 10 { true -> after_line(main) false -> invalid_input(main) }
+    }
+    machine blank_suite(main: &mut Main) {
+        main.selection = 0; main.all = true;
+        transition { _ -> after_line(main) }
+    }
+    machine after_line(main: &mut Main) {
+        let remaining: ByteRead = block Console::read_byte();
+        transition remaining {
+            ByteRead::Eof -> load(main)
+            ByteRead::Byte { value } -> invalid_input(main)
+        }
+    }
+    machine suite(main: &mut Main) {
+        main.selection = 0; main.all = true;
+        transition { _ -> load(main) }
+    }
+    machine load(main: &mut Main) {
+        fixtures_load(&mut main.geometry, main.selection);
+        let valid: bool = valid(&main.geometry);
+        transition valid { true -> prepare(main) false -> invalid_geometry(main) }
+    }
+    machine prepare(main: &mut Main) {
+        main.amplitude = amplitude(&main.geometry);
+        main.sample = 0;
+        main.symmetry = 0.0;
+        Console::write("case ");
+        Console::write_byte(48 + main.selection % 10);
+        Console::write(" duplicates ");
+        let duplicates: i32 = duplicates(&main.geometry);
+        Console::write_byte(48 + duplicates % 10);
+        Console::write_line("");
+        transition { _ -> sample_guard(main) }
+    }
+    machine sample_guard(main: &mut Main) {
+        transition main.sample >= 0 && main.sample < 9 { true -> calculate(main) false -> symmetry_guard(main, 0) }
+    }
+    machine calculate(main: &mut Main) {
+        let ordinal: f64 = F64::from_i32(main.sample);
+        let direction: f64 = -1.0 + ordinal * 0.25;
+        main.power = pattern_power(&main.geometry, direction);
+        main.powers[main.sample] = main.power;
+        main.normalized = 0.0;
+        transition main.amplitude > 0.0 { true -> normalize(main) false -> verify(main) }
+    }
+    machine normalize(main: &mut Main) {
+        main.normalized = main.power / (main.amplitude * main.amplitude);
+        transition { _ -> verify(main) }
+    }
+    machine verify(main: &mut Main) {
+        let expected_power: f64 = expected_power(main.selection, main.sample);
+        let expected_normalized: f64 = normalized(main.selection, main.sample);
+        let power_error: f64 = abs_f64(main.power - expected_power);
+        let normalized_error: f64 = abs_f64(main.normalized - expected_normalized);
+        transition power_error <= 0.00000002 && normalized_error <= 0.000000002 {
+            true -> report(main)
+            false -> numerical_failure(main)
+        }
+    }
+    machine numerical_failure(main: &mut Main) {
+        Console::write_line("ERROR numeric: frozen raw or normalized tolerance exceeded");
+        ProcessExit::exit_process(66);
+    }
+    machine report(main: &mut Main) {
+        Console::write("sample "); Console::write_byte(48 + main.sample % 10);
+        Console::write(" power ");
+        let mut displayed_power: f64 = main.power * 1000000.0;
+        number(main, displayed_power);
+        Console::write(" normalized ");
+        let mut displayed_normalized: f64 = main.normalized * 1000000.0;
+        number(main, displayed_normalized);
+        transition main.power < 0.0000000001 { true -> null(main) false -> nonnull(main) }
+    }
+    machine null(main: &mut Main) { Console::write_line(" null 1"); transition { _ -> next_sample(main) } }
+    machine nonnull(main: &mut Main) { Console::write_line(" null 0"); transition { _ -> next_sample(main) } }
+    machine next_sample(main: &mut Main) {
+        main.sample = main.sample % 9 + 1;
+        transition { _ -> sample_guard(main) }
+    }
+    machine symmetry_guard(main: &mut Main, index: i32) {
+        transition index >= 0 && index < 4 { true -> symmetry_pair(main, index) false -> diagnostic(main) }
+    }
+    machine symmetry_pair(main: &mut Main, index: i32) {
+        let difference: f64 = abs_f64(main.powers[index] - main.powers[8 - index]);
+        main.symmetry = max_f64(main.symmetry, difference);
+        transition { _ -> symmetry_guard(main, index + 1) }
+    }
+    machine diagnostic(main: &mut Main) {
+        Console::write("symmetry ");
+        let mut displayed_symmetry: f64 = main.symmetry * 1000000.0;
+        number(main, displayed_symmetry);
+        Console::write_line("");
+        transition main.all && main.selection < 4 { true -> next_case(main) false -> complete(main) }
+    }
+    machine next_case(main: &mut Main) {
+        main.selection = main.selection % 5 + 1;
+        transition { _ -> load(main) }
+    }
+    machine complete(main: &mut Main) {
+        Console::write_line("antenna_array_pattern complete"); ProcessExit::exit_process(0);
+    }
+    machine invalid_input(main: &mut Main) {
+        Console::write_line("ERROR input: expected one selector 0..6, a, newline or EOF"); ProcessExit::exit_process(64);
+    }
+    machine invalid_geometry(main: &mut Main) {
+        Console::write_line("ERROR geometry: position outside [-2,2] or weight outside [-2,2]"); ProcessExit::exit_process(65);
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

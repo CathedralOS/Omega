@@ -1,1 +1,0 @@
-scalar constant `GENERATED` is invalid

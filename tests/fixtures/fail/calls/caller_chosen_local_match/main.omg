@@ -1,0 +1,17 @@
+// The second arm has the same bytes, but borrows storage lost on return.
+machine main() crashes Trap {
+    let first: &[u8] = made(true);
+    let second: &[u8] = made(false);
+    transition first == "a" && second == "bb" {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}
+
+machine made(first: bool) -> &[u8] {
+    let bytes: [u8; 2] = [98u8, 98u8];
+    let view: &[u8] = &bytes[..];
+    match first { true -> "a" false -> view }
+}

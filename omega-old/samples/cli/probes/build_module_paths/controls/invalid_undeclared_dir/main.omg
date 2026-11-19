@@ -1,4 +1,0 @@
-use ghost::main;
-machine entry() -> i32 {
-    0
-}

@@ -1,0 +1,20 @@
+; Signatures and applications share the same two-word prefix plus vector shape.
+(def layout_signature ((cursor Int) (end Int)) Int
+  (let header Int (layout_group cursor end 2)
+    (if (lt header 0) header (layout_vector (+ cursor 4) end))))
+
+(def layout_function ((cursor Int) (end Int)) Int
+  (let signature Int (layout_signature cursor end)
+    (if (lt signature 0) signature
+      (let mode_end Int (layout_group signature end 1)
+        (if (lt mode_end 0) mode_end
+          (if (lt (layout_word signature) 2)
+            (let selected Int (layout_group mode_end end 1)
+              (if (lt selected 0) selected (layout_table selected end 2)))
+            (layout_failure signature)))))))
+
+(def layout_clause ((cursor Int) (end Int)) Int
+  (let constructor Int (layout_group cursor end 1)
+    (if (lt constructor 0) constructor
+      (let templates Int (layout_table constructor end 3)
+        (if (lt templates 0) templates (layout_group templates end 1))))))

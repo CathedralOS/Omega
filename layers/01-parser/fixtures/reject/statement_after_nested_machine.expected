@@ -1,4 +1,0 @@
-error StatementAfterMachine at 8:5 bytes 132..138
-  found: second
-  expected: a machine or `}`
-  statements cannot follow a nested machine; move this above the nested declarations

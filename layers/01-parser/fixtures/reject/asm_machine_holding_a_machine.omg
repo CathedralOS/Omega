@@ -1,7 +1,0 @@
-// "Every assembly-bodied declaration spells `asm machine`, including a declaration nested inside another."
-asm machine outer {
-    ret;
-
-    machine inner() {
-    }
-}

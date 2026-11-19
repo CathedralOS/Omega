@@ -1,0 +1,197 @@
+use psi::Checker;
+use psi::Lexer;
+use psi::MachineItem;
+use psi::ModulePath;
+use psi::Parser;
+use psi::Resolver;
+use psi::ScalarLowerer;
+use psi::ScalarStatus;
+use psi::SourceSet;
+use psi::SourceSpan;
+use psi::Typer;
+
+// Compilation consumes an explicit closed source set. Package acquisition and
+// public OCREQ admission are separate owners; neither is inferred from a path
+// or from the spelling of the selected entry. Both the construction application
+// and diagnostic callers use this single semantic pipeline.
+public data CompilationStatus [copy] {
+    case Collecting;
+    case Complete;
+    case Capacity;
+    case Lexical;
+    case Parsing;
+    case Resolution;
+    case Typing;
+    case Checking;
+    case Unsupported;
+    case Entry;
+}
+
+public data Compilation {
+    sources: SourceSet;
+    parser: Parser;
+    output: AlphaEmitter;
+    status: CompilationStatus;
+    diagnostic: SourceSpan;
+}
+
+public machine compilation_clear(compilation: &mut Compilation) {
+    psi::source_set_clear(&mut compilation.sources);
+    psi::parser_initialize(&mut compilation.parser);
+    compilation.output.complete = false;
+    compilation.output.length = 0;
+    compilation.status = CompilationStatus::Collecting;
+}
+
+// One source unit retains its bytes and source identity before parsing appends
+// declarations. A failure is sticky: no later unit or finish call can turn an
+// incomplete source set into a published artifact.
+public machine compilation_add_unit(compilation: &mut Compilation, lexer: &mut Lexer, package: u64 in Trapping, module_path: &ModulePath)
+crashes Trap
+{
+    transition compilation.status {
+        CompilationStatus::Collecting -> verify_identity(compilation, lexer, package, module_path)
+        _ -> done()
+    }
+    machine verify_identity(compilation: &mut Compilation, lexer: &mut Lexer, package: u64 in Trapping, module_path: &ModulePath) {
+        transition (lexer.source.id.value as -Trapping) == compilation.sources.unit_count {
+            true -> retain(compilation, lexer, package, module_path)
+            _ -> invalid(compilation)
+        }
+    }
+    machine retain(compilation: &mut Compilation, lexer: &mut Lexer, package: u64 in Trapping, module_path: &ModulePath) {
+        let added: bool = psi::source_set_add(&mut compilation.sources, &lexer.source, package, module_path);
+        transition added {
+            true -> tokenize(compilation, lexer)
+            _ -> full(compilation)
+        }
+    }
+    machine tokenize(compilation: &mut Compilation, lexer: &mut Lexer) {
+        psi::tokenize(lexer);
+        transition lexer.output.accepted {
+            true -> parse(compilation, lexer)
+            _ -> lexical(compilation, lexer)
+        }
+    }
+    machine parse(compilation: &mut Compilation, lexer: &Lexer) {
+        psi::parse(&mut compilation.parser, lexer.source.id, lexer.source.length as +Trapping, &lexer.output);
+        transition compilation.parser.output.accepted {
+            true -> done()
+            _ -> parsing(compilation)
+        }
+    }
+    machine lexical(compilation: &mut Compilation, lexer: &Lexer) {
+        compilation.status = CompilationStatus::Lexical;
+        compilation.diagnostic = lexer.output.diagnostic.source_span;
+    }
+    machine parsing(compilation: &mut Compilation) {
+        compilation.status = CompilationStatus::Parsing;
+        compilation.diagnostic = compilation.parser.output.diagnostic.source_span;
+    }
+    machine full(compilation: &mut Compilation) { compilation.status = CompilationStatus::Capacity; }
+    machine invalid(compilation: &mut Compilation) { compilation.status = CompilationStatus::Entry; }
+    machine done() {}
+}
+
+// Name selection happens over parsed declaration identities, not a source
+// fingerprint or a test-only fixed name. The supplied unit and name choose
+// exactly one top-level declaration; lowering still checks its entry contract.
+public machine compilation_finish(compilation: &mut Compilation, entry_unit: u32, entry_name: &[u8])
+crashes Trap
+{
+    transition compilation.status {
+        CompilationStatus::Collecting -> find(compilation, entry_unit, entry_name, 0 as u64 +Trapping, 0 as u64 +Trapping, false)
+        _ -> done()
+    }
+    machine find(compilation: &mut Compilation, entry_unit: u32, entry_name: &[u8], index: u64 in Trapping, selected: u64 in Trapping, found: bool) {
+        transition index < compilation.parser.output.machine_count {
+            true -> candidate(compilation, entry_unit, entry_name, index, selected, found)
+            _ -> finish_selection(compilation, selected, found)
+        }
+    }
+    machine candidate(compilation: &mut Compilation, entry_unit: u32, entry_name: &[u8], index: u64 in Trapping, selected: u64 in Trapping, found: bool) {
+        let item: MachineItem = psi::machine_item(&compilation.parser.output, index);
+        let matches: bool = item.parent == 0
+            && (item.source_span.source.value as -Trapping) == entry_unit
+            && psi::span_spells(&compilation.sources, item.name.source_span, entry_name);
+        transition matches {
+            true -> choose(compilation, entry_unit, entry_name, index, found)
+            _ -> find(compilation, entry_unit, entry_name, index + 1, selected, found)
+        }
+    }
+    machine choose(compilation: &mut Compilation, entry_unit: u32, entry_name: &[u8], index: u64 in Trapping, found: bool) {
+        transition found {
+            true -> invalid(compilation)
+            _ -> find(compilation, entry_unit, entry_name, index + 1, index, true)
+        }
+    }
+    machine finish_selection(compilation: &mut Compilation, selected: u64 in Trapping, found: bool) {
+        transition found {
+            true -> resolve(compilation, selected)
+            _ -> invalid(compilation)
+        }
+    }
+    machine resolve(compilation: &mut Compilation, selected: u64 in Trapping) {
+        let mut resolver: Resolver;
+        psi::resolver_initialize(&mut resolver);
+        psi::resolve(&mut resolver, &compilation.sources, &compilation.parser.output);
+        transition resolver.output.accepted {
+            true -> type_check(compilation, selected, &resolver)
+            _ -> resolution_failed(compilation)
+        }
+    }
+    machine type_check(compilation: &mut Compilation, selected: u64 in Trapping, resolver: &Resolver) {
+        let mut typer: Typer;
+        psi::type_check(&mut typer, &compilation.sources, &compilation.parser.output, &resolver.output);
+        transition typer.output.accepted {
+            true -> check(compilation, selected, resolver, &typer)
+            _ -> typing_failed(compilation)
+        }
+    }
+    machine check(compilation: &mut Compilation, selected: u64 in Trapping, resolver: &Resolver, typer: &Typer) {
+        let mut checker: Checker;
+        psi::checker_check(&mut checker, &compilation.parser.output, &resolver.output, &typer.output);
+        transition checker.output.accepted {
+            true -> lower(compilation, selected, resolver, typer, &checker)
+            _ -> checking_failed(compilation)
+        }
+    }
+    machine lower(compilation: &mut Compilation, selected: u64 in Trapping, resolver: &Resolver, typer: &Typer, checker: &Checker) {
+        let mut lowerer: ScalarLowerer;
+        psi::scalar_lower(&mut lowerer, &compilation.parser.output, &resolver.output, &typer.output, &checker.output, selected);
+        transition lowerer.output.status {
+            ScalarStatus::Complete -> emit(compilation, &lowerer)
+            ScalarStatus::Capacity -> full(compilation)
+            _ -> unsupported(compilation)
+        }
+    }
+    machine emit(compilation: &mut Compilation, lowerer: &ScalarLowerer) {
+        alpha_emit(&mut compilation.output, &lowerer.output);
+        transition compilation.output.complete {
+            true -> complete(compilation)
+            _ -> full(compilation)
+        }
+    }
+    machine complete(compilation: &mut Compilation) { compilation.status = CompilationStatus::Complete; }
+    machine full(compilation: &mut Compilation) { compilation.status = CompilationStatus::Capacity; }
+    machine unsupported(compilation: &mut Compilation) { compilation.status = CompilationStatus::Unsupported; }
+    machine invalid(compilation: &mut Compilation) { compilation.status = CompilationStatus::Entry; }
+    machine resolution_failed(compilation: &mut Compilation) { compilation.status = CompilationStatus::Resolution; }
+    machine typing_failed(compilation: &mut Compilation) { compilation.status = CompilationStatus::Typing; }
+    machine checking_failed(compilation: &mut Compilation) { compilation.status = CompilationStatus::Checking; }
+    machine done() {}
+}
+
+public machine compilation_exit_status(compilation: &Compilation) -> i32 {
+    transition compilation.status {
+        CompilationStatus::Complete -> code(0)
+        CompilationStatus::Capacity -> code(252)
+        CompilationStatus::Lexical -> code(251)
+        CompilationStatus::Parsing -> code(250)
+        CompilationStatus::Resolution -> code(248)
+        CompilationStatus::Typing -> code(249)
+        CompilationStatus::Checking -> code(247)
+        _ -> code(246)
+    }
+    machine code(value: i32) -> i32 { value }
+}

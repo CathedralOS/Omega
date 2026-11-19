@@ -1,7 +1,0 @@
-// Intentionally invalid: a ray has exactly two cell lengths; cell index 2
-// must be rejected by the ordinary bounds proof before execution.
-data RayLengths { cells: [f64; 2]; }
-machine main() -> f64 {
-    let ray: RayLengths = RayLengths { cells: [1.0, 2.0] };
-    ray.cells[2]
-}

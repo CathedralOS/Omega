@@ -1,0 +1,58 @@
+[
+  {
+    "id": "dot",
+    "input_hex": "2e",
+    "expected_exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "id": "a_dot",
+    "input_hex": "612e",
+    "expected_exit": 1,
+    "stdout_hex": "41",
+    "stderr_hex": ""
+  },
+  {
+    "id": "hi_dot",
+    "input_hex": "68692e",
+    "expected_exit": 2,
+    "stdout_hex": "4849",
+    "stderr_hex": ""
+  },
+  {
+    "id": "Mix_dot",
+    "input_hex": "4d69782e",
+    "expected_exit": 3,
+    "stdout_hex": "4d4958",
+    "stderr_hex": ""
+  },
+  {
+    "id": "a_space_z_dot",
+    "input_hex": "61207a2e",
+    "expected_exit": 3,
+    "stdout_hex": "41205a",
+    "stderr_hex": ""
+  },
+  {
+    "id": "nul",
+    "input_hex": "00",
+    "expected_exit": 1,
+    "stdout_hex": "00",
+    "stderr_hex": ""
+  },
+  {
+    "id": "ff",
+    "input_hex": "ff",
+    "expected_exit": 1,
+    "stdout_hex": "ff",
+    "stderr_hex": ""
+  },
+  {
+    "id": "empty_eof",
+    "input_hex": "",
+    "expected_exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": ""
+  }
+]

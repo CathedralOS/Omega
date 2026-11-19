@@ -1,0 +1,3 @@
+public machine shared() -> i32 {
+    40
+}

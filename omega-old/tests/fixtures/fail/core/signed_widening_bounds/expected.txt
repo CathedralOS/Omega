@@ -1,1 +1,0 @@
-cannot prove ensures contract for exit from negate_i32_to_i64 at statement 1: result <= 2147483647

@@ -152,8 +152,8 @@ byte counts for the exact selected target and validated layout of `T`. These
 are core names, not keywords, casts, or permission to replace the layout policy.
 
 ```omega
-const descriptor_bytes: u64 = size_of::<CLayout<Descriptor>>();
-const descriptor_alignment: u64 = align_of::<CLayout<Descriptor>>();
+const descriptor_bytes: u64 = size_of<CLayout<Descriptor>>();
+const descriptor_alignment: u64 = align_of<CLayout<Descriptor>>();
 ```
 
 `size_of` requires a fixed complete extent and includes the plan's padding.
@@ -328,7 +328,7 @@ data Descriptor {
   address: u64;
 }
 
-machine consume(descriptor: @CLayout<Descriptor>) {
+machine consume(descriptor: &CLayout<Descriptor>) {
   inspect_descriptor(descriptor);
 }
 ```

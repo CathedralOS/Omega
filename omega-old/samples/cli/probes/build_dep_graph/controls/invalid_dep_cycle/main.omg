@@ -1,5 +1,0 @@
-use a::main;
-
-machine entry() -> i32 {
-    va()
-}

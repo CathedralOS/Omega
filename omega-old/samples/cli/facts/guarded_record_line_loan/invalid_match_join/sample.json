@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "assignment cannot write `application` because it is not mutable in this state"
-  ]
-}

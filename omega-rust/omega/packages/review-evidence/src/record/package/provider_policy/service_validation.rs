@@ -1,0 +1,96 @@
+// Shared complete service-schema validation for inert provider policy components.
+
+use super::PackagePolicyServiceMethod;
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::package::callable_policy::validation::signature::owned_pair;
+use target::TargetProfile;
+
+impl PackagePolicyServiceMethod {
+    pub(crate) fn validate_service_structure(
+        &self,
+        schema: &PackageReviewNominalIdentity,
+        target: TargetProfile,
+    ) -> Result<(), &'static str> {
+        self.validate_signature()?;
+        self.validate_authority()?;
+        owned_pair(&self.requirement_owner, &self.requirement)?;
+        if self.name.is_empty()
+            || self.parameter_count != self.parameter_type_identities.len()
+            || self.parameter_type_identities.iter().any(String::is_empty)
+            || self.has_result != self.result_type_identity.is_some()
+            || self
+                .result_type_identity
+                .as_ref()
+                .is_some_and(String::is_empty)
+            || (!self.has_result
+                && (!self.result_claims.is_empty() || !self.normal_result_memberships.is_empty()))
+            || self
+                .normal_result_memberships
+                .iter()
+                .any(|row| !row.has_exact_identity())
+            || self
+                .normal_result_memberships
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            || self.entry_claims.iter().any(|claim| {
+                claim.parameter_index >= self.parameter_count
+                    || !claim.carrier_identity.is_valid()
+                    || claim.domain.is_empty()
+            })
+        {
+            return Err("provider method has inconsistent identity, signature, or claims");
+        }
+        for (position, calling) in self.calling.iter().enumerate() {
+            if self.calling[..position]
+                .iter()
+                .any(|previous| previous.abi == calling.abi)
+            {
+                return Err("provider method repeats an exact declaration ABI application");
+            }
+            calling.validate_for_service(self)?;
+            if calling.target.profile.backend_profile() != target
+                || calling.boundary_trait != *schema
+                || calling.requirement != self.requirement
+                || calling.requirement_trait != self.requirement_owner
+                || calling.semantic_parameters.len() != self.parameter_count
+            {
+                return Err(
+                    "provider method calling policy is detached from its schema or requirement",
+                );
+            }
+        }
+        for premise in &self.termination_premises {
+            if premise.profile.is_empty()
+                || matches!(premise.subject, effects::provider_plan::ServiceProgressSubject::Parameter(ordinal) if ordinal >= self.parameter_count)
+                || premise
+                    .establishment_routes
+                    .iter()
+                    .any(|route| self.identities.text(route.requirement_identity).is_empty())
+            {
+                return Err("provider progress premise has an invalid subject or route");
+            }
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn validate_service_methods(
+    methods: &[PackagePolicyServiceMethod],
+    schema: &PackageReviewNominalIdentity,
+    target: TargetProfile,
+) -> Result<(), &'static str> {
+    schema.validate_resolved()?;
+    if methods.is_empty() {
+        return Err("service schema has no declared methods");
+    }
+    for (index, method) in methods.iter().enumerate() {
+        method.validate_service_structure(schema, target)?;
+        if methods[..index]
+            .iter()
+            .any(|prior| prior.requirement == method.requirement)
+        {
+            return Err("service schema repeats an exact requirement");
+        }
+    }
+    Ok(())
+}

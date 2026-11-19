@@ -1,0 +1,3 @@
+# Exact whitespace/CRLF input fixtures must survive Git without normalization.
+data/byte_limit.stdin -text -whitespace
+data/byte_boundary.stdin -text -whitespace

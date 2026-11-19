@@ -1,7 +1,0 @@
-[package]
-name = "sci04-terminal-validation"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-sample-runner = { path = "../../sample-runner" }

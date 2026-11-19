@@ -1,0 +1,4 @@
+// Declaring reach cannot override the receiver's refusal of MachineControl.
+machine main() reaches MachineControl {
+    asm { hlt }
+}

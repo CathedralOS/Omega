@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "descriptor_payload_exclusive_loan_through_field_invalid");
-}

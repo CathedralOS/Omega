@@ -1,0 +1,107 @@
+use omega::language::core::ProcessExit;
+// Traffic-light state machine. Combines case members (light phases),
+// [copy] property on a case type, transition dispatch on
+// case values, and scalar counting across multiple machine calls.
+//
+// The light cycles: Red -> Green -> Yellow -> Red.
+// We advance 4 times (Red->Green->Yellow->Red->Green) and check the
+// final phase is Green, counting total advances. Exit 70 encodes success.
+//
+// Expected exit: 70.
+
+use omega_language_std::Console;
+
+// The three traffic-light phases. ZII (zero-initialized) is Red.
+// [copy] is required so Phase can be a field inside a [copy] aggregate.
+data Phase [copy] {
+    case Red;
+    case Green;
+    case Yellow;
+}
+
+// Traffic-light state: current phase + total advance count.
+data Light [copy]
+requires
+    0 <= self.advances && self.advances <= 100
+{
+    phase: Phase;
+    // The owner bound proves the exact increment before its remainder.
+    advances: i32;
+}
+
+data Main {
+    light: Light;
+    pause: [u8; 256];
+}
+
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    Console::write_line("traffic_light: cycles Red -> Green -> Yellow through 4 advances");
+    // Start: Red (zero-initialized), advances = 0.
+    advance(main);  // Red    -> Green,  advances = 1
+    advance(main);  // Green  -> Yellow, advances = 2
+    advance(main);  // Yellow -> Red,    advances = 3
+    advance(main);  // Red    -> Green,  advances = 4
+
+    // After 4 advances the light should be Green and advances == 4.
+    transition main.light.advances == 4 {
+        true -> block check_phase(main)
+        false -> block bad_count(main)
+    }
+
+    machine check_phase(main: &mut Main) {
+        transition main.light.phase {
+            Phase::Green -> block good(main)
+            _ -> block bad_phase(main)
+        }
+    }
+
+    machine good(main: &mut Main) {
+        Console::write_line("PASS: 4 advances landed on Green as expected (exit 70)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(70);
+    }
+
+    machine bad_count(main: &mut Main) {
+        Console::write_line("FAIL: the advance count was not 4 (exit 71)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(71);
+    }
+
+    machine bad_phase(main: &mut Main) {
+        Console::write_line("FAIL: the final phase was not Green (exit 72)");
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(72);
+    }
+}
+
+// Advance the light one phase: Red->Green, Green->Yellow, Yellow->Red.
+machine advance(main: &mut Main) {
+    main.light.advances = (main.light.advances + 1) % 101;
+
+    transition main.light.phase {
+        Phase::Red -> go_green(main)
+        Phase::Green -> go_yellow(main)
+        _ -> go_red(main)
+    }
+
+    machine go_green(main: &mut Main) {
+        main.light.phase = Phase::Green;
+    }
+
+    machine go_yellow(main: &mut Main) {
+        main.light.phase = Phase::Yellow;
+    }
+
+    machine go_red(main: &mut Main) {
+        main.light.phase = Phase::Red;
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

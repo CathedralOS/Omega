@@ -1,0 +1,97 @@
+// Pin the exact object for every handle operation. Length changes use the
+// native end-of-file information class and never seek the shared cursor.
+// Attribute updates resolve a path once, retain unrelated observed attributes,
+// and leave all timestamps unchanged; this is not atomic against another
+// writer changing those same attributes. Capture failure before releasing.
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::narrow_u64_to_i64_wrapping;
+
+machine windows_file_control_completion(status: i32, released: i32) -> i32 {
+    transition status != 0 { true -> (status) false -> (released) }
+}
+
+machine windows_filesystem_native_set_file_length(handle: u64, length: i64) -> i32
+reaches FilesystemContentWrite + FilesystemMetadataMutation {
+    transition length >= 0 {
+        true -> block pin(handle, length)
+        false -> (-87)
+    }
+    machine pin(handle: u64, length: i64) -> i32 {
+        let duplicate: u64 = windows_filesystem_native_duplicate_handle(handle);
+        transition duplicate != 0 { true -> block update(duplicate, length) false -> failed() }
+    }
+    machine failed() -> i32 { windows_filesystem_native_failure_i32() }
+    machine update(duplicate: u64, length: i64) -> i32 {
+        let input: WindowsNativeFileEndOfFileInfo = WindowsNativeFileEndOfFileInfo { length: length };
+        let raw: i64 = narrow_u64_to_i64_wrapping(duplicate);
+        let succeeded: i32 = block WindowsFilesystemFileControlIo::end_of_file(raw, 6, &input, 8);
+        let status: i32 = windows_filesystem_native_completion_status(succeeded);
+        let released: i32 = block windows_filesystem_native_close_handle(duplicate);
+        windows_file_control_completion(status, released)
+    }
+}
+
+machine windows_filesystem_native_set_handle_readonly(handle: u64, readonly: bool) -> i32
+reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
+    let duplicate: u64 = windows_filesystem_native_duplicate_handle(handle);
+    transition duplicate != 0 { true -> block update(duplicate, readonly) false -> failed() }
+    machine failed() -> i32 { windows_filesystem_native_failure_i32() }
+    machine update(duplicate: u64, readonly: bool) -> i32 {
+        block windows_set_readonly_owned(duplicate, readonly)
+    }
+}
+
+machine windows_filesystem_native_set_path_readonly(path: &[u8] in Path, readonly: bool) -> i32
+reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
+    let mut wide: [u16; 4096];
+    let count: i64 = windows_wide_path(path as -Path, &mut wide);
+    wide[4095] = 0;
+    transition count > 0 { true -> block acquire(wide as +WindowsNativePath, readonly) false -> (-87) }
+    machine acquire(wide: [u16; 4096] in WindowsNativePath, readonly: bool) -> i32 {
+        let raw: i64 = block WindowsFilesystemFileControlIo::open_attributes(&wide, 384, 7, 0, 3, 34603008, 0);
+        let handle: u64 = windows_filesystem_native_normalize_handle(raw);
+        transition handle != 0 { true -> block update(handle, readonly) false -> failed() }
+    }
+    machine failed() -> i32 { windows_filesystem_native_failure_i32() }
+    machine update(handle: u64, readonly: bool) -> i32 { block windows_set_readonly_owned(handle, readonly) }
+}
+
+machine windows_set_readonly_owned(handle: u64, readonly: bool) -> i32
+reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
+    let status: i32 = block windows_update_readonly(handle, readonly);
+    let released: i32 = block windows_filesystem_native_close_handle(handle);
+    windows_file_control_completion(status, released)
+}
+
+machine windows_update_readonly(handle: u64, readonly: bool) -> i32
+reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
+    let classified: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(handle);
+    transition (classified as -WindowsDiskFileOrAbsent) != 0 { true -> block query(classified, readonly) false -> failed() }
+    machine failed() -> i32 { windows_filesystem_native_failure_i32() }
+    machine query(handle: i64 in WindowsDiskFileOrAbsent, readonly: bool) -> i32 requires (handle as -WindowsDiskFileOrAbsent) != 0 {
+        let mut current: WindowsNativeFileBasicInfo;
+        let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, &mut current, 40);
+        // The classifier authorizes the typed query. The setter accepts the
+        // ordinary HANDLE contract and reports incompatible objects as errors.
+        transition succeeded != 0 { true -> block select(handle as -WindowsDiskFileOrAbsent, current.attributes, readonly) false -> failed() }
+    }
+    machine select(handle: i64, attributes: u32, readonly: bool) -> i32 {
+        transition readonly {
+            true -> block update(handle, (attributes & 4294967167) | 1)
+            false -> block writable(handle, attributes & 4294967294)
+        }
+    }
+    machine writable(handle: i64, attributes: u32) -> i32 {
+        transition attributes == 0 { true -> block update(handle, 128) false -> block update(handle, attributes) }
+    }
+    machine update(handle: i64, attributes: u32) -> i32 {
+        let input: WindowsNativeFileBasicInfo = WindowsNativeFileBasicInfo {
+            creation_ticks: 0, access_ticks: 0, write_ticks: 0, change_ticks: 0,
+            attributes: attributes, padding: 0
+        };
+        let succeeded: i32 = block WindowsFilesystemFileControlIo::basic(handle, 0, &input, 40);
+        windows_filesystem_native_completion_status(succeeded)
+    }
+}

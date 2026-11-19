@@ -1,7 +1,0 @@
-acoustic thickness echoes: ns / um / m_per_s
-echo 1 primary layer=1 thickness_um=1000
-echo 2 ambiguous paths=2
-echo 3 multiple layer=1 order=3
-echo 4 multiple layer=2 order=2
-echo 5 multiple layer=2 order=3
-complete

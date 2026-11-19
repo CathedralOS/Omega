@@ -1,9 +1,0 @@
-{
-  "source_inputs": [
-    ".gitignore",
-    "README.md",
-    "build.omg",
-    "dependency",
-    "main.omg"
-  ]
-}

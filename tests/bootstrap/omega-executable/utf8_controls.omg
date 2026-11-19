@@ -1,0 +1,51 @@
+// Exercise the exact decode_scalar declaration extracted from compiler source.
+// The bounds bracket UTF-8 scalar widths, overlong forms, surrogates, the
+// Unicode ceiling, truncated input and malformed continuation bytes.
+machine check(a:u8,b:u8,c:u8,d:u8,length:u64,scalar:u32,width:u64,valid:bool)->bool
+requires length <= 4 {
+    let mut unit:SourceUnit;
+    source_unit_append(&mut unit,a);
+    source_unit_append(&mut unit,b);
+    source_unit_append(&mut unit,c);
+    source_unit_append(&mut unit,d);
+    unit.length=length;
+    let value:DecodedScalar=decode_scalar(&unit,0 as +Trapping);
+    let absent:DecodedScalar=decode_scalar(&unit,4294967295 as +Trapping);
+    value.valid==valid && value.scalar==scalar && value.width==width
+        && !absent.valid && absent.scalar==0 && absent.width==0
+}
+machine main()->u8 {
+    transition check(0,0,0,0,1,0,1,true)
+        && check(127,0,0,0,1,127,1,true)
+        && check(194,128,0,0,2,128,2,true)
+        && check(223,191,0,0,2,2047,2,true)
+        && check(224,160,128,0,3,2048,3,true)
+        && check(237,159,191,0,3,55295,3,true)
+        && check(238,128,128,0,3,57344,3,true)
+        && check(239,191,191,0,3,65535,3,true)
+        && check(240,144,128,128,4,65536,4,true)
+        && check(244,143,191,191,4,1114111,4,true)
+        && check(0,0,0,0,0,0,0,false)
+        && check(128,0,0,0,1,0,0,false)
+        && check(192,128,0,0,2,0,0,false)
+        && check(193,191,0,0,2,0,0,false)
+        && check(194,0,0,0,1,0,0,false)
+        && check(194,0,0,0,2,0,0,false)
+        && check(224,160,0,0,2,0,0,false)
+        && check(224,159,191,0,3,0,0,false)
+        && check(237,160,128,0,3,0,0,false)
+        && check(238,0,128,0,3,0,0,false)
+        && check(238,128,0,0,3,0,0,false)
+        && check(240,144,128,0,3,0,0,false)
+        && check(240,143,191,191,4,0,0,false)
+        && check(244,144,128,128,4,0,0,false)
+        && check(245,128,128,128,4,0,0,false)
+        && check(255,0,0,0,1,0,0,false)
+        && check(240,144,0,128,4,0,0,false)
+        && check(240,144,128,0,4,0,0,false) {
+        true -> yes()
+        _ -> no()
+    }
+    machine yes()->u8 {42}
+    machine no()->u8 {1}
+}

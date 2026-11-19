@@ -172,7 +172,7 @@ nor permission to discard. The whole replacement installs tag and payload
 together and preserves neighboring storage.
 
 Whole-value assignment displacing an obligation through an exclusive loan (`referent = value` where
-`referent: @mut T`) is the same window rooted at the loan itself: the move names
+`referent: &mut T`) is the same window rooted at the loan itself: the move names
 no field and an empty path, vacating the whole referent, and the store reseats
 it. Only a mutable-borrowed machine or block parameter opens a root window; an
 owned home's whole value moves by ordinary transfer, and shared or write-only
@@ -189,7 +189,7 @@ overlaps the vacated referent until the repair, and the repair invalidates every
 fact observed beneath the root. A plain sum loan, like a record loan, may join a
 block parameter as its referent's address, so a later state can replace it.
 
-An element of an exclusive element view (`@mut [T]`, a machine or block
+An element of an exclusive element view (`&mut [T]`, a machine or block
 parameter) is a place reached through that view's loan. The view owns none of
 its elements and has no static extent, so the window keeps the view as its root
 and selects the element with a `RuntimeIndex`, a literal selector included,

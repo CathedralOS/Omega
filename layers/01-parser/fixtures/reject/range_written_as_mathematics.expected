@@ -1,4 +1,0 @@
-error ChainedComparison at 3:21 bytes 163..164
-  found: <
-  expected: parentheses around one of the comparisons
-  a comparison cannot be compared again without parentheses; write `(a < b) == c`, or `a < b && b < c` for a range

@@ -1,0 +1,58 @@
+// Every private arrival supplies an integer from 0 through 255, so exact narrowing to u8 preserves its value.
+data Note { value: u8; tag: u64; }
+trait Computer { machine compute(value: i32, select: bool) -> Note; }
+WindowsComputer satisfies Computer {
+    machine compute(value: i32, select: bool) -> Note {
+        transition value >= 0 && value <= 256 { true -> apply(value, select) false -> Note { value: 0, tag: 0 } }
+        machine apply(value: i32, select: bool) -> Note {
+            let result: u8 = value as u8;
+            let tag: u64 = match select { true -> 11, false -> 13 };
+            Note { value: result, tag: tag }
+        }
+    }
+}
+LinuxComputer satisfies Computer {
+    machine compute(value: i32, select: bool) -> Note {
+        transition value >= 0 && value <= 256 { true -> apply(value, select) false -> Note { value: 0, tag: 0 } }
+        machine apply(value: i32, select: bool) -> Note {
+            let result: u8 = value as u8;
+            let tag: u64 = match select { true -> 11, false -> 13 };
+            Note { value: result, tag: tag }
+        }
+    }
+}
+LinuxArmComputer satisfies Computer {
+    machine compute(value: i32, select: bool) -> Note {
+        transition value >= 0 && value <= 256 { true -> apply(value, select) false -> Note { value: 0, tag: 0 } }
+        machine apply(value: i32, select: bool) -> Note {
+            let result: u8 = value as u8;
+            let tag: u64 = match select { true -> 11, false -> 13 };
+            Note { value: result, tag: tag }
+        }
+    }
+}
+MacComputer satisfies Computer {
+    machine compute(value: i32, select: bool) -> Note {
+        transition value >= 0 && value <= 256 { true -> apply(value, select) false -> Note { value: 0, tag: 0 } }
+        machine apply(value: i32, select: bool) -> Note {
+            let result: u8 = value as u8;
+            let tag: u64 = match select { true -> 11, false -> 13 };
+            Note { value: result, tag: tag }
+        }
+    }
+}
+machine journey<Operations satisfies Computer>() crashes Trap {
+    let first: Note = Operations::compute(7, true);
+    let second: Note = Operations::compute(231, false);
+    let zero: Note = Operations::compute(0, true);
+    let maximum: Note = Operations::compute(255, false);
+    let out_of_range: Note = Operations::compute(256, true);
+    transition out_of_range.value == 0 && out_of_range.tag == 0 && first.value == 7 && first.tag == 11 && second.value == 231 && second.tag == 13 && zero.value == 0 && zero.tag == 11 && maximum.value == 255 && maximum.tag == 13 {
+        true -> done() false -> bad()
+    }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}
+machine windows_entry() crashes Trap { journey<WindowsComputer>(); }
+machine linux_entry() crashes Trap { journey<LinuxComputer>(); }
+machine linux_arm_entry() crashes Trap { journey<LinuxArmComputer>(); }
+machine mac_entry() crashes Trap { journey<MacComputer>(); }

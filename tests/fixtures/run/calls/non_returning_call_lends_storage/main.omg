@@ -1,0 +1,16 @@
+use omega::language::core::ProcessExit;
+
+// Expected exit: 0. `finish` never returns: its only path ends the process.
+// The two loans `entry_start` forms for it are carried into that call, each
+// of its own storage, and nothing of `entry_start` runs after it.
+data Main { status: i32; }
+
+machine finish(first: &mut Main, second: &mut Main) reaches ProcessExit {
+    ProcessExit::exit_process(0);
+}
+
+machine entry_start() reaches ProcessExit {
+    let mut first: Main;
+    let mut second: Main;
+    finish(&mut first, &mut second);
+}

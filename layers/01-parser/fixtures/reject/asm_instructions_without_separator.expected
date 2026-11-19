@@ -1,4 +1,0 @@
-error UnexpectedToken at 4:5 bytes 73..80
-  found: syscall
-  expected: `;` or `}`
-  expected `;` or `}`

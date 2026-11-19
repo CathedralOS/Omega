@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_subsystem_call");
-    builder.subsystem = Subsystem::Unspecified(7);
-}

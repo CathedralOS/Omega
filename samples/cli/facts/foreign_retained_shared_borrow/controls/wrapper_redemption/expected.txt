@@ -1,0 +1,2 @@
+callable `Reader::redeem_wrapper` returns content-bearing custody `Buffer::Owned`
+sourced only from borrowed parameter `pending` through a structural field

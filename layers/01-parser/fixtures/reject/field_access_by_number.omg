@@ -1,3 +1,0 @@
-machine f(pair: Pair) {
-    _ = pair.0;
-}

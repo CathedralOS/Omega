@@ -1,0 +1,7 @@
+; Append the checked successor after the established functions 1..24.
+(def beta_counter_definitions () Int
+  (let increment Int (beta_counter_byte_definition 0)
+    (let maximum Int (beta_counter_byte_definition 1)
+      (let choice Int (beta_counter_choice_definition)
+        (let carries Int (beta_counter_carry_definitions 7)
+          (beta_counter_successor_definition))))))

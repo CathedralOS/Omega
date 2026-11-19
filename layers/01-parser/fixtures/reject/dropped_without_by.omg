@@ -1,3 +1,0 @@
-data Lease dropped release {
-    slot: u32;
-}

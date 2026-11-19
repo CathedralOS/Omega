@@ -1,0 +1,32 @@
+// Stable type, callable, trait, conformance, and external-supply signatures.
+
+use super::identity::PackageReviewNominalIdentity;
+
+mod callables;
+mod external_policy;
+pub(crate) mod external_supply;
+mod signature_vocabulary;
+mod traits;
+
+pub(crate) use callables::PackageReviewRequirementRealization;
+
+pub(crate) use external_policy::{
+    PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
+    PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
+    PackagePolicyExternalRequirement,
+};
+
+pub(crate) use external_supply::PackageReviewExternalCallableParameter;
+pub use external_supply::PackageReviewForeignLocator;
+
+pub(crate) use signature_vocabulary::{
+    PackageReviewConformanceBound, PackageReviewPropositionParameterSignature,
+    PackageReviewPropositionParameterValue, PackageReviewSignatureParameter,
+    PackageReviewTypeIdentity,
+};
+
+pub use traits::{
+    PackageReviewBorrowOrigin, PackageReviewParameterQualification,
+    PackageReviewReturnedBorrowOrigin,
+};
+pub(crate) use traits::{PackageReviewTraitCompositionKind, PackageReviewTraitParent};

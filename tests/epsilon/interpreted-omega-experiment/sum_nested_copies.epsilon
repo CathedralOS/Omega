@@ -1,0 +1,27 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Inner { case Value(value: i32); case Empty; }
+data Outer { case Wrapped(value: Inner); case Plain; }
+data Group { values: [Outer; 2]; }
+data Main { console: Console; group: Group; }
+
+machine Main::main(&mut self) {
+  assert read_outer(self.group.values[1]) == 0;
+  self.group.values[0] = Outer::Wrapped(Inner::Value(65));
+  self.group.values[1] = self.group.values[0];
+  self.group.values[0] = Outer::Plain;
+  assert read_outer(self.group.values[0]) == -1;
+  assert read_outer(self.group.values[1]) == 65;
+  self.console.write_byte(read_outer(self.group.values[1]));
+}
+machine read_outer(value: Outer) -> i32 {
+  transition value { Outer::Wrapped{inner} -> return read_inner(inner) Outer::Plain -> return -1 }
+}
+machine read_inner(value: Inner) -> i32 {
+  transition value { Inner::Value{scalar} -> return scalar Inner::Empty -> return -1 }
+}

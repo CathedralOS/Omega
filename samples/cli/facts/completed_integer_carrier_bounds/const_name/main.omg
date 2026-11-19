@@ -1,0 +1,15 @@
+// A completed u8 value keeps 0..255 when widened to i32 and placed in a bounded record.
+// Expected exit: 0.
+data Bound [copy] requires self.value >= 0 && self.value <= 255 { value: i32; }
+const LOW: u8 = 0;
+const HIGH: u8 = 255;
+machine main() crashes Trap {
+    let low: Bound = Bound { value: LOW as i32 };
+    let high: Bound = Bound { value: HIGH as i32 };
+    transition low.value == 0 && high.value == 255 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,3 +1,0 @@
-error MissingExponentDigits at 1:9 bytes 8..11
-  text: 1e+
-  an exponent must have at least one digit

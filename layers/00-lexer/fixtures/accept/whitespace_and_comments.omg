@@ -1,6 +1,0 @@
-// line comment with é and 日本
-x	y // trailing
-/* block */ a /* outer /* inner */ still outer */ b
-/* multi
-   line 日本 */
-/**/ c

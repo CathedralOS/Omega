@@ -1,0 +1,67 @@
+[package]
+name = "native-program-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "native_program_planning"
+path = "src/lib.rs"
+
+[dependencies]
+native-runtime-provisions = { path = "runtime-provisions" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+application-identity = { path = "../../../../psi/compilation/representations/application-identity" }
+arena = { path = "../../../../psi/foundation/arena" }
+artifact-evaluation = { path = "../../../../psi/evaluation/artifact-evaluation" }
+backend-plan = { path = "../../representations/provider-plans" }
+boundary-applications = { path = "../../representations/boundary-applications" }
+build-time-values = { path = "../../../../psi/evaluation/build-time-values" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+component-description = { path = "../../representations/component-description" }
+declaration-contracts = { path = "../../../../psi/compilation/representations/declaration-contracts" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+effects = { path = "../../representations/native-effects" }
+evaluation-accounting = { path = "../../../../psi/evaluation/evaluation-accounting" }
+evaluation-contracts = { path = "../../../../psi/evaluation/evaluation-contracts" }
+evaluation-receipts = { path = "../../../../psi/evaluation/evaluation-receipts" }
+flow-effects = { path = "../../../../psi/compilation/representations/source-effects" }
+function-identity = { path = "../../representations/function-identity" }
+installation-evidence = { path = "../../representations/installation-evidence" }
+language-core = { path = "../../../../psi/compilation/representations/source-vocabulary" }
+layout = { path = "../../target-description/layout" }
+layout-plans = { path = "../../../../psi/compilation/representations/storage-layout" }
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
+native-vocabulary = { path = "../../representations/native-vocabulary" }
+numerics = { path = "../../../../psi/compilation/representations/scalar-values" }
+optimization = { path = "../../../../psi/compilation/representations/optimization-policy" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
+program-entry-plan = { path = "../../representations/program-entry" }
+proof-admission = { path = "../../../../psi/compilation/proof-admission" }
+provider-admission = { path = "../../verification/provider-admission" }
+provider-correspondence = { path = "../../verification/provider-correspondence" }
+runtime-abi = { path = "../../target-description/runtime-abi" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+symbols = { path = "../../../../psi/compilation/representations/declaration-identity" }
+target = { path = "../../target-description/target" }
+target-operations = { path = "../../representations/target-operations" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
+task-plans = { path = "../../representations/task-plans" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
+terminal-interpreter = { path = "../../../../psi/interpreter" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
+wire = { path = "../../../../psi/foundation/wire" }
+
+[dev-dependencies]
+physical-planning = { path = "../04_physical-program-planning", features = ["test-support"] }
+register-environment = { path = "../../target-description/register-environment" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+
+[features]
+test-support = []

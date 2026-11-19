@@ -1,0 +1,7 @@
+`7/2` cannot land implicitly as integer `7` in `u64`
+`9/4` cannot land implicitly as integer `9` in `u64`
+`5/2` cannot land implicitly as integer `5` in `u64`
+`11/2` cannot land implicitly as integer `11` in `u64`
+`13/2` cannot land implicitly as integer `13` in `u64`
+`1/2` cannot land implicitly as integer `2048` in `u64`
+cast the complete anonymous expression with `as`

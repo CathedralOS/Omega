@@ -1,0 +1,16 @@
+// Exact division by a previous pivot of zero is not a Bareiss update.
+
+machine bareiss(diagonal: i64, value: i64, factor: i64, above: i64) -> i64
+requires diagonal >= -12 && diagonal <= 12
+requires value >= -12 && value <= 12
+requires factor >= -12 && factor <= 12
+requires above >= -12 && above <= 12
+{
+    (diagonal * value - factor * above) / 0
+}
+
+data Main { }
+machine Main::main(main: &mut Main) {
+    let reduced: i64 = bareiss(6, 4, 2, 3);
+    transition { _ -> {} }
+}

@@ -1,6 +1,0 @@
-dimensional_stack_audit: profile 1..6, temperature low, temperature high (one integer per line)
-fit_low_um
-5
-fit_high_um
-17
-GUARANTEED

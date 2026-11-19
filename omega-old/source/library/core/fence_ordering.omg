@@ -1,5 +1,0 @@
-public data FenceOrdering [copy] {
-    case Receive;
-    case Publish;
-    case ReceivePublish;
-}

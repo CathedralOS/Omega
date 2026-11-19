@@ -28,7 +28,7 @@ data Command {
     }
 }
 
-machine targets_one_user(op: @Command::Operation) -> bool { ... }
+machine targets_one_user(op: &Command::Operation) -> bool { ... }
 
 let command = Command {
     command_id: 17,
@@ -95,7 +95,7 @@ data Envelope<T> {
     };
 }
 
-let body: Envelope<u32>::Body = Envelope::<u32>::Body::Value { value: 7 };
+let body: Envelope<u32>::Body = Envelope<u32>::Body::Value { value: 7 };
 ```
 
 `Envelope<u32>::Body` and `Envelope<bool>::Body` are distinct types whether or
@@ -111,7 +111,7 @@ data Packet<'a, some S> {
     payload: Payload<S>;
 
     data Payload<U> {
-        value: @'a U;
+        value: &'a U;
     }
 }
 ```
@@ -400,7 +400,7 @@ data Outcome<T, E> {
 
 machine take_value(outcome: Outcome<u32, Never>) -> u32 {
     match outcome {
-        Outcome::Ok { value } -> value,
+        Outcome::Ok { value } -> value
     }
 }
 ```
@@ -452,7 +452,7 @@ conversion; bare `i`/`u` suffixes remain unbounded computational carriers.
 
 ## Quoted bytes
 
-A quoted literal contains bytes, has ordinary shared byte-view type `@[u8]`,
+A quoted literal contains bytes, has ordinary shared byte-view type `&[u8]`,
 and establishes no encoding domain. Its runtime shared view refers to immutable
 image storage, not a invocation-local owner, so the view is valid at whatever
 lifetime its use requires while that image is retained. A machine may return

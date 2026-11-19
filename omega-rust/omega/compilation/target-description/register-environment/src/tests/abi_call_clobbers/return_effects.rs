@@ -1,0 +1,267 @@
+/*
+We verify that the machine-effect catalog declares the exact ABI result-register
+custody, link-register/stack-pointer implicit uses, and return control barriers
+for every selected unit, scalar, float, and aggregate return rule across all
+supported targets, and rejects per-fact corruptions.
+*/
+
+use super::{
+    Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
+    abi_case_context, assert_faulting_trap, assert_storage_free,
+    baseline_target_register_environment, binds_catalog_provenance, convention_for, declared_pairs,
+    encoded_mut, produced_effects, row_and_declaration, scalar_abi_cases, sole_alternative,
+    units_for_names, validate_effects,
+};
+use register_model::RegisterOperandAccess;
+use selected_instructions::MachineEffectCatalogValidationError::InvalidEncodedEffects;
+use selected_instructions::validate_machine_effect_catalog;
+use selected_instructions::{
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEncodedControlEffect,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+};
+
+fn selected_return_rules(
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
+    let keys = environment.selected_keys();
+    std::iter::once((keys.return_i64, MachineSemanticKind::ReturnScalar))
+        .chain(
+            keys.return_float
+                .iter()
+                .map(|key| (*key, MachineSemanticKind::ReturnScalar)),
+        )
+        .chain(std::iter::once((
+            keys.return_unit,
+            MachineSemanticKind::ReturnUnit,
+        )))
+        .chain(
+            keys.return_aggregate
+                .iter()
+                .map(|key| (*key, MachineSemanticKind::ReturnAggregate)),
+        )
+        .collect()
+}
+
+fn expected_result_views(
+    case: ScalarAbiCase,
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+    key: RegisterConstraintKey,
+) -> Vec<&'static str> {
+    let keys = environment.selected_keys();
+    if key == keys.return_i64 {
+        vec![case.integer_results[0]]
+    } else if keys.return_float.contains(&key) {
+        vec![case.float_result]
+    } else if key == keys.return_unit {
+        Vec::new()
+    } else if let Some(ordinal) = keys.return_aggregate.iter().position(|entry| *entry == key) {
+        case.integer_results[..=ordinal].to_vec()
+    } else {
+        panic!("{key:?} is not a selected return rule")
+    }
+}
+
+#[test]
+fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
+    for case in scalar_abi_cases() {
+        let environment = baseline_target_register_environment(case.target).unwrap();
+        let (model, convention, catalog, keys) = abi_case_context(&environment, case);
+        let return_rules = selected_return_rules(&environment);
+        assert!(
+            !return_rules.is_empty(),
+            "{} selects no return rules",
+            case.convention
+        );
+
+        let declared = declared_pairs(&catalog, |declaration| {
+            matches!(
+                declaration.semantic,
+                MachineSemanticKind::ReturnScalar
+                    | MachineSemanticKind::ReturnUnit
+                    | MachineSemanticKind::ReturnAggregate
+            )
+        });
+        assert_eq!(
+            declared,
+            return_rules.iter().copied().collect::<BTreeSet<_>>(),
+            "{}",
+            case.convention
+        );
+
+        binds_catalog_provenance(&catalog, case, &environment, keys);
+
+        for (key, semantic) in &return_rules {
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key, *semantic);
+            assert_eq!(declaration.semantic, *semantic, "{key:?}");
+            assert_eq!(declaration.barrier, MachineBarrier::ControlFlow, "{key:?}");
+            assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");
+            assert_eq!(declaration.cleanup, MachineCleanupEffect::NoneV1, "{key:?}");
+            assert_eq!(declaration.trap, MachineTrapBehavior::NeverV1, "{key:?}");
+            assert_eq!(declaration.memory, MachineMemoryEffect::NoneV1, "{key:?}");
+
+            let expected_views = expected_result_views(case, &environment, *key);
+            assert_eq!(row.operands.len(), expected_views.len(), "{key:?}");
+            for (position, (operand, name)) in
+                row.operands.iter().zip(expected_views.iter()).enumerate()
+            {
+                assert_eq!(operand.operand as usize, position, "{key:?}");
+                assert_eq!(operand.access, RegisterOperandAccess::Use, "{key:?}");
+                assert!(!operand.early_clobber, "{key:?}");
+                assert!(operand.tied_to.is_none(), "{key:?}");
+                let expected = model
+                    .view_named(name)
+                    .unwrap_or_else(|| panic!("ABI matrix names missing view `{name}`"));
+                assert_eq!(operand.fixed_view, Some(expected.id), "{key:?}");
+                assert_eq!(operand.class, expected.class, "{key:?}");
+                assert!(
+                    expected
+                        .units
+                        .iter()
+                        .all(|unit| convention.caller_saved.contains(unit)),
+                    "{key:?} result {name} must travel through a caller-saved view under {}",
+                    convention.name
+                );
+            }
+
+            assert_eq!(
+                row.implicit_uses,
+                units_for_names(model, case.return_uses),
+                "{key:?}"
+            );
+            assert_eq!(
+                row.implicit_defs,
+                units_for_names(model, case.return_defs),
+                "{key:?}"
+            );
+            assert!(
+                row.implicit_uses
+                    .iter()
+                    .chain(&row.implicit_defs)
+                    .all(|unit| !convention.callee_saved.contains(unit)),
+                "{key:?} implicit state must not include callee-saved units"
+            );
+            assert!(row.clobbers.is_empty(), "{key:?}");
+
+            let alternative = sole_alternative(declaration, *semantic, *key);
+            let encoded = &alternative.encoded;
+            assert!(encoded.external_operand_reads.is_empty(), "{key:?}");
+            assert!(encoded.external_operand_writes.is_empty(), "{key:?}");
+            assert!(encoded.implicit_unit_clobbers.is_empty(), "{key:?}");
+            assert!(
+                encoded
+                    .implicit_unit_uses
+                    .iter()
+                    .all(|unit| row.implicit_uses.contains(unit)),
+                "{key:?} encoded uses must stay inside the constraint row"
+            );
+            assert!(
+                encoded
+                    .implicit_unit_defs
+                    .iter()
+                    .all(|unit| row.implicit_defs.contains(unit)),
+                "{key:?} encoded defs must stay inside the constraint row"
+            );
+            assert_faulting_trap(encoded, *key);
+            match case.target.architecture {
+                Architecture::X86_64 => {
+                    let stack_pointer = model.view_named("rsp").unwrap();
+                    assert_eq!(encoded.implicit_unit_uses, stack_pointer.units, "{key:?}");
+                    assert_eq!(
+                        encoded.implicit_unit_defs,
+                        units_for_names(model, &["rsp", "rip"]),
+                        "{key:?}"
+                    );
+                    assert_eq!(
+                        encoded.memory,
+                        MachineEncodedMemoryEffect::ReadActivationStackV1 {
+                            stack_pointer: stack_pointer.id,
+                            byte_count: 8,
+                        },
+                        "{key:?}"
+                    );
+                    assert_eq!(
+                        encoded.stack,
+                        MachineEncodedStackEffect::PopBytesV1 {
+                            stack_pointer: stack_pointer.id,
+                            byte_count: 8,
+                        },
+                        "{key:?}"
+                    );
+                    assert_eq!(
+                        encoded.control,
+                        MachineEncodedControlEffect::ReturnFromActivationStackV1,
+                        "{key:?}"
+                    );
+                    assert_eq!(
+                        alternative.size,
+                        MachineSizeKnowledge::ExactBytes(1),
+                        "{key:?}"
+                    );
+                }
+                Architecture::Aarch64 => {
+                    let link = model.view_named("x30").unwrap();
+                    let program_counter = model.view_named("pc").unwrap();
+                    assert_eq!(encoded.implicit_unit_uses, link.units, "{key:?}");
+                    assert_eq!(encoded.implicit_unit_defs, program_counter.units, "{key:?}");
+                    assert_storage_free(encoded, *key);
+                    assert_eq!(
+                        encoded.control,
+                        MachineEncodedControlEffect::ReturnIndirectRegisterV1 { target: link.id },
+                        "{key:?}"
+                    );
+                    assert_eq!(
+                        alternative.size,
+                        MachineSizeKnowledge::ExactBytes(4),
+                        "{key:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
+    for case in scalar_abi_cases() {
+        let environment = baseline_target_register_environment(case.target).unwrap();
+        let convention = convention_for(case, environment.physical());
+        let catalog = produced_effects(case, environment.constraints());
+        for (key, semantic) in selected_return_rules(&environment) {
+            let mut corrupted = catalog.clone();
+            encoded_mut(&mut corrupted, key, semantic, 0).control =
+                MachineEncodedControlEffect::FallThroughV1;
+            assert_eq!(
+                validate_machine_effect_catalog(environment.constraints(), corrupted),
+                Err(InvalidEncodedEffects(semantic)),
+                "{key:?} fall-through return must reject"
+            );
+
+            let mut corrupted = catalog.clone();
+            let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
+            assert!(
+                !encoded.implicit_unit_uses.is_empty(),
+                "{key:?} declares no return-address use"
+            );
+            encoded.implicit_unit_uses.remove(0);
+            assert_eq!(
+                validate_effects(case, environment.constraints(), corrupted),
+                Err(EffectRejection::Structural(InvalidEncodedEffects(semantic))),
+                "{key:?} lost return-address use must reject"
+            );
+
+            let mut corrupted = catalog.clone();
+            let row = environment.constraint(key).unwrap();
+            assert!(row.clobbers.is_empty(), "{key:?}");
+            let preserved = convention.callee_saved[0];
+            encoded_mut(&mut corrupted, key, semantic, 0)
+                .implicit_unit_clobbers
+                .push(preserved);
+            assert_eq!(
+                validate_machine_effect_catalog(environment.constraints(), corrupted),
+                Err(InvalidEncodedEffects(semantic)),
+                "{key:?} forged callee-saved clobber must reject"
+            );
+        }
+    }
+}

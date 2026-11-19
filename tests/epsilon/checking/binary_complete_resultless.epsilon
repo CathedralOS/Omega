@@ -1,0 +1,12 @@
+boundary trait Console {
+  machine exit_process(code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+data Main { console: Console; }
+machine Main::main(&mut self) {}
+machine write() {}
+machine probe() {
+  let result: i32 = "A" + write();
+}

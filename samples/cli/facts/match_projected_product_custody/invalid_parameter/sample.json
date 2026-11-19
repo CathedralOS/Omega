@@ -1,0 +1,9 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "cannot use `result`",
+    "after `result` was transferred or consumed",
+    "holds no value"
+  ]
+}

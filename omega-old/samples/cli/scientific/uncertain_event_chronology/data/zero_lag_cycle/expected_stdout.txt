@@ -1,4 +1,0 @@
-feasible count=30
-event 0 range=3..5
-event 1 range=3..5
-event 2 range=0..9

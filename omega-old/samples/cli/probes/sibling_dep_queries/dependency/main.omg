@@ -1,3 +1,0 @@
-use value;
-public machine launch() { }
-machine unused() -> u64 ensures result == 3 { 3 }

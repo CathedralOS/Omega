@@ -1,0 +1,158 @@
+// Fixed Microsoft x64 calls with up to four scalar or sized-reference formals.
+// Stack arguments, narrow register scalars and callbacks require a richer policy.
+WindowsX64ScalarCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan = windows_x64_call_entry();
+        let accepted: bool = windows_x64_scalar_signature(&signature, &mut plan);
+        transition accepted {
+            true -> BoundaryPlanResult::Accepted { plan: plan }
+            _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
+                reason: "expected at most four 32/64-bit integer or sized-reference parameters, Unit or 32/64-bit integer result, and no callbacks" as +Utf8
+            } }
+        }
+    }
+}
+
+machine windows_x64_scalar_signature(signature: &BoundarySignature,
+    plan: &mut BoundaryEntryPlan) -> bool {
+    transition signature.parameter_count == signature.native_parameter_count
+        && signature.parameter_count <= 4 && signature.callback_binder_count == 0
+        && signature.callback_demand_count == 0 {
+        true -> completion(signature, plan)
+        _ -> false
+    }
+    machine completion(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool
+    requires signature.parameter_count <= 4 {
+        plan.call.parameter_count = signature.parameter_count;
+        transition signature.has_result {
+            true -> result_index(signature, plan)
+            _ -> windows_x64_scalar_parameters(signature, plan, 0, 4)
+        }
+    }
+    machine result_index(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool {
+        transition signature.result < signature.shape_count && signature.result < 256 {
+            true -> result_shape(signature, plan, &signature.shapes[signature.result])
+            _ -> false
+        }
+    }
+    machine result_shape(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        shape: &ValueShape) -> bool {
+        transition shape.class {
+            ValueClass::Integer -> result_integer(signature, plan, shape)
+            _ -> false
+        }
+    }
+    machine result_integer(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        shape: &ValueShape) -> bool {
+        transition (shape.byte_size == 4 || shape.byte_size == 8) && shape.alignment == shape.byte_size {
+            true -> result_place(signature, plan, shape)
+            _ -> false
+        }
+    }
+    machine result_place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        shape: &ValueShape) -> bool {
+        plan.call.has_result = true;
+        plan.call.result = windows_x64_register_place(shape.byte_size, MachineRegister::X86Rax);
+        windows_x64_scalar_parameters(signature, plan, 0, 4)
+    }
+}
+
+machine windows_x64_scalar_parameters(signature: &BoundarySignature,
+    plan: &mut BoundaryEntryPlan, ordinal: u64, remaining: u64) -> bool
+terminates by remaining {
+    transition {
+        ordinal == signature.parameter_count -> true
+        ordinal < signature.parameter_count && ordinal < 4 && remaining > 0 ->
+            root(signature, plan, ordinal, remaining, signature.parameters[ordinal])
+        _ -> false
+    }
+    machine root(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        ordinal: u64, remaining: u64, root: u64) -> bool
+    requires ordinal < 4, remaining > 0 {
+        transition root < signature.shape_count && root < 256 {
+            true -> shape(signature, plan, ordinal, remaining, &signature.shapes[root])
+            _ -> false
+        }
+    }
+    machine shape(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        ordinal: u64, remaining: u64, shape: &ValueShape) -> bool
+    requires ordinal < 4, remaining > 0 {
+        transition shape.class {
+            ValueClass::Integer -> integer(signature, plan, ordinal, remaining, shape)
+            ValueClass::Reference -> reference(signature, plan, ordinal, remaining, shape)
+            _ -> false
+        }
+    }
+    machine integer(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        ordinal: u64, remaining: u64, shape: &ValueShape) -> bool
+    requires ordinal < 4, remaining > 0 {
+        transition (shape.byte_size == 4 || shape.byte_size == 8) && shape.alignment == shape.byte_size {
+            true -> place(signature, plan, ordinal, remaining, shape.byte_size)
+            _ -> false
+        }
+    }
+    machine reference(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        ordinal: u64, remaining: u64, shape: &ValueShape) -> bool
+    requires ordinal < 4, remaining > 0 {
+        transition shape.byte_size == 8 && shape.alignment == 8 {
+            true -> place(signature, plan, ordinal, remaining, 8)
+            _ -> false
+        }
+    }
+    machine place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+        ordinal: u64, remaining: u64, bytes: u64) -> bool
+    requires ordinal < 4, remaining > 0 {
+        plan.call.parameters[ordinal] = windows_x64_register_place(bytes,
+            windows_x64_scalar_argument_register(ordinal));
+        windows_x64_scalar_parameters(signature, plan, ordinal + 1, remaining - 1)
+    }
+}
+
+machine windows_x64_scalar_argument_register(ordinal: u64) -> MachineRegister
+requires ordinal < 4 {
+    transition ordinal {
+        0 -> MachineRegister::X86Rcx
+        1 -> MachineRegister::X86Rdx
+        2 -> MachineRegister::X86R8
+        _ -> MachineRegister::X86R9
+    }
+}
+
+machine windows_x64_call_entry() -> BoundaryEntryPlan {
+    let mut plan: BoundaryEntryPlan;
+    plan.call.convention = CallingConvention::MicrosoftX64;
+    plan.call.stack_alignment = 16;
+    plan.call.shadow_bytes = 32;
+    plan.call.entry_control = EntryControl::CallReturn;
+    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 5 };
+    plan.call.ordinary_clobbers.register_count = 13;
+    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.vector_registers = true;
+    plan.state.permitted_transitive_use.flags = true;
+    plan.state.stack = EntryStack::ProviderSelected;
+    plan.state.preemption = Preemption::NotApplicable;
+    plan
+}
+
+machine windows_x64_register_place(bytes: u64, register: MachineRegister) -> ValuePlacement {
+    let mut place: ValuePlacement;
+    place.shape = AbiValueShape { class: AbiValueClass::Integer, byte_size: bytes, alignment: bytes };
+    place.location_count = 1;
+    place.locations[0] = ValueLocation::Register {
+        register: register, value_byte_offset: 0, byte_size: bytes
+    };
+    place
+}

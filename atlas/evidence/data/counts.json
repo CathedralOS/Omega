@@ -1,0 +1,1114 @@
+{
+ "groups": {
+  "backend": {
+   "all_rs_lines": 223507,
+   "package_count": 29,
+   "packages": [
+    "backend-plan",
+    "bound-installations",
+    "boundary-applications",
+    "calling-conventions",
+    "component-description",
+    "effects",
+    "encoded-scalar-plan",
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "installation-evidence",
+    "isa-aarch64",
+    "isa-conformance",
+    "isa-x86_64",
+    "layout",
+    "machine-emission",
+    "native-artifact",
+    "normalized-foreign-call-plan",
+    "object-file",
+    "post-handoff-writer-plan",
+    "program-entry-plan",
+    "register-environment",
+    "register-model",
+    "runtime-abi",
+    "target",
+    "task-plans",
+    "x86_64-encoding"
+   ],
+   "rust_files": 238,
+   "src_rs_lines": 221538
+  },
+  "foundation": {
+   "all_rs_lines": 96223,
+   "package_count": 26,
+   "packages": [
+    "access-plans",
+    "arena",
+    "artifacts",
+    "bounded-process",
+    "build-time-values",
+    "compiler-storage",
+    "compiler-storage-derive",
+    "diagnostics",
+    "evaluation-accounting",
+    "execution-admission",
+    "extents",
+    "filesystem-authority",
+    "flow-effects",
+    "function-identity",
+    "language-core",
+    "language-semantics",
+    "layout-plans",
+    "mutation-matrix",
+    "numerics",
+    "optimization",
+    "optimization-core",
+    "platform-custody",
+    "semantic-vocabulary",
+    "source",
+    "source-audit",
+    "symbols"
+   ],
+   "rust_files": 181,
+   "src_rs_lines": 95832
+  },
+  "omega_foundation": {
+   "all_rs_lines": 11283,
+   "package_count": 5,
+   "packages": [
+    "artifacts",
+    "bounded-process",
+    "function-identity",
+    "optimization-core",
+    "platform-custody"
+   ],
+   "rust_files": 94,
+   "src_rs_lines": 11283
+  },
+  "psi_foundation": {
+   "all_rs_lines": 84940,
+   "package_count": 21,
+   "packages": [
+    "access-plans",
+    "arena",
+    "build-time-values",
+    "compiler-storage",
+    "compiler-storage-derive",
+    "diagnostics",
+    "evaluation-accounting",
+    "execution-admission",
+    "extents",
+    "filesystem-authority",
+    "flow-effects",
+    "language-core",
+    "language-semantics",
+    "layout-plans",
+    "mutation-matrix",
+    "numerics",
+    "optimization",
+    "semantic-vocabulary",
+    "source",
+    "source-audit",
+    "symbols"
+   ],
+   "rust_files": 87,
+   "src_rs_lines": 84549
+  },
+  "realization": {
+   "all_rs_lines": 36409,
+   "package_count": 5,
+   "packages": [
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "selected-dispatch",
+    "trust-model"
+   ],
+   "rust_files": 88,
+   "src_rs_lines": 36409
+  },
+  "workspace": {
+   "all_rs_lines": 1625887,
+   "package_count": 139,
+   "packages": [
+    "abstract-operations",
+    "abstract-operations-to-abstract-operations",
+    "abstract-operations-to-target-operations",
+    "access-plans",
+    "advection-terminal-validation",
+    "arena",
+    "artifacts",
+    "backend-plan",
+    "bound-installations",
+    "boundary-applications",
+    "bounded-process",
+    "build-declarations",
+    "build-output",
+    "build-settings",
+    "build-time-evaluation",
+    "build-time-values",
+    "calling-conventions",
+    "compiler",
+    "compiler-storage",
+    "compiler-storage-derive",
+    "component-description",
+    "diagnostics",
+    "effects",
+    "encoded-scalar-plan",
+    "evaluation-accounting",
+    "execution-admission",
+    "extents",
+    "filesystem-authority",
+    "flow-effects",
+    "function-identity",
+    "hmm-terminal-validation",
+    "image",
+    "image-elf",
+    "image-emission",
+    "image-macho",
+    "image-pe",
+    "ind11-terminal-validation",
+    "ind19-spectrum-validation",
+    "installation-evidence",
+    "isa-aarch64",
+    "isa-conformance",
+    "isa-x86_64",
+    "laminate-stiffness-response-validation",
+    "language-core",
+    "language-semantics",
+    "layered-seismic-refraction-validation",
+    "layout",
+    "layout-plans",
+    "legalized-operations",
+    "machine-code",
+    "machine-emission",
+    "molecular-pair-distribution-validation",
+    "mutation-matrix",
+    "native-artifact",
+    "native-compiler",
+    "native-preparation",
+    "native-provider-runtime",
+    "native-vocabulary",
+    "new031-terminal-validation",
+    "new087-terminal-validation",
+    "normalized-foreign-call-plan",
+    "numerics",
+    "object-file",
+    "omega",
+    "omega-bench",
+    "optimization",
+    "optimization-core",
+    "optimization-unit",
+    "optimization-unit-semantics",
+    "orchestration",
+    "package-compilation",
+    "package-manager",
+    "platform-custody",
+    "post-allocation-machine",
+    "post-allocation-machine-to-selected-form-encoding",
+    "post-handoff-writer-plan",
+    "products",
+    "program-entry-plan",
+    "proof-admission",
+    "provider-admission",
+    "provider-planning",
+    "provider-selection",
+    "register-environment",
+    "register-homes",
+    "register-homes-to-post-allocation-machine",
+    "register-model",
+    "resolved-layout-to-resolved-layout",
+    "resolver-execution",
+    "review-evidence",
+    "runtime-abi",
+    "sample-runner",
+    "sci04-terminal-validation",
+    "selected-dispatch",
+    "selected-form-encoding-to-resolved-layout",
+    "selected-instruction-analyses",
+    "selected-instructions",
+    "selected-instructions-to-register-homes",
+    "selected-instructions-to-selected-instructions",
+    "semantic-vocabulary",
+    "source",
+    "source-acquisition",
+    "source-audit",
+    "source-compiler",
+    "source-files-to-tokens",
+    "spectral-power-validation",
+    "symbol-resolved-trees",
+    "symbol-resolved-trees-to-typed-trees",
+    "symbols",
+    "syntax-trees",
+    "syntax-trees-derive",
+    "syntax-trees-to-symbol-resolved-trees",
+    "target",
+    "target-operations",
+    "target-operations-to-selected-instructions",
+    "target-vocabulary",
+    "task-plans",
+    "terminal-check-tables",
+    "terminal-codec",
+    "terminal-installation",
+    "terminal-interpreter",
+    "terminal-production",
+    "terminal-psi",
+    "terminal-psi-to-abstract-operations",
+    "terminal-psi-to-terminal-psi",
+    "terminal-runtime",
+    "terminal-semantics",
+    "terminal-wire",
+    "terminal-work",
+    "thin-film-reflectometry-validation",
+    "tokens",
+    "tokens-to-syntax-trees",
+    "trust-model",
+    "typed-trees",
+    "typed-trees-to-terminal-psi",
+    "typed-trees-to-typed-trees",
+    "verified-optimization-input",
+    "wavelet-transient-validation",
+    "x86_64-encoding",
+    "xtask"
+   ],
+   "rust_files": 2312,
+   "src_rs_lines": 1569201
+  }
+ },
+ "packages": {
+  "abstract-operations": {
+   "all_rs_lines": 3500,
+   "path": "omega-rust/omega/compilation/representations/abstract-operations",
+   "rust_files": 9,
+   "src_rs_lines": 3500
+  },
+  "abstract-operations-to-abstract-operations": {
+   "all_rs_lines": 22320,
+   "path": "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations",
+   "rust_files": 19,
+   "src_rs_lines": 22320
+  },
+  "abstract-operations-to-target-operations": {
+   "all_rs_lines": 24047,
+   "path": "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
+   "rust_files": 14,
+   "src_rs_lines": 24047
+  },
+  "access-plans": {
+   "all_rs_lines": 5790,
+   "path": "omega-rust/psi/foundation/access-plans",
+   "rust_files": 6,
+   "src_rs_lines": 5790
+  },
+  "advection-terminal-validation": {
+   "all_rs_lines": 16,
+   "path": "samples/cli/scientific/conservative_advection/validation",
+   "rust_files": 1,
+   "src_rs_lines": 16
+  },
+  "arena": {
+   "all_rs_lines": 8402,
+   "path": "omega-rust/psi/foundation/arena",
+   "rust_files": 6,
+   "src_rs_lines": 8402
+  },
+  "artifacts": {
+   "all_rs_lines": 345,
+   "path": "omega-rust/omega/foundation/artifacts",
+   "rust_files": 3,
+   "src_rs_lines": 345
+  },
+  "backend-plan": {
+   "all_rs_lines": 2726,
+   "path": "omega-rust/omega/compilation/backend/plans/backend-plan",
+   "rust_files": 6,
+   "src_rs_lines": 2726
+  },
+  "bound-installations": {
+   "all_rs_lines": 348,
+   "path": "omega-rust/omega/compilation/backend/runtime/bound-installations",
+   "rust_files": 1,
+   "src_rs_lines": 348
+  },
+  "boundary-applications": {
+   "all_rs_lines": 1350,
+   "path": "omega-rust/omega/compilation/backend/artifacts/boundary-applications",
+   "rust_files": 6,
+   "src_rs_lines": 1350
+  },
+  "bounded-process": {
+   "all_rs_lines": 3823,
+   "path": "omega-rust/omega/foundation/bounded-process",
+   "rust_files": 27,
+   "src_rs_lines": 3823
+  },
+  "build-declarations": {
+   "all_rs_lines": 2598,
+   "path": "omega-rust/omega/packages/build-declarations",
+   "rust_files": 11,
+   "src_rs_lines": 2598
+  },
+  "build-output": {
+   "all_rs_lines": 2190,
+   "path": "omega-rust/omega/packages/build-output",
+   "rust_files": 10,
+   "src_rs_lines": 2190
+  },
+  "build-settings": {
+   "all_rs_lines": 7775,
+   "path": "omega-rust/omega/build-system/build-settings",
+   "rust_files": 27,
+   "src_rs_lines": 7775
+  },
+  "build-time-evaluation": {
+   "all_rs_lines": 22060,
+   "path": "omega-rust/psi/compilation/build-time-evaluation",
+   "rust_files": 30,
+   "src_rs_lines": 22060
+  },
+  "build-time-values": {
+   "all_rs_lines": 91,
+   "path": "omega-rust/psi/foundation/build-time-values",
+   "rust_files": 1,
+   "src_rs_lines": 91
+  },
+  "calling-conventions": {
+   "all_rs_lines": 11063,
+   "path": "omega-rust/omega/compilation/backend/calling-conventions",
+   "rust_files": 24,
+   "src_rs_lines": 11063
+  },
+  "compiler": {
+   "all_rs_lines": 39129,
+   "path": "omega-rust/omega/compilation/compiler",
+   "rust_files": 89,
+   "src_rs_lines": 7895
+  },
+  "compiler-storage": {
+   "all_rs_lines": 1599,
+   "path": "omega-rust/psi/foundation/compiler-storage",
+   "rust_files": 2,
+   "src_rs_lines": 1599
+  },
+  "compiler-storage-derive": {
+   "all_rs_lines": 168,
+   "path": "omega-rust/psi/foundation/compiler-storage/derive",
+   "rust_files": 1,
+   "src_rs_lines": 168
+  },
+  "component-description": {
+   "all_rs_lines": 2542,
+   "path": "omega-rust/omega/compilation/backend/artifacts/component-description",
+   "rust_files": 3,
+   "src_rs_lines": 2542
+  },
+  "diagnostics": {
+   "all_rs_lines": 598,
+   "path": "omega-rust/psi/foundation/diagnostics",
+   "rust_files": 1,
+   "src_rs_lines": 598
+  },
+  "effects": {
+   "all_rs_lines": 7782,
+   "path": "omega-rust/omega/compilation/backend/plans/effects",
+   "rust_files": 14,
+   "src_rs_lines": 7782
+  },
+  "encoded-scalar-plan": {
+   "all_rs_lines": 324,
+   "path": "omega-rust/omega/compilation/backend/plans/encoded-scalar-plan",
+   "rust_files": 2,
+   "src_rs_lines": 324
+  },
+  "evaluation-accounting": {
+   "all_rs_lines": 1499,
+   "path": "omega-rust/psi/foundation/evaluation-accounting",
+   "rust_files": 4,
+   "src_rs_lines": 1108
+  },
+  "execution-admission": {
+   "all_rs_lines": 138,
+   "path": "omega-rust/psi/foundation/execution-admission",
+   "rust_files": 1,
+   "src_rs_lines": 138
+  },
+  "extents": {
+   "all_rs_lines": 4915,
+   "path": "omega-rust/psi/foundation/extents",
+   "rust_files": 4,
+   "src_rs_lines": 4915
+  },
+  "filesystem-authority": {
+   "all_rs_lines": 2670,
+   "path": "omega-rust/psi/foundation/filesystem-authority",
+   "rust_files": 4,
+   "src_rs_lines": 2670
+  },
+  "flow-effects": {
+   "all_rs_lines": 1132,
+   "path": "omega-rust/psi/foundation/flow-effects",
+   "rust_files": 2,
+   "src_rs_lines": 1132
+  },
+  "function-identity": {
+   "all_rs_lines": 151,
+   "path": "omega-rust/omega/foundation/function-identity",
+   "rust_files": 2,
+   "src_rs_lines": 151
+  },
+  "hmm-terminal-validation": {
+   "all_rs_lines": 24,
+   "path": "samples/cli/scientific/hidden_markov_inference/validation/terminal-driver",
+   "rust_files": 1,
+   "src_rs_lines": 24
+  },
+  "image": {
+   "all_rs_lines": 5281,
+   "path": "omega-rust/omega/compilation/backend/images/image",
+   "rust_files": 10,
+   "src_rs_lines": 3619
+  },
+  "image-elf": {
+   "all_rs_lines": 22191,
+   "path": "omega-rust/omega/compilation/backend/images/image-elf",
+   "rust_files": 11,
+   "src_rs_lines": 22191
+  },
+  "image-emission": {
+   "all_rs_lines": 43553,
+   "path": "omega-rust/omega/compilation/backend/images/image-emission",
+   "rust_files": 12,
+   "src_rs_lines": 43553
+  },
+  "image-macho": {
+   "all_rs_lines": 4710,
+   "path": "omega-rust/omega/compilation/backend/images/image-macho",
+   "rust_files": 5,
+   "src_rs_lines": 4710
+  },
+  "image-pe": {
+   "all_rs_lines": 1904,
+   "path": "omega-rust/omega/compilation/backend/images/image-pe",
+   "rust_files": 5,
+   "src_rs_lines": 1904
+  },
+  "ind11-terminal-validation": {
+   "all_rs_lines": 92,
+   "path": "samples/cli/scientific/pareto_experiment_selection/validation",
+   "rust_files": 2,
+   "src_rs_lines": 25
+  },
+  "ind19-spectrum-validation": {
+   "all_rs_lines": 273,
+   "path": "samples/cli/scientific/spectrometer_attribution",
+   "rust_files": 1,
+   "src_rs_lines": 0
+  },
+  "installation-evidence": {
+   "all_rs_lines": 357,
+   "path": "omega-rust/omega/compilation/backend/runtime/installation-evidence",
+   "rust_files": 2,
+   "src_rs_lines": 357
+  },
+  "isa-aarch64": {
+   "all_rs_lines": 25746,
+   "path": "omega-rust/omega/compilation/backend/isa/isa-aarch64",
+   "rust_files": 12,
+   "src_rs_lines": 25746
+  },
+  "isa-conformance": {
+   "all_rs_lines": 579,
+   "path": "omega-rust/omega/compilation/backend/isa/isa-conformance",
+   "rust_files": 4,
+   "src_rs_lines": 579
+  },
+  "isa-x86_64": {
+   "all_rs_lines": 32987,
+   "path": "omega-rust/omega/compilation/backend/isa/isa-x86_64",
+   "rust_files": 10,
+   "src_rs_lines": 32987
+  },
+  "laminate-stiffness-response-validation": {
+   "all_rs_lines": 16,
+   "path": "samples/cli/scientific/laminate_stiffness_response/validation",
+   "rust_files": 1,
+   "src_rs_lines": 0
+  },
+  "language-core": {
+   "all_rs_lines": 6175,
+   "path": "omega-rust/psi/foundation/language-core",
+   "rust_files": 7,
+   "src_rs_lines": 6175
+  },
+  "language-semantics": {
+   "all_rs_lines": 11821,
+   "path": "omega-rust/psi/foundation/language-semantics",
+   "rust_files": 10,
+   "src_rs_lines": 11821
+  },
+  "layered-seismic-refraction-validation": {
+   "all_rs_lines": 16,
+   "path": "samples/cli/scientific/layered_seismic_refraction/validation",
+   "rust_files": 1,
+   "src_rs_lines": 0
+  },
+  "layout": {
+   "all_rs_lines": 1934,
+   "path": "omega-rust/omega/compilation/backend/layout",
+   "rust_files": 3,
+   "src_rs_lines": 1934
+  },
+  "layout-plans": {
+   "all_rs_lines": 8205,
+   "path": "omega-rust/psi/foundation/layout-plans",
+   "rust_files": 5,
+   "src_rs_lines": 8205
+  },
+  "legalized-operations": {
+   "all_rs_lines": 9842,
+   "path": "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+   "rust_files": 13,
+   "src_rs_lines": 9842
+  },
+  "machine-code": {
+   "all_rs_lines": 6209,
+   "path": "omega-rust/omega/compilation/representations/machine-code",
+   "rust_files": 15,
+   "src_rs_lines": 6209
+  },
+  "machine-emission": {
+   "all_rs_lines": 17781,
+   "path": "omega-rust/omega/compilation/backend/machine-emission",
+   "rust_files": 14,
+   "src_rs_lines": 17474
+  },
+  "molecular-pair-distribution-validation": {
+   "all_rs_lines": 16,
+   "path": "samples/cli/scientific/molecular_pair_distribution/validation",
+   "rust_files": 1,
+   "src_rs_lines": 0
+  },
+  "mutation-matrix": {
+   "all_rs_lines": 113,
+   "path": "omega-rust/psi/foundation/mutation-matrix",
+   "rust_files": 1,
+   "src_rs_lines": 113
+  },
+  "native-artifact": {
+   "all_rs_lines": 16394,
+   "path": "omega-rust/omega/compilation/backend/artifacts/native-artifact",
+   "rust_files": 28,
+   "src_rs_lines": 16394
+  },
+  "native-compiler": {
+   "all_rs_lines": 4106,
+   "path": "omega-rust/omega/compilation/native-compiler",
+   "rust_files": 18,
+   "src_rs_lines": 3929
+  },
+  "native-preparation": {
+   "all_rs_lines": 36640,
+   "path": "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation",
+   "rust_files": 15,
+   "src_rs_lines": 36640
+  },
+  "native-provider-runtime": {
+   "all_rs_lines": 4739,
+   "path": "omega-rust/omega/interpreter/native-provider-runtime",
+   "rust_files": 13,
+   "src_rs_lines": 4739
+  },
+  "native-vocabulary": {
+   "all_rs_lines": 2728,
+   "path": "omega-rust/omega/compilation/representations/native-vocabulary",
+   "rust_files": 16,
+   "src_rs_lines": 2728
+  },
+  "new031-terminal-validation": {
+   "all_rs_lines": 24,
+   "path": "samples/cli/scientific/nonlinear_diode_sweep/validation/terminal-driver",
+   "rust_files": 1,
+   "src_rs_lines": 24
+  },
+  "new087-terminal-validation": {
+   "all_rs_lines": 139,
+   "path": "samples/cli/scientific/travel_time_tomography/validation/terminal",
+   "rust_files": 1,
+   "src_rs_lines": 0
+  },
+  "normalized-foreign-call-plan": {
+   "all_rs_lines": 1202,
+   "path": "omega-rust/omega/compilation/backend/plans/normalized-foreign-call-plan",
+   "rust_files": 2,
+   "src_rs_lines": 1202
+  },
+  "numerics": {
+   "all_rs_lines": 6799,
+   "path": "omega-rust/psi/foundation/numerics",
+   "rust_files": 5,
+   "src_rs_lines": 6799
+  },
+  "object-file": {
+   "all_rs_lines": 3552,
+   "path": "omega-rust/omega/compilation/backend/object-file",
+   "rust_files": 8,
+   "src_rs_lines": 3552
+  },
+  "omega": {
+   "all_rs_lines": 8977,
+   "path": "omega-rust/omega/application",
+   "rust_files": 64,
+   "src_rs_lines": 4473
+  },
+  "omega-bench": {
+   "all_rs_lines": 6555,
+   "path": "tools/benchmark",
+   "rust_files": 25,
+   "src_rs_lines": 4458
+  },
+  "optimization": {
+   "all_rs_lines": 437,
+   "path": "omega-rust/psi/foundation/optimization",
+   "rust_files": 1,
+   "src_rs_lines": 437
+  },
+  "optimization-core": {
+   "all_rs_lines": 5818,
+   "path": "omega-rust/omega/foundation/optimization-core",
+   "rust_files": 55,
+   "src_rs_lines": 5818
+  },
+  "optimization-unit": {
+   "all_rs_lines": 14754,
+   "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit",
+   "rust_files": 13,
+   "src_rs_lines": 14754
+  },
+  "optimization-unit-semantics": {
+   "all_rs_lines": 45568,
+   "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics",
+   "rust_files": 10,
+   "src_rs_lines": 45568
+  },
+  "orchestration": {
+   "all_rs_lines": 7632,
+   "path": "omega-rust/omega/build-system/orchestration",
+   "rust_files": 27,
+   "src_rs_lines": 5501
+  },
+  "package-compilation": {
+   "all_rs_lines": 19727,
+   "path": "omega-rust/omega/packages/package-compilation",
+   "rust_files": 71,
+   "src_rs_lines": 19475
+  },
+  "package-manager": {
+   "all_rs_lines": 27188,
+   "path": "omega-rust/omega/packages/package-manager",
+   "rust_files": 142,
+   "src_rs_lines": 27188
+  },
+  "platform-custody": {
+   "all_rs_lines": 1146,
+   "path": "omega-rust/omega/foundation/platform-custody",
+   "rust_files": 7,
+   "src_rs_lines": 1146
+  },
+  "post-allocation-machine": {
+   "all_rs_lines": 3119,
+   "path": "omega-rust/omega/compilation/representations/post-allocation-machine",
+   "rust_files": 11,
+   "src_rs_lines": 3119
+  },
+  "post-allocation-machine-to-selected-form-encoding": {
+   "all_rs_lines": 4534,
+   "path": "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+   "rust_files": 4,
+   "src_rs_lines": 4534
+  },
+  "post-handoff-writer-plan": {
+   "all_rs_lines": 960,
+   "path": "omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan",
+   "rust_files": 2,
+   "src_rs_lines": 960
+  },
+  "products": {
+   "all_rs_lines": 4607,
+   "path": "omega-rust/omega/compilation/products",
+   "rust_files": 17,
+   "src_rs_lines": 4607
+  },
+  "program-entry-plan": {
+   "all_rs_lines": 1300,
+   "path": "omega-rust/omega/compilation/backend/plans/program-entry-plan",
+   "rust_files": 4,
+   "src_rs_lines": 1300
+  },
+  "proof-admission": {
+   "all_rs_lines": 60947,
+   "path": "omega-rust/psi/compilation/proof-admission",
+   "rust_files": 41,
+   "src_rs_lines": 52388
+  },
+  "provider-admission": {
+   "all_rs_lines": 26491,
+   "path": "omega-rust/omega/compilation/realization/provider-admission",
+   "rust_files": 47,
+   "src_rs_lines": 26491
+  },
+  "provider-planning": {
+   "all_rs_lines": 7231,
+   "path": "omega-rust/omega/compilation/realization/provider-planning",
+   "rust_files": 25,
+   "src_rs_lines": 7231
+  },
+  "provider-selection": {
+   "all_rs_lines": 1874,
+   "path": "omega-rust/omega/compilation/realization/provider-selection",
+   "rust_files": 9,
+   "src_rs_lines": 1874
+  },
+  "register-environment": {
+   "all_rs_lines": 5171,
+   "path": "omega-rust/omega/compilation/backend/register-environment",
+   "rust_files": 13,
+   "src_rs_lines": 5171
+  },
+  "register-homes": {
+   "all_rs_lines": 15819,
+   "path": "omega-rust/omega/compilation/representations/register-homes",
+   "rust_files": 15,
+   "src_rs_lines": 15819
+  },
+  "register-homes-to-post-allocation-machine": {
+   "all_rs_lines": 2052,
+   "path": "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+   "rust_files": 3,
+   "src_rs_lines": 2052
+  },
+  "register-model": {
+   "all_rs_lines": 3514,
+   "path": "omega-rust/omega/compilation/backend/register-model",
+   "rust_files": 10,
+   "src_rs_lines": 3514
+  },
+  "resolved-layout-to-resolved-layout": {
+   "all_rs_lines": 1945,
+   "path": "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+   "rust_files": 2,
+   "src_rs_lines": 1945
+  },
+  "resolver-execution": {
+   "all_rs_lines": 466,
+   "path": "omega-rust/omega/packages/resolver-execution",
+   "rust_files": 6,
+   "src_rs_lines": 466
+  },
+  "review-evidence": {
+   "all_rs_lines": 26459,
+   "path": "omega-rust/omega/packages/review-evidence",
+   "rust_files": 230,
+   "src_rs_lines": 26459
+  },
+  "runtime-abi": {
+   "all_rs_lines": 2356,
+   "path": "omega-rust/omega/compilation/backend/runtime/runtime-abi",
+   "rust_files": 11,
+   "src_rs_lines": 2356
+  },
+  "sample-runner": {
+   "all_rs_lines": 1060,
+   "path": "samples/cli/scientific/sample-runner",
+   "rust_files": 1,
+   "src_rs_lines": 1060
+  },
+  "sci04-terminal-validation": {
+   "all_rs_lines": 25,
+   "path": "samples/cli/scientific/spatial_diffusion/validation",
+   "rust_files": 1,
+   "src_rs_lines": 25
+  },
+  "selected-dispatch": {
+   "all_rs_lines": 105,
+   "path": "omega-rust/omega/compilation/realization/selected-dispatch",
+   "rust_files": 2,
+   "src_rs_lines": 105
+  },
+  "selected-form-encoding-to-resolved-layout": {
+   "all_rs_lines": 2873,
+   "path": "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+   "rust_files": 4,
+   "src_rs_lines": 2873
+  },
+  "selected-instruction-analyses": {
+   "all_rs_lines": 13050,
+   "path": "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+   "rust_files": 15,
+   "src_rs_lines": 13050
+  },
+  "selected-instructions": {
+   "all_rs_lines": 22097,
+   "path": "omega-rust/omega/compilation/representations/selected-instructions",
+   "rust_files": 26,
+   "src_rs_lines": 22097
+  },
+  "selected-instructions-to-register-homes": {
+   "all_rs_lines": 16877,
+   "path": "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+   "rust_files": 11,
+   "src_rs_lines": 16877
+  },
+  "selected-instructions-to-selected-instructions": {
+   "all_rs_lines": 13601,
+   "path": "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
+   "rust_files": 8,
+   "src_rs_lines": 13601
+  },
+  "semantic-vocabulary": {
+   "all_rs_lines": 12136,
+   "path": "omega-rust/psi/foundation/semantic-vocabulary",
+   "rust_files": 14,
+   "src_rs_lines": 12136
+  },
+  "source": {
+   "all_rs_lines": 2556,
+   "path": "omega-rust/psi/foundation/source",
+   "rust_files": 2,
+   "src_rs_lines": 2556
+  },
+  "source-acquisition": {
+   "all_rs_lines": 22459,
+   "path": "omega-rust/omega/packages/source-acquisition",
+   "rust_files": 142,
+   "src_rs_lines": 22459
+  },
+  "source-audit": {
+   "all_rs_lines": 107,
+   "path": "omega-rust/psi/foundation/source-audit",
+   "rust_files": 1,
+   "src_rs_lines": 107
+  },
+  "source-compiler": {
+   "all_rs_lines": 3283,
+   "path": "omega-rust/psi/compilation/source-compiler",
+   "rust_files": 5,
+   "src_rs_lines": 3283
+  },
+  "source-files-to-tokens": {
+   "all_rs_lines": 1199,
+   "path": "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
+   "rust_files": 3,
+   "src_rs_lines": 1199
+  },
+  "spectral-power-validation": {
+   "all_rs_lines": 16,
+   "path": "samples/cli/scientific/spectral_power/validation",
+   "rust_files": 1,
+   "src_rs_lines": 16
+  },
+  "symbol-resolved-trees": {
+   "all_rs_lines": 10697,
+   "path": "omega-rust/psi/compilation/representations/symbol-resolved-trees",
+   "rust_files": 10,
+   "src_rs_lines": 10577
+  },
+  "symbol-resolved-trees-to-typed-trees": {
+   "all_rs_lines": 33852,
+   "path": "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
+   "rust_files": 23,
+   "src_rs_lines": 33745
+  },
+  "symbols": {
+   "all_rs_lines": 9589,
+   "path": "omega-rust/psi/foundation/symbols",
+   "rust_files": 9,
+   "src_rs_lines": 9589
+  },
+  "syntax-trees": {
+   "all_rs_lines": 12029,
+   "path": "omega-rust/psi/compilation/representations/syntax-trees",
+   "rust_files": 6,
+   "src_rs_lines": 12029
+  },
+  "syntax-trees-derive": {
+   "all_rs_lines": 136,
+   "path": "omega-rust/psi/compilation/representations/syntax-trees/derive",
+   "rust_files": 1,
+   "src_rs_lines": 136
+  },
+  "syntax-trees-to-symbol-resolved-trees": {
+   "all_rs_lines": 70520,
+   "path": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
+   "rust_files": 33,
+   "src_rs_lines": 70520
+  },
+  "target": {
+   "all_rs_lines": 3921,
+   "path": "omega-rust/omega/compilation/backend/target",
+   "rust_files": 10,
+   "src_rs_lines": 3921
+  },
+  "target-operations": {
+   "all_rs_lines": 1065,
+   "path": "omega-rust/omega/compilation/representations/target-operations",
+   "rust_files": 3,
+   "src_rs_lines": 1065
+  },
+  "target-operations-to-selected-instructions": {
+   "all_rs_lines": 37804,
+   "path": "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
+   "rust_files": 11,
+   "src_rs_lines": 37804
+  },
+  "target-vocabulary": {
+   "all_rs_lines": 7593,
+   "path": "omega-rust/omega/compilation/representations/target-operations/target-vocabulary",
+   "rust_files": 25,
+   "src_rs_lines": 7593
+  },
+  "task-plans": {
+   "all_rs_lines": 1901,
+   "path": "omega-rust/omega/compilation/backend/runtime/task-plans",
+   "rust_files": 5,
+   "src_rs_lines": 1901
+  },
+  "terminal-check-tables": {
+   "all_rs_lines": 2722,
+   "path": "omega-rust/psi/compilation/representations/terminal-psi/check-tables",
+   "rust_files": 9,
+   "src_rs_lines": 2722
+  },
+  "terminal-codec": {
+   "all_rs_lines": 1031,
+   "path": "omega-rust/psi/compilation/representations/terminal-psi/codec",
+   "rust_files": 5,
+   "src_rs_lines": 1031
+  },
+  "terminal-installation": {
+   "all_rs_lines": 9458,
+   "path": "omega-rust/psi/compilation/terminal-installation",
+   "rust_files": 8,
+   "src_rs_lines": 9458
+  },
+  "terminal-interpreter": {
+   "all_rs_lines": 59320,
+   "path": "omega-rust/psi/interpreter",
+   "rust_files": 16,
+   "src_rs_lines": 59320
+  },
+  "terminal-production": {
+   "all_rs_lines": 6700,
+   "path": "omega-rust/psi/compilation/terminal-production",
+   "rust_files": 8,
+   "src_rs_lines": 5232
+  },
+  "terminal-psi": {
+   "all_rs_lines": 15989,
+   "path": "omega-rust/psi/compilation/representations/terminal-psi",
+   "rust_files": 15,
+   "src_rs_lines": 15989
+  },
+  "terminal-psi-to-abstract-operations": {
+   "all_rs_lines": 9954,
+   "path": "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
+   "rust_files": 9,
+   "src_rs_lines": 9954
+  },
+  "terminal-psi-to-terminal-psi": {
+   "all_rs_lines": 83954,
+   "path": "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi",
+   "rust_files": 122,
+   "src_rs_lines": 83909
+  },
+  "terminal-runtime": {
+   "all_rs_lines": 15231,
+   "path": "omega-rust/omega/interpreter/terminal-runtime",
+   "rust_files": 44,
+   "src_rs_lines": 15139
+  },
+  "terminal-semantics": {
+   "all_rs_lines": 87661,
+   "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics",
+   "rust_files": 39,
+   "src_rs_lines": 87661
+  },
+  "terminal-wire": {
+   "all_rs_lines": 41462,
+   "path": "omega-rust/psi/compilation/representations/terminal-psi/wire",
+   "rust_files": 18,
+   "src_rs_lines": 41462
+  },
+  "terminal-work": {
+   "all_rs_lines": 879,
+   "path": "omega-rust/psi/compilation/representations/terminal-psi/work",
+   "rust_files": 2,
+   "src_rs_lines": 439
+  },
+  "thin-film-reflectometry-validation": {
+   "all_rs_lines": 16,
+   "path": "samples/cli/scientific/thin_film_reflectometry/validation",
+   "rust_files": 1,
+   "src_rs_lines": 16
+  },
+  "tokens": {
+   "all_rs_lines": 819,
+   "path": "omega-rust/psi/compilation/representations/tokens",
+   "rust_files": 2,
+   "src_rs_lines": 819
+  },
+  "tokens-to-syntax-trees": {
+   "all_rs_lines": 26032,
+   "path": "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
+   "rust_files": 13,
+   "src_rs_lines": 25773
+  },
+  "trust-model": {
+   "all_rs_lines": 708,
+   "path": "omega-rust/omega/compilation/realization/trust-model",
+   "rust_files": 5,
+   "src_rs_lines": 708
+  },
+  "typed-trees": {
+   "all_rs_lines": 83010,
+   "path": "omega-rust/psi/compilation/representations/typed-trees",
+   "rust_files": 36,
+   "src_rs_lines": 82086
+  },
+  "typed-trees-to-terminal-psi": {
+   "all_rs_lines": 78561,
+   "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
+   "rust_files": 84,
+   "src_rs_lines": 78561
+  },
+  "typed-trees-to-typed-trees": {
+   "all_rs_lines": 10171,
+   "path": "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
+   "rust_files": 13,
+   "src_rs_lines": 10171
+  },
+  "verified-optimization-input": {
+   "all_rs_lines": 4858,
+   "path": "omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input",
+   "rust_files": 9,
+   "src_rs_lines": 4858
+  },
+  "wavelet-transient-validation": {
+   "all_rs_lines": 48,
+   "path": "samples/cli/scientific/wavelet_transient_denoising/validation",
+   "rust_files": 1,
+   "src_rs_lines": 48
+  },
+  "x86_64-encoding": {
+   "all_rs_lines": 78,
+   "path": "omega-rust/omega/compilation/backend/isa/x86_64-encoding",
+   "rust_files": 1,
+   "src_rs_lines": 78
+  },
+  "xtask": {
+   "all_rs_lines": 22788,
+   "path": "tools/xtask",
+   "rust_files": 32,
+   "src_rs_lines": 21398
+  }
+ },
+ "policy": "Git-tracked .rs physical lines including blank lines, comments, tests, benches, examples and build.rs; nested packages own their files; actual Cargo output paths excluded. src_rs_lines counts only each package's src subtree, not production-only code."
+}

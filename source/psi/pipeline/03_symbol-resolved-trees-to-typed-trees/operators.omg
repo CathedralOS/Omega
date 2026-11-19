@@ -1,0 +1,240 @@
+// Operator syntax over data (wiki/spec/language/expressions.md#operator-declarations).
+// An arithmetic or order operator with a data operand is operand-directed:
+// its candidates are the machines binding its token whose semantic home is
+// an operand's data, never a scan of imports. A candidate is one its use can
+// see (the home's package, or a `public` machine), takes two parameters and
+// admits both operands as a call admits its arguments; exactly one must.
+// The expression takes the selected machine's result and records the
+// selection, so checking owes the machine's contract as at a named call. A
+// generic token machine is no candidate yet.
+public machine type_operator_call(
+    typer: &mut Typer,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    index: u64 in Trapping,
+    expression: Expression
+)
+crashes Trap
+{
+    let matches: u64 in Trapping = operator_matches(typer, sources, syntax, resolution, expression, 0, 0);
+    transition matches == 1 {
+        true -> select(typer, sources, syntax, resolution, index, expression, 0)
+        _ -> unmatched(typer, expression, matches)
+    }
+
+    machine select(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        expression: Expression,
+        candidate: u64 in Trapping
+    ) {
+        let admits: bool = operator_admits(typer, sources, syntax, resolution, expression, candidate);
+        transition admits {
+            true -> selected(typer, syntax, index, expression, candidate)
+            _ -> select(typer, sources, syntax, resolution, index, expression, candidate + 1)
+        }
+    }
+
+    machine selected(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, candidate: u64 in Trapping) {
+        let item: MachineItem = machine_item(syntax, candidate);
+        let result: u64 in Trapping = declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
+        set_selection(&mut typer.output, index, Selection::Machine { handle: candidate });
+        set_expression_type(&mut typer.output, index, result);
+        let left: Parameter = syntax_trees_parameter(syntax, item.first_parameter);
+        let right: Parameter = syntax_trees_parameter(syntax, item.first_parameter + 1);
+        let left_type: u64 in Trapping = reference_type(&typer.output, left.type_reference);
+        let right_type: u64 in Trapping = reference_type(&typer.output, right.type_reference);
+        let left_admitted: bool = typer_admit(typer, syntax, left_type, expression.left, true);
+        let right_admitted: bool = typer_admit(typer, syntax, right_type, expression.right, true);
+    }
+
+    machine unmatched(typer: &mut Typer, expression: Expression, matches: u64 in Trapping) {
+        transition matches == 0 {
+            true -> reject(typer, expression, TypeDiagnosticCode::OperandMismatch)
+            _ -> reject(typer, expression, TypeDiagnosticCode::AmbiguousMachine)
+        }
+    }
+
+    machine reject(typer: &mut Typer, expression: Expression, code: TypeDiagnosticCode) {
+        typing_reject(&mut typer.output, code, expression.source_span);
+    }
+}
+
+// How many machines from `candidate` on admit operator `expression`.
+machine operator_matches(
+    typer: &mut Typer,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    expression: Expression,
+    candidate: u64 in Trapping,
+    count: u64 in Trapping
+) -> u64 in Trapping
+crashes Trap
+{
+    transition candidate < syntax.machine_count {
+        true -> test(typer, sources, syntax, resolution, expression, candidate, count)
+        _ -> result(count)
+    }
+
+    machine test(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        candidate: u64 in Trapping,
+        count: u64 in Trapping
+    ) -> u64 in Trapping {
+        let admits: bool = operator_admits(typer, sources, syntax, resolution, expression, candidate);
+        transition admits {
+            true -> next(typer, sources, syntax, resolution, expression, candidate + 1, count + 1)
+            _ -> next(typer, sources, syntax, resolution, expression, candidate + 1, count)
+        }
+    }
+
+    machine next(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        candidate: u64 in Trapping,
+        count: u64 in Trapping
+    ) -> u64 in Trapping {
+        transition candidate < syntax.machine_count {
+            true -> test(typer, sources, syntax, resolution, expression, candidate, count)
+            _ -> result(count)
+        }
+    }
+
+    machine result(count: u64 in Trapping) -> u64 in Trapping {
+        count
+    }
+}
+
+// Whether machine `candidate` binds operator `expression`'s token, is homed
+// at an operand's data, is visible to the use, and admits both operands.
+machine operator_admits(
+    typer: &mut Typer,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    expression: Expression,
+    candidate: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    let item: MachineItem = machine_item(syntax, candidate);
+    let token: OperatorToken = operator_token(expression.operator);
+    transition item.operator == token && item.parameter_count == 2 && item.generic_parameter_count == 0 {
+        true -> homed(typer, sources, syntax, resolution, expression, candidate, item)
+        _ -> no()
+    }
+
+    machine homed(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        candidate: u64 in Trapping,
+        item: MachineItem
+    ) -> bool {
+        let home: TypeBinding = operator_home(resolution, candidate);
+        let left_type: u64 in Trapping = typing_expression_type(&typer.output, expression.left);
+        let right_type: u64 in Trapping = typing_expression_type(&typer.output, expression.right);
+        let left_home: bool = homed_operand(typer, home, left_type);
+        let right_home: bool = homed_operand(typer, home, right_type);
+        transition left_home || right_home {
+            true -> visible(typer, sources, syntax, resolution, expression, candidate, item)
+            _ -> no()
+        }
+    }
+
+    machine visible(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        candidate: u64 in Trapping,
+        item: MachineItem
+    ) -> bool {
+        let is_public: bool = machine_public(resolution, syntax, item, candidate);
+        let use_unit: u64 in Trapping = expression.source_span.source.value as u64 in Trapping;
+        let declared_unit: u64 in Trapping = item.name.source_span.source.value as u64 in Trapping;
+        let own: bool = resolver_same_package(sources, use_unit, declared_unit);
+        transition is_public || own {
+            true -> operands(typer, syntax, expression, item)
+            _ -> no()
+        }
+    }
+
+    machine operands(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, item: MachineItem) -> bool {
+        let left: Parameter = syntax_trees_parameter(syntax, item.first_parameter);
+        let right: Parameter = syntax_trees_parameter(syntax, item.first_parameter + 1);
+        let left_type: u64 in Trapping = reference_type(&typer.output, left.type_reference);
+        let right_type: u64 in Trapping = reference_type(&typer.output, right.type_reference);
+        let left_admitted: bool = admissible(typer, syntax, left_type, expression.left);
+        let right_admitted: bool = admissible(typer, syntax, right_type, expression.right);
+        left_admitted && right_admitted
+    }
+
+    machine no() -> bool {
+        false
+    }
+}
+
+// Whether type `handle` is data homed at `home`.
+machine homed_operand(typer: &Typer, home: TypeBinding, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = type_table_row(&typer.output.types, handle);
+    transition row.kind == TypeKind::Data {
+        true -> data(home, row.item)
+        _ -> elsewhere()
+    }
+
+    machine data(home: TypeBinding, item: u64 in Trapping) -> bool {
+        homed_at(home, item)
+    }
+
+    machine elsewhere() -> bool {
+        false
+    }
+}
+
+// Whether type `handle` is data.
+public machine typer_data_type(typer: &Typer, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = type_table_row(&typer.output.types, handle);
+    row.kind == TypeKind::Data
+}
+
+// The token an operator binds, or `None` for an operator no machine binds
+// (equality keeps the sealed `Equatable` route; logical, bitwise and shift
+// operators are builtin).
+public machine operator_token(operator: OperatorKind) -> OperatorToken {
+    transition operator {
+        OperatorKind::Add -> chosen(OperatorToken::Add)
+        OperatorKind::Subtract -> chosen(OperatorToken::Subtract)
+        OperatorKind::Multiply -> chosen(OperatorToken::Multiply)
+        OperatorKind::Divide -> chosen(OperatorToken::Divide)
+        OperatorKind::Modulo -> chosen(OperatorToken::Modulo)
+        OperatorKind::Less -> chosen(OperatorToken::Less)
+        OperatorKind::LessEqual -> chosen(OperatorToken::LessEqual)
+        OperatorKind::Greater -> chosen(OperatorToken::Greater)
+        OperatorKind::GreaterEqual -> chosen(OperatorToken::GreaterEqual)
+        _ -> chosen(OperatorToken::None)
+    }
+
+    machine chosen(token: OperatorToken) -> OperatorToken {
+        token
+    }
+}

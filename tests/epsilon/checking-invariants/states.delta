@@ -1,0 +1,43 @@
+; These synthetic spans deliberately overlap. No Epsilon parser or source
+; admission is claimed; only the production state-fold algebra is exercised.
+(def checking_invariant_parameter ((offset Int)) EpsilonParameterList
+  (MoreEpsilonParameters
+    (EpsilonParameterSyntax 0 0 (EpsilonNameSpan 0 0)
+      (EpsilonNeverType offset (+ offset 1)))
+    NoEpsilonParameters))
+
+(def checking_invariant_array_body ((offset Int)) EpsilonStateBody
+  (EpsilonStateBodySyntax 0 0
+    (MoreEpsilonStatements
+      (EpsilonLetStatement 0 0 (EpsilonNameSpan 0 0)
+        (EpsilonArrayType 0 0 (EpsilonI32Type 0 0)
+          (EpsilonIntegerSpan offset (+ offset 1) 0))
+        (EpsilonIntegerExpression 0 0 (EpsilonIntegerSpan 0 0 0)))
+      NoEpsilonStatements)
+    NoEpsilonTerminal))
+
+(def checking_invariant_state ((parameterOffset Int) (bodyOffset Int)) EpsilonState
+  (EpsilonStateSyntax 0 0 (EpsilonNameSpan 0 0)
+    (checking_invariant_parameter parameterOffset)
+    (checking_invariant_array_body bodyOffset)))
+
+; min(TypeMismatch@10, min(InvalidArrayLength@50, TypeMismatch@50))
+; is Conflict@50. Flattening the inner grouping incorrectly returns @10.
+(def checking_invariant_state_association () EpsilonTypeFormationCandidate
+  (epsilon_validate_state_formed_types (epsilon_source_whole (bytes_empty))
+    (MoreEpsilonStates (checking_invariant_state 10 50)
+      (MoreEpsilonStates
+        (EpsilonStateSyntax 0 0 (EpsilonNameSpan 0 0)
+          (checking_invariant_parameter 50)
+          (EpsilonStateBodySyntax 0 0 NoEpsilonStatements NoEpsilonTerminal))
+        NoEpsilonStates))
+    NoEpsilonOwnerRows))
+
+; A has min(TypeMismatch@50, InvalidArrayLength@50); B has the same
+; conflict at @70. Exact right grouping lets the suffix Conflict@70 absorb
+; A's ordinary candidates before they could form a new Conflict@50.
+(def checking_invariant_state_conflict_order () EpsilonTypeFormationCandidate
+  (epsilon_validate_state_formed_types (epsilon_source_whole (bytes_empty))
+    (MoreEpsilonStates (checking_invariant_state 50 50)
+      (MoreEpsilonStates (checking_invariant_state 70 70) NoEpsilonStates))
+    NoEpsilonOwnerRows))

@@ -1,0 +1,3 @@
+dutch_flag: partitioning [White, Blue, Red] into [Red, White, Blue]
+PASS: the flag reads [Red, White, Blue] (exit 70)
+[press Enter to close]

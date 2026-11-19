@@ -1,1 +1,0 @@
-cannot prove requires contract for call keep from main: core::Identity<u64>(left, right)

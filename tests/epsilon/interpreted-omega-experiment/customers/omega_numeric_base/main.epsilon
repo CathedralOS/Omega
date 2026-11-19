@@ -1,0 +1,30 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; base: OmegaNumericBase; }
+
+machine Main::main(&mut self) {
+  assert omega_digit_in_base(49, self.base) == 1;
+  assert omega_digit_in_base(50, self.base) == 0;
+  assert omega_digit_in_base(48, OmegaNumericBase::Binary) == 1;
+  assert omega_digit_in_base(49, OmegaNumericBase::Binary()) == 1;
+  assert omega_digit_in_base(47, OmegaNumericBase::Binary) == 0;
+  assert omega_digit_in_base(48, OmegaNumericBase::Octal) == 1;
+  assert omega_digit_in_base(55, OmegaNumericBase::Octal) == 1;
+  assert omega_digit_in_base(56, OmegaNumericBase::Octal) == 0;
+  assert omega_digit_in_base(48, OmegaNumericBase::Decimal) == 1;
+  assert omega_digit_in_base(57, OmegaNumericBase::Decimal) == 1;
+  assert omega_digit_in_base(58, OmegaNumericBase::Decimal) == 0;
+  assert omega_digit_in_base(57, OmegaNumericBase::Hexadecimal) == 1;
+  assert omega_digit_in_base(65, OmegaNumericBase::Hexadecimal) == 1;
+  assert omega_digit_in_base(70, OmegaNumericBase::Hexadecimal) == 1;
+  assert omega_digit_in_base(97, OmegaNumericBase::Hexadecimal) == 1;
+  assert omega_digit_in_base(102, OmegaNumericBase::Hexadecimal) == 1;
+  assert omega_digit_in_base(71, OmegaNumericBase::Hexadecimal) == 0;
+  assert omega_digit_in_base(103, OmegaNumericBase::Hexadecimal) == 0;
+  self.console.write_byte(65);
+}

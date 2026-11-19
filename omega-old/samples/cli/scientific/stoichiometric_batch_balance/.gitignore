@@ -1,5 +1,0 @@
-/build/
-**/build/
-**/__pycache__/
-omega.lock
-omega.review*

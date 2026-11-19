@@ -1,3 +1,0 @@
-# Input bytes are the test: preserve CRLF and intentional malformed whitespace.
-data/crlf.txt -text
-data/*.txt -whitespace

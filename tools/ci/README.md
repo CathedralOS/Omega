@@ -1,0 +1,75 @@
+# Compiler integration CI
+
+A pull request merges by squash once its `admission` check passes, and main is
+checked after the merge. [Landing](../docs/landing.md) is the author procedure;
+there is no merge queue.
+
+## Admission
+
+`.github/workflows/admission.yml` is the only check a pull request needs. It
+builds no compiler: a prebuilt `xtask` runs `check-rules` on the title, body
+and diff, then, when Rust files changed, `fmt --check`, which runs one
+`rustfmt` per CPU.
+
+`tools/xtask/bootstrap-mbx.sh` installs the checksum-capable adapter pinned in
+`tools/mbx-version`. It verifies the official bootstrap release, pins upstream
+source, applies `tools/xtask/mbx-checksum.patch`, and caches the completed binary
+by source, patch, installer, profile and toolchain identity. CI restores that
+small artifact cache before setup, so unchanged recipes do not rebuild mbx.
+The installer and patch live under `tools/xtask/`, covered by admission's push
+filter and cache key along with the `xtask` crate. See
+[checksum setup](../docs/testing.md#checksum-capable-mbx-setup) for build policy
+and the cache-hit/restored-mtime mutation control.
+
+A pull request can restore a cache only from its own runs or from main's. So
+the same workflow also runs on pushes to main that change `tools/xtask`,
+`Cargo.lock` or the toolchain, and saves the built `xtask` there for every pull
+request to restore.
+
+## Post-merge check
+
+`.github/workflows/post-merge-check.yml` runs on every push
+to main, one run at a time. It judges the batch of commits main gained since
+the last run that reached a verdict. A push that arrives during a run waits,
+and a newer push replaces a waiting one, so a burst of merges is judged once.
+
+- `post-merge-check` checks dependency boundaries, lints the workspace and
+  runs the lowered-route tests.
+- `sample` runs one sample natively and in the interpreter, building `omega`
+  from main's restored warm build.
+- `report` writes the verdict to the run summary: each failed part and the
+  batch's commits. A batch of several commits is named as a whole; the run
+  does not bisect it.
+
+A run started by hand with the input `full` set (Actions, Post-merge check,
+Run workflow) also runs every Rust test in the workspace, in the `tests` job,
+on Linux only. Use it after many merges; push-started runs skip that job.
+
+There is no fixture corpus, no corpus gate and no ledger. The jobs that build the compiler restore
+main's warm build with `tools/ci/session_host.sh`.
+
+A failed run does not revert any commit; automatic reverts are a later step of
+`wiki/drafts/designs/ci_rebuild_plan.md`.
+
+## Branch cleanup
+
+`.github/workflows/branch-cleanup.yml` deletes stale branches; it runs only
+when started by hand (Actions, Branch cleanup, Run workflow) and by default
+only reports. Uncheck `dry_run` to delete. It exists because cloud agent
+sessions cannot delete refs. `mbx xtask branch-cleanup`
+(`tools/xtask/src/branch_cleanup.rs`) holds the rules: it
+keeps protected branches, branches with an open pull request and branches
+newer than `min_age_hours`, and deletes a branch whose merged or closed pull
+request still ends at its tip, or whose tip is already in main. Branches with
+unmerged commits and no pull request are deleted only with
+`include_unmerged_no_pr`. The run summary and uploaded artifact list every
+branch by category.
+
+## Administration
+
+Branch and ruleset protection for `main` lives in GitHub repository settings,
+not in this directory. Before applying a ruleset, list the existing ones (for
+example with `gh api repos/:owner/:repo/rulesets`) and update the named ruleset
+instead of creating a duplicate. Configuring rules needs admin access; opening
+and merging pull requests needs only write access. Only the owner or an admin
+changes protection; an author must not change it to get a pull request merged.

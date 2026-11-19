@@ -1,0 +1,7 @@
+; Pure compiled functions carry authored scalar traps explicitly. They have no
+; store or I/O effects; every accepted body is compiled before text is published.
+(data EpsilonCompiledOutcome
+  (EpsilonCompiledScalar Int)
+  (EpsilonCompiledResultless)
+  (EpsilonCompiledTrap Int)
+  (EpsilonCompiledInternal Int))

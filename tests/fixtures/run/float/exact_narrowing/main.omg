@@ -1,0 +1,29 @@
+// Exact narrowing returns a value established by exact widening.
+// Expected exit: 0
+machine roundtrip(value: f32) -> f32 requires true {
+    let wide: f64 = value as f64;
+    wide as f32
+}
+
+machine finite(value: f32, expected: f32) -> bool requires true {
+    roundtrip(value) == expected
+}
+
+machine probe() -> bool requires true {
+    let zero: f32 = 0.0f32;
+    let positive: f32 = roundtrip(zero);
+    let negative: f32 = roundtrip(-0.0f32);
+    let infinity: f32 = roundtrip(1.0f32 / zero);
+    let nan: f32 = roundtrip(zero / zero);
+    finite(1.5f32, 1.5f32) && finite(-2.25f32, -2.25f32)
+        && positive == 0.0f32 && 1.0f32 / positive > 0.0f32
+        && negative == 0.0f32 && 1.0f32 / negative < 0.0f32
+        && infinity > 1.0f32 && infinity / infinity != infinity / infinity
+        && nan != nan
+}
+
+machine main() crashes Trap {
+    transition probe() { true -> done() _ -> bad() }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,26 @@
+// Must reject. The twin of `run/termination/productive_scalar_loop_exit`:
+// `halve` and `step` call each other in terminal position, and `step`
+// requires `count > 1` on every arrival. Here the arm in `halve` tests
+// `last` where the twin tests `count`, so nothing on the path to the call
+// says the count is above one, and the arrival at `step` does not establish
+// its requirement. Nothing else differs.
+machine halve(count: u32, last: u32) -> u32 {
+    transition last > 1 {
+        true -> step(count, last)
+        false -> last
+    }
+}
+machine step(count: u32, last: u32) -> u32 requires count > 1 {
+    transition {
+        _ -> halve(count / 2, count)
+    }
+}
+machine main() crashes Trap {
+    let last: u32 = halve(40, 0);
+    transition last == 2 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() { }
+    machine wrong() { crash Trap; }
+}

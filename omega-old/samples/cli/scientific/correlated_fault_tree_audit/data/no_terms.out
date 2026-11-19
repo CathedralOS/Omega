@@ -1,5 +1,0 @@
-failure_ppm=0/1000000
-event=0 marginal_ppm=200000 repaired_ppm=0 reduction_ppm=0 forced_ppm=0
-event=1 marginal_ppm=200000 repaired_ppm=0 reduction_ppm=0 forced_ppm=0
-event=2 marginal_ppm=200000 repaired_ppm=0 reduction_ppm=0 forced_ppm=0
-AUDIT COMPLETE

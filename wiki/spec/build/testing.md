@@ -19,7 +19,7 @@ method-name convention. Ambiguous overload paths reject rather than selecting
 by visible satisfiers:
 
 ```omega
-let memory_tests = builder.tests.group::<Tests::memory>();
+let memory_tests = builder.tests.group<Tests::memory>();
 ```
 
 `group` is a compiler-owned Build operation on the `tests` facet. Its

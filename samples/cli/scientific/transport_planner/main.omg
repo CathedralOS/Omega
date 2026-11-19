@@ -1,0 +1,91 @@
+use omega::language::core::ProcessExit;
+// Closed stdin is invalid runtime input for the ordinary sample harness.
+// Expected exit: 2.
+// Expected output contains: INVALID: expected 15 integers
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
+use planner::input::TransportInput;
+use planner::input::parse_transport;
+use planner::input::valid_margins;
+use planner::solver::TransportPlan;
+use planner::solver::solve_transport;
+use planner::output::emit_plan;
+use planner::output::emit_integer;
+
+// One complete line is the transaction. Full input is rejected rather than
+// solving a silently truncated prefix. No external solver or runtime fixture.
+data Main { }
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let mut bytes: [u8; 256];
+    let result: LineReadResult = block Console::read_line(&mut bytes[..]);
+    transition result {
+        LineReadResult::LineComplete { count } -> parse(main, &bytes, count)
+        LineReadResult::EndOfInput { count } -> parse(main, &bytes, count)
+        _ -> malformed(main)
+    }
+    machine parse(main: &mut Main, bytes: &[u8; 256], count: u64) {
+        transition count < bytes.len {
+            true -> decode(main, bytes[..count])
+            false -> malformed(main)
+        }
+    }
+    machine decode(main: &mut Main, bytes: &[u8]) {
+        let mut input: TransportInput;
+        let valid: bool = parse_transport(bytes, &mut input);
+        transition valid {
+            true -> margins(main, &input)
+            false -> malformed(main)
+        }
+    }
+    machine margins(main: &mut Main, input: &TransportInput) {
+        let valid: bool = valid_margins(input);
+        transition valid {
+            true -> balanced(main, input)
+            false -> malformed(main)
+        }
+    }
+    machine balanced(main: &mut Main, input: &TransportInput) {
+        let supply: i32 in Wrapping = (input.values[0] as i32 in Wrapping)
+            + (input.values[1] as i32 in Wrapping) + (input.values[2] as i32 in Wrapping);
+        let demand: i32 in Wrapping = (input.values[3] as i32 in Wrapping)
+            + (input.values[4] as i32 in Wrapping) + (input.values[5] as i32 in Wrapping);
+        transition supply == demand {
+            true -> optimize(main, input)
+            false -> infeasible(main, supply, demand)
+        }
+    }
+    machine optimize(main: &mut Main, input: &TransportInput) {
+        let mut plan: TransportPlan;
+        let found: bool = solve_transport(input, &mut plan);
+        transition found {
+            true -> emit(main, &plan)
+            false -> internal_error(main)
+        }
+    }
+    machine emit(main: &mut Main, plan: &TransportPlan) {
+        emit_plan(plan);
+        ProcessExit::exit_process(0);
+    }
+    machine infeasible(main: &mut Main, supply: i32 in Wrapping, demand: i32 in Wrapping) {
+        Console::write_line("INFEASIBLE: unequal totals");
+        Console::write("supply ");
+        emit_integer(supply);
+        Console::write("demand ");
+        emit_integer(demand);
+        ProcessExit::exit_process(3);
+    }
+    machine malformed(main: &mut Main) {
+        Console::write_line("INVALID: expected 15 integers; margins 0..9, costs -99..99; one line below 256 bytes");
+        ProcessExit::exit_process(2);
+    }
+    machine internal_error(main: &mut Main) {
+        Console::write_line("ERROR: balanced complete transport has no plan");
+        ProcessExit::exit_process(4);
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

@@ -1,3 +1,0 @@
-error InvalidHexEscape at 1:10 bytes 9..11
-  text: \x
-  \x must be followed by exactly two hexadecimal digits

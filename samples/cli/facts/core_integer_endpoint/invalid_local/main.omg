@@ -1,0 +1,17 @@
+// The ordinary integer query preserves the exact u32 maximum through transport, permitting subtraction of that endpoint.
+// Place: local.
+// Expected exit: 0
+use omega::language::core::integer;
+
+machine consume(value: u32) -> u32
+requires value == 0xFFFF_FFFFu32
+ensures result == 0u32
+{ value - 0xFFFF_FFFFu32 }
+
+machine probe() -> u32 { let value: u32 = integer::max<u16>() as u32; consume(value) }
+
+machine main() crashes Trap {
+    transition probe() == 0u32 && integer::width_bits<u32>() == 32u64 && !integer::is_signed<u32>() { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

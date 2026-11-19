@@ -1,4 +1,0 @@
-error UnexpectedToken at 2:1 bytes 58..66
-  found: boundary
-  expected: a declaration
-  expected a declaration

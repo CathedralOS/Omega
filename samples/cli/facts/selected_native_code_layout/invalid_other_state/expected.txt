@@ -1,0 +1,1 @@
+late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation

@@ -1,0 +1,11 @@
+[package]
+name = "storage-materialization"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+layout-plans = { path = "../../compilation/representations/storage-layout" }
+
+[dev-dependencies]
+layout-plans = { path = "../../compilation/representations/storage-layout", features = ["test-support"] }

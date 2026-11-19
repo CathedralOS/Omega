@@ -1,0 +1,38 @@
+; epsilon_compiler.delta - Delta-written Epsilon evaluator (in progress).
+;
+; These retained components belong to the final evaluator. They validate and
+; parse the complete Epsilon surface. The D22/D24 source-shaped semantic
+; identity census and D31's
+; complete profile-independent structural type formation are implemented. A
+; source-backed catalog and ordered local-value resolution now begin the final
+; checking phase; remaining body/control checking and execution are incomplete.
+; This source intentionally exposes no `main` and emits no
+; placeholder observation until those intervening phases exist.
+
+(data EpsilonRejectReason
+  (InvalidSourceByte)
+  (InvalidToken)
+  (InvalidCharacterLiteral)
+  (UnterminatedString)
+  (InvalidEscape)
+  (IntegerLiteralOutOfRange)
+  (UnexpectedToken)
+  (UnexpectedEnd)
+  (DuplicateName)
+  (MissingEntry)
+  (InvalidEntry)
+  (InvalidBoundary)
+  (UnknownType)
+  (RecursiveValueType)
+  (InvalidDataShape)
+  (InvalidArrayLength)
+  (UnknownName)
+  (TypeMismatch)
+  (ArityMismatch)
+  (InvalidPlace)
+  (UseBeforeInitialization)
+  (EscapingView)
+  (InvalidControlTarget)
+  (InvalidTerminal)
+  (DuplicatePattern)
+  (NonexhaustiveSum))
