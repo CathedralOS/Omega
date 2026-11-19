@@ -305,3 +305,31 @@ fn bracket_contracts_publish_exact_bounds_and_range_length() {
         assert!(row.copy_parameters.is_empty());
     }
 }
+
+#[test]
+fn declared_operand_type_selects_the_overload_across_numeric_widths_and_results() {
+    // A typed parameter has exactly one matching overload. Its caller can promise
+    // any result type, but that promise cannot change which machine was called.
+    let carriers = ["bool", "i8", "u8", "u16", "u32"];
+    let overloads = carriers.map(|ty| format!("machine draw(x: {ty}) -> {ty} {{ x }}"));
+    for declarations in [
+        overloads.join("\n"),
+        overloads.iter().rev().cloned().collect::<Vec<_>>().join("\n"),
+    ] {
+        for argument in carriers {
+            for result in carriers {
+                let source = format!("{declarations}\nmachine render(x: {argument}) -> {result} {{ draw(x) }}");
+                if argument == result {
+                    let stage = check(&source).unwrap();
+                    let [selected] = stage.calls.as_slice() else {
+                        panic!("expected one call for {argument}");
+                    };
+                    assert_eq!(selected.machine.operands, [argument]);
+                    assert_eq!(selected.result.to_string(), result);
+                } else {
+                    assert_eq!(check(&source).unwrap_err(), format!("app.omg: expected {result}, found {argument}"));
+                }
+            }
+        }
+    }
+}
