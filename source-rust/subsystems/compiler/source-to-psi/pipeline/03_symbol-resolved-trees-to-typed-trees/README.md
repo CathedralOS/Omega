@@ -17,7 +17,7 @@ This note maps its Rust implementation. Limits on which appended cohorts
   [continuation records in the representation](../../representations/symbol-resolved-trees/src/continuations.rs),
   which retain the identity of the resolved declarations. The source driver keeps
   pending syntax and runs resolution, source activation and typing. The
-  [source continuation tests](../../source_continuation/resolution_handoff_tests.rs)
+  [source continuation tests](../../source_continuation/tests.rs)
   check their exact pairings.
 
 ## One typing route

@@ -618,4 +618,4 @@ impl SourceFrontends {
 }
 
 #[cfg(test)]
-mod resolution_handoff_tests;
+mod tests;
