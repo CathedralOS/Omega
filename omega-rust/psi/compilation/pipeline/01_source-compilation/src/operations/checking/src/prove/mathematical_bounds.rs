@@ -5,6 +5,75 @@ use proof_admission::ClosedIntegerEvaluator;
 use semantic_vocabulary::IntegerMathLiteral;
 
 impl Prover<'_> {
+    /// Move a subtracted term to the other side of an erased integer order.
+    /// This preserves the actual required margin, including a gap of one.
+    pub(super) fn mathematical_difference_order(
+        &mut self,
+        left: &IntegerMathTerm,
+        right: &IntegerMathTerm,
+    ) -> Option<ProofNode> {
+        let IntegerMathTerm::Subtract(first, second) = right else {
+            return None;
+        };
+        let zero = IntegerMathTerm::literal(IntegerValue::Unsigned(0));
+        let shifted =
+            if compare_integer_math_terms(left, &zero).ok().flatten() == Some(Ordering::Equal) {
+                (**second).clone()
+            } else {
+                IntegerMathTerm::Add(Box::new(left.clone()), second.clone())
+            };
+        let relation = self
+            .prove(&Proposition::IntegerMathLessOrEqual(
+                shifted,
+                (**first).clone(),
+            ))
+            .ok()?;
+        let negative = IntegerMathTerm::Subtract(Box::new(zero), second.clone());
+        self.translate_mathematical_order(
+            relation,
+            negative,
+            &Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+        )
+    }
+
+    pub(super) fn mathematical_successor_order(
+        &mut self,
+        left: &IntegerMathTerm,
+        right: &IntegerMathTerm,
+    ) -> Option<ProofNode> {
+        let IntegerMathTerm::Add(first, second) = left else {
+            return None;
+        };
+        let one = IntegerMathTerm::literal(IntegerValue::Unsigned(1));
+        for (value, increment) in [(first, second), (second, first)] {
+            if compare_integer_math_terms(increment, &one).ok().flatten() != Some(Ordering::Equal) {
+                continue;
+            }
+            let strict = Proposition::IntegerMathLessThan((**value).clone(), right.clone());
+            let Some(scalar) = lower_integer_math_relation(&strict) else {
+                continue;
+            };
+            let Ok(relation) = self.prove(&scalar) else {
+                continue;
+            };
+            let discrete = node(
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::Add(value.clone(), Box::new(one.clone())),
+                    right.clone(),
+                ),
+                ProofRule::IntegerOrderDiscreteness {
+                    relation: Box::new(relation),
+                },
+            );
+            return self.translate_mathematical_order(
+                discrete,
+                IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+                &Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+            );
+        }
+        None
+    }
+
     /// Preserve a shared endpoint in an order such as base <= base + length.
     /// The kernel checks both the nonnegative offset and the translated exact
     /// endpoints. No finite-carrier fit is needed for erased integer sums.

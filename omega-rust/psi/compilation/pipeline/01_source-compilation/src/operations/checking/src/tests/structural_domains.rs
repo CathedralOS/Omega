@@ -1109,6 +1109,8 @@ ensures
         "true -> length - requested - 1",
     );
     assert_ne!(positive, gap);
+    let unbounded = positive.replace("requires requested <= whole.length", "requires true");
+    assert_ne!(positive, unbounded);
     let core = bundled_core_sources();
     let observe = |text: &str| -> Result<RouteVerdict, String> {
         let mut units = core
@@ -1136,8 +1138,8 @@ ensures
         super::entryless::judged_typed_result(&source, false)
             .map_err(|error| format!("lowering the partition: {error:?}"))
     };
-    let observed = [observe(positive), observe(&gap)];
-    for (name, result) in ["exact partition", "one-cell gap"]
+    let observed = [observe(positive), observe(&gap), observe(&unbounded)];
+    for (name, result) in ["exact partition", "one-cell gap", "missing count bound"]
         .into_iter()
         .zip(&observed)
     {
@@ -1147,6 +1149,14 @@ ensures
             eprintln!("{name}: {result:?}");
         }
     }
+    assert!(
+        matches!(&observed[2], Ok(RouteVerdict::Rejected { formations, violations, unproved, .. })
+            if formations.is_empty() && violations.is_empty() && unproved.iter().any(|failure|
+                matches!(failure.kind, ObligationKind::ArrivalInvariant { .. })
+                    && failure.statement.contains("domain `Extent::Granted` requires `no_wrap"))),
+        "removing the count bound must leave the grant's fit predicate unproved: {:?}",
+        observed[2]
+    );
     assert!(
         matches!(&observed[0], Ok(RouteVerdict::Accepted(_))),
         "{:?}",

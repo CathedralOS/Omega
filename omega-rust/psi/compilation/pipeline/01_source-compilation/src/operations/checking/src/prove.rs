@@ -4261,6 +4261,8 @@ impl<'a> Prover<'a> {
             return interval;
         }
         self.correlated_subtract(left, right)
+            .or_else(|| self.mathematical_successor_order(left, right))
+            .or_else(|| self.mathematical_difference_order(left, right))
             .or_else(|| self.mathematical_common_sum_order(left, right))
             .or_else(|| self.mathematical_offset_order(left, right))
             .ok_or(interval.err().unwrap_or("no bound"))

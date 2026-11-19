@@ -423,14 +423,51 @@ mod bound_fact_index {
             let mut activity = ProofSearchActivity::default();
             let observed =
                 Prover::new(&context, &assumptions, &[], &values, &mut activity).prove(&goal);
-            observed_cases.push((strict_extent, strict_count, accepted, assumptions, observed));
+            let margin_goal = Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+                IntegerMathTerm::Subtract(
+                    Box::new(IntegerMathTerm::Subtract(
+                        Box::new(math(1)),
+                        Box::new(math(2)),
+                    )),
+                    Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+                ),
+            );
+            let margin = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+                .prove(&margin_goal);
+            observed_cases.push((
+                strict_extent,
+                strict_count,
+                accepted,
+                assumptions,
+                observed,
+                margin_goal,
+                margin,
+            ));
         }
-        for (strict_extent, strict_count, accepted, assumptions, observed) in observed_cases {
+        for (strict_extent, strict_count, accepted, assumptions, observed, margin_goal, margin) in
+            observed_cases
+        {
             assert_eq!(
                 observed.is_ok(),
                 accepted,
                 "strict extent={strict_extent}, strict count={strict_count}: {observed:?}"
             );
+            assert_eq!(
+                margin.is_ok(),
+                strict_count,
+                "only a strict count bound permits subtracting one more: {margin:?}"
+            );
+            if let Ok(proof) = margin {
+                proof_admission::accept_certificate(
+                    &context,
+                    &margin_goal,
+                    &assumptions,
+                    &[],
+                    &proof,
+                )
+                .unwrap();
+            }
             if let Ok(proof) = observed {
                 proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
                     .unwrap();
@@ -469,6 +506,105 @@ mod bound_fact_index {
             .unwrap();
         proof_admission::accept_certificate(&context, &alias_goal, &assumptions, &axioms, &proof)
             .unwrap();
+    }
+
+    #[test]
+    fn partition_endpoint_bounds_keep_the_exact_branch_equations() {
+        let address = IntegerType::supported_address_representation();
+        let ids = [41, 42, 43, 44, 45].map(|raw| ValueId::new(raw).unwrap());
+        let types = [address, integer(), integer(), address, integer()];
+        let values = IdTable::from_rows(ids.into_iter().enumerate().map(|(position, id)| {
+            (
+                id,
+                ValueRow {
+                    scalar_type: ScalarType::Integer(types[position]),
+                    origin: ValueOrigin::MachineParameter {
+                        position: position as u32,
+                    },
+                    rigid: None,
+                },
+            )
+        }))
+        .unwrap();
+        let context = context(&values);
+        let scalar =
+            |position| ScalarTerm::value(ids[position], ScalarType::Integer(types[position]));
+        let math = |position| IntegerMathTerm::MathValue {
+            source_type: types[position],
+            value: ids[position],
+        };
+        let add = |left, right| IntegerMathTerm::Add(Box::new(left), Box::new(right));
+        let bound = add(
+            IntegerMathTerm::carrier_maximum(address),
+            IntegerMathTerm::literal(IntegerValue::Unsigned(1)),
+        );
+        let whole_bound = Proposition::IntegerMathLessOrEqual(add(math(0), math(1)), bound.clone());
+        let goal = Proposition::IntegerMathLessOrEqual(add(math(3), math(4)), bound);
+        let advanced = Proposition::Conjunction(vec![
+            Proposition::Equal(
+                scalar(3),
+                ScalarTerm::exact_integer_add(address, scalar(0), scalar(2)).unwrap(),
+            ),
+            Proposition::LessThan(scalar(2), scalar(1)),
+        ]);
+        let exhausted = Proposition::Conjunction(vec![
+            Proposition::Equal(scalar(3), scalar(0)),
+            Proposition::LessOrEqual(scalar(1), scalar(2)),
+        ]);
+        let remaining = Proposition::Conjunction(vec![
+            Proposition::Equal(
+                scalar(4),
+                ScalarTerm::exact_integer_subtract(integer(), scalar(1), scalar(2)).unwrap(),
+            ),
+            Proposition::LessThan(scalar(2), scalar(1)),
+        ]);
+        let empty = Proposition::Conjunction(vec![
+            Proposition::Equal(scalar(4), literal(0)),
+            Proposition::LessOrEqual(scalar(1), scalar(2)),
+        ]);
+        let cases = [
+            (
+                "nonempty tail",
+                vec![whole_bound.clone(), advanced.clone(), remaining.clone()],
+                true,
+            ),
+            (
+                "empty tail",
+                vec![whole_bound.clone(), exhausted.clone(), empty.clone()],
+                true,
+            ),
+            (
+                "independent joins",
+                vec![
+                    whole_bound,
+                    Proposition::Disjunction(vec![advanced.clone(), exhausted]),
+                    Proposition::Disjunction(vec![remaining.clone(), empty]),
+                ],
+                true,
+            ),
+            ("missing extent bound", vec![advanced, remaining], false),
+        ];
+        let mut observed = Vec::new();
+        for (name, assumptions, accepted) in cases {
+            let mut activity = ProofSearchActivity::default();
+            let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+            let proof = prover.prove(&goal);
+            let remaining = prover.remaining_case_branches;
+            observed.push((name, assumptions, accepted, proof, remaining));
+        }
+        for (name, _, _, proof, remaining) in &observed {
+            eprintln!(
+                "{name}: {}; remaining case branches: {remaining}",
+                if proof.is_ok() { "accepted" } else { "refused" }
+            );
+        }
+        for (name, assumptions, accepted, proof, _) in observed {
+            assert_eq!(proof.is_ok(), accepted, "{name}: {proof:?}");
+            if let Ok(proof) = proof {
+                proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
+                    .unwrap();
+            }
+        }
     }
 
     #[test]
