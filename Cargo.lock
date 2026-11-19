@@ -3602,7 +3602,6 @@ dependencies = [
  "layout-plans",
  "numeric-literals",
  "numerics",
- "optimization",
  "proof-admission",
  "proof-applications",
  "record-storage",

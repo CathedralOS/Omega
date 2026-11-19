@@ -27,7 +27,6 @@ wire = { path = "../../../../foundation/wire" }
 language-core = { path = "../../foundation/language-core" }
 layout-plans = { path = "../layout" }
 access-admission = { path = "../access/admission" }
-optimization = { path = "../optimization-selections" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 numerics = { path = "numeric" }
 terminal-psi = { path = ".." }

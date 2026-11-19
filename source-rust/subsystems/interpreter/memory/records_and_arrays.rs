@@ -60,7 +60,7 @@ pub(crate) mod record {
                         .get(&child.structural_type)
                         .is_some_and(|row| row.shape.is_shared_readable_byte_view())
                         || !terminal_semantics::byte_literal_qualifications_hold_in(
-                            self.program.catalogs.structural_domains.iter(),
+                            self.program.catalogs.types.structural_domains.iter(),
                             child.structural_type,
                             &child.qualifications,
                             bytes.bytes(),
@@ -76,7 +76,7 @@ pub(crate) mod record {
                 } else if let ByteSequenceCarrier::BoundedOwned { capacity } = carrier {
                     let bytes = binding.immutable()?;
                     let predicates = terminal_semantics::byte_qualification_predicates_in(
-                        self.program.catalogs.structural_domains.iter(),
+                        self.program.catalogs.types.structural_domains.iter(),
                         child.structural_type,
                         &child.qualifications,
                     )
@@ -139,7 +139,7 @@ pub(crate) mod record {
                         ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_)
                     ) || !child.projected_qualifications.is_empty()
                         || !terminal_semantics::byte_qualification_predicates_in(
-                            self.program.catalogs.structural_domains.iter(),
+                            self.program.catalogs.types.structural_domains.iter(),
                             child.structural_type,
                             &child.qualifications,
                         )
@@ -3920,7 +3920,7 @@ pub(crate) mod scalar_array {
                     !self
                         .program
                         .catalogs
-                        .structural_domains
+                        .types.structural_domains
                         .iter()
                         .any(|declaration| {
                             declaration.id == *domain && declaration.carrier == structural_type

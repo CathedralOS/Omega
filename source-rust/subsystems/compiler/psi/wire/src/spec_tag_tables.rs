@@ -19,7 +19,7 @@ use crate::wire_fields::wire::Reader;
 
 const ENCODING_PAGE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../wiki/spec/terminal-psi/encoding.md"
+    "/../../../../../wiki/spec/terminal-psi/encoding.md"
 ));
 
 /// Marked tables this test cannot drive, each with the reason.

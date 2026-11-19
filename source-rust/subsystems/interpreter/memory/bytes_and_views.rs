@@ -261,7 +261,7 @@ pub(crate) mod byte_sequences {
                         && exact_window
                         && referent.projected_qualifications.is_empty()
                         && terminal_semantics::byte_qualification_predicates_in(
-                            execution.program.catalogs.structural_domains.iter(),
+                            execution.program.catalogs.types.structural_domains.iter(),
                             referent.structural_type,
                             &referent.qualifications,
                         )
@@ -368,7 +368,7 @@ pub(crate) mod byte_sequences {
                 }
                 let bytes = binding.snapshot(self)?;
                 Ok(terminal_semantics::byte_literal_qualifications_hold_in(
-                    self.program.catalogs.structural_domains.iter(),
+                    self.program.catalogs.types.structural_domains.iter(),
                     structural_type,
                     qualifications,
                     bytes.bytes(),
@@ -386,7 +386,7 @@ pub(crate) mod byte_sequences {
                 if qualifications.windows(2).any(|pair| pair[0] >= pair[1]) {
                     return Ok(false);
                 }
-                let domains = &self.program.catalogs.structural_domains;
+                let domains = &self.program.catalogs.types.structural_domains;
                 let mut captured = None;
                 for identity in qualifications {
                     let position = domains
@@ -1008,7 +1008,7 @@ pub(crate) mod byte_sequences {
                 let mut value = value;
                 terminal_semantics::present_structural_memberships(
                     self.structural_types().values(),
-                    self.program.catalogs.structural_domains.iter(),
+                    self.program.catalogs.types.structural_domains.iter(),
                     parameter.structural_type,
                     &mut value.qualifications,
                     &mut value.projected_qualifications,
@@ -2736,7 +2736,7 @@ pub(crate) mod byte_sequences {
                     .get(&structural_type)
                     .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence());
                 if terminal_semantics::byte_qualification_predicates_in(
-                    self.program.catalogs.structural_domains.iter(),
+                    self.program.catalogs.types.structural_domains.iter(),
                     structural_type,
                     qualifications,
                 )
@@ -2844,7 +2844,7 @@ pub(crate) mod byte_sequences {
                     || crate::engine::custody::place_is_claimed(&self.live_claims, place)
                     || self.live_affine_discard_at(place).is_some()
                     || terminal_semantics::byte_qualification_predicates_in(
-                        self.program.catalogs.structural_domains.iter(),
+                        self.program.catalogs.types.structural_domains.iter(),
                         structural_type,
                         qualifications,
                     )

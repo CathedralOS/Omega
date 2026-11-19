@@ -9389,7 +9389,7 @@ pub(crate) mod structural_type_foundations {
         declaration: &StructuralTypeDeclaration,
         attachment_storage: &[StructuralTypeId],
     ) -> Result<(), CodecError> {
-        terminal_semantics::validate_inline_carriers(module.types.structural_types, declaration)
+        terminal_semantics::validate_inline_carriers(module.structural_types, declaration)
             .map_err(|error| CodecError::MalformedStructuralFoundation(error.reason))?;
         if declaration.owns_linear_claim
             && declaration.multiplicity != StructuralMultiplicity::Linear
@@ -9436,7 +9436,7 @@ pub(crate) mod structural_type_foundations {
             StructuralTypeShape::Reference { referent, access } => {
                 if !(has_structural_type(module, *referent)
                     || module
-                        .types.structural_referents
+                        .structural_referents
                         .iter()
                         .any(|identity| identity.id == *referent))
                     || *access == terminal_psi::StructuralAccess::Owned
@@ -9508,7 +9508,7 @@ pub(crate) mod structural_type_foundations {
                                         let identity = field.field_type.as_structural()?;
                                         let StructuralTypeShape::PrimitiveScalar(scalar) =
                                             terminal_psi::find_structural_type(
-                                                module.types.structural_types,
+                                                module.structural_types,
                                                 identity,
                                             )?
                                             .shape
@@ -9700,12 +9700,12 @@ pub(crate) mod structural_type_foundations {
         record_size: u64,
     ) -> Result<Option<(u64, u64)>, CodecError> {
         terminal_semantics::authored_field_storage_extent(
-            module.types.structural_types.iter(),
+            module.structural_types.iter(),
             field,
             storage,
             record_size,
             |child| {
-                terminal_semantics::reference_storage_layout(module.types.structural_types.iter(), child)
+                terminal_semantics::reference_storage_layout(module.structural_types.iter(), child)
             },
         )
         .map_err(CodecError::MalformedStructuralFoundation)
@@ -13743,8 +13743,8 @@ mod installed_interrupt_owner_tests {
         let other = module.machines[1].id;
 
         let mut wrong_installation_owner = module.clone();
-        wrong_installation_owner.installed_interrupt_registrations[0].machine = other;
-        wrong_installation_owner.installed_interrupt_registrations[0].callbacks[0]
+        wrong_installation_owner.interfaces.installed_interrupt_registrations[0].machine = other;
+        wrong_installation_owner.interfaces.installed_interrupt_registrations[0].callbacks[0]
             .registrar_machine = other;
         assert_eq!(
             validate(&wrong_installation_owner),
@@ -13755,7 +13755,7 @@ mod installed_interrupt_owner_tests {
         );
 
         let mut wrong_callback_owner = module.clone();
-        wrong_callback_owner.installed_interrupt_registrations[0].callbacks[0].registrar_machine =
+        wrong_callback_owner.interfaces.installed_interrupt_registrations[0].callbacks[0].registrar_machine =
             other;
         assert_eq!(
             validate(&wrong_callback_owner),
@@ -13769,16 +13769,16 @@ mod installed_interrupt_owner_tests {
             two_installers.machines[0].blocks[0].operations[0]
                 .kind
                 .clone();
-        let mut second = two_installers.installed_interrupt_registrations[0].clone();
+        let mut second = two_installers.interfaces.installed_interrupt_registrations[0].clone();
         second.machine = other;
         second.callbacks[0].registrar_machine = other;
         second.callbacks[0].application_index = 1;
         two_installers
-            .installed_interrupt_registrations
+            .interfaces.installed_interrupt_registrations
             .push(second);
         validate(&two_installers).expect("distinct machine owners may reuse a local operation id");
 
-        two_installers.installed_interrupt_registrations.pop();
+        two_installers.interfaces.installed_interrupt_registrations.pop();
         assert_eq!(
             validate(&two_installers),
             Err(CodecError::MalformedStructuralFoundation(

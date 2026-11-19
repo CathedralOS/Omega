@@ -3027,7 +3027,7 @@ mod external_provider_tests {
             assert_eq!(decoded, module);
             assert_eq!(encode_module(&decoded).unwrap(), bytes);
             let mut missing = module.clone();
-            missing.external_providers.clear();
+            missing.interfaces.external_providers.clear();
             assert_ne!(
                 semantic_fingerprint(&module).unwrap(),
                 semantic_fingerprint(&missing).unwrap()
@@ -3041,8 +3041,8 @@ mod external_provider_tests {
         module.interfaces.boundary_machines.clear();
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
-        assert_eq!(decoded.external_providers, module.interfaces.external_providers);
-        assert!(decoded.boundary_machines.is_empty());
+        assert_eq!(decoded.interfaces.external_providers, module.interfaces.external_providers);
+        assert!(decoded.interfaces.boundary_machines.is_empty());
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
     }
 
@@ -3085,7 +3085,7 @@ mod external_provider_tests {
         let fingerprint = semantic_fingerprint(&original).unwrap();
         for mutation in 0..5 {
             let mut changed = original.clone();
-            let candidate = &mut changed.external_providers[0];
+            let candidate = &mut changed.interfaces.external_providers[0];
             match mutation {
                 0 => candidate.realization.contract = [18; 32],
                 1 => candidate.realization_package = PackageKeyIdentity::from_digest([3; 32]),
@@ -3175,12 +3175,12 @@ mod numeric_intrinsic_tests {
         let decoded = decode_module(&bytes).unwrap();
         assert_eq!(decoded, module);
         assert_eq!(
-            decoded.boundary_machines[0].numeric_intrinsic,
+            decoded.interfaces.boundary_machines[0].numeric_intrinsic,
             Some(meaning)
         );
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
         let mut changed = module.clone();
-        changed.boundary_machines[0].numeric_intrinsic = None;
+        changed.interfaces.boundary_machines[0].numeric_intrinsic = None;
         assert_ne!(
             semantic_fingerprint(&module).unwrap(),
             semantic_fingerprint(&changed).unwrap()
@@ -3236,7 +3236,7 @@ mod numeric_intrinsic_tests {
             let bytes = encode_module(&original).unwrap();
             assert_eq!(decode_module(&bytes).unwrap(), original);
             let mut substituted = original.clone();
-            substituted.boundary_machines[0].scalar_parameters[0] =
+            substituted.interfaces.boundary_machines[0].scalar_parameters[0] =
                 ScalarType::from_numeric_type(NumericType::Integer(FixedInteger::unsigned(16)))
                     .unwrap();
             assert!(decode_module(&encode_raw(&substituted).unwrap()).is_err());
@@ -3246,7 +3246,7 @@ mod numeric_intrinsic_tests {
     #[test]
     fn numeric_meaning_wire_rejects_noncanonical_padding_unknown_rows_and_truncation() {
         let meaning = NumericIntrinsic::Negation(numeric_literals::FloatFormat::F32);
-        let boundary = &module(meaning).boundary_machines[0];
+        let boundary = &module(meaning).interfaces.boundary_machines[0];
         let mut writer = super::wire::Writer::default();
         <super::structural_signature_wire::BoundaryMachine as super::wire_fields::Field<_>>::write(
             &mut writer,
@@ -3588,7 +3588,7 @@ mod reference_transport_tests {
         assert_eq!(decode_module(&bytes).unwrap(), module);
         let mut redirected = module.clone();
         let mut noncopy = module.clone();
-        noncopy.structural_types[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+        noncopy.types.structural_types[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
         let error = decode_module(&super::module_wire::encode_raw(&noncopy).unwrap()).unwrap_err();
         assert!(
             error
@@ -3597,7 +3597,7 @@ mod reference_transport_tests {
             "{error}"
         );
         let mut nominal_mismatch = module.clone();
-        nominal_mismatch.structural_types[2].multiplicity =
+        nominal_mismatch.types.structural_types[2].multiplicity =
             terminal_psi::StructuralMultiplicity::Affine;
         let error =
             decode_module(&super::module_wire::encode_raw(&nominal_mismatch).unwrap()).unwrap_err();
@@ -3674,7 +3674,7 @@ mod reference_transport_tests {
                 );
             }
         }
-        redirected.opaque_representations[0].carrier = StructuralTypeId::new(2).unwrap();
+        redirected.types.opaque_representations[0].carrier = StructuralTypeId::new(2).unwrap();
         let error =
             decode_module(&super::module_wire::encode_raw(&redirected).unwrap()).unwrap_err();
         assert!(
@@ -3683,7 +3683,7 @@ mod reference_transport_tests {
                 .contains("substituted its exact storage identity"),
             "{error}"
         );
-        redirected.opaque_representations[0].carrier_storage_identity = TerminalIdentityIndex(2);
+        redirected.types.opaque_representations[0].carrier_storage_identity = TerminalIdentityIndex(2);
         let error =
             decode_module(&super::module_wire::encode_raw(&redirected).unwrap()).unwrap_err();
         assert!(
@@ -3693,13 +3693,13 @@ mod reference_transport_tests {
             "{error}"
         );
         let mut changed_native = module;
-        changed_native.native_layouts = terminal_psi::NativeLayoutCatalog::default();
+        changed_native.layouts.native_layouts = terminal_psi::NativeLayoutCatalog::default();
         for declaration in changed_native
-            .structural_types
+            .types.structural_types
             .iter()
             .filter(|row| row.is_record_shape())
         {
-            changed_native.native_layouts.insert(
+            changed_native.layouts.native_layouts.insert(
                 declaration.id,
                 declaration.identity,
                 TerminalIdentityIndex::ABSENT,
@@ -3853,14 +3853,14 @@ mod routed_scalar_tests {
         assert_eq!(decode_module(&bytes).unwrap(), module);
         let original = semantic_fingerprint(&module).unwrap();
         let mut changed = module.clone();
-        changed.scalar_qualifications.domains[0]
+        changed.types.scalar_qualifications.domains[0]
             .predicate
             .as_mut()
             .unwrap()
             .proposition = Proposition::Truth;
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
         let mut changed = module.clone();
-        changed.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
+        changed.types.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
     }
 
@@ -3931,7 +3931,7 @@ mod routed_scalar_tests {
         for mutation in 0..4 {
             let mut malformed = module.clone();
             let BoundaryMachineResult::Scalar(declared) =
-                &mut malformed.boundary_machines[0].result
+                &mut malformed.interfaces.boundary_machines[0].result
             else {
                 panic!("scalar declaration");
             };
@@ -4017,7 +4017,7 @@ mod routed_scalar_tests {
             module
         );
         let mut missing_predicate = module.clone();
-        missing_predicate.scalar_block_invariants.clear();
+        missing_predicate.proofs.scalar_block_invariants.clear();
         assert_eq!(
             decode_module(&encode_raw(&missing_predicate).unwrap()),
             Err(crate::CodecError::MalformedStructuralFoundation(
@@ -4028,23 +4028,23 @@ mod routed_scalar_tests {
             let mut malformed = module.clone();
             match mutation {
                 0 => {
-                    malformed.scalar_qualifications.returns.remove(0);
+                    malformed.types.scalar_qualifications.returns.remove(0);
                 }
                 1 => {
-                    malformed.scalar_qualifications.returns[0].edge = EdgeId::new(2).unwrap();
+                    malformed.types.scalar_qualifications.returns[0].edge = EdgeId::new(2).unwrap();
                 }
                 2 => {
-                    malformed.scalar_qualifications.returns[0].site =
+                    malformed.types.scalar_qualifications.returns[0].site =
                         ScalarReturnSite::Completion {
                             argument_ordinal: 1,
                         };
                 }
                 3 => {
-                    malformed.scalar_qualifications.returns[0].origins =
+                    malformed.types.scalar_qualifications.returns[0].origins =
                         vec![ScalarReturnOrigin::Forwarded];
                 }
                 _ => {
-                    malformed.scalar_qualifications.returns[0].origins =
+                    malformed.types.scalar_qualifications.returns[0].origins =
                         vec![ScalarReturnOrigin::Vacuous];
                 }
             }
@@ -4156,7 +4156,7 @@ mod routed_scalar_tests {
     #[test]
     fn empty_issuer_set_round_trips_without_authorizing_fresh_membership() {
         let mut denied = module();
-        denied.scalar_qualifications.domains[0].establishment_routes = Some(Vec::new());
+        denied.types.scalar_qualifications.domains[0].establishment_routes = Some(Vec::new());
         // Encoding trusts its stage producer. Receiving formation validation,
         // rather than serialization, must refuse this unchanged fresh result.
         let encoded = encode_module(&denied).unwrap();
@@ -4170,14 +4170,14 @@ mod routed_scalar_tests {
 
         qualify_input(&mut denied);
         denied.machines[0].declaration.as_mut().unwrap().callable = TerminalIdentityIndex(2);
-        denied.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
+        denied.types.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
         assert_eq!(
             decode_module(&encode_module(&denied).unwrap()).unwrap(),
             denied
         );
 
         let mut unrestricted = denied.clone();
-        unrestricted.scalar_qualifications.domains[0].establishment_routes = None;
+        unrestricted.types.scalar_qualifications.domains[0].establishment_routes = None;
         assert_eq!(
             decode_module(&encode_module(&unrestricted).unwrap()).unwrap(),
             unrestricted
@@ -4266,7 +4266,7 @@ mod routed_scalar_tests {
         );
 
         let mut missing_predicate = module.clone();
-        missing_predicate.declaration_contracts[0].ensures.clear();
+        missing_predicate.execution.declaration_contracts[0].ensures.clear();
         assert_eq!(
             decode_module(&encode_raw(&missing_predicate).unwrap()),
             Err(crate::CodecError::MalformedStructuralFoundation(
@@ -4306,7 +4306,7 @@ mod routed_scalar_tests {
         // Fixed model commitments isolate artifact reference integrity. They
         // establish no source application, selection or refinement proof.
         let mut captured = module.clone();
-        captured.declaration_contracts[0]
+        captured.execution.declaration_contracts[0]
             .declaration
             .as_mut()
             .unwrap()
@@ -4326,7 +4326,7 @@ mod routed_scalar_tests {
             decode_module(&encode_raw(&captured).unwrap()).unwrap(),
             captured
         );
-        captured.declaration_contracts[0]
+        captured.execution.declaration_contracts[0]
             .declaration
             .as_mut()
             .unwrap()
@@ -4344,7 +4344,7 @@ mod routed_scalar_tests {
 
         for mutation in 0..4 {
             let mut malformed = module.clone();
-            let contract = &mut malformed.declaration_contracts[0];
+            let contract = &mut malformed.execution.declaration_contracts[0];
             match mutation {
                 0 => contract.id = malformed.machines[0].contract.id,
                 1 => contract
@@ -5484,16 +5484,16 @@ mod normal_qualification_tests {
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
         assert_eq!(
-            decoded.boundary_machines[0].result_lifetimes,
+            decoded.interfaces.boundary_machines[0].result_lifetimes,
             module.interfaces.boundary_machines[0].result_lifetimes
         );
         assert!(
-            decoded.boundary_machines[0]
+            decoded.interfaces.boundary_machines[0]
                 .result_reference_regions
                 .is_empty()
         );
         let mut changed = module.clone();
-        changed.boundary_machines[0]
+        changed.interfaces.boundary_machines[0]
             .result_lifetimes
             .as_mut()
             .unwrap()[0]
@@ -5507,7 +5507,7 @@ mod normal_qualification_tests {
         );
         for missing in [None, Some(Vec::new())] {
             let mut changed = module.clone();
-            changed.boundary_machines[0].result_lifetimes = missing;
+            changed.interfaces.boundary_machines[0].result_lifetimes = missing;
             assert!(decode_module(&encode_module(&changed).unwrap()).is_err());
         }
     }
@@ -5538,17 +5538,17 @@ mod normal_qualification_tests {
     #[test]
     fn structural_wire_preserves_an_explicit_empty_issuer_set() {
         let mut unrestricted = module();
-        unrestricted.boundary_machines.clear();
+        unrestricted.interfaces.boundary_machines.clear();
         let unrestricted_bytes = encode_module(&unrestricted).unwrap();
         assert_eq!(decode_module(&unrestricted_bytes).unwrap(), unrestricted);
 
         let mut denied = unrestricted.clone();
-        denied.structural_domains[0].establishment_routes = Some(Vec::new());
+        denied.types.structural_domains[0].establishment_routes = Some(Vec::new());
         let denied_bytes = encode_module(&denied).unwrap();
         let decoded = decode_module(&denied_bytes).unwrap();
         assert_eq!(decoded, denied);
         assert_eq!(
-            decoded.structural_domains[0].establishment_routes,
+            decoded.types.structural_domains[0].establishment_routes,
             Some(Vec::new())
         );
         assert_ne!(denied_bytes, unrestricted_bytes);
@@ -5620,10 +5620,10 @@ mod normal_qualification_tests {
         let module = module();
         let original = semantic_fingerprint(&module).unwrap();
         let mut changed = module.clone();
-        changed.boundary_machines[0].normal_qualifications.clear();
+        changed.interfaces.boundary_machines[0].normal_qualifications.clear();
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
         let mut changed = module.clone();
-        changed.boundary_machines[0].normal_qualifications[2].path[1] =
+        changed.interfaces.boundary_machines[0].normal_qualifications[2].path[1] =
             StructuralPathSegment::FixedIndex(0);
         assert_eq!(
             decode_module(&encode_module(&changed).unwrap()).unwrap(),
@@ -5631,7 +5631,7 @@ mod normal_qualification_tests {
         );
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
         let mut changed = module.clone();
-        changed.boundary_machines[0].requires[0].path = vec![field(9)];
+        changed.interfaces.boundary_machines[0].requires[0].path = vec![field(9)];
         assert_eq!(
             decode_module(&encode_module(&changed).unwrap()).unwrap(),
             changed
@@ -5651,7 +5651,7 @@ mod normal_qualification_tests {
             vec![StructuralPathSegment::FixedIndex(0)],
         ] {
             let mut malformed = original.clone();
-            malformed.boundary_machines[0].normal_qualifications[2].path = path;
+            malformed.interfaces.boundary_machines[0].normal_qualifications[2].path = path;
             assert_eq!(
                 decode_module(&encode_raw(&malformed).unwrap()),
                 Err(CodecError::MalformedStructuralFoundation(
@@ -5660,7 +5660,7 @@ mod normal_qualification_tests {
             );
         }
         let mut malformed = original;
-        malformed.boundary_machines[0].requires[0].path = vec![field(12)];
+        malformed.interfaces.boundary_machines[0].requires[0].path = vec![field(12)];
         assert_eq!(
             decode_module(&encode_raw(&malformed).unwrap()),
             Err(CodecError::MalformedStructuralFoundation(
@@ -5772,7 +5772,7 @@ mod global_descriptor_table_tests {
     #[test]
     fn descriptor_table_receiving_rejects_wrong_extent_and_shared_backing() {
         let mut short = descriptor_module(GlobalDescriptorTableOperation::Store);
-        short.structural_types[0].shape =
+        short.types.structural_types[0].shape =
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity: 9,
                 access: Some(StructuralAccess::MutableBorrow),
@@ -5780,7 +5780,7 @@ mod global_descriptor_table_tests {
         assert!(refusal(&short).contains("exact unqualified ten-byte array"));
 
         let mut shared = descriptor_module(GlobalDescriptorTableOperation::Store);
-        shared.structural_types[0].shape =
+        shared.types.structural_types[0].shape =
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity: 10,
                 access: Some(StructuralAccess::SharedBorrow),
@@ -5973,7 +5973,7 @@ mod descriptor_operation_tests {
         }
         assert!(refusal(&shared).contains("mutable GDT"));
         let mut short = task_module();
-        short.structural_types[1].shape =
+        short.types.structural_types[1].shape =
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity: 103,
                 access: Some(StructuralAccess::SharedBorrow),
@@ -5987,7 +5987,7 @@ mod descriptor_operation_tests {
         }
         assert!(refusal(&extent).contains("exact unqualified"));
         let mut narrow = task_module();
-        narrow.structural_types[3].shape = StructuralTypeShape::PrimitiveScalar(unsigned(32));
+        narrow.types.structural_types[3].shape = StructuralTypeShape::PrimitiveScalar(unsigned(32));
         assert!(refusal(&narrow).contains("declared element width"));
         let mut result = task_module();
         if let OperationResult::Scalar(result) =
@@ -6074,7 +6074,7 @@ mod descriptor_operation_tests {
             }
             assert!(refusal(&extent).contains("exact unqualified"));
             let mut scratch = segment_module(kind);
-            scratch.structural_types[2].shape =
+            scratch.types.structural_types[2].shape =
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                     capacity: 9,
                     access: Some(StructuralAccess::MutableBorrow),
@@ -6130,7 +6130,7 @@ mod opaque_value_tests {
         assert_eq!(decoded, module);
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
         assert!(!terminal_semantics::zeroed_structural_shape(
-            decoded.structural_types.iter(),
+            decoded.types.structural_types.iter(),
             identity,
         ));
         assert_eq!(
@@ -6249,14 +6249,14 @@ mod scalar_predicate_definition_tests {
         let bytes = encode_module(&original).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), original);
         let mut changed = original.clone();
-        changed.scalar_predicate_definitions[0].body = Proposition::Truth;
+        changed.scalars.scalar_predicate_definitions[0].body = Proposition::Truth;
         assert_ne!(
             semantic_fingerprint(&original).unwrap(),
             semantic_fingerprint(&changed).unwrap()
         );
 
         let mut capture = original.clone();
-        capture.scalar_predicate_definitions[0]
+        capture.scalars.scalar_predicate_definitions[0]
             .body
             .remap_value_ids(|_| ValueId::new(2).unwrap());
         assert!(matches!(
@@ -6265,8 +6265,8 @@ mod scalar_predicate_definition_tests {
         ));
 
         let mut duplicate_input = original.clone();
-        let input = duplicate_input.scalar_predicate_definitions[0].parameters[0];
-        duplicate_input.scalar_predicate_definitions[0]
+        let input = duplicate_input.scalars.scalar_predicate_definitions[0].parameters[0];
+        duplicate_input.scalars.scalar_predicate_definitions[0]
             .parameters
             .push(input);
         assert!(matches!(
@@ -6278,8 +6278,8 @@ mod scalar_predicate_definition_tests {
 
         let mut duplicate_declaration = original.clone();
         duplicate_declaration
-            .scalar_predicate_definitions
-            .push(duplicate_declaration.scalar_predicate_definitions[0].clone());
+            .scalars.scalar_predicate_definitions
+            .push(duplicate_declaration.scalars.scalar_predicate_definitions[0].clone());
         assert!(matches!(
             decode_module(&module_wire::encode_raw(&duplicate_declaration).unwrap()),
             Err(CodecError::NonCanonicalOrder(
@@ -6289,11 +6289,11 @@ mod scalar_predicate_definition_tests {
 
         let mut unordered = original.clone();
         let mut identities = unordered.identities.into_builder();
-        let mut second = unordered.scalar_predicate_definitions[0].clone();
+        let mut second = unordered.scalars.scalar_predicate_definitions[0].clone();
         second.declaration = identities.intern("test::other-predicate");
         unordered.identities = identities.build();
-        unordered.scalar_predicate_definitions.push(second);
-        unordered.scalar_predicate_definitions.swap(0, 1);
+        unordered.scalars.scalar_predicate_definitions.push(second);
+        unordered.scalars.scalar_predicate_definitions.swap(0, 1);
         assert!(matches!(
             decode_module(&module_wire::encode_raw(&unordered).unwrap()),
             Err(CodecError::NonCanonicalOrder(
@@ -6302,7 +6302,7 @@ mod scalar_predicate_definition_tests {
         ));
 
         let mut unknown = original.clone();
-        unknown.scalar_predicate_definitions[0].declaration =
+        unknown.scalars.scalar_predicate_definitions[0].declaration =
             terminal_psi::TerminalIdentityIndex(u32::MAX);
         assert!(matches!(
             decode_module(&encode_module(&unknown).unwrap()),
@@ -6310,7 +6310,7 @@ mod scalar_predicate_definition_tests {
         ));
 
         let mut qualified = original;
-        qualified.scalar_predicate_definitions[0].parameters[0].qualifications =
+        qualified.scalars.scalar_predicate_definitions[0].parameters[0].qualifications =
             ScalarQualificationSetId::new(1);
         assert!(matches!(
             decode_module(&encode_module(&qualified).unwrap()),

@@ -566,7 +566,7 @@ fn nonreturning_local_calls_retain_write_effects_and_actual_backing() {
             )
             .unwrap();
         let mut unknown = DescriptorAnalysis::with_borrowed_storage_slots(
-            &missing.structural_types,
+            &missing.types.structural_types,
             &missing_graph,
         );
         assert!(unknown.storage_access_frame(caller).unwrap().is_none());
@@ -990,7 +990,7 @@ fn stored_sequence_ordinals_keep_the_completed_constructor_cut() {
         )
         .unwrap();
     let mut other = Replay::with_slot_kind(
-        &foreign.structural_types,
+        &foreign.types.structural_types,
         &foreign_graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -1194,7 +1194,7 @@ fn stored_sequence_reference_capture_keeps_the_referent_live() {
     )
     .unwrap();
     let mut replay = Replay::with_slot_kind(
-        &redirected.structural_types,
+        &redirected.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -1431,7 +1431,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     )
     .unwrap();
     let mut replay = Replay::with_slot_kind(
-        &escaping.structural_types,
+        &escaping.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -1440,7 +1440,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     // Moving the roster carries its own storage, while each
     // ordinal must retain the distinct caller view it contains.
     let mut moved = sequence_capture_module();
-    moved.structural_types[1].multiplicity =
+    moved.types.structural_types[1].multiplicity =
         terminal_psi::StructuralMultiplicity::Affine;
     let body = &mut moved.machines[0];
     body.blocks[0].operations.truncate(1);
@@ -1467,7 +1467,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     )
     .unwrap();
     let mut replay = Replay::with_slot_kind(
-        &moved.structural_types,
+        &moved.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -1535,7 +1535,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     )
     .unwrap();
     let mut replay = Replay::with_slot_kind(
-        &returned.structural_types,
+        &returned.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -1583,21 +1583,21 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     let mut borrowed_leaf = moved.clone();
     let borrowed = StructuralTypeId::new(3).unwrap();
     let outer = StructuralTypeId::new(4).unwrap();
-    let mut declaration = borrowed_leaf.structural_types[1].clone();
+    let mut declaration = borrowed_leaf.types.structural_types[1].clone();
     declaration.id = borrowed;
     declaration.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
     declaration.shape = StructuralTypeShape::ElementView {
         element: bytes,
         access: Some(StructuralAccess::SharedBorrow),
     };
-    borrowed_leaf.structural_types.push(declaration);
-    let mut declaration = borrowed_leaf.structural_types[1].clone();
+    borrowed_leaf.types.structural_types.push(declaration);
+    let mut declaration = borrowed_leaf.types.structural_types[1].clone();
     declaration.id = outer;
     declaration.shape = StructuralTypeShape::ElementView {
         element: borrowed,
         access: None,
     };
-    borrowed_leaf.structural_types.push(declaration);
+    borrowed_leaf.types.structural_types.push(declaration);
     let argument = |place, access| {
         terminal_psi::StructuralArgument::whole(PlaceId::new(place).unwrap(), access)
     };
@@ -1682,7 +1682,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     )
     .unwrap();
     let mut replay = Replay::with_slot_kind(
-        &borrowed_leaf.structural_types,
+        &borrowed_leaf.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -1787,7 +1787,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     )
     .unwrap();
     let mut replay = Replay::with_slot_kind(
-        &alternatives.structural_types,
+        &alternatives.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -1858,7 +1858,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     )
     .unwrap();
     let mut replay = Replay::with_slot_kind(
-        &alternatives.structural_types,
+        &alternatives.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -1897,13 +1897,13 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     // can read an installed slot without traversing its account.
     let mut nested = alternatives.clone();
     let outer = StructuralTypeId::new(3).unwrap();
-    let mut declaration = nested.structural_types[1].clone();
+    let mut declaration = nested.types.structural_types[1].clone();
     declaration.id = outer;
     declaration.shape = StructuralTypeShape::ElementView {
         element: sequence,
         access: None,
     };
-    nested.structural_types.push(declaration);
+    nested.types.structural_types.push(declaration);
     let argument = |place| {
         terminal_psi::StructuralArgument::whole(
             PlaceId::new(place).unwrap(),
@@ -1973,7 +1973,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     )
     .unwrap();
     let mut replay = Replay::with_slot_kind(
-        &nested.structural_types,
+        &nested.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );

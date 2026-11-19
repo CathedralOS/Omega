@@ -1035,7 +1035,7 @@ pub(crate) mod byte_arrays {
             if !value.projected_qualifications.is_empty() {
                 return Err(malformed());
             }
-            let domains = self.program.catalogs.structural_domains.iter();
+            let domains = self.program.catalogs.types.structural_domains.iter();
             let original = terminal_semantics::byte_qualification_predicates_in(
                 domains.clone(),
                 value.structural_type,
@@ -1654,7 +1654,7 @@ pub(crate) mod byte_arrays {
             }
             let window = terminal_semantics::fixed_byte_array_loan(
                 self.structural_types().values(),
-                self.program.catalogs.structural_domains.iter(),
+                self.program.catalogs.types.structural_domains.iter(),
                 &source,
                 argument,
                 parameter,

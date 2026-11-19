@@ -266,7 +266,7 @@ pub(crate) mod capabilities {
         if private_entry_ram.iter().any(|recipe| {
             recipe.terminal() != program.identity.semantic()
                 || recipe.input().machine != entry
-                || !program.catalogs.access_view_inputs.contains(recipe.input())
+                || !program.catalogs.access.access_view_inputs.contains(recipe.input())
         }) {
             return Err(malformed());
         }
@@ -474,7 +474,7 @@ pub(crate) mod capabilities {
                             for descriptor in &values.descriptors {
                                 let selected = program
                                     .catalogs
-                                    .callables
+                                    .execution.callables
                                     .descriptor(*descriptor)
                                     .ok_or_else(malformed)?;
                                 pending.push(selected.machine);
@@ -484,7 +484,7 @@ pub(crate) mod capabilities {
                         OperationKind::CallDynamic {
                             interface, slot, ..
                         } => {
-                            let catalog = &program.catalogs.dynamic_dispatch;
+                            let catalog = &program.catalogs.execution.dynamic_dispatch;
                             let slot_index = usize::try_from(*slot).map_err(|_| malformed())?;
                             if catalog
                                 .interface(*interface)
@@ -663,7 +663,7 @@ pub(crate) mod capabilities {
             terminal_semantics::inline_storage_extent_dependencies(storage_roots, &declarations)
                 .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?,
         );
-        let catalog = &program.catalogs.scalar_applications;
+        let catalog = &program.catalogs.scalars.scalar_applications;
         let mut scalar_entry_conditions = Vec::new();
         for (position, declaration) in catalog.declarations().iter().enumerate() {
             let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
@@ -2860,11 +2860,11 @@ pub(crate) mod execution {
                 contract,
                 descriptor,
             } = scalar
-                && (self.program.catalogs.callables.contract(contract).is_none()
+                && (self.program.catalogs.execution.callables.contract(contract).is_none()
                     || self
                         .program
                         .catalogs
-                        .callables
+                        .execution.callables
                         .descriptor(descriptor)
                         .is_none_or(|selected| selected.contract != contract))
             {
@@ -3224,10 +3224,10 @@ pub(crate) mod execution {
                                             self.execute_call(operation, &program)?
                                         }
                                         OperationKind::SelectMachine { descriptor } => {
-                                            let selected = program.catalogs.callables.descriptor(descriptor).ok_or_else(malformed)?;
+                                            let selected = program.catalogs.execution.callables.descriptor(descriptor).ok_or_else(malformed)?;
                                             let result = operation.result.scalar().ok_or_else(malformed)?;
                                             if result.scalar_type != semantic_vocabulary::ScalarType::Callable(selected.contract)
-                                                || program.catalogs.callables.contract(selected.contract).is_none() {
+                                                || program.catalogs.execution.callables.contract(selected.contract).is_none() {
                                                 return Err(malformed());
                                             }
                                             self.store_scalar(operation, TerminalScalarValue::Callable { contract: selected.contract, descriptor })?

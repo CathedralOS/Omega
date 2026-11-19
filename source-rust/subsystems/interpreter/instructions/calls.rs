@@ -323,7 +323,7 @@ pub(crate) mod frames {
                     };
                     if u64::try_from(snapshot.len()).map_or(true, |length| length > *capacity)
                         || !terminal_semantics::byte_literal_qualifications_hold_in(
-                            self.program.catalogs.structural_domains.iter(),
+                            self.program.catalogs.types.structural_domains.iter(),
                             parameter.structural_type,
                             &parameter.qualifications,
                             snapshot.bytes(),
@@ -1636,7 +1636,7 @@ pub(crate) mod component_calls {
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     value.qualifications.sort();
-                    let domains = &self.program.catalogs.structural_domains;
+                    let domains = &self.program.catalogs.types.structural_domains;
                     let entails =
                         |actual: &[StructuralDomainId], required: &[StructuralDomainId]| {
                             required.iter().all(|identity| {
@@ -2738,7 +2738,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let Some(scalar_type) = result.scalar_type.as_integer() else {
             return Err(malformed());
         };
-        if program.catalogs.dynamic_dispatch.table(table).is_none() {
+        if program.catalogs.execution.dynamic_dispatch.table(table).is_none() {
             return Err(malformed());
         }
         self.values.insert(
@@ -2767,12 +2767,12 @@ impl<'artifact> TerminalExecution<'artifact> {
         else {
             return Err(malformed());
         };
-        if actual_contract != contract || program.catalogs.callables.contract(contract).is_none() {
+        if actual_contract != contract || program.catalogs.execution.callables.contract(contract).is_none() {
             return Err(malformed());
         }
         let selected = program
             .catalogs
-            .callables
+            .execution.callables
             .descriptor(descriptor)
             .ok_or_else(malformed)?;
         if selected.contract != contract {
@@ -2827,7 +2827,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         else {
             return Err(TerminalInterpretError::VerifiedValueMissing(selector));
         };
-        let catalog = &program.catalogs.dynamic_dispatch;
+        let catalog = &program.catalogs.execution.dynamic_dispatch;
         let table = u32::try_from(table).map_err(|_| malformed())?;
         if catalog.table(table).map(|table| table.interface) != Some(interface) {
             return Err(malformed());

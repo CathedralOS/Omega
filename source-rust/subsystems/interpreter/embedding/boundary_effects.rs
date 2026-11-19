@@ -1689,7 +1689,7 @@ pub(crate) mod byte_buffers {
             }
             let (_, bytes) = self.bounded_owner_snapshot(argument)?;
             if !terminal_semantics::byte_literal_qualifications_hold_in(
-                self.program.catalogs.structural_domains.iter(),
+                self.program.catalogs.types.structural_domains.iter(),
                 parameter.structural_type,
                 &parameter.qualifications,
                 bytes.bytes(),
@@ -2223,7 +2223,7 @@ pub(crate) mod normal_qualifications {
                 let domain = self
                     .program
                     .catalogs
-                    .structural_domains
+                    .types.structural_domains
                     .iter()
                     .find(|domain| domain.id == row.domain && domain.carrier == carrier)
                     .ok_or(malformed())?;
@@ -2327,7 +2327,7 @@ pub(crate) mod normal_qualifications {
         ) -> bool {
             terminal_semantics::scalar_projection_entails_membership(
                 self.structural_types().values(),
-                self.program.catalogs.structural_domains.iter(),
+                self.program.catalogs.types.structural_domains.iter(),
                 value.structural_type,
                 path,
                 domain,
@@ -2713,8 +2713,8 @@ pub(crate) mod results {
             result: &OperationResult,
         ) -> Result<(), TerminalInterpretError> {
             if boundary.requires_checked_result(
-                &self.program.catalogs.structural_domains,
-                &self.program.catalogs.scalar_qualifications.domains,
+                &self.program.catalogs.types.structural_domains,
+                &self.program.catalogs.types.scalar_qualifications.domains,
             ) {
                 return Err(TerminalInterpretError::RuntimeSupplySelectionRejected {
                     boundary: boundary.id,
@@ -2769,7 +2769,7 @@ pub(crate) mod results {
             // The semantic owner validates the complete frontier and its exact
             // result place. Input lifetime debts do not locate provider bytes.
             terminal_semantics::boundary_result_slots(
-                &self.program.catalogs.structural_types, boundary,
+                &self.program.catalogs.types.structural_types, boundary,
                 DescriptorSlotKind::BorrowedStorage, result,
             ).is_ok_and(|slots| matches!(slots.as_slice(), [slot]
                 if matches!(slot.origins.as_slice(), [DescriptorStoredOrigin::Provider(origin)]
@@ -2923,7 +2923,7 @@ pub(crate) mod results {
             // captured/reference completion instead of fresh byte contents.
             self.supports_aggregate_result(result)
                 && terminal_semantics::boundary_result_lifetimes(
-                    &self.program.catalogs.structural_types,
+                    &self.program.catalogs.types.structural_types,
                     boundary,
                 )
                 .is_ok()

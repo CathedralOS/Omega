@@ -465,14 +465,14 @@ pub(crate) mod callback_application_wire {
                 unadmitted
             );
             let mut module = terminal_psi::TerminalModule::declarations();
-            module.callback_applications.push(unadmitted);
+            module.interfaces.callback_applications.push(unadmitted);
             super::super::super::canonical_order::validate_canonical_order(&module).unwrap();
-            module.callback_applications[0].entry_admitted = true;
+            module.interfaces.callback_applications[0].entry_admitted = true;
             assert!(
                 super::super::super::canonical_order::validate_canonical_order(&module).is_err()
             );
-            module.callback_applications[0].entry_admitted = false;
-            module.callback_applications[0].boundary =
+            module.interfaces.callback_applications[0].entry_admitted = false;
+            module.interfaces.callback_applications[0].boundary =
                 semantic_vocabulary::BoundaryMachineId::new(3);
             assert!(
                 super::super::super::canonical_order::validate_canonical_order(&module).is_err()

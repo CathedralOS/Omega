@@ -829,7 +829,7 @@ pub(crate) mod empty_run {
             };
             let program = std::sync::Arc::clone(&self.program);
             let contract = terminal_semantics::empty_run_release_contract(
-                &program.catalogs.structural_types,
+                &program.catalogs.types.structural_types,
                 boundary,
             )
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
@@ -1050,7 +1050,7 @@ pub(crate) mod extraction {
             let mut backing_source = source.clone();
             backing_source.path.extend(
                 plan.storage
-                    .owner_storage_path(&program.catalogs.structural_types)
+                    .owner_storage_path(&program.catalogs.types.structural_types)
                     .ok_or(malformed())?,
             );
             let child = ConstructorValue::resolve(self, &backing_source)?;
@@ -1361,7 +1361,7 @@ pub(crate) mod field_access {
             let projected = if access.field_region(entry.key()).is_some() {
                 Some(
                     terminal_semantics::access_region_projection(
-                        &self.program.catalogs.structural_types,
+                        &self.program.catalogs.types.structural_types,
                         plan,
                         field,
                         projection,
@@ -1981,7 +1981,7 @@ pub(crate) mod lifecycle {
             let mut backing_destination = destination.clone();
             backing_destination.path.extend(
                 plan.storage
-                    .owner_storage_path(&program.catalogs.structural_types)
+                    .owner_storage_path(&program.catalogs.types.structural_types)
                     .ok_or(malformed())?,
             );
             let mut storage = ConstructorStorage::new(self.account.as_ref());
@@ -2009,7 +2009,7 @@ pub(crate) mod lifecycle {
                 } => {
                     let StructuralTypeShape::Record { fields, .. } =
                         &terminal_psi::find_structural_type(
-                            &program.catalogs.structural_types,
+                            &program.catalogs.types.structural_types,
                             carrier,
                         )
                         .ok_or(malformed())?
@@ -2953,7 +2953,7 @@ pub(crate) mod relocation {
             let count = u64::try_from(count).map_err(|_| malformed())?;
             let backing_path = plan
                 .storage
-                .owner_storage_path(&program.catalogs.structural_types)
+                .owner_storage_path(&program.catalogs.types.structural_types)
                 .ok_or(malformed())?;
             let mut backing_source = source.clone();
             backing_source.path.extend_from_slice(&backing_path);

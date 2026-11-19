@@ -31,19 +31,19 @@ pub fn validate_runtime_evidence_inputs_in(
     module: &RuntimeEvidenceInputs<'_>,
 ) -> Result<(), &'static str> {
     super::callable_refinement::validate_callable_evidence_contracts_in(
-        module.execution.callables,
-        module.proofs.proposition_declarations,
-        module.proofs.proposition_applications,
-        module.proofs.evidence_terms,
-        module.proofs.evidence_contract_lanes,
+        module.callables,
+        module.proposition_declarations,
+        module.proposition_applications,
+        module.evidence_terms,
+        module.evidence_contract_lanes,
     )?;
     validate_subject_rosters(module)?;
     if !module
-        .proofs.evidence_contract_lanes
+        .evidence_contract_lanes
         .iter()
         .any(|lane| lane.kind == EvidenceContractLaneKind::Requires)
         && !module
-            .proofs.proof_output_calls
+            .proof_output_calls
             .iter()
             .any(|call| call.runtime_call.is_some())
     {
@@ -59,7 +59,7 @@ pub fn validate_runtime_evidence_inputs_in(
         for operation in caller.operations() {
             let parts = operation.parts();
             let expected = input_lanes(module, parts.target.owner());
-            let mut invocations = module.proofs.proof_output_calls.iter().filter(|invocation| {
+            let mut invocations = module.proof_output_calls.iter().filter(|invocation| {
                 invocation.caller == caller.id
                     && invocation.runtime_call.is_some_and(|runtime| {
                         runtime.site == operation.site && runtime.target == parts.target
@@ -153,8 +153,8 @@ pub fn validate_runtime_evidence_inputs_in(
                 }
                 if history.is_none() {
                     history = Some(PayloadMembershipHistory::for_current_contracts(
-                        module.types.structural_types,
-                        module.types.structural_domains,
+                        module.structural_types,
+                        module.structural_domains,
                         graph,
                         caller.id,
                         &caller.structural_parameters,
@@ -244,7 +244,7 @@ pub fn validate_runtime_evidence_inputs_in(
             }
         }
     }
-    if module.proofs.proof_output_calls.iter().any(|call| {
+    if module.proof_output_calls.iter().any(|call| {
         call.static_requirement_dispatch.is_none()
             && call
                 .runtime_call
@@ -256,7 +256,7 @@ pub fn validate_runtime_evidence_inputs_in(
 }
 
 fn validate_subject_rosters(module: &RuntimeEvidenceInputs<'_>) -> Result<(), &'static str> {
-    for lane in module.proofs.evidence_contract_lanes {
+    for lane in module.evidence_contract_lanes {
         let owner = module
             .callable(lane.owner)
             .ok_or("evidence subject owner is absent")?;
@@ -307,7 +307,7 @@ fn validate_output_roster(
     callee: EvidenceCallableOwner,
 ) -> Result<(), &'static str> {
     let mut outputs = module
-        .proofs.evidence_contract_lanes
+        .evidence_contract_lanes
         .iter()
         .filter(|lane| lane.owner == callee && lane.kind == EvidenceContractLaneKind::Ensures)
         .collect::<Vec<_>>();
@@ -363,7 +363,7 @@ fn input_lanes<'a>(
     owner: EvidenceCallableOwner,
 ) -> Vec<&'a EvidenceContractLane> {
     let mut lanes = module
-        .proofs.evidence_contract_lanes
+        .evidence_contract_lanes
         .iter()
         .filter(|lane| lane.owner == owner && lane.kind == EvidenceContractLaneKind::Requires)
         .collect::<Vec<_>>();
@@ -375,7 +375,7 @@ fn term<'a>(
     module: &'a RuntimeEvidenceInputs<'_>,
     id: EvidenceTermId,
 ) -> Result<&'a terminal_psi::EvidenceTermDeclaration, &'static str> {
-    let mut rows = module.proofs.evidence_terms.iter().filter(|term| term.id == id);
+    let mut rows = module.evidence_terms.iter().filter(|term| term.id == id);
     let term = rows.next().ok_or("runtime evidence term is absent")?;
     if rows.next().is_some() {
         return Err("runtime evidence term identity is ambiguous");
@@ -387,7 +387,7 @@ fn application<'a>(
     id: PropositionId,
 ) -> Result<&'a terminal_psi::PropositionApplicationIdentity, &'static str> {
     let mut rows = module
-        .proofs.proposition_applications
+        .proposition_applications
         .iter()
         .filter(|row| row.id == id);
     let row = rows
@@ -470,7 +470,7 @@ fn observe_arguments(
                         .ok_or("evidence snapshot actual has no current carrier")?.carrier;
                     let mut path = prefix.to_vec(); path.extend_from_slice(subject_path);
                     let selected = crate::descriptors::descriptor_lifetimes::descriptor_location(
-                        module.types.structural_types, root, root_type, &path, None,
+                        module.structural_types, root, root_type, &path, None,
                     ).ok_or("evidence snapshot has no exact typed storage path")?;
                     Ok(ArgumentValue::Scalar(history.scalar_snapshot(cut, root, &selected.path)?))
                 } else {
@@ -622,14 +622,14 @@ fn source_arguments(
         let use_position = position(caller, use_operation)?;
         let source_position = position(caller, operation)?;
         crate::descriptors::descriptor_results::require_unchanged_produced_payload(
-            module.types.structural_types,
+            module.structural_types,
             graph,
             caller.id,
             source_position,
             use_position,
             &DescriptorLocation::whole(result.place),
         )?;
-        let mut analysis = DescriptorAnalysis::new(module.types.structural_types, graph);
+        let mut analysis = DescriptorAnalysis::new(module.structural_types, graph);
         if !analysis.case_is_established(
             caller.id,
             use_position,
@@ -645,7 +645,7 @@ fn source_arguments(
             .len()
             .checked_add(
                 module
-                    .proofs.proof_output_calls
+                    .proof_output_calls
                     .iter()
                     .filter(|invocation| {
                         invocation.caller == caller.id && invocation.runtime_call.is_some()
@@ -707,7 +707,7 @@ fn source_arguments(
         )?;
         return Ok((source_term.proposition, arguments, Some(source_position)));
     }
-    let mut producers = module.proofs.proof_output_calls.iter().filter_map(|invocation| {
+    let mut producers = module.proof_output_calls.iter().filter_map(|invocation| {
         if invocation.caller != caller.id {
             return None;
         }
@@ -742,7 +742,7 @@ fn source_arguments(
     let callee = module
         .callable(parts.target.owner())
         .ok_or("evidence output callee is absent")?;
-    let mut lanes = module.proofs.evidence_contract_lanes.iter().filter(|lane| {
+    let mut lanes = module.evidence_contract_lanes.iter().filter(|lane| {
         lane.owner == parts.target.owner()
             && lane.kind == EvidenceContractLaneKind::Ensures
             && lane.position == output.output_position

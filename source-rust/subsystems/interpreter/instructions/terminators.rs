@@ -346,7 +346,7 @@ pub(crate) mod block_bindings {
             argument: &StructuralArgument,
             mut value: TerminalStructuralValue,
         ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-            let changes = &self.program.catalogs.structural_qualification_changes;
+            let changes = &self.program.catalogs.types.structural_qualification_changes;
             let key = (self.current_machine, edge, parameter.position);
             // The canonical catalog is sorted and unique by this exact key.
             // Reuse it directly for each captured descriptor, without a new
