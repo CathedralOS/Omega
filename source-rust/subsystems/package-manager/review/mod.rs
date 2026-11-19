@@ -19,16 +19,13 @@ pub(crate) mod timings;
 pub(crate) use candidate::verify_transitive_source_custody;
 
 pub(crate) use audit::{PackageSourcePatchError, render_package_source_patch};
-pub use candidate::PackageReviewCacheWrite;
 pub(crate) use candidate::{
     CandidateReview, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
     PackageSourceBindings, review_resolved_packages,
 };
 pub use candidate::{CompileResolvedPackageReviewCause, CompileResolvedPackageReviewsError};
 pub use candidate::{
-    PackageReviewCompletion, PackageReviewComponent, PackageReviewExecutor,
-    PackageReviewOccurrence, PackageReviewPass, PackageReviewRound, PackageReviewWork,
-    PackageSourceVerificationPhase, RetainedPackageReviews,
+    PackageReviewExecutor, PackageReviewPass, PackageSourceVerificationPhase, RetainedPackageReviews,
 };
 pub(crate) use compare::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
@@ -39,7 +36,6 @@ pub(crate) use decision::{
     PackagePolicyDecisionSubject, PackagePolicyResolution, PackagePolicyReviewError,
     ReviewOnlyRootPolicyDisposition, recover_package_policy_review, render_package_policy_review,
 };
-pub(crate) use restricted_build_grants::RestrictedBuildCheckpoint;
 pub use restricted_build_grants::UngrantedRestrictedBuildRequest;
 
 pub(crate) mod build_session;

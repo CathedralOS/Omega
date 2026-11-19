@@ -1,17 +1,6 @@
-/*
-    We select discovery and bound policy passes for an exact target closure and
-    ask application Build to execute them. All products share discovery and
-    final checking: `review_candidate` first runs a preliminary discovery pass
-    (`TargetEntryDiscovery::Dependencies`), derives non-authoritative semantic
-    binding proposals (`candidate_semantic_binding_inputs`), and when bindings
-    are discovered, runs a bound pass (`TargetEntryDiscovery::Disabled`) that
-    carries untouched occurrences forward and recompiles only occurrences whose
-    inputs changed.
-
-    The top-level invocation owns the sponsored session borrowed by every target,
-    candidate, and review pass; `occurrences` admits dependency work and joins
-    compiler evidence to policy.
-*/
+//! Resolve the review's dependency roster and discover its consumer-scoped bindings.
+//! A bound pass recovers evidence against the final inputs and shares the invocation's
+//! accounting with the discovery pass.
 
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 #[path = "passes_occurrences.rs"]
@@ -27,11 +16,7 @@ use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::timings;
 use artifacts::compile_timings::counters;
 use occurrences::TargetEntryDiscovery;
-pub use occurrences::{
-    PackageReviewCompletion, PackageReviewComponent, PackageReviewExecutor,
-    PackageReviewOccurrence, PackageReviewPass, PackageReviewRound, PackageReviewWork,
-    RetainedPackageReviews,
-};
+pub use occurrences::{PackageReviewExecutor, PackageReviewPass, RetainedPackageReviews};
 
 pub(crate) use crate::build_session::PackageSourceBindings;
 

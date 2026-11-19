@@ -104,6 +104,39 @@ fn completion_keeps_the_declared_source_identity() {
 }
 
 #[test]
+fn uncached_occurrence_requires_checked_project_evidence() {
+    use crate::review::{
+        CandidateReview, CompileResolvedPackageReviewCause, review_resolved_packages,
+    };
+
+    let project_root = project("calls/machine_self_call_recursion_compile");
+    let acquisition = begin(project_root.path());
+    let closure = source_graph(&acquisition);
+    let profile = TargetProfile::host_if_supported().unwrap();
+    let target = closure.for_exact_target(profile);
+    let workspace = TemporaryDirectory::create("uncached-package", false).unwrap();
+    let mut session = crate::PackageBuildSession::create(workspace.path()).unwrap();
+    let error = review_resolved_packages(
+        CandidateReview {
+            target_closure: &target,
+            root_build_snapshot: None,
+        },
+        &mut session,
+        &mut crate::PackageSourceBindings::default(),
+        &mut |pass, sources| pass.recover_cached(sources),
+    )
+    .err()
+    .expect("a cache miss must never produce a review");
+    session.close().unwrap();
+    assert!(matches!(
+        error.cause,
+        CompileResolvedPackageReviewCause::Projection { package, diagnostics }
+            if &package == closure.graph().root()
+                && diagnostics.iter().any(|diagnostic| diagnostic.message.contains("requires checked project Build"))
+    ));
+}
+
+#[test]
 fn completion_refuses_another_projects_resolved_graph() {
     let first = project("calls/machine_self_call_recursion_compile");
     let second = project("calls/machine_self_call_recursion_compile");

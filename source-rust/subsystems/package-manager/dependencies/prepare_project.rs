@@ -107,14 +107,40 @@ impl PreparedLocalProject {
             })
     }
 
-    pub(super) fn into_target_review_parts(
-        self,
-    ) -> (
-        PathBuf,
-        ResolvedPackageSourceClosure,
-        Vec<PreparedProjectTarget>,
-    ) {
-        (self.entry_path, self.source_closure, self.targets)
+    /// Recover the locked root Product's runtime decisions for its exact source and compiler.
+    /// An unlocked target supplies no decisions.
+    pub fn accepted_root_permissions(
+        &self,
+        profile: TargetProfile,
+    ) -> Result<Option<review_evidence::permission_acceptance::TerminalPermissionAcceptance>, String>
+    {
+        let target = self
+            .targets
+            .iter()
+            .find(|target| target.profile == profile)
+            .ok_or_else(|| format!("project was not prepared for {}", profile.target_name()))?;
+        let Some(accepted) = target.accepted.as_ref().map_err(ToString::to_string)? else {
+            return Ok(None);
+        };
+        let current = super::compiler_input_identity()?;
+        super::accepted_compilation_identity::require_current_acceptance(
+            &self.source_closure.for_exact_target(profile),
+            accepted,
+            current,
+        )?;
+        accepted
+            .occurrences()
+            .iter()
+            .find(|occurrence| {
+                occurrence.acceptance().package() == self.root_package()
+                    && occurrence.context().purpose().is_product()
+                    && occurrence.context().target() == profile
+            })
+            .map(|occurrence| Some(occurrence.acceptance().terminal_permissions()))
+            .ok_or_else(|| {
+                "locked target has no accepted root Product occurrence; run omega packages update"
+                    .into()
+            })
     }
 }
 
@@ -366,12 +392,14 @@ impl LocalProjectPreparation {
             }
         }
         if self.accepted.is_some() {
-            let compiler = super::accepted_compilation::compiler_input_identity()
-                .map_err(PrepareLocalProjectError::Locked)?;
+            let compiler =
+                super::compiler_input_identity().map_err(PrepareLocalProjectError::Locked)?;
             for target in &self.targets {
                 if let Ok(Some(section)) = &target.accepted {
-                    super::accepted_compilation::require_current_compiler(section, compiler)
-                        .map_err(PrepareLocalProjectError::Locked)?;
+                    super::accepted_compilation_identity::require_current_compiler(
+                        section, compiler,
+                    )
+                    .map_err(PrepareLocalProjectError::Locked)?;
                 }
             }
         }

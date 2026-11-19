@@ -980,7 +980,14 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     let component_description = recover_optional(&mut cursor, recover_component_description)?;
     let target_entry_candidate = recover_optional(&mut cursor, recover_candidate)?;
     let policy_canonical_bytes = cursor.u64()?;
-    if !cursor.exhausted() {
+    if !cursor.exhausted()
+        || build_handoff.package() != package_identity
+        || build_handoff.purpose() != purpose
+        || build_handoff.target() != target
+        || build_handoff.build_execution_profile() != build_execution_profile
+        || build_handoff.source_consumption_commitment() != source_consumption_commitment
+        || usize::try_from(policy_canonical_bytes).ok()? != policy_bytes.len()
+    {
         return None;
     }
     Some(CachedCompiledReview {
@@ -1170,6 +1177,11 @@ mod tests {
         let mut reencoded = Vec::new();
         encode_record(&recovered, &mut reencoded).expect("recovered review encodes");
         assert_eq!(reencoded, payload);
+        let mut wrong_occurrence = recovered;
+        wrong_occurrence.purpose = crate::declarations::DependencyPurpose::Build;
+        let mut inconsistent = Vec::new();
+        encode_record(&wrong_occurrence, &mut inconsistent).unwrap();
+        assert!(decode_record(&signed(inconsistent)).is_none());
         for retired_version in 1u16..RECORD_VERSION {
             let mut retired = payload.clone();
             retired[8..10].copy_from_slice(&retired_version.to_le_bytes());

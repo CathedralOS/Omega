@@ -11,7 +11,6 @@
 
 mod custody;
 mod error;
-mod evidence;
 mod passes;
 mod review_cache;
 mod review_set;
@@ -20,12 +19,7 @@ mod semantic_bindings;
 pub(crate) use custody::verify_transitive_source_custody;
 pub use error::{CompileResolvedPackageReviewCause, CompileResolvedPackageReviewsError};
 pub(crate) use passes::{CandidateReview, PackageSourceBindings, review_resolved_packages};
-pub use passes::{
-    PackageReviewCompletion, PackageReviewComponent, PackageReviewExecutor,
-    PackageReviewOccurrence, PackageReviewPass, PackageReviewRound, PackageReviewWork,
-    RetainedPackageReviews,
-};
-pub use review_cache::PackageReviewCacheWrite;
+pub use passes::{PackageReviewExecutor, PackageReviewPass, RetainedPackageReviews};
 pub use review_set::PackageSourceVerificationPhase;
 pub(crate) use review_set::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 pub(crate) use semantic_bindings::ConsumerScopedSemanticBindingReviewInput;
