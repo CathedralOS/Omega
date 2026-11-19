@@ -78,7 +78,7 @@ framework or a list of unimplemented features.
 ### Stage 05 accepts frozen trees that can skip the stage 04 passes
 
 - Category: The documents disagree.
-- Where: [Stage 04's contract](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-typed-trees/README.md#typed-preparation-psi-04), the [frozen tree constructor](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/src/lib.rs#L898) and the [stage 05 entry](source-rust/subsystems/compiler/source-to-psi/pipeline/05_typed-trees-to-lowered-program/src/compilation.rs#L47).
+- Where: [Stage 04's contract](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/README.md#typed-preparation-psi-04), the [frozen tree constructor](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/src/lib.rs#L898) and the [stage 05 entry](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs#L47).
 - Saw: Stage 04 promises every frozen program has run specialization, domain preparation and record-pattern preparation. Any caller can construct the same type by sealing declaration indexes alone. [Checker tests](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/qualified_terms.rs#L157) do this directly.
 - Cost: A lowering caller can skip required work. A test using this shortcut cannot establish what a program passing through the public compiler would do.
 - Reported: 2026-11-19, Codex, while checking the strict source frontend.

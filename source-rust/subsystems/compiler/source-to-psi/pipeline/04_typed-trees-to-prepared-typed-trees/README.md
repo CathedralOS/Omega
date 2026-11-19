@@ -23,7 +23,7 @@ For a reflected sum visitor, specialization checks both callback interfaces and
 creates a candidate helper for each declared case. When stage 05 reads the
 dispatch, it tests the applied sum's type contracts and admits callback
 applications only for cases that can still occur. The generated helpers enter
-through that dispatch. [Active-case expansion](src/passes/specialization/reflected_fields/active_cases.rs) · [Dispatch lowering](../05_typed-trees-to-lowered-program/src/read/transitions.rs)
+through that dispatch. [Active-case expansion](src/passes/specialization/reflected_fields/active_cases.rs) · [Dispatch lowering](../05_prepared-typed-trees-to-lowered-program/src/read/transitions.rs)
 
 Specialization serves type parameters given plain named types (a builtin
 type, a data declaration with no parameters, a type parameter in scope) and

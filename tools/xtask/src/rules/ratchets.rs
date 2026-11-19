@@ -23,7 +23,7 @@ const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
     :CheckingInteriorState
 */
 pub(super) const CHECKING_STATE_ROOTS: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/src",
     "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src",
     "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-checked-terminal-psi/src",
 ];

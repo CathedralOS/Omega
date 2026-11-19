@@ -512,6 +512,7 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "optimization",
+ "prepared-typed-trees-to-lowered-program",
  "psi-authorization",
  "psi-provider-selections",
  "record-storage",
@@ -535,8 +536,7 @@ dependencies = [
  "terminal-semantics",
  "tokens",
  "typed-trees",
- "typed-trees-to-lowered-program",
- "typed-trees-to-typed-trees",
+ "typed-trees-to-prepared-typed-trees",
  "wire",
 ]
 
@@ -1339,6 +1339,7 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "optimization",
+ "prepared-typed-trees-to-lowered-program",
  "proof-admission",
  "rayon",
  "semantic-vocabulary",
@@ -1362,8 +1363,7 @@ dependencies = [
  "terminal-work",
  "tokens",
  "typed-trees",
- "typed-trees-to-lowered-program",
- "typed-trees-to-typed-trees",
+ "typed-trees-to-prepared-typed-trees",
  "wire",
  "worker-budget",
 ]
@@ -2105,6 +2105,35 @@ dependencies = [
  "target-x86_64",
  "terminal-psi",
  "terminal-semantics",
+]
+
+[[package]]
+name = "prepared-typed-trees-to-lowered-program"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "arena",
+ "bignum",
+ "diagnostics",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "proof-applications",
+ "schema-reflection",
+ "semantic-vocabulary",
+ "service-surface",
+ "source-admission",
+ "source-declarations",
+ "source-provenance",
+ "source-symbol-table",
+ "source-text",
+ "symbols",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+ "typed-trees",
+ "wire",
 ]
 
 [[package]]
@@ -2962,6 +2991,7 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "optimization",
+ "prepared-typed-trees-to-lowered-program",
  "proof-admission",
  "psi-authorization",
  "psi-provider-selections",
@@ -2998,8 +3028,7 @@ dependencies = [
  "terminal-work",
  "tokens",
  "typed-trees",
- "typed-trees-to-lowered-program",
- "typed-trees-to-typed-trees",
+ "typed-trees-to-prepared-typed-trees",
  "wire",
  "worker-budget",
 ]
@@ -3725,36 +3754,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "typed-trees-to-lowered-program"
-version = "0.1.0"
-dependencies = [
- "application-identity",
- "arena",
- "bignum",
- "diagnostics",
- "language-core",
- "numeric-literals",
- "numerics",
- "proof-applications",
- "schema-reflection",
- "semantic-vocabulary",
- "service-surface",
- "source-admission",
- "source-declarations",
- "source-provenance",
- "source-symbol-table",
- "source-text",
- "symbols",
- "terminal-check-tables",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
- "typed-trees",
- "wire",
-]
-
-[[package]]
-name = "typed-trees-to-typed-trees"
+name = "typed-trees-to-prepared-typed-trees"
 version = "0.1.0"
 dependencies = [
  "application-identity",

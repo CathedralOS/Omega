@@ -2,7 +2,7 @@
 
 This crate is the lowered-form checker: it decides whether a program's
 proof obligations hold, and its verdict is the compiler's only verdict.
-[Structure-only elaboration](../05_typed-trees-to-lowered-program/README.md)
+[Structure-only elaboration](../05_prepared-typed-trees-to-lowered-program/README.md)
 (stage 05) writes the obligations into the lowered form (Terminal Psi), and
 this crate accepts one only when the proof kernel accepted a certificate for
 it. It is the third piece of
@@ -125,7 +125,7 @@ the kernel's definition rules cite them.
 
 A `requires` or `ensures` may compare mathematical integers,
 `embed(rest) + embed(count) * 10 <= 99`
-([structure elaboration](../05_typed-trees-to-lowered-program/README.md#mathematical-integers-in-a-clause)).
+([structure elaboration](../05_prepared-typed-trees-to-lowered-program/README.md#mathematical-integers-in-a-clause)).
 The one substitution (`substitute`) states such a clause wherever a scalar
 clause is stated: at a call each embedded formal is the actual embedded, in
 the actual's carrier, and a literal actual is the integer it denotes
@@ -766,7 +766,7 @@ called yet.
 
 ## Loans
 A call that passes a place to a borrowed formal lends it for the call
-([typed-trees-to-lowered-program](../05_typed-trees-to-lowered-program/README.md#references)):
+([prepared-typed-trees-to-lowered-program](../05_prepared-typed-trees-to-lowered-program/README.md#references)):
 the structural argument names the place with the loan's access, and one
 `Loan` row stands for it. [places/loans.rs](src/places/loans.rs) recomputes
 the rows from the lowered form, as for every other row
@@ -832,7 +832,7 @@ call.
 Elaboration lowers a call cycle as a loop: one head block per machine of the
 cycle, the machine's formals as the head's parameters, and a jump to the
 head for each call
-([structure elaboration](../05_typed-trees-to-lowered-program/README.md#call-cycles-as-loops)).
+([structure elaboration](../05_prepared-typed-trees-to-lowered-program/README.md#call-cycles-as-loops)).
 A machine's `requires` is its head's invariant, a row of the module's
 `scalar_block_invariants`. [arrivals.rs](src/arrivals.rs) does three things
 with a row, and the prover does the rest unchanged.
@@ -1325,7 +1325,7 @@ that may run before it returns (`invokes`). Each is a written upper bound
 one mechanism serves both, with the axis as its only parameter. Three crates
 each do one part, and the fact travels in the module:
 
-- `typed-trees-to-lowered-program` reads a written clause into `Signature::reaches`
+- `prepared-typed-trees-to-lowered-program` reads a written clause into `Signature::reaches`
   and `Signature::invokes` (`Ceiling`), through one row reader
   (`read/services.rs`, `named_row`): the named boundary traits as service
   identities of the module's catalog. A reach row is closed under boundary
@@ -1408,7 +1408,7 @@ whose values a body can only pass on. No production path calls any of it. A
 type parameter the body branches on (`requires T == u32 || T == u64`) has no
 generic form yet: each machine generated from one is read and judged as a
 closed machine, under its own type
-([typed-trees-to-lowered-program](../05_typed-trees-to-lowered-program/README.md#generic-machines)),
+([prepared-typed-trees-to-lowered-program](../05_prepared-typed-trees-to-lowered-program/README.md#generic-machines)),
 and [what is missing](#what-the-lowered-form-does-not-carry) says what a
 generic form of it needs.
 
@@ -1433,7 +1433,7 @@ selects `Shift` and `Hold`, which returns `value` and promises
 give.
 
 **The generic check form.** Elaboration lowers `advance` once with
-`Selected` rigid ([typed-trees-to-lowered-program](../05_typed-trees-to-lowered-program/README.md#generic-machines)):
+`Selected` rigid ([prepared-typed-trees-to-lowered-program](../05_prepared-typed-trees-to-lowered-program/README.md#generic-machines)):
 the requirement `Step::apply` is a machine of the module that has its
 formals, result and contract and no block, and the call through the
 parameter is an ordinary direct call of it. Nothing else is new. The call's
@@ -1507,7 +1507,7 @@ ensures result <= Units
 
 **The generic check form.** `Units` is a scalar formal of the machine, after
 `input`, that no caller passes
-([typed-trees-to-lowered-program](../05_typed-trees-to-lowered-program/README.md#generic-machines)).
+([prepared-typed-trees-to-lowered-program](../05_prepared-typed-trees-to-lowered-program/README.md#generic-machines)).
 Nothing else is new: the `requires` row is `input <= Units` over two values,
 and the guarantee is proved from it like any relation between formals. What
 is known of `Units` is its carrier's range and what the `requires` say, so a
@@ -1699,7 +1699,7 @@ type. generics.md, "Static type equality": "Checking the body once per listed
 alternative, each with `T` fixed to that type, satisfies this rule for a
 finite family; the list is closed, so those checks cover every admissible
 use." Each check is an ordinary closed check of the body
-(`typed_trees_to_lowered_program::elaborate_alternatives`): the family's `requires` is
+(`prepared_typed_trees_to_lowered_program::elaborate_alternatives`): the family's `requires` is
 decided true and states nothing, a branch on `T == u8` is decided and its
 other arm is never read, and a contract clause is read left to right with
 each type equation guarding the conjuncts after it, so in the `u16` check

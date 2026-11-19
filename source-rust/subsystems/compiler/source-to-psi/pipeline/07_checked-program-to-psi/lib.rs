@@ -18,16 +18,16 @@ use source_declarations::declaration_selection;
 use source_lexer as lexing;
 #[cfg(test)]
 use source_parser as parsing;
-use typed_trees_to_lowered_program::lowering::source_roster::SourceCompilationRoster;
+use prepared_typed_trees_to_lowered_program::lowering::source_roster::SourceCompilationRoster;
 use source_symbol_table::{source_inputs, source_symbols};
 #[cfg(test)]
 use symbol_resolved_trees_to_typed_trees::typing;
 #[cfg(test)]
 use syntax_trees_to_symbol_resolved_trees::resolution;
 use typed_trees::source_state;
-use typed_trees_to_lowered_program::lowering;
+use prepared_typed_trees_to_lowered_program::lowering;
 #[cfg(test)]
-use typed_trees_to_typed_trees::preparation;
+use typed_trees_to_prepared_typed_trees::preparation;
 #[cfg(test)]
 #[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;

@@ -12,8 +12,8 @@ resolution and typing loop for deferred bodies. [Source driver](../source_to_psi
 | [Lex and parse one file](01_tokens-to-syntax-trees/streaming.rs) | The [lexer](00_source-files-to-tokens/lexer.rs) produces tokens. The [parser](01_tokens-to-syntax-trees/parser.rs) consumes that file's tokens and returns a syntax page before the worker reuses its scratch space. |
 | [Resolve names](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) | Syntax pages become source-owned [resolved trees](../representations/symbol-resolved-trees/src/lib.rs). |
 | [Type declarations and bodies](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | The resolved program becomes [typed source](../representations/typed-trees/src/lib.rs). |
-| [Prepare typed source](04_typed-trees-to-typed-trees/src/driver.rs) | Preparation and [evaluation](../compile_time.rs) complete the requested work and freeze its input to lowering. |
-| [Lower to Terminal](05_typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../representations/lowered-program/src/compilation.rs), including demanded generic bodies and witnesses. |
+| [Prepare typed source](04_typed-trees-to-prepared-typed-trees/src/driver.rs) | Preparation and [evaluation](../compile_time.rs) complete the requested work and freeze its input to lowering. |
+| [Lower to Terminal](05_prepared-typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../representations/lowered-program/src/compilation.rs), including demanded generic bodies and witnesses. |
 | [Check the program](06_lowered-program-to-checked-program/src/verdict.rs) | The checker issues its verdict and evidence over the lowered input. The [accepted-source factory](07_checked-program-to-psi/src/accepted.rs) binds that judgment to its source. |
 | [Close logical provider demand](07_checked-program-to-psi/src/provider_supply/mod.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [The source compiler](../source_to_psi.rs) binds those choices to the published artifact and deployment for [native admission](../../psi-to-native/target_inputs/published_application.rs). |
 
@@ -299,7 +299,7 @@ evidence are complete.
 and [runtime callable rows](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 The legacy implementation pending [machine values and some migration](../../../../../wiki/drafts/designs/machine_values_some.md)
 lowers runtime selection through instantiated selector slots
-(`04_typed-trees-to-typed-trees/src/monomorphization/dynamic_slots.rs`), but a
+(`04_typed-trees-to-prepared-typed-trees/src/monomorphization/dynamic_slots.rs`), but a
 finite-family selector call keeps its requirement target and declines, so tuple
 expansion, runtime family selection, and indexed result custody are all
 unimplemented. Explicit source disjunctions, not
@@ -804,7 +804,7 @@ Source-authored selections must preserve original lexical owners and exact
 conformance applications through any future copying or specialization. Generated
 fields and signatures cannot invent public exposure, visibility or supply. The
 old capture/finalization and checking owners are removed;
-[typed preparation](04_typed-trees-to-typed-trees/README.md) has no
+[typed preparation](04_typed-trees-to-prepared-typed-trees/README.md) has no
 specialization pass yet, so those obligations are refused where a program
 demands them. Original template
 contracts and body selections remain obligations; package identity alone cannot

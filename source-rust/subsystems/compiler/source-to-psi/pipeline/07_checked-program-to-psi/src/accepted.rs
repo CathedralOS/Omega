@@ -157,7 +157,7 @@ impl AcceptedTerminalSource {
     /// use checked_program_to_psi::AcceptedTerminalSource;
     /// use lowered_program_to_checked_program::checking::judge_publication;
     /// use terminal_check_tables::compilation::{CompilationForPublication, TerminalCompilation};
-    /// use typed_trees_to_lowered_program::lowering::LoweredSourcePublication;
+    /// use prepared_typed_trees_to_lowered_program::lowering::LoweredSourcePublication;
     ///
     /// struct Replacement<Source>(TerminalCompilation, Source);
     /// impl<Source> CompilationForPublication for Replacement<Source> {

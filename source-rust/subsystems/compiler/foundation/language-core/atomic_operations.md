@@ -24,7 +24,7 @@ count as work when the source has one primitive event.
 ## Serial producer route
 
 The lowered-form reader decodes the parser's atomic syntax once in
-`typed-trees-to-lowered-program/src/read/atomics.rs`. A writing operation's result
+`prepared-typed-trees-to-lowered-program/src/read/atomics.rs`. A writing operation's result
 placeholder must name the exact local that receives that prior value. The
 reader keeps the place and authored operands apart and uses the existing `AtomicAccessEvent` throughout lowering; it never
 loads the prior value separately. Lowering evaluates the place and

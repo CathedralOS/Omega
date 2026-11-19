@@ -1,5 +1,5 @@
 [package]
-name = "typed-trees-to-typed-trees"
+name = "prepared-typed-trees-to-lowered-program"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -14,18 +14,26 @@ test-support = []
 path = "lib.rs"
 
 [dependencies]
+service-surface = { path = "../../../psi/service-surface" }
+proof-applications = { path = "../../../psi/proof-applications" }
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../../representations/typed-trees" }
+source-provenance = { path = "../../../foundation/source-provenance" }
+schema-reflection = { path = "../../../psi/schema" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
+bignum = { path = "../../../../../foundation/bignum" }
 wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
-record-storage = { path = "../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../psi/semantics/numeric" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
+terminal-check-tables = { path = "../../representations/lowered-program" }
+terminal-codec = { path = "../../../psi/codec" }
+terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi/semantics" }

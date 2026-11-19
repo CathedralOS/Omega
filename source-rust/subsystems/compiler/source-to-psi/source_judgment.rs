@@ -6,7 +6,7 @@ use lowered_program_to_checked_program::checking::judge_publication;
 use optimization::PsiOptimizationSelections;
 use std::sync::Arc;
 use typed_trees::source_state::FrozenTypedTrees;
-use typed_trees_to_lowered_program::lowering::LoweredSourcePublication;
+use prepared_typed_trees_to_lowered_program::lowering::LoweredSourcePublication;
 
 /// Typed source with its constant inputs materialized. An authored Build settles those
 /// inputs using its source consent and sponsorship. A nested call arrives with its
