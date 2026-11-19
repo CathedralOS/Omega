@@ -20,11 +20,11 @@ pub(super) fn capability(
     encoder.field_by("capability", &flow.capability, encode_nominal)?;
     encoder.field("kind", |encoder| {
         match flow.kind {
-            flow_effects::CapabilityFlowKind::Uses => encoder.tag("uses", 0),
-            flow_effects::CapabilityFlowKind::Returns => encoder.tag("returns", 1),
-            flow_effects::CapabilityFlowKind::Acquires => encoder.tag("acquires", 2),
-            flow_effects::CapabilityFlowKind::Stores => encoder.tag("stores", 3),
-            flow_effects::CapabilityFlowKind::Derives => encoder.tag("derives", 4),
+            psi_effect_contracts::CapabilityFlowKind::Uses => encoder.tag("uses", 0),
+            psi_effect_contracts::CapabilityFlowKind::Returns => encoder.tag("returns", 1),
+            psi_effect_contracts::CapabilityFlowKind::Acquires => encoder.tag("acquires", 2),
+            psi_effect_contracts::CapabilityFlowKind::Stores => encoder.tag("stores", 3),
+            psi_effect_contracts::CapabilityFlowKind::Derives => encoder.tag("derives", 4),
         }
         Ok(())
     })

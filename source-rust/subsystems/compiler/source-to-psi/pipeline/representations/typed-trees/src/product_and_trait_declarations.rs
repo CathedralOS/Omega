@@ -1638,7 +1638,7 @@ pub mod product_operand {
                     .and_then(|span| program.symbols.source_file(span))
                     .is_some_and(|file| {
                         file.dependency_scope
-                            == declaration_contracts::source_identity::DependencyScope::Product
+                            == source_provenance::DependencyScope::Product
                     })
         });
         let definition = declarations.next().ok_or_else(|| {

@@ -635,7 +635,7 @@ mod provider_requests {
             collect_product_provider_selections(
                 ProviderPlanningContext::new(
                     self.typed(),
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 ),
                 activation,
                 declared,
@@ -1256,7 +1256,7 @@ impl SourceContinuation {
     ) -> Result<crate::evaluation::provider_declarations::ProviderSelection, Diagnostic> {
         selection.rejoin(
             Arc::make_mut(&mut self.input).typing.typed_mut(),
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
             &[],
             candidates,
         )
@@ -1717,7 +1717,7 @@ mod resolution_handoff_tests {
                 declaration_metadata: &[],
                 entries: &[helper],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],

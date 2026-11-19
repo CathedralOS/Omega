@@ -25,11 +25,11 @@ pub(in crate::encoding::recovery) fn capability(
     Ok(PackagePolicyCapabilityFlow {
         capability: nominal(reader)?,
         kind: super::super::tag!(reader => {
-            0 => flow_effects::CapabilityFlowKind::Uses,
-            1 => flow_effects::CapabilityFlowKind::Returns,
-            2 => flow_effects::CapabilityFlowKind::Acquires,
-            3 => flow_effects::CapabilityFlowKind::Stores,
-            4 => flow_effects::CapabilityFlowKind::Derives,
+            0 => psi_effect_contracts::CapabilityFlowKind::Uses,
+            1 => psi_effect_contracts::CapabilityFlowKind::Returns,
+            2 => psi_effect_contracts::CapabilityFlowKind::Acquires,
+            3 => psi_effect_contracts::CapabilityFlowKind::Stores,
+            4 => psi_effect_contracts::CapabilityFlowKind::Derives,
         }),
     })
 }

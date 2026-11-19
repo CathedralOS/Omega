@@ -9,27 +9,7 @@ pub mod flow_effects {
         use arena::Arena;
         use symbols::SymbolHandle;
 
-        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
-        pub enum CapabilityFlowKind {
-            #[default]
-            Uses,
-            Returns,
-            Acquires,
-            Stores,
-            Derives,
-        }
-
-        impl CapabilityFlowKind {
-            pub const fn as_str(self) -> &'static str {
-                match self {
-                    Self::Uses => "uses",
-                    Self::Returns => "returns",
-                    Self::Acquires => "acquires",
-                    Self::Stores => "stores",
-                    Self::Derives => "derives",
-                }
-            }
-        }
+        pub use psi_effect_contracts::CapabilityFlowKind;
 
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
         pub struct CapabilityFlowFact {

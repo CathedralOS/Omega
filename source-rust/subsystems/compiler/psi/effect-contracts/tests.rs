@@ -91,3 +91,19 @@ fn published_carry_commits_exact_guard_subject_and_acquisition() {
     }
     assert!(commit(&[row.clone(), row]).is_err());
 }
+
+#[test]
+fn capability_flow_kind_names_are_stable() {
+    use super::CapabilityFlowKind;
+
+    let names = [
+        CapabilityFlowKind::Uses,
+        CapabilityFlowKind::Returns,
+        CapabilityFlowKind::Acquires,
+        CapabilityFlowKind::Stores,
+        CapabilityFlowKind::Derives,
+    ]
+    .map(CapabilityFlowKind::as_str);
+
+    assert_eq!(names, ["uses", "returns", "acquires", "stores", "derives"]);
+}

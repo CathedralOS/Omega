@@ -18,9 +18,9 @@ source-declarations = { path = "../representations/symbol-resolved-trees/declara
 source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
 symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
 typed-trees = { path = "../representations/typed-trees" }
-declaration-contracts = { path = "../../language/declaration-contracts" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
+source-provenance = { path = "../../../foundation/source-provenance" }
 source-admission = { path = "../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
 wire = { path = "../../../../../foundation/wire" }

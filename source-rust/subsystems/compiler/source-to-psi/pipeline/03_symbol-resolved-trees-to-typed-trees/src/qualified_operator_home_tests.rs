@@ -25,7 +25,7 @@ pub(crate) fn checked_with_equality(
         "equality.omg",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/equality.omg"
+            "/../../../../../../source/library/core/equality.omg"
         )),
     )];
     sources.extend(units.iter().map(|(path, text)| (31, *path, *text)));
@@ -44,7 +44,7 @@ pub(crate) fn packages_with_equality(
         "equality.omg",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/equality.omg"
+            "/../../../../../../source/library/core/equality.omg"
         )),
     )];
     sources.extend_from_slice(units);
@@ -166,7 +166,7 @@ const GENERIC_OPERATOR: &str = "use units; public machine + Distance::add<T [cop
 
 fn bundled_core_sources() -> Vec<(String, String)> {
     let core =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../../source/library/core");
     let mut files = std::fs::read_dir(core)
         .unwrap()
         .map(|entry| entry.unwrap().path())

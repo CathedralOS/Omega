@@ -10,6 +10,29 @@ pub use carry::{
 };
 pub use commitment::{template_contract_commitment, validate_published_dependency};
 
+/// A capability use retained in a callable behavior policy.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+pub enum CapabilityFlowKind {
+    #[default]
+    Uses,
+    Returns,
+    Acquires,
+    Stores,
+    Derives,
+}
+
+impl CapabilityFlowKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Uses => "uses",
+            Self::Returns => "returns",
+            Self::Acquires => "acquires",
+            Self::Stores => "stores",
+            Self::Derives => "derives",
+        }
+    }
+}
+
 // A helper adds its own effects and those of its exact callback
 // parameters. The same expression is built with local vectors, retained
 // in checked arenas, and normalized to binder positions for publication.

@@ -29,7 +29,7 @@ terminal-psi = { path = "../../../compiler/psi" }
 target = { path = "../../../compiler/psi-to-native/targets/target" }
 semantic-vocabulary = { path = "../../../compiler/foundation/semantic-records" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
-flow-effects = { path = "../../../compiler/source-to-psi/language/source-effects" }
+psi-effect-contracts = { path = "../../../compiler/psi/effect-contracts" }
 language-core = { path = "../../../compiler/foundation/language-core" }
 numerics = { path = "../../../compiler/psi/semantics/numeric" }
 symbols = { path = "../../../compiler/foundation/declaration-identity" }

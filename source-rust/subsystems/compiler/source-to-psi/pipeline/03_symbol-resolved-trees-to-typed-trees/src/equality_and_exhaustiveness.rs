@@ -3003,15 +3003,15 @@ mod equality_identity_tests {
     fn aliases_keep_exact_same_leaf_declarations_at_both_sides_of_equality() {
         let points = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../tests/fixtures/run/equality/exact_nested_comparison/points.omg"
+            "/../../../../../../tests/fixtures/run/equality/exact_nested_comparison/points.omg"
         ));
         let accepted = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../tests/fixtures/run/equality/exact_nested_comparison/main.omg"
+            "/../../../../../../tests/fixtures/run/equality/exact_nested_comparison/main.omg"
         ));
         let refused = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../tests/fixtures/fail/equality/exact_nested_comparison_mismatch/main.omg"
+            "/../../../../../../tests/fixtures/fail/equality/exact_nested_comparison_mismatch/main.omg"
         ));
         let check = |main| {
             crate::typing::qualified_operator_home_tests::checked_with_equality(&[
@@ -3034,7 +3034,7 @@ mod equality_identity_tests {
     fn closed_generic_fields_select_their_exact_comparison() {
         let accepted = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../tests/fixtures/run/equality/closed_generic_comparison/main.omg"
+            "/../../../../../../tests/fixtures/run/equality/closed_generic_comparison/main.omg"
         ));
         let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", accepted,
@@ -3042,7 +3042,7 @@ mod equality_identity_tests {
         assert!(checked.is_ok(), "{checked:?}");
         let refused = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../tests/fixtures/fail/equality/closed_generic_comparison_wrong_argument/main.omg"
+            "/../../../../../../tests/fixtures/fail/equality/closed_generic_comparison_wrong_argument/main.omg"
         ));
         let error = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", refused,
