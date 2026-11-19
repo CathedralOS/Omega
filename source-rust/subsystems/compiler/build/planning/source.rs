@@ -82,8 +82,9 @@ impl PlannedProduct {
     pub fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.package_inputs.as_ref()
     }
-    pub fn generated_handoff(
+    pub fn build_handoff(
         &self,
+        profile: TargetProfile,
     ) -> Result<package_compilation::PackageBuildHandoff, CompileFailure> {
         let inputs = self
             .package_inputs()
@@ -94,15 +95,44 @@ impl PlannedProduct {
             inputs,
             &source.generated_source_custody,
         )?;
-        Ok(package_compilation::PackageBuildHandoff::from_checked(
+        let build = &self.evaluated.configuration;
+        let handoff = package_compilation::PackageBuildHandoff::from_checked(
             inputs.root(),
             inputs.compilation_purpose(),
-            self.build_profile,
+            profile,
             Some(self.build_profile),
             subject.dependency_closure().clone(),
             subject.source_consumption_commitment(),
-            self.evaluated.configuration.generated_sources.clone(),
-        ))
+            build.generated_sources.clone(),
+        );
+        if build.declared_product_selections.is_empty()
+            && build.product_selection_requests.is_empty()
+            && build.native_formations.is_empty()
+            && build.native_binding_requests.is_empty()
+        {
+            return Ok(handoff);
+        }
+        let stage = self.product_stage(&[profile])?;
+        let declarations = source_compiler::package_handoff_declarations(
+            stage.source(),
+            &build.native_formations,
+        )?;
+        let handoff = handoff
+            .with_retained_provider_selections(
+                declarations.providers,
+                build
+                    .observation_summary
+                    .as_ref()
+                    .map(|summary| summary.identity().digest()),
+            )
+            .map_err(|why| refusal(why.to_owned()))?;
+        handoff
+            .with_native_binding_outputs(
+                declarations.native,
+                declarations.intents,
+                build.config.native_binding_evaluation.clone(),
+            )
+            .map_err(refusal)
     }
 
     pub fn preparation(&self) -> &SourcePreparation {

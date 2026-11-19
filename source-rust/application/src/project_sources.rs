@@ -63,6 +63,12 @@ pub(crate) fn resolve(
     })
 }
 
+type SettledSource = (
+    AcquiredBuildSource,
+    DeclaredBuildSource,
+    planning::SettledDependency,
+);
+
 struct SourceHost<'session, 'policy> {
     session: &'session mut PackageBuildSession,
     acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
@@ -71,11 +77,7 @@ struct SourceHost<'session, 'policy> {
     // so selection can settle those same invocations without charging for a second run.
     observed: Vec<(AcquiredBuildSource, ReturnedPlanningStage)>,
     active: Vec<AcquiredBuildSource>,
-    settled: Vec<(
-        AcquiredBuildSource,
-        DeclaredBuildSource,
-        planning::SettledDependency,
-    )>,
+    settled: Vec<SettledSource>,
 }
 
 impl SourceHost<'_, '_> {
@@ -86,7 +88,8 @@ impl SourceHost<'_, '_> {
         snapshot: Option<BuildSnapshotRequest>,
         dependency: bool,
     ) -> Result<ReturnedPlanningStage, PackageCommandError> {
-        self.acquisitions.admit_build_descent(&self.active, acquired)?;
+        self.acquisitions
+            .admit_build_descent(&self.active, acquired)?;
         self.acquisitions.admit_locked_activation(acquired)?;
         let execution = self
             .session
@@ -255,16 +258,67 @@ impl SourceHost<'_, '_> {
     }
 }
 
+pub(crate) enum ProjectProducts {
+    Shared(planning::PlannedProduct),
+    Deployments(Vec<(TargetProfile, planning::PlannedProduct)>),
+}
+
+impl ProjectProducts {
+    pub fn select(
+        &self,
+        target: TargetProfile,
+    ) -> Result<&planning::PlannedProduct, Vec<diagnostics::Diagnostic>> {
+        match self {
+            Self::Shared(planned) => Ok(planned),
+            Self::Deployments(products) => products
+                .iter()
+                .find(|(profile, _)| *profile == target)
+                .map(|(_, planned)| planned)
+                .ok_or_else(|| {
+                    vec![diagnostics::Diagnostic::error(format!(
+                        "project did not prepare target {}",
+                        target.target_name()
+                    ))]
+                }),
+        }
+    }
+}
+
+pub(crate) fn open_product(
+    root: &Path,
+    profiles: &[TargetProfile],
+    offline: bool,
+    verify: bool,
+    build_directory: Option<&Path>,
+    snapshot: Option<BuildSnapshotRequest>,
+) -> Result<planning::PlannedProduct, Vec<diagnostics::Diagnostic>> {
+    let [_] = profiles else {
+        return Err(vec![diagnostics::Diagnostic::error(
+            "this project request needs one deployment",
+        )]);
+    };
+    match open_products(root, profiles, offline, verify, build_directory, snapshot)? {
+        ProjectProducts::Shared(planned) => Ok(planned),
+        ProjectProducts::Deployments(mut products) => {
+            products.pop().map(|(_, planned)| planned).ok_or_else(|| {
+                vec![diagnostics::Diagnostic::error(
+                    "project produced no deployment",
+                )]
+            })
+        }
+    }
+}
+
 /// Resolve and execute the authored Build once for the entire deployment set.
 /// The returned Product keeps the same source capture, grant joins and Build return.
-pub(crate) fn open_product(
+pub(crate) fn open_products(
     root: &Path,
     profiles: &[TargetProfile],
     offline: bool,
     _verify: bool,
     build_directory: Option<&Path>,
     snapshot: Option<BuildSnapshotRequest>,
-) -> Result<planning::PlannedProduct, Vec<diagnostics::Diagnostic>> {
+) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
     use package_compilation::build_execution::BuildSnapshotCapture;
     use package_manager::operations::begin_local_project_preparation;
     let error = |error: PackageCommandError| {
@@ -313,7 +367,9 @@ pub(crate) fn open_product(
                 Default::default(),
                 Default::default(),
             )?;
-            return Ok(planning::interpret(stage, &mut ())?.open_product(None)?);
+            return Ok(ProjectProducts::Shared(
+                planning::interpret(stage, &mut ())?.open_product(None)?,
+            ));
         };
         let acquired = match selected {
             Some(selection) => preparation.acquire_selected_root(selection)?,
@@ -333,9 +389,10 @@ pub(crate) fn open_product(
         let returned = host.execute(&entry, &acquired, snapshot, false)?;
         if returned.returned().declaration().is_none() {
             preparation.require_unlocked_anonymous()?;
-            return Ok(returned.open_product(None)?);
+            return Ok(ProjectProducts::Shared(returned.open_product(None)?));
         }
         let resolved = host.join(acquired, returned)?;
+        let settled = host.settled;
         let project = preparation.complete_source_resolution(resolved.sources)?;
         let mut consents = Vec::new();
         for &profile in profiles {
@@ -345,12 +402,46 @@ pub(crate) fn open_product(
                 consents.push(consent);
             }
         }
-        let planned = resolved.root.open_product(Some(&resolved.inputs))?;
-        Ok(if consents.is_empty() {
-            planned
-        } else {
-            planned.with_runtime_consents(consents)
-        })
+        if resolved
+            .inputs
+            .required_dependency_source_instances()
+            .is_empty()
+        {
+            let planned = resolved.root.open_product(Some(&resolved.inputs))?;
+            return Ok(ProjectProducts::Shared(if consents.is_empty() {
+                planned
+            } else {
+                planned.with_runtime_consents(consents)
+            }));
+        }
+        let root = resolved.root.settle_dependency(resolved.inputs)?;
+        let sources = services::HandoffSources {
+            profile,
+            settled: &settled,
+        };
+        let mut cache = Vec::new();
+        let mut products = Vec::new();
+        for &target in profiles {
+            let planned = sources.dependency_product(
+                &root,
+                build_declarations::DependencyPurpose::Product,
+                target,
+                &mut cache,
+            )?;
+            let planned = if consents.is_empty() {
+                planned
+            } else {
+                planned.with_runtime_consents(
+                    consents
+                        .iter()
+                        .filter(|row| row.target == target)
+                        .cloned()
+                        .collect(),
+                )
+            };
+            products.push((target, planned));
+        }
+        Ok(ProjectProducts::Deployments(products))
     })();
     session.dispose(result).map_err(error)
 }

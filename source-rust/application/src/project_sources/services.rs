@@ -7,8 +7,8 @@ use build_execution::{
     BuildDependencySelection, CompileFailure, ProducedBuildProvider, TerminalBuildActivation,
 };
 use diagnostics::Diagnostic;
-use package_compilation::PackageCompilationInputs;
 use package_compilation::source_imports::ProductQueryDependency;
+use package_compilation::{PackageBuildHandoff, PackageCompilationInputs};
 use package_manager::PackageCommandError;
 use package_manager::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
 use project_build::planning::PlanningServices;
@@ -118,14 +118,19 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             .ok_or_else(|| refused("Build preparation names no issued dependency"))?
             .unwrap_or_else(|| declaration.package_name())
             .to_owned();
-        let product = settled.open_product(request.purpose)?;
+        let product = self.host.handoffs().dependency_product(
+            settled,
+            request.purpose,
+            self.host.profile,
+            &mut Vec::new(),
+        )?;
         Ok(ProductQueryDependency {
             alias,
             inputs: product
                 .package_inputs()
                 .ok_or_else(|| refused("prepared dependency lost its package source"))?
                 .clone(),
-            generated: Some(product.generated_handoff()?),
+            generated: Some(product.build_handoff(self.host.profile)?),
         })
     }
 
@@ -181,7 +186,10 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
         })?;
         let (_, declared, settled) = &self.host.settled[i];
         let profile = self.host.profile;
-        let product = settled.open_product(purpose)?;
+        let product =
+            self.host
+                .handoffs()
+                .dependency_product(settled, purpose, profile, &mut Vec::new())?;
         let provider = product
             .product_stage(&[profile])?
             .produce_build_provider(profile, path)?;
@@ -193,5 +201,74 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             },
             provider,
         ))
+    }
+}
+
+pub(super) struct HandoffSources<'a> {
+    pub profile: target::TargetProfile,
+    pub settled: &'a [super::SettledSource],
+}
+
+impl SourceHost<'_, '_> {
+    fn handoffs(&self) -> HandoffSources<'_> {
+        HandoffSources {
+            profile: self.profile,
+            settled: &self.settled,
+        }
+    }
+}
+
+impl HandoffSources<'_> {
+    /// Recursively form each package/purpose/target handoff once from that dependency's
+    /// original Build return and the handoffs of its own dependencies.
+    pub(super) fn dependency_product(
+        &self,
+        settled: &project_build::planning::SettledDependency,
+        purpose: DependencyPurpose,
+        target: target::TargetProfile,
+        cache: &mut Vec<PackageBuildHandoff>,
+    ) -> Result<project_build::planning::PlannedProduct, CompileFailure> {
+        let inputs = settled
+            .inputs()
+            .clone()
+            .with_compilation_purpose(purpose)
+            .map_err(|errors| {
+                refused(format!(
+                    "cannot select dependency compilation purpose: {errors:?}"
+                ))
+            })?;
+        let mut bundles = Vec::new();
+        for (package, purpose) in inputs.required_dependency_source_instances() {
+            let deployment = match purpose {
+                DependencyPurpose::Product => target,
+                DependencyPurpose::Build => self.profile,
+            };
+            if let Some(handoff) = cache.iter().find(|bundle| {
+                bundle.package() == package
+                    && bundle.purpose() == purpose
+                    && bundle.target() == deployment
+            }) {
+                bundles.push(handoff.clone());
+                continue;
+            }
+            let (_, _, child) = self
+                .settled
+                .iter()
+                .find(|(_, declared, _)| declared.identity() == package)
+                .ok_or_else(|| refused("dependency graph has no corresponding settled Build"))?;
+            let product = self.dependency_product(child, purpose, deployment, cache)?;
+            let bundle = product.build_handoff(deployment)?;
+            cache.push(bundle.clone());
+            bundles.push(bundle);
+        }
+        let inputs = inputs
+            .with_complete_dependency_build_handoffs(bundles)
+            .map_err(|errors| {
+                refused(format!(
+                    "cannot admit dependency Build handoffs: {errors:?}"
+                ))
+            })?;
+        inputs.validate_execution_context(Some(target), Some(self.profile))?;
+        settled.open_product(inputs)
     }
 }

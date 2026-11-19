@@ -87,20 +87,16 @@ impl SettledDependency {
 
     pub fn open_product(
         &self,
-        purpose: build_declarations::DependencyPurpose,
+        inputs: PackageCompilationInputs,
     ) -> Result<PlannedProduct, CompileFailure> {
-        let scoped = self
-            .inputs
-            .clone()
-            .with_compilation_purpose(purpose)
-            .map_err(|errors| {
-                refusal(format!(
-                    "cannot prepare the dependency occurrence: {errors:?}"
-                ))
-            })?;
+        if inputs.source_inputs() != self.inputs.source_inputs() {
+            return Err(refusal(
+                "Product handoffs belong to another acquired source graph".into(),
+            ));
+        }
         self.source
             .clone()
-            .open_product(self.evaluated.clone(), Some(&scoped))
+            .open_product(self.evaluated.clone(), Some(&inputs))
     }
 }
 

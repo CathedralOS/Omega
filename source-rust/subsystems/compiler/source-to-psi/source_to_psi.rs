@@ -8,6 +8,9 @@ use source_files::{LoadedSource, LoadedSources};
 #[path = "pipeline/build_invocation.rs"]
 mod authored_build;
 pub use authored_build::{BuildInvocationJudgment, BuildStageSource, CheckedBuildInvocation};
+#[path = "pipeline/package_handoff.rs"]
+mod package_handoff;
+pub use package_handoff::{PackageHandoffDeclarations, package_handoff_declarations};
 
 #[path = "pipeline/modules.rs"]
 mod stages;

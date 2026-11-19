@@ -145,7 +145,7 @@ fn compile_targets(
         .build_inputs
         .clone()
         .map(|capture| BuildSnapshotRequest::scoped(std::iter::empty(), capture));
-    let planned = crate::project_sources::open_product(
+    let plans = crate::project_sources::open_products(
         &arguments.root_path,
         &active,
         arguments.offline,
@@ -154,7 +154,7 @@ fn compile_targets(
         snapshot,
     )?;
     if arguments.timings {
-        for phase in planned.timings().phases() {
+        for phase in plans.select(active[0])?.timings().phases() {
             eprintln!(
                 "{:>10.3} ms  {}",
                 phase.microseconds as f64 / 1_000.0,
@@ -162,8 +162,6 @@ fn compile_targets(
             );
         }
     }
-    let mut stage = planned.product_stage(&active)?;
-    let rollback = stage.apply_rollback(&arguments.optimization_rollback);
     let mut failures = Vec::new();
     let mut failed_targets = Vec::new();
     // Emit one portable program for the entire set of deployments.
@@ -183,9 +181,12 @@ fn compile_targets(
             name
         };
         let result = lease.as_ref().map_err(output_error).and_then(|lease| {
+            let planned = plans.select(profile)?;
+            let mut stage = planned.product_stage(&active)?;
+            let rollback = stage.apply_rollback(&arguments.optimization_rollback);
             compile_target(
                 arguments,
-                &planned,
+                planned,
                 &stage,
                 profile,
                 lease.directory(),
