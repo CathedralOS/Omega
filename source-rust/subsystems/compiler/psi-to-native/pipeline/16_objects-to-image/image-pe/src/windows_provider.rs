@@ -154,19 +154,29 @@ fn write_section(
 }
 
 #[cfg(test)]
-#[path = "windows_provider_reference.rs"]
-mod reference;
-
-#[cfg(test)]
 mod tests {
     use super::emit_windows_internet_provider;
-    fn windows_internet_provider_dll() -> Vec<u8> {
-        let code = native_encoding::windows_internet::encode_windows_internet_provider(
-            entry_planning::windows_internet::plan_windows_internet_provider(),
-        )
-        .unwrap();
-        emit_windows_internet_provider(&code)
+    use machine_code::{EncodedAuxiliaryExport, WindowsInternetProviderCode};
+
+    mod fixtures {
+        include!("../../../../tests/fixtures/windows-internet-provider/exports.rs");
     }
+    const EXPECTED_IMAGE: &[u8] =
+        include_bytes!("../../../../tests/fixtures/windows-internet-provider/expected.pe");
+
+    fn windows_internet_provider_dll() -> Vec<u8> {
+        // The PE writer consumes only the bytes. The encoder test checks the
+        // effects of these same exports against the independent decoder.
+        let export = |bytes: &[u8]| EncodedAuxiliaryExport {
+            bytes: bytes.to_vec(),
+            effects: calling_conventions::StateEffectsEvidence::empty(),
+        };
+        emit_windows_internet_provider(&WindowsInternetProviderCode {
+            make_address: export(fixtures::INET_MAKEADDR),
+            local_address: export(fixtures::INET_LNAOF),
+        })
+    }
+
     fn image_imports_windows_internet_provider(image: &[u8]) -> bool {
         image
             .windows(b"omega_host.dll".len())
@@ -174,10 +184,7 @@ mod tests {
     }
     #[test]
     fn complete_container_matches_the_previous_provider() {
-        assert_eq!(
-            windows_internet_provider_dll(),
-            super::reference::windows_internet_provider_dll()
-        );
+        assert_eq!(windows_internet_provider_dll(), EXPECTED_IMAGE);
     }
     #[cfg(windows)]
     use runtime_abi::HostInternetAddress;
@@ -202,7 +209,11 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn loaded_provider_matches_the_classful_definition() {
-        let image = windows_internet_provider_dll();
+        let plan = entry_planning::windows_internet::plan_windows_internet_provider();
+        let code =
+            native_encoding::windows_internet::encode_windows_internet_provider(plan).unwrap();
+        let image = emit_windows_internet_provider(&code);
+        assert_eq!(image, EXPECTED_IMAGE);
         let path =
             std::env::temp_dir().join(format!("omega_host_provider_{}.dll", std::process::id()));
         std::fs::write(&path, &image).unwrap();

@@ -63,13 +63,20 @@ pub fn encode_windows_internet_provider<Origin>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod fixtures {
+        include!("../../../tests/fixtures/windows-internet-provider/exports.rs");
+    }
     #[test]
-    fn internet_export_effects_match_independent_instruction_decoding() {
+    fn internet_export_bytes_and_effects_match_the_published_exports() {
         let encoded = encode_windows_internet_provider(
             entry_planning::windows_internet::plan_windows_internet_provider(),
         )
         .unwrap();
-        for body in [&encoded.make_address, &encoded.local_address] {
+        for (body, expected) in [
+            (&encoded.make_address, fixtures::INET_MAKEADDR),
+            (&encoded.local_address, fixtures::INET_LNAOF),
+        ] {
+            assert_eq!(body.bytes, expected);
             let decoded = isa_x86_64::decode_x86_64_generated_entry(&body.bytes, None).unwrap();
             assert_eq!(body.effects, decoded.effects);
         }

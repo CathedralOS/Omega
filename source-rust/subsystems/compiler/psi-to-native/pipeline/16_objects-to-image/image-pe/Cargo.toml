@@ -19,7 +19,9 @@ target = { path = "../../../targets/target" }
 machine-code = { path = "../../representations/machine-code" }
 
 [dev-dependencies]
+image = { path = "../image", features = ["test-support"] }
+
+[target.'cfg(windows)'.dev-dependencies]
 entry-planning = { path = "../../09_post-allocation-machine-to-framed-machine/entry-planning" }
 native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encoding" }
-image = { path = "../image", features = ["test-support"] }
 runtime-abi = { path = "../../../targets/runtime-abi" }
