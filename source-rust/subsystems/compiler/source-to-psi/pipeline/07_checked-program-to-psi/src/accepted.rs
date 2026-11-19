@@ -577,7 +577,7 @@ impl AcceptedTerminalSource {
     pub fn slot_schema(
         &self,
         slot: symbols::SymbolHandle,
-    ) -> Option<Arc<declaration_contracts::service_surface::ServiceSurface>> {
+    ) -> Option<Arc<service_surface::ServiceSurface>> {
         let declaration = self.source.trait_definition_by_symbol(slot)?;
         crate::source_state::service_declarations::projection::from_typed(
             crate::source_state::provider_declarations::ProviderPlanningContext::new(

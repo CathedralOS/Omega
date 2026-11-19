@@ -919,7 +919,7 @@ mod selected_completion_contract_tests {
         std::sync::Arc::make_mut(&mut extra_schema_promise.schema.declaration).methods[0]
             .normal_result_memberships
             .push(
-                declaration_contracts::service_surface::ServiceNormalResultMembership {
+                service_surface::ServiceNormalResultMembership {
                     path: Vec::new(),
                     domain: "another-domain-application".into(),
                 },

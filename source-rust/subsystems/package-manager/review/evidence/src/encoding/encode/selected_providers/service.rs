@@ -6,7 +6,7 @@ use crate::encoding::encode::{
 };
 use crate::record::PackagePolicyServiceMethod;
 use declaration_contracts::DomainPredicatePresence;
-use declaration_contracts::service_surface::{
+use service_surface::{
     ServiceResultProjection, ServiceSynchronousInvocation,
 };
 use effects::provider_plan::{

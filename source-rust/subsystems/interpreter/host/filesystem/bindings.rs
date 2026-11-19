@@ -866,7 +866,7 @@ mod tests {
             CoordinateTag, atom, bare, byte_atom, compound,
         };
         use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
-        use declaration_contracts::service_surface::{ServiceReceiverApplication, ServiceSurface};
+        use service_surface::{ServiceReceiverApplication, ServiceSurface};
         use language_core::core_vocabulary::{
             CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
         };

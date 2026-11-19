@@ -548,7 +548,7 @@ mod providers {
         authority_flow
     });
 
-    record_variants!(declaration_contracts::service_surface::ServiceSynchronousInvocation {
+    record_variants!(service_surface::ServiceSynchronousInvocation {
         0 => Parameter(index),
         1 => Service(name),
     });
@@ -605,14 +605,14 @@ mod providers {
         requirement_identities
     });
 
-    record_variants!(declaration_contracts::service_surface::ServiceResultProjection {
+    record_variants!(service_surface::ServiceResultProjection {
         1 => Field(identity),
         2 => Case(identity),
         3 => FixedIndex(index),
     });
 
     record_fields!(
-        declaration_contracts::service_surface::ServiceNormalResultMembership { path, domain }
+        service_surface::ServiceNormalResultMembership { path, domain }
     );
 
     record_fields!(effects::provider_plan::ServiceResultClaim {

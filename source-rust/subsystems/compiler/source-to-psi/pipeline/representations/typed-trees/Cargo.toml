@@ -8,6 +8,7 @@ version.workspace = true
 path = "lib.rs"
 
 [dependencies]
+service-surface = { path = "../../../../psi/service-surface" }
 declaration-scope = { path = "../../../../foundation/declaration-scope" }
 artifacts = { path = "../../../../foundation/measurements" }
 access-vocabulary = { path = "../../../../psi/access" }

@@ -973,7 +973,7 @@ impl PolicySource<'_> {
             .source_service_names(&reach, |declaration| declaration.name.as_str())?
             .into_iter()
             .eq(method.service_reach.iter().map(String::as_str));
-        use declaration_contracts::service_surface::ServiceSynchronousInvocation;
+        use service_surface::ServiceSynchronousInvocation;
         use terminal_psi::TerminalCallableInvocation;
         let source = declarations.accepted.source();
         let invocation_contract = declarations

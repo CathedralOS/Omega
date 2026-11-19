@@ -553,6 +553,7 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
+ "service-surface",
  "source-acquisition",
  "source-admission",
  "source-capture",
@@ -1944,6 +1945,7 @@ dependencies = [
  "record-storage",
  "review-evidence",
  "semantic-vocabulary",
+ "service-surface",
  "sha2",
  "source-acquisition",
  "source-admission",
@@ -2206,6 +2208,7 @@ dependencies = [
  "provider-stack-contribution",
  "runtime-abi",
  "semantic-vocabulary",
+ "service-surface",
  "target",
  "target-operations",
  "terminal-codec",
@@ -2506,6 +2509,7 @@ dependencies = [
  "package-compilation",
  "products",
  "semantic-vocabulary",
+ "service-surface",
  "source-admission",
  "source-compiler",
  "source-text",
@@ -2771,6 +2775,16 @@ checksum = "89f599ac0c323ebb1c6082821a54962b839832b03984598375bff3975b804423"
 dependencies = [
  "digest",
  "sha1",
+]
+
+[[package]]
+name = "service-surface"
+version = "0.1.0"
+dependencies = [
+ "language-core",
+ "record-storage",
+ "semantic-vocabulary",
+ "wire",
 ]
 
 [[package]]
@@ -3388,6 +3402,7 @@ dependencies = [
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
+ "service-surface",
  "source-provenance",
  "source-text",
  "symbols",
@@ -3479,6 +3494,7 @@ dependencies = [
  "published-runtime-input",
  "runtime-abi",
  "semantic-vocabulary",
+ "service-surface",
  "storage-access",
  "target",
  "target-operations",
@@ -3510,6 +3526,7 @@ dependencies = [
  "resource-bounds",
  "schema-reflection",
  "semantic-vocabulary",
+ "service-surface",
  "source-provenance",
  "source-text",
  "terminal-psi",
@@ -3535,6 +3552,7 @@ dependencies = [
  "proof-applications",
  "schema-reflection",
  "semantic-vocabulary",
+ "service-surface",
  "terminal-psi",
  "terminal-semantics",
  "wire",
@@ -3622,6 +3640,7 @@ dependencies = [
  "semantic-vocabulary",
  "serde",
  "serde_json",
+ "service-surface",
  "sha2",
  "source-admission",
  "source-declarations",
@@ -3724,6 +3743,7 @@ dependencies = [
  "provider-correspondence",
  "runtime-abi",
  "semantic-vocabulary",
+ "service-surface",
  "source-text",
  "target",
  "target-operations",

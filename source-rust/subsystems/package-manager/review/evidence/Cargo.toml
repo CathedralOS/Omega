@@ -7,6 +7,7 @@ version.workspace = true
 
 
 [dependencies]
+service-surface = { path = "../../../compiler/psi/service-surface" }
 evaluation-receipts = { path = "../../../compiler/build/evaluation/receipts" }
 declaration-contracts = { path = "../../../compiler/source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../compiler/psi/application-identity" }
