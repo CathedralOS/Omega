@@ -26,7 +26,7 @@ pub use terminal_semantics::logical_providers::satisfies_plan_name;
 
 mod execution;
 mod provider_execution_inputs;
-pub use backend_plan::ProviderExecutionOrigins;
+pub use host_provider_inputs::ProviderExecutionOrigins;
 pub use provider_execution_inputs::plan_provider_execution_inputs;
 mod folded_entry;
 mod package_review;

@@ -3,7 +3,7 @@ use super::{
     ProgramEntryCallingPlanRequest, SelectedCompilerProgramEntry, SelectedProgramEntryCallingPlans,
 };
 use diagnostics::Diagnostic;
-use effects::semantic_bindings::AcceptedSemanticBinding;
+use host_provider_inputs::AcceptedSemanticBinding;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
 use std::sync::Arc;
@@ -164,7 +164,7 @@ fn admit_entry_schema(
     let package = slot
         .physical_contract_package
         .ok_or("entry slot has no physical contract package")?;
-    let role = effects::semantic_bindings::program_entry_semantic_binding_role(package);
+    let role = host_provider_inputs::program_entry_semantic_binding_role(package);
     match (custody, binding) {
         (DeclarationCustody::ToolchainContract, None)
             if schema.declaration.trait_package_identity.is_none() =>

@@ -30,7 +30,7 @@ pub fn plan_unscoped_execution(
 /// Select the concrete providers from a portable handoff. Package review reads
 /// its own completed inventory; its refusals never enlarge execution demand.
 pub fn plan_published_target_execution(
-    origins: backend_plan::ProviderExecutionOrigins,
+    origins: host_provider_inputs::ProviderExecutionOrigins,
     target: target::TargetProfile,
     logical: &ClosedLogicalProviders,
     bindings: &[CallableBoundaryImplementation],

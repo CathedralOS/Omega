@@ -1,6 +1,7 @@
 //! Project the source owner's completed provider choices onto its immutable portable program.
 use super::ProductCodeSource;
-use backend_plan::{ProviderDemandInputs, ProviderExecutionOrigins};
+use backend_plan::ProviderDemandInputs;
+use host_provider_inputs::ProviderExecutionOrigins;
 use checked_program_to_psi::provider_supply::{
     SourceNativeBinding, SourceProviderDemand, SourceProviderFacts,
 };
@@ -48,7 +49,7 @@ fn capture_origins(
     ProviderExecutionOrigins::from_inputs(
         Arc::clone(program.artifact()),
         profile,
-        backend_plan::ProviderInstallationInputs {
+        host_provider_inputs::ProviderInstallationInputs {
             bindings,
             package_permissions: sources
                 .dependency_closure()

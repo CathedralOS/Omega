@@ -1,6 +1,6 @@
 # Psi to native code
 
-The [entry point](psi_to_native.rs) takes a Psi program [authorized by the receiving host](../psi/authorization/authorization.rs), a target, and the receiving host's inputs. An image request produces a finished native image. The [caller](../compiler.rs) packages that image. Runtime admission stops as soon as the interpreter's provisions are ready. Production callers enter through `emit` or `admit_published_runtime`. The compiler's integration tests enable the `test-support` feature to supply retained inputs for receiver-policy checks and count stage invocations.
+The [entry point](psi_to_native.rs) takes a Psi program [authorized by the receiving host](../psi/authorization/authorization.rs), a target, and the receiving host's [reviewed providers and permissions](pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs). An image request produces a finished native image. The [caller](../compiler.rs) packages that image. Runtime admission stops as soon as the interpreter's provisions are ready. Production callers enter through `emit` or `admit_published_runtime`. The compiler's integration tests enable the `test-support` feature to supply retained inputs for receiver-policy checks and count stage invocations.
 
 ## Follow a compilation
 

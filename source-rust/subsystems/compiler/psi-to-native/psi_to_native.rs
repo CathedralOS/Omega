@@ -5,7 +5,7 @@
 pub mod bridge_replay;
 mod pipeline;
 
-pub use backend_plan::{InstalledPackageProviders, TargetProviderInstallation};
+pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;
 pub use pipeline::prepare::published_application::SavedProgramTarget;
 

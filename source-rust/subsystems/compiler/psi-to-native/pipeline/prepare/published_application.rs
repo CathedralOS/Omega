@@ -17,7 +17,7 @@ struct PublishedApplicationInputs<'a, Publisher> {
     artifact: &'a Arc<terminal_codec::CanonicalTerminalArtifact>,
     execution: &'a PublishedSelection<Publisher, SelectedProviderResult>,
     proposal: Option<backend_plan::TerminalTargetProviderProposal>,
-    bindings: &'a [effects::semantic_bindings::AcceptedSemanticBinding],
+    bindings: &'a [host_provider_inputs::AcceptedSemanticBinding],
     package_permissions:
         Option<&'a declaration_scope::ProductDeclarationScope>,
     application: target::NativeApplicationMetadata,
@@ -259,7 +259,7 @@ fn checked_provider_calls(
 pub struct SavedProgramTarget<'a> {
     pub profile: target::TargetProfile,
     pub requested_boundaries: Vec<semantic_vocabulary::BoundaryMachineId>,
-    pub installation: backend_plan::TargetProviderInstallation,
+    pub installation: host_provider_inputs::TargetProviderInstallation,
     pub application: target::NativeApplicationMetadata,
     pub optimizations: &'a optimization_core::OptimizationSelections,
     pub behavior_exclusions: &'a [effects::AuthoredBehaviorExclusion],
