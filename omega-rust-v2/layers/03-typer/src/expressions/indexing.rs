@@ -1,5 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::standard_core::collection_contracts;
+use crate::toolchain_declarations::collection_contracts;
 use crate::{Access, CollectionAccess, CollectionSelectors, ObligationKind, Site, TypeError, ValueType};
 use omega_parser::NodeKind;
 

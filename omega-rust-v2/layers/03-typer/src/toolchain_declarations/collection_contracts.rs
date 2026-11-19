@@ -3,16 +3,17 @@ use crate::{TypedSignature, TypedStage};
 use omega_resolver::{ParsedSource, StageSource};
 use std::sync::OnceLock;
 
-pub(crate) const PACKAGE: &str = "@omega/toolchain";
+use super::source_package::TOOLCHAIN_PACKAGE;
+
 /// Exact sealed declarations and their typed requires/ensures predicates.
 pub fn collection_contracts() -> &'static TypedStage {
-    static CORE: OnceLock<TypedStage> = OnceLock::new();
-    CORE.get_or_init(|| {
-        let text = include_str!("../../core/collections.omg");
+    static CONTRACTS: OnceLock<TypedStage> = OnceLock::new();
+    CONTRACTS.get_or_init(|| {
+        let text = include_str!("collection_access.omg");
         let tokens = omega_lexer::lex(text.as_bytes()).expect("toolchain collection tokens");
         let tree = omega_parser::parse_file(text.as_bytes(), &tokens).expect("toolchain collection grammar");
         let sources = [StageSource {
-            package: PACKAGE,
+            package: TOOLCHAIN_PACKAGE,
             source: ParsedSource {
                 logical_path: "indexing/collections.omg",
                 text,

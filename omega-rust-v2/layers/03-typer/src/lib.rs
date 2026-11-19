@@ -5,7 +5,7 @@
 //! names supplied by L2. `type_system/` interprets annotations and specializes types.
 //! `expressions/` checks machine bodies. `contracts/` composes effects and evidence
 //! across declarations. `evaluation/` forms static indices and checks closed results.
-//! `standard_core/` admits the toolchain declarations used by the source command.
+//! `toolchain_declarations/` admits the toolchain declarations used by the source command.
 //!
 //! `typed_tree/typed_stage.rs` describes the result and links its component types.
 //! The language rules and their executable examples are in the crate's CONTRACT.md.
@@ -16,7 +16,7 @@ mod declarations;
 mod errors;
 mod evaluation;
 mod expressions;
-mod standard_core;
+mod toolchain_declarations;
 mod type_system;
 mod typed_tree;
 mod typing;
@@ -29,8 +29,8 @@ pub use evaluation::specialized_index_value::SpecializedIndexValue;
 pub use evaluation::static_integer_evaluator::StaticIntegerEvaluator;
 pub use evaluation::static_integer_request::StaticIntegerRequest;
 pub use evaluation::static_template::StaticTemplate;
-pub use standard_core::collection_contracts::collection_contracts;
-pub use standard_core::source_package::{resolve_source_package, type_source_package};
+pub use toolchain_declarations::collection_contracts::collection_contracts;
+pub use toolchain_declarations::source_package::{resolve_source_package, type_source_package};
 pub use typed_tree::access::Access;
 pub use typed_tree::calls::call_use::CallUse;
 pub use typed_tree::calls::callable_type::CallableType;

@@ -1,7 +1,6 @@
 //! Source checking admits the standard core from the toolchain's embedded
 //! files. Package-local declarations can share their names without acquiring
 //! the core's primitive or policy identities.
-use crate::standard_core::collection_contracts;
 use crate::typing::type_stage::type_admitted_stage;
 use crate::{RankingView, TypeError, TypedStage, TypingEnvironment, ValueType};
 use omega_lexer::SourceSpan;
@@ -10,35 +9,34 @@ use omega_resolver::{Dependency, NameError, ParsedSource};
 use omega_resolver::{ResolvedStage, StageSource};
 use std::sync::OnceLock;
 
-struct CoreFile {
+pub(crate) const TOOLCHAIN_PACKAGE: &str = "@omega/toolchain";
+
+struct EmbeddedSourceFile {
     path: &'static str,
     text: &'static str,
     tokens: Vec<omega_lexer::Token>,
     tree: omega_parser::SyntaxTree,
 }
-fn core() -> &'static [CoreFile] {
-    static FILES: OnceLock<Vec<CoreFile>> = OnceLock::new();
+fn embedded_source_files() -> &'static [EmbeddedSourceFile] {
+    static FILES: OnceLock<Vec<EmbeddedSourceFile>> = OnceLock::new();
     FILES.get_or_init(|| {
         [
-            ("language/core/reflect/schema.omg", include_str!("../../core/schema.omg")),
-            ("language/core/policy.omg", include_str!("../../core/access_policy.omg")),
-            ("language/core/access/new_plan.omg", include_str!("../../core/new_plan.omg")),
-            ("language/core/ranking.omg", include_str!("../../core/ranking.omg")),
+            ("language/core/reflect/schema.omg", include_str!("reflection_schema.omg")),
+            ("language/core/policy.omg", include_str!("access_policy.omg")),
+            ("language/core/access/new_plan.omg", include_str!("new_access_plan.omg")),
+            ("language/core/ranking.omg", include_str!("natural_number_ranking.omg")),
         ]
         .into_iter()
         .map(|(path, text)| {
             let tokens = omega_lexer::lex(text.as_bytes()).expect("invalid embedded standard tokens");
             let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap_or_else(|error| panic!("invalid embedded {path}: {error:?}"));
-            CoreFile { path, text, tokens, tree }
+            EmbeddedSourceFile { path, text, tokens, tree }
         })
         .collect()
     })
 }
 fn inputs<'a>(source: &[StageSource<'a>]) -> Result<Vec<StageSource<'a>>, NameError> {
-    if let Some(s) = source
-        .iter()
-        .find(|u| u.package == collection_contracts::PACKAGE)
-    {
+    if let Some(s) = source.iter().find(|u| u.package == TOOLCHAIN_PACKAGE) {
         return Err(NameError {
             package: s.package.into(),
             file: s.source.logical_path.into(),
@@ -58,8 +56,8 @@ fn inputs<'a>(source: &[StageSource<'a>]) -> Result<Vec<StageSource<'a>>, NameEr
             },
         })
         .collect();
-    files.extend(core().iter().map(|f| StageSource {
-        package: collection_contracts::PACKAGE,
+    files.extend(embedded_source_files().iter().map(|f| StageSource {
+        package: TOOLCHAIN_PACKAGE,
         source: ParsedSource {
             logical_path: f.path,
             text: f.text,
@@ -80,7 +78,7 @@ pub fn resolve_source_package(sources: &[StageSource<'_>]) -> Result<ResolvedSta
         .map(|requester| Dependency {
             requester,
             alias: "omega",
-            package: collection_contracts::PACKAGE,
+            package: TOOLCHAIN_PACKAGE,
         })
         .collect::<Vec<_>>();
     omega_resolver::resolve_stage(&files, &dependencies)
@@ -99,9 +97,9 @@ pub fn type_source_package(
         resolved
             .declarations
             .iter()
-            .find(|id| id.package == collection_contracts::PACKAGE && id.kind == NodeKind::Machine && id.path == path)
+            .find(|id| id.package == TOOLCHAIN_PACKAGE && id.kind == NodeKind::Machine && id.path == path)
             .ok_or_else(|| TypeError {
-                package: collection_contracts::PACKAGE.into(),
+                package: TOOLCHAIN_PACKAGE.into(),
                 file: "".into(),
                 span: SourceSpan::new(0, 0),
                 message: format!("missing admitted core declaration {path}"),

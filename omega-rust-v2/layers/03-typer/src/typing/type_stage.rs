@@ -9,7 +9,7 @@ use crate::declarations::resolved_sources::index_resolved_sources;
 use crate::evaluation::check_static_indices::check_static_indices;
 use crate::evaluation::{integer_program, specialized_indices};
 use crate::expressions::check_bodies::check_bodies;
-use crate::standard_core::collection_contracts;
+use crate::toolchain_declarations::source_package::TOOLCHAIN_PACKAGE;
 use crate::type_system::width_obligations::collect_width_obligations;
 use crate::{TypeError, TypedStage, TypingEnvironment};
 use omega_parser::NodeKind;
@@ -68,10 +68,7 @@ pub(crate) fn type_admitted_stage(
         logical_hypotheses::index_logical_hypotheses(unit, &mut catalog, &mut output)?;
     }
     for unit in &units {
-        unit.index_declarations(
-            &mut catalog,
-            admits_toolchain_declarations && unit.file.package == collection_contracts::PACKAGE,
-        )?;
+        unit.index_declarations(&mut catalog, admits_toolchain_declarations && unit.file.package == TOOLCHAIN_PACKAGE)?;
     }
     logical_hypotheses::record_assumption_dependencies(&units, &mut catalog, &mut output)?;
     callback_bounds::resolve_callback_bounds(&units, &mut catalog)?;

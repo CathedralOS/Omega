@@ -1,6 +1,6 @@
 use crate::TypeError;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::standard_core::collection_contracts;
+use crate::toolchain_declarations::source_package::TOOLCHAIN_PACKAGE;
 use omega_parser::NodeKind;
 use omega_resolver::{IndexedSource, ResolvedStage, StageSource};
 use std::collections::HashMap;
@@ -19,7 +19,7 @@ pub(crate) fn index_resolved_sources<'a>(
             span: e.span,
             message: e.message,
         })?;
-        if !admits_toolchain_declarations && f.package == collection_contracts::PACKAGE {
+        if !admits_toolchain_declarations && f.package == TOOLCHAIN_PACKAGE {
             return Err(TypeError::at(&f, 0, "package identity reserved for the toolchain"));
         }
         by_path.insert((f.package, f.path), units.len());
