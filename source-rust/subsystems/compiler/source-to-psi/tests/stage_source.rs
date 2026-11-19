@@ -128,3 +128,63 @@ fn a_build_activation_rejoins_its_authored_machine_in_the_selected_package() {
     assert!(diagnostics[0].message.contains("retained declaration is absent or changed"),
         "{diagnostics:?}");
 }
+
+#[test]
+fn publication_checks_the_same_grammar_in_root_and_imported_files() {
+    let main = "use kit::answer;
+        machine main() -> u32 {
+            transition true { true -> kit::answer(), false -> 0u32 }
+        }";
+    let helper = "machine id<T>(x: T) -> T { x }
+        public machine answer() -> u32 {
+            match true { true -> id::<u32>(7u32), false -> 0u32 }
+        }";
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let publish = |main: &str, helper: &str| {
+        let (mut files, root) = captured(package, main);
+        let dependency = files
+            .add_checked_instance(
+                "product/kit/values.omg".into(),
+                helper,
+                "product".into(),
+                Some(package),
+                SourceOrigin::User,
+                SourceResolutionStratum::Base,
+                DependencyScope::Product,
+            )
+            .source_id;
+        let mut stage = product(files, root, package, &[]);
+        stage.roots.push(dependency);
+        compile(stage)
+    };
+
+    assert!(!publish(main, helper).unwrap().to_bytes().is_empty());
+    for (main, helper, expected) in [
+        (
+            main.to_owned(),
+            format!("module kit;\n{helper}"),
+            "`module` headers",
+        ),
+        (
+            main.to_owned(),
+            helper.replace("id::<u32>", "id<u32>"),
+            "comparison",
+        ),
+        (
+            main.to_owned(),
+            helper.replace("7u32),", "7u32)"),
+            "between arms",
+        ),
+        (
+            main.replace("answer(),", "answer()"),
+            helper.to_owned(),
+            "between arms",
+        ),
+    ] {
+        let diagnostics = publish(&main, &helper).unwrap_err();
+        assert!(
+            diagnostics.iter().any(|d| d.message.contains(expected)),
+            "{diagnostics:?}"
+        );
+    }
+}
