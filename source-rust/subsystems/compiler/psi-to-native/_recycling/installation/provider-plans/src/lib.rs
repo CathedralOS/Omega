@@ -47,7 +47,7 @@ pub use target_providers::{
 
 mod provider_demand;
 pub use provider_demand::{
-    AdmittedProviderDemand, InstalledPackageProviders, IssuedProviderDemand,
+    InstalledPackageProviders, IssuedProviderDemand,
     NativeBindingMaterializationResult, ProviderDemandAuthority, ProviderDemandInputs,
     ProviderExecutionOrigins, ProviderInstallationInputs, TargetProviderInstallation,
 };

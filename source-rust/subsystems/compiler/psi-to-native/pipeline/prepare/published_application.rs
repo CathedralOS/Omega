@@ -324,7 +324,7 @@ pub(crate) fn prepare_saved_program(
         review: None,
     };
     let issued = backend_plan::IssuedProviderDemand::issue((), facts);
-    let admitted = backend_plan::AdmittedProviderDemand::new(issued, authorization)
+    let admitted = native_inputs::admit(authorization, issued)
         .map_err(|error| refuse(error.to_string()))?;
     let mut execution = select_published_providers(admitted)?;
     execution
