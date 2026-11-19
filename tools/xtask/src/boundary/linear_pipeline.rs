@@ -5,7 +5,11 @@ use super::{Metadata, native_stages, normalize_relative, production_edges, under
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 
-pub(super) const TEST_SUPPORT: &str = "omega-rust/test-support";
+fn recycled(root: &str, path: &str) -> bool {
+    Path::new(path).strip_prefix(root).is_ok_and(|relative| {
+        relative.iter().any(|component| component == "_recycling")
+    })
+}
 
 pub(super) const NATIVE_STAGES: [&str; 17] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs",
@@ -135,7 +139,14 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
     // Cargo unifies requested features across workspace consumers, including
     // sample binaries and build dependencies compiled alongside the compiler.
     for package in &metadata.packages {
+        if recycled(&metadata.workspace_root, &package.manifest_path) {
+            errors.push(format!("workspace member is under _recycling: {}", package.name));
+        }
         for dep in &package.dependencies {
+            if dep.path.as_deref().is_some_and(|path| recycled(&metadata.workspace_root, path))
+            {
+                errors.push(format!("{} -> {}: Cargo dependency points into _recycling", package.name, dep.name));
+            }
             if dep.kind.as_deref() != Some("dev")
                 && dep.path.is_some()
                 && dep.features.iter().any(|feature| feature == "test-support")
@@ -147,13 +158,7 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
             }
         }
     }
-    for (package, owner, dependency) in production_edges(metadata)? {
-        if under(&dependency, &[TEST_SUPPORT]) && !under(&owner, &[TEST_SUPPORT]) {
-            errors.push(format!(
-                "production dependency on a test fixture: {} -> {dependency}",
-                package.name
-            ));
-        }
+    for (_, owner, dependency) in production_edges(metadata)? {
         adjacency.entry(owner).or_default().push(dependency);
     }
     for root in NATIVE_STAGES
@@ -292,7 +297,7 @@ mod tests {
     fn nested_stages_and_streaming_reject_indirect_production_edges() {
         const SHARED: &str = "shared";
         const ENCODER: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/test-encoder";
-        const FIXTURE: &str = "omega-rust/test-support/image-fixtures";
+        const FIXTURE: &str = "source-rust/_recycling/test-support/image-fixtures";
         let paths = NATIVE_STAGES
             .into_iter()
             .chain([SOURCE_DRIVER, native_stages::PRODUCT_PUBLICATION])
@@ -357,18 +362,15 @@ mod tests {
         assert!(errors.iter().any(|v| v.contains(
             "07_selected-instructions-to-register-homes -> shared -> 01_admitted-native-inputs-to-target-bound-program"
         )));
-        let fixture_errors: Vec<_> = errors
-            .iter()
-            .filter(|v| v.contains("production dependency on a test fixture"))
-            .collect();
-        assert_eq!(fixture_errors.len(), 1);
+        assert!(errors.iter().any(|v| v.contains("workspace member is under _recycling: image-fixtures")));
+        assert!(errors.iter().any(|v| v.contains("shared -> alias: Cargo dependency points into _recycling")));
+        assert!(errors.iter().any(|v| v.contains("source-to-psi -> alias: Cargo dependency points into _recycling")));
         let feature_errors: Vec<_> = errors
             .iter()
             .filter(|error| error.contains("enables test-support"))
             .collect();
         assert_eq!(feature_errors.len(), 1);
         assert!(feature_errors[0].contains("shared -> alias"));
-        assert!(fixture_errors[0].contains("shared -> omega-rust/test-support/image-fixtures"));
         assert!(
             !errors
                 .iter()
