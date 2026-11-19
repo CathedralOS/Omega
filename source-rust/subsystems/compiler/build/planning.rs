@@ -69,6 +69,41 @@ pub trait PlanningServices {
 
 impl PlanningServices for () {}
 
+/// A named dependency's original Build has settled against this exact source graph.
+pub struct SettledDependency {
+    evaluated: EvaluatedBuild,
+    source: source::PlanningSource,
+    inputs: PackageCompilationInputs,
+}
+
+impl SettledDependency {
+    pub fn inputs(&self) -> &PackageCompilationInputs {
+        &self.inputs
+    }
+
+    pub fn evaluated(&self) -> &EvaluatedBuild {
+        &self.evaluated
+    }
+
+    pub fn open_product(
+        &self,
+        purpose: build_declarations::DependencyPurpose,
+    ) -> Result<PlannedProduct, CompileFailure> {
+        let scoped = self
+            .inputs
+            .clone()
+            .with_compilation_purpose(purpose)
+            .map_err(|errors| {
+                refusal(format!(
+                    "cannot prepare the dependency occurrence: {errors:?}"
+                ))
+            })?;
+        self.source
+            .clone()
+            .open_product(self.evaluated.clone(), Some(&scoped))
+    }
+}
+
 /// A normal return from the same invocation that admitted and checked this Build entry.
 pub struct ReturnedPlanningStage {
     evaluation: PreparedBuildEvaluation,
@@ -123,6 +158,24 @@ impl ReturnedPlanningStage {
             .evaluation
             .complete_with_sources(self.returned, inputs)?;
         self.source.open_product(evaluated, inputs)
+    }
+
+    /// Retain this dependency's deferred Product after the one Build invocation returns.
+    pub fn settle_dependency(
+        mut self,
+        inputs: PackageCompilationInputs,
+    ) -> Result<SettledDependency, CompileFailure> {
+        self.returned
+            .join_preacquired_sources(&inputs)
+            .map_err(refusal)?;
+        let evaluated = self
+            .evaluation
+            .complete_with_sources(self.returned, Some(&inputs))?;
+        Ok(SettledDependency {
+            evaluated,
+            source: self.source,
+            inputs,
+        })
     }
 
     /// Join the exact acquired sources to the dependency requests that this Build issued.

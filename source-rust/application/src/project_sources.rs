@@ -1,8 +1,11 @@
 //! Execute acquired Build declarations and join their issuing activations to the resolved graph.
+mod services;
+
 use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
 use package_manager::resolution::source::{
     AcquiredBuildSource, AcquiredWorkspaceBuild, BuildSourceAcquisition, BuildSourceAcquisitions,
-    ExecutedSourceResolution, ResolvedBuildSources, WorkspaceMemberObservation,
+    DeclaredBuildSource, ExecutedSourceResolution, ResolvedBuildSources,
+    WorkspaceMemberObservation,
 };
 use package_manager::{PackageBuildSession, PackageCommandError};
 use project_build::planning::{self, PlanningRequest, PlanningSources, ReturnedPlanningStage};
@@ -47,6 +50,8 @@ pub(crate) fn resolve(
         acquisitions,
         profile,
         observed: Vec::new(),
+        active: Vec::new(),
+        settled: Vec::new(),
     };
     let result = host.resolve(entry, acquired, snapshot);
     if let Err(error) = &result {
@@ -65,6 +70,12 @@ struct SourceHost<'session, 'policy> {
     // Workspace members are executed to read their names. Retain their actual returns
     // so selection can settle those same invocations without charging for a second run.
     observed: Vec<(AcquiredBuildSource, ReturnedPlanningStage)>,
+    active: Vec<AcquiredBuildSource>,
+    settled: Vec<(
+        AcquiredBuildSource,
+        DeclaredBuildSource,
+        planning::SettledDependency,
+    )>,
 }
 
 impl SourceHost<'_, '_> {
@@ -75,6 +86,7 @@ impl SourceHost<'_, '_> {
         snapshot: Option<BuildSnapshotRequest>,
         dependency: bool,
     ) -> Result<ReturnedPlanningStage, PackageCommandError> {
+        self.acquisitions.admit_build_descent(&self.active, acquired)?;
         self.acquisitions.admit_locked_activation(acquired)?;
         let execution = self
             .session
@@ -89,7 +101,16 @@ impl SourceHost<'_, '_> {
             Default::default(),
             Default::default(),
         )?;
-        let stage = planning::interpret(stage, &mut ())?;
+        self.active.push(acquired.clone());
+        let result = planning::interpret(
+            stage,
+            &mut services::SourceServices {
+                host: self,
+                acquired,
+            },
+        );
+        self.active.pop();
+        let stage = result?;
         self.session
             .record_source_completion(stage.source_completion_accounting().clone());
         Ok(stage)
@@ -112,17 +133,35 @@ impl SourceHost<'_, '_> {
     ) -> Result<ResolvedProject, PackageCommandError> {
         let declaration = acquired.declare_build(root.returned())?;
         let root_identity = declaration.identity();
-        let mut returns = Vec::<(_, ReturnedPlanningStage)>::new();
+        let mut returns = Vec::<(
+            AcquiredBuildSource,
+            DeclaredBuildSource,
+            ReturnedPlanningStage,
+        )>::new();
+        let mut reused = Vec::<usize>::new();
         let mut next = declaration.resolve()?;
         loop {
             let pending = match next {
                 ExecutedSourceResolution::Complete(graph) => {
-                    for (subject, mut stage) in returns {
-                        let inputs =
-                            graph.join_source_result(subject, &mut stage.source_result()?)?;
-                        let evaluated = stage.complete(Some(&inputs))?;
-                        self.session
-                            .record_source_completion(evaluated.source_completion_accounting);
+                    for (acquired, declaration, mut stage) in returns {
+                        let inputs = graph.join_source_result(
+                            declaration.identity(),
+                            &mut stage.source_result()?,
+                        )?;
+                        let settled = stage.settle_dependency(inputs)?;
+                        self.session.record_source_completion(
+                            settled.evaluated().source_completion_accounting.clone(),
+                        );
+                        self.settled.push((acquired, declaration, settled));
+                    }
+                    for i in reused {
+                        let (_, declaration, settled) = &self.settled[i];
+                        let current = graph.compilation_inputs(declaration.identity())?;
+                        if current.source_inputs() != settled.inputs().source_inputs() {
+                            return Err("settled helper Build differs from the final source graph"
+                                .to_owned()
+                                .into());
+                        }
                     }
                     let inputs =
                         graph.join_source_result(root_identity, &mut root.source_result()?)?;
@@ -144,10 +183,22 @@ impl SourceHost<'_, '_> {
                     }
                     BuildSourceAcquisition::Execute(dependency) => {
                         let acquired = dependency.acquired_source();
-                        let stage = self.member_or_execute(acquired)?;
+                        if let Some(i) = self
+                            .settled
+                            .iter()
+                            .position(|(source, _, _)| source.same_source(acquired))
+                        {
+                            let (source, declaration, _) = &self.settled[i];
+                            acquired.verify_reused_capture(source)?;
+                            let (_, next) = dependency.complete_declared(declaration)?;
+                            reused.push(i);
+                            break next;
+                        }
+                        let acquired = acquired.clone();
+                        let stage = self.member_or_execute(&acquired)?;
                         let declaration = acquired.declare_build(stage.returned())?;
-                        let (subject, next) = dependency.complete_declared(&declaration)?;
-                        returns.push((subject, stage));
+                        let (_, next) = dependency.complete_declared(&declaration)?;
+                        returns.push((acquired, declaration, stage));
                         break next;
                     }
                 }
@@ -275,6 +326,8 @@ pub(crate) fn open_product(
             acquisitions: &mut acquisitions,
             profile,
             observed: Vec::new(),
+            active: Vec::new(),
+            settled: Vec::new(),
         };
         let entry = preparation.entry_path();
         let returned = host.execute(&entry, &acquired, snapshot, false)?;

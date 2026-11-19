@@ -36,6 +36,7 @@ pub struct PreparedPlanningStage {
     pub(super) source: PlanningSource,
 }
 
+#[derive(Clone)]
 pub(super) struct PlanningSource {
     pub(super) stage: BuildStage,
     pub(super) deferred: DeferredProductSources,
@@ -75,6 +76,29 @@ impl PlannedProduct {
     pub fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.package_inputs.as_ref()
     }
+    pub fn generated_handoff(
+        &self,
+    ) -> Result<package_compilation::PackageBuildHandoff, CompileFailure> {
+        let inputs = self
+            .package_inputs()
+            .ok_or_else(|| refusal("dependency has no acquired package graph".into()))?;
+        let source = self.source();
+        let subject = package_compilation::derive_package_compilation_subject(
+            source.sources.selected_files(),
+            inputs,
+            &source.generated_source_custody,
+        )?;
+        Ok(package_compilation::PackageBuildHandoff::from_checked(
+            inputs.root(),
+            inputs.compilation_purpose(),
+            self.build_profile,
+            Some(self.build_profile),
+            subject.dependency_closure().clone(),
+            subject.source_consumption_commitment(),
+            self.evaluated.configuration.generated_sources.clone(),
+        ))
+    }
+
     pub fn preparation(&self) -> &SourcePreparation {
         &self.preparation
     }
