@@ -955,12 +955,6 @@ impl PreparedSource {
 }
 
 impl ResolveAndTypeRequest {
-    /// Resolve every selected source and type all bodies in this stage.
-    pub fn resolve_and_type(self, observer: &mut impl PsiCompilationObserver) -> Result<PreparedSource, Vec<Diagnostic>> {
-        let (source, _) = self.prepare(observer)?;
-        Ok(source.complete_authored(observer)?.finish())
-    }
-
     pub fn prepare(
         mut self,
         observer: &mut impl PsiCompilationObserver,
