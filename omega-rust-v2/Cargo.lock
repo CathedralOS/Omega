@@ -140,3 +140,10 @@ dependencies = [
 [[package]]
 name = "spec-corpus"
 version = "0.0.0"
+dependencies = [
+ "omega-lexer",
+ "omega-parser",
+ "omega-resolver",
+ "omega-toolchain",
+ "omega-typer",
+]

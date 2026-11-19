@@ -11,16 +11,9 @@ omega-lexer = { path = "../00_bytes-to-tokens" }
 [dev-dependencies]
 golden = { path = "../../tools/golden" }
 measure = { path = "../../tools/measure" }
-spec-corpus = { path = "../../tools/spec-corpus" }
+spec-corpus = { path = "../../tools/spec-corpus", features = ["parser"] }
 
-# The tools that are not tests. Cargo only finds programs like these by itself in a folder called
-# `examples`, and these are not examples of using the parser, so each folder is named for what is
-# in it and each tool is listed here. They are still run with `cargo run --example <name>`.
 [[example]]
 name = "parse_throughput"
 path = "measurements/parse_throughput.rs"
 test = true
-
-[[example]]
-name = "parse_spec"
-path = "inspection/parse_spec.rs"

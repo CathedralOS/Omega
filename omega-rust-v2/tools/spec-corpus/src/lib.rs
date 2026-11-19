@@ -22,6 +22,11 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "parser")]
+pub mod parser_examples;
+#[cfg(feature = "parser")]
+pub mod tree_dump_formatter;
+
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};

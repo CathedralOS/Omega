@@ -135,10 +135,8 @@
     is re-exported from here, so it is `omega_parser::SyntaxTree` and not a
     path.
 
-    The text dump that the golden fixtures compare is not here. Only the tests
-    and the `parse_spec` tool read it, so it lives with the tests in
-    `tests/support/tree_dump_formatter.rs` and uses nothing but what this crate
-    exports.
+    The spec-corpus tool renders trees through the parser's public API.
+    The golden fixtures and the parse_spec viewer use its tree dump formatter.
 
     Contract: GRAMMAR.md in this crate.
     Tests: `tests/golden_fixtures.rs` (accept and reject fixtures under `fixtures/`),

@@ -155,7 +155,7 @@ fn report(
 fn codec() -> bool {
     let spec = format!(
         "use model::Message; use model::Codec;\n{}",
-        block(include_str!("../../../wiki/spec/language/conformances.md"), 204)
+        block(include_str!("../../../../wiki/spec/language/conformances.md"), 204)
     );
     let edges = [
         ("example", "model", "messages"),
@@ -238,7 +238,7 @@ fn codec() -> bool {
 }
 
 fn reader() -> bool {
-    let chapter = include_str!("../../../wiki/spec/language/some_packages.md");
+    let chapter = include_str!("../../../../wiki/spec/language/some_packages.md");
     let schema = block(chapter, 15);
     let init = block(chapter, 39);
     let source = format!("machine pack() {{ let mut file:File;\n{init}\n}}");
@@ -268,7 +268,7 @@ fn reader() -> bool {
 }
 
 fn reflection() -> bool {
-    let selectors = block(include_str!("../../../wiki/spec/language/reflection.md"), 77);
+    let selectors = block(include_str!("../../../../wiki/spec/language/reflection.md"), 77);
     let defs = "data Controller{status:u8;} data Buffer<T>{used:T;} trait ControllerWriter{machine write();}";
     let mut ok = true;
     let expected = [

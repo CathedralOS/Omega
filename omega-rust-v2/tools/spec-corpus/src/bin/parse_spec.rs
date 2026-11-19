@@ -2,29 +2,17 @@
 //!
 //! Every example, source first and tree after:
 //!
-//!     cargo run -p omega-parser --example parse_spec
+//!     mbx run --locked -p spec-corpus --features parser --bin parse_spec
 //!
 //! Only the examples whose label contains some text, where a label is `file:line`:
 //!
-//!     cargo run -p omega-parser --example parse_spec -- language/patterns.md
-
-// The dump is the tests' own; see the note at the top of that file for why it is not in the crate.
-#[path = "../tests/support/tree_dump_formatter.rs"]
-mod tree_dump_formatter;
+//!     mbx run --locked -p spec-corpus --features parser --bin parse_spec -- language/patterns.md
 
 use omega_lexer::lex;
-use omega_parser::{FragmentKind, parse_fragment};
+use omega_parser::parse_fragment;
+use spec_corpus::parser_examples::{fragment_kind, parser_source};
+use spec_corpus::tree_dump_formatter::{dump_parse_error, dump_tree};
 use std::path::Path;
-use tree_dump_formatter::{dump_parse_error, dump_tree};
-
-// @Volatile: must list the same examples as `EXAMPLE_SHAPES` in `tests/spec_corpus.rs`. The test is
-// the authority; this copy only decides how an example is shown.
-const EXAMPLE_SHAPES: &[(&str, FragmentKind)] = &[
-    ("language/generics.md:306", FragmentKind::Clauses),
-    ("language/termination.md:35", FragmentKind::Clauses),
-    ("resources/content_custody.md:129", FragmentKind::Clauses),
-    ("language/state_contracts.md:86", FragmentKind::GenericParam),
-];
 
 fn main() {
     let label_filter = std::env::args().nth(1).unwrap_or_default();
@@ -45,11 +33,8 @@ fn main() {
             continue;
         }
 
-        let fragment_kind = EXAMPLE_SHAPES
-            .iter()
-            .find(|(shaped_label, _)| *shaped_label == example_label)
-            .map_or(FragmentKind::Statements, |&(_, fragment_kind)| fragment_kind);
-        let source_text = example.source_text.replace("{ ... }", "{     }");
+        let fragment_kind = fragment_kind(&example_label);
+        let source_text = parser_source(&example.source_text);
         let source_bytes = source_text.as_bytes();
 
         println!("===== {example_label} ({fragment_kind:?})");
