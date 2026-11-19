@@ -49,8 +49,8 @@ grep -F 'data AlphaTapeBuffer {' "$TMP/compiler.epsilon" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 12096 ]
-[ "$EPSILON_BYTES" -eq 616982 ]
+[ "$EPSILON_LINES" -eq 12092 ]
+[ "$EPSILON_BYTES" -eq 616939 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
@@ -70,8 +70,8 @@ from pathlib import Path
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        616982,
-        "e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9",
+        616939,
+        "a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
@@ -149,13 +149,13 @@ def positive_seconds(name, default):
 receipt_timeout = positive_seconds("OMEGA_EPSILON_RECEIPT_SECONDS", 600)
 customer_timeout = positive_seconds("OMEGA_DCOMP_OBSERVATION_SECONDS", 14400)
 status, receipt = evaluate(compiler, request, timeout=receipt_timeout)
-if status != 0 or len(receipt) != 719068:
+if status != 0 or len(receipt) != 719006:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "a682c628b7255ffb358d00bdf536369acf2078ff4510d621c20b2ab0468197b2"
+    "f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "

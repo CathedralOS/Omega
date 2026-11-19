@@ -18,9 +18,9 @@
 # not a proof that the evaluator implements Epsilon. Changing a member or the
 # manifest invalidates the dependent evidence and must update every record.
 EPSILON_EVALUATOR_MANIFEST_SIZE=16779
-EPSILON_EVALUATOR_MANIFEST_SHA256=757da81cd8d59ee639eb3deb3f66c150e805c682ce180a0c5a0c9b4805e9dde5
-EPSILON_EVALUATOR_PACKED_SIZE=616982
-EPSILON_EVALUATOR_PACKED_SHA256=e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9
+EPSILON_EVALUATOR_MANIFEST_SHA256=d8e2b9c0ef64c1be8a2b5b1582a4bde4cdba7f5d790cf95f2de0642b7bc69cc7
+EPSILON_EVALUATOR_PACKED_SIZE=616939
+EPSILON_EVALUATOR_PACKED_SHA256=a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c
 
 # Bound edge adapter and reconstructed obligation. The canonical execution
 # driver tests/epsilon/interpreted-omega-experiment/execution_driver.delta is
@@ -36,8 +36,8 @@ EPSILON_EVALUATOR_PACKED_SHA256=e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424
 # receipt and must update every record together.
 EPSILON_EXECUTION_DRIVER_SIZE=2150
 EPSILON_EXECUTION_DRIVER_SHA256=ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa
-EPSILON_EVALUATOR_RECEIPT_SIZE=719068
-EPSILON_EVALUATOR_RECEIPT_SHA256=a682c628b7255ffb358d00bdf536369acf2078ff4510d621c20b2ab0468197b2
+EPSILON_EVALUATOR_RECEIPT_SIZE=719006
+EPSILON_EVALUATOR_RECEIPT_SHA256=f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340
 
 # Bound canonical section-11 entry and its reconstructed obligation. The
 # canonical evaluator entry tests/epsilon/evaluator-entry/evaluator_entry.delta
@@ -56,10 +56,10 @@ EPSILON_EVALUATOR_RECEIPT_SHA256=a682c628b7255ffb358d00bdf536369acf2078ff4510d62
 # source or the reconstructed bytes; it is not a proof of evaluation. Changing
 # the entry, the packed closure, the compiler, or the support section changes
 # the receipt and must update every record together.
-EPSILON_EVALUATOR_ENTRY_SIZE=10567
-EPSILON_EVALUATOR_ENTRY_SHA256=cd609cfabdf04a3f913e0def10deaf63615f157bc8d600c91971c02c283cbd7e
-EPSILON_EVALUATOR_ENTRY_RECEIPT_SIZE=726667
-EPSILON_EVALUATOR_ENTRY_RECEIPT_SHA256=a2c85b9ea741d9957e1ea2f19a82b8ccace7637d40c4368ac838dfb501b16b87
+EPSILON_EVALUATOR_ENTRY_SIZE=10563
+EPSILON_EVALUATOR_ENTRY_SHA256=ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79
+EPSILON_EVALUATOR_ENTRY_RECEIPT_SIZE=726601
+EPSILON_EVALUATOR_ENTRY_RECEIPT_SHA256=1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af
 
 # Bound gate-local driver entries packed on top of the bound Epsilon member
 # closure. checking's checking_driver.delta and array-storage's

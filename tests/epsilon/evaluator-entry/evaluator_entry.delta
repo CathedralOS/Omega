@@ -72,45 +72,45 @@
                 0))))))))
 
 ; Bound evaluator-closure identity this artifact was composed from: SHA-256
-; e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9 of the
+; a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c of the
 ; packed epsilon_compiler.delta.sources closure. Changing the closure changes
 ; this identity and must update every bound record together.
 (def epsilon_edge_closure_byte ((index Int)) Int
   (if (lt index 16)
     (if (lt index 8)
-      (if (eq index 0) 225
-        (if (eq index 1) 47
-          (if (eq index 2) 147
-            (if (eq index 3) 12
-              (if (eq index 4) 79
-                (if (eq index 5) 63
-                  (if (eq index 6) 204
-                    227)))))))
-      (if (eq index 8) 221
-        (if (eq index 9) 156
-          (if (eq index 10) 160
-            (if (eq index 11) 252
-              (if (eq index 12) 131
-                (if (eq index 13) 127
-                  (if (eq index 14) 34
-                    236))))))))
+      (if (eq index 0) 162
+        (if (eq index 1) 131
+          (if (eq index 2) 4
+            (if (eq index 3) 21
+              (if (eq index 4) 164
+                (if (eq index 5) 217
+                  (if (eq index 6) 129
+                    118)))))))
+      (if (eq index 8) 233
+        (if (eq index 9) 189
+          (if (eq index 10) 151
+            (if (eq index 11) 231
+              (if (eq index 12) 242
+                (if (eq index 13) 138
+                  (if (eq index 14) 156
+                    69))))))))
     (if (lt index 24)
-      (if (eq index 16) 219
-        (if (eq index 17) 88
-          (if (eq index 18) 74
-            (if (eq index 19) 147
-              (if (eq index 20) 214
-                (if (eq index 21) 231
-                  (if (eq index 22) 244
-                    36)))))))
-      (if (eq index 24) 190
-        (if (eq index 25) 246
-          (if (eq index 26) 190
-            (if (eq index 27) 212
-              (if (eq index 28) 210
-                (if (eq index 29) 134
-                  (if (eq index 30) 201
-                    217))))))))))
+      (if (eq index 16) 18
+        (if (eq index 17) 217
+          (if (eq index 18) 38
+            (if (eq index 19) 253
+              (if (eq index 20) 181
+                (if (eq index 21) 197
+                  (if (eq index 22) 2
+                    215)))))))
+      (if (eq index 24) 62
+        (if (eq index 25) 25
+          (if (eq index 26) 216
+            (if (eq index 27) 116
+              (if (eq index 28) 237
+                (if (eq index 29) 88
+                  (if (eq index 30) 202
+                    76))))))))))
 
 ; Fixed-width encoders: the boundary's publications are exact little-endian
 ; bytes, matching the diagnostic edge's observation byte order.
