@@ -200,6 +200,18 @@ mod type_identity {
     }
 
     #[test]
+    fn compiler_type_name_and_complete_identity_keep_the_published_frames() {
+        assert_eq!(
+            crate::type_identity::compiler_type_name("u8"),
+            "compiler-type(atom(u8))"
+        );
+        assert_eq!(
+            crate::type_identity::compiler_type_identity("u8"),
+            r"named(name(compiler-type\(atom\(u8\)\)))"
+        );
+    }
+
+    #[test]
     fn retired_dynamic_trait_identities_are_rejected() {
         let identity = concat!(
             r"dynamic-trait(name(nominal\(package-owner\(32:",

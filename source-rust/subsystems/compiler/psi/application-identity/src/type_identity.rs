@@ -6,6 +6,25 @@ lifetime partitions (`lifetime_partition`), and type vocabulary descriptors
 (`vocabulary`).
 */
 
+/// Encode a compiler type name from the canonical spelling of its atom.
+pub fn compiler_type_name(atom: &str) -> String {
+    encoding::compound(
+        vocabulary::NameForm::CompilerType,
+        [encoding::atom(vocabulary::Label::Atom, atom)],
+    )
+}
+
+/// Encode the complete named type for that compiler atom.
+pub fn compiler_type_identity(atom: &str) -> String {
+    encoding::compound(
+        vocabulary::TypeForm::Named,
+        [encoding::atom(
+            vocabulary::Label::Name,
+            &compiler_type_name(atom),
+        )],
+    )
+}
+
 /// Canonical identity framing shared by source producers and receiving checks.
 /// Moving an identity between owners must preserve these exact escaped bytes.
 pub mod encoding {

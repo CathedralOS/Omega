@@ -4,25 +4,14 @@ across open indices, constraints, lifetimes, portable machine applications, and
 callable signatures in `TypedTrees`.
 */
 
-use application_identity::type_identity::{encoding, vocabulary};
-
-/// Encode the compiler builtin selected by source typing.
+/// Encode the builtin symbol that source typing selected.
 pub fn builtin_type_name(builtin: symbols::BuiltinTypeAtom) -> String {
-    encoding::compound(
-        vocabulary::NameForm::CompilerType,
-        [encoding::atom(vocabulary::Label::Atom, &builtin.identity())],
-    )
+    application_identity::type_identity::compiler_type_name(&builtin.identity())
 }
 
-/// A complete scalar type retains the ordinary named-type frame.
+/// Encode the complete named type for the builtin symbol.
 pub fn builtin_type_identity(builtin: symbols::BuiltinTypeAtom) -> String {
-    encoding::compound(
-        vocabulary::TypeForm::Named,
-        [encoding::atom(
-            vocabulary::Label::Name,
-            &builtin_type_name(builtin),
-        )],
-    )
+    application_identity::type_identity::compiler_type_identity(&builtin.identity())
 }
 
 pub(crate) mod callable_identity {
