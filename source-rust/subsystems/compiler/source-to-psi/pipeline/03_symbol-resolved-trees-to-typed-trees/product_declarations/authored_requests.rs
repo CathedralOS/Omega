@@ -27,7 +27,7 @@ fn key(typed: &TypedTrees, request: &ProductDeclarationRequest) -> OccurrenceKey
     (span.source_id.0, span.span.start, span.span.end)
 }
 
-pub(super) fn refusal(
+pub fn refusal(
     request: &ProductDeclarationRequest,
     reason: impl Into<String>,
 ) -> Vec<Diagnostic> {
@@ -64,18 +64,22 @@ fn authored_owner(
     Ok(owner)
 }
 
-pub(super) struct DeclaredRequest<'request> {
+pub struct DeclaredRequest<'request> {
     pub request: &'request ProductDeclarationRequest,
     pub author: SymbolHandle,
 }
 
-pub(super) struct AuthoredRequests<'program, 'request> {
+pub struct AuthoredRequests<'program, 'request> {
     typed: &'program TypedTrees,
     authors: ProductRequestAuthors<'program>,
-    pub rows: Vec<DeclaredRequest<'request>>,
+    pub(super) rows: Vec<DeclaredRequest<'request>>,
 }
 
 impl<'program, 'request> AuthoredRequests<'program, 'request> {
+    pub fn rows(&self) -> &[DeclaredRequest<'request>] {
+        &self.rows
+    }
+
     pub fn new(
         typed: &'program TypedTrees,
         declared: &'request [Arc<ProductDeclarationRequest>],
