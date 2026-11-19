@@ -12,7 +12,7 @@ use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::build_execution::{SelectedBuildMachine, admit_build_machine};
 use psi_authorization::selection_questions::SelectionAuthorities;
-use source_compiler::evaluation::BuildEvaluationSponsor;
+use evaluation_accounting::BuildEvaluationSponsor;
 use symbols::SymbolHandle;
 
 #[must_use = "an admitted build program must prepare its execution"]

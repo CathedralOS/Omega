@@ -312,6 +312,7 @@ dependencies = [
  "build-declarations",
  "build-evaluation-result",
  "build-output",
+ "build-scalar-evaluation",
  "build-time-values",
  "declaration-scope",
  "diagnostics",
