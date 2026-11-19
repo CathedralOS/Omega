@@ -6,7 +6,7 @@ use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::validation::ordered;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewSynchronousInvocation};
 use service_surface::ServiceSynchronousInvocation;
-use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
+use service_surface::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyServiceAuthority {

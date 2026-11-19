@@ -21,7 +21,7 @@ use declaration_contracts::boundary_provider_review::BoundaryProviderReview;
 use declaration_contracts::boundary_provider_review::BoundaryRequirementReview;
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
+use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 
 pub struct CompilerIntrinsicPlanProvenance<'a> {
     pub plan: &'a ProviderPlan,

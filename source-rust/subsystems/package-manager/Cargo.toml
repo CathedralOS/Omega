@@ -9,6 +9,7 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
+provider-plans = { path = "../compiler/build/providers/plans" }
 language-core = { path = "../compiler/foundation/language-core" }
 host-provider-inputs = { path = "../compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 service-surface = { path = "../compiler/psi/service-surface" }

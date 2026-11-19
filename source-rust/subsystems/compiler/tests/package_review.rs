@@ -284,7 +284,7 @@ fn narrow_installation_bound_uses_the_selected_child_row() {
 /// producer's saved resolved rows or substitute a requirement's wider bound.
 fn check_reopened_installation_reach(
     module: &terminal_psi::TerminalModule,
-    plans: &[effects::provider_plan::ProviderPlan],
+    plans: &[provider_plans::ProviderPlan],
 ) {
     let encoded = terminal_codec::encode_module(module).unwrap();
     let mut reopened = terminal_codec::decode_module(&encoded).unwrap();

@@ -13,16 +13,12 @@ use language_core::DomainPredicatePresence;
 use service_surface::{
     ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
 };
-use effects::provider_plan::{
-    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute,
-    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
-    ServiceResultClaim,
-};
+use service_surface::{ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim};
 
 pub(in crate::encoding::recovery) fn method(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyServiceMethod, Error> {
-    let mut identities = effects::provider_plan::ProviderIdentityTable::default();
+    let mut identities = service_surface::identities::ProviderIdentityTable::default();
     Ok(PackagePolicyServiceMethod {
         name: reader.string()?,
         requirement_owner: nominal(reader)?,

@@ -43,7 +43,7 @@ impl CallingProgram {
         policy: &terminal_psi::CallingPolicyInstance,
         target: target::TargetProfile,
         declaration: semantic_vocabulary::CallingSignatureId,
-        providers: &[effects::provider_plan::ProviderPlan],
+        providers: &[provider_plans::ProviderPlan],
         admission: super::TerminalCallingPolicyAdmission,
     ) -> Result<(CanonicalCallingSignature, ValidatedBoundaryEntryPlan), String> {
         let policy = *policy.policy.as_ref().map_err(Clone::clone)?;
@@ -135,7 +135,7 @@ impl CallingProgram {
         declaration: &semantic_vocabulary::CallingAbiIdentity,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
-        providers: &[effects::provider_plan::ProviderPlan],
+        providers: &[provider_plans::ProviderPlan],
     ) -> Result<CanonicalCallingSignature, String> {
         let demand = psi_scalar_applications::CallingAbiStorageDemand::new(
             self.artifact.view(),
@@ -157,7 +157,7 @@ impl CallingProgram {
         demand: &psi_scalar_applications::CallingAbiStorageDemand,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
-        providers: &[effects::provider_plan::ProviderPlan],
+        providers: &[provider_plans::ProviderPlan],
         describe: impl FnOnce(
             &dyn Fn(
                 semantic_vocabulary::ScalarApplicationId,

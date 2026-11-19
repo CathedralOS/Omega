@@ -15,12 +15,12 @@ use std::collections::BTreeMap;
 enum PreparedTrustIdentity {
     ProviderPlan {
         report_identity: u64,
-        digest: effects::provider_plan::ProviderPlanDigest,
+        digest: provider_plans::ProviderPlanDigest,
     },
     NativeRequirement {
         report_identity: u64,
         contract: [u8; 32],
-        plan: effects::provider_plan::ProviderPlanDigest,
+        plan: provider_plans::ProviderPlanDigest,
     },
     MachineTemplate {
         report_identity: u64,
@@ -57,7 +57,7 @@ impl RootTrustPolicy {
 pub fn reconstruct_trust_obligations(
     declarations: &TrustDeclarations,
     root_grants: &[AuthoredRootGrant],
-    provider_plans: &[&effects::provider_plan::ProviderPlan],
+    provider_plans: &[&provider_plans::ProviderPlan],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     native_grants: &[Result<backend_plan::NativeRequirementTrust, String>],
     policy: RootTrustPolicy,

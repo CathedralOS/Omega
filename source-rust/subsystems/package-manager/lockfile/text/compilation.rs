@@ -8,7 +8,7 @@ use super::{
 };
 use crate::hex_digest;
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
-use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
+use semantic_vocabulary::provider_identity::{ProviderPlanDigest, ServiceSchemaDigest};
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };

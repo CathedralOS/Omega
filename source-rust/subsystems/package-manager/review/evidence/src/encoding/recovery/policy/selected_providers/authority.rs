@@ -6,7 +6,7 @@ use crate::record::{
     PackagePolicyServiceAuthority, PackagePolicyServiceProgressPremise,
     PackagePolicyServiceProgressRoute,
 };
-use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
+use service_surface::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
 pub(in crate::encoding::recovery) fn authority(
     reader: &mut Reader<'_>,

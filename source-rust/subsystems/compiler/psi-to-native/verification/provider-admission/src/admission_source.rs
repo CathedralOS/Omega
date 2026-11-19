@@ -16,7 +16,7 @@ use std::sync::Arc;
 use abstract_operations::AbstractOperationPlan;
 use calling_conventions::BoundaryCallingApplication;
 use component_description::VerifiedComponent;
-use effects::provider_plan::ProviderPlanDigest;
+use semantic_vocabulary::provider_identity::ProviderPlanDigest;
 use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_installation::AdmittedComponentProvider;

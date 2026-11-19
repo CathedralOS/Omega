@@ -13,8 +13,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use effects::{
     TerminalAuthorityClosureLeaf, TerminalAuthorityClosureLeafOrigin, TerminalMechanismIdentity,
-    provider_plan::{ProviderBinding, ProviderPlanDigest, ServiceSchemaDigest},
 };
+use provider_plans::{ProviderBinding, ProviderPlanDigest, ServiceSchemaDigest};
 use semantic_vocabulary::BoundaryMachineId;
 
 use super::context::ReviewContext;

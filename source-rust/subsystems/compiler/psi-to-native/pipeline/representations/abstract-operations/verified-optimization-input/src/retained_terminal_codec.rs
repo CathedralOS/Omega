@@ -404,7 +404,7 @@ mod admissions {
             let recovered = Vec::<BoundaryCallingApplication>::read(&mut input).unwrap();
             input.finish().unwrap();
             assert_eq!(applications, recovered);
-            use effects::provider_plan::{
+            use provider_plans::{
                 BoundaryCallingPlanCommitment, ProviderIdentityTable, ServiceCallingApplication,
                 ServiceCallingPlan, ServiceMethod, ServiceSchema, ServiceSurface,
             };
@@ -434,7 +434,7 @@ mod admissions {
                                 application.commitment,
                             ),
                             promise:
-                                effects::provider_plan::BoundaryCallingPlanPromise::from_digest(
+                                provider_plans::BoundaryCallingPlanPromise::from_digest(
                                     application.plan.contract_commitment_digest(),
                                 ),
                         },
@@ -1529,7 +1529,7 @@ mod tests {
             ],
             domain: "exact-domain-application<actual-index>".into(),
         };
-        let method = effects::provider_plan::ServiceMethod {
+        let method = provider_plans::ServiceMethod {
             normal_result_memberships: vec![membership],
             parameter_count: 2,
             synchronous_invocations: vec![
@@ -1544,7 +1544,7 @@ mod tests {
         let bytes = output.finish();
         let mut input = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
         assert_eq!(
-            effects::provider_plan::ServiceMethod::read(&mut input).unwrap(),
+            provider_plans::ServiceMethod::read(&mut input).unwrap(),
             method
         );
         input.finish().unwrap();
@@ -1552,7 +1552,7 @@ mod tests {
 
     #[test]
     fn saved_provider_identity_tables_preserve_recorded_coordinates() {
-        use effects::provider_plan::ProviderPlan;
+        use provider_plans::ProviderPlan;
         let texts = [
             "trait-application(test::ProgramStorageEntry)",
             "named(test::Extent)",
@@ -1634,7 +1634,7 @@ mod tests {
     #[test]
     fn retained_provider_plan_keeps_its_selecting_and_numeric_declarations() {
         // Recovery transports inert candidates; admission is a separate check.
-        let plan = effects::provider_plan::ProviderPlan {
+        let plan = provider_plans::ProviderPlan {
             provider_declaration: Some("SelectedMap".into()),
             row_numeric_realizations: vec![Some("NumericDeclaration".into()), None],
             ..Default::default()
@@ -1643,7 +1643,7 @@ mod tests {
         plan.write(&mut output).unwrap();
         let bytes = output.finish();
         let mut input = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
-        let recovered = effects::provider_plan::ProviderPlan::read(&mut input).unwrap();
+        let recovered = provider_plans::ProviderPlan::read(&mut input).unwrap();
         input.finish().unwrap();
         assert_eq!(recovered, plan);
         assert_eq!(
@@ -1845,8 +1845,8 @@ fn capture(
 }
 
 struct IntrinsicPlanRecord {
-    plan: effects::provider_plan::ProviderPlan,
-    semantic_schema: effects::provider_plan::ServiceSchema,
+    plan: provider_plans::ProviderPlan,
+    semantic_schema: provider_plans::ServiceSchema,
     row_executions: Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>,
 }
 records::record_fields!(IntrinsicPlanRecord {
@@ -1857,7 +1857,7 @@ records::record_fields!(IntrinsicPlanRecord {
 
 struct NativeBindingRecord {
     boundary: semantic_vocabulary::BoundaryMachineId,
-    binding: effects::provider_plan::EvaluatedNativeBinding,
+    binding: provider_plans::EvaluatedNativeBinding,
     schema: usize,
 }
 records::record_fields!(NativeBindingRecord {
@@ -1866,7 +1866,7 @@ records::record_fields!(NativeBindingRecord {
     schema
 });
 
-impl RecordValue for effects::provider_plan::EvaluatedNativeBinding {
+impl RecordValue for provider_plans::EvaluatedNativeBinding {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         match self {
             Self::Import(value) => {
@@ -1881,8 +1881,8 @@ impl RecordValue for effects::provider_plan::EvaluatedNativeBinding {
     }
     fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
         match u8::read(input)? {
-            0 => effects::provider_plan::EvaluatedForeignImport::read(input).map(Self::Import),
-            1 => effects::provider_plan::EvaluatedForeignSyscall::read(input).map(Self::Syscall),
+            0 => provider_plans::EvaluatedForeignImport::read(input).map(Self::Import),
+            1 => provider_plans::EvaluatedForeignSyscall::read(input).map(Self::Syscall),
             _ => Err(input.error("unknown native binding kind")),
         }
     }
@@ -1890,7 +1890,7 @@ impl RecordValue for effects::provider_plan::EvaluatedNativeBinding {
 impl RecordValue for provider_admission::RetainedNativeBindings {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         self.identities.write(output)?;
-        let mut schemas = Vec::<&effects::provider_plan::ServiceSchema>::new();
+        let mut schemas = Vec::<&provider_plans::ServiceSchema>::new();
         let rows = self
             .rows
             .iter()
@@ -1922,7 +1922,7 @@ impl RecordValue for provider_admission::RetainedNativeBindings {
             .binding_identities
             .replace(Arc::clone(&identities));
         let decoded = (|| {
-            let schemas = Vec::<effects::provider_plan::ServiceSchema>::read(input)?
+            let schemas = Vec::<provider_plans::ServiceSchema>::read(input)?
                 .into_iter()
                 .map(Arc::new)
                 .collect::<Vec<_>>();

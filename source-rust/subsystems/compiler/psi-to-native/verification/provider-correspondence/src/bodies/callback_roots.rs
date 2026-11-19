@@ -7,7 +7,7 @@
 
 use application_identity::callback_declarations::CallbackRegistrationDeclaration;
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
 pub struct SelectedCallbackRow<'plan> {
     pub plan: &'plan ProviderPlan,

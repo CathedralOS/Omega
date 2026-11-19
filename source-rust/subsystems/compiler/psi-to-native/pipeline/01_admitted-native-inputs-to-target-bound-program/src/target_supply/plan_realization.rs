@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use effects::provider_plan::{
+use provider_plans::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceSchema,
 };
 use semantic_vocabulary::BoundaryMachineId;
@@ -22,7 +22,7 @@ use super::realized_supply::{
 pub struct TargetSupplyExecutionInputs {
     pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    pub evaluated_native_bindings: Vec<effects::provider_plan::EvaluatedNativeBinding>,
+    pub evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     pub evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
     pub terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
@@ -35,7 +35,7 @@ pub struct TargetSupplyRealizationRequest<'a> {
     reached: &'a [BoundaryMachineId],
     calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    evaluated_native_bindings: Vec<effects::provider_plan::EvaluatedNativeBinding>,
+    evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
     terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
@@ -79,7 +79,7 @@ fn attach_calling(
     target: &str,
     applications: &[calling_conventions::BoundaryCallingApplication],
 ) -> Result<(), String> {
-    use effects::provider_plan::{
+    use provider_plans::{
         BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ServiceCallingApplication,
         ServiceCallingPlan,
     };
@@ -210,7 +210,7 @@ fn direct_leaves(
     target: &str,
     calling: &[calling_conventions::BoundaryCallingApplication],
     external: &[calling_conventions::ExternalBindingRow],
-    evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
+    evaluated: &[provider_plans::EvaluatedNativeBinding],
     evaluated_identities: &terminal_psi::TerminalIdentityTable,
     reached: &[BoundaryMachineId],
 ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, String> {

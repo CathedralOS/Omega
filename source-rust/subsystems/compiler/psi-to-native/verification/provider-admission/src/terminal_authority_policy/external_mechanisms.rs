@@ -43,7 +43,7 @@ pub(crate) fn normalized_foreign_terminal_mechanism(
     Ok(
         effects::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
             locator,
-            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+            provider_plans::BoundaryCallingPlanCommitment::from_digest(
                 validated.contract_commitment_digest(),
             ),
         )
@@ -72,7 +72,7 @@ pub(crate) fn normalized_foreign_terminal_mechanism_with_callback_materializatio
     Ok(
         effects::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
             locator,
-            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+            provider_plans::BoundaryCallingPlanCommitment::from_digest(
                 validated.contract_commitment_digest(),
             ),
         )

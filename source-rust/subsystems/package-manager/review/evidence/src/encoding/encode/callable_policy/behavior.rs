@@ -131,7 +131,7 @@ pub(in crate::encoding) fn termination(
                 } Ok(()) })?;
                 encoder.field("projections", |encoder| encoder.sequence(&premise.projections, encode_nominal))?;
                 encoder.field("establishment_routes", |encoder| encoder.sequence(&premise.establishment_routes, |encoder, route| {
-                    use effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
+                    use service_surface::ServiceProgressEstablishmentRouteKind as Kind;
                     encoder.field("kind", |encoder| {
                         match route.kind {
                             Kind::CheckedRequirement => encoder.tag("checked_requirement", 0),

@@ -16,7 +16,7 @@ use language_core::DomainPredicatePresence;
 use service_surface::{
     ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
 };
-use effects::provider_plan::{
+use provider_plans::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ProviderIdentityTable,
     ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,
     ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
@@ -1006,7 +1006,7 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use effects::provider_plan::ServiceSurface;
+    use provider_plans::ServiceSurface;
 
     #[test]
     fn cached_service_keeps_exact_normal_membership_applications() {

@@ -2,7 +2,7 @@
 
 use crate::record::SemanticBindingReviewCandidate;
 use diagnostics::Diagnostic;
-use effects::provider_plan::ServiceSchema;
+use provider_plans::ServiceSchema;
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
 };

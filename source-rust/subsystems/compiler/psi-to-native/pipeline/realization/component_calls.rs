@@ -18,7 +18,7 @@ use super::component_exports::{ComponentExportImage, component_export_slot};
 pub struct ComponentNativeCall<'input> {
     image: &'input ComponentExportImage<'input>,
     call: &'input AdmittedNativeComponentCall<'input>,
-    plan: &'input effects::provider_plan::ProviderPlan,
+    plan: &'input provider_plans::ProviderPlan,
     locator: target::NormalizedComponentLocator,
     same_stack: provider_stack_contribution::AdmittedSameStackContribution,
     commitment: [u8; 32],
@@ -40,7 +40,7 @@ impl<'input> ComponentNativeCall<'input> {
     pub fn join(
         image: &'input ComponentExportImage<'input>,
         call: &'input AdmittedNativeComponentCall<'input>,
-        plan: &'input effects::provider_plan::ProviderPlan,
+        plan: &'input provider_plans::ProviderPlan,
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<Self, Vec<Diagnostic>> {
         let invalid = |message: &str| vec![Diagnostic::error(message)];

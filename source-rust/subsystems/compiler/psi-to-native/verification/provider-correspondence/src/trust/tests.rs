@@ -304,7 +304,7 @@ fn an_accepted_machine_handle_cannot_replace_the_retained_declaration() {
 
 #[test]
 fn native_admission_keeps_the_checked_promise_and_selected_binding() {
-    use effects::provider_plan::ProviderPlanDigest;
+    use semantic_vocabulary::provider_identity::ProviderPlanDigest;
     let admit = |contract, plan| {
         TrustAdmission::for_native_requirement(
             "native requirement: Root::allocate".into(),

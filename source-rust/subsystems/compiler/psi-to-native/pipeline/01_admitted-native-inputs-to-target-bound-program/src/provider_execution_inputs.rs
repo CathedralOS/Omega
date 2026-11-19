@@ -379,12 +379,12 @@ pub(crate) fn plan_inputs_and_review(
             ));
         }
         let binding = match &evaluated {
-            effects::provider_plan::EvaluatedNativeBinding::Import(import) => {
+            provider_plans::EvaluatedNativeBinding::Import(import) => {
                 calling_conventions::ExternalBindingKind::Import {
                     locator: import.locator().clone(),
                 }
             }
-            effects::provider_plan::EvaluatedNativeBinding::Syscall(syscall) => {
+            provider_plans::EvaluatedNativeBinding::Syscall(syscall) => {
                 calling_conventions::ExternalBindingKind::Syscall {
                     number: syscall.number(),
                 }

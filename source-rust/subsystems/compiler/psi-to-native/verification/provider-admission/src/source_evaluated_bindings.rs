@@ -18,7 +18,7 @@
 use super::{NativeBoundaryRealization, NativeProviderSettlement};
 use crate::ProviderExecutionEvidence;
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderBinding, ProviderPlan};
+use provider_plans::{ProviderBinding, ProviderPlan};
 use provider_stack_contribution::{
     AdmittedSameStackContribution, SameStackContributionAdmissionCandidate,
     SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment,
@@ -438,7 +438,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{SAME_STACK_BYTES, foreign_same_stack_bytes, mint_source_evaluated_imports};
-    use effects::provider_plan::{
+    use provider_plans::{
         ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow,
     };
     use std::collections::BTreeSet;

@@ -710,8 +710,8 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
 
 // A checked boundary body uses the same explicit provider plan as ordinary
 // native compilation. The fixture grants no alternate target-body selection.
-fn checked_value_plan() -> effects::provider_plan::ProviderPlan {
-    use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+fn checked_value_plan() -> provider_plans::ProviderPlan {
+    use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
     let mut plan = ProviderPlan {
         name: "physical-value".into(),
         provider_type: "PhysicalValueProvider".into(),

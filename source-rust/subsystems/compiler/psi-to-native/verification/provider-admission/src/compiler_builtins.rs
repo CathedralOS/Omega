@@ -42,7 +42,7 @@ use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use diagnostics::Diagnostic;
 use effects::CompilerAccessorScalarOperation;
-use effects::provider_plan::{ProviderPlan, ServiceSchema};
+use provider_plans::{ProviderPlan, ServiceSchema};
 use semantic_vocabulary::{
     BoundaryCompletion, ClosedScalarType, ExternalCompletionKind, IeeeFloatFormat, IntegerSign,
 };
@@ -390,7 +390,7 @@ fn admit_x86_fma_features(
 pub(super) fn boundary_contract_matches_selected_schema(
     module: &terminal_psi::TerminalModule,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &provider_plans::ProviderPlan,
     requirement: &str,
 ) -> bool {
     // A closed call keeps its own selected row while sharing the declared
@@ -767,7 +767,7 @@ fn require_access_backing_origins(
 #[cfg(test)]
 mod selected_completion_contract_tests {
     use super::*;
-    use effects::provider_plan::{ProviderBinding, ProviderPlanRow, ServiceMethod};
+    use provider_plans::{ProviderBinding, ProviderPlanRow, ServiceMethod};
     use semantic_vocabulary::BoundaryMachineId;
     use terminal_psi::{
         BoundaryDeclarationRole, BoundaryMachineResult, NominalDeclarationIdentity,

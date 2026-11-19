@@ -14,8 +14,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use effects::{
     SelectedProviderPlanFacts, TerminalMechanismIdentity,
-    provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow},
 };
+use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
 use super::reachability::AuthorityGraph;
@@ -28,7 +28,7 @@ struct AdmittedMechanismRow<'a> {
     foreign: Option<&'a target_operations::NormalizedForeignCallBinding>,
     native_binding: Option<(
         target_operations::NativeBindingExecution,
-        effects::provider_plan::ServiceSchemaDigest,
+        provider_plans::ServiceSchemaDigest,
     )>,
 }
 
@@ -181,7 +181,7 @@ impl<'a> ReviewContext<'a> {
         boundary: BoundaryMachineId,
     ) -> Option<(
         target_operations::NativeBindingExecution,
-        effects::provider_plan::ServiceSchemaDigest,
+        provider_plans::ServiceSchemaDigest,
     )> {
         self.mechanisms
             .get(&boundary)

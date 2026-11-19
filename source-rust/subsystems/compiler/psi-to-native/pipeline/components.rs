@@ -10,7 +10,7 @@ use crate::pipeline::realization::{
 };
 use artifact_lowering::{AdmittedNativeComponentCall, ComponentNativeInputs};
 use diagnostics::Diagnostic;
-use effects::provider_plan::ProviderPlan;
+use provider_plans::ProviderPlan;
 use native_artifact::NativeComponentProduct;
 use provider_admission::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,

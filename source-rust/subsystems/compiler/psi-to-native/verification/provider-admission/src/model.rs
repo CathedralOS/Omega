@@ -56,15 +56,15 @@ builtin_native_realization_conversion!(target_operations::ClaimCompletionOnlyRea
 #[derive(Debug, Clone, Copy)]
 pub struct NativeProviderSettlement<'execution> {
     pub provider_execution: &'execution dyn ProviderExecutionEvidence,
-    pub provider_plan: &'execution effects::provider_plan::ProviderPlan, // Complete selected-plan evidence; report identity alone cannot authorize a plan.
+    pub provider_plan: &'execution provider_plans::ProviderPlan, // Complete selected-plan evidence; report identity alone cannot authorize a plan.
     pub realization: NativeBoundaryRealization<'execution>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct NativeCompilerBuiltinSettlement<'execution> {
     pub requirement_identity: &'execution str,
-    pub provider_plan: &'execution effects::provider_plan::ProviderPlan,
-    pub semantic_schema: &'execution effects::provider_plan::ServiceSchema, // Contract authenticated by intrinsic classification before callable-identity replacement.
+    pub provider_plan: &'execution provider_plans::ProviderPlan,
+    pub semantic_schema: &'execution provider_plans::ServiceSchema, // Contract authenticated by intrinsic classification before callable-identity replacement.
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub settlement: crate::provider_admission::TerminalCompilerBuiltinSettlement,
 }
@@ -269,6 +269,6 @@ pub enum AdmittedBoundaryExecution<'execution> {
     CompilerBuiltin(super::SettledCompilerBuiltin),
     NativeBinding {
         execution: target_operations::NativeBindingExecution,
-        schema: effects::provider_plan::ServiceSchemaDigest,
+        schema: provider_plans::ServiceSchemaDigest,
     },
 }

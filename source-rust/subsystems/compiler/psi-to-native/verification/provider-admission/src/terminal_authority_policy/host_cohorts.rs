@@ -15,8 +15,8 @@ use effects::{
     NormalizedForeignArgumentContract, PortableFilesystemAuthorityFacet,
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
     TerminalMechanismIdentity,
-    provider_plan::{ServiceMethod, ServiceSchema, ServiceSchemaDigest},
 };
+use provider_plans::{ServiceMethod, ServiceSchema, ServiceSchemaDigest};
 
 use super::TerminalAuthorityPolicyRow;
 

@@ -15,7 +15,7 @@ use calling_conventions::{
     evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations,
 };
-use effects::provider_plan::{
+use provider_plans::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport, ProviderBinding,

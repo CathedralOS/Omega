@@ -3,7 +3,7 @@
 
 use super::declarations::unavailable;
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ServiceSchema};
+use provider_plans::{ProviderBinding, ProviderPlan, ServiceSchema};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity};
 use source_compiler::provider_supply::ClosedLogicalProviderReach;
 use terminal_psi::TerminalModule;

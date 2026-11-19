@@ -472,12 +472,12 @@ mod providers {
         resolved_row
     });
 
-    record_fields!(effects::provider_plan::TableFieldStorage {
+    record_fields!(provider_plans::TableFieldStorage {
         table_application,
         field_declaration
     });
 
-    record_variants!(effects::provider_plan::ProviderBinding {
+    record_variants!(provider_plans::ProviderBinding {
         0 => Import { evaluated },
         1 => Syscall { number },
         2 => CompilerIntrinsic { machine },
@@ -494,7 +494,7 @@ mod providers {
         candidate
     });
 
-    record_fields!(effects::provider_plan::ProviderPlan {
+    record_fields!(provider_plans::ProviderPlan {
         provider_application,
         name,
         provider_type,
@@ -510,7 +510,7 @@ mod providers {
         digest_memo
     });
 
-    record_fields!(effects::provider_plan::ProviderPlanRow {
+    record_fields!(provider_plans::ProviderPlanRow {
         method,
         requirement_identity,
         declared_requirement_identity,
@@ -535,11 +535,11 @@ mod providers {
         machine_identity
     });
 
-    record_variants!(effects::provider_plan::ServiceEntryAuthorityFlow {
+    record_variants!(provider_plans::ServiceEntryAuthorityFlow {
         0 => Accepts,
     });
 
-    record_fields!(effects::provider_plan::ServiceEntryClaim {
+    record_fields!(provider_plans::ServiceEntryClaim {
         parameter_index,
         carrier_identity,
         domain,
@@ -553,7 +553,7 @@ mod providers {
         1 => Service(name),
     });
 
-    record_fields!(effects::provider_plan::ServiceMethod {
+    record_fields!(provider_plans::ServiceMethod {
         completion,
         name,
         requirement_owner,
@@ -575,28 +575,28 @@ mod providers {
         termination_premises
     });
 
-    record_fields!(effects::provider_plan::ServiceProgressEstablishmentRoute {
+    record_fields!(provider_plans::ServiceProgressEstablishmentRoute {
         kind,
         requirement_identity
     });
 
-    record_variants!(effects::provider_plan::ServiceProgressEstablishmentRouteKind {
+    record_variants!(provider_plans::ServiceProgressEstablishmentRouteKind {
         0 => CheckedRequirement,
         1 => BoundaryRequirement,
     });
 
-    record_fields!(effects::provider_plan::ServiceProgressPremise {
+    record_fields!(provider_plans::ServiceProgressPremise {
         profile,
         subject,
         subject_projections,
         establishment_routes
     });
 
-    record_variants!(effects::provider_plan::ServiceProgressSubject {
+    record_variants!(provider_plans::ServiceProgressSubject {
         0 => Parameter(value0),
     });
 
-    record_fields!(effects::provider_plan::ServiceReceiverApplication {
+    record_fields!(provider_plans::ServiceReceiverApplication {
         application,
         trait_name,
         trait_package_identity,
@@ -615,20 +615,20 @@ mod providers {
         service_surface::ServiceNormalResultMembership { path, domain }
     );
 
-    record_fields!(effects::provider_plan::ServiceResultClaim {
+    record_fields!(provider_plans::ServiceResultClaim {
         domain,
         effective_carry
     });
 
-    impl super::super::value::RecordValue for effects::provider_plan::ServiceSchema {
+    impl super::super::value::RecordValue for provider_plans::ServiceSchema {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.validate_calling_applications()
                 .map_err(|reason| output.error(reason))?;
-            let effects::provider_plan::ServiceSchema {
+            let provider_plans::ServiceSchema {
                 declaration,
                 calling_applications,
             } = self;
-            let effects::provider_plan::ServiceSurface {
+            let provider_plans::ServiceSurface {
                 trait_name,
                 identities,
                 trait_package_identity,
@@ -645,7 +645,7 @@ mod providers {
 
         fn read(input: &mut super::super::value::RecordReader<'_>) -> Result<Self, RecordError> {
             use super::super::value::RecordValue;
-            use effects::provider_plan::{
+            use provider_plans::{
                 ServiceCallingApplication, ServiceMethod, ServiceSurface,
             };
             input.record(|input| {
@@ -677,12 +677,12 @@ mod providers {
         }
     }
 
-    record_fields!(effects::provider_plan::ServiceCallingApplication {
+    record_fields!(provider_plans::ServiceCallingApplication {
         requirement,
         abi,
         plan
     });
-    record_fields!(effects::provider_plan::ServiceCallingPlan {
+    record_fields!(provider_plans::ServiceCallingPlan {
         report_fingerprint,
         commitment,
         promise
@@ -728,15 +728,15 @@ mod receipts {
     use super::record_fields;
 
     struct ReceiptRecord {
-        build_origin: Option<effects::provider_plan::BuildNativeBindingOrigin>,
+        build_origin: Option<provider_plans::BuildNativeBindingOrigin>,
         producer_package: Option<semantic_vocabulary::PackageKeyIdentity>,
         producer_callable_identity: terminal_psi::TerminalIdentityIndex,
-        producer_closure_digest: effects::provider_plan::EvaluatedBindingProducerClosureDigest,
+        producer_closure_digest: provider_plans::EvaluatedBindingProducerClosureDigest,
         evaluator_semantics_marker: u32,
-        evaluation_usage: effects::provider_plan::EvaluatedBindingUsage,
-        evaluation_digest: effects::provider_plan::EvaluatedBindingEvaluationDigest,
+        evaluation_usage: provider_plans::EvaluatedBindingUsage,
+        evaluation_digest: provider_plans::EvaluatedBindingEvaluationDigest,
         materializer_schema_version: u32,
-        materialization_digest: effects::provider_plan::EvaluatedBindingMaterializationDigest,
+        materialization_digest: provider_plans::EvaluatedBindingMaterializationDigest,
         locator_identity_digest: [u8; 32],
         identity_digest: [u8; 32],
     }
@@ -755,7 +755,7 @@ mod receipts {
         identity_digest,
     });
 
-    impl RecordValue for effects::provider_plan::EvaluatedBindingReceipt {
+    impl RecordValue for provider_plans::EvaluatedBindingReceipt {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             ReceiptRecord {
                 build_origin: self.build_origin().cloned(),
@@ -847,7 +847,7 @@ mod receipts {
         }
     }
 
-    impl RecordValue for effects::provider_plan::BuildNativeBindingOrigin {
+    impl RecordValue for provider_plans::BuildNativeBindingOrigin {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.requirement_identity.write(output)?;
             self.source_occurrence_digest.write(output)?;
@@ -889,7 +889,7 @@ mod receipts {
     #[cfg(test)]
     mod tests {
         use super::super::super::value::{RecordLimits, RecordReader, RecordValue, RecordWriter};
-        use effects::provider_plan::{
+        use provider_plans::{
             BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
             EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
             EvaluatedBindingReceipt, EvaluatedBindingUsage,
@@ -1062,10 +1062,10 @@ mod recovered {
 }
 
     digest_value!(
-        effects::provider_plan::ProviderPlanDigest,
-        effects::provider_plan::ServiceSchemaDigest,
-        effects::provider_plan::BoundaryCallingPlanCommitment,
-        effects::provider_plan::BoundaryCallingPlanPromise,
+        provider_plans::ProviderPlanDigest,
+        provider_plans::ServiceSchemaDigest,
+        provider_plans::BoundaryCallingPlanCommitment,
+        provider_plans::BoundaryCallingPlanPromise,
     );
 
     macro_rules! evaluated_digest_value {
@@ -1083,12 +1083,12 @@ mod recovered {
 }
 
     evaluated_digest_value!(
-        effects::provider_plan::EvaluatedBindingProducerClosureDigest,
-        effects::provider_plan::EvaluatedBindingEvaluationDigest,
-        effects::provider_plan::EvaluatedBindingMaterializationDigest,
+        provider_plans::EvaluatedBindingProducerClosureDigest,
+        provider_plans::EvaluatedBindingEvaluationDigest,
+        provider_plans::EvaluatedBindingMaterializationDigest,
     );
 
-    impl RecordValue for effects::provider_plan::ProviderIdentityTable {
+    impl RecordValue for provider_plans::ProviderIdentityTable {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             output.sequence(self.texts().count())?;
             for text in self.texts() {
@@ -1114,7 +1114,7 @@ mod recovered {
         }
     }
 
-    impl RecordValue for effects::provider_plan::ProviderPlanDigestMemo {
+    impl RecordValue for provider_plans::ProviderPlanDigestMemo {
         fn write(&self, _output: &mut RecordWriter) -> Result<(), RecordError> {
             Ok(())
         }
@@ -1287,7 +1287,7 @@ mod recovered {
         }
     }
 
-    impl RecordValue for effects::provider_plan::EvaluatedBindingUsage {
+    impl RecordValue for provider_plans::EvaluatedBindingUsage {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.usage_schema_version().write(output)?;
             self.step_schedule_marker().write(output)?;
@@ -1319,7 +1319,7 @@ mod recovered {
         }
     }
 
-    impl RecordValue for effects::provider_plan::EvaluatedForeignImport {
+    impl RecordValue for provider_plans::EvaluatedForeignImport {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.locator().write(output)?;
             self.receipt().write(output)
@@ -1332,7 +1332,7 @@ mod recovered {
         }
     }
 
-    impl RecordValue for effects::provider_plan::EvaluatedForeignSyscall {
+    impl RecordValue for provider_plans::EvaluatedForeignSyscall {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.target().write(output)?;
             u64::try_from(self.number())
@@ -1424,7 +1424,7 @@ mod recovered {
         }
     }
 
-    impl RecordValue for effects::provider_plan::ProviderIdentityId {
+    impl RecordValue for provider_plans::ProviderIdentityId {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.index().write(output)
         }

@@ -480,7 +480,7 @@ mod proposal {
                 }
                 continue;
             };
-            if let effects::provider_plan::ProviderBinding::CheckedAdapter {
+            if let provider_plans::ProviderBinding::CheckedAdapter {
                 machine_identity,
                 ..
             } = &row.binding

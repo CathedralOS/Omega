@@ -9,7 +9,7 @@ use crate::record::PackagePolicyProviderBinding;
 
 fn encode_table_field_storage(
     encoder: &mut Encoder,
-    storage: &Result<effects::provider_plan::TableFieldStorage, String>,
+    storage: &Result<provider_plans::TableFieldStorage, String>,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("storage", |encoder| match storage {
         Ok(storage) => {

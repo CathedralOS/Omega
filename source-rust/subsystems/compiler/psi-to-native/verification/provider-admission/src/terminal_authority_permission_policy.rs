@@ -23,8 +23,9 @@ use diagnostics::Diagnostic;
 pub use effects::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition,
-    TerminalAuthorityPermissionPolicyIdentity, provider_plan::ServiceSchemaDigest,
+    TerminalAuthorityPermissionPolicyIdentity,
 };
+use semantic_vocabulary::provider_identity::ServiceSchemaDigest;
 
 pub(crate) const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
 
