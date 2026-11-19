@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,772 lines / 845,569 bytes with SHA-256
-`8738a77cfab9544646f2ddaee35c94df3efb67dbda3f4f0b7648883452b10d7b`.
+manifest materializes 22,589 lines / 838,365 bytes with SHA-256
+`264fee9a530430f52cd9f0736fae76b3e7595c6812eb13377594facb4ee269af`.
 The manifest itself is 1,674 bytes, SHA-256
-`f301e3918a1479aa68f0b058f5a3086aa957d290dc2d6a770c09b11dadaa7128`;
+`0d633afe9e70eb3415bac66810fe8ade67509990ee52209f61bb6eb325f113a9`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -482,11 +482,11 @@ named state. Arms also retain bare name paths and qualified two-member case
 paths with optional braces. Braced case patterns own a contiguous field ledger
 over shorthand bindings and fixed path-expression matches, preserving the
 distinction between `Type::Case` and `Type::Case {}` plus exact binding and
-field spelling for later resolution. Current named targets own a contiguous
-argument-expression span
-over self/name/member paths, booleans, unsuffixed nonnegative decimal integers,
-strings, shallow struct literals, and path bases followed by one or more path
-or decimal indexes. An index may instead use any canonical bound-presence/inclusivity
+field spelling for later resolution. A named terminal target uses the ordinary call-argument parser. Its argument
+span is contiguous even when a nested call publishes argument rows first.
+Operands share precedence, grouping, casts, short-circuit expressions, ordinary
+calls, references, shallow struct literals and the existing indexed paths.
+An index may instead use any canonical bound-presence/inclusivity
 shape (`..`, `..end`, `..=end`, `start..`, `start..end`, or `start..=end`)
 over those retained bounds. It is represented by a separate range expression
 rather than folded into the indexed node. Target argument lists retain an
@@ -510,11 +510,10 @@ and delimiter parser but own a distinct expression row with an explicit
 optional receiver handle. Call arguments retain the existing primary slice and
 reuse the same reducer.
 Path-valued casts reuse the same expression and type engines in assignments,
-locals, ordinary call arguments, and transition-target arguments. They retain
-the value and target-type handles, exact cast span, and an optional single-name
-`in Domain` suffix. Ordinary assignment, local, and call-argument casts may
-also wrap a completed grouped primary and then continue through the shared
-binary tail. Richer postfix values, recasts, domain arguments, arbitrary bound
+locals and both kinds of call argument. They retain the value and target-type
+handles, exact cast span, and an optional single-name `in Domain` suffix.
+These casts may also wrap a completed grouped primary and then continue
+through the shared binary tail. Richer postfix values, recasts, domain arguments, arbitrary bound
 expressions, and other richer initializers remain implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
@@ -767,3 +766,22 @@ The refusal is at line 71, column 65, packed byte 2,613 / unit byte 2,483.
 The production entry emitted the nine-byte observation
 `0002000000350a0000` on each input. Full-graph semantic checking and
 production of the Omega compiler binary remain open.
+
+The 284-unit product at `1cc98ba38f97` captures the row count before lending
+the input to `rows`. Its request contains 3,823,097 source bytes, SHA-256
+`828343948802ab708fc629de2156dfc933ad05bd41d65202fb8eced22e9c6528`.
+With per-state blocking checks alone, the independent Epsilon model returned
+`Incomplete` at the `+` in `rows(input, index + 1, count)`, line 88,
+column 51. With shared terminal-call argument parsing, the same production
+entry crossed that call and the rest of `read_input`. It returned
+`00020000005a1e0000` at `target` in
+`requester < input.package_count && target < input.package_count`,
+line 209, column 55, packed byte 7,770 / unit byte 7,640.
+On the original frozen `b95769558667` graph, the identical compiler and
+construction entry passed the cast and multiplication in the earlier row-count
+calculation. They reached the same `target` token at line 206, column 55,
+packed byte 7,656 / unit byte 7,526, observation `0002000000e81d0000`.
+The `2486977ecd06` graph and the frozen single-unit row-count projection
+(`3c7966ee415014061465b97e08418728241b29144fa9069243f9ebb30372304e`)
+reproduced the unmodified and published coordinates respectively. Each of
+the four observations contains only the refusal coordinate.

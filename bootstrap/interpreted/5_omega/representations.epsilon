@@ -734,7 +734,6 @@ data OmegaExpressionConsumer {
     case StructFieldValue;
     case TransitionSubject;
     case ExpressionStatement;
-    case TransitionTargetArgument;
     case LocalDataInitialValue;
     case CastValue;
     case IndexedBase;
@@ -944,10 +943,17 @@ data OmegaParserResource {
 
 // Parsing a call argument may enter another ordinary call. Save the enclosing
 // call's own header and pending-argument list, without retaining a host stack.
+data OmegaCallParseContext {
+    case Statement;
+    case Expression;
+    case PromotedExpression;
+    case TransitionTarget;
+}
+
 data OmegaCallParseFrame {
     acknowledgements: i32;
     first_machine_argument: i32;
-    is_expression: i32;
+    context: OmegaCallParseContext;
     result_consumer: OmegaExpressionConsumer;
     first_path_member: i32;
     path_member_count: i32;
@@ -1187,8 +1193,7 @@ data OmegaParser {
     statement_starts_at_self: i32;
     call_first_machine_argument: i32;
     call_first_argument: i32;
-    // 0 = statement candidate, 1 = expression, 2 = ungrouped terminal.
-    call_is_expression: i32;
+    call_context: OmegaCallParseContext;
     // Completed right-parenthesis end; written after children finish.
     call_end: i32;
     call_result_consumer: OmegaExpressionConsumer;
