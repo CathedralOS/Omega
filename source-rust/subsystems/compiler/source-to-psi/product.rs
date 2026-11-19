@@ -18,6 +18,8 @@ pub mod provider_declarations;
 pub(crate) mod provider_settlement;
 pub mod retained_application;
 pub mod source_targets;
+mod typed_frontier;
+pub use typed_frontier::TypedFrontier;
 
 pub use native_bindings::{NativeBindingInputs, PackageNativeBindings};
 

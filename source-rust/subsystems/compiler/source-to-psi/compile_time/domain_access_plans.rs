@@ -58,7 +58,7 @@ use crate::compile_time::{InvocationTarget, SourceCompletionAccounting};
 
 /// Evaluates the access plan of every policy-governed domain `request`
 /// demands and records each checked result on that domain.
-pub(super) fn evaluate(
+pub(crate) fn evaluate(
     program: &mut TypedTrees,
     request: crate::production::TerminalSourceCompilation<'_>,
     authority: Option<Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,

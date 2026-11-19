@@ -51,8 +51,6 @@ pub use typed_trees_to_lowered_program::lowering::source_roster::{
     SourceProgramEntryInput,
 };
 
-#[path = "pipeline/04_typed-trees-to-typed-trees/prepare_for_checking.rs"]
-pub(crate) mod source_checking;
 #[path = "pipeline/03_symbol-resolved-trees-to-typed-trees/resolve_and_type.rs"]
 pub(crate) mod source_compilation;
 #[path = "pipeline/01_tokens-to-syntax-trees/parsed_files.rs"]
@@ -69,11 +67,11 @@ pub(crate) mod source_parsing;
 pub(crate) mod target_helpers;
 
 pub use ::source_syntax::{ParsedText, SourceParseError, parse_text};
-pub use source_checking::{ProductRepresentationInput, SourcePreparationFailure};
+pub use crate::source_preparation::{ProductRepresentationInput, SourcePreparationFailure};
 #[cfg(not(any(test, feature = "test-support")))]
-pub(crate) use source_checking::{SourceAdmission, SourcePreparationRequest};
+pub(crate) use crate::source_preparation::{SourceAdmission, SourcePreparationRequest};
 #[cfg(any(test, feature = "test-support"))]
-pub use source_checking::{SourceAdmission, SourcePreparationRequest};
+pub use crate::source_preparation::{SourceAdmission, SourcePreparationRequest};
 #[cfg(any(test, feature = "test-support"))]
 pub use source_judgment::{FrozenSource, JudgedSource};
 
@@ -114,9 +112,7 @@ pub use crate::production::{
 /// Logical provider closure; native planning consumes only its accepted result.
 pub use checked_program_to_psi::provider_supply;
 
-#[path = "representations/typed-trees/typed_frontier.rs"]
-pub(crate) mod typed_frontier;
-pub use typed_frontier::TypedFrontier;
+pub use crate::product::TypedFrontier;
 
 #[path = "pipeline/04_typed-trees-to-typed-trees/unbuilt_source.rs"]
 pub(crate) mod unbuilt_source;

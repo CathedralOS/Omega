@@ -11,9 +11,6 @@ use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::product_declarations::collect_opaque_representations;
 
-#[path = "domain_access_plans.rs"]
-mod domain_access_plans;
-
 mod constant_entries {
     pub(super) fn retain_evaluation_entries(
         program: &mut crate::source_state::TypedTrees,
@@ -135,7 +132,7 @@ impl<'request> SourcePreparationRequest<'request> {
             // `domain D access Policy;` leaves who may issue `as +D` to the
             // policy's plan. Each demanded domain's plan runs once here, so
             // Psi 05 reads its issuers from the checked result.
-            domain_access_plans::evaluate(
+            crate::compile_time::evaluate_domain_access_plans(
                 &mut program,
                 self.compilation,
                 self.admission.layout_selection_authority.clone(),

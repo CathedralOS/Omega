@@ -13,6 +13,7 @@ mod package_handoff;
 pub use package_handoff::{PackageHandoffDeclarations, package_handoff_declarations};
 
 mod source_judgment;
+mod source_preparation;
 mod stages;
 pub use stages::*;
 
