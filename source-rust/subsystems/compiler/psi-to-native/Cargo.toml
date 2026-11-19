@@ -4,8 +4,12 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[lib]
+path = "psi_to_native.rs"
+
 [dependencies]
-published-object-verification = { path = "../verification/published-objects" }
+native-scalar-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
+published-object-verification = { path = "replay/published-objects" }
 abstract-optimization = { package = "abstract-operations-to-abstract-operations", path = "pipeline/03_abstract-operations-to-abstract-operations" }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "pipeline/02_target-bound-program-to-abstract-operations" }
 entry-planning = { path = "pipeline/09_post-allocation-machine-to-framed-machine/entry-planning" }
@@ -18,9 +22,9 @@ selected-rewrites = { package = "selected-instructions-to-selected-instructions"
 allocation = { package = "selected-instructions-to-register-homes", path = "pipeline/07_selected-instructions-to-register-homes" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "pipeline/08_register-homes-to-post-allocation-machine" }
 program-entry-plan = { path = "installation/program-entry" }
-installation-admission = { path = "../verification/installation-admission" }
+installation-admission = { path = "verification/installation-admission" }
 physical-program = { path = "pipeline/representations/post-allocation-machine/body-facts" }
-provider-admission = { path = "../verification/provider-admission" }
+provider-admission = { path = "verification/provider-admission" }
 installation-binding = { path = "pipeline/10_framed-machine-to-bound-framed-machine" }
 arena = { path = "../../../foundation/arena" }
 function-identity = { path = "native-vocabulary/function-identity" }
@@ -38,7 +42,7 @@ object-file = { path = "pipeline/15_placed-functions-to-objects" }
 placement = { package = "selected-form-encoding-to-resolved-layout", path = "pipeline/12_selected-form-encoding-to-resolved-layout" }
 relaxation = { package = "resolved-layout-to-resolved-layout", path = "pipeline/13_resolved-layout-to-resolved-layout" }
 backend-plan = { path = "installation/provider-plans" }
-calling-conventions = { path = "../target-description/calling-conventions" }
+calling-conventions = { path = "targets/calling-conventions" }
 boundary-applications = { path = "installation/boundary-applications" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 image-emission = { path = "pipeline/16_objects-to-image/image-emission" }
@@ -48,11 +52,11 @@ register-homes = { path = "pipeline/representations/register-homes" }
 function-layout = { path = "pipeline/14_resolved-layout-to-placed-functions" }
 native-artifact = { path = "pipeline/16_objects-to-image/native-artifact" }
 optimization-core = { path = "optimization-contracts" }
-register-environment = { path = "../target-description/register-environment" }
-runtime-abi = { path = "../target-description/runtime-abi" }
-target = { path = "../target-description/target" }
-terminal-codec = { path = "../representations/psi/codec" }
-terminal-psi = { path = "../representations/psi" }
+register-environment = { path = "targets/register-environment" }
+runtime-abi = { path = "targets/runtime-abi" }
+target = { path = "targets/target" }
+terminal-codec = { path = "../psi/codec" }
+terminal-psi = { path = "../psi" }
 terminal-installation = { path = "../psi-admission" }
 verified-optimization-input = { path = "pipeline/representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../source-to-psi/language/semantic-vocabulary" }
@@ -61,7 +65,7 @@ semantic-vocabulary = { path = "../source-to-psi/language/semantic-vocabulary" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 isa-aarch64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 isa-x86_64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
-encoding-admission = { path = "../verification/encoding-admission" }
+encoding-admission = { path = "pipeline/representations/machine-code/encoding-admission" }
 instruction-selection = { package = "target-operations-to-selected-instructions", path = "pipeline/05_target-operations-to-selected-instructions", features = ["test-support"] }
 image-fixtures = { path = "../../../test-support/image-fixtures" }
 optimization-unit = { path = "pipeline/representations/abstract-operations/optimization-unit" }

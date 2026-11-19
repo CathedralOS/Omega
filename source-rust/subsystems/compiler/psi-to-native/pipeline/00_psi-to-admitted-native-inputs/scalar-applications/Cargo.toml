@@ -1,0 +1,24 @@
+[package]
+name = "native-scalar-inputs"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "scalar_applications.rs"
+
+[dependencies]
+artifact-evaluation = { path = "../../../../../psi/evaluation/artifact-evaluation" }
+backend-plan = { path = "../../../installation/provider-plans" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+effects = { path = "../../../installation/native-effects" }
+provider-admission = { path = "../../../verification/provider-admission" }
+runtime-abi = { path = "../../../targets/runtime-abi" }
+semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
+target = { path = "../../../targets/target" }
+terminal-codec = { path = "../../../../psi/codec" }
+terminal-installation = { path = "../../../../psi-admission" }
+terminal-interpreter = { path = "../../../../../interpreter" }
+terminal-psi = { path = "../../../../psi" }
+terminal-runtime = { path = "../../../../../interpreter/host" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }

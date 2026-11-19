@@ -72,8 +72,10 @@ impl NativePipelineObservation {
         &self.counts[stage as usize]
     }
 
-    pub fn native_body(&self) -> crate::body_planning::NativeBodyObservation<'_> {
-        crate::body_planning::NativeBodyObservation {
+    pub fn native_body(
+        &self,
+    ) -> crate::pipeline::realization::lower_body::NativeBodyObservation<'_> {
+        crate::pipeline::realization::lower_body::NativeBodyObservation {
             abstract_optimization: self.counter(NativePipelineStage::AbstractOptimization),
             target_lowering: self.counter(NativePipelineStage::AbstractToTarget),
         }

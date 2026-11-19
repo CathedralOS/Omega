@@ -5,7 +5,9 @@
 // `emit_components` emits shared component images and verifies that the emitted
 // export roster matches the admitted call roster 1-for-1.
 
-use crate::realization::{ComponentExportImage, ComponentExportRequest, ComponentNativeCall};
+use crate::pipeline::realization::{
+    ComponentExportImage, ComponentExportRequest, ComponentNativeCall,
+};
 use artifact_lowering::{AdmittedNativeComponentCall, ComponentNativeInputs};
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderPlan;
@@ -61,8 +63,11 @@ pub(crate) fn prepare_components<'input>(
         for execution in &exports {
             demand.extend(execution.scalar_application_demand(proposal.target_profile())?);
         }
-        let scalars =
-            crate::scalar_completion::required_scalars(artifact, &demand, compilation.scalars)?;
+        let scalars = crate::pipeline::prepare::required_scalars::required_scalars(
+            artifact,
+            &demand,
+            compilation.scalars,
+        )?;
         prepared.push(PreparedComponent {
             compilation,
             calls,
@@ -121,7 +126,7 @@ pub(crate) fn emit_components<'input>(
             scalars,
             exports: work,
         } = component;
-        let exports = crate::realization::emit_component_exports(
+        let exports = crate::pipeline::realization::emit_component_exports(
             &component.input,
             work,
             scalars.map(|completed| artifact_lowering::NativeScalarApplications { completed }),

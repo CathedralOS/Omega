@@ -180,11 +180,11 @@ pub fn emit_component_exports<'input>(
         );
         admission.entry = entry;
         let admitted = admit_prepared_native_realization(input, artifact, &admission)?;
-        let target = crate::callable_planning::plan_callable(
+        let target = super::plan_callables::plan_callable(
             admitted,
             admission,
             selections,
-            crate::request::native_optimization_budget(),
+            crate::pipeline::request::native_optimization_budget(),
             artifact,
             request.retain_native_stage_inputs,
         )?;

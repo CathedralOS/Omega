@@ -6,6 +6,11 @@
 // step reads the retained Terminal product, its native proposal and the
 // request; `compile` then runs Omega 00 to 09 once, front to back.
 
+pub(crate) mod application;
+pub(crate) mod program_entry;
+pub(crate) mod published_application;
+pub(in crate::pipeline) mod required_scalars;
+
 use crate::NativeCompileRequest;
 use artifact_lowering::{PreparedNativeExecution, RetainedTerminalArtifact};
 use diagnostics::Diagnostic;
@@ -20,7 +25,7 @@ pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) execution: PreparedNativeExecution,
     pub(crate) private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
     pub(crate) scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
-    pub(crate) components: Vec<crate::components::PreparedComponent<'input>>,
+    pub(crate) components: Vec<crate::pipeline::components::PreparedComponent<'input>>,
 }
 
 pub(crate) fn prepare<'input>(
@@ -36,7 +41,7 @@ pub(crate) fn prepare<'input>(
             request.installation_assumptions,
         )?;
         let components =
-            crate::components::prepare_components(request.components, artifact.view())?;
+            crate::pipeline::components::prepare_components(request.components, artifact.view())?;
         let selections = terminal_installation::terminal_target_context(
             artifact.view(),
             proposal.target_profile().target_name(),
@@ -83,7 +88,7 @@ pub(crate) fn prepare<'input>(
         let execution = proposal
             .prepare_native_execution(retained.authorization(), &calls)?
             .with_operation_evidence(artifact, retained.evidence().cloned())?;
-        let scalars = crate::scalar_completion::required_scalars(
+        let scalars = self::required_scalars::required_scalars(
             artifact,
             &execution.scalar_application_demand(proposal.target_profile())?,
             request.scalars,

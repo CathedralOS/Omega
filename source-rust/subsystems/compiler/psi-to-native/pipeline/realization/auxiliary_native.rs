@@ -9,7 +9,7 @@ pub(crate) type PlacedForeignAdapter = function_layout::entry_placement::PlacedF
 pub(crate) type ObjectForeignAdapter = object_file::ForeignAdapterObject;
 
 pub(super) fn plan(
-    request: crate::runtime_provisions::NativeForeignAdapterRequest,
+    request: super::runtime_provisions::NativeForeignAdapterRequest,
 ) -> Result<PlannedForeignAdapter, String> {
     let (request, locator, application) = request.into_parts();
     entry_planning::native_foreign_bridge::plan_foreign_adapter(request, locator, application)

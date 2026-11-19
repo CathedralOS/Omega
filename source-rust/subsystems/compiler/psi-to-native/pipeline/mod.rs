@@ -3,9 +3,19 @@
 //! scalar applications and admitted providers. A failure returns the image
 //! request with its original diagnostics.
 
+pub(super) mod components;
+pub(super) mod observations;
+pub(super) mod prepare;
+pub(super) mod realization;
+pub(super) mod request;
+
+#[cfg(test)]
+#[path = "../tests/physical_publication/mod.rs"]
+mod physical_publication_tests;
+
+use self::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
+use self::prepare::PreparedNativeCompilation;
 use crate::NativeCompileRequest;
-use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
-use crate::preparation::PreparedNativeCompilation;
 use artifact_lowering::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
 use diagnostics::Diagnostic;
 use target::ExecutableImageEmissionRequest;
@@ -14,7 +24,7 @@ pub fn compile(
     retained: &RetainedTerminalArtifact,
     request: NativeCompileRequest<'_>,
 ) -> Result<crate::RealizedNativeProduct, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
-    let prepared = crate::preparation::prepare(retained, request)?;
+    let prepared = prepare::prepare(retained, request)?;
     match produce(prepared, NativeProductionStop::Image)? {
         Produced::Image(product) => Ok(product),
         Produced::Runtime(_) => unreachable!("image production returned runtime admission"),
@@ -28,7 +38,7 @@ pub fn admit_runtime(
     native_artifact::AdmittedRuntimeProgram,
     (ExecutableImageEmissionRequest, Vec<Diagnostic>),
 > {
-    let prepared = crate::preparation::prepare(&retained, request)?;
+    let prepared = prepare::prepare(&retained, request)?;
     let recovery = prepared.recovery.clone();
     match produce(prepared, NativeProductionStop::RuntimeAdmission)? {
         Produced::Runtime(plan) => native_artifact::AdmittedRuntimeProgram::finish(retained, plan)
@@ -45,7 +55,7 @@ enum NativeProductionStop {
 
 enum Produced {
     Image(crate::RealizedNativeProduct),
-    Runtime(crate::runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>),
+    Runtime(realization::runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>),
 }
 
 fn produce(
@@ -79,7 +89,7 @@ fn produce(
                 "Terminal engine unavailable: this program binds independently produced components, which execute only as native images",
             )]);
         }
-        let emitted_components = crate::components::emit_components(
+        let emitted_components = components::emit_components(
             prepared_components,
             &request.terminal_authority_policy,
             &request.terminal_authority_permission_policy,
@@ -87,7 +97,7 @@ fn produce(
         )?;
         let components = emitted_components
             .iter()
-            .map(crate::components::EmittedComponent::admit_call)
+            .map(components::EmittedComponent::admit_call)
             .collect::<Result<Vec<_>, _>>()?;
         let (input, execution) = {
             observation.enter(NativePipelineStage::TargetBoundProgramToAbstract);
@@ -119,7 +129,7 @@ fn produce(
             &request.terminal_authority_permission_policy,
             request.installation_assumptions,
         );
-        let realization = crate::request::NativeRealizationRequest {
+        let realization = request::NativeRealizationRequest {
             retain_native_stage_inputs: request.retain_native_stage_inputs,
             observation: &observation,
             proposal,
@@ -133,12 +143,11 @@ fn produce(
             target_provider_proposals: proposal.target_provider_proposals(),
         };
         if stop == NativeProductionStop::RuntimeAdmission {
-            let provisions =
-                crate::realization::admit_terminal_runtime(artifact, input, realization)?;
+            let provisions = realization::admit_terminal_runtime(artifact, input, realization)?;
             observation.complete();
             return Ok(Produced::Runtime(provisions));
         }
-        let (image, stage_replay) = crate::realization::prepare_program_image(
+        let (image, stage_replay) = realization::prepare_program_image(
             std::sync::Arc::clone(artifact),
             input,
             realization,

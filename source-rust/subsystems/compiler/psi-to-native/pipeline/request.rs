@@ -15,7 +15,7 @@ use target::ExecutableImageEmissionRequest;
 
 pub(crate) struct NativeRealizationRequest<'request> {
     pub retain_native_stage_inputs: bool,
-    pub observation: &'request crate::observations::NativePipelineObservation,
+    pub observation: &'request crate::pipeline::observations::NativePipelineObservation,
     pub proposal: &'request artifact_lowering::TerminalNativeRealizationProposal,
     pub execution: &'request artifact_lowering::PreparedNativeExecution,
     pub scalar_applications: Option<artifact_lowering::NativeScalarApplications<'request>>,

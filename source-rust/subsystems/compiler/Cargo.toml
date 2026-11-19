@@ -11,7 +11,6 @@ path = "compiler.rs"
 diagnostics = { path = "../../foundation/diagnostics" }
 native-compiler = { path = "psi-to-native" }
 product-publication = { path = "build/build-output/product-publication" }
-psi-to-native = { package = "published-program", path = "psi-to-native/published-program" }
 semantic-vocabulary = { path = "source-to-psi/language/semantic-vocabulary" }
 source-admission = { path = "source-to-psi/inputs/source-admission" }
 source-compiler = { path = "source-to-psi" }

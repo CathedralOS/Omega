@@ -1,12 +1,12 @@
 /*
 Application-sponsored completion of canonical Terminal scalar applications
-(`scalar_completion::complete`).
+(`complete`).
 
 Post-Terminal Product checking calls `prepare` and retains the completed scope
 with its actual execution inputs. `extend_native` adds the executable's roots
 and demand to that scope without running identical scalar requests again.
 Source-free inputs use `complete_native` and `complete_native_demand` to finish the values a native
-compile needs before `native_compiler::compile` starts, so the native pipeline
+compile needs before native lowering starts, so the native pipeline
 runs once with them as input and never pauses for evaluation. Any
 attempted evaluation usage is recorded in `accounting` even when a condition
 refuses. Each deployed scope also receives `TargetRealizedIntrinsics`, so a
@@ -15,6 +15,7 @@ target selected. An unscoped request supplies only portable facts; demands for
 target-dependent operations must still resolve a deployment.
 */
 
+pub use artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt as EvaluationReceipt;
 use backend_plan::TerminalTargetProviderProposal;
 use runtime_abi::target_carrier_layout;
 use std::sync::Arc;

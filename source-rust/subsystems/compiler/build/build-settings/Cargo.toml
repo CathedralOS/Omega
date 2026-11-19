@@ -6,7 +6,7 @@ version.workspace = true
 
 
 [dependencies]
-published-program = { path = "../../compilation/published-program" }
+native-scalar-inputs = { path = "../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
 optimization-requests = { path = "../optimization-policy/requests" }
 evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }

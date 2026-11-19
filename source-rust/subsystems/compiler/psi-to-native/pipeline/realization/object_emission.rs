@@ -2,9 +2,9 @@
 // encoding the root or any private body. Optimized physical references decide
 // membership; merely available callbacks do not become emission roots.
 
-use crate::pipeline::{self, BodyEmissionError};
-use crate::realization::callback_thunks::{PreparedCallbackBodies, prepare_installed_callbacks};
-use crate::realization::selected_physical_pipeline_failed;
+use super::callback_thunks::{PreparedCallbackBodies, prepare_installed_callbacks};
+use super::physical_body::{self, BodyEmissionError};
+use super::selected_physical_pipeline_failed;
 use artifact_lowering::ValidatedNativeProgramEntrySettlement;
 use diagnostics::Diagnostic;
 use native_artifact::{
@@ -43,14 +43,14 @@ impl<Root, Private> BodyRoster<Root, Private> {
 }
 
 pub(crate) fn emit_realization_object(
-    roster: crate::callable_planning::PlannedProgramBodies<'_>,
+    roster: super::plan_callables::PlannedProgramBodies<'_>,
     program_entry: Option<&ValidatedNativeProgramEntrySettlement>,
     runtime_provisions: Option<
-        crate::runtime_provisions::NativeRuntimePlan<
-            crate::runtime_provisions::NativeForeignAdapterRequest,
+        super::runtime_provisions::NativeRuntimePlan<
+            super::runtime_provisions::NativeForeignAdapterRequest,
         >,
     >,
-    observation: &crate::observations::NativePipelineObservation,
+    observation: &crate::pipeline::observations::NativePipelineObservation,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     let (target, prepared_callbacks) = PreparedCallbackBodies::from_roster(roster)?;
     let physical_root = program_entry
@@ -78,7 +78,7 @@ pub(crate) fn emit_realization_object(
         }
         BodyEmissionError::Object(diagnostics) => diagnostics,
     };
-    let physical = pipeline::prepare_physical_body(target, None, requirements, observation)
+    let physical = physical_body::prepare_physical_body(target, None, requirements, observation)
         .map_err(root_error)?;
     let private_bodies = prepared_callbacks.finish_physical()?;
     let hosted_entry = if entry_planning::hosted_program::needs_hosted_entry(
@@ -217,7 +217,7 @@ pub(crate) fn emit_realization_object(
         private: private_bodies,
     }
     .try_map(
-        |body| pipeline::encode_physical_body(body, observation).map_err(root_error),
+        |body| physical_body::encode_physical_body(body, observation).map_err(root_error),
         |body| body.encode(),
     )?;
     let runtime_provisions =
@@ -235,7 +235,7 @@ pub(crate) fn emit_realization_object(
         .map(relaxation::retain_fixed_entry)
         .map(function_layout::place_fixed_entry);
     let layouts = encoded.try_map(
-        |body| pipeline::layout_encoded_body(body, observation).map_err(root_error),
+        |body| physical_body::layout_encoded_body(body, observation).map_err(root_error),
         |body| body.layout(),
     )?;
     let runtime_provisions =
@@ -245,7 +245,7 @@ pub(crate) fn emit_realization_object(
     let physical_entry = physical_entry
         .map(object_file::program_entry_object::PhysicalProgramObject::from_placement);
     let objects = layouts.try_map(
-        |body| pipeline::construct_body_object(body).map_err(root_error),
+        |body| physical_body::construct_body_object(body).map_err(root_error),
         |body| body.construct_object(),
     )?;
     let mut private_functions = Vec::with_capacity(objects.private.len());

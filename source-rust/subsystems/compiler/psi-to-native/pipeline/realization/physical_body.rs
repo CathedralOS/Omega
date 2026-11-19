@@ -2,7 +2,7 @@
 //! Prepare their frames before binding measured handlers and encoding instructions.
 //! Validators can request the original stage inputs for independent replay.
 
-use crate::observations::{NativePipelineObservation, NativePipelineStage};
+use crate::pipeline::observations::{NativePipelineObservation, NativePipelineStage};
 use function_layout::FunctionRelativeOptimizationRealizationError;
 use instruction_selection::OptimizedSelectionPipelineError;
 use machine::OptimizedPostAllocationMachinePipelineError;

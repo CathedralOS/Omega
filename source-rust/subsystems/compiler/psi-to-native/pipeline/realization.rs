@@ -4,6 +4,12 @@
 //! bodies through object construction and image emission. Psi execution shares
 //! admission and materializes the foreign adapters required by the interpreter.
 
+pub(in crate::pipeline) mod handler_order;
+pub(in crate::pipeline) mod lower_body;
+pub(in crate::pipeline) mod physical_body;
+pub(in crate::pipeline) mod plan_callables;
+pub(in crate::pipeline) mod runtime_provisions;
+
 mod auxiliary_native;
 mod body_resources;
 mod callable_objects;
@@ -16,7 +22,7 @@ pub(crate) use component_exports::{
 };
 mod object_emission;
 
-use crate::request::NativeRealizationRequest;
+use crate::pipeline::request::NativeRealizationRequest;
 use diagnostics::Diagnostic;
 
 use self::object_emission::emit_realization_object;
@@ -32,8 +38,8 @@ struct AdmittedRealization<'request> {
     admitted: AdmittedNativeRealization<'request>,
     entry_settlement: Option<artifact_lowering::ValidatedNativeProgramEntrySettlement>,
     runtime_provisions: Option<
-        crate::runtime_provisions::NativeRuntimePlan<
-            crate::runtime_provisions::NativeForeignAdapterRequest,
+        self::runtime_provisions::NativeRuntimePlan<
+            self::runtime_provisions::NativeForeignAdapterRequest,
         >,
     >,
 }
@@ -57,7 +63,7 @@ fn admit_realization<'request>(
     let runtime_provisions = entry
         .checked_entry
         .map(|_| {
-            crate::runtime_provisions::plan_root_provisions(
+            self::runtime_provisions::plan_root_provisions(
                 entry,
                 input.optimization_input().runtime_input(),
                 providers
@@ -68,7 +74,7 @@ fn admit_realization<'request>(
                     .settlements
                     .iter()
                     .map(
-                        |settlement| crate::runtime_provisions::TerminalRuntimeHostProvision {
+                        |settlement| self::runtime_provisions::TerminalRuntimeHostProvision {
                             boundary: settlement.boundary,
                             realization: settlement.realization.clone(),
                         },
@@ -76,7 +82,7 @@ fn admit_realization<'request>(
                     .collect(),
                 request.execution,
                 request.admission.providers.external_binding_rows,
-                crate::runtime_provisions::NativeBindingRuntimeInputs {
+                self::runtime_provisions::NativeBindingRuntimeInputs {
                     bindings: request.admission.providers.native_bindings,
                     calling: request.admission.providers.installed_calling,
                 },
@@ -105,7 +111,7 @@ pub(crate) fn prepare_program_image(
         entry_settlement,
         runtime_provisions,
     } = admit_realization(&artifact, input, &request)?;
-    let planning_request = crate::callable_planning::NativeProgramPlanningRequest {
+    let planning_request = self::plan_callables::NativeProgramPlanningRequest {
         proposal: request.proposal,
         execution: request.execution,
         scalar_applications: request
@@ -117,11 +123,11 @@ pub(crate) fn prepare_program_image(
         budget: request.optimization_budget(),
         retain_native_stage_inputs: request.retain_native_stage_inputs,
     };
-    let crate::callable_planning::PlannedNativeProgram {
+    let self::plan_callables::PlannedNativeProgram {
         bodies,
         providers,
         boundary_application_coverage,
-    } = crate::callable_planning::plan_program(
+    } = self::plan_callables::plan_program(
         admitted,
         &planning_request,
         request.observation.native_body(),
@@ -161,7 +167,7 @@ pub(crate) fn admit_terminal_runtime(
     input: artifact_lowering::VerifiedNativeArtifactInput,
     request: NativeRealizationRequest<'_>,
 ) -> Result<
-    crate::runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>,
+    self::runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>,
     Vec<Diagnostic>,
 > {
     let AdmittedRealization {
@@ -169,20 +175,20 @@ pub(crate) fn admit_terminal_runtime(
         runtime_provisions,
         ..
     } = admit_realization(artifact, input, &request)?;
-    let borrowed_storage_layouts = crate::body_planning::plan_runtime_storage(
+    let borrowed_storage_layouts = self::lower_body::plan_runtime_storage(
         input,
         request.admission.providers.target(),
         request.optimization_selections,
         request.optimization_budget(),
         request
             .observation
-            .counter(crate::observations::NativePipelineStage::AbstractOptimization),
+            .counter(crate::pipeline::observations::NativePipelineStage::AbstractOptimization),
     )
     .map_err(|error| match error {
-        crate::body_planning::NativeBodyPlanningError::AbstractOptimization(error) => {
+        self::lower_body::NativeBodyPlanningError::AbstractOptimization(error) => {
             realization_error("canonical abstract optimization", error)
         }
-        crate::body_planning::NativeBodyPlanningError::Target(error) => {
+        self::lower_body::NativeBodyPlanningError::Target(error) => {
             realization_error("runtime borrowed storage layout", error)
         }
     })?;

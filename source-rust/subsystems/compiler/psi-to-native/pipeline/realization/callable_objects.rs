@@ -1,11 +1,11 @@
 // Realize one exact callable while retaining its original Terminal namespace.
 // Callback and component export entries use the same source-free admission and
-// native pipeline (`pipeline::lower_to_target`, physical planning and encoding)
+// native pipeline (`physical_body::lower_to_target`, physical planning and encoding)
 // while leaving their identity, installation, and publication contracts with
 // the caller.
 
-use crate::callable_planning::CallableTargetProduct;
-use crate::pipeline::{self, BodyEmissionError};
+use super::physical_body::{self, BodyEmissionError};
+use super::plan_callables::CallableTargetProduct;
 use diagnostics::Diagnostic;
 use provider_admission::provider_admission::realization_error;
 
@@ -29,19 +29,21 @@ struct CallableCustody {
     code: terminal_codec::RetainedTerminalCode,
     coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
-    observation: crate::observations::NativePipelineObservation,
+    observation: crate::pipeline::observations::NativePipelineObservation,
 }
 
-pub(super) type CallablePhysicalProduct =
-    CallableProduct<pipeline::PreparedPhysicalBody, super::auxiliary_native::PlannedForeignAdapter>;
+pub(super) type CallablePhysicalProduct = CallableProduct<
+    physical_body::PreparedPhysicalBody,
+    super::auxiliary_native::PlannedForeignAdapter,
+>;
 pub(super) type BoundCallable = CallableProduct<
-    pipeline::BoundPhysicalBody,
+    physical_body::BoundPhysicalBody,
     installation_binding::entries::BoundForeignAdapter,
 >;
 pub(super) type EncodedCallable =
-    CallableProduct<pipeline::EncodedBody, super::auxiliary_native::EncodedForeignAdapter>;
+    CallableProduct<physical_body::EncodedBody, super::auxiliary_native::EncodedForeignAdapter>;
 pub(super) type LaidOutCallable =
-    CallableProduct<pipeline::LaidOutBody, super::auxiliary_native::PlacedForeignAdapter>;
+    CallableProduct<physical_body::LaidOutBody, super::auxiliary_native::PlacedForeignAdapter>;
 
 fn callable_error(error: BodyEmissionError) -> Vec<Diagnostic> {
     match error {
@@ -68,9 +70,13 @@ pub(super) fn prepare_callable_physical(
         authority,
         observation,
     } = prepared;
-    let body =
-        pipeline::prepare_physical_body(optimized_target, execution, requirements, &observation)
-            .map_err(callable_error)?;
+    let body = physical_body::prepare_physical_body(
+        optimized_target,
+        execution,
+        requirements,
+        &observation,
+    )
+    .map_err(callable_error)?;
     let runtime = runtime.map_adapters(super::auxiliary_native::plan);
     Ok(CallableProduct {
         body,
@@ -100,7 +106,7 @@ impl CallablePhysicalProduct {
 }
 impl BoundCallable {
     pub(super) fn encode(self) -> Result<EncodedCallable, Vec<Diagnostic>> {
-        let body = pipeline::encode_physical_body(self.body, &self.custody.observation)
+        let body = physical_body::encode_physical_body(self.body, &self.custody.observation)
             .map_err(callable_error)?;
         Ok(CallableProduct {
             body,
@@ -112,7 +118,7 @@ impl BoundCallable {
 
 impl EncodedCallable {
     pub(super) fn layout(self) -> Result<LaidOutCallable, Vec<Diagnostic>> {
-        let body = pipeline::layout_encoded_body(self.body, &self.custody.observation)
+        let body = physical_body::layout_encoded_body(self.body, &self.custody.observation)
             .map_err(callable_error)?;
         Ok(CallableProduct {
             body,
@@ -130,10 +136,10 @@ impl LaidOutCallable {
             observation,
             authority,
         } = self.custody;
-        let pipeline::BodyObject {
+        let physical_body::BodyObject {
             projection,
             originals,
-        } = pipeline::construct_body_object(self.body).map_err(callable_error)?;
+        } = physical_body::construct_body_object(self.body).map_err(callable_error)?;
         let physical_original = native_artifact::PrivatePhysicalOriginal::new(
             projection.object().psi(),
             code,
