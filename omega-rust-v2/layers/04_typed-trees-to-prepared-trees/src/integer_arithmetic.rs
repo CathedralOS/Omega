@@ -1,32 +1,23 @@
-use num_bigint::{BigInt, Sign};
-use omega_typer::ValueType;
+use num_bigint::BigInt;
+use omega_typer::{IntegerOperationError, ValueType, evaluate_integer_operation};
 
-/// Bounds of the concrete carrier selected by typing. The evaluation fragment
-/// caps widths so even a full product takes at most 256 magnitude bits.
-pub(super) struct IntegerRange {
-    minimum: BigInt,
-    maximum: BigInt,
-}
+/// Most operations fit without constructing either endpoint of the carrier.
+pub(super) struct IntegerRange(ValueType);
 
 impl IntegerRange {
     pub(super) fn for_type(carrier: &ValueType) -> Option<Self> {
-        let ValueType::Integer {
-            signed,
-            width: Some(width @ 1..=128),
-        } = *carrier
-        else {
-            return None;
-        };
-        let limit = BigInt::from(1u8) << (width - u64::from(signed));
-        let minimum = if signed { -&limit } else { BigInt::from(0u8) };
-        Some(Self { minimum, maximum: limit - 1u8 })
+        match carrier {
+            ValueType::Integer { width: Some(0), .. } => None,
+            ValueType::Integer { .. } => Some(Self(carrier.clone())),
+            _ => None,
+        }
     }
 
     pub(super) fn fits(
         &self,
         value: &BigInt,
     ) -> bool {
-        self.minimum <= *value && *value <= self.maximum
+        self.0.contains_integer(value)
     }
 
     pub(super) fn apply(
@@ -35,46 +26,22 @@ impl IntegerRange {
         left: BigInt,
         right: BigInt,
     ) -> Result<BigInt, &'static str> {
-        let (result, overflow) = match token {
-            "+" | "+%" | "+|" => (left + right, "exact addition exceeds its selected integer carrier"),
-            "-" | "-%" | "-|" => (left - right, "exact subtraction exceeds its selected integer carrier"),
-            "*" | "*%" | "*|" => (left * right, "exact multiplication exceeds its selected integer carrier"),
-            "/" | "/!" | "/%" | "/|" | "%" | "%!" | "%%" | "%|" => {
-                if right.sign() == Sign::NoSign && token.ends_with('!') {
-                    return Err("a zero divisor leaves the selected Trap route possible");
-                }
-                if right.sign() == Sign::NoSign {
-                    return Err("integer division or remainder requires a nonzero divisor");
-                }
-                let quotient = &left / &right;
-                if token.ends_with('!') && !self.fits(&quotient) {
-                    return Err("an unrepresentable quotient leaves the selected Trap route possible");
-                }
-                if token.starts_with('%') {
-                    // Exact remainder also requires the common quotient to fit.
-                    if token == "%" && !self.fits(&quotient) {
-                        return Err("exact remainder requires a representable integer quotient");
-                    }
-                    return Ok(left % right);
-                }
-                (quotient, "exact division exceeds its selected integer carrier")
-            }
-            _ => return Err("the selected body is outside the total integer fragment"),
-        };
-        if self.fits(&result) {
-            return Ok(result);
-        }
-        if token.ends_with('|') {
-            return Ok(result.clamp(self.minimum.clone(), self.maximum.clone()));
-        }
-        if token.ends_with('%') {
-            let modulus = &self.maximum - &self.minimum + 1u8;
-            let mut offset = (result - &self.minimum) % &modulus;
-            if offset.sign() == Sign::Minus {
-                offset += modulus;
-            }
-            return Ok(offset + &self.minimum);
-        }
-        Err(overflow)
+        evaluate_integer_operation(token, &[left, right], &self.0).map_err(|error| match error {
+            IntegerOperationError::ZeroDivisor if token.ends_with('!') => "a zero divisor leaves the selected Trap route possible",
+            IntegerOperationError::ZeroDivisor => "integer division or remainder requires a nonzero divisor",
+            IntegerOperationError::QuotientOutsideCarrier if token.ends_with('!') => "an unrepresentable quotient leaves the selected Trap route possible",
+            IntegerOperationError::QuotientOutsideCarrier => "exact remainder requires a representable integer quotient",
+            IntegerOperationError::OutsideCarrier(_) if token == "/!" => "an unrepresentable quotient leaves the selected Trap route possible",
+            IntegerOperationError::OutsideCarrier(_) if token.ends_with('!') => "overflow leaves the selected Trap route possible",
+            IntegerOperationError::OutsideCarrier(_) => match token {
+                "+" => "exact addition exceeds its selected integer carrier",
+                "-" => "exact subtraction exceeds its selected integer carrier",
+                "*" => "exact multiplication exceeds its selected integer carrier",
+                "/" => "exact division exceeds its selected integer carrier",
+                _ => "exact operation exceeds its selected integer carrier",
+            },
+            IntegerOperationError::InvalidOperation => "the selected integer primitive has no execution rule",
+            IntegerOperationError::Refused(reason) => reason,
+        })
     }
 }

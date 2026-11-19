@@ -11,7 +11,8 @@ impl ValueType {
             StaticFormula {
                 term: crate::IntegerIndex::Invalid(message),
                 ..
-            } => return Err(message.clone()),
+            }
+            | InvalidStatic(message) => return Err(message.clone()),
             StaticInteger { carrier, value } if !carrier.contains_integer(value) => {
                 return Err(format!("static index {value} exceeds {carrier}"));
             }
@@ -58,12 +59,20 @@ impl ValueType {
         }
     }
     pub(crate) fn contains_parameter(&self) -> bool {
-        self.components()
-            .any(|ty| matches!(ty, Self::Parameter { .. } | Self::StaticFormula { .. }))
+        self.components().any(|ty| {
+            matches!(
+                ty,
+                Self::Parameter { .. } | Self::StaticFormula { .. } | Self::PendingStatic(_) | Self::OpenStatic { .. }
+            )
+        })
     }
     pub(crate) fn depends_on_call_input(&self) -> bool {
-        self.components()
-            .any(|ty| matches!(ty, Self::Parameter { .. } | Self::StaticFormula { .. } | Self::Subject { .. }))
+        self.components().any(|ty| {
+            matches!(
+                ty,
+                Self::Parameter { .. } | Self::StaticFormula { .. } | Self::PendingStatic(_) | Self::OpenStatic { .. } | Self::Subject { .. }
+            )
+        })
     }
     /// Structural queries use the same children. Binder-sensitive transformations
     /// still control how they enter a binder and what they replace.
@@ -82,7 +91,10 @@ impl ValueType {
                 | Array(t, _)
                 | Slice(t)
                 | StaticInteger { carrier: t, .. }
-                | StaticFormula { carrier: t, .. } => pending.push(t.as_ref()),
+                | StaticFormula { carrier: t, .. }
+                | StaticValue { carrier: t, .. } => pending.push(t.as_ref()),
+                PendingStatic(demand) => pending.push(&demand.request().carrier),
+                OpenStatic { arguments, .. } => pending.extend(arguments),
                 Function(a, b) | AtLifetime(a, b) | IndexedArray(a, b) => {
                     pending.push(a.as_ref());
                     pending.push(b.as_ref());
@@ -126,6 +138,7 @@ impl ValueType {
                 | ProofTerm(_)
                 | Implementation(_)
                 | Parameter { .. }
+                | InvalidStatic(_)
                 | NoResult => {}
             }
             Some(ty)
@@ -243,6 +256,11 @@ impl ValueType {
                 carrier: Box::new(part(*carrier)?),
                 value,
             },
+            StaticValue { carrier, value } => StaticValue {
+                carrier: Box::new(part(*carrier)?),
+                value,
+            },
+            OpenStatic { template, arguments } => template.apply_value(arguments.into_iter().map(part).collect::<Result<_, _>>()?),
             StaticFormula { carrier, term } => StaticFormula {
                 carrier: Box::new(part(*carrier)?),
                 term,
@@ -262,6 +280,7 @@ impl ValueType {
                 StaticFormula { carrier, term } => term
                     .substitute(owner, args)
                     .typed(carrier.substitute(owner, args)),
+                OpenStatic { template, arguments } => template.apply_value(arguments.iter().map(|t| t.substitute(owner, args)).collect()),
                 _ => return None,
             })
         })

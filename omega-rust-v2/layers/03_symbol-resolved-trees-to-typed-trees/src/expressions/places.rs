@@ -302,6 +302,7 @@ impl BodyTyper<'_, '_> {
             .any(|arg| matches!(arg, ValueType::InferredLifetime { .. }));
         let mut omission = false;
         let mut origins = vec![Origin::Caller; fields.ordered.len()];
+        let mut initializers = Vec::with_capacity(inits.len());
         for &init in inits {
             if source.nodes[init].kind == NodeKind::Omission {
                 omission = true;
@@ -356,6 +357,7 @@ impl BodyTyper<'_, '_> {
                 lifetimes.observe(&target, &value);
             }
             self.check_destination(site, &value, &target)?;
+            initializers.push(crate::FieldInitializer { position, expression: site });
             let origin = match self.unit.symbol(init) {
                 Some(Symbol::Binding { span, .. }) if site == init => self.binding_origin(span),
                 _ => self.origin(site),
@@ -413,7 +415,27 @@ impl BodyTyper<'_, '_> {
                 witnesses,
             });
         }
+        self.record_construction(node_index, owner, case, &ty, initializers);
         Ok(ty)
+    }
+
+    pub(super) fn record_construction(
+        &mut self,
+        node: usize,
+        owner: &omega_resolver::DeclarationId,
+        case: Option<&omega_resolver::DeclarationId>,
+        carrier: &ValueType,
+        initializers: Vec<crate::FieldInitializer>,
+    ) {
+        self.output.constructions.insert(
+            self.unit.file.node_id(node),
+            crate::TypedConstruction {
+                owner: owner.clone(),
+                case: case.cloned(),
+                carrier: carrier.clone(),
+                initializers,
+            },
+        );
     }
     pub(super) fn field_chain(
         &mut self,

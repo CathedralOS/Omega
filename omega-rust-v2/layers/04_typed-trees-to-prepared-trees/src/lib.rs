@@ -1,19 +1,19 @@
-//! Preparation evaluates local integer constants and the computations needed for closed type identity.
+//! Preparation freezes local constants and computes the values needed for closed type identities.
 #![forbid(unsafe_code)]
 
 mod constant_evaluation;
 mod integer_arithmetic;
 mod owned_values;
 pub use owned_values::PreparedValue;
-mod integer_invocation;
+mod invocation;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use constant_evaluation::ConstantEvaluation;
 use num_bigint::BigInt;
 use omega_resolver::DeclarationId;
 use omega_typer::{
-    SourcePackage, SpecializedIndexValue, StaticIntegerDemand, TypeError, TypedTrees, TypingEnvironment, TypingProgress, type_source_package_for_preparation,
+    SourcePackage, SpecializedIndexValue, StaticValueDemand, TypeError, TypedTrees, TypingEnvironment, TypingProgress, type_source_package_for_preparation,
 };
 
 /// Typed trees whose demanded closed indices have been evaluated and materialized.
@@ -52,8 +52,7 @@ impl<'text> PreparedTrees<'text> {
     }
 }
 
-/// Prepare one admitted source package. Only the supported integer invocation
-/// fragment may execute before a general proof checker is available.
+/// Prepare the static values demanded by one admitted source package.
 pub fn prepare_source_package<'text>(source: &SourcePackage<'text>) -> Result<PreparedTrees<'text>, TypeError> {
     prepare_source_package_with_boundary_slots(source, &[])
 }
@@ -64,6 +63,7 @@ pub fn prepare_source_package_with_boundary_slots<'text>(
     source: &SourcePackage<'text>,
     boundary_slots: &[omega_typer::BoundarySlot],
 ) -> Result<PreparedTrees<'text>, TypeError> {
+    let mut completed = HashSet::new();
     let mut evaluated_indices = Vec::new();
     let mut specialized_indices: Vec<SpecializedIndexValue> = Vec::new();
     loop {
@@ -80,23 +80,14 @@ pub fn prepare_source_package_with_boundary_slots<'text>(
             }
             TypingProgress::Pending(pending) => pending,
         };
-        let previous_count = evaluated_indices.len() + specialized_indices.len();
+        let previous_count = completed.len();
         let mut evaluation = ConstantEvaluation::new(pending.trees(), boundary_slots);
         for demand in pending.demands() {
             let (request, arguments) = match demand {
-                StaticIntegerDemand::Closed(request) => (request, None),
-                StaticIntegerDemand::Specialized { request, arguments } => (request, Some(arguments.as_slice())),
+                StaticValueDemand::Closed(request) => (request, None),
+                StaticValueDemand::Specialized { request, arguments } => (request, Some(arguments.as_slice())),
             };
-            let supplied = if let Some(arguments) = arguments {
-                specialized_indices
-                    .iter()
-                    .any(|result| result.request == *request && result.arguments == arguments)
-            } else {
-                evaluated_indices
-                    .iter()
-                    .any(|(supplied, _)| supplied == request)
-            };
-            if supplied {
+            if !completed.insert(demand.clone()) {
                 continue;
             }
             let value = evaluation.evaluate(request, arguments)?;
@@ -110,10 +101,12 @@ pub fn prepare_source_package_with_boundary_slots<'text>(
                 evaluated_indices.push((request.clone(), value));
             }
         }
-        if evaluated_indices.len() + specialized_indices.len() == previous_count {
-            let request = match pending.demands().first().expect("pending typing has a demand") {
-                StaticIntegerDemand::Closed(request) | StaticIntegerDemand::Specialized { request, .. } => request,
-            };
+        if completed.len() == previous_count {
+            let request = pending
+                .demands()
+                .first()
+                .expect("pending typing has a demand")
+                .request();
             return Err(refusal(&request.expression, "typing did not advance after receiving the evaluation result"));
         }
     }

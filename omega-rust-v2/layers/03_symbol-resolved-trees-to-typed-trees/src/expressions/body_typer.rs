@@ -83,9 +83,18 @@ impl BodyTyper<'_, '_> {
         node: usize,
         ty: ValueType,
     ) {
-        self.output
-            .expressions
-            .push(crate::TypedExpression::at(self.unit.file, node, ty));
+        self.record_expression_with_static_argument(node, ty, None);
+    }
+
+    pub(super) fn record_expression_with_static_argument(
+        &mut self,
+        node: usize,
+        ty: ValueType,
+        static_argument_slot: Option<usize>,
+    ) {
+        let mut expression = crate::TypedExpression::at(self.unit.file, node, ty);
+        expression.static_argument_slot = static_argument_slot;
+        self.output.expressions.push(expression);
     }
 
     pub(super) fn record_obligation(

@@ -24,7 +24,7 @@ pub enum IntegerIndex {
         operands: Vec<IntegerIndex>,
     },
     Invalid(String),
-    Pending(std::sync::Arc<crate::StaticIntegerDemand>),
+    Pending(std::sync::Arc<crate::StaticValueDemand>),
     Deferred {
         template: std::sync::Arc<crate::StaticTemplate>,
         arguments: Vec<ValueType>,
@@ -32,7 +32,7 @@ pub enum IntegerIndex {
 }
 
 impl IntegerIndex {
-    pub(crate) fn demands(&self) -> impl Iterator<Item = &crate::StaticIntegerDemand> {
+    pub(crate) fn demands(&self) -> impl Iterator<Item = &crate::StaticValueDemand> {
         let mut pending = vec![self];
         std::iter::from_fn(move || {
             while let Some(term) = pending.pop() {
@@ -157,7 +157,7 @@ impl IntegerIndex {
                 Self::operation(matches!(self, Self::Add(_)), terms.iter().map(|t| t.substitute(owner, args)).collect())
             }
             Self::Primitive { token, carrier, operands } => Self::primitive(token, carrier, operands.iter().map(|t| t.substitute(owner, args)).collect()),
-            Self::Deferred { template, arguments } => template.apply(arguments.iter().map(|t| t.substitute(owner, args)).collect()),
+            Self::Deferred { template, arguments } => template.apply_integer(arguments.iter().map(|t| t.substitute(owner, args)).collect()),
             other => other.clone(),
         }
     }
@@ -247,7 +247,8 @@ impl ResolvedSourceFile<'_> {
             let term = types
                 .indices
                 .specializations
-                .prepare(self, n, owner, carrier, args);
+                .template(self, n, owner, carrier)
+                .apply_integer(args);
             types
                 .formations
                 .index(self, n, term.clone().typed(carrier.clone()));
@@ -257,7 +258,7 @@ impl ResolvedSourceFile<'_> {
             .indices
             .uses
             .borrow_mut()
-            .insert(crate::StaticIntegerRequest::at(f, n, carrier), evaluation);
+            .insert(crate::StaticValueRequest::at(f, n, carrier), evaluation);
         Ok(Some(term.typed(carrier.clone())))
     }
 }

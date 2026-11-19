@@ -1,15 +1,15 @@
 use crate::{Site, ValueType};
 use omega_resolver::{IndexedSource, TreeNodeId};
-/// A source occurrence in the current admitted stage that needs a closed integer from evaluation.
+/// A source occurrence in the current admitted stage that needs a static value from evaluation.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct StaticIntegerRequest {
+pub struct StaticValueRequest {
     /// Exact occurrence in the resolved forest shared by typing and preparation.
     pub node: TreeNodeId,
     pub expression: Site,
     pub carrier: ValueType,
 }
 
-impl StaticIntegerRequest {
+impl StaticValueRequest {
     pub(crate) fn at(
         source: &IndexedSource<'_>,
         node: usize,

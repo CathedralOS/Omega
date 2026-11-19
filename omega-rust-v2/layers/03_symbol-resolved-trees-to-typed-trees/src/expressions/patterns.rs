@@ -23,6 +23,7 @@ impl BodyTyper<'_, '_> {
         &mut self,
         node_index: usize,
         expected: Option<&ValueType>,
+        machine_result: bool,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
         let mut parts = source.nodes[node_index].children.iter().copied().peekable();
@@ -72,7 +73,7 @@ impl BodyTyper<'_, '_> {
                 PatternCoverage::Product(parts) => products.push(parts),
                 PatternCoverage::Partial => {}
             }
-            let value = self.type_expression_with_expected_type(expr, expected)?;
+            let value = self.type_at_destination(expr, expected, machine_result)?;
             // A terminal transition returns the selected arm directly. Attach
             // its return obligation to that expression while its facts are in scope.
             if source.nodes[node_index].kind == NodeKind::Transition

@@ -184,7 +184,16 @@ impl BodyTyper<'_, '_> {
                 .iter()
                 .zip(&operands)
                 .enumerate()
-                .all(|(i, ((_, p), op))| self.infer_operand(NodeKind::Call, i, op, &instantiate(p), id, &mut bindings))
+                .all(|(i, ((_, p), op))| {
+                    let formal = instantiate(p);
+                    self.infer_operand(NodeKind::Call, i, op, &formal, id, &mut bindings)
+                        || (candidate_count == 1
+                            && self
+                                .catalog
+                                .types
+                                .indices
+                                .defer_indexed_landing(&op.value, &formal))
+                })
             {
                 if let Some(destination) = domain_destination {
                     let result = capture(&signature.result).instantiate_subjects(signature, &subjects);

@@ -1,6 +1,5 @@
 use super::specialized_indices::{ClosedArguments, SyntaxKey};
-use crate::{IntegerIndex, StaticIntegerRequest, ValueType};
-use num_bigint::BigInt;
+use crate::{IntegerIndex, StaticValue, StaticValueDemand, StaticValueRequest, ValueType};
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
@@ -9,9 +8,9 @@ use std::{
 
 pub struct StaticTemplate {
     pub(super) key: SyntaxKey,
-    pub(super) request: StaticIntegerRequest,
+    pub(super) request: StaticValueRequest,
     pub(super) allow_pending: bool,
-    pub(super) values: Arc<HashMap<ClosedArguments, BigInt>>,
+    pub(super) values: Arc<HashMap<ClosedArguments, StaticValue>>,
 }
 impl std::fmt::Debug for StaticTemplate {
     fn fmt(
@@ -39,36 +38,73 @@ impl Hash for StaticTemplate {
         self.request.carrier.hash(h)
     }
 }
+enum Application {
+    Open(Vec<ValueType>),
+    Ready(StaticValue),
+    Pending(Arc<StaticValueDemand>),
+    Missing(String),
+}
+
 impl StaticTemplate {
     /// Identify the typed occurrence and carrier when returning a prepared value.
-    pub fn request(&self) -> StaticIntegerRequest {
+    pub fn request(&self) -> StaticValueRequest {
         self.request.clone()
     }
 
-    pub(crate) fn apply(
-        self: &Arc<Self>,
+    fn resolve(
+        &self,
         arguments: Vec<ValueType>,
-    ) -> IntegerIndex {
+    ) -> Application {
         let arguments = match ClosedArguments::try_from(arguments) {
             Ok(arguments) => arguments,
-            Err(arguments) => {
-                return IntegerIndex::Deferred {
-                    template: self.clone(),
-                    arguments,
-                };
-            }
+            Err(arguments) => return Application::Open(arguments),
         };
         match self.values.get(&arguments) {
-            Some(v) if self.request.carrier.contains_integer(v) => IntegerIndex::Value(v.clone()),
-            Some(v) => IntegerIndex::Invalid(format!("static index {v} exceeds {}", self.request.carrier)),
-            None if self.allow_pending => IntegerIndex::Pending(Arc::new(crate::StaticIntegerDemand::Specialized {
+            Some(value) => Application::Ready(value.clone()),
+            None if self.allow_pending => Application::Pending(Arc::new(StaticValueDemand::Specialized {
                 request: self.request(),
                 arguments: arguments.into_values(),
             })),
-            None => IntegerIndex::Invalid(format!(
+            None => Application::Missing(format!(
                 "specialized static expression in {} needs an admitted evaluation result",
                 self.key.owner.path
             )),
+        }
+    }
+
+    pub(crate) fn apply_integer(
+        self: &Arc<Self>,
+        arguments: Vec<ValueType>,
+    ) -> IntegerIndex {
+        match self.resolve(arguments) {
+            Application::Open(arguments) => IntegerIndex::Deferred {
+                template: self.clone(),
+                arguments,
+            },
+            Application::Ready(StaticValue::Integer(value)) if self.request.carrier.contains_integer(&value) => IntegerIndex::Value(value),
+            Application::Ready(StaticValue::Integer(value)) => IntegerIndex::Invalid(format!("static index {value} exceeds {}", self.request.carrier)),
+            Application::Ready(_) => IntegerIndex::Invalid("specialized evaluation result does not match its integer carrier".into()),
+            Application::Pending(demand) => IntegerIndex::Pending(demand),
+            Application::Missing(message) => IntegerIndex::Invalid(message),
+        }
+    }
+
+    pub(crate) fn apply_value(
+        self: &Arc<Self>,
+        arguments: Vec<ValueType>,
+    ) -> ValueType {
+        match self.resolve(arguments) {
+            Application::Open(arguments) => ValueType::OpenStatic {
+                template: self.clone(),
+                arguments,
+            },
+            Application::Ready(value @ StaticValue::Bool(_)) if self.request.carrier == ValueType::Bool => ValueType::StaticValue {
+                carrier: Box::new(self.request.carrier.clone()),
+                value,
+            },
+            Application::Ready(_) => ValueType::InvalidStatic("specialized evaluation result does not match its carrier".into()),
+            Application::Pending(demand) => ValueType::PendingStatic(demand),
+            Application::Missing(message) => ValueType::InvalidStatic(message),
         }
     }
 }

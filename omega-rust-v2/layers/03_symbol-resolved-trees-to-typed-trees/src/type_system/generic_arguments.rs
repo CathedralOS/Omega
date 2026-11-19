@@ -192,6 +192,13 @@ impl<'a> ResolvedSourceFile<'a> {
             }
             return Ok(value.clone());
         }
+        if carrier.supports_closed_snapshot() {
+            self.require_static_inputs(types, node_index)?;
+            let carrier = types
+                .normalize_at(carrier.clone(), self, node_index)
+                .map_err(|message| TypeError::at(self.file, node_index, message))?;
+            return self.closed_static_value(types, node_index, &carrier);
+        }
         if let Some(term) = self.open_index(types, node_index, carrier)? {
             return Ok(term);
         }

@@ -22,10 +22,12 @@ mod typed_tree;
 mod typing;
 
 pub use errors::type_error::TypeError;
+pub use evaluation::integer_arithmetic::{IntegerOperationError, evaluate_integer_operation};
 pub use evaluation::integer_index::IntegerIndex;
 pub use evaluation::specialized_index_value::SpecializedIndexValue;
-pub use evaluation::static_integer_request::StaticIntegerRequest;
 pub use evaluation::static_template::StaticTemplate;
+pub use evaluation::static_value::StaticValue;
+pub use evaluation::static_value_request::StaticValueRequest;
 pub use omega_toolchain::{SourcePackage, resolve_source_package};
 pub use toolchain_declarations::core_interface::standard_library;
 pub use toolchain_declarations::source_package::{type_source_package, type_source_package_for_preparation};
@@ -63,7 +65,7 @@ pub use typed_tree::storage::package_construction::PackageConstruction;
 pub use typed_tree::typed_expression::{TypedExpression, TypedNumericLanding};
 pub use typed_tree::typed_instruction::TypedInstruction;
 pub use typed_tree::typed_operation::TypedOperation;
-pub use typed_tree::typed_stage::{TypedConstant, TypedField, TypedStage};
+pub use typed_tree::typed_stage::{FieldInitializer, StaticDataShape, TypedConstant, TypedConstruction, TypedField, TypedStage};
 pub use typed_tree::typed_trees::{NodeSemantics, TypedTree, TypedTrees};
 pub use typed_tree::value_type::ValueType;
 pub use typing::assembly_types::AssemblyTypes;
@@ -72,4 +74,4 @@ pub use typing::entry_points::{type_stage, type_stage_for_target, type_stage_in_
 pub use typing::ranking_view::RankingView;
 pub use typing::slot_direction::SlotDirection;
 pub use typing::typing_environment::TypingEnvironment;
-pub use typing::typing_progress::{PendingTyping, StaticIntegerDemand, TypingProgress};
+pub use typing::typing_progress::{PendingTyping, StaticValueDemand, TypingProgress};

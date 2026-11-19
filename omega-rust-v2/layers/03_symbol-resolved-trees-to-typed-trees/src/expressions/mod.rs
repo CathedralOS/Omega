@@ -1,5 +1,6 @@
 pub(crate) mod assembly;
 pub(crate) mod body_typer;
+mod byte_literals;
 pub(crate) mod call_arguments;
 pub(crate) mod callable_values;
 pub(crate) mod calls;

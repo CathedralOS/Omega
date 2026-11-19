@@ -51,7 +51,7 @@ fn specialized_call_results_match_the_owning_expression_and_arguments() {
         )
     };
     let mut value = SpecializedIndexValue {
-        request: omega_typer::StaticIntegerRequest {
+        request: omega_typer::StaticValueRequest {
             node: evaluation::node(source, start, "width(N)", omega_parser::NodeKind::Call),
             expression: Site {
                 package: "app".into(),
@@ -61,7 +61,7 @@ fn specialized_call_results_match_the_owning_expression_and_arguments() {
             carrier: omega_typer::ValueType::Integer { signed: false, width: Some(8) },
         },
         arguments: vec![argument(6)],
-        value: 6.into(),
+        value: omega_typer::StaticValue::Integer(6.into()),
     };
     assert!(
         run(std::slice::from_ref(&value))
@@ -76,7 +76,7 @@ fn specialized_call_results_match_the_owning_expression_and_arguments() {
     let error = run(&[misaddressed]).unwrap_err();
     assert_eq!(error.span, value.request.expression.span);
     assert_eq!(error.message, "evaluation result refers to an unknown static expression");
-    value.value = 256.into();
+    value.value = omega_typer::StaticValue::Integer(256.into());
     assert!(run(&[value]).unwrap_err().message.contains("exceeds u8"));
 }
 #[test]
@@ -103,7 +103,7 @@ fn specialization_uses_the_selected_trait_operation() {
         .clone();
     let start = source.find("N+1").unwrap();
     let value = SpecializedIndexValue {
-        request: omega_typer::StaticIntegerRequest {
+        request: omega_typer::StaticValueRequest {
             node: evaluation::node(source, start, "N+1", omega_parser::NodeKind::Binary),
             expression: Site {
                 package: "app".into(),
@@ -119,7 +119,7 @@ fn specialization_uses_the_selected_trait_operation() {
             },
             ValueType::Implementation(Box::new(selected)),
         ],
-        value: 7.into(),
+        value: omega_typer::StaticValue::Integer(7.into()),
     };
     let check = |receipts: &[SpecializedIndexValue]| {
         type_stage_in_environment(
@@ -144,7 +144,7 @@ fn specialization_uses_the_selected_trait_operation() {
             .any(|c| c.machine.path == "Add::combine" && c.evidence.is_some() && c.use_site == omega_typer::CallUse::StaticArgument)
     );
     let mut wrong = value.clone();
-    wrong.value = 8.into();
+    wrong.value = omega_typer::StaticValue::Integer(8.into());
     assert!(
         check(&[value, wrong])
             .unwrap_err()
@@ -614,13 +614,13 @@ fn receipt_admission_rejects_an_open_parameter_in_each_type_child() {
     };
     let admit = |arg| {
         let receipt = SpecializedIndexValue {
-            request: omega_typer::StaticIntegerRequest {
+            request: omega_typer::StaticValueRequest {
                 node: evaluation::node(source, start, "width::<T>()", omega_parser::NodeKind::Call),
                 expression: site.clone(),
                 carrier: omega_typer::ValueType::Integer { signed: false, width: Some(8) },
             },
             arguments: vec![arg],
-            value: 1.into(),
+            value: omega_typer::StaticValue::Integer(1.into()),
         };
         type_stage_in_environment(
             &resolved,

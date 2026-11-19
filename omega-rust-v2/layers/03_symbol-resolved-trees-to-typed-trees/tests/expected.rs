@@ -29,7 +29,7 @@ fn typed_fixtures_match_handwritten_expectations() {
             let checked = if let Some((input, result)) = evaluation {
                 let offset = source.find("width(N)").expect("prepared fixture calls width");
                 let receipt = SpecializedIndexValue {
-                    request: omega_typer::StaticIntegerRequest {
+                    request: omega_typer::StaticValueRequest {
                         node: evaluation::node(source, offset, "width(N)", omega_parser::NodeKind::Call),
                         expression: Site {
                             package: "game".into(),
@@ -42,7 +42,7 @@ fn typed_fixtures_match_handwritten_expectations() {
                         carrier: Box::new(ValueType::Integer { signed: false, width: Some(8) }),
                         value: input.into(),
                     }],
-                    value: result.into(),
+                    value: omega_typer::StaticValue::Integer(result.into()),
                 };
                 support::check_in(
                     &files,

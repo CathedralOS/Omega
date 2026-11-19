@@ -148,8 +148,8 @@ Psi to native code) are not planned yet.
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
 | L1 Parser | tokens → syntax trees | locked, positional rest handoff signed off 2026-11-19 | 1.12 s (previous revision) |
 | L2 Resolver | syntax trees → symbol-resolved trees | locked, revised handoff signed off 2026-11-19 | 0.17 s (2026-11-18 warm median, five runs) |
-| L3 Typer | symbol-resolved trees → typed trees | locked, revised static integer handoff signed off 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
-| L4 Preparation | typed tree → evaluated, frozen typed tree | open, preparing Booleans, 1–128-bit integers, their fixed arrays, and closed integer indices, including direct tail-helper chains with integer preconditions and guarded crash routes; [remaining scope](layers/04_typed-trees-to-prepared-trees/CONTRACT.md#remaining-scope-before-signoff) | — |
+| L3 Typer | symbol-resolved trees → typed trees | static-value handoff reopened after the integer handoff sign-off on 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
+| L4 Preparation | typed tree → evaluated, frozen typed tree | open, preparing typed constants and closed applications with integers, Booleans, fixed arrays, records and sum cases; [remaining scope](layers/04_typed-trees-to-prepared-trees/CONTRACT.md#remaining-scope-before-signoff) | — |
 | L5 Lowering | prepared tree → Terminal Psi | production lowering not started; closed fixed-array handoff exercised by a consumer test | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |
@@ -345,7 +345,7 @@ ordinary bare name binds the matched value. A qualified constant tests its
 value. L2 publishes the binding or declaration, and L3 checks coverage.
 [Package boundaries](wiki/spec/packages/boundaries.md#selection-versus-carrying-a-type)
 
-**L3 is locked.** The first signoff was at `4baf1e5f5e9`. The computed-width case reopened the handoff because typing stopped before L4 could receive the selected call. The revised handoff passed review on 2026-11-19. L3 selects the declaration, types the operands, and identifies the source occurrence, integer carrier and any specialization arguments. L4 evaluates the admitted call. L3 uses the returned value to finish checks that depend on a closed type identity. [Typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) · [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md)
+**The L3 static-value handoff is open.** The first signoff was at `4baf1e5f5e9`. The computed-width case reopened the handoff because typing stopped before L4 could receive the selected call. The revised handoff passed review on 2026-11-19. L3 selects the declaration, types the operands, and identifies the source occurrence, result type and any specialization arguments. L4 evaluates the admitted call. L3 uses the returned value to finish checks that depend on a closed type identity. A call with two candidate overloads that differ only by a pending value still needs to wait for that result before selecting its declaration. [Typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) · [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md)
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.
