@@ -158,6 +158,34 @@ def calibrate(repo, out):
         coordinate = 16 + len(append) + len(preceding)
         expected = struct.pack('<8sBBHIQQQ', b'\xffDCOUT\x01\0', 1, 5, 0, 2, coordinate, 0, 0)
         assert result.returncode == 1 and not result.stderr and result.stdout == expected
+    check_publisher(repo, out, scratch)
+
+
+def check_publisher(repo, out, scratch):
+    stages = repo / 'build/independent-successors/compiled-epsilon'
+    for name in ['invalid', 'lexer-digits', 'lexical', 'unsupported-nominal']:
+        source = (stages / f'{name}.epsilon').read_bytes()
+        expected = (stages / f'{name}.observation').read_bytes()
+        observed = subprocess.run([out / 'compiler'], input=source, capture_output=True, check=True)
+        assert not observed.stderr and observed.stdout == expected, name
+        print(name, json.dumps(identity(observed.stdout)))
+
+    tree = b'''(def chain ((value Bytes) (count Int) (left Int) (sofar Bytes)) Bytes
+  (if (eq count 0) sofar
+    (chain value (- count 1) left (if left (bytes_concat sofar value) (bytes_concat value sofar)))))
+(def main ((input Bytes)) Bytes
+  (if (eq (bytes_length input) 0) (bytes_empty)
+    (chain (bytes_concat input (bytes_single 111)) 1024 (bytes_get input 0) (bytes_empty))))
+'''
+    support = (out / 'output-support.bin').read_bytes()
+    gamma = compile_delta(out / 'output-producer', tree, support)
+    program = scratch / 'tree'
+    compile_with(repo / 'build/independent-native-reference/compiler2', gamma, program)
+    for name, data in [('empty', b''), ('left', bytes(range(1, 33))), ('right', bytes(range(32)))]:
+        observed = subprocess.run([program], input=data, capture_output=True, check=True)
+        expected = (data + b'o') * 1024 if data else b''
+        assert not observed.stderr and observed.stdout == expected, name
+        print(name, json.dumps(identity(observed.stdout)))
 
 
 def check_output(executable, output, data, copies, suffix, status):

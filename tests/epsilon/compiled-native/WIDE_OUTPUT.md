@@ -4,7 +4,14 @@ The customer is the 825,064-byte bootstrap Omega compiler and its executable ent
 
 The published native Epsilon compiler returned status 254 with empty stdout and stderr. It ran for 315.893 active seconds, took 1,268.914 seconds on the shared host, and peaked at 4,569,216 KiB RSS. This status comes from the generated `ConformanceBytesV1` adapter after `__d_main` returns a `Bytes` value longer than 4 MiB. The process completed within its 6 GiB RSS guard.
 
-The direct publisher returned a 29,522,323-byte Delta module from the complete frozen source. The normal storage runtime and entry bring the program to 29,616,382 bytes. Its DCREQ is 29,619,396 bytes. The native process returned status 0, emitted the storage marker and the complete module, and wrote no stderr. It used 356.570 scheduled seconds, 349.082 child CPU seconds, 1,334.223 shared-host wall seconds and 5,521,680 KiB peak RSS.
+Both 128 MiB publishers returned byte-identical 29,522,323-byte Delta modules from the complete frozen source. Each native process returned status 0, emitted the storage marker and complete module, and wrote no stderr. The normal storage runtime and entry bring the program to 29,616,382 bytes. Its Delta compile request (DCREQ) is 29,619,396 bytes. The publishers also agreed byte for byte on that request.
+
+| Full compiler run | Child CPU seconds | Scheduled seconds | Shared-host wall seconds | Peak RSS, KiB |
+| --- | ---: | ---: | ---: | ---: |
+| Indexed lookup | 2,467.432 | 2,506.901 | 8,209.417 | 4,576,976 |
+| In-order traversal | 349.082 | 356.570 | 1,334.223 | 5,521,680 |
+
+Indexed lookup used 7.07 times as much child CPU. Traversal used 944,704 KiB more peak memory. Child CPU and peak RSS come from Linux `wait4`. Scheduled time includes every CPU permit, and wall time includes pauses for other jobs on the host.
 
 | Frozen compiler result | Bytes | SHA-256 |
 | --- | ---: | --- |
@@ -45,9 +52,7 @@ The indexed publisher runs the public byte lookup on the root for every index. A
 
 An ordinary Delta program copied a 33-byte chunk 1,024 times. Each chunk contained the 32 input bytes and a singleton suffix. The left- and right-nested trees each returned the exact expected 33,792 bytes. The indexed native programs took 3.374 and 3.736 seconds respectively on this host. Walking the same trees took 0.017 and 0.013 seconds. Both also returned an empty result on empty input. Timing a small program this way isolates the publisher from the Epsilon frontend.
 
-The direct publisher’s generated compiler is 984,196 bytes of Gamma, SHA-256 98047ef0276c9550a846b084fa661a3f22916392f1896605e4198bac84d8c3df. Its Linux ELF is 34,837,482 bytes, SHA-256 e5151e8e630d8ce35e6c7295baaf01228d9533110aff88d5331d563e21a66d1c. Four actual W7 inputs produced the original bytes, including the 680,056-byte numeric scanner result, 11,334-byte pure lexer result, checked-source error and unsupported nominal expression. The numeric customer used 1.68 child CPU seconds on this host. The direct adapter also reproduced statuses 253 and 254 with empty output for the two oversized cases.
-
-The full-width indexed publisher is still running on the same frozen input. Its output and peak RSS will be compared with the direct traversal after completion.
+The direct publisher’s generated compiler is 984,196 bytes of Gamma, SHA-256 98047ef0276c9550a846b084fa661a3f22916392f1896605e4198bac84d8c3df. Its Linux ELF is 34,837,482 bytes, SHA-256 e5151e8e630d8ce35e6c7295baaf01228d9533110aff88d5331d563e21a66d1c. Four inputs from the published compiler gate produced the original bytes, including the 680,056-byte numeric scanner result, 11,334-byte pure lexer result, checked-source error and unsupported nominal expression. The numeric customer used 1.68 child CPU seconds on this host. The direct adapter also reproduced statuses 253 and 254 with empty output for the two oversized cases.
 
 ## Reproduce
 
