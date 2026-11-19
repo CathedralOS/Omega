@@ -1,36 +1,55 @@
 use crate::ValueType;
-use crate::type_system::domains;
 use omega_resolver::DeclarationId;
 
 impl ValueType {
     pub(crate) fn validate_closed_indices(&self) -> Result<(), String> {
+        self.components().try_for_each(Self::validate_index)
+    }
+    pub(super) fn validate_index(&self) -> Result<(), String> {
         use ValueType::*;
-        for t in self.components() {
-            match t {
-                StaticFormula {
-                    term: crate::IntegerIndex::Invalid(message),
-                    ..
-                } => return Err(message.clone()),
-                StaticInteger { carrier, value }
-                    if !(Exact {
-                        value: num_rational::BigRational::from_integer(value.clone()),
-                        fractional_origin: None,
-                    })
-                    .fits(carrier) =>
-                {
-                    return Err(format!("static index {value} exceeds {carrier}"));
-                }
-                IndexedInteger { width, .. } => {
-                    if let StaticInteger { value, .. } = width.as_ref()
-                        && value.sign() != num_bigint::Sign::Plus
-                    {
-                        return Err("integer width must be positive".into());
-                    }
-                }
-                _ => {}
+        match self {
+            StaticFormula {
+                term: crate::IntegerIndex::Invalid(message),
+                ..
+            } => return Err(message.clone()),
+            StaticInteger { carrier, value } if !carrier.contains_integer(value) => {
+                return Err(format!("static index {value} exceeds {carrier}"));
             }
+            IndexedInteger { width, .. } => {
+                if let StaticInteger { value, .. } = width.as_ref()
+                    && value.sign() != num_bigint::Sign::Plus
+                {
+                    return Err("integer width must be positive".into());
+                }
+            }
+            _ => {}
         }
         Ok(())
+    }
+    fn concrete_size(&self) -> Option<u64> {
+        let Self::StaticInteger { value, .. } = self else { return None };
+        u64::try_from(value).ok()
+    }
+    pub(super) fn with_width(
+        signed: bool,
+        width: Self,
+    ) -> Self {
+        match width.concrete_size() {
+            Some(n) if n > 0 => Self::Integer { signed, width: Some(n) },
+            _ => Self::IndexedInteger {
+                signed,
+                width: Box::new(width),
+            },
+        }
+    }
+    pub(super) fn array_with_extent(
+        element: Self,
+        extent: Self,
+    ) -> Self {
+        match extent.concrete_size() {
+            Some(n) => Self::Array(Box::new(element), n),
+            None => Self::IndexedArray(Box::new(element), Box::new(extent)),
+        }
     }
     pub(crate) fn static_size(n: u64) -> Self {
         Self::StaticInteger {
@@ -48,7 +67,7 @@ impl ValueType {
     }
     /// Structural queries use the same children. Binder-sensitive transformations
     /// still control how they enter a binder and what they replace.
-    fn components(&self) -> impl Iterator<Item = &Self> {
+    pub(crate) fn components(&self) -> impl Iterator<Item = &Self> {
         let mut pending = Vec::new();
         let mut root = Some(self);
         std::iter::from_fn(move || {
@@ -68,7 +87,7 @@ impl ValueType {
                     pending.push(a.as_ref());
                     pending.push(b.as_ref());
                 }
-                MathematicalValue { subjects, .. } | Tuple(subjects) | Applied(_, subjects) => pending.extend(subjects),
+                MathematicalValue { subjects, .. } | Tuple(subjects) | Applied(_, subjects) | MachineSelection(_, subjects) => pending.extend(subjects),
                 FamilyApplication { family, subjects } => {
                     pending.push(family.as_ref());
                     pending.extend(subjects);
@@ -90,6 +109,7 @@ impl ValueType {
                 }
                 Bool
                 | LevelKind
+                | InferredLifetime { .. }
                 | Subject { .. }
                 | BoundSubject(_)
                 | MathematicalDefinition(_)
@@ -101,7 +121,6 @@ impl ValueType {
                 | Nominal(_)
                 | Exact { .. }
                 | Witness { .. }
-                | MachineSelection(_)
                 | LogicalRequirement(_)
                 | ProofCitation(_)
                 | ProofTerm(_)
@@ -112,6 +131,12 @@ impl ValueType {
             Some(ty)
         })
     }
+    pub(crate) fn record_parts(&self) -> Option<(&DeclarationId, &[ValueType])> {
+        match self {
+            Self::Evidence(slot) => Some((&slot.declaration, &slot.trait_arguments)),
+            ty => ty.nominal_parts(),
+        }
+    }
     pub(crate) fn nominal_parts(&self) -> Option<(&DeclarationId, &[ValueType])> {
         match self {
             Self::Nominal(id) => Some((id, &[])),
@@ -119,97 +144,127 @@ impl ValueType {
             _ => None,
         }
     }
+    /// Rewrite a type structurally, tracking the number of dependent function binders
+    /// around each component. A replacement owns its subtree.
+    pub(crate) fn rewrite(
+        &self,
+        depth: usize,
+        replace: &impl Fn(&Self, usize) -> Option<Self>,
+    ) -> Self {
+        self.clone().rewrite_owned(depth, replace)
+    }
+
+    fn rewrite_owned(
+        self,
+        depth: usize,
+        replace: &impl Fn(&Self, usize) -> Option<Self>,
+    ) -> Self {
+        if let Some(ty) = replace(&self, depth) {
+            return ty;
+        }
+        let Ok(ty) = self.try_map_children(depth, |child, depth| Ok::<_, std::convert::Infallible>(child.rewrite_owned(depth, replace)));
+        ty
+    }
+
+    /// Map immediate children, entering a dependent binder only at its codomain.
+    /// Domain argument substitution may merge or reorder qualified atoms.
+    pub(super) fn try_map_children<E>(
+        self,
+        depth: usize,
+        mut map: impl FnMut(Self, usize) -> Result<Self, E>,
+    ) -> Result<Self, E> {
+        use ValueType::*;
+        let mut part = |ty| map(ty, depth);
+        Ok(match self {
+            Function(a, b) => Function(Box::new(part(*a)?), Box::new(map(*b, depth + 1)?)),
+            MathematicalValue { definition, subjects } => MathematicalValue {
+                definition,
+                subjects: subjects.into_iter().map(part).collect::<Result<_, _>>()?,
+            },
+            FamilyApplication { family, subjects } => FamilyApplication {
+                family: Box::new(part(*family)?),
+                subjects: subjects.into_iter().map(part).collect::<Result<_, _>>()?,
+            },
+            Applied(id, args) => Applied(id, args.into_iter().map(part).collect::<Result<_, _>>()?),
+            MachineSelection(id, args) => MachineSelection(id, args.into_iter().map(part).collect::<Result<_, _>>()?),
+            Qualified(t, mut domains) => {
+                let carrier = part(*t)?;
+                for domain in &mut domains {
+                    domain.arguments = std::mem::take(&mut domain.arguments)
+                        .into_iter()
+                        .map(&mut part)
+                        .collect::<Result<_, _>>()?;
+                }
+                crate::type_system::domains::qualified(carrier, domains)
+            }
+            Tuple(ts) => Tuple(ts.into_iter().map(part).collect::<Result<_, _>>()?),
+            Reference(a, t) => Reference(a, Box::new(part(*t)?)),
+            Array(t, n) => Array(Box::new(part(*t)?), n),
+            IndexedArray(t, n) => Self::array_with_extent(part(*t)?, part(*n)?),
+            IndexedInteger { signed, width } => Self::with_width(signed, part(*width)?),
+            Squash(t) => Squash(Box::new(part(*t)?)),
+            LevelOf(t) => LevelOf(Box::new(part(*t)?)),
+            Slice(t) => Slice(Box::new(part(*t)?)),
+            AtLifetime(t, l) => AtLifetime(Box::new(part(*t)?), Box::new(part(*l)?)),
+            Callable(mut c) => {
+                c.parameters = c
+                    .parameters
+                    .into_iter()
+                    .map(&mut part)
+                    .collect::<Result<_, _>>()?;
+                c.result = part(c.result)?;
+                for service in c.reach.iter_mut().flatten() {
+                    service.arguments = std::mem::take(&mut service.arguments)
+                        .into_iter()
+                        .map(&mut part)
+                        .collect::<Result<_, _>>()?;
+                }
+                if let Some(slot) = &mut c.requirement {
+                    slot.trait_arguments = std::mem::take(&mut slot.trait_arguments)
+                        .into_iter()
+                        .map(part)
+                        .collect::<Result<_, _>>()?;
+                }
+                Callable(c)
+            }
+            Evidence(mut slot) => {
+                slot.trait_arguments = slot
+                    .trait_arguments
+                    .into_iter()
+                    .map(part)
+                    .collect::<Result<_, _>>()?;
+                Evidence(slot)
+            }
+            Universe { strict, level } => Universe {
+                strict,
+                level: Box::new(part(*level)?),
+            },
+            StaticInteger { carrier, value } => StaticInteger {
+                carrier: Box::new(part(*carrier)?),
+                value,
+            },
+            StaticFormula { carrier, term } => StaticFormula {
+                carrier: Box::new(part(*carrier)?),
+                term,
+            },
+            other => other,
+        })
+    }
     pub(crate) fn substitute(
         &self,
         owner: &DeclarationId,
         args: &[ValueType],
     ) -> Self {
         use ValueType::*;
-        match self {
-            MathematicalValue { definition, subjects } => MathematicalValue {
-                definition: definition.clone(),
-                subjects: subjects.iter().map(|s| s.substitute(owner, args)).collect(),
-            },
-            FamilyApplication { family, subjects } => FamilyApplication {
-                family: Box::new(family.substitute(owner, args)),
-                subjects: subjects.iter().map(|s| s.substitute(owner, args)).collect(),
-            },
-            Squash(t) => Squash(Box::new(t.substitute(owner, args))),
-            LevelOf(t) => LevelOf(Box::new(t.substitute(owner, args))),
-            Universe { strict, level } => Universe {
-                strict: *strict,
-                level: Box::new(level.substitute(owner, args)),
-            },
-            Parameter { owner: b, index } if b.as_ref() == owner => args[*index].clone(),
-            Evidence(slot) => Evidence(Box::new(crate::RequirementSlot {
-                declaration: slot.declaration.clone(),
-                trait_arguments: slot
-                    .trait_arguments
-                    .iter()
-                    .map(|t| t.substitute(owner, args))
-                    .collect(),
-            })),
-            StaticFormula { carrier, term } => term.substitute(owner, args).typed(*carrier.clone()),
-            Tuple(items) => Tuple(items.iter().map(|t| t.substitute(owner, args)).collect()),
-            IndexedInteger { signed, width } => {
-                let width = width.substitute(owner, args);
-                if let StaticInteger { value, .. } = &width
-                    && let Ok(n) = u64::try_from(value)
-                    && n > 0
-                {
-                    Integer {
-                        signed: *signed,
-                        width: Some(n),
-                    }
-                } else {
-                    IndexedInteger {
-                        signed: *signed,
-                        width: Box::new(width),
-                    }
-                }
-            }
-            Function(a, b) => Function(Box::new(a.substitute(owner, args)), Box::new(b.substitute(owner, args))),
-            Callable(c) => {
-                let mut c = c.clone();
-                if let Some(row) = &mut c.reach {
-                    for service in row {
-                        service.arguments = service
-                            .arguments
-                            .iter()
-                            .map(|t| t.substitute(owner, args))
-                            .collect();
-                    }
-                }
-                c.parameters = c.parameters.iter().map(|p| p.substitute(owner, args)).collect();
-                c.result = c.result.substitute(owner, args);
-                if let Some(slot) = &mut c.requirement {
-                    slot.trait_arguments = slot
-                        .trait_arguments
-                        .iter()
-                        .map(|t| t.substitute(owner, args))
-                        .collect();
-                }
-                Callable(c)
-            }
-            AtLifetime(t, l) => AtLifetime(Box::new(t.substitute(owner, args)), Box::new(l.substitute(owner, args))),
-            Qualified(t, d) => domains::qualified(t.substitute(owner, args), d.iter().map(|d| d.substitute(owner, args)).collect()),
-            IndexedArray(t, index) => {
-                let element = Box::new(t.substitute(owner, args));
-                let index = index.substitute(owner, args);
-                if let StaticInteger { value, .. } = &index
-                    && let Ok(n) = u64::try_from(value)
-                {
-                    Array(element, n)
-                } else {
-                    IndexedArray(element, Box::new(index))
-                }
-            }
-            Applied(id, inner) => Applied(id.clone(), inner.iter().map(|t| t.substitute(owner, args)).collect()),
-            Array(t, n) => Array(Box::new(t.substitute(owner, args)), *n),
-            Slice(t) => Slice(Box::new(t.substitute(owner, args))),
-            Reference(a, t) => Reference(a.clone(), Box::new(t.substitute(owner, args))),
-            other => other.clone(),
-        }
+        self.rewrite(0, &|ty, _| {
+            Some(match ty {
+                Parameter { owner: b, index } if b.as_ref() == owner => args[*index].clone(),
+                StaticFormula { carrier, term } => term
+                    .substitute(owner, args)
+                    .typed(carrier.substitute(owner, args)),
+                _ => return None,
+            })
+        })
     }
     pub(crate) fn infer(
         &self,
@@ -254,4 +309,47 @@ impl ValueType {
             _ => self.admits(actual),
         }
     }
+}
+
+/// Pair each field component with the value that supplies its type.
+pub(crate) fn field_components<'a>(
+    ty: &'a ValueType,
+    actual: &'a ValueType,
+) -> impl Iterator<Item = (&'a ValueType, &'a ValueType)> {
+    use ValueType::*;
+    let mut pending = vec![(ty, actual)];
+    std::iter::from_fn(move || {
+        let (template, value) = pending.pop()?;
+        match (template, value) {
+            (Applied(a, x), Applied(b, y)) if a == b && x.len() == y.len() => pending.extend(x.iter().zip(y)),
+            (Qualified(x, left), Qualified(y, right)) => {
+                pending.push((x, y));
+                for domain in left {
+                    let mut matches = right
+                        .iter()
+                        .filter(|candidate| candidate.declaration == domain.declaration);
+                    if let (Some(actual), None) = (matches.next(), matches.next()) {
+                        pending.extend(domain.arguments.iter().zip(&actual.arguments));
+                    }
+                }
+            }
+            (IndexedArray(x, n), IndexedArray(y, m)) if n == m => pending.push((x, y)),
+            (Function(x, a), Function(y, b)) => {
+                pending.push((x, y));
+                pending.push((a, b));
+            }
+            (Reference(a, x), Reference(b, y)) if a == b => pending.push((x, y)),
+            (AtLifetime(x, _), AtLifetime(y, _)) => pending.push((x, y)),
+            (AtLifetime(x, _), Reference(..)) => pending.push((x, value)),
+            (Tuple(xs), Tuple(ys)) if xs.len() == ys.len() => pending.extend(xs.iter().zip(ys)),
+            (Array(x, a), Array(y, b)) if a == b => pending.push((x, y)),
+            (Slice(x), Slice(y)) => pending.push((x, y)),
+            (Callable(x), Callable(y)) => {
+                pending.extend(x.parameters.iter().zip(&y.parameters));
+                pending.push((&x.result, &y.result));
+            }
+            _ => {}
+        }
+        Some((template, value))
+    })
 }

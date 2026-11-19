@@ -24,6 +24,12 @@ impl CallableType {
             && (!actual.pause.block || self.pause.block)
             && (!actual.pause.suspend || self.pause.suspend)
             && (!self.terminates || actual.terminates)
+            && self.crash_ceiling.as_ref().is_none_or(|allowed| {
+                actual
+                    .crash_ceiling
+                    .as_ref()
+                    .is_some_and(|supplied| supplied.iter().all(|cause| allowed.contains(cause)))
+            })
             && self.reach.as_ref().is_none_or(|allowed| {
                 actual
                     .reach

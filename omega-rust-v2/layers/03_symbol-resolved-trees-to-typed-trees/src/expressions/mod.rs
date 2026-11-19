@@ -15,5 +15,6 @@ pub(crate) mod places;
 pub(crate) mod predicates;
 pub(crate) mod ranking;
 pub(crate) mod statements;
+pub(crate) mod storage_origin;
 pub(crate) mod type_expression;
 pub(crate) mod value_landing;

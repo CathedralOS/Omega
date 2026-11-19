@@ -2,7 +2,6 @@ pub(crate) mod access_policy_selection;
 pub(crate) mod carry;
 pub(crate) mod cleanup_selection;
 pub(crate) mod collection_access;
-pub(crate) mod collection_selectors;
 pub(crate) mod data_properties;
 pub(crate) mod multiplicity;
 pub(crate) mod opening;

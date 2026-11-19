@@ -1,7 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{Access, ObligationKind, Site, TypeError, TypedExpression, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::Symbol;
+use crate::{Access, ObligationKind, TypeError, TypedExpression, ValueType};
 
 impl BodyTyper<'_, '_> {
     pub(super) fn check_destination(
@@ -12,53 +10,47 @@ impl BodyTyper<'_, '_> {
     ) -> Result<(), TypeError> {
         self.land_value(node_index, value, expected, false)
     }
-    pub(super) fn local_view(
+    /// Whether reading a value of this type through a reference may copy it.
+    pub(super) fn copy_eligible(
         &self,
-        node_index: usize,
+        ty: &ValueType,
     ) -> bool {
-        let source = self.unit.file;
-        match source.nodes[node_index].kind {
-            NodeKind::Paren => self
-                .unit
-                .single_child(node_index)
-                .is_ok_and(|i| self.local_view(i)),
-            NodeKind::PathExpression => matches!(self.unit.symbol(node_index),Some(Symbol::Binding{span,..}) if self.local_views.contains(span)),
-            NodeKind::Match | NodeKind::Transition => source.nodes[node_index]
-                .children
-                .iter()
-                .filter(|&&i| source.nodes[i].kind == NodeKind::Arm)
-                .any(|&arm| {
-                    source.nodes[arm]
-                        .children
-                        .last()
-                        .is_some_and(|&result| self.local_view(result))
-                }),
-            NodeKind::Body | NodeKind::Tail => source.nodes[node_index]
-                .children
-                .last()
-                .is_some_and(|&last| self.local_view(last)),
-            NodeKind::Borrow => {
-                let Some(&place) = source.nodes[node_index].children.first() else {
-                    return false;
-                };
-                // Borrowing the carrier itself borrows invocation-local storage,
-                // even when a by-value parameter carries a reference.
-                let mut root = place;
-                while matches!(source.nodes[root].kind, NodeKind::FieldAccess | NodeKind::Index | NodeKind::Paren) {
-                    let Some(&inner) = source.nodes[root].children.first() else {
-                        return true;
-                    };
-                    root = inner;
-                    if matches!(source.nodes[root].kind, NodeKind::PathExpression)
-                        && let Some(Symbol::Binding { span, .. }) = self.unit.symbol(root)
-                        && matches!(self.locals.get(span), Some(ValueType::Reference(..) | ValueType::AtLifetime(..)))
-                    {
-                        return self.local_views.contains(span);
-                    }
-                }
-                matches!(self.unit.symbol(root), Some(Symbol::Binding { .. })) || source.nodes[root].kind == NodeKind::RecordLiteral
+        self.catalog.types.multiplicity(ty) == crate::Multiplicity::Copy
+    }
+    /// Reading a value out of borrowed storage copies it, so the value needs
+    /// ordinary copy eligibility (patterns.md: "A field-value binding from
+    /// borrowed storage still needs ordinary copy eligibility"). A non-copy
+    /// value needs an explicit borrow instead, except that a place reached
+    /// through `@mut` may be moved out (ownership.md, borrowed-storage
+    /// invariant windows).
+    pub(super) fn read_borrowed(
+        &mut self,
+        node_index: usize,
+        access: &Access,
+        ty: &ValueType,
+    ) -> Result<(), TypeError> {
+        match access {
+            Access::Write => Err(TypeError::at(self.unit.file, node_index, "cannot read through a write-only reference")),
+            _ if self.copy_eligible(ty) => {
+                self.record_obligation(node_index, ObligationKind::CopyRead(ty.clone()));
+                Ok(())
             }
-            _ => false,
+            Access::Mut => {
+                let file = self.unit.file;
+                self.record_obligation(
+                    node_index,
+                    ObligationKind::RestoreBorrowed {
+                        place: file.node_id(file.ungroup(node_index)),
+                        ty: ty.clone(),
+                    },
+                );
+                Ok(())
+            }
+            Access::Shared => Err(TypeError::at(
+                self.unit.file,
+                node_index,
+                format!("reading {ty} out of borrowed storage requires a copy type; borrow it with @ instead"),
+            )),
         }
     }
     pub(super) fn land_value(
@@ -80,8 +72,9 @@ impl BodyTyper<'_, '_> {
                 },
             );
         }
-        if let ValueType::AtLifetime(inner, _) = expected
-            && value == inner.as_ref()
+        if let ValueType::AtLifetime(inner, region) = expected
+            && (value == inner.as_ref()
+                || matches!((region.as_ref(),value),(ValueType::InferredLifetime {..},ValueType::AtLifetime(actual,_)) if actual==inner && value!=expected))
         {
             self.record_obligation(
                 node_index,
@@ -94,20 +87,9 @@ impl BodyTyper<'_, '_> {
         }
         // The lifetime belongs to the loan. Reading its pointee preserves that
         // loan and uses the same access check as an unannotated reference.
-        let reference = match value {
-            ValueType::AtLifetime(reference, _) => reference.as_ref(),
-            other => other,
-        };
-        if let ValueType::Reference(Access::Shared | Access::Mut, inner) = reference
-            && inner.as_ref() == expected
-            && (expected.numeric()
-                || expected == &ValueType::Bool
-                || expected.nominal_parts().is_some_and(|(id, _)| {
-                    self.catalog
-                        .data_properties
-                        .get(id)
-                        .is_some_and(|p| p.multiplicity == crate::Multiplicity::Copy)
-                }))
+        if let Some((Access::Shared | Access::Mut, inner)) = value.reference_parts()
+            && inner == expected
+            && self.copy_eligible(expected)
         {
             self.record_obligation(node_index, ObligationKind::CopyRead(expected.clone()));
             return Ok(());
@@ -142,11 +124,9 @@ impl BodyTyper<'_, '_> {
             );
         }
         if matches!(value, ValueType::Exact { .. }) {
-            self.output.landings.push(TypedExpression {
-                node: self.unit.file.node_id(node_index),
-                site: Site::at(self.unit.file, node_index),
-                ty: expected.clone(),
-            });
+            self.output
+                .landings
+                .push(TypedExpression::at(self.unit.file, node_index, expected.clone()));
         }
         Ok(())
     }

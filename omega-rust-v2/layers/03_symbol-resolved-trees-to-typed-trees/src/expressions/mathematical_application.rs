@@ -13,7 +13,7 @@ impl BodyTyper<'_, '_> {
     ) -> Result<(), TypeError> {
         let signature = &self.catalog.signatures[id];
         let mut conclusion = expected.clone();
-        for (span, parameter) in &signature.params {
+        for (span, parameter) in &signature.parameters {
             let ValueType::Function(input, output) = conclusion else {
                 return Err(TypeError::at(self.unit.file, node_index, "mathematical citation has incompatible parameters"));
             };
@@ -27,7 +27,7 @@ impl BodyTyper<'_, '_> {
                 version: None,
             });
         }
-        if self.catalog.types.arities[id] != 0
+        if self.catalog.types.arity(id) != 0
             || !matches!(conclusion, ValueType::FamilyApplication { .. } | ValueType::Squash(_))
             || (signature.result != ValueType::NoResult && signature.result != conclusion)
         {
@@ -58,13 +58,7 @@ impl BodyTyper<'_, '_> {
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
         if let Some(assumptions) = definition.and_then(|id| self.catalog.assumptions.get(id)) {
-            let mathematical = source.enclosing_contexts(node_index).any(|p| {
-                matches!(
-                    source.nodes[p].kind,
-                    NodeKind::MathLet | NodeKind::Requires | NodeKind::Ensures | NodeKind::Hypothesis
-                )
-            });
-            if !mathematical && !self.logical_argument {
+            if self.context != super::body_typer::ExpressionContext::Proof {
                 return Err(TypeError::at(
                     source,
                     node_index,
@@ -75,22 +69,18 @@ impl BodyTyper<'_, '_> {
                 self.record_obligation(node_index, ObligationKind::AdmitMathematicalAssumption(assumption.clone()));
             }
         }
-        let mut formals = definition.map_or_else(Vec::new, |id| self.catalog.types.formals(id));
+        let mut formals = Vec::new();
+        let explicit = definition.map_or(&[][..], |id| self.unit.arguments_for(callee, id));
+        if let Some(id) = definition {
+            formals = self
+                .unit
+                .applied_formals(callee, id, explicit, &self.catalog.types, Clone::clone)?;
+        } else if source.nodes[callee].kind == NodeKind::PathExpression && !source.nodes[callee].children.is_empty() {
+            return Err(TypeError::at(source, callee, "mathematical parameter has no generic telescope"));
+        }
         let mut bindings = vec![None; formals.len()];
-        if source.nodes[callee].kind == NodeKind::PathExpression {
-            for &section in &source.nodes[callee].children {
-                let Some(id) = definition else {
-                    return Err(TypeError::at(source, section, "mathematical parameter has no generic telescope"));
-                };
-                if source.nodes[section].children.len() > formals.len() {
-                    return Err(TypeError::at(source, section, "excess generic arguments"));
-                }
-                for (index, &arg) in source.nodes[section].children.iter().enumerate() {
-                    let value = self.unit.argument(arg, &self.catalog.types, id, index)?;
-                    formals[index] = value.clone();
-                    bindings[index] = Some(value);
-                }
-            }
+        for (slot, value) in bindings.iter_mut().zip(&formals[..explicit.len()]) {
+            *slot = Some(value.clone());
         }
         let mut supplied = Vec::with_capacity(arguments.len());
         for &arg in arguments {
@@ -127,7 +117,7 @@ impl BodyTyper<'_, '_> {
                 .into_iter()
                 .collect::<Option<Vec<_>>>()
                 .ok_or_else(|| TypeError::at(source, callee, "cannot infer all mathematical generic arguments"))?;
-            self.validate_call_bindings(node_index, callee, id, &selected)?;
+            self.validate_call_bindings(node_index, callee, id, explicit, &selected, &[])?;
             function = function.substitute(id, &selected);
             selected
         } else {

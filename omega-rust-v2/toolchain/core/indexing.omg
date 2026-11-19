@@ -1,0 +1,23 @@
+public machine [] read<Element [copy]>(items: @[Element], index: u64) -> Element
+    requires index < items.len
+    reaches none crashes none;
+
+public machine [] element<Element>(items: @[Element], index: u64) -> @Element
+    requires index < items.len
+    reaches none crashes none;
+
+public machine [] element_mut<Element>(items: @mut [Element], index: u64) -> @mut Element
+    requires index < items.len
+    reaches none crashes none;
+
+public machine [..] range<Element>(items: @[Element], start: u64, end: u64) -> @[Element]
+    requires start <= end
+    requires end <= items.len
+    ensures result.len == end - start
+    reaches none crashes none;
+
+public machine [..] range_mut<Element>(items: @mut [Element], start: u64, end: u64) -> @mut [Element]
+    requires start <= end
+    requires end <= items.len
+    ensures result.len == end - start
+    reaches none crashes none;

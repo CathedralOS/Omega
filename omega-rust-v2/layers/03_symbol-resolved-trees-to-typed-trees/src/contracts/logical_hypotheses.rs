@@ -1,75 +1,10 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::type_system::type_catalog::TypeCatalog;
 use crate::{LogicalHypothesis, Site, TypeError, TypedStage, ValueType};
 use omega_parser::NodeKind::*;
+use omega_parser::TerminationClause;
 use omega_resolver::{DeclarationId, Symbol};
-use std::collections::{HashMap, HashSet};
-
-pub(crate) fn index_mathematical_interfaces<'a>(
-    units: &[ResolvedSourceFile<'a>],
-    types: &mut TypeCatalog<'a>,
-) -> std::result::Result<(), TypeError> {
-    let mut entries = Vec::new();
-    let mut index = HashMap::new();
-    for unit in units {
-        for (n, _) in unit
-            .file
-            .nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, node)| node.kind == MathLet)
-        {
-            index.insert(unit.declaration(n)?, entries.len());
-            entries.push((unit, n));
-        }
-    }
-    let mut waiting = vec![0usize; entries.len()];
-    let mut users = vec![Vec::new(); entries.len()];
-    let mut ready = std::collections::VecDeque::new();
-    for (i, (unit, n)) in entries.iter().enumerate() {
-        let mut parents = HashSet::new();
-        let equals = unit.file.nodes[*n]
-            .leaves
-            .iter()
-            .find(|t| t.text == "=")
-            .map(|t| t.span.get_start_offset());
-        for child in *n + 1..unit.file.nodes[*n].end {
-            if equals.is_some_and(|offset| unit.file.span(child).get_start_offset() > offset) {
-                break;
-            }
-            if matches!(unit.file.nodes[child].kind, FamilyApplication | Call)
-                && let Some(&head) = unit.file.nodes[child].children.first()
-                && let Some(Symbol::Declaration(id)) = unit.symbol(head)
-                && let Some(&dep) = index.get(id)
-            {
-                parents.insert(dep);
-            }
-        }
-        waiting[i] = parents.len();
-        for dep in parents {
-            users[dep].push(i);
-        }
-        if waiting[i] == 0 {
-            ready.push_back(i);
-        }
-    }
-    while let Some(i) = ready.pop_front() {
-        let (unit, n) = entries[i];
-        unit.index_mathematical(n, types)?;
-        for &user in &users[i] {
-            waiting[user] -= 1;
-            if waiting[user] == 0 {
-                ready.push_back(user);
-            }
-        }
-    }
-    if let Some(i) = waiting.iter().position(|n| *n > 0) {
-        let (unit, n) = entries[i];
-        return Err(TypeError::at(unit.file, n, "cyclic mathematical family signatures"));
-    }
-    Ok(())
-}
+use std::collections::HashMap;
 
 pub(crate) fn index_logical_hypotheses<'a>(
     unit: &mut ResolvedSourceFile<'a>,
@@ -79,16 +14,11 @@ pub(crate) fn index_logical_hypotheses<'a>(
     let f = unit.file;
     for (n, node) in f.nodes.iter().enumerate().filter(|(_, n)| n.kind == Hypothesis) {
         let owner = f
-            .enclosing_contexts(n)
+            .ancestors(n)
             .find_map(|a| unit.declaration_at(a))
+            .filter(|owner| owner.kind == Machine)
             .ok_or_else(|| TypeError::at(f, n, "hypothesis needs an enclosing theorem"))?;
-        if owner.kind != Machine {
-            return Err(TypeError::at(f, n, "hypothesis needs an enclosing theorem"));
-        }
-        let name = node
-            .words()
-            .nth(2)
-            .ok_or_else(|| TypeError::unsupported(f, n))?;
+        let name = node.binder_name().expect("named hypothesis");
         let site = Site::at(f, n);
         let mut requirement = LogicalHypothesis {
             site: site.clone(),
@@ -106,14 +36,14 @@ pub(crate) fn index_logical_hypotheses<'a>(
         for &part in &node.children {
             match f.nodes[part].kind {
                 Params => {
-                    for &p in &f.nodes[part].children {
-                        let parameter = f.nodes[p]
-                            .words()
-                            .next()
-                            .ok_or_else(|| TypeError::unsupported(f, p))?;
-                        let t = unit.annotation(unit.single_child(p)?, &catalog.types)?;
+                    for (parameter, annotation) in f.parameters(n) {
+                        let t = unit.annotation(annotation, &catalog.types)?;
                         if matches!(t.carrier(), ValueType::Reference(crate::Access::Mut | crate::Access::Write, _)) {
-                            return Err(TypeError::at(f, p, "logical hypothesis cannot supply mutable authority"));
+                            return Err(TypeError::at(
+                                f,
+                                f.nodes[annotation].parent.expect("parameter annotation"),
+                                "logical hypothesis cannot supply mutable authority",
+                            ));
                         }
                         requirement.parameters.push((parameter.span, t));
                     }
@@ -124,7 +54,7 @@ pub(crate) fn index_logical_hypotheses<'a>(
                     .conclusions
                     .push(Site::at(f, unit.single_child(part)?)),
                 Hypothesis => {}
-                Terminates if f.nodes[part].children.is_empty() => {}
+                Terminates if f.nodes[part].termination_clause() == Some(TerminationClause::Bare) => {}
                 Reaches | Crashes
                     if unit
                         .symbol(unit.single_child(part)?)
@@ -133,19 +63,15 @@ pub(crate) fn index_logical_hypotheses<'a>(
             }
         }
         unit.hypotheses.insert(name.span, site.clone());
-        if let Some(telescope) = node.parent.and_then(|p| f.child(p, GenericParams)) {
-            for &p in &f.nodes[telescope].children {
-                if f.nodes[p].kind == MachineParam
-                    && let Some(formal) = f.nodes[p].words().nth(1)
-                    && formal.text == name.text
-                {
+        if let Some(parent) = node.parent {
+            for (formal, p, kind) in f.generic_parameters(parent) {
+                if kind == MachineParam && formal.text == name.text {
                     let Some(ValueType::Parameter { index, .. }) = unit.parameters.get(&formal.span) else {
                         return Err(TypeError::unsupported(f, p));
                     };
                     if catalog
                         .types
-                        .const_carriers
-                        .insert((owner, *index), ValueType::LogicalRequirement(site.clone()))
+                        .set_carrier(owner, *index, ValueType::LogicalRequirement(site.clone()))
                         .is_some()
                     {
                         return Err(TypeError::at(f, n, "duplicate logical requirement for binder"));
@@ -164,8 +90,7 @@ pub(crate) fn index_logical_hypotheses<'a>(
         .filter(|(_, n)| n.kind == MachineParam)
     {
         if node
-            .words()
-            .nth(1)
+            .binder_name()
             .is_none_or(|name| !unit.hypotheses.contains_key(&name.span))
         {
             return Err(TypeError::at(
@@ -181,40 +106,33 @@ pub(crate) fn record_assumption_dependencies(
     units: &[ResolvedSourceFile<'_>],
     catalog: &mut DeclarationCatalog<'_>,
     output: &mut TypedStage,
-) -> std::result::Result<(), TypeError> {
-    let mut callers = HashMap::<DeclarationId, Vec<DeclarationId>>::new();
+) {
+    let mut callers = HashMap::<&DeclarationId, Vec<&DeclarationId>>::new();
     let mut queue = std::collections::VecDeque::new();
     for unit in units {
-        for (n, node) in unit
-            .file
-            .nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, n)| n.kind == MathLet)
-        {
-            let id = unit.declaration(n)?;
-            if node.words().any(|w| w.text == "boundary") {
-                queue.push_back((id.clone(), id.clone()));
+        for (n, id) in unit.declaration_nodes().filter(|(_, id)| id.kind == MathLet) {
+            let node = &unit.file.nodes[n];
+            if node.has_boundary_modifier() {
+                queue.push_back((id, id.clone()));
             }
             for i in n + 1..node.end {
                 if let Some(Symbol::Declaration(dep)) = unit.symbol(i)
                     && dep.kind == MathLet
                 {
-                    callers.entry(dep.clone()).or_default().push(id.clone());
+                    if let Some(imported) = catalog.assumptions.get(dep) {
+                        queue.extend(imported.iter().cloned().map(|assumption| (id, assumption)));
+                    }
+                    callers.entry(dep).or_default().push(id);
                 }
             }
         }
     }
-    let mut closure = HashSet::new();
     while let Some((id, assumption)) = queue.pop_front() {
-        if closure.insert((id.clone(), assumption.clone())) {
-            catalog
-                .assumptions
-                .entry(id.clone())
-                .or_default()
-                .push(assumption.clone());
-            if let Some(parents) = callers.get(&id) {
-                queue.extend(parents.iter().map(|p| (p.clone(), assumption.clone())));
+        let assumptions = catalog.assumptions.entry(id.clone()).or_default();
+        if !assumptions.contains(&assumption) {
+            assumptions.push(assumption.clone());
+            if let Some(parents) = callers.get(id) {
+                queue.extend(parents.iter().map(|&p| (p, assumption.clone())));
             }
         }
     }
@@ -229,5 +147,4 @@ pub(crate) fn record_assumption_dependencies(
     output
         .mathematical_interfaces
         .sort_by_cached_key(|row| format!("{:?}", row.0));
-    Ok(())
 }

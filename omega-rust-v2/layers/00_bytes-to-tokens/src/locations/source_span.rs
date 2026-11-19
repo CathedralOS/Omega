@@ -1,7 +1,7 @@
 //! A byte range in one source file.
 
 /// A half-open range of byte offsets: `start_offset` is the first byte, `end_offset` is one past the last.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SourceSpan {
     start_offset: usize,
     end_offset: usize,

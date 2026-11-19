@@ -1,5 +1,6 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{ObligationKind, Site, TypeError, TypedExpression, ValueType};
+use crate::expressions::storage_origin::PatternSource;
+use crate::{ObligationKind, TypeError, ValueType};
 use omega_parser::NodeKind;
 
 impl BodyTyper<'_, '_> {
@@ -20,20 +21,20 @@ impl BodyTyper<'_, '_> {
                 ConstParam if source.nodes[node_index].kind == Fragment => {
                     let ty = self
                         .unit
-                        .raw_type(self.unit.single_child(statement)?, None, &self.catalog.types)?;
-                    self.output.expressions.push(TypedExpression {
-                        node: source.node_id(statement),
-                        site: Site::at(source, statement),
-                        ty,
-                    });
+                        .raw_type(self.unit.single_child(statement)?, &self.catalog.types)?;
+                    self.record_expression(statement, ty);
                 }
                 Use | Data | Const | Trait | Domain | Conformance | MathLet if source.nodes[node_index].kind == Fragment => {}
-                Transition => result = Some(self.dispatch(statement, expected)?),
+                Transition => {
+                    result = Some(self.dispatch(statement, expected)?);
+                    self.set_origin(node_index, self.origin(statement));
+                }
                 Tail | ExpressionStatement | Discard => {
                     let expr = self.unit.single_child(statement)?;
                     let tail = source.nodes[statement].kind == Tail;
                     let value = self.type_expression_with_expected_type(expr, if tail { expected } else { None })?;
                     if tail {
+                        self.set_origin(node_index, self.origin(expr));
                         if let Some(ty) = expected {
                             self.check_destination(expr, &value, ty)?;
                         }
@@ -64,12 +65,12 @@ impl BodyTyper<'_, '_> {
         result: &ValueType,
     ) -> Result<(), TypeError> {
         let source = self.unit.file;
-        if matches!(result, ValueType::Reference(..) | ValueType::AtLifetime(..))
-            && let Some(machine) = source.nodes[body]
-                .parent
-                .filter(|&p| source.nodes[p].kind == NodeKind::Machine)
+        if let Some(machine) = source.nodes[body]
+            .parent
+            .filter(|&p| source.nodes[p].kind == NodeKind::Machine)
+            && let Some(origin) = self.carried_loans(result, self.origin(expr))
         {
-            if self.local_view(expr) {
+            if origin.is_local() {
                 return Err(TypeError::at(source, expr, "returned reference borrows invocation-local storage"));
             }
             self.record_obligation(
@@ -78,6 +79,22 @@ impl BodyTyper<'_, '_> {
                     machine: self.unit.declaration(machine)?.clone(),
                 },
             );
+        }
+        Ok(())
+    }
+    /// numeric_values.md refuses an unannotated binding of an unsuffixed number
+    /// at its initializer, because later uses never choose a binding's type.
+    pub(super) fn require_declared_number(
+        &self,
+        initializer: usize,
+        ty: &ValueType,
+    ) -> Result<(), TypeError> {
+        if ty.holds_anonymous_number() {
+            return Err(TypeError::at(
+                self.unit.file,
+                initializer,
+                "an unsuffixed numeric binding must declare its type, as in `let count: u8 = 5` or `5u8`",
+            ));
         }
         Ok(())
     }
@@ -95,7 +112,10 @@ impl BodyTyper<'_, '_> {
             if source.nodes[node_index].words().any(|w| w.text == "mut") {
                 self.writable.insert(source.span(pattern));
             }
-            if !self.bind_pattern(pattern, &ty)?.is_total() {
+            if !self
+                .bind_pattern(pattern, &ty, annotation, &PatternSource::default())?
+                .is_total()
+            {
                 return Err(TypeError::at(source, pattern, "let requires an irrefutable pattern"));
             }
             return Ok(());
@@ -106,20 +126,26 @@ impl BodyTyper<'_, '_> {
             _ => return Err(TypeError::unsupported(source, node_index)),
         };
         let declared = annotation
-            .map(|t| self.unit.annotation(t, &self.catalog.types))
+            .map(|t| self.unit.initialized_annotation(t, &self.catalog.types, None))
             .transpose()?;
-        let value = self.type_expression_with_expected_type(expr, declared.as_ref())?;
+        // A destructuring `let` decomposes its initializer in place, as a
+        // dispatch does; a plain binding reads its value.
+        let decomposes = declared.is_none() && matches!(source.nodes[pattern].kind, NodeKind::RecordPattern | NodeKind::TuplePattern);
+        let (value, from) = if decomposes {
+            self.pattern_subject(expr)?
+        } else {
+            let value = self.type_expression_with_expected_type(expr, declared.as_ref())?;
+            (value, PatternSource::of(self.origin(expr)))
+        };
         let local_type = if let Some(expected) = declared {
+            let expected = crate::type_system::local_lifetimes::FieldLifetimes::from_value(expected, &value);
             self.check_destination(expr, &value, &expected)?;
             expected
         } else {
-            if matches!(value, ValueType::Exact { .. }) {
-                return Err(TypeError::at(
-                    source,
-                    expr,
-                    "an unsuffixed numeric binding must declare its type, as in `let count: u8 = 5`",
-                ));
-            }
+            // The whole initializer is checked, not only the parts a binder
+            // keeps: `let _ = 5;` and `let (_, b) = (5, 6u8);` also declare
+            // a binding without saying what its anonymous part holds.
+            self.require_declared_number(expr, &value)?;
             value
         };
         if local_type == ValueType::NoResult {
@@ -128,10 +154,7 @@ impl BodyTyper<'_, '_> {
         if source.nodes[node_index].words().any(|w| w.text == "mut") {
             self.writable.insert(source.span(pattern));
         }
-        if self.local_view(expr) {
-            self.local_views.insert(source.span(pattern));
-        }
-        if !self.bind_pattern(pattern, &local_type)?.is_total() {
+        if !self.bind_pattern(pattern, &local_type, expr, &from)?.is_total() {
             return Err(TypeError::at(source, pattern, "let requires an irrefutable pattern"));
         }
         Ok(())

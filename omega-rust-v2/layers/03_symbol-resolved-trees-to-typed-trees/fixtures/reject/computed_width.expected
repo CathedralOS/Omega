@@ -1,1 +1,1 @@
-refusal | 4:22 | make::<255>() | static index 256 exceeds u8
+refusal | 3:22 | make::<255>() | static index 256 exceeds u8

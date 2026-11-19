@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 
-WORKSPACE = Path(__file__).resolve().parents[2]
+WORKSPACE = Path(__file__).absolute().parents[2]
 STAGE_TESTS = {
     "language/domains.md:1020": (
         "published_quantity_keeps_its_carrier_and_unit_index",
@@ -22,7 +22,7 @@ STAGE_TESTS = {
     "language/effects.md:871": ("published_pause_markers_cover_each_required_effect",),
     "language/generics.md:61": ("published_sort_requirement_binds_each_calls_element_and_ordering",),
     "language/generics.md:306": (
-        "published_type_equality_rejects_a_shadowing_value",
+        "published_equality_binds_a_shadowing_parameter",
         "published_static_type_disjunction_reaches_typing",
     ),
     "language/generics.md:636": ("published_static_parameters_require_the_declared_argument_role",),

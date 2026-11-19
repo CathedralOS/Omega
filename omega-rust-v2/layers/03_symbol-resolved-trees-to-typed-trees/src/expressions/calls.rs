@@ -1,6 +1,6 @@
-use crate::contracts::effect_clauses;
+use super::call_arguments::SelectedMachine;
 use crate::expressions::body_typer::BodyTyper;
-use crate::{ObligationKind, Site, TypeError, TypedCall, ValueType};
+use crate::{TypeError, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
 
@@ -43,62 +43,18 @@ impl BodyTyper<'_, '_> {
         if source.nodes[callee].kind != NodeKind::PathExpression {
             return match self.type_expression(callee)? {
                 ty @ ValueType::Function(..) => self.mathematical_application(node_index, callee, None, ty, &source.nodes[args].children, expected),
-                ValueType::Callable(c) => self.indirect(node_index, callee, args, &c, false),
+                ValueType::Callable(c) => self.indirect(node_index, callee, args, &c),
                 _ => Err(TypeError::at(source, callee, "indirect call requires a callable value")),
             };
         }
         match self.unit.symbol(callee) {
-            Some(Symbol::StaticGuarantee { binder }) => {
-                if let Some(site) = self.unit.hypotheses.get(binder) {
-                    if !source
-                        .enclosing_contexts(node_index)
-                        .any(|p| matches!(source.nodes[p].kind, NodeKind::Requires | NodeKind::Ensures | NodeKind::MathLet))
-                    {
-                        return Err(TypeError::at(source, callee, "logical evidence cannot be executed"));
-                    }
-                    let requirement = &self.catalog.hypotheses[site];
-                    let mut parameters: Vec<_> = requirement
-                        .parameters
-                        .iter()
-                        .map(|(_, ty)| ty.clone())
-                        .collect();
-                    if requirement.result != ValueType::NoResult {
-                        parameters.push(requirement.result.clone());
-                    }
-                    if requirement.conclusions.is_empty() || parameters.len() != source.nodes[args].children.len() {
-                        return Err(TypeError::at(
-                            source,
-                            node_index,
-                            "logical guarantee needs its declared subjects and conclusion",
-                        ));
-                    }
-                    for (&arg, ty) in source.nodes[args].children.iter().zip(&parameters) {
-                        let actual = self.type_expression_with_expected_type(arg, Some(ty))?;
-                        self.check_destination(arg, &actual, ty)?;
-                    }
-                    self.record_obligation(
-                        node_index,
-                        ObligationKind::ApplyHypothesis {
-                            requirement: site.clone(),
-                            operands: source.nodes[args]
-                                .children
-                                .iter()
-                                .map(|&a| Site::at(source, a))
-                                .collect(),
-                        },
-                    );
-                    return Ok(ValueType::Bool);
-                }
-                let c = self.static_callable(*binder, callee)?;
-                return self.indirect(node_index, callee, args, &c, true);
-            }
             Some(Symbol::Binding {
                 span,
                 kind: NodeKind::ConstParam,
                 ..
             }) => {
                 let c = self.static_callable(*span, callee)?;
-                return self.indirect(node_index, callee, args, &c, false);
+                return self.indirect(node_index, callee, args, &c);
             }
             Some(Symbol::Binding {
                 kind: NodeKind::Hypothesis | NodeKind::MachineParam,
@@ -108,107 +64,82 @@ impl BodyTyper<'_, '_> {
                 let Some(ValueType::Callable(c)) = self.locals.get(span).cloned() else {
                     return Err(TypeError::at(source, callee, "indirect call requires a callable value"));
                 };
-                return self.indirect(node_index, callee, args, &c, false);
+                return self.indirect(node_index, callee, args, &c);
             }
             _ => {}
         }
-        let evidence = match self.unit.symbol(callee) {
-            Some(Symbol::EvidenceMember { binder, .. }) => self.unit.parameters.get(binder).cloned(),
-            _ => None,
-        };
-        let candidates = match self.unit.symbol(callee) {
-            Some(Symbol::EvidenceMember { requirements, .. }) => requirements.as_slice(),
+        let mut evidence = None;
+        let mut evidence_lineage = None;
+        let mut requirements = Vec::new();
+        let declarations = match self.unit.symbol(callee) {
+            Some(Symbol::StaticMember { binder, member }) => {
+                evidence = self.unit.parameters.get(binder).cloned();
+                let carrier = evidence
+                    .as_ref()
+                    .and_then(|parameter| self.catalog.types.parameter_carrier(parameter));
+                let Some(ValueType::Evidence(slot)) = carrier else {
+                    if member == "ensures" {
+                        return self.project_guarantee(node_index, callee, args, *binder);
+                    }
+                    return Err(TypeError::at(source, callee, "member selection requires a trait evidence binder"));
+                };
+                let lineage = self.catalog.trait_lineage(slot);
+                requirements.extend(
+                    lineage
+                        .iter()
+                        .flat_map(|owner| &self.catalog.requirements[&owner.declaration])
+                        .filter(|id| id.path.rsplit("::").next() == Some(member.as_str()))
+                        .copied(),
+                );
+                if requirements.is_empty() {
+                    return Err(TypeError::at(source, callee, format!("{} has no requirement {member}", slot.declaration.path)));
+                }
+                evidence_lineage = Some(lineage);
+                &[][..]
+            }
             Some(Symbol::Declaration(id)) if matches!(id.kind, NodeKind::Machine | NodeKind::AsmMachine) => std::slice::from_ref(id),
             Some(Symbol::Candidates(ids)) => ids.as_slice(),
             _ => return Err(TypeError::at(source, callee, "unsupported indirect call or non-machine callee")),
         };
         let mut explicit = &[][..];
-        let mut enclosing_arguments = Vec::new();
-        if let Some(value) = &evidence
-            && let Some(ValueType::Evidence(slot)) = self.catalog.types.parameter_carrier(value)
-        {
-            enclosing_arguments.extend(
-                self.catalog
-                    .trait_lineage(slot)
-                    .into_iter()
-                    .map(|s| (s.declaration, s.trait_arguments)),
-            );
-        }
         for &section in &source.nodes[callee].children {
-            let Some(symbol) = self.unit.application_name(section).map(|name| &name.target) else {
-                return Err(TypeError::unsupported(source, section));
-            };
-            match symbol {
-                Symbol::Declaration(owner) if owner.kind == NodeKind::Trait || owner.kind == NodeKind::Conformance => {
-                    let arguments = source.nodes[section]
-                        .children
-                        .iter()
-                        .enumerate()
-                        .map(|(i, &arg)| self.unit.argument(arg, &self.catalog.types, owner, i))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    if self.catalog.types.arities[owner] != arguments.len() {
-                        return Err(TypeError::at(source, section, "incorrect enclosing application arity"));
-                    }
-                    enclosing_arguments.push((owner.clone(), arguments));
+            let arguments = source.nodes[section].children.as_slice();
+            match self.unit.application_name(section).map(|name| &name.target) {
+                Some(Symbol::Declaration(id)) if matches!(id.kind, NodeKind::Trait | NodeKind::Conformance) => {}
+                Some(Symbol::Binding { .. }) if evidence.is_some() => {
+                    return Err(TypeError::at(source, section, "type arguments cannot be applied to the evidence binder"));
                 }
-                _ => explicit = source.nodes[section].children.as_slice(),
+                Some(_) => explicit = arguments,
+                None => return Err(TypeError::unsupported(source, section)),
             }
         }
-        if let Some(Symbol::Declaration(owner)) = self.unit.qualifier(callee)
-            && owner.kind == NodeKind::Trait
-            && self.catalog.trait_parents.contains_key(owner)
-        {
-            let supplied = enclosing_arguments
-                .iter()
-                .find(|(decl, _)| decl == owner)
-                .map(|(_, args)| args.clone())
-                .unwrap_or_default();
-            if supplied.len() != self.catalog.types.arities[owner] {
-                return Err(TypeError::at(source, callee, "incorrect enclosing application arity"));
-            }
-            let slot = crate::RequirementSlot {
-                declaration: owner.clone(),
-                trait_arguments: supplied,
-            };
-            enclosing_arguments.extend(
-                self.catalog
-                    .trait_lineage(&slot)
-                    .into_iter()
-                    .skip(1)
-                    .map(|s| (s.declaration, s.trait_arguments)),
-            );
-        }
-        let capture = |t: &ValueType| {
-            enclosing_arguments
-                .iter()
-                .fold(t.clone(), |ty, (owner, args)| ty.substitute(owner, args))
+        let enclosing_arguments = if let Some(lineage) = evidence_lineage {
+            lineage
+                .into_iter()
+                .map(|slot| (slot.declaration, slot.trait_arguments))
+                .collect()
+        } else {
+            self.unit.receiver_arguments(callee, self.catalog)?
         };
+        let capture = |t: &ValueType| t.in_enclosing_scopes(&enclosing_arguments);
         let mut prepared = Vec::new();
         let mut argument_error = None;
-        for id in candidates {
+        let candidate_count = declarations.len() + requirements.len();
+        for id in declarations.iter().chain(requirements) {
             let Some(signature) = self.catalog.signatures.get(id) else { continue };
-            if signature.params.len() != source.nodes[args].children.len() {
+            if signature.parameters.len() != source.nodes[args].children.len() {
                 continue;
             }
-            let arity = self.catalog.types.arities[id];
-            if explicit.len() > arity {
-                argument_error = Some(TypeError::at(source, callee, "excess generic arguments"));
-                continue;
-            }
-            let mut formals = self.catalog.types.formals(id);
-            let parsed = explicit
-                .iter()
-                .enumerate()
-                .map(|(i, &arg)| self.unit.argument(arg, &self.catalog.types, id, i))
-                .collect::<Result<Vec<_>, _>>();
-            let explicit_values = match parsed {
-                Ok(args) => args,
+            let formals = match self
+                .unit
+                .applied_formals(callee, id, explicit, &self.catalog.types, capture)
+            {
+                Ok(formals) => formals,
                 Err(e) => {
                     argument_error = Some(e);
                     continue;
                 }
             };
-            formals[..explicit_values.len()].clone_from_slice(&explicit_values);
             let result = capture(&signature.result).substitute(id, &formals);
             let wanted = expected.map_or(&[][..], ValueType::domains);
             // An operand can determine the entire return type or an index in a
@@ -217,13 +148,13 @@ impl BodyTyper<'_, '_> {
             if domain_destination.is_none() && result.domains() != wanted {
                 continue;
             }
-            prepared.push((id, signature, formals, explicit_values, domain_destination));
+            prepared.push((id, signature, formals, domain_destination));
         }
         let mut operands = Vec::new();
         let mut subjects = Vec::new();
         for (position, &arg) in source.nodes[args].children.iter().enumerate() {
-            let mut parameters = prepared.iter().map(|(id, signature, formals, explicit, _)| {
-                let ty = capture(&signature.params[position].1)
+            let mut parameters = prepared.iter().map(|(id, signature, formals, _)| {
+                let ty = capture(&signature.parameters[position].1)
                     .substitute(id, formals)
                     .instantiate_subjects(signature, &subjects);
                 (explicit.len() == formals.len() || !ty.contains_parameter()).then_some(ty)
@@ -232,19 +163,12 @@ impl BodyTyper<'_, '_> {
                 .next()
                 .flatten()
                 .filter(|ty| parameters.all(|other| other.as_ref() == Some(ty)));
-            let value = self.type_expression_with_expected_type(arg, common.as_ref())?;
-            let version = match self.unit.symbol(arg) {
-                Some(Symbol::Binding { span, .. }) if self.writable.contains(span) => self.version.as_ref(),
-                _ => None,
-            };
-            subjects.push(
-                self.unit
-                    .term_subject(arg, common.as_ref().unwrap_or(&value), version),
-            );
-            operands.push((arg, value));
+            let operand = self.argument_operand(arg, common.as_ref())?;
+            subjects.push(operand.subject(self.unit, common.as_ref().unwrap_or(&operand.value)));
+            operands.push(operand);
         }
         let mut matches = Vec::new();
-        for (id, signature, formals, explicit_values, domain_destination) in prepared {
+        for (id, signature, formals, domain_destination) in prepared {
             let arity = formals.len();
             let instantiate = |t: &ValueType| {
                 capture(t)
@@ -252,14 +176,15 @@ impl BodyTyper<'_, '_> {
                     .instantiate_subjects(signature, &subjects)
             };
             let mut bindings = vec![None; arity];
-            for (i, ty) in explicit_values.iter().enumerate() {
+            for (i, ty) in formals[..explicit.len()].iter().enumerate() {
                 bindings[i] = Some(ty.clone());
             }
             if signature
-                .params
+                .parameters
                 .iter()
                 .zip(&operands)
-                .all(|((_, p), (_, v))| Self::infer_argument(&instantiate(p), v, id, &mut bindings))
+                .enumerate()
+                .all(|(i, ((_, p), op))| self.infer_operand(NodeKind::Call, i, op, &instantiate(p), id, &mut bindings))
             {
                 if let Some(destination) = domain_destination {
                     let result = capture(&signature.result).instantiate_subjects(signature, &subjects);
@@ -275,15 +200,16 @@ impl BodyTyper<'_, '_> {
                     }
                 }
                 matches.push((id, signature, bindings));
-            } else if candidates.len() == 1 {
+            } else if candidate_count == 1 {
                 let mut inferred = vec![None; arity];
                 if signature
-                    .params
+                    .parameters
                     .iter()
                     .zip(&operands)
-                    .all(|((_, p), (_, v))| Self::infer_argument(&capture(p), v, id, &mut inferred))
+                    .enumerate()
+                    .all(|(i, ((_, p), op))| self.infer_operand(NodeKind::Call, i, op, &capture(p), id, &mut inferred))
                 {
-                    for (i, ty) in explicit_values.iter().enumerate() {
+                    for (i, ty) in formals[..explicit.len()].iter().enumerate() {
                         if inferred[i].as_ref().is_some_and(|v| v != ty) {
                             argument_error = Some(TypeError::at(source, explicit[i], format!("conflicting type argument {ty}")));
                             break;
@@ -300,7 +226,7 @@ impl BodyTyper<'_, '_> {
             }
             let types = operands
                 .iter()
-                .map(|(_, t)| t.to_string())
+                .map(|op| op.value.to_string())
                 .collect::<Vec<_>>()
                 .join(", ");
             return Err(TypeError::at(source, callee, format!("no matching overload for {name}({types})")));
@@ -308,6 +234,7 @@ impl BodyTyper<'_, '_> {
         if matches.next().is_some() {
             return Err(TypeError::at(source, callee, format!("ambiguous call to {name}")));
         }
+        self.unit.check_signature_selection(callee, id)?;
         if let Some(expected) = expected {
             capture(&signature.result).infer(expected, id, &mut bindings);
         }
@@ -315,39 +242,16 @@ impl BodyTyper<'_, '_> {
             .into_iter()
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| TypeError::at(source, callee, "cannot infer all generic arguments"))?;
-        self.validate_call_bindings(node_index, callee, id, &bindings)?;
-        for ((arg, value), (_, param)) in operands.iter().zip(&signature.params) {
-            self.admit_argument(
-                *arg,
-                value,
-                &capture(param)
-                    .substitute(id, &bindings)
-                    .instantiate_subjects(signature, &subjects),
-            )?;
-        }
-        let result = capture(&signature.result)
-            .substitute(id, &bindings)
-            .instantiate_subjects(signature, &subjects);
-        if signature.requires {
-            self.record_obligation(node_index, ObligationKind::CallPrecondition(id.clone()));
-        }
-        if self.call_use(node_index) == crate::CallUse::Execution {
-            self.version = Some(Site::at(source, node_index));
-            self.cases.clear();
-        }
-        self.output.calls.push(TypedCall {
-            node: source.node_id(node_index),
-            use_site: self.call_use(node_index),
-            site: Site::at(source, node_index),
-            machine: id.clone(),
-            result: result.clone(),
-            operands: operands.iter().map(|(node, _)| source.node_id(*node)).collect(),
-            type_arguments: bindings,
-            enclosing_arguments,
-            caller: self.caller.clone(),
-            evidence,
-            acknowledgements: effect_clauses::markers(self.unit, node_index)?,
-        });
-        Ok(result)
+        self.apply_machine(
+            node_index,
+            SelectedMachine {
+                machine: id,
+                explicit_arguments: explicit,
+                arguments: bindings,
+                enclosing: enclosing_arguments,
+                evidence,
+            },
+            &operands,
+        )
     }
 }

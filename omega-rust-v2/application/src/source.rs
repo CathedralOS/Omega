@@ -1,36 +1,23 @@
 //! Read and parse source files, then resolve an explicitly supplied package. Build a line index on failure.
 
-use omega_lexer::{LexError, LineIndex, SourcePosition};
-use omega_parser::ParseError;
-use std::{fmt, fs, io, path::Path};
+use omega_lexer::{LineIndex, SourceSpan};
+use std::{fmt, fs, path::Path};
 
-pub(crate) enum FileError<'a> {
-    Read(&'a Path, io::Error),
-    Lex(&'a Path, SourcePosition, LexError),
-    Parse(&'a Path, SourcePosition, ParseError),
+fn diagnostic(
+    path: impl fmt::Display,
+    bytes: Option<&[u8]>,
+    span: SourceSpan,
+    stage: &str,
+    error: impl fmt::Display,
+) -> String {
+    let Some(bytes) = bytes else {
+        return error.to_string();
+    };
+    let position = LineIndex::new(bytes).get_position(span.get_start_offset());
+    format!("{path}:{}:{}: {stage}: {error}", position.get_line(), position.get_column())
 }
 
-impl fmt::Display for FileError<'_> {
-    fn fmt(
-        &self,
-        formatter: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let (path, position, stage, error): (_, _, _, &dyn fmt::Display) = match self {
-            Self::Read(path, error) => return write!(formatter, "{}: could not read source: {error}", path.display()),
-            Self::Lex(path, position, error) => (path, position, "lexer", error),
-            Self::Parse(path, position, error) => (path, position, "parser", error),
-        };
-        write!(
-            formatter,
-            "{}:{}:{}: {stage}: {error}",
-            path.display(),
-            position.get_line(),
-            position.get_column()
-        )
-    }
-}
-
-pub(crate) fn parse_file(path: &Path) -> Result<(), FileError<'_>> {
+pub(crate) fn parse_file(path: &Path) -> Result<(), String> {
     read_file(path).map(|_| ())
 }
 
@@ -40,11 +27,10 @@ struct ParsedFile {
     tree: omega_parser::SyntaxTree,
 }
 
-fn read_file(path: &Path) -> Result<ParsedFile, FileError<'_>> {
-    let bytes = fs::read(path).map_err(|error| FileError::Read(path, error))?;
-    let position = |offset| LineIndex::new(&bytes).get_position(offset);
-    let tokens = omega_lexer::lex(&bytes).map_err(|error| FileError::Lex(path, position(error.get_span().get_start_offset()), error))?;
-    let tree = omega_parser::parse_file(&bytes, &tokens).map_err(|error| FileError::Parse(path, position(error.get_span().get_start_offset()), error))?;
+fn read_file(path: &Path) -> Result<ParsedFile, String> {
+    let bytes = fs::read(path).map_err(|error| format!("{}: could not read source: {error}", path.display()))?;
+    let tokens = omega_lexer::lex(&bytes).map_err(|e| diagnostic(path.display(), Some(&bytes), e.get_span(), "lexer", e))?;
+    let tree = omega_parser::parse_file(&bytes, &tokens).map_err(|e| diagnostic(path.display(), Some(&bytes), e.get_span(), "parser", e))?;
     Ok(ParsedFile { bytes, tokens, tree })
 }
 
@@ -71,7 +57,7 @@ pub(crate) fn check_files(
                 _ => return Err(format!("{}: expected a path within the current package", path.display())),
             }
         }
-        inputs.push((components.join("/"), read_file(path).map_err(|e| e.to_string())?));
+        inputs.push((components.join("/"), read_file(path)?));
     }
     let mut sources = Vec::with_capacity(inputs.len());
     for (logical_path, file) in &inputs {
@@ -86,16 +72,29 @@ pub(crate) fn check_files(
             },
         });
     }
-    let diagnostic = |layer: &str, path: &str, span: omega_lexer::SourceSpan, message: String| {
-        let Some((_, file)) = inputs.iter().find(|(name, _)| name == path) else {
-            return message;
-        };
-        let position = LineIndex::new(&file.bytes).get_position(span.get_start_offset());
-        format!("{path}:{}:{}: {layer}: {message}", position.get_line(), position.get_column())
+    let stage_error = |layer: &str, package: &str, path: &str, span, message: String| {
+        let bytes = sources
+            .iter()
+            .find(|input| input.package == package && input.source.logical_path == path)
+            .map(|input| input.source.text.as_bytes());
+        diagnostic(path, bytes, span, layer, message)
     };
-    let resolved = omega_typer::resolve_source_package(&sources).map_err(|e| diagnostic("resolver", &e.file, e.span, e.message))?;
+    let resolved = omega_toolchain::resolve_source_package(&sources).map_err(|e| stage_error("resolver", &e.package, &e.file, e.span, e.message))?;
     if matches!(stage, Stage::Type) {
-        omega_typer::type_source_package(&resolved).map_err(|e| diagnostic("typer", &e.file, e.span, e.message))?;
+        omega_typer::type_source_package(&resolved).map_err(|e| stage_error("typer", &e.package, &e.file, e.span, e.message))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_diagnostic_without_local_source_bytes_preserves_the_stage_message() {
+        assert_eq!(
+            diagnostic("", None, SourceSpan::new(0, 0), "resolver", "conflicting dependency aliases"),
+            "conflicting dependency aliases"
+        );
+    }
 }

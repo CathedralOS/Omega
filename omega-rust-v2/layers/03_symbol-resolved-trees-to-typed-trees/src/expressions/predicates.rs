@@ -1,9 +1,45 @@
-use crate::expressions::body_typer::BodyTyper;
+use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::{ObligationKind, Site, TypeError, ValueType};
 use omega_parser::NodeKind;
 
 impl BodyTyper<'_, '_> {
-    pub(super) fn check_fact(
+    pub(super) fn check_contract_clause(
+        &mut self,
+        clause: usize,
+        owner: usize,
+    ) -> Result<(), TypeError> {
+        let source = self.unit.file;
+        match source.nodes[clause].kind {
+            NodeKind::Requires | NodeKind::Ensures => {
+                self.context = ExpressionContext::Proof;
+                let expr = self.unit.single_child(clause)?;
+                self.check_fact(expr)?;
+                if source.nodes[clause].kind == NodeKind::Ensures
+                    && let Some(machine) = &self.caller
+                {
+                    self.record_obligation(
+                        expr,
+                        ObligationKind::ProveGuarantee {
+                            machine: machine.clone(),
+                            predicate: Site::at(source, expr),
+                        },
+                    );
+                }
+            }
+            NodeKind::Hypothesis => {
+                self.context = ExpressionContext::Proof;
+                self.check_hypothesis(clause)?;
+            }
+            NodeKind::Crashes => {
+                self.context = ExpressionContext::ContractValue;
+                self.crash_route(clause, owner)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn check_fact(
         &mut self,
         expr: usize,
     ) -> Result<(), TypeError> {

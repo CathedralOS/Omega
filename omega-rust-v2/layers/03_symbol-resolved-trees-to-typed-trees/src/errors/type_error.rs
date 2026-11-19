@@ -9,6 +9,17 @@ pub struct TypeError {
     pub message: String,
 }
 impl TypeError {
+    pub(crate) fn for_site(
+        site: &crate::Site,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            package: site.package.clone(),
+            file: site.file.clone(),
+            span: site.span,
+            message: message.into(),
+        }
+    }
     pub(crate) fn at(
         file: &IndexedSource<'_>,
         n: usize,

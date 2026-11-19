@@ -1,6 +1,6 @@
 use crate::expressions::body_typer::BodyTyper;
 use crate::{ObligationKind, Site, TypeError, ValueType};
-use omega_parser::NodeKind;
+use omega_parser::{NodeKind, TerminationClause};
 use omega_resolver::DeclarationId;
 use omega_resolver::Symbol;
 
@@ -53,17 +53,20 @@ impl BodyTyper<'_, '_> {
         machine: &DeclarationId,
     ) -> Result<(), TypeError> {
         let source = self.unit.file;
-        let node = &source.nodes[node_index];
+        let clause = source.nodes[node_index]
+            .termination_clause()
+            .ok_or_else(|| TypeError::unsupported(source, node_index))?;
         self.record_obligation(node_index, ObligationKind::Termination(machine.clone()));
-        let Some((&subject, rest)) = node.children.split_first() else {
+        let TerminationClause::By {
+            measure: subject,
+            order,
+            bound,
+        } = clause
+        else {
             return Ok(());
         };
         let actual = self.type_expression(subject)?;
-        let explicit = node.leaves.iter().any(|l| l.text == "->");
-        let (view, args, bounds) = if explicit {
-            let (&term, bounds) = rest
-                .split_first()
-                .ok_or_else(|| TypeError::unsupported(source, node_index))?;
+        let (view, args) = if let Some(term) = order {
             let (head, args) = if source.nodes[term].kind == NodeKind::Call {
                 let [head, args] = *source.nodes[term].children.as_slice() else {
                     return Err(TypeError::unsupported(source, term));
@@ -82,7 +85,6 @@ impl BodyTyper<'_, '_> {
                     .find(|v| &v.declaration == id)
                     .ok_or_else(|| TypeError::at(source, head, "ranking view is absent from the admitted theory"))?,
                 args,
-                bounds,
             )
         } else {
             let mut choices = self
@@ -96,7 +98,7 @@ impl BodyTyper<'_, '_> {
             if choices.next().is_some() {
                 return Err(TypeError::at(source, subject, "ambiguous canonical ranking view"));
             }
-            (view, &[][..], rest)
+            (view, &[][..])
         };
         self.check_destination(subject, &actual, &view.subject)?;
         if view.parameters.len() != args.len() {
@@ -106,29 +108,22 @@ impl BodyTyper<'_, '_> {
             let value = self.type_expression_with_expected_type(arg, Some(param))?;
             self.check_destination(arg, &value, param)?;
         }
-        let mut bound_sites = Vec::new();
-        let mut inclusive = false;
-        for &bound in bounds {
-            let endpoints = if source.nodes[bound].kind == NodeKind::Range {
-                inclusive = self.unit.operator_token(bound)? == "..=";
-                source.nodes[bound].children.as_slice()
+        if let Some(bound) = bound {
+            let endpoints = if let Some(range) = source.range_bounds(bound) {
+                [range.start, range.end]
             } else {
-                std::slice::from_ref(&bound)
+                [Some(bound), None]
             };
-            for &e in endpoints {
+            for e in endpoints.into_iter().flatten() {
                 let value = self.type_expression_with_expected_type(e, Some(&view.rank))?;
                 self.check_destination(e, &value, &view.rank)?;
-                bound_sites.push(Site::at(source, e));
             }
         }
         self.output.ranking_witnesses.push(crate::RankingWitness {
-            site: Site::at(source, node_index),
+            node: source.node_id(node_index),
             machine: machine.clone(),
-            subject: Site::at(source, subject),
             view: view.declaration.clone(),
-            arguments: args.iter().map(|&a| Site::at(source, a)).collect(),
-            bounds: bound_sites,
-            inclusive_upper: inclusive,
+            rank: view.rank.clone(),
         });
         Ok(())
     }
@@ -161,24 +156,13 @@ impl BodyTyper<'_, '_> {
         if !matches!(id.kind, NodeKind::Trait | NodeKind::Machine | NodeKind::AsmMachine) {
             return Err(TypeError::at(source, head, "invokes needs an entry or callback interface"));
         }
-        let args = source
-            .child(head, NodeKind::TypeArgs)
-            .into_iter()
-            .flat_map(|section| source.nodes[section].children.iter().copied())
-            .enumerate()
-            .map(|(i, arg)| self.unit.argument(arg, &self.catalog.types, id, i))
-            .collect::<Result<Vec<_>, _>>()?;
-        if args.len() != self.catalog.types.arities[id] {
-            return Err(TypeError::at(source, head, "incomplete invokes application"));
-        }
-        self.output.invocation_ceilings.push((
-            machine.clone(),
-            Site::at(source, node_index),
-            crate::InvocationTarget::Declaration(crate::RequirementSlot {
-                declaration: id.clone(),
-                trait_arguments: args,
-            }),
-        ));
+        let selection = crate::RequirementSlot {
+            declaration: id.clone(),
+            trait_arguments: self.unit.application_arguments(head, id, &self.catalog.types)?,
+        };
+        self.output
+            .invocation_ceilings
+            .push((machine.clone(), Site::at(source, node_index), crate::InvocationTarget::Declaration(selection)));
         Ok(())
     }
 }

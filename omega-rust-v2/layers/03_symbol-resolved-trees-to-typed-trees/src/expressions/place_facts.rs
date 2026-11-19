@@ -1,5 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{Site, TypeError, TypedExpression, ValueType};
+use crate::{Site, TypeError, ValueType};
 use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
 use omega_resolver::DeclarationId;
@@ -14,11 +14,9 @@ pub(super) enum Subject {
 impl BodyTyper<'_, '_> {
     pub(super) fn fact_subject(
         &self,
-        mut node_index: usize,
+        node_index: usize,
     ) -> Option<Subject> {
-        while self.unit.file.nodes[node_index].kind == NodeKind::Paren {
-            node_index = self.unit.single_child(node_index).ok()?;
-        }
+        let node_index = self.unit.file.ungroup(node_index);
         match self.unit.symbol(node_index)? {
             Symbol::Builtin(s) if s == "self" => Some(Subject::SelfValue),
             Symbol::Binding { span, .. } => Some(Subject::Binding(*span)),
@@ -27,16 +25,20 @@ impl BodyTyper<'_, '_> {
     }
     pub(super) fn case_guard(
         &self,
-        mut node_index: usize,
+        node_index: usize,
     ) -> Option<(Subject, DeclarationId)> {
         let source = self.unit.file;
-        while source.nodes[node_index].kind == NodeKind::Paren {
-            node_index = self.unit.single_child(node_index).ok()?;
-        }
+        let node_index = source.ungroup(node_index);
         let [subject, target] = *source.nodes[node_index].children.as_slice() else {
             return None;
         };
-        if source.nodes[node_index].kind != NodeKind::Binary || self.unit.operator(node_index).is_none_or(|op| op.token != "in") {
+        if source.nodes[node_index].kind != NodeKind::Binary
+            || self
+                .unit
+                .file
+                .operator(node_index)
+                .is_none_or(|op| op.token != "in")
+        {
             return None;
         }
         let Some(Symbol::Declaration(id)) = self.unit.symbol(target) else {
@@ -53,15 +55,10 @@ impl BodyTyper<'_, '_> {
         left: usize,
         right: usize,
     ) -> Result<ValueType, TypeError> {
-        let source = self.unit.file;
         let a = self.unit.annotation(left, &self.catalog.types)?;
         let b = self.unit.annotation(right, &self.catalog.types)?;
         self.record_operator(node_index, "type ==", vec![a, b], &ValueType::Bool);
-        self.output.expressions.push(TypedExpression {
-            node: source.node_id(node_index),
-            site: Site::at(source, node_index),
-            ty: ValueType::Bool,
-        });
+        self.record_expression(node_index, ValueType::Bool);
         Ok(ValueType::Bool)
     }
     pub(super) fn membership(
@@ -71,36 +68,39 @@ impl BodyTyper<'_, '_> {
         right: usize,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
-        let Some(Symbol::Declaration(id)) = self.unit.symbol(right) else {
-            return Err(TypeError::at(source, right, "membership requires a case or domain"));
-        };
-        match id.kind {
-            NodeKind::Case
-                if left_type
-                    .carrier()
-                    .nominal_parts()
-                    .is_some_and(|(o, _)| self.catalog.case_owner[id] == o) => {}
-            NodeKind::Domain if self.catalog.types.domains.admits(id, left_type.carrier()) => {}
-            _ => return Err(TypeError::at(source, right, "membership subject has the wrong carrier")),
-        }
-        self.output.memberships.push(crate::TypedMembership {
-            site: Site::at(source, node_index),
-            subject: left_type.clone(),
-            domain: if id.kind == NodeKind::Domain {
+        let carrier = left_type.carrier();
+        let domain = match self.unit.symbol(right) {
+            Some(name) if name.names_domain() => {
                 let app = self
                     .unit
-                    .domain_application(right, left_type.carrier(), &self.catalog.types)?;
+                    .domain_application(right, carrier, &self.catalog.types)?;
+                if !self.catalog.types.domains.admits(&app.declaration, carrier) {
+                    return Err(TypeError::at(source, right, "membership subject has the wrong carrier"));
+                }
                 self.catalog
                     .types
-                    .expanded_domain_at(&app, left_type.carrier(), true, source, right)
+                    .expanded_domain_at(&app, carrier, true, self.unit, right)
                     .map_err(|message| TypeError::at(source, right, message))?;
                 app
-            } else {
+            }
+            Some(Symbol::Declaration(id)) if id.kind == NodeKind::Case => {
+                if !carrier
+                    .nominal_parts()
+                    .is_some_and(|(owner, _)| self.catalog.case_owner[id] == owner)
+                {
+                    return Err(TypeError::at(source, right, "membership subject has the wrong carrier"));
+                }
                 crate::DomainApplication {
                     declaration: id.clone(),
                     arguments: Vec::new(),
                 }
-            },
+            }
+            _ => return Err(TypeError::at(source, right, "membership requires a case or domain")),
+        };
+        self.output.memberships.push(crate::TypedMembership {
+            site: Site::at(source, node_index),
+            subject: left_type.clone(),
+            domain,
         });
         Ok(ValueType::Bool)
     }

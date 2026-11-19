@@ -1,13 +1,12 @@
-use crate::Site;
-use omega_resolver::DeclarationId;
+use crate::ValueType;
+use omega_resolver::{DeclarationId, TreeNodeId};
 
+/// The clause node supplies the authored subject, view arguments and bounds.
+/// Typing adds the selected view and the carrier its ranking theory produces.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RankingWitness {
-    pub site: Site,
+    pub node: TreeNodeId,
     pub machine: DeclarationId,
-    pub subject: Site,
     pub view: DeclarationId,
-    pub arguments: Vec<Site>,
-    pub bounds: Vec<Site>,
-    pub inclusive_upper: bool,
+    pub rank: ValueType,
 }

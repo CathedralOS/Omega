@@ -156,7 +156,7 @@ Psi to native code) are not planned yet.
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
 | L1 Parser | tokens → syntax trees | positional rest handoff tested, awaiting renewed sign-off | 1.12 s (previous revision) |
 | L2 Resolver | syntax trees → symbol-resolved trees | locked, revised handoff signed off 2026-11-19 | 0.17 s (2026-11-18 warm median, five runs) |
-| L3 Typer | symbol-resolved trees → typed trees | typing and downstream proof obligations tested. Awaiting owner sign-off | 0.46 s (warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
+| L3 Typer | symbol-resolved trees → typed trees | locked, revised handoff signed off 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
 | L5 Lowering | typed tree → Terminal Psi | not started | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
@@ -278,9 +278,9 @@ an explicit decision to reopen that contract.
 
 ### L1 Parser
 
-**L1 is locked.** The parser owns grammatical structure and exposes the written
+**L1 awaits renewed sign-off after the positional rest repair.** The parser owns grammatical structure and exposes the written
 parts of each construct with their source spans. L2 resolves names and L3
-interprets types and contracts. Changes to the accepted grammar or to what L1
+interprets types and contracts. Once signed off, changes to the accepted grammar or to what L1
 hands downstream require an explicit decision to reopen the parser contract.
 
 - **Spec owners:** none as a single document. The spec has no grammar; syntax
@@ -353,7 +353,7 @@ ordinary bare name binds the matched value. A qualified constant tests its
 value. L2 publishes the binding or declaration, and L3 checks coverage.
 [Package boundaries](wiki/spec/packages/boundaries.md#selection-versus-carrying-a-type)
 
-The [L3 typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) covers calls, operators, generic applications, evidence, storage and effects. `omega source type <file> [<file> ...]` checks one package. Its corpus gate accounts for all 132 fragments, including 38 that reach L3. L3 selects typed operations and publishes the exact premises, conclusions, effects and static arguments that L4 and the proof checker consume. For an index such as `Buffer<width(N)>`, L3 records the call selected at `StaticTemplate.node`. Closing the application uses the supplied result for the closed owner arguments. Executing the selected body belongs to preparation.
+**L3 is locked.** Jarod signed off the revised typed-tree handoff on 2026-11-19. The [L3 typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) covers calls, operators, generic applications, evidence, storage and effects. L3 selects typed operations and publishes their operands and proof obligations at the producing nodes. For an open index such as `Buffer<width(N)>`, `StaticTemplate::request()` identifies the selected call and its result carrier. In this revision closing the application requires a supplied evaluation result. Preparation owns execution of the selected body. Changing which stage must supply a closed value requires a concrete consumer case and an explicit decision to reopen the handoff.
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.

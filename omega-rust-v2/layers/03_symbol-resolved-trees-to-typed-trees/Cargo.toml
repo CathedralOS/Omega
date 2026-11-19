@@ -6,6 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+omega-toolchain = { path = "../../toolchain" }
 omega-lexer = { path = "../00_bytes-to-tokens" }
 omega-parser = { path = "../01_tokens-to-syntax-trees" }
 omega-resolver = { path = "../02_syntax-trees-to-symbol-resolved-trees" }

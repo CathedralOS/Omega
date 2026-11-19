@@ -1,8 +1,9 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{TypeError, ValueType};
+use crate::expressions::storage_origin::{Origin, PatternSource};
+use crate::{Access, TypeError, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub(super) enum PatternCoverage {
     All,
@@ -26,11 +27,11 @@ impl BodyTyper<'_, '_> {
         let source = self.unit.file;
         let mut parts = source.nodes[node_index].children.iter().copied().peekable();
         let subject_place = parts.peek().and_then(|&i| self.fact_subject(i));
-        let subject = if parts
-            .peek()
-            .is_some_and(|&i| source.nodes[i].kind != NodeKind::Arm)
-        {
-            Some(self.type_expression(parts.next().unwrap())?)
+        let mut subject_source = PatternSource::default();
+        let subject = if let Some(expr) = parts.next_if(|&i| source.nodes[i].kind != NodeKind::Arm) {
+            let (ty, from) = self.pattern_subject(expr)?;
+            subject_source = from;
+            Some((expr, ty))
         } else {
             None
         };
@@ -40,19 +41,22 @@ impl BodyTyper<'_, '_> {
         let mut values = Vec::new();
         let mut products = Vec::new();
         let entry_cases = self.cases.clone();
-        let entry_views = self.local_views.clone();
+        // An arm can reassign a binding declared before the dispatch. After
+        // the dispatch the binding may hold what any arm left in it.
+        let entry_origins = self.binding_origins.clone();
         let entry_version = self.version.clone();
         let mut changed = false;
-        let mut merged_views = HashSet::new();
+        let mut merged_origins: Option<HashMap<_, Origin>> = None;
+        let mut result_origin: Option<Origin> = None;
         for arm in parts {
             self.cases.clone_from(&entry_cases);
-            self.local_views.clone_from(&entry_views);
+            self.binding_origins.clone_from(&entry_origins);
             self.version.clone_from(&entry_version);
             let [pattern, expr] = *source.nodes[arm].children.as_slice() else {
                 return Err(TypeError::unsupported(source, arm));
             };
-            let cover = if let Some(ty) = &subject {
-                self.bind_pattern(pattern, ty)?
+            let cover = if let Some((initializer, ty)) = &subject {
+                self.bind_pattern(pattern, ty, *initializer, &subject_source)?
             } else {
                 self.guard(pattern)?
             };
@@ -77,14 +81,21 @@ impl BodyTyper<'_, '_> {
             {
                 self.check_return_borrow(body, expr, result)?;
             }
+            let branch = self.origin(expr);
+            result_origin = Some(result_origin.map_or_else(|| branch.clone(), |prior| prior.join(&branch)));
             values.push((expr, value));
             changed |= self.version != entry_version;
-            merged_views.extend(&self.local_views);
+            let merged = merged_origins.get_or_insert_default();
+            for (span, origin) in &self.binding_origins {
+                let merged = merged.entry(*span).or_insert(Origin::Caller);
+                *merged = origin.join(merged);
+            }
         }
-        self.local_views = merged_views;
+        self.binding_origins = merged_origins.unwrap_or(entry_origins);
+        self.set_origin(node_index, result_origin.unwrap_or_default());
         self.version = if changed { Some(crate::Site::at(source, node_index)) } else { entry_version };
         self.cases = if changed { Default::default() } else { entry_cases };
-        let subject = subject.as_ref().map(pattern_subject);
+        let subject = subject.as_ref().map(|(_, ty)| pattern_subject(ty));
         let complete_sum = subject
             .and_then(ValueType::nominal_parts)
             .and_then(|(id, _)| self.catalog.cases.get(id))
@@ -147,29 +158,94 @@ impl BodyTyper<'_, '_> {
             _ => Err(TypeError::unsupported(self.unit.file, node_index)),
         }
     }
+    /// A value pattern compares against the referent of a readable reference
+    /// subject, as a case pattern does. Reading a copyable primitive through it
+    /// is an ordinary copy read (domains.md), recorded at `read`, the
+    /// expression whose referent is read; a non-copy referent refuses there.
+    fn compare_value(
+        &mut self,
+        pattern: usize,
+        value: &ValueType,
+        subject: &ValueType,
+        read: usize,
+        from: &PatternSource,
+    ) -> Result<(), TypeError> {
+        let compared = if let Some((access, inner)) = subject.reference_parts() {
+            let through = access
+                .through(from.place.as_ref().map(|p| &p.access))
+                .map_err(|m| TypeError::at(self.unit.file, pattern, m))?;
+            if through == Access::Write {
+                return Err(TypeError::at(self.unit.file, pattern, "cannot read through a write-only reference"));
+            }
+            self.land_value(read, subject, inner, false)?;
+            inner
+        } else {
+            if let Some(place) = &from.place {
+                let inspection = Access::Shared
+                    .through(Some(&place.access))
+                    .map_err(|m| TypeError::at(self.unit.file, read, m))?;
+                self.read_borrowed(read, &inspection, subject)?;
+            }
+            subject
+        };
+        self.check_destination(pattern, value, compared)
+    }
+    /// A tuple literal initializer supplies each component from its own
+    /// expression, so a refusal or copy read names that component.
+    fn component(
+        &self,
+        initializer: usize,
+        index: usize,
+        arity: usize,
+    ) -> usize {
+        let source = self.unit.file;
+        let node = source.ungroup(initializer);
+        match source.nodes[node].children.as_slice() {
+            parts if source.nodes[node].kind == NodeKind::Tuple && parts.len() == arity => parts[index],
+            _ => initializer,
+        }
+    }
+    /// `initializer` is the expression whose value the pattern receives: a let
+    /// initializer, a dispatch subject or one of their components.
     pub(super) fn bind_pattern(
         &mut self,
         node_index: usize,
         subject: &ValueType,
+        initializer: usize,
+        from: &PatternSource,
+    ) -> Result<PatternCoverage, TypeError> {
+        self.bind_pattern_at(node_index, subject, initializer, from, initializer)
+    }
+    fn bind_pattern_at(
+        &mut self,
+        node_index: usize,
+        subject: &ValueType,
+        initializer: usize,
+        from: &PatternSource,
+        place: usize,
     ) -> Result<PatternCoverage, TypeError> {
         use NodeKind::*;
         let source = self.unit.file;
         let node = &source.nodes[node_index];
         match node.kind {
             WildcardPattern => Ok(PatternCoverage::All),
-            BindingPattern if self.unit.symbol(node_index).is_none() => {
-                self.locals.insert(source.span(node_index), subject.clone());
+            BindingPattern if let Some(span) = self.unit.pattern_binding(node_index) => {
+                self.require_declared_number(initializer, subject)?;
+                if from.place.is_some() {
+                    self.record_place(node_index, place, None, None);
+                }
+                self.bind_source(span, node_index, subject.clone(), from);
                 Ok(PatternCoverage::All)
             }
             BindingPattern => {
                 let ty = self.pattern_value(node_index)?;
-                self.check_destination(node_index, &ty, subject)?;
+                self.compare_value(node_index, &ty, subject, initializer, from)?;
                 Ok(match self.unit.symbol(node_index) {
                     Some(Symbol::Builtin(s)) if s == "true" || s == "false" => PatternCoverage::Bool(s == "true"),
                     _ => PatternCoverage::Partial,
                 })
             }
-            ParenPattern => self.bind_pattern(self.unit.single_child(node_index)?, subject),
+            ParenPattern => self.bind_pattern_at(self.unit.single_child(node_index)?, subject, initializer, from, place),
             ValuePattern => {
                 let expr = self.unit.single_child(node_index)?;
                 if let Some(Symbol::Declaration(id)) = self.unit.symbol(expr)
@@ -184,7 +260,7 @@ impl BodyTyper<'_, '_> {
                     return Ok(PatternCoverage::Case(Box::new(id.clone())));
                 }
                 let ty = self.type_expression(expr)?;
-                self.check_destination(expr, &ty, subject)?;
+                self.compare_value(expr, &ty, subject, initializer, from)?;
                 Ok(match self.unit.symbol(expr) {
                     Some(Symbol::Builtin(s)) if matches!(s.as_str(), "true" | "false") => PatternCoverage::Bool(s == "true"),
                     _ => PatternCoverage::Partial,
@@ -192,23 +268,41 @@ impl BodyTyper<'_, '_> {
             }
             TuplePattern if matches!(subject, ValueType::Tuple(_)) => {
                 let ValueType::Tuple(types) = subject else { unreachable!() };
-                if types.len() != node.children.len() {
+                let (patterns, rest) = match node.children.split_last() {
+                    Some((&last, patterns)) if source.nodes[last].kind == RestPattern => (patterns, true),
+                    _ => (node.children.as_slice(), false),
+                };
+                if patterns.len() > types.len() || !rest && patterns.len() != types.len() {
                     return Err(TypeError::at(source, node_index, "tuple pattern arity mismatch"));
                 }
-                let parts = node
-                    .children
+                let mut parts = patterns
                     .iter()
                     .zip(types)
-                    .map(|(&p, t)| self.bind_pattern(p, t))
+                    .enumerate()
+                    .map(|(i, (&p, t))| {
+                        let expr = self.component(initializer, i, types.len());
+                        let place = if expr == initializer {
+                            self.record_place(p, place, None, Some(crate::Projection::Tuple(i)));
+                            p
+                        } else {
+                            expr
+                        };
+                        let component = from
+                            .component(subject, i)
+                            .map_err(|m| TypeError::at(source, p, m))?;
+                        self.bind_pattern_at(p, t, expr, &component, place)
+                    })
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 Ok(if parts.iter().all(PatternCoverage::is_total) {
                     PatternCoverage::All
                 } else {
+                    // Waived positions are unconstrained in every arm that omits them.
+                    parts.resize_with(types.len(), || PatternCoverage::All);
                     PatternCoverage::Product(parts)
                 })
             }
             RecordPattern | TuplePattern => {
-                if matches!(subject, ValueType::Reference(crate::Access::Write, _)) {
+                if matches!(subject.reference_parts(), Some((crate::Access::Write, _))) {
                     return Err(TypeError::at(source, node_index, "cannot read through a write-only reference"));
                 }
                 let (owner, args) = pattern_subject(subject)
@@ -231,7 +325,6 @@ impl BodyTyper<'_, '_> {
                     owner
                 };
                 let fields = &self.catalog.fields[shape];
-                let order = &self.catalog.field_order[shape];
                 let mut seen = HashSet::new();
                 let mut rest = false;
                 let mut total = true;
@@ -241,32 +334,53 @@ impl BodyTyper<'_, '_> {
                         rest = true;
                         continue;
                     }
-                    if node.kind == TuplePattern {
-                        let name = order
-                            .get(i)
-                            .ok_or_else(|| TypeError::at(source, part, "too many pattern components"))?;
-                        let ty = self.catalog.types.field_type(&fields[name], owner, args);
-                        total &= self.bind_pattern(part, &ty)?.is_total();
-                        seen.insert(name.as_str());
-                        continue;
-                    }
-                    let name = self.unit.member_name(part)?;
-                    let field = fields
-                        .get(name)
-                        .ok_or_else(|| TypeError::at(source, part, format!("unknown pattern field {}", name)))?;
-                    let ty = self.catalog.types.field_type(field, owner, args);
+                    let (position, field) = if node.kind == TuplePattern {
+                        (
+                            i,
+                            fields
+                                .ordered
+                                .get(i)
+                                .ok_or_else(|| TypeError::at(source, part, "too many pattern components"))?,
+                        )
+                    } else {
+                        let name = self.unit.member_name(part)?;
+                        fields
+                            .get(name)
+                            .ok_or_else(|| TypeError::at(source, part, format!("unknown pattern field {name}")))?
+                    };
+                    self.unit.require_selection_authority(part, owner)?;
+                    self.unit
+                        .require_selection_authority(part, &field.declaration)?;
+                    let name = field.name();
                     if !seen.insert(name) {
-                        return Err(TypeError::at(source, part, format!("duplicate pattern field {}", name)));
+                        return Err(TypeError::at(source, part, format!("duplicate pattern field {name}")));
                     }
-                    if let [child] = *p.children.as_slice() {
+                    let ty = self
+                        .catalog
+                        .types
+                        .opened_field(&field.ty, owner, args, || self.opening(place));
+                    self.record_place(
+                        part,
+                        place,
+                        subject.reference_parts().map(|(access, _)| access),
+                        Some(crate::Projection::Field(Box::new(field.declaration.clone()))),
+                    );
+                    let component = from
+                        .component(subject, position)
+                        .map_err(|m| TypeError::at(source, part, m))?;
+                    if node.kind == TuplePattern {
+                        total &= self
+                            .bind_pattern_at(part, &ty, part, &component, part)?
+                            .is_total();
+                    } else if let [child] = *p.children.as_slice() {
                         let v = self.type_expression(child)?;
-                        self.check_destination(child, &v, &ty)?;
+                        self.compare_value(child, &v, &ty, part, &component)?;
                         total = false;
-                    } else if let Some(binding) = p.words().next_back().filter(|w| w.text != "_") {
-                        self.locals.insert(binding.span, ty);
+                    } else if let Some(span) = self.unit.pattern_binding(part) {
+                        self.bind_source(span, part, ty, &component);
                     }
                 }
-                if !rest && seen.len() != fields.len() {
+                if !rest && seen.len() != fields.ordered.len() {
                     return Err(TypeError::at(source, node_index, "pattern omits fields without .."));
                 }
                 Ok(if !total {
@@ -282,10 +396,7 @@ impl BodyTyper<'_, '_> {
     }
 }
 fn pattern_subject(ty: &ValueType) -> &ValueType {
-    match ty {
-        ValueType::Reference(_, inner) => inner,
-        _ => ty,
-    }
+    ty.reference_parts().map_or(ty, |(_, inner)| inner)
 }
 fn product_covers(rows: &[Vec<PatternCoverage>]) -> bool {
     if rows.is_empty() {

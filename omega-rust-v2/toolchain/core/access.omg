@@ -1,0 +1,9 @@
+use language::core;
+use language::core::reflect;
+
+public machine new_plan<'t>(schema: @TypeSchema<'t>, issuance: Issuance<'t>) -> AccessPlan<'t>
+    reaches none crashes none terminates
+    ensures result.field_count == 0
+    ensures result.reader_count == 0
+    ensures result.writer_count == 0
+    ensures result.reach.service_count == 0;

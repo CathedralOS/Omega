@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "application",
+    "toolchain",
     "layers/00_bytes-to-tokens",
     "layers/01_tokens-to-syntax-trees",
     "layers/02_syntax-trees-to-symbol-resolved-trees",

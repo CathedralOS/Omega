@@ -61,31 +61,20 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
 
 fn main() -> ExitCode {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
-    match command(&arguments) {
-        Ok(Command::Help) => match writeln!(io::stdout().lock(), "{USAGE}\n\n{HELP}") {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(error) => {
-                eprintln!("omega: could not write help: {error}");
-                ExitCode::FAILURE
-            }
-        },
-        Ok(Command::Parse(path)) => match source::parse_file(path) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(error) => {
-                eprintln!("{error}");
-                ExitCode::FAILURE
-            }
-        },
-        Ok(Command::Stage(paths, stage)) => match source::check_files(paths, stage) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(error) => {
-                eprintln!("{error}");
-                ExitCode::FAILURE
-            }
-        },
+    let result = match command(&arguments) {
+        Ok(Command::Help) => writeln!(io::stdout().lock(), "{USAGE}\n\n{HELP}").map_err(|e| format!("omega: could not write help: {e}")),
+        Ok(Command::Parse(path)) => source::parse_file(path),
+        Ok(Command::Stage(paths, stage)) => source::check_files(paths, stage),
         Err(message) => {
             eprintln!("omega: {message}\n{USAGE}");
-            ExitCode::from(2)
+            return ExitCode::from(2);
+        }
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
         }
     }
 }

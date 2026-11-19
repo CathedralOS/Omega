@@ -109,14 +109,9 @@ pub(crate) fn array_length(
         return Err(TypeError::at(f, n, "array length must be a nonnegative integer"));
     };
     if !value.is_integer()
-        || suffix.as_ref().is_some_and(|t| {
-            !matches!(t, ValueType::Integer { .. })
-                || !(ValueType::Exact {
-                    value: value.clone(),
-                    fractional_origin: None,
-                })
-                .fits(t)
-        })
+        || suffix
+            .as_ref()
+            .is_some_and(|ty| !ty.contains_integer(value.numer()))
     {
         return Err(TypeError::at(f, n, "invalid array length"));
     }
@@ -199,8 +194,8 @@ pub(crate) fn static_number(
                 || !right.is_integer()
                 || a.is_some()
                 || b.is_some()
-                || !integer_arithmetic::fits(left.numer(), carrier)
-                || !integer_arithmetic::fits(right.numer(), right_destination)
+                || !carrier.contains_integer(left.numer())
+                || !right_destination.contains_integer(right.numer())
             {
                 return Err(TypeError::at(f, n, "static integer operands require the same representable carrier"));
             }

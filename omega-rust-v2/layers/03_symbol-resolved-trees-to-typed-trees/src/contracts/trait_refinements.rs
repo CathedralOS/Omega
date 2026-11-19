@@ -3,7 +3,7 @@ use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{ObligationKind, RequirementSlot, ServiceApplication, Site, TraitRefinement, TypeError, TypedStage, ValueType};
-use omega_parser::NodeKind;
+use omega_parser::{NodeKind, PauseFlag, TerminationClause};
 use omega_resolver::DeclarationId;
 
 pub(crate) fn read(
@@ -23,10 +23,17 @@ pub(crate) fn read(
         terminates: false,
     };
     for &part in &f.nodes[n].children {
-        match f.nodes[part].kind {
-            NodeKind::Blocks => refinement.prohibits_block |= f.nodes[part].words().any(|w| w.text == "false"),
-            NodeKind::Suspends => refinement.prohibits_suspend |= f.nodes[part].words().any(|w| w.text == "false"),
-            NodeKind::Terminates if f.nodes[part].children.is_empty() => refinement.terminates = true,
+        let clause = &f.nodes[part];
+        let prohibits_pause = || {
+            clause
+                .pause_flag()
+                .map(|flag| flag == PauseFlag::Explicit(false))
+                .ok_or_else(|| TypeError::unsupported(f, part))
+        };
+        match clause.kind {
+            NodeKind::Blocks => refinement.prohibits_block |= prohibits_pause()?,
+            NodeKind::Suspends => refinement.prohibits_suspend |= prohibits_pause()?,
+            NodeKind::Terminates if clause.termination_clause() == Some(TerminationClause::Bare) => refinement.terminates = true,
             NodeKind::Reaches | NodeKind::Crashes => {}
             _ => return Err(TypeError::unsupported(f, part)),
         }
@@ -97,7 +104,7 @@ pub(crate) fn check_trait_refinements(
                 for row in out
                     .conformance_rows
                     .iter()
-                    .filter(|row| &row.conformance == implementation)
+                    .filter(|row| row.conformance.as_ref() == Some(implementation))
                 {
                     let effects = out
                         .machine_effects
@@ -110,12 +117,10 @@ pub(crate) fn check_trait_refinements(
                             .as_ref()
                             .is_some_and(|allowed| effects.reach.iter().any(|s| !allowed.contains(s)))
                     {
-                        return Err(TypeError {
-                            package: obligation.site.package.clone(),
-                            file: obligation.site.file.clone(),
-                            span: obligation.site.span,
-                            message: format!("{} exceeds the refined contract of {}", row.implementation.path, r.schema.path),
-                        });
+                        return Err(TypeError::for_site(
+                            &obligation.site,
+                            format!("{} exceeds the refined contract of {}", row.implementation.path, r.schema.path),
+                        ));
                     }
                 }
             }

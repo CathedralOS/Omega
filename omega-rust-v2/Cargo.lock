@@ -69,6 +69,7 @@ dependencies = [
  "omega-lexer",
  "omega-parser",
  "omega-resolver",
+ "omega-toolchain",
  "omega-typer",
 ]
 
@@ -101,6 +102,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-toolchain"
+version = "0.0.0"
+dependencies = [
+ "omega-lexer",
+ "omega-parser",
+ "omega-resolver",
+]
+
+[[package]]
 name = "omega-typer"
 version = "0.0.0"
 dependencies = [
@@ -111,6 +121,7 @@ dependencies = [
  "omega-lexer",
  "omega-parser",
  "omega-resolver",
+ "omega-toolchain",
  "spec-corpus",
 ]
 
