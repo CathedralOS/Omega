@@ -44,7 +44,7 @@ fn stage_main(root: &Path, lane: &RetainedStorageLane, replacement: &[u8]) -> St
 #[test]
 fn staged_selected_sources_keep_their_projection_and_real_origin_on_reuse() {
     use crate::local::staging::stage_selected_local_source_replacement_in_lane;
-    use filesystem_authority::{SourceCaptureObligation, SourceCaptureRequest};
+    use source_selection::{SourceCaptureObligation, SourceCaptureRequest};
 
     with_staging_source("staging-selected-source", |root, lane| {
         let selected =

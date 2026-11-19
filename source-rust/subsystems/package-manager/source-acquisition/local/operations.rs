@@ -14,7 +14,7 @@
 
 pub use super::recovery::recover_cached_local_source_in_lane;
 
-use filesystem_authority::{SourceCaptureObligation, SourceCaptureRequest};
+use source_selection::{SourceCaptureObligation, SourceCaptureRequest};
 use std::path::Path;
 use std::sync::Arc;
 

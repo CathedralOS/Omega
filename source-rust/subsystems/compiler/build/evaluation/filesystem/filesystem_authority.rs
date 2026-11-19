@@ -1,43 +1,19 @@
-/*
-We define the portable filesystem authority, canonical metadata, operation
-observation, and staging sponsorship contracts for Psi evaluation. Our types
-record host operation attempts (`FilesystemHostOperation`), required build
-output obligations (`BuildOutputObligation`, `BuildOutputReceipt`), canonical
-source-tree metadata (`CanonicalFilesystemMetadataIndex`), path grants
-(`FsGrants`, `FilesystemGrantRoot`), and append-and-seal staging accounts
-(`FilesystemSponsor`).
-*/
-
-/*
-Because build evaluation and package review must verify that a build program
-only touches granted paths and seals every declared output before publication,
-we separate authority and observation evidence from the runtime providers that
-execute host calls. Keeping stable transcript tags, canonical slash-separated
-relative paths, and linear output-obligation states in a target-neutral
-execution contract lets the evaluator, package reviewer, and build orchestrator
-agree on the exact evidence format without coupling Psi to host filesystem
-executors.
-*/
-
-/*
-Canonical metadata
-rows (`CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION`) and operation attempt
-records (`FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION`) carry explicit schema
-versions so persisted package-review transcripts reject stale or malformed
-evidence fail-closed.
-*/
-
+//! Build filesystem grants, operation evidence and staging sponsorship.
 #![forbid(unsafe_code)]
 
 pub(crate) use ::wire::codec_bytes;
 
-mod filesystem;
-mod filesystem_sponsor;
-mod source_capture;
+mod grants;
+mod metadata;
+pub mod observation_codec;
+mod staging;
 
-pub use filesystem::*;
-pub use filesystem_sponsor::*;
-pub use source_capture::*;
+pub use grants::*;
+pub use metadata::*;
+pub use source_selection::{
+    FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, canonical_filesystem_metadata_path_is_canonical,
+};
+pub use staging::*;
 
 pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 20;
 

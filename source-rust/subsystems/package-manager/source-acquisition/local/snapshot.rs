@@ -19,7 +19,7 @@ pub(super) use address::{
 use materialize::materialize_local_snapshot;
 use materialize::materialize_local_snapshot_from_open_parent;
 
-use filesystem_authority::SourceCaptureRequest;
+use source_selection::SourceCaptureRequest;
 use std::ffi::OsStr;
 #[cfg(test)]
 use std::ffi::OsString;

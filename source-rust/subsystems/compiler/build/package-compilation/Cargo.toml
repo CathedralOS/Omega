@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+source-selection = { path = "../../../package-manager/source-acquisition/capture/selection" }
 language-core = { path = "../../foundation/language-core" }
 host-provider-inputs = { path = "../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
@@ -31,7 +32,7 @@ build-output = { path = "../build-output" }
 platform-custody = { path = "../../../../foundation/filesystem" }
 effects = { path = "../../psi-to-native/installation/native-effects" }
 target = { path = "../../psi-to-native/targets/target" }
-filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+filesystem-authority = { path = "../evaluation/filesystem" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = "../../psi" }
 diagnostics = { path = "../../../../foundation/diagnostics" }

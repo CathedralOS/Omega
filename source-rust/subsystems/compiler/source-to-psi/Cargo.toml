@@ -55,7 +55,6 @@ build-time-values = { path = "evaluation/build-time-values" }
 record-storage = { path = "../../../foundation/record-storage" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 worker-budget = { path = "../foundation/worker-budget" }
-filesystem-authority = { path = "evaluation/filesystem-authority" }
 language-core = { path = "../foundation/language-core" }
 layout-plans = { path = "../psi/layout" }
 numerics = { path = "../psi/semantics/numeric" }

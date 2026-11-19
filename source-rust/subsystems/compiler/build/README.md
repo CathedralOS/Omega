@@ -6,6 +6,8 @@ The host admits each plan against the current grants and binds its reflected dec
 
 Build records the [resource grant and usage](evaluation/usage/usage.rs) for each evaluated program. A [native binding receipt](evaluation/receipts/native_binding.rs) ties that usage and the observed inputs to the identity of the Psi program that ran.
 
+Build [issues filesystem grants and accounts for private staging](evaluation/filesystem/filesystem_authority.rs). Source acquisition and Build apply the same [selected-member rules](../../package-manager/source-acquisition/capture/selection/selection.rs) when constructing immutable input inventories.
+
 Before publishing into a caller-visible directory, the host [acquires it for the input program](output_directory.rs). The lease excludes overlapping publishers. The persistent owner record prevents a different input from overwriting the same directory on a later invocation.
 
 The loop and host interface are a prototype of the [V2 build decision](../../../../omega-rust-v2/PLAN.md#v2s-build-model-a-chain-of-stages). Implementing plan admission and interpreter integration is still open.

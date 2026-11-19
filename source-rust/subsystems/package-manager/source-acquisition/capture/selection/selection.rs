@@ -4,7 +4,29 @@
 //! budgets. Callbacks supply member metadata and direct child names; the
 //! selector does not open host files or grant access beyond the request.
 
+#![forbid(unsafe_code)]
+
 use std::collections::BTreeMap;
+
+pub const FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT: usize = 16 * 1024 * 1024;
+
+pub fn canonical_filesystem_metadata_path_is_canonical(relative: &[u8], allow_empty: bool) -> bool {
+    if relative.len() > FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT
+        || relative.contains(&0)
+        || relative.contains(&b'\\')
+    {
+        return false;
+    }
+    if relative.is_empty() {
+        return allow_empty;
+    }
+    if relative[0] == b'/' {
+        return false;
+    }
+    !relative
+        .split(|byte| *byte == b'/')
+        .any(|component| component.is_empty() || component == b"." || component == b"..")
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceCaptureObligation {
@@ -37,7 +59,7 @@ impl SourceCaptureRequest {
             });
             if std::str::from_utf8(&relative_path).is_err()
                 || drive_qualified
-                || !crate::canonical_filesystem_metadata_path_is_canonical(&relative_path, false)
+                || !canonical_filesystem_metadata_path_is_canonical(&relative_path, false)
             {
                 return Err(format!(
                     "source capture entry is not a canonical relative path: {relative_path:?}"
@@ -323,7 +345,7 @@ mod tests {
                     .cloned()
                     .collect())
             },
-            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+            |path| canonical_filesystem_metadata_path_is_canonical(path, false),
             |reason| reason.to_string(),
         )
     }
@@ -341,7 +363,7 @@ mod tests {
             },
             |directory| *directory,
             |_| panic!("a file selection must not enumerate its parent directory"),
-            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+            |path| canonical_filesystem_metadata_path_is_canonical(path, false),
             |reason| reason.to_string(),
         )
         .unwrap();
@@ -475,7 +497,7 @@ mod tests {
                 },
                 |directory| *directory,
                 |_| Ok(children.clone()),
-                |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+                |path| canonical_filesystem_metadata_path_is_canonical(path, false),
                 |reason| reason.to_string(),
             )
         };
@@ -507,7 +529,7 @@ mod tests {
             |_| Err::<Option<bool>, _>(Failure::LookupChanged),
             |directory| *directory,
             |_| unreachable!(),
-            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+            |path| canonical_filesystem_metadata_path_is_canonical(path, false),
             Failure::Selection,
         )
         .unwrap_err();
@@ -518,7 +540,7 @@ mod tests {
             |_| Ok(Some(true)),
             |directory| *directory,
             |_| Err(Failure::DirectoryChanged),
-            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+            |path| canonical_filesystem_metadata_path_is_canonical(path, false),
             Failure::Selection,
         )
         .unwrap_err();
@@ -529,7 +551,7 @@ mod tests {
             |path| Ok(path.is_empty().then_some(true)),
             |directory| *directory,
             |_| unreachable!(),
-            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+            |path| canonical_filesystem_metadata_path_is_canonical(path, false),
             Failure::Selection,
         )
         .unwrap_err();
@@ -555,7 +577,7 @@ mod tests {
             |path| Ok(tree.get(path).copied()),
             |directory| *directory,
             |_| unreachable!(),
-            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+            |path| canonical_filesystem_metadata_path_is_canonical(path, false),
             |reason| match reason {
                 SourceSelectionError::RowLimit { limit } => Failure::TooManyFiles(limit),
                 other => Failure::Selection(other),
@@ -596,9 +618,8 @@ mod tests {
         })
         .unwrap();
         assert_eq!(native, tree);
-        let portable =
-            select(|path| crate::canonical_filesystem_metadata_path_is_canonical(path, false))
-                .unwrap_err();
+        let portable = select(|path| canonical_filesystem_metadata_path_is_canonical(path, false))
+            .unwrap_err();
         assert_eq!(
             portable,
             SourceSelectionError::NoncanonicalPath {
