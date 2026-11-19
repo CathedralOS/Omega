@@ -508,7 +508,10 @@ pub fn callee_uses_value_binding(
     };
     match expressions.expression(callee) {
         crate::source_resolved::expression::ExpressionNode::Name(path) => {
-            value_symbol(path.head_symbol) || value_symbol(path.symbol)
+            // A qualified call names its final declaration. A local that
+            // shadows a namespace cannot make its missing member callable.
+            value_symbol(path.symbol)
+                || (path.members.count() == 1 && value_symbol(path.head_symbol))
         }
         crate::source_resolved::expression::ExpressionNode::Member(member) => {
             value_symbol(member.member_symbol)
