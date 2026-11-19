@@ -1,7 +1,8 @@
 // A qualified shared byte view retains its length through a boundary call.
 // Expected exit: 0
 
-domain [u8]::FourBytes requires self.len == 4;
+machine four_bytes(input: &[u8]) -> bool { input.len == 4u64 }
+domain [u8]::FourBytes requires four_bytes(&self[..]);
 
 boundary trait ByteCount {
     machine length(input: &[u8] in FourBytes) -> u64 reaches none crashes none;

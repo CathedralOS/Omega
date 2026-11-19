@@ -96,6 +96,14 @@ pub(super) enum ResultTerm {
     Absent(&'static str),
 }
 
+pub(super) struct SharedClauseInput {
+    pub root: PlaceId,
+    pub path: Vec<CanonicalStructuralPathSegment>,
+    pub value_type: ValueType,
+    pub loan_regions: crate::lowering::body::Regions,
+    pub form: crate::source_state::expression::SharedObservationForm,
+}
+
 impl Program<'_> {
     /// An applied body keeps its declaration's clause trees. Both a whole
     /// scalar result and a projected result must name that exact owner.
@@ -369,13 +377,12 @@ impl Program<'_> {
     pub(super) fn retain_call_arguments(
         &mut self,
         id: MachineId,
-        bound: impl IntoIterator<Item = (SymbolHandle, ScalarTerm)>,
+        bound: impl IntoIterator<Item = ScalarTerm>,
     ) -> Checked<()> {
         // Declared scalar inputs and validated literals are already formed.
         // Projections and computations still need their own formation check.
         let mut pending = bound
             .into_iter()
-            .map(|(_, term)| term)
             .filter(|term| {
                 !matches!(
                     term,
@@ -955,13 +962,7 @@ impl Program<'_> {
         argument: ExpressionHandle,
     ) -> Checked<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        let subject = crate::source_state::byte_predicates::whole_byte_observation_subject(
-            self.typed, argument,
-        )
-        .ok_or_else(|| unserved("logical byte observation requires a shared exact whole view"))?;
-        let Some((root, path, value_type)) = self.projected(id, scope, subject)? else {
-            return Err(unserved("byte predicate of something that is not storage"));
-        };
+        let (root, path, value_type) = self.shared_clause_argument(id, scope, argument)?;
         let ValueType::Record(row, _, _) = value_type else {
             return Err(unserved(
                 "byte predicate of something that is not a byte carrier",
@@ -992,6 +993,266 @@ impl Program<'_> {
                 "byte predicate requires a byte view or fixed u8 array",
             ));
         }
+        Ok((root, path, value_type))
+    }
+
+    pub(super) fn shared_call_input(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        argument: ExpressionHandle,
+        formal: &crate::lowering::body::Borrowed,
+    ) -> Checked<SharedClauseInput> {
+        use crate::lowering::body::BorrowedReferent;
+        use crate::source_state::expression::SharedObservationForm;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let observation = crate::source_state::expression::shared_observation(self.typed, argument)
+            .ok_or_else(|| unserved("logical argument has no shared storage formation"))?;
+        let (root, mut path, value_type) = self.shared_clause_argument(id, scope, argument)?;
+        let borrowed_root = scope.subject.is_none()
+            && path.is_empty()
+            && clause_formal_slot(scope, root).is_some_and(|slot| {
+                scope.slots[slot].borrowed == Some(language_core::ReferenceAccess::Shared)
+            });
+        if observation.form == SharedObservationForm::Value
+            && !borrowed_root
+            && !self.observes_only(id, Some(value_type))?
+        {
+            return Err(unserved(
+                "logical argument for a borrowed formal is not a shared reference",
+            ));
+        }
+        if observation.form == SharedObservationForm::WholeRange
+            && formal.referent != BorrowedReferent::Slice
+        {
+            return Err(unserved(
+                "a whole view does not supply a borrowed value parameter",
+            ));
+        }
+        self.authorized(id, value_type, Access::Read)?;
+        if let Some((_, access)) = self.reference_referent(id, value_type)? {
+            if access != terminal_psi::StructuralAccess::SharedBorrow {
+                return Err(unserved(
+                    "logical argument crosses an exclusive stored reference",
+                ));
+            }
+            path.push(CanonicalStructuralPathSegment::Referent);
+        }
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
+        let (place, subject_slot) = self.clause_storage(id, scope, root, &path, source)?;
+        let slots = subject_slot
+            .as_ref()
+            .map_or(scope.slots, std::slice::from_ref);
+        self.reference_place_access(id, slots, &place, language_core::ReferenceAccess::Shared)?;
+        let value_type = place
+            .result
+            .ok_or_else(|| unserved("logical argument lost its complete storage type"))?;
+        let loan_regions =
+            if formal.referent == BorrowedReferent::Slice && self.is_borrowed_view(value_type) {
+                let carried = self.loan_regions(id, slots, &place)?;
+                if observation.form == SharedObservationForm::WholeRange {
+                    let parents = self.region_tuple(carried).to_vec();
+                    let loans = parents
+                        .into_iter()
+                        .map(|parent| self.loan_region(parent))
+                        .collect();
+                    self.intern_regions(loans)
+                } else {
+                    carried
+                }
+            } else {
+                let storage = self.storage_loan_regions(id, slots, &place)?;
+                let parents = self.region_tuple(storage).to_vec();
+                let loans = parents
+                    .into_iter()
+                    .map(|parent| self.loan_region(parent))
+                    .collect();
+                self.intern_regions(loans)
+            };
+        Ok(SharedClauseInput {
+            root,
+            path,
+            value_type,
+            loan_regions,
+            form: observation.form,
+        })
+    }
+
+    /// Build only the typed storage path needed by the ordinary loan query.
+    /// No source expression is evaluated and no runtime temporary is created.
+    fn clause_storage(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        source: SourceOrigin,
+    ) -> Checked<(crate::lowering::Expression, Option<Slot>)> {
+        use super::regions::{OwnedStorageRoot, Region};
+        use crate::lowering::{Expression, ExpressionKind};
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let (slot, subject_slot, path, value_type) = if let Some(subject) = scope.subject
+            && subject.root == root
+            && let Some(relative) = path.strip_prefix(subject.path)
+        {
+            if !subject.symbol.is_valid() {
+                return Err(unserved("logical subject has no declared storage identity"));
+            }
+            let mut value_type = subject.value_type;
+            if relative.is_empty()
+                && self.is_borrowed_view(value_type)
+                && self.region_tuple(value_type.regions()).is_empty()
+            {
+                let parent = Region::Storage {
+                    machine: id,
+                    root: OwnedStorageRoot::Binding(subject.symbol),
+                };
+                let loan = self.loan_region(parent);
+                let regions = self.intern_regions(vec![loan]);
+                if let ValueType::Record(row, qualification, _) = value_type {
+                    value_type = ValueType::Record(row, qualification, regions);
+                }
+            }
+            let declared = Slot {
+                symbol: subject.symbol,
+                value_type,
+                assignable: false,
+                homed: false,
+                erased: false,
+                borrowed: None,
+                borrowed_regions: crate::lowering::body::Regions::NONE,
+            };
+            (0, Some(declared), relative, value_type)
+        } else {
+            let slot = clause_formal_slot(scope, root)
+                .ok_or_else(|| unserved("logical argument has no declared lender"))?;
+            (slot, None, path, scope.slots[slot].value_type)
+        };
+        let mut place = Expression {
+            call_context: None,
+            source,
+            result: Some(value_type),
+            kind: ExpressionKind::Slot(slot),
+        };
+        for segment in path {
+            let value_type = place
+                .result
+                .ok_or_else(|| unserved("logical storage path lost its type"))?;
+            let (kind, result) = match segment {
+                CanonicalStructuralPathSegment::Referent => {
+                    let (referent, access) =
+                        self.reference_referent(id, value_type)?.ok_or_else(|| {
+                            unserved("logical reference path has no declared referent")
+                        })?;
+                    if access != terminal_psi::StructuralAccess::SharedBorrow {
+                        return Err(unserved(
+                            "logical storage path crosses an exclusive reference",
+                        ));
+                    }
+                    (ExpressionKind::Referent(Box::new(place)), referent)
+                }
+                CanonicalStructuralPathSegment::Field(field) => {
+                    let ValueType::Record(row, _, regions) = value_type else {
+                        return Err(unserved("logical field path has no record"));
+                    };
+                    let fields = self.data_type(id, row)?.fields();
+                    let position = fields
+                        .binary_search_by_key(field, |field| field.id)
+                        .map_err(|_| {
+                            unserved("logical field does not belong to its exact record")
+                        })?;
+                    let declared = fields[position].value_type;
+                    let applied = self.field_regions(id, row, regions)?;
+                    let result = self.substitute(declared, &applied);
+                    (
+                        ExpressionKind::Field {
+                            base: Box::new(place),
+                            field: position,
+                        },
+                        result,
+                    )
+                }
+                CanonicalStructuralPathSegment::FixedIndex(position) => {
+                    let Some(array) = self.opened(id, Some(value_type), Access::Read)? else {
+                        return Err(unserved("logical index has no collection"));
+                    };
+                    let (
+                        element,
+                        qualification,
+                        terminal_semantics::CollectionExtent::Fixed(length),
+                    ) = self.array_element(id, array)?
+                    else {
+                        return Err(unserved("logical argument index has no fixed extent"));
+                    };
+                    if *position >= length {
+                        return Err(unserved(
+                            "logical argument index is outside its declared extent",
+                        ));
+                    }
+                    let regions =
+                        self.collection_element_regions(id, array.record(), value_type.regions())?;
+                    let result = match self.storage_value_type(id, element, qualification)? {
+                        ValueType::Record(row, qualification, _) => {
+                            ValueType::Record(row, qualification, regions)
+                        }
+                        scalar => scalar,
+                    };
+                    let count = ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .expect("u64 is valid"),
+                    );
+                    let index = Expression {
+                        call_context: None,
+                        source,
+                        result: Some(ValueType::plain(count)),
+                        kind: ExpressionKind::Integer(semantic_vocabulary::IntegerValue::Unsigned(
+                            u128::from(*position),
+                        )),
+                    };
+                    (
+                        ExpressionKind::Index {
+                            base: Box::new(place),
+                            index: Box::new(index),
+                        },
+                        result,
+                    )
+                }
+                CanonicalStructuralPathSegment::Case(_) => {
+                    return Err(unserved(
+                        "logical borrowed argument needs its selected payload evidence",
+                    ));
+                }
+            };
+            place = Expression {
+                call_context: None,
+                source,
+                result: Some(result),
+                kind,
+            };
+        }
+        Ok((place, subject_slot))
+    }
+
+    /// Read a shared argument as its exact storage projection. Forming its
+    /// range still owes the selected collection operation's requirements.
+    pub(super) fn shared_clause_argument(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        argument: ExpressionHandle,
+    ) -> Checked<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let subject =
+            crate::source_state::expression::whole_shared_observation_subject(self.typed, argument)
+                .ok_or_else(|| {
+                    unserved("logical observation requires a shared exact whole view")
+                })?;
+        let Some((root, path, value_type)) = self.projected(id, scope, subject)? else {
+            return Err(unserved("logical shared argument does not name storage"));
+        };
         let collection = if let ExpressionNode::Borrow(borrow) =
             self.typed.expression_table.expression(argument)
             && let ExpressionNode::Indexed(indexed) =
@@ -1424,74 +1685,9 @@ impl Program<'_> {
                 else {
                     return unserved("extent without an exact formal descriptor");
                 };
-                let Some(record) = self
-                    .opened(id, Some(receiver), Access::Read)?
-                    .map(super::authority::Opened::record)
-                else {
-                    return unserved("extent of non-collection storage");
-                };
-                let scalar_type = semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .expect("u64 is valid");
-                let shape = &self.data_type(id, record)?.shape;
-                let length =
-                    if let Some(length) = shape.fixed_array_extent() {
-                        // Taking a type's constant length must not erase the
-                        // obligation to establish a payload before selecting it.
-                        if path.iter().any(|segment| {
-                            matches!(segment, CanonicalStructuralPathSegment::Case(_))
-                        }) {
-                            return unserved(
-                                "fixed array length through an unestablished case payload",
-                            );
-                        }
-                        match length {
-                            terminal_psi::ArrayExtent::Literal(length) => ScalarTerm::Integer {
-                                scalar_type,
-                                value: semantic_vocabulary::IntegerValue::Unsigned(length.into()),
-                            },
-                            terminal_psi::ArrayExtent::Parameter { owner, value } => {
-                                let binding = self.extent_input(id, owner, value)?;
-                                let ScalarType::Integer(input_type) = binding.scalar_type else {
-                                    return unserved("fixed-array length input is not an integer");
-                                };
-                                let term = ScalarTerm::Value {
-                                    id: value,
-                                    scalar_type: binding.scalar_type,
-                                };
-                                if input_type == scalar_type {
-                                    term
-                                } else {
-                                    ScalarTerm::integer_widen(input_type, scalar_type, term)
-                                        .map_err(|_| {
-                                            refuse(
-                                                id,
-                                                Construct::Machine,
-                                                Unserved::Contract(
-                                                    "fixed-array length has no count conversion",
-                                                ),
-                                            )
-                                        })?
-                                }
-                            }
-                            terminal_psi::ArrayExtent::Application(_) => {
-                                return unserved(
-                                    "fixed-array length with an unresolved scalar application",
-                                );
-                            }
-                        }
-                    } else if shape.length_operation().is_some() {
-                        ScalarTerm::ViewExtent {
-                            root,
-                            path,
-                            scalar_type,
-                        }
-                    } else {
-                        return unserved("extent without its descriptor operation");
-                    };
-                Ok((length, ValueType::plain(ScalarType::Integer(scalar_type))))
+                let length = self.clause_collection_extent(id, root, path, receiver)?;
+                let scalar_type = length.scalar_type();
+                Ok((length, ValueType::plain(scalar_type)))
             }
             // `self.value`, `self.from.x`: a field of the value a data
             // clause is about.
@@ -2089,6 +2285,77 @@ impl Program<'_> {
         }
     }
 
+    /// The length of this exact collection: a type-level array extent or a
+    /// descriptor observation. Payload selection keeps its formation checks.
+    pub(super) fn clause_collection_extent(
+        &mut self,
+        id: MachineId,
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        receiver: ValueType,
+    ) -> Checked<ScalarTerm> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let Some(record) = self
+            .opened(id, Some(receiver), Access::Read)?
+            .map(super::authority::Opened::record)
+        else {
+            return unserved("extent of non-collection storage");
+        };
+        let scalar_type =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid");
+        let shape = &self.data_type(id, record)?.shape;
+        let length = if let Some(length) = shape.fixed_array_extent() {
+            // Taking a type's constant length must not erase the
+            // obligation to establish a payload before selecting it.
+            if path
+                .iter()
+                .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
+            {
+                return unserved("fixed array length through an unestablished case payload");
+            }
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => ScalarTerm::Integer {
+                    scalar_type,
+                    value: semantic_vocabulary::IntegerValue::Unsigned(length.into()),
+                },
+                terminal_psi::ArrayExtent::Parameter { owner, value } => {
+                    let binding = self.extent_input(id, owner, value)?;
+                    let ScalarType::Integer(input_type) = binding.scalar_type else {
+                        return unserved("fixed-array length input is not an integer");
+                    };
+                    let term = ScalarTerm::Value {
+                        id: value,
+                        scalar_type: binding.scalar_type,
+                    };
+                    if input_type == scalar_type {
+                        term
+                    } else {
+                        ScalarTerm::integer_widen(input_type, scalar_type, term).map_err(|_| {
+                            refuse(
+                                id,
+                                Construct::Machine,
+                                Unserved::Contract("fixed-array length has no count conversion"),
+                            )
+                        })?
+                    }
+                }
+                terminal_psi::ArrayExtent::Application(_) => {
+                    return unserved("fixed-array length with an unresolved scalar application");
+                }
+            }
+        } else if shape.length_operation().is_some() {
+            ScalarTerm::ViewExtent {
+                root,
+                path,
+                scalar_type,
+            }
+        } else {
+            return unserved("extent without its descriptor operation");
+        };
+        Ok(length)
+    }
+
     /// A scalar field of the value a data clause is about, as the term
     /// Terminal Psi gives a field of storage: the root and the dense field
     /// and case identities down to the field.
@@ -2152,7 +2419,10 @@ impl Program<'_> {
         if !expression.is_valid() {
             return Ok(None);
         }
-        let (root, base, record, symbol) = match self.typed.expression_table.expression(expression)
+        let (root, base, record, symbol, regions) = match self
+            .typed
+            .expression_table
+            .expression(expression)
         {
             ExpressionNode::Name(path) => {
                 if path.static_application.is_valid() {
@@ -2195,13 +2465,15 @@ impl Program<'_> {
                     }
                     // A clause that names a field of a formal reads inside
                     // the formal's value, as a body does.
-                    let Some(record) =
-                        self.opened(id, Some(scope.slots[slot].value_type), Access::Read)?
-                    else {
+                    let value_type = scope.slots[slot].value_type;
+                    self.authorized(id, value_type, Access::Read)?;
+                    if !matches!(value_type, ValueType::Record(..))
+                        && scope.slots[slot].borrowed.is_none()
+                    {
                         return Ok(None);
-                    };
+                    }
                     let root = formal_place(id, scope.slots, slot)?;
-                    return Ok(Some((root, Vec::new(), ValueType::record(record.record()))));
+                    return Ok(Some((root, Vec::new(), value_type)));
                 };
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {
                     return Ok(Some((
@@ -2218,7 +2490,13 @@ impl Program<'_> {
                 let Some(record) = self.opened(id, Some(subject.value_type), Access::Read)? else {
                     return Ok(None);
                 };
-                (subject.root, subject.path.to_vec(), record, path.symbol)
+                (
+                    subject.root,
+                    subject.path.to_vec(),
+                    record,
+                    path.symbol,
+                    self.field_regions(id, record.record(), subject.value_type.regions())?,
+                )
             }
             ExpressionNode::Member(member) => {
                 if !member.selection.field_symbol().is_valid() {
@@ -2240,7 +2518,11 @@ impl Program<'_> {
                     return Err(not_data());
                 };
                 let record = self.through_shared_referent(id, &mut base, record)?;
-                (root, base, record, member.selection.field_symbol())
+                let receiver = self
+                    .reference_referent(id, receiver)?
+                    .map_or(receiver, |(referent, _)| referent);
+                let regions = self.field_regions(id, record.record(), receiver.regions())?;
+                (root, base, record, member.selection.field_symbol(), regions)
             }
             ExpressionNode::Indexed(indexed) => {
                 let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
@@ -2253,6 +2535,11 @@ impl Program<'_> {
                     return Err(unavailable("index of something that is not an array"));
                 };
                 let array = self.through_shared_referent(id, &mut path, array)?;
+                let receiver = self
+                    .reference_referent(id, receiver)?
+                    .map_or(receiver, |(referent, _)| referent);
+                let element_regions =
+                    self.collection_element_regions(id, array.record(), receiver.regions())?;
                 let (element, qualification, terminal_semantics::CollectionExtent::Fixed(length)) =
                     self.array_element(id, array)?
                 else {
@@ -2303,7 +2590,12 @@ impl Program<'_> {
                 // Keep the checked index in the same typed path as fields
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));
-                let value_type = self.storage_value_type(id, element, qualification)?;
+                let value_type = match self.storage_value_type(id, element, qualification)? {
+                    ValueType::Record(row, qualification, _) => {
+                        ValueType::Record(row, qualification, element_regions)
+                    }
+                    scalar => scalar,
+                };
                 let operands = self.collection_index_operand_types(id, array.record());
                 let owner = self.contract_operator_owner(id, scope)?;
                 self.complete_builtin_operator(id, owner, expression, &operands)?;
@@ -2347,6 +2639,7 @@ impl Program<'_> {
                 owner.fields[field].value_type
             }
         };
+        let value_type = self.substitute(value_type, &regions);
         Ok(Some((root, path, value_type)))
     }
 
@@ -2386,6 +2679,18 @@ impl Program<'_> {
             _ => Ok(record),
         }
     }
+}
+
+fn clause_formal_slot(scope: &ClauseScope<'_>, root: PlaceId) -> Option<usize> {
+    let mut place = 0u64;
+    scope.slots.iter().position(|slot| {
+        if slot.borrowed.is_some() || matches!(slot.value_type, ValueType::Record(..)) {
+            place += 1;
+            place == root.get()
+        } else {
+            false
+        }
+    })
 }
 
 /// Inspect only evaluated source bodies. Signature and type metadata may

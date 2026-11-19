@@ -1233,3 +1233,155 @@ machine build_entry() {
         "{reason}"
     );
 }
+
+#[test]
+fn checked_helpers_observe_the_exact_shared_byte_view() {
+    let source = r#"
+machine four_bytes(input: &[u8]) -> bool { input.len == 4u64 }
+domain [u8]::FourBytes requires four_bytes(&self[..]);
+machine length(input: &[u8] in FourBytes) -> u64 { (input as -FourBytes).len }
+machine build_entry() {
+    let view: &[u8] in FourBytes = "room" as +FourBytes;
+    let count: u64 = length(view);
+}
+"#;
+    let accepted = match judge_portable_byte_build(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the checked helper observes the same four-byte descriptor: {other:?}"),
+    };
+    terminal_codec::decode_module(
+        &terminal_codec::encode_module(&accepted.elaboration.module).unwrap(),
+    )
+    .unwrap();
+    let plain = source.replace("length(view)", "length(\"room\")");
+    let reason = verdict(&plain);
+    assert!(
+        reason.contains("domain") && reason.contains("FourBytes"),
+        "{reason}"
+    );
+    let invalid = source.replace("\"room\" as +FourBytes", "\"rooms\" as +FourBytes");
+    assert_ne!(invalid, source);
+    match judge_portable_byte_build(&invalid) {
+        Ok(RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        }) => {
+            assert!(
+                formations.is_empty()
+                    && violations.is_empty()
+                    && unestablished.is_empty()
+                    && conflicts.is_empty()
+                    && exceeded.is_empty(),
+                "{formations:?} {violations:?} {unestablished:?} {conflicts:?} {exceeded:?}"
+            );
+            assert_eq!(unproved.len(), 1, "{unproved:?}");
+            assert!(
+                unproved[0].statement.contains("FourBytes")
+                    && unproved[0].statement.contains("four_bytes"),
+                "{unproved:?}"
+            );
+        }
+        other => panic!("the helper's false result cannot establish membership: {other:?}"),
+    }
+}
+
+#[test]
+fn checked_helpers_keep_shared_projection_paths_and_scalar_arguments_separate() {
+    let source = r#"
+data Pair { a: u64; b: u64; }
+data Frame { left: Pair; right: Pair; }
+machine related(left: &Pair, right: &Pair, expected: u64) -> bool {
+    left.a == right.b && right.a == expected
+}
+domain Frame::Related requires related(&self.left, &self.right, self.right.a);
+machine build_entry() {
+    let frame: Frame in Related = Frame {
+        left: Pair { a: 4u64, b: 99u64 },
+        right: Pair { a: 2u64, b: 4u64 }
+    } as +Related;
+}
+"#;
+    let accepted = match judge_portable_byte_build(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("each argument retains its original field path: {other:?}"),
+    };
+    terminal_codec::decode_module(
+        &terminal_codec::encode_module(&accepted.elaboration.module).unwrap(),
+    )
+    .unwrap();
+    let invalid = source.replace(
+        "right: Pair { a: 2u64, b: 4u64 }",
+        "right: Pair { a: 2u64, b: 5u64 }",
+    );
+    assert_ne!(invalid, source);
+    match judge_portable_byte_build(&invalid) {
+        Ok(RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        }) => {
+            assert!(
+                formations.is_empty()
+                    && violations.is_empty()
+                    && unestablished.is_empty()
+                    && conflicts.is_empty()
+                    && exceeded.is_empty()
+            );
+            assert_eq!(unproved.len(), 1, "{unproved:?}");
+            assert!(unproved[0].statement.contains("Related"), "{unproved:?}");
+        }
+        other => panic!("the changed right-hand field breaks the helper predicate: {other:?}"),
+    }
+}
+
+#[test]
+fn constant_helpers_cannot_extend_a_logical_subject_to_static() {
+    const SOURCE: &str = r#"
+machine always(input: &[u8]) -> bool { true }
+domain [u8]::Held requires always(&self[..]);
+machine build_entry() { let view: &[u8] in Held = "room" as +Held; }
+"#;
+    assert_eq!(verdict(SOURCE), "accepted");
+    let invalid = SOURCE.replace("input: &[u8]", "input: &'static [u8]");
+    let reason = verdict(&invalid);
+    assert!(
+        reason.contains("logical shared argument differs from its declared loan lifetime")
+            || reason
+                .contains("logical argument differs from its complete declared parameter type"),
+        "an unused argument still has its declared storage lifetime: {reason}"
+    );
+}
+
+#[test]
+fn checked_helpers_preserve_coupled_nested_reference_lifetimes() {
+    const SOURCE: &str = r#"
+data Holder<'storage> { marker: u64; name: &'storage [u8]; }
+machine same<'storage>(left: &Holder<'storage>, right: &Holder<'storage>) -> bool { true }
+machine checked<'one>(left: &Holder<'one>, right: &Holder<'one>)
+requires same(left, right)
+{ }
+machine build_entry() {
+    let left: Holder = Holder { marker: 7u64, name: "left" };
+    let right: Holder = Holder { marker: 9u64, name: "right" };
+    checked(&left, &right);
+}
+"#;
+    assert_eq!(verdict(SOURCE), "accepted");
+    let invalid = SOURCE.replace(
+        "checked<'one>(left: &Holder<'one>, right: &Holder<'one>)",
+        "checked<'one, 'other>(left: &Holder<'one>, right: &Holder<'other>)",
+    );
+    assert_ne!(invalid, SOURCE);
+    let reason = verdict(&invalid);
+    assert!(
+        reason.contains("call that gives one lifetime two regions"),
+        "a constant body cannot equate independent nested reference lifetimes: {reason}"
+    );
+}

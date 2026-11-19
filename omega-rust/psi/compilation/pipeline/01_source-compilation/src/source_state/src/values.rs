@@ -319,6 +319,70 @@ pub mod const_integer {
 }
 pub mod expression {
 
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub enum SharedObservationForm {
+        Value,
+        Borrow,
+        WholeRange,
+    }
+
+    pub struct SharedObservation {
+        pub subject: ExpressionHandle,
+        pub form: SharedObservationForm,
+    }
+
+    /// A full shared range keeps its original storage and its view formation.
+    /// Partial ranges need their own subjects and bounds.
+    pub fn shared_observation(
+        program: &crate::source_state::TypedTrees,
+        argument: ExpressionHandle,
+    ) -> Option<SharedObservation> {
+        use crate::source_state::expression::ExpressionNode;
+        let table = &program.expression_table;
+        if !table.expression_is_valid(argument) {
+            return None;
+        }
+        let ExpressionNode::Borrow(borrow) = table.expression(argument) else {
+            return Some(SharedObservation {
+                subject: argument,
+                form: SharedObservationForm::Value,
+            });
+        };
+        if borrow.access != language_core::ReferenceAccess::Shared
+            || !table.expression_is_valid(borrow.target)
+        {
+            return None;
+        }
+        let ExpressionNode::Indexed(indexed) = table.expression(borrow.target) else {
+            return Some(SharedObservation {
+                subject: borrow.target,
+                form: SharedObservationForm::Borrow,
+            });
+        };
+        if !table.expression_is_valid(indexed.index) {
+            return None;
+        }
+        let ExpressionNode::Range(range) = table.expression(indexed.index) else {
+            return Some(SharedObservation {
+                subject: borrow.target,
+                form: SharedObservationForm::Borrow,
+            });
+        };
+        (!range.start.is_valid() && !range.end.is_valid() && !range.end_inclusive).then_some(
+            SharedObservation {
+                subject: indexed.collection,
+                form: SharedObservationForm::WholeRange,
+            },
+        )
+    }
+
+    pub fn whole_shared_observation_subject(
+        program: &crate::source_state::TypedTrees,
+        argument: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
+        shared_observation(program, argument).map(|observation| observation.subject)
+    }
+
     use crate::source_state::AuthoredDeclarationSelectionOccurrenceId;
     use crate::source_state::name::Identifier;
     use crate::source_state::static_applications::{

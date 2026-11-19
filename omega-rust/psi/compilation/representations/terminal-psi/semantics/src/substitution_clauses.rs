@@ -117,6 +117,13 @@ pub trait ClauseBindings {
         false
     }
 
+    /// Transporting a declaration before formation must keep every term for
+    /// that check. Decided alternatives may simplify only after their terms
+    /// have formed; visiting a term alone does not discharge its obligations.
+    fn preserve_unformed_terms(&self) -> bool {
+        false
+    }
+
     /// Resolve one computation after its operands have been resolved. Ordinary
     /// call substitution retains the selected computation. Declaration
     /// formation can instead register it as a pending logical computation.
@@ -476,7 +483,9 @@ pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
             bound_term(left, bindings, computation_names)?,
             bound_term(right, bindings, computation_names)?,
         ) {
-            (ScalarTerm::Boolean(left), ScalarTerm::Boolean(right)) => {
+            (ScalarTerm::Boolean(left), ScalarTerm::Boolean(right))
+                if !bindings.preserve_unformed_terms() =>
+            {
                 if left == right {
                     Proposition::Truth
                 } else {
@@ -753,6 +762,17 @@ fn connective<Error: From<&'static str>>(
     computation_names: &[(ScalarTerm, ScalarTerm)],
     conjunction: bool,
 ) -> Result<Proposition, Error> {
+    if bindings.preserve_unformed_terms() {
+        let retained = parts
+            .iter()
+            .map(|part| substitute_clause_with_computation_names(part, bindings, computation_names))
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok(if conjunction {
+            Proposition::Conjunction(retained)
+        } else {
+            Proposition::Disjunction(retained)
+        });
+    }
     let (deciding, unit) = if conjunction {
         (Proposition::Falsehood, Proposition::Truth)
     } else {
@@ -792,6 +812,70 @@ fn connective<Error: From<&'static str>>(
 mod tests {
     use super::*;
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralFieldId};
+
+    struct UnformedInputs;
+
+    impl ClauseBindings for UnformedInputs {
+        type Error = &'static str;
+
+        fn preserve_unformed_terms(&self) -> bool {
+            true
+        }
+
+        fn value(&mut self, id: ValueId, carrier: ScalarType) -> Result<ScalarTerm, Self::Error> {
+            Inputs.value(id, carrier)
+        }
+
+        fn field(
+            &mut self,
+            version: ContentPlaceVersion,
+            root: PlaceId,
+            path: &[CanonicalStructuralPathSegment],
+            carrier: ScalarType,
+        ) -> Result<ScalarTerm, Self::Error> {
+            Inputs.field(version, root, path, carrier)
+        }
+
+        fn case(
+            &mut self,
+            root: PlaceId,
+            path: &[CanonicalStructuralPathSegment],
+            case: StructuralCaseId,
+        ) -> Result<bool, Self::Error> {
+            Inputs.case(root, path, case)
+        }
+    }
+
+    #[test]
+    fn declaration_transport_keeps_terms_in_decided_alternatives() {
+        let atom = Proposition::LessThan(
+            ScalarTerm::value(ValueId::new(1).unwrap(), scalar_type()),
+            ScalarTerm::value(ValueId::new(2).unwrap(), scalar_type()),
+        );
+        let original = Proposition::Disjunction(vec![Proposition::Truth, atom.clone()]);
+        assert_eq!(
+            substitute_clause(&original, &mut Inputs),
+            Ok(Proposition::Truth)
+        );
+        assert_eq!(
+            substitute_clause(&original, &mut UnformedInputs),
+            Ok(Proposition::Disjunction(vec![
+                Proposition::Truth,
+                substitute_clause(&atom, &mut Inputs).unwrap()
+            ]))
+        );
+        let unresolved = Proposition::Disjunction(vec![
+            Proposition::Truth,
+            Proposition::LessThan(
+                ScalarTerm::value(ValueId::new(3).unwrap(), scalar_type()),
+                ScalarTerm::value(ValueId::new(2).unwrap(), scalar_type()),
+            ),
+        ]);
+        assert_eq!(
+            substitute_clause(&unresolved, &mut UnformedInputs),
+            Err("unbound value")
+        );
+    }
 
     #[test]
     fn ieee_clauses_keep_the_predicate_and_exact_actuals() {

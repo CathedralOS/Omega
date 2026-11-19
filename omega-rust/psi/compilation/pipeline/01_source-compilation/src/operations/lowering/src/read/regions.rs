@@ -597,11 +597,17 @@ impl Program<'_> {
         if actual.erased() != expected.erased() {
             return false;
         }
-        if actual.regions() == expected.regions() {
+        self.same_regions(actual.regions(), expected.regions())
+    }
+
+    /// Compare complete region tuples with the same inference and rollback
+    /// used for value types. A borrowed formal also has an outer loan tuple.
+    pub(crate) fn same_regions(&mut self, actual: Regions, expected: Regions) -> bool {
+        if actual == expected {
             return true;
         }
-        let left = self.region_tuple(actual.regions()).to_vec();
-        let right = self.region_tuple(expected.regions()).to_vec();
+        let left = self.region_tuple(actual).to_vec();
+        let right = self.region_tuple(expected).to_vec();
         if left.len() != right.len() {
             return false;
         }

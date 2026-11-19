@@ -947,3 +947,26 @@ machine build_entry() { let value: u64 in Safe = 7u64 as +Safe; }
         "{violations:?}"
     );
 }
+
+#[test]
+fn nested_helper_transport_keeps_decided_argument_formation() {
+    const SOURCE: &str = r#"
+machine always(input: u64) -> bool { true }
+machine nested(input: u64) -> bool { always(1u64 / input) || true }
+domain u64::Safe requires self >= 1u64, nested(self);
+machine build_entry() { let value: u64 in Safe = 7u64 as +Safe; }
+"#;
+    executed_source(SOURCE);
+    let verdict = source_result(&SOURCE.replace("self >= 1u64, ", ""));
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!(
+            "transport must retain the nested division before the decided alternative: {verdict:?}"
+        );
+    };
+    assert!(
+        violations.iter().any(|row| row.statement.contains(
+            "scalar domain: contract arithmetic is not proved total before its condition"
+        )),
+        "{violations:?}"
+    );
+}

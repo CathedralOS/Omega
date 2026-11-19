@@ -224,34 +224,11 @@ pub mod evidence {
             {
                 return None;
             }
-            let subject = whole_byte_observation_subject(program, argument)?;
+            let subject = crate::source_state::expression::whole_shared_observation_subject(
+                program, argument,
+            )?;
             crate::source_state::domain::domain_subject_reference(program, domain, subject)
                 .then_some((*expression, predicate))
-        }
-
-        /// A shared loan of an entire range observes the same bytes as its
-        /// backing. Partial ranges remain distinct subjects, including UTF-8
-        /// windows whose endpoints need not be character boundaries.
-        pub fn whole_byte_observation_subject(
-            program: &TypedTrees,
-            argument: ExpressionHandle,
-        ) -> Option<ExpressionHandle> {
-            use crate::source_state::expression::ExpressionNode;
-            let table = &program.expression_table;
-            let ExpressionNode::Borrow(borrow) = table.expression(argument) else {
-                return Some(argument);
-            };
-            if borrow.access != language_core::ReferenceAccess::Shared {
-                return None;
-            }
-            let ExpressionNode::Indexed(indexed) = table.expression(borrow.target) else {
-                return Some(borrow.target);
-            };
-            let ExpressionNode::Range(range) = table.expression(indexed.index) else {
-                return Some(borrow.target);
-            };
-            (!range.start.is_valid() && !range.end.is_valid() && !range.end_inclusive)
-                .then_some(indexed.collection)
         }
 
         /// The exact primitive predicate of a declared byte-slice domain.
