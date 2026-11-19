@@ -1236,19 +1236,6 @@ impl SourceContinuation {
         .map_err(refuse)
     }
 
-    pub fn rejoin_product_provider_selection(
-        &mut self,
-        selection: &crate::evaluation::provider_declarations::RetainedProviderSelection,
-        candidates: &mut crate::source_symbols::SourceSpanCandidates,
-    ) -> Result<crate::evaluation::provider_declarations::ProviderSelection, Diagnostic> {
-        selection.rejoin(
-            Arc::make_mut(&mut self.input).typing.typed_mut(),
-            source_provenance::DependencyScope::Product,
-            &[],
-            candidates,
-        )
-    }
-
     pub fn materialize_authored_bodies(
         self,
         observer: &mut impl PsiCompilationObserver,

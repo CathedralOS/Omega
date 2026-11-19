@@ -8,9 +8,7 @@ use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceResolutionStratum;
-use source_compiler::evaluation::provider_declarations::{
-    ProviderSelection, RetainedProviderSelection,
-};
+use source_compiler::evaluation::provider_declarations::RetainedProviderSelection;
 use std::path::PathBuf;
 
 pub(super) struct CompletedProviderDefaults {
@@ -95,15 +93,12 @@ impl CompletedProviderDefaults {
         Ok(paths)
     }
 
-    pub(super) fn rejoin(
+    pub(super) fn admit(
         &self,
-        source: &mut source_compiler::SourceContinuation,
         inputs: &PackageCompilationInputs,
-    ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    ) -> Result<Vec<RetainedProviderSelection>, Vec<Diagnostic>> {
         inputs.admit_provider_activation(&self.supplier)?;
         let mut selections = Vec::new();
-        // One guarded span lookup serves every selection's two declarations.
-        let mut candidates = source_compiler::source_symbols::SourceSpanCandidates::default();
         for selection in self.selections() {
             let mut selected = selection.clone();
             selected.subject = self.admit_declaration(inputs, &selected.subject)?;
@@ -118,24 +113,7 @@ impl CompletedProviderDefaults {
                 *application =
                     inputs.admit_retained_product_application(&self.supplier, application)?;
             }
-            let subject_loaded = source.typed().symbols.source_files().any(|file| {
-                file.dependency_scope
-                    == source_provenance::DependencyScope::Product
-                    && source
-                        .typed()
-                        .symbols
-                        .source_map()
-                        .is_none_or(|sources| sources.source_is_selected(file.source_id))
-                    && file.path == selected.subject.source().path
-            });
-            if !subject_loaded {
-                continue;
-            }
-            selections.push(
-                source
-                    .rejoin_product_provider_selection(&selected, &mut candidates)
-                    .map_err(|error| vec![error])?,
-            );
+            selections.push(selected);
         }
         Ok(selections)
     }

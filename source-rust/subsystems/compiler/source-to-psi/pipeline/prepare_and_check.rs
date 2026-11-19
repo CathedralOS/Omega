@@ -15,7 +15,8 @@ pub struct ProductSourceInputs<'a> {
     /// Bindings returned by Build. The receiving source resolves their exact declarations.
     pub root_binding_requests: &'a [crate::declaration_selection::ExecutedRootBinding],
     pub provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
-    pub default_provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
+    /// Package-authenticated declarations and closed operands from dependency Builds.
+    pub default_provider_selections: &'a [crate::evaluation::provider_declarations::RetainedProviderSelection],
     pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
     pub representations: crate::ProductRepresentationInput<'a>,
     pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
@@ -30,7 +31,7 @@ pub struct CompletedProductSource {
 }
 
 pub fn prepare_lower_and_check(
-    typed: crate::source_state::TypedTrees,
+    mut typed: crate::source_state::TypedTrees,
     inputs: ProductSourceInputs<'_>,
     build_accounting: &crate::evaluation::SourceCompletionAccounting,
     accounting: &mut crate::evaluation::SourceCompletionAccounting,
@@ -41,7 +42,10 @@ pub fn prepare_lower_and_check(
     accounting
         .validate_charges()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let has_defaults = !inputs.default_provider_selections.is_empty()
+    let default_provider_selections = crate::evaluation::provider_declarations::rejoin_provider_defaults(
+        &mut typed, inputs.default_provider_selections,
+    )?;
+    let has_defaults = !default_provider_selections.is_empty()
         || typed.machines().iter().any(|machine| {
             machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
         });
@@ -54,6 +58,7 @@ pub fn prepare_lower_and_check(
     let mut pass = ProductSourcePass {
         inputs,
         root_bindings,
+        default_provider_selections,
         inspection,
         frontier,
         build_accounting,
@@ -83,6 +88,7 @@ pub fn prepare_lower_and_check(
 struct ProductSourcePass<'a, 'f, O> {
     inputs: ProductSourceInputs<'a>,
     root_bindings: Vec<crate::RootBinding>,
+    default_provider_selections: Vec<crate::provider_choice_inputs::ProviderSelection>,
     inspection: Option<&'f str>,
     frontier: Option<&'f mut Option<crate::TypedFrontier>>,
     build_accounting: &'f crate::evaluation::SourceCompletionAccounting,
@@ -306,7 +312,7 @@ fn prepare_and_judge(
             },
         )
         .collect::<Vec<_>>();
-    for selection in build.default_provider_selections {
+    for selection in &pass.default_provider_selections {
         provider_defaults.push(
             crate::provider_choice_inputs::TargetProviderDefaults {
                 target: selection
