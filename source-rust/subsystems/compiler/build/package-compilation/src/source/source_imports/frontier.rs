@@ -901,7 +901,7 @@ mod tests {
         let capture = crate::capture_anonymous_compilation_source(&core).unwrap();
         let original = capture
             .tree()
-            .read_to_string(std::path::Path::new("float.omg"))
+            .read_to_string(std::path::Path::new("float/float.omg"))
             .unwrap();
         for substituted in [false, true] {
             let mut storage = SourceStorage::for_package_compilation(
@@ -920,7 +920,7 @@ mod tests {
             storage
                 .admit_source(
                     source_admission::SourceContents {
-                        path: core.join("float.omg"),
+                        path: core.join("float/float.omg"),
                         source: text,
                         scope: DependencyScope::Build,
                     },

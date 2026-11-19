@@ -1436,7 +1436,7 @@ fn seed_core_vocabulary(
     core_root: &Path,
     scope: source_provenance::DependencyScope,
 ) {
-    for file in ["code_layout.omg", "indexing.omg"] {
+    for file in ["code_layout.omg", "indexing/indexing.omg"] {
         imports.seed(core_root.join(file), scope);
     }
 }
@@ -1495,7 +1495,7 @@ mod requirement_preparation_tests {
             .canonicalize()
             .expect("the existing scalar fixture's exact source path");
         let core = crate::source::source_imports::bundled_core_root().unwrap();
-        let indexing = core.join("indexing.omg");
+        let indexing = core.join("indexing/indexing.omg");
         let collection_source = |assembled: &AssembledSyntax, scope| {
             let files = assembled
                 .sources
