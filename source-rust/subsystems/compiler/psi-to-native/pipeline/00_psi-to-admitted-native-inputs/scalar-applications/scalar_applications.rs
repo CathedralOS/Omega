@@ -1,77 +1,15 @@
-/*
-Application-sponsored completion of canonical Terminal scalar applications
-(`complete`).
-
-Post-Terminal Product checking calls `prepare` and retains the completed scope
-with its actual execution inputs. `extend_native` adds the executable's roots
-and demand to that scope without running identical scalar requests again.
-Source-free inputs use `complete_native` and `complete_native_demand` to finish the values a native
-compile needs before native lowering starts, so the native pipeline
-runs once with them as input and never pauses for evaluation. Any
-attempted evaluation usage is recorded in `accounting` even when a condition
-refuses. Each deployed scope also receives `TargetRealizedIntrinsics`, so a
-constant that reaches a canonical float operation executes the realization its
-target selected. An unscoped request supplies only portable facts; demands for
-target-dependent operations must still resolve a deployment.
-*/
+//! Complete scalar values for an artifact, a deployment and its selected provider inputs.
+//! The native driver determines which applications its entry demands. Product completion
+//! retains its actual execution inputs and can extend them with newly selected roots.
 
 pub use build_scalar_evaluation::CanonicalScalarEvaluationReceipt as EvaluationReceipt;
-use target_provider_admission::TerminalTargetProviderProposal;
 use psi_target_layouts::terminal_target_context;
 use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
+use target_provider_admission::TerminalTargetProviderProposal;
 
-/// The Product phase's completed scalar work and its unchanged provider inputs.
-/// Native completion adds application roots and demanded values to this owner.
-/// It is never encoded in saved native inputs.
-pub struct ProductScalarCompletion {
-    pub completed: build_scalar_evaluation::ScalarApplicationCompletion,
-    pub proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
-}
-
-/// The scalar values native compilation of `retained`'s program entry reads,
-/// evaluated for its deployment, or `None` when it needs none.
-pub fn complete_native(
-    retained: &verified_optimization_input::RetainedTerminalArtifact,
-    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
-) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, String> {
-    let proposal = retained
-        .native_realization_proposal()
-        .ok_or("native constant completion needs the retained native proposal")?;
-    let demand = proposal
-        .entry_scalar_demand(retained.authorization())
-        .map_err(diagnostic_text)?;
-    complete_native_demand(retained.shared_artifact(), proposal, demand, accounting)
-}
-
-/// Evaluate a native scalar demand (such as an independent component's
-/// `ComponentNativeInputs::scalar_demand`) for `proposal`'s deployment.
-pub fn complete_native_demand(
-    artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
-    proposal: &verified_optimization_input::TerminalNativeRealizationProposal,
-    demand: Option<Vec<semantic_vocabulary::ScalarApplicationId>>,
-    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
-) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, String> {
-    let Some(demand) = demand else {
-        return Ok(None);
-    };
-    complete(
-        artifact,
-        proposal.target_profile().target_name(),
-        &demand,
-        proposal.target_provider_proposals(),
-        accounting,
-    )
-    .map(Some)
-}
-
-fn diagnostic_text(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
-    diagnostics
-        .into_iter()
-        .map(|diagnostic| diagnostic.message)
-        .collect::<Vec<_>>()
-        .join("; ")
-}
+mod completed;
+pub use completed::ProductScalarCompletion;
 
 pub fn complete<'scope>(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
@@ -170,69 +108,6 @@ pub fn prepare<'scope>(
     })
 }
 
-/// Extend the Product completion without replacing its target inputs. A
-/// source-free artifact has no such owner and uses `complete_native` instead.
-pub fn extend_native(
-    retained: &verified_optimization_input::RetainedTerminalArtifact,
-    completion: ProductScalarCompletion,
-    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
-) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, String> {
-    let proposal = retained
-        .native_realization_proposal()
-        .ok_or("native constant completion needs the retained native proposal")?;
-    let demand = proposal
-        .entry_scalar_demand(retained.authorization())
-        .map_err(diagnostic_text)?;
-    if completion.completed.artifact().view().identity() != retained.artifact().view().identity()
-        || completion.completed.primary_target() != Some(proposal.target_profile().target_name())
-    {
-        return Err("native scalar completion changed its artifact or target".into());
-    }
-    let proposals = proposal.target_provider_proposals();
-    if completion.proposals.len() != proposals.len()
-        || completion
-            .proposals
-            .iter()
-            .zip(proposals)
-            .any(|(previous, selected)| {
-                let mut expected = previous.clone();
-                expected.application_roots = selected.application_roots.clone();
-                expected != *selected
-            })
-    {
-        return Err("native scalar completion changed its retained provider proposal".into());
-    }
-    let Some(demand) = demand else {
-        return Ok(None);
-    };
-    let deployed = proposals
-        .iter()
-        .any(|proposal| proposal.application_roots.is_some());
-    let scopes = proposals
-        .iter()
-        .filter(|proposal| proposal.application_required)
-        .map(|proposal| proposal.target.clone())
-        .collect::<Vec<_>>();
-    let roots = proposals
-        .iter()
-        .filter_map(|proposal| {
-            proposal
-                .application_roots
-                .as_ref()
-                .map(|roots| (proposal.target.clone(), roots.clone()))
-        })
-        .collect::<Vec<_>>();
-    completion
-        .completed
-        .extend(
-            deployed.then_some(scopes.as_slice()),
-            &roots,
-            &demand,
-            accounting,
-        )
-        .map(Some)
-}
-
 /// The numeric catalog operations the scope's target selection realizes.
 ///
 /// A canonical float operation reaches Terminal Psi as a bodyless boundary.
@@ -252,9 +127,10 @@ impl TargetRealizedIntrinsics {
         artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
         selection: &target_provider_admission::TerminalTargetProviderSelection,
     ) -> Result<Self, String> {
-        let selected =
-            selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(selection.plans.clone())?
-                .with_assumed_bindings(selection.assumed_bindings.clone());
+        let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
+            selection.plans.clone(),
+        )?
+        .with_assumed_bindings(selection.assumed_bindings.clone());
         Ok(Self {
             artifact: Arc::clone(artifact),
             selected,
@@ -262,14 +138,11 @@ impl TargetRealizedIntrinsics {
     }
 }
 
-impl build_scalar_evaluation::TargetImportRealizations
-    for TargetRealizedIntrinsics
-{
+impl build_scalar_evaluation::TargetImportRealizations for TargetRealizedIntrinsics {
     fn admit(
         &self,
         imports: &[semantic_vocabulary::BoundaryMachineId],
-    ) -> Result<Box<dyn build_scalar_evaluation::AdmittedImportRealizations>, String>
-    {
+    ) -> Result<Box<dyn build_scalar_evaluation::AdmittedImportRealizations>, String> {
         use provider_admission::provider_admission as admission;
         let module = self.artifact.view().module();
         // Catalog admission matches selected rows by callable identity. An

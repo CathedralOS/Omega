@@ -1832,7 +1832,6 @@ name = "native-scalar-inputs"
 version = "0.1.0"
 dependencies = [
  "build-scalar-evaluation",
- "diagnostics",
  "provider-admission",
  "psi-provider-selections",
  "psi-scalar-applications",
@@ -1846,7 +1845,6 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-runtime",
- "verified-optimization-input",
 ]
 
 [[package]]

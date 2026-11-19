@@ -8,7 +8,7 @@ pub use native_artifact::AdmittedRuntimeProgram;
 pub use pipeline::prepare::published_application::SavedProgramTarget;
 
 use diagnostics::Diagnostic;
-use pipeline::prepare::published_application::prepare_saved_program;
+use pipeline::prepare::published_application::{complete_entry_scalars, prepare_saved_program};
 use pipeline::request::NativeCompileRequest;
 use provider_admission::provider_admission::current_terminal_authority_policy;
 use psi_authorization::AuthorizedTerminalArtifact;
@@ -21,6 +21,7 @@ pub mod test_support {
     pub use crate::pipeline::observations::{
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
+    pub use crate::pipeline::prepare::published_application::complete_entry_scalars;
     pub use crate::pipeline::realization::compile_runtime_foreign_adapter;
     pub use crate::pipeline::request::NativeCompileRequest;
     pub use crate::pipeline::{admit_runtime, compile};
@@ -70,13 +71,12 @@ fn with_published_request<T>(
     let subsystem = target.application.subsystem;
     let (terminal, permissions) = prepare_saved_program(authorization, target)?;
 
-    let scalars = native_scalar_inputs::complete_native(&terminal, accounting)
-        .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
     let proposal = terminal.native_realization_proposal().ok_or_else(|| {
         vec![Diagnostic::error(
             "saved Psi compilation lost its native proposal",
         )]
     })?;
+    let scalars = complete_entry_scalars(terminal.authorization(), proposal, accounting)?;
     let optimizations = proposal.post_terminal_optimizations().selections().clone();
     let request = NativeCompileRequest {
         retain_native_stage_inputs: false,
