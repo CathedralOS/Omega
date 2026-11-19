@@ -8,7 +8,7 @@ mod linear_pipeline;
 mod native_stages;
 
 use serde::Deserialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -567,27 +567,68 @@ pub fn dependency_violations(
     Ok(violations)
 }
 
-pub fn psi_omega_dependency_violations(metadata: &Metadata) -> Result<Vec<String>, String> {
+/// The shared Psi format can be used by either compiler. Its dependency tree
+/// cannot contain a compiler, and neither compiler may run the other through a helper.
+pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>, String> {
+    const SOURCE: &str = "source-rust/subsystems/compiler/source-to-psi";
+    const FORMAT: &str = "source-rust/subsystems/compiler/psi";
+    const NATIVE: &str = native_stages::DRIVER;
+
     let root = Path::new(&metadata.workspace_root);
+    let mut packages = BTreeMap::new();
+    let mut edges = BTreeMap::<String, Vec<String>>::new();
     let mut violations = Vec::new();
     for package in &metadata.packages {
-        let Some(parent) = Path::new(&package.manifest_path).parent() else {
-            continue;
-        };
-        let source = normalize_relative(root, parent)?;
-        if !under(&source, &[PSI]) {
-            continue;
+        let directory = Path::new(&package.manifest_path)
+            .parent()
+            .ok_or("manifest has no parent")?;
+        let owner = normalize_relative(root, directory)?;
+        packages.insert(owner.clone(), &package.name);
+        for dep in &package.dependencies {
+            let Some(path) = &dep.path else { continue };
+            let dependency = normalize_relative(root, Path::new(path))?;
+            if dep.kind.as_deref() == Some("dev") {
+                if under(&owner, &[SOURCE, FORMAT]) && under(&dependency, &[NATIVE]) {
+                    violations.push(format!(
+                        "{} -> {}: a source or Psi test imports native compilation ({dependency})",
+                        package.name, dep.name
+                    ));
+                }
+            } else {
+                edges.entry(owner.clone()).or_default().push(dependency);
+            }
         }
-        for dependency in &package.dependencies {
-            let Some(dep_path) = &dependency.path else {
-                continue;
-            };
-            let destination = normalize_relative(root, Path::new(dep_path))?;
-            if under(&destination, &[OMEGA]) {
-                violations.push(format!(
-                    "{} -> {}: Psi depends on Omega ({destination})",
-                    package.name, dependency.name
-                ));
+    }
+    for (owner, forbidden) in [
+        (SOURCE, &[NATIVE][..]),
+        (FORMAT, &[SOURCE, NATIVE][..]),
+        (NATIVE, &[SOURCE][..]),
+    ] {
+        let mut pending = VecDeque::new();
+        let mut seen = BTreeSet::new();
+        for (path, name) in &packages {
+            if under(path, &[owner]) {
+                pending.push_back((path.as_str(), name.to_string()));
+                seen.insert(path.as_str());
+            }
+        }
+        if pending.is_empty() {
+            return Err(format!("compiler boundary has no package: {owner}"));
+        }
+        while let Some((path, chain)) = pending.pop_front() {
+            for next in edges.get(path).into_iter().flatten() {
+                if !seen.insert(next.as_str()) {
+                    continue;
+                }
+                let next_name = packages
+                    .get(next)
+                    .map_or(next.as_str(), |name| name.as_str());
+                let chain = format!("{chain} -> {next_name}");
+                if under(next, forbidden) {
+                    violations.push(format!("forbidden compiler dependency: {chain} ({next})"));
+                } else {
+                    pending.push_back((next, chain));
+                }
             }
         }
     }
@@ -1084,7 +1125,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             SEALED_TERMINAL_MODULE,
             "a native form reaches the sealed Terminal Psi module; name the encoder from terminal-wire",
         )?);
-        violations.extend(psi_omega_dependency_violations(&metadata)?);
+        violations.extend(pipeline_dependency_violations(&metadata)?);
         violations.extend(dependency_violations(
             &metadata,
             NATIVE_ROOT,
@@ -1772,21 +1813,52 @@ mod tests {
     }
 
     #[test]
-    fn rejects_psi_depending_on_omega() {
+    fn neither_pipeline_can_reenter_the_other_through_shared_dependencies() {
+        let source = "source-rust/subsystems/compiler/source-to-psi";
+        let psi = "source-rust/subsystems/compiler/psi";
+        let native = native_stages::DRIVER;
         let metadata = Metadata {
-            workspace_root: "/repo".to_owned(),
+            workspace_root: "/repo".into(),
             packages: vec![
                 pkg(
-                    "language-semantics",
-                    "omega-rust/psi/foundation/language-semantics",
-                    &[("native-compiler", NATIVE_ROOT, Some("dev"))],
+                    "source",
+                    source,
+                    &[("shared", "shared/source", Some("build"))],
                 ),
-                pkg("native-compiler", NATIVE_ROOT, &[]),
+                pkg(
+                    "psi",
+                    psi,
+                    &[
+                        ("shared", "shared/psi", None),
+                        ("native", native, Some("dev")),
+                    ],
+                ),
+                pkg(
+                    "native",
+                    native,
+                    &[
+                        ("shared", "shared/native", None),
+                        ("source", source, Some("dev")),
+                    ],
+                ),
+                pkg("from-source", "shared/source", &[("native", native, None)]),
+                pkg("from-psi", "shared/psi", &[("source", source, None)]),
+                pkg("from-native", "shared/native", &[("source", source, None)]),
             ],
         };
-        let violations = psi_omega_dependency_violations(&metadata).unwrap();
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].contains("language-semantics -> native-compiler"));
+        let violations = pipeline_dependency_violations(&metadata).unwrap();
+        for chain in [
+            "source -> from-source -> native",
+            "psi -> from-psi -> source",
+            "native -> from-native -> source",
+            "psi -> native: a source or Psi test",
+        ] {
+            assert!(
+                violations.iter().any(|message| message.contains(chain)),
+                "{violations:?}"
+            );
+        }
+        assert_eq!(violations.len(), 4);
     }
 
     #[test]
