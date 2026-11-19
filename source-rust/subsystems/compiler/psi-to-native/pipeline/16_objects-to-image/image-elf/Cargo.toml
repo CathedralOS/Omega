@@ -16,7 +16,6 @@ arena = { path = "../../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 image = { path = "../image" }
 object-file = { path = "../../15_placed-functions-to-objects" }
-optimization-core = { path = "../../../optimization-contracts" }
 target = { path = "../../../targets/target" }
 
 [dev-dependencies]

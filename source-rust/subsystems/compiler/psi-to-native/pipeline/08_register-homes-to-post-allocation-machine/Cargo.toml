@@ -7,7 +7,7 @@ version.workspace = true
 [dependencies]
 physical-program = { path = "../representations/post-allocation-machine/body-facts" }
 allocation = { package = "selected-instructions-to-register-homes", path = "../07_selected-instructions-to-register-homes" }
-optimization-core = { path = "../../optimization-contracts" }
+optimization-core = { path = "../representations/optimization-records" }
 post-allocation-machine = { path = "../representations/post-allocation-machine" }
 register-homes = { path = "../representations/register-homes" }
 register-model = { path = "../../targets/register-model" }

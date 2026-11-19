@@ -20,7 +20,7 @@ pub(crate) use fact_reference::OptimizationFactReferenceDecodeError;
 pub use pass::OptimizationPassManifestRecord;
 pub use work_usage::OptimizationWorkUsage;
 
-use crate::optimization_core::identities::IDENTITY_WIDTH;
+use crate::identities::IDENTITY_WIDTH;
 use crate::{AnalysisSet, OptimizationCandidateVerdict};
 
 pub(super) struct ManifestWireFormat {

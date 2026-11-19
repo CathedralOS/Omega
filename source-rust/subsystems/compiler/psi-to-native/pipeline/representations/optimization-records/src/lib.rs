@@ -1,23 +1,29 @@
-//! Native optimization selections, identities, rule contracts and carried decision records.
-//! No compiler driver, rewrite, release request or source authority is retained here.
+//! Rule contracts, work counters and decision evidence carried through native optimization.
 #![forbid(unsafe_code)]
 
-mod optimization_core;
+mod contracts;
+mod decisions;
+mod identities;
+mod manifest;
+mod record_encoding;
 
-pub(crate) use optimization_core::contracts::CoreContractDecodeError;
-pub use optimization_core::contracts::{
+#[cfg(test)]
+mod canonical_rows;
+
+pub(crate) use contracts::CoreContractDecodeError;
+pub use contracts::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OPTIMIZATION_REFERENCE_EXTENT,
     OptimizationCandidateVerdict, OptimizationReasonCode, OptimizationRuleContract,
     OptimizationSafetyClass, OptimizationWorkBudget,
 };
-pub use optimization_core::decisions::{
+pub use decisions::{
     BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,
     BaselineDecisionOutcome, BaselineDecisionRecordError, ExternalCandidateFeatures,
     ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
     ExternalDecisionSchemaError, ValidatedCandidateSummary, external_psi_decision_schema_identity,
     psi_target_neutral_decision_target_identity,
 };
-pub use optimization_core::identities::{
+pub use identities::{
     AcceptedObligationFactIdentity, CanonicalIdentityEncoder, FunctionFragmentEmissionIdentity,
     FunctionFragmentEmissionManifestIdentity, FunctionFragmentObjectContainerManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
@@ -38,12 +44,12 @@ pub use optimization_core::identities::{
     TerminalRelocationFreeTextSectionIdentity, TransformationLedgerIdentity,
     ValueRangeFactIdentity,
 };
-pub(crate) use optimization_core::manifest::OptimizationFactReferenceDecodeError;
-pub use optimization_core::manifest::{
+pub(crate) use manifest::OptimizationFactReferenceDecodeError;
+pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
     OptimizationPassManifestRecord, OptimizationWorkUsage,
 };
-pub use optimization_core::{
+pub use optimization_selections::{
     Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
     OptimizationPhaseMismatch, OptimizationPhaseSelections, OptimizationSelectionIdentity,
     OptimizationSelections, PostTerminalOptimizationSelectionProjection,

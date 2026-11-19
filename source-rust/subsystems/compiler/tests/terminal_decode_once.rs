@@ -134,7 +134,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // Everything above is Psi production and proposal retention. The
     // measurement starts here so it attributes only the realization.
     let before = terminal_codec::module_decode_count();
-    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let optimizations = optimization_selections::PostTerminalOptimizationSelections::default();
     let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
     let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)
         .expect("scalar completion");

@@ -1,0 +1,9 @@
+[package]
+name = "optimization-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+optimization-selections = { path = "../../../../foundation/optimization-selections" }
+wire = { path = "../../../../../../foundation/wire" }

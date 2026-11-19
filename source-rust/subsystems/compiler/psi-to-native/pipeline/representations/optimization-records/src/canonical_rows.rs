@@ -2,7 +2,7 @@
 // `OptimizationDecisionRecord`, `BaselineDecisionLog`, `ExternalDecisionPoint`,
 // and `ExternalDecisionLog`.
 
-use crate::optimization_core::manifest::tests::fact;
+use crate::manifest::tests::fact;
 use crate::{
     AnalysisKind, AnalysisSet, BaselineDecisionLogBuilder, BaselineDecisionOutcome,
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,

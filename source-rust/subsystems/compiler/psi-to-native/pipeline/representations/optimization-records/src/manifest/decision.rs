@@ -5,7 +5,7 @@
 // once for both the wire codec (`CountFrame::Wire`, `u32` fact count) and the
 // canonical decision digest (`CountFrame::Canonical`, `u64` fact count).
 
-use crate::optimization_core::CountFrame;
+use crate::record_encoding::CountFrame;
 use crate::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
     OptimizationDecisionIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,

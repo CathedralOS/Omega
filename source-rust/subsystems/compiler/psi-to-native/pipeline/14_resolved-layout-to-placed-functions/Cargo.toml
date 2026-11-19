@@ -19,7 +19,7 @@ register-environment = { path = "../../targets/register-environment" }
 register-model = { path = "../../targets/register-model" }
 register-homes = { path = "../representations/register-homes" }
 selected-instructions = { path = "../representations/selected-instructions" }
-optimization-core = { path = "../../optimization-contracts" }
+optimization-core = { path = "../representations/optimization-records" }
 target = { path = "../../targets/target" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 machine-code = { path = "../representations/machine-code" }

@@ -142,7 +142,7 @@ impl SelectedExecution {
     pub fn provider_proposal(
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
-        optimization_selection: optimization_core::OptimizationSelectionIdentity,
+        optimization_selection: optimization_selections::OptimizationSelectionIdentity,
     ) -> Option<backend_plan::TerminalTargetProviderProposal> {
         let target = self.target_profile?.target_name();
         let selection = self

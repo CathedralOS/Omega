@@ -71,7 +71,7 @@ impl OptimizationWorkBudget {
     }
 
     pub fn encode(self) -> [u8; 40] {
-        crate::optimization_core::encode_work_counters([
+        crate::record_encoding::encode_work_counters([
             self.rule_evaluations,
             self.candidates,
             self.validation_steps,
@@ -81,7 +81,7 @@ impl OptimizationWorkBudget {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, CoreContractDecodeError> {
-        let Some(fields) = crate::optimization_core::decode_work_counters(encoded) else {
+        let Some(fields) = crate::record_encoding::decode_work_counters(encoded) else {
             return Err(CoreContractDecodeError::WrongLength {
                 expected: 40,
                 actual: encoded.len(),

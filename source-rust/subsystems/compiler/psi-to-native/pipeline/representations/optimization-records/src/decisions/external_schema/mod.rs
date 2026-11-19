@@ -22,7 +22,7 @@ pub use identity::{
     external_psi_decision_schema_identity, psi_target_neutral_decision_target_identity,
 };
 
-use crate::optimization_core::CountFrame;
+use crate::record_encoding::CountFrame;
 use crate::{
     AnalysisSet, CoreContractDecodeError, OptimizationCandidateIdentity,
     OptimizationDecisionLogIdentity, OptimizationDecisionSchemaIdentity,

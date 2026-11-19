@@ -6,7 +6,7 @@
 // array indexed in `Optimization::ALL` order avoids checking one field and one
 // nested writer machine per optimization on every compile.
 
-use optimization_core::Optimization;
+use optimization_selections::Optimization;
 
 const DECLARATIONS_SLOT: &str = "// compiler-owned optimization declarations\n";
 

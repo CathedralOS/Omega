@@ -16,7 +16,7 @@ native-vocabulary = { path = "../../../../native-vocabulary" }
 language-core = { path = "../../../../../foundation/language-core" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
 function-identity = { path = "../../function-identity" }
-optimization-core = { path = "../../../../optimization-contracts" }
+optimization-core = { path = "../../optimization-records" }
 target = { path = "../../../../targets/target" }
 semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi" }

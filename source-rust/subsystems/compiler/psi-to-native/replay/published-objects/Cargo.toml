@@ -24,4 +24,4 @@ target-lowering = { package = "abstract-operations-to-target-operations", path =
 installation-admission = { path = "../../verification/installation-admission" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 image-emission = { path = "../../pipeline/16_objects-to-image/image-emission" }
-optimization-core = { path = "../../optimization-contracts" }
+optimization-core = { path = "../../pipeline/representations/optimization-records" }

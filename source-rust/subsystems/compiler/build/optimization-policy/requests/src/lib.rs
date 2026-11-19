@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 mod report_request;
 mod rollback;
-use optimization_core::{Optimization, OptimizationSelections};
+use optimization_selections::{Optimization, OptimizationSelections};
 pub use report_request::OptimizationReportRequest;
 pub use rollback::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackReceipt,

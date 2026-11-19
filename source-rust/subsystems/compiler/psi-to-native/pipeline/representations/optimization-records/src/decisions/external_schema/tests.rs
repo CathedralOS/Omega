@@ -6,7 +6,7 @@ use super::{
     ExternalDecisionLog, ExternalDecisionPoint, ExternalDecisionSchemaError,
     external_psi_decision_schema_identity, psi_target_neutral_decision_target_identity,
 };
-use crate::optimization_core::manifest::tests::{
+use crate::manifest::tests::{
     fact, obligation_fact, ownership_fact, range_fact,
 };
 use crate::{
@@ -33,7 +33,7 @@ fn minimum_candidate_width_is_the_encoded_width_of_an_empty_feature_row() {
     )
     .unwrap();
     let mut row = Vec::new();
-    features.write_row(&mut row, crate::optimization_core::CountFrame::Wire);
+    features.write_row(&mut row, crate::record_encoding::CountFrame::Wire);
     assert_eq!(row.len(), super::codec::MINIMUM_CANDIDATE_WIDTH);
 }
 

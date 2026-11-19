@@ -7,8 +7,8 @@
 // match.
 
 use super::identity::encode_context;
-use crate::optimization_core::CountFrame;
-use crate::optimization_core::identities::IDENTITY_WIDTH;
+use crate::record_encoding::CountFrame;
+use crate::identities::IDENTITY_WIDTH;
 use ::wire::cursor::Cursor;
 use std::mem::size_of;
 

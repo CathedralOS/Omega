@@ -8,7 +8,7 @@
 // roster by `(predicted_cost_delta, candidate)` and verifies that any chosen
 // candidate is a member of that roster.
 
-use crate::optimization_core::CountFrame;
+use crate::record_encoding::CountFrame;
 use crate::{
     OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationReasonCode, OptimizationUnitIdentity,

@@ -19,7 +19,7 @@ register-homes = { path = "../register-homes" }
 post-allocation-machine = { path = "../post-allocation-machine" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../function-identity" }
-optimization-core = { path = "../../../optimization-contracts" }
+optimization-core = { path = "../optimization-records" }
 target = { path = "../../../targets/target" }
 register-model = { path = "../../../targets/register-model" }
 selected-instructions = { path = "../selected-instructions" }
