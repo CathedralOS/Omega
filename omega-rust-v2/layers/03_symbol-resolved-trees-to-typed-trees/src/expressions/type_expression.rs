@@ -1,5 +1,5 @@
 use crate::evaluation::numeric_literals;
-use crate::expressions::body_typer::BodyTyper;
+use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::expressions::storage_origin::Origin;
 use crate::{ObligationKind, Site, TypeError, ValueType};
 use omega_parser::NodeKind;
@@ -34,14 +34,24 @@ impl BodyTyper<'_, '_> {
         node_index: usize,
         expected: Option<&ValueType>,
     ) -> Result<ValueType, TypeError> {
+        self.type_at_destination(node_index, expected, false)
+    }
+
+    pub(super) fn type_at_destination(
+        &mut self,
+        node_index: usize,
+        expected: Option<&ValueType>,
+        machine_result: bool,
+    ) -> Result<ValueType, TypeError> {
         use NodeKind::*;
         let source_file = self.unit.file;
         let node = &source_file.nodes[node_index];
+        let mut static_argument_slot = None;
         let value = match node.kind {
-            PathExpression => {
+            PathExpression | PathType if node.kind == PathExpression || self.context == ExpressionContext::StaticArgument => {
                 let symbol = self.unit.name_in_role(node_index, false);
                 if !node.children.is_empty()
-                    && !matches!(symbol, Some(Symbol::Declaration(id)) if id.kind == MathLet)
+                    && !matches!(symbol, Some(Symbol::Declaration(id)) if matches!(id.kind, MathLet | Case))
                     && !matches!(symbol,Some(Symbol::Builtin(name)) if name=="core::Squash")
                 {
                     return Err(TypeError::unsupported(source_file, node_index));
@@ -51,13 +61,30 @@ impl BodyTyper<'_, '_> {
                         span,
                         kind: ConstParam | KindedParam,
                         ..
-                    }) => self
-                        .unit
-                        .parameters
-                        .get(span)
-                        .and_then(|p| self.catalog.types.parameter_carrier(p))
-                        .cloned()
-                        .ok_or_else(|| TypeError::unsupported(source_file, node_index))?,
+                    }) => {
+                        let parameter = self
+                            .unit
+                            .parameters
+                            .get(span)
+                            .ok_or_else(|| TypeError::unsupported(source_file, node_index))?;
+                        if let ValueType::Parameter { owner, index } = parameter
+                            && !self.catalog.types.admits_runtime_index(owner, *index)
+                        {
+                            static_argument_slot = self
+                                .unit
+                                .specialization_owner(node_index)
+                                .and_then(|specialization| {
+                                    self.catalog
+                                        .types
+                                        .specialization_slot(specialization, owner, *index)
+                                });
+                        }
+                        self.catalog
+                            .types
+                            .parameter_carrier(parameter)
+                            .cloned()
+                            .ok_or_else(|| TypeError::unsupported(source_file, node_index))?
+                    }
                     Some(Symbol::Binding { span, .. }) => {
                         let ty = self
                             .locals
@@ -131,12 +158,19 @@ impl BodyTyper<'_, '_> {
                         if !self.catalog.fields[id].ordered.is_empty() {
                             return Err(TypeError::at(source_file, node_index, "case requires its payload fields"));
                         }
-                        self.case_type(node_index, id, expected)?
+                        let carrier = self.case_type(node_index, id, expected)?;
+                        let owner = self.catalog.case_owner[id];
+                        if self.catalog.predicates.contains(owner) {
+                            self.record_obligation(node_index, ObligationKind::EstablishData(owner.clone()));
+                        }
+                        self.record_construction(node_index, owner, Some(id), &carrier, Vec::new());
+                        carrier
                     }
                     Some(Symbol::Builtin(name)) if matches!(name.as_str(), "true" | "false") => ValueType::Bool,
                     _ => return Err(TypeError::unsupported(source_file, node_index)),
                 }
             }
+            Literal if let Some(carrier) = self.owned_byte_literal(node_index, expected, machine_result)? => carrier,
             Literal => {
                 let (value, suffix) = numeric_literals::literal(source_file, node_index)?;
                 if let Some(ty) = suffix {
@@ -168,6 +202,15 @@ impl BodyTyper<'_, '_> {
                         },
                         _ => return Err(TypeError::at(source_file, node_index, format!("no matching unary {token} for {arg}"))),
                     };
+                    if token == "-" && matches!(arg, ValueType::Integer { signed: true, .. } | ValueType::IndexedInteger { signed: true, .. }) {
+                        self.record_obligation(
+                            node_index,
+                            ObligationKind::OperationContract {
+                                token: token.into(),
+                                operands: vec![arg.clone()],
+                            },
+                        );
+                    }
                     self.record_operator(node_index, token, vec![arg], &ty);
                     ty
                 }
@@ -194,7 +237,7 @@ impl BodyTyper<'_, '_> {
                 );
                 ty
             }
-            Paren => self.type_expression_with_expected_type(self.unit.single_child(node_index)?, expected)?,
+            Paren => self.type_at_destination(self.unit.single_child(node_index)?, expected, machine_result)?,
             CallMarker => {
                 let child = self.unit.single_child(node_index)?;
                 if !matches!(source_file.nodes[child].kind, Call | CallMarker) {
@@ -205,8 +248,8 @@ impl BodyTyper<'_, '_> {
             Call => self.type_call(node_index, expected)?,
             Selection => crate::contracts::conformance::bind_expression(self.unit, self.catalog, node_index, self.output)?,
             RecordLiteral => self.record(node_index, expected)?,
-            Match => self.dispatch(node_index, expected)?,
-            Body => self.check_block(node_index, expected)?,
+            Match => self.dispatch(node_index, expected, machine_result)?,
+            Body => self.check_block(node_index, expected, machine_result)?,
             ArrayLiteral => {
                 let element = match expected {
                     Some(ValueType::Array(t, size)) if *size == node.children.len() as u64 => Some(t.as_ref().clone()),
@@ -271,7 +314,7 @@ impl BodyTyper<'_, '_> {
             .validate_closed_indices()
             .map_err(|reason| TypeError::at(source_file, node_index, reason))?;
         self.catalog.types.indices.retain_demands(&value);
-        self.record_expression(node_index, value.clone());
+        self.record_expression_with_static_argument(node_index, value.clone(), static_argument_slot);
         Ok(value)
     }
 }

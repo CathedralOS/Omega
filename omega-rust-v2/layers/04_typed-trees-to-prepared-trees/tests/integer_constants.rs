@@ -611,3 +611,104 @@ fn boolean_guards_only_demand_the_selected_operands() {
         .unwrap();
     assert_eq!(result.constant(&c.declaration), Some(&omega_preparation::PreparedValue::Bool(true)));
 }
+
+#[test]
+fn integer_preparation_uses_the_declared_width_independently_of_host_words() {
+    let top = (BigInt::from(1) << 257u16) - 1u8;
+    let source = format!(
+        "machine successor(x:u257)->u257 {{x +% 1}}
+                          machine mul(x:i)->i {{x * x}}
+                          const WRAP:u257=successor({top});
+                          const EXACT:i=mul({top});
+                          const SMALL:u18446744073709551615=1;"
+    );
+    let prepared = prepare(&source).unwrap();
+    for (name, value) in [
+        ("WRAP", BigInt::from(0)),
+        ("EXACT", &top * &top),
+        ("SMALL", BigInt::from(1)),
+    ] {
+        let definition = prepared
+            .typed()
+            .constants
+            .iter()
+            .find(|c| c.declaration.path == name)
+            .unwrap();
+        assert_eq!(prepared.integer_constant(&definition.declaration), Some(&value));
+    }
+    let source = "machine prev(x:u18446744073709551615)->u18446744073709551615{x -% 1}
+                  const TOO_LARGE:u18446744073709551615=prev(0);";
+    let error = prepare(source).unwrap_err();
+    assert!(error.message.contains("integer allocation budget"), "{}", error.message);
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"prev(0)".as_slice()));
+}
+
+#[test]
+fn concrete_shifts_use_the_count_carrier_and_selected_policy() {
+    for (operator, count, expected) in [("<<", 1, 14u8), ("<<%", 15, 14), ("<<|", 6, 127)] {
+        let source = format!("machine shift(n:u7,k:u64)->u7{{n {operator} k}} const VALUE:u7=shift(7,{count});");
+        let prepared = prepare(&source).unwrap();
+        assert_eq!(
+            prepared.integer_constant(&prepared.typed().constants[0].declaration),
+            Some(&BigInt::from(expected))
+        );
+    }
+    let failure = "machine shift(n:u7,k:u64)->u7{n << k} const VALUE:u7=shift(7,7);";
+    let error = prepare(failure).unwrap_err();
+    assert!(error.message.contains("shift count outside carrier width"), "{}", error.message);
+}
+
+#[test]
+fn trapping_arithmetic_checks_the_actual_result_even_with_a_false_crash_guard() {
+    for (operator, safe, overflow) in [("+!", 126, 127), ("-!", -127, -128), ("*!", 7, 64)] {
+        let operand = if operator == "*!" { 2 } else { 1 };
+        let program = |input| format!("machine calc(n:i8)->i8 crashes Trap false {{n {operator} {operand}}} const RESULT:i8=calc({input});");
+        prepare(&program(safe)).unwrap();
+        let error = prepare(&program(overflow)).unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("overflow leaves the selected Trap route possible"),
+            "{}",
+            error.message
+        );
+    }
+}
+
+#[test]
+fn typed_negation_matches_exact_literals_and_primitive_indices() {
+    let source = "data Row<const N:i8>{}
+                  machine negate(x:i8)->i8{-x}
+                  const EXACT:i8=-5;
+                  const SUFFIXED:i8=-5i8;
+                  const PARAMETER:i8=negate(5);
+                  machine compare(x:Row<(-5i8)>)->Row<negate(5)>{x}";
+    let prepared = prepare(source).unwrap();
+    for constant in &prepared.typed().constants {
+        assert_eq!(prepared.integer_constant(&constant.declaration), Some(&BigInt::from(-5)));
+    }
+    let signature = prepared
+        .typed()
+        .signatures
+        .iter()
+        .find(|sig| sig.machine.path == "compare")
+        .unwrap();
+    assert_eq!(signature.parameters[0].1, signature.result);
+}
+
+#[test]
+fn typed_negation_refuses_the_signed_minimum_in_a_constant_or_call() {
+    let source = "machine negate(x:i8)->i8{-x}
+                  const MIN:i8=-128;";
+    for initializer in ["-MIN", "negate(MIN)"] {
+        let input = format!("{source} const VALUE:i8={initializer};");
+        let error = prepare(&input).unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("exact subtraction exceeds its selected integer carrier"),
+            "{}",
+            error.message
+        );
+    }
+}

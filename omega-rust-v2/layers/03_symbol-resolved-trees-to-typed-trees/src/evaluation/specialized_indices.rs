@@ -2,8 +2,7 @@
 //! L4 supplies values for closed substitutions that require general evaluation.
 use super::static_template::StaticTemplate;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::{IntegerIndex, SpecializedIndexValue, StaticIntegerRequest, TypeError, ValueType};
-use num_bigint::BigInt;
+use crate::{SpecializedIndexValue, StaticValue, StaticValueRequest, TypeError, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
 use std::collections::HashMap;
@@ -60,7 +59,7 @@ impl TryFrom<Vec<ValueType>> for ClosedArguments {
 #[derive(Default)]
 pub(crate) struct IndexSpecializations {
     allow_pending: bool,
-    values: HashMap<(SyntaxKey, ValueType), Arc<HashMap<ClosedArguments, BigInt>>>,
+    values: HashMap<(SyntaxKey, ValueType), Arc<HashMap<ClosedArguments, StaticValue>>>,
 }
 impl IndexSpecializations {
     pub fn build(
@@ -99,22 +98,20 @@ impl IndexSpecializations {
         }
         Ok(prepared)
     }
-    pub fn prepare(
+    pub(super) fn template(
         &self,
         unit: &ResolvedSourceFile<'_>,
         n: usize,
         owner: &DeclarationId,
         carrier: &ValueType,
-        args: Vec<ValueType>,
-    ) -> IntegerIndex {
+    ) -> Arc<StaticTemplate> {
         let key = (SyntaxKey::new(unit, n, owner), carrier.clone());
         let values = self.values.get(&key).cloned().unwrap_or_default();
         Arc::new(StaticTemplate {
             key: key.0,
-            request: StaticIntegerRequest::at(unit.file, n, carrier),
+            request: StaticValueRequest::at(unit.file, n, carrier),
             allow_pending: self.allow_pending,
             values,
         })
-        .apply(args)
     }
 }

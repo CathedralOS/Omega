@@ -1,13 +1,13 @@
-use crate::{StaticIntegerRequest, TypedTrees, ValueType};
+use crate::{StaticValueRequest, TypedTrees, ValueType};
 
 /// A typed occurrence whose value is needed to finish typing.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum StaticIntegerDemand {
-    Closed(StaticIntegerRequest),
-    Specialized { request: StaticIntegerRequest, arguments: Vec<ValueType> },
+pub enum StaticValueDemand {
+    Closed(StaticValueRequest),
+    Specialized { request: StaticValueRequest, arguments: Vec<ValueType> },
 }
-impl StaticIntegerDemand {
-    pub fn request(&self) -> &StaticIntegerRequest {
+impl StaticValueDemand {
+    pub fn request(&self) -> &StaticValueRequest {
         match self {
             Self::Closed(request) | Self::Specialized { request, .. } => request,
         }
@@ -24,13 +24,13 @@ pub enum TypingProgress<'text> {
 #[derive(Debug)]
 pub struct PendingTyping<'text> {
     pub(crate) trees: TypedTrees<'text>,
-    pub(crate) demands: Vec<StaticIntegerDemand>,
+    pub(crate) demands: Vec<StaticValueDemand>,
 }
 impl<'text> PendingTyping<'text> {
     pub fn trees(&self) -> &TypedTrees<'text> {
         &self.trees
     }
-    pub fn demands(&self) -> &[StaticIntegerDemand] {
+    pub fn demands(&self) -> &[StaticValueDemand] {
         &self.demands
     }
 }

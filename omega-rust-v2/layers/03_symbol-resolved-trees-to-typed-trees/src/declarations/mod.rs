@@ -8,3 +8,4 @@ pub(crate) mod operator_declarations;
 pub(crate) mod package_representation;
 pub(crate) mod resolved_source_file;
 pub(crate) mod resolved_sources;
+pub(crate) mod static_data_shapes;

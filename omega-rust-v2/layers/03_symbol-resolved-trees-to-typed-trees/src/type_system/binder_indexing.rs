@@ -218,15 +218,17 @@ impl<'a> ResolvedSourceFile<'a> {
             _ => {}
         }
         let carrier = self.annotation(annotation, types)?;
-        if !matches!(
-            carrier,
-            ValueType::Integer { .. }
-                | ValueType::Callable(_)
-                | ValueType::Evidence(_)
-                | ValueType::LevelKind
-                | ValueType::Universe { .. }
-                | ValueType::Function(..)
-        ) {
+        if !(node.kind == NodeKind::ConstParam && carrier.supports_closed_snapshot())
+            && !matches!(
+                carrier,
+                ValueType::Integer { .. }
+                    | ValueType::Callable(_)
+                    | ValueType::Evidence(_)
+                    | ValueType::LevelKind
+                    | ValueType::Universe { .. }
+                    | ValueType::Function(..)
+            )
+        {
             return Err(TypeError::unsupported(self.file, node_index));
         }
         if matches!(carrier, ValueType::Universe { .. }) {

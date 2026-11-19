@@ -196,6 +196,26 @@ impl TypeCatalog<'_> {
             None => self.formals(id),
         }
     }
+    pub(crate) fn specialization_slot(
+        &self,
+        owner: &DeclarationId,
+        binder_owner: &DeclarationId,
+        index: usize,
+    ) -> Option<usize> {
+        let scopes = self
+            .scopes
+            .get(owner)
+            .map_or(std::slice::from_ref(&owner), Vec::as_slice);
+        let mut offset = 0;
+        for &scope in scopes {
+            if scope == binder_owner {
+                return (index < self.arity(scope)).then_some(offset + index);
+            }
+            offset += self.arity(scope);
+        }
+        None
+    }
+
     pub fn open_data(
         &self,
         id: &DeclarationId,

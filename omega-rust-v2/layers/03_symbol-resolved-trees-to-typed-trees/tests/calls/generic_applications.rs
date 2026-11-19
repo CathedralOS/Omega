@@ -17,7 +17,7 @@ fn source_static_calls_keep_the_machine_identity_until_the_arguments_close() {
     let program = format!(
         "{prefix}{defs} machine buffer<const N:u8>()->B<width(N)>{{B::<width(N)>{{}}}} machine f(x:B<width(4)>)->B<11>{{x}} machine g()->B<11>{{buffer::<4>()}}"
     );
-    use omega_typer::{Site, SpecializedIndexValue, StaticIntegerRequest, TypingEnvironment};
+    use omega_typer::{Site, SpecializedIndexValue, StaticValueRequest, TypingEnvironment};
     let run = |source: &str, n: u8, supplied: u16| {
         let site = |expr: &str| {
             let start = source.find(expr).unwrap();
@@ -29,15 +29,15 @@ fn source_static_calls_keep_the_machine_identity_until_the_arguments_close() {
         };
         let carrier = ValueType::Integer { signed: false, width: Some(8) };
         let closed = (
-            StaticIntegerRequest {
+            StaticValueRequest {
                 node: evaluation::node(source, source.find("width(4)").unwrap(), "width(4)", omega_parser::NodeKind::Call),
                 expression: site("width(4)"),
                 carrier: carrier.clone(),
             },
-            11.into(),
+            omega_typer::StaticValue::Integer(11.into()),
         );
         let application = SpecializedIndexValue {
-            request: omega_typer::StaticIntegerRequest {
+            request: omega_typer::StaticValueRequest {
                 node: evaluation::node(source, source.find("width(N)").unwrap(), "width(N)", omega_parser::NodeKind::Call),
                 expression: site("width(N)"),
                 carrier: omega_typer::ValueType::Integer { signed: false, width: Some(8) },
@@ -46,7 +46,7 @@ fn source_static_calls_keep_the_machine_identity_until_the_arguments_close() {
                 carrier: Box::new(carrier),
                 value: n.into(),
             }],
-            value: supplied.into(),
+            value: omega_typer::StaticValue::Integer(supplied.into()),
         };
         support::check_in(
             &[("static.omg", source)],
@@ -198,12 +198,12 @@ fn symbolic_widths_and_array_extents_infer_and_specialize_to_the_operand() {
 
 #[test]
 fn evaluated_indices_check_the_source_type_and_key_only_on_the_value() {
-    use omega_typer::{Site, StaticIntegerRequest, TypingEnvironment};
+    use omega_typer::{Site, StaticValueRequest, TypingEnvironment};
     let run = |code: &str, result: i64| {
         let start = code.find("b:Buf<").unwrap() + "b:Buf<".len();
         let end = start + code[start..].find('>').unwrap();
         let receipt = (
-            StaticIntegerRequest {
+            StaticValueRequest {
                 node: evaluation::node(
                     code,
                     start,
@@ -224,7 +224,7 @@ fn evaluated_indices_check_the_source_type_and_key_only_on_the_value() {
                     width: Some(64),
                 },
             },
-            result.into(),
+            omega_typer::StaticValue::Integer(result.into()),
         );
         support::check_in(
             &[("calc.omg", code)],
@@ -520,10 +520,10 @@ fn an_explicit_qualified_type_argument_selects_the_qualified_result_overload() {
 
 #[test]
 fn closed_results_belong_to_one_occurrence_and_carrier() {
-    use omega_typer::{Site, StaticIntegerRequest, TypingEnvironment};
+    use omega_typer::{Site, StaticValueRequest, TypingEnvironment};
     let source = "const size:u8=3; data B<const N:u8>{} machine f(x:B<size>){}";
     let site = source.rfind("size").unwrap();
-    let key = StaticIntegerRequest {
+    let key = StaticValueRequest {
         node: evaluation::node(source, site, "size", omega_parser::NodeKind::PathType),
         expression: Site {
             package: "game".into(),
@@ -541,7 +541,7 @@ fn closed_results_belong_to_one_occurrence_and_carrier() {
             },
         )
     };
-    let good = (key.clone(), 3.into());
+    let good = (key.clone(), omega_typer::StaticValue::Integer(3.into()));
     assert_eq!(
         run(&[good.clone(), good.clone()])
             .unwrap()
@@ -550,27 +550,27 @@ fn closed_results_belong_to_one_occurrence_and_carrier() {
         std::slice::from_ref(&good)
     );
     assert!(
-        run(&[good, (key.clone(), 4.into())])
+        run(&[good, (key.clone(), omega_typer::StaticValue::Integer(4.into()))])
             .unwrap_err()
             .message
             .contains("conflicting evaluation")
     );
     for wrong in [
-        StaticIntegerRequest {
+        StaticValueRequest {
             carrier: ValueType::Integer {
                 signed: false,
                 width: Some(16),
             },
             ..key.clone()
         },
-        StaticIntegerRequest {
+        StaticValueRequest {
             expression: Site {
                 file: "absent.omg".into(),
                 ..key.expression.clone()
             },
             ..key.clone()
         },
-        StaticIntegerRequest {
+        StaticValueRequest {
             expression: Site {
                 span: omega_lexer::SourceSpan::new(6, 10),
                 ..key.expression.clone()
@@ -578,7 +578,7 @@ fn closed_results_belong_to_one_occurrence_and_carrier() {
             ..key
         },
     ] {
-        let error = run(&[(wrong.clone(), 3.into())]).unwrap_err();
+        let error = run(&[(wrong.clone(), omega_typer::StaticValue::Integer(3.into()))]).unwrap_err();
         assert_eq!((error.file, error.span), (wrong.expression.file, wrong.expression.span));
         assert!(error.message.contains("no matching static expression"));
     }
@@ -586,7 +586,7 @@ fn closed_results_belong_to_one_occurrence_and_carrier() {
 
 #[test]
 fn specialized_results_require_a_deferred_index_of_the_same_carrier_and_arity() {
-    use omega_typer::{Site, SpecializedIndexValue, StaticIntegerRequest, TypingEnvironment};
+    use omega_typer::{Site, SpecializedIndexValue, StaticValueRequest, TypingEnvironment};
     let source = "data B<const K:u8>{} machine width(n:u8)->u8{n+1} machine buf<const N:u8>()->B<width(N)>{B::<width(N)>{}}";
     let u8_type = ValueType::Integer { signed: false, width: Some(8) };
     let argument = ValueType::StaticInteger {
@@ -608,7 +608,7 @@ fn specialized_results_require_a_deferred_index_of_the_same_carrier_and_arity() 
         ("n+1", u8_type, vec![argument], false),
     ] {
         let offset = source.find(expression).unwrap();
-        let request = StaticIntegerRequest {
+        let request = StaticValueRequest {
             node: evaluation::node(
                 source,
                 offset,
@@ -629,7 +629,7 @@ fn specialized_results_require_a_deferred_index_of_the_same_carrier_and_arity() 
         let value = SpecializedIndexValue {
             request,
             arguments,
-            value: 4.into(),
+            value: omega_typer::StaticValue::Integer(4.into()),
         };
         let checked = support::check_in(
             &[("requests.omg", source)],
@@ -742,7 +742,7 @@ fn a_closed_data_application_checks_its_field_indices_in_either_declaration_orde
 
 #[test]
 fn evaluation_of_a_field_index_is_keyed_by_the_applied_data_declaration() {
-    use omega_typer::{Site, SpecializedIndexValue, StaticIntegerRequest, TypingEnvironment};
+    use omega_typer::{Site, SpecializedIndexValue, StaticValueRequest, TypingEnvironment};
     let code = "machine size(n:u64)->u64{n} data Word<const N:u64>{value:i<size(N)>;} machine caller(x:Word<3>){}";
     let span = code.find("size(N)").unwrap();
     let carrier = ValueType::Integer {
@@ -751,7 +751,7 @@ fn evaluation_of_a_field_index_is_keyed_by_the_applied_data_declaration() {
     };
     let run = |result: u64| {
         let value = SpecializedIndexValue {
-            request: StaticIntegerRequest {
+            request: StaticValueRequest {
                 node: evaluation::node(code, span, "size(N)", omega_parser::NodeKind::Call),
                 expression: Site {
                     package: "game".into(),
@@ -764,7 +764,7 @@ fn evaluation_of_a_field_index_is_keyed_by_the_applied_data_declaration() {
                 carrier: Box::new(carrier.clone()),
                 value: 3.into(),
             }],
-            value: result.into(),
+            value: omega_typer::StaticValue::Integer(result.into()),
         };
         support::check_in(
             &[("word.omg", code)],
@@ -806,7 +806,7 @@ fn forwarding_a_runtime_index_to_a_static_parameter_rejects_at_the_argument() {
 
 #[test]
 fn nested_field_evaluation_uses_both_enclosing_and_local_arguments() {
-    use omega_typer::{Site, SpecializedIndexValue, StaticIntegerRequest, TypingEnvironment};
+    use omega_typer::{Site, SpecializedIndexValue, StaticValueRequest, TypingEnvironment};
     let code = "machine width(a:u64,b:u64)->u64{a+b} data Outer<const A:u64>{data Inner<const B:u64>{v:i<width(A,B)>;}} machine consume(x:Outer<1>::Inner<2>,y:Outer<2>::Inner<1>){}";
     let index = "width(A,B)";
     let start = code.find(index).unwrap();
@@ -815,7 +815,7 @@ fn nested_field_evaluation_uses_both_enclosing_and_local_arguments() {
         width: Some(64),
     };
     let receipt = |a: u64, b: u64, value: u64| SpecializedIndexValue {
-        request: StaticIntegerRequest {
+        request: StaticValueRequest {
             node: evaluation::node(code, start, index, omega_parser::NodeKind::Call),
             expression: Site {
                 package: "game".into(),
@@ -830,7 +830,7 @@ fn nested_field_evaluation_uses_both_enclosing_and_local_arguments() {
                 value: n.into(),
             })
             .to_vec(),
-        value: value.into(),
+        value: omega_typer::StaticValue::Integer(value.into()),
     };
     let run = |values: &[_]| {
         support::check_in(

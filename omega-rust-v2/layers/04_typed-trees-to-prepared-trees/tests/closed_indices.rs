@@ -2,7 +2,7 @@ use num_bigint::BigInt;
 use omega_preparation::{PreparedTrees, prepare_source_package};
 use omega_resolver::{ParsedSource, StageSource, Symbol};
 use omega_typer::{
-    CallUse, NodeSemantics, SourcePackage, StaticIntegerDemand, TypeError, TypingEnvironment, TypingProgress, ValueType, resolve_source_package,
+    CallUse, NodeSemantics, SourcePackage, StaticValueDemand, TypeError, TypingEnvironment, TypingProgress, ValueType, resolve_source_package,
     type_source_package_for_preparation,
 };
 
@@ -166,7 +166,7 @@ fn direct_and_literal_indices_share_a_closed_identity() {
         };
         assert_eq!(request.expression.span.slice(source.as_bytes()), Some(b"width(7)".as_slice()));
         assert_eq!(request.carrier, ValueType::Integer { signed: false, width: Some(8) });
-        assert_eq!(value, &BigInt::from(expected));
+        assert_eq!(value, &omega_preparation::PreparedValue::Integer(BigInt::from(expected)));
     }
 }
 
@@ -292,7 +292,7 @@ fn preparation_executes_only_the_overload_selected_by_typing() {
         let TypingProgress::Pending(pending) = progress else {
             panic!("the selected call must be prepared")
         };
-        let [StaticIntegerDemand::Closed(request)] = pending.demands() else {
+        let [StaticValueDemand::Closed(request)] = pending.demands() else {
             panic!("expected one closed demand, got {:?}", pending.demands());
         };
         assert_eq!(request.expression.span.slice(source.as_bytes()), Some(b"width(7u8)".as_slice()));
@@ -434,4 +434,59 @@ fn preparation_refuses_an_applied_runtime_boundary_at_its_use() {
         );
         assert_eq!(error.span.slice(source.as_bytes()), Some(b"Host::width(4)".as_slice()));
     }
+}
+
+#[test]
+fn boolean_calls_names_and_literals_have_one_closed_type_identity() {
+    use omega_preparation::PreparedValue;
+
+    let source = "machine enabled()->bool{true}
+                  const ENABLED:bool=enabled();
+                  data Flag<const B:bool>{}
+                  machine sink(x:Flag<true>){}
+                  machine carry(x:Flag<enabled()>)->Flag<ENABLED>{sink(x); x}";
+    let prepared = prepare(source).unwrap();
+    let typed = prepared.typed();
+    let signature = |name| {
+        typed
+            .signatures
+            .iter()
+            .find(|s| s.machine.path == name)
+            .unwrap()
+    };
+    let computed = &signature("carry").parameters[0].1;
+    assert_eq!(computed, &signature("sink").parameters[0].1);
+    assert_eq!(computed, &signature("carry").result);
+    assert_eq!(prepared.constant(&typed.constants[0].declaration), Some(&PreparedValue::Bool(true)));
+    assert!(
+        typed
+            .evaluated_indices
+            .iter()
+            .any(|(request, value)| request.expression.span.slice(source.as_bytes()) == Some(b"enabled()".as_slice()) && value == &PreparedValue::Bool(true))
+    );
+    let incompatible = source.replace("->bool{true}", "->bool{false}");
+    let error = prepare(&incompatible).unwrap_err();
+    assert_eq!(error.file, "main.omg");
+    assert!(error.message.contains("sink"), "{}", error.message);
+    assert_eq!(error.span.slice(incompatible.as_bytes()), Some(b"sink".as_slice()));
+}
+
+#[test]
+fn a_record_index_compares_values_in_declared_field_order() {
+    let source = "data Key [copy]{count:u8; active:bool;}
+                  const NAMED:Key=Key{active:true,count:7};
+                  data Row<const K:Key>{}
+                  machine carry(x:Row<NAMED>)->Row<Key{count:7,active:true}>{x}";
+    let prepared = prepare(source).unwrap();
+    let carry = prepared
+        .typed()
+        .signatures
+        .iter()
+        .find(|s| s.machine.path == "carry")
+        .unwrap();
+    assert_eq!(carry.parameters[0].1, carry.result);
+    let incompatible = source.replace("count:7,active:true", "count:7,active:false");
+    let error = prepare(&incompatible).unwrap_err();
+    assert_eq!(error.span.slice(incompatible.as_bytes()), Some(b"x".as_slice()));
+    assert!(error.message.contains("false") && error.message.contains("true"), "{}", error.message);
 }

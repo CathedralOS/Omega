@@ -1,88 +1,134 @@
 use crate::constant_evaluation::ConstantEvaluation;
 use crate::integer_arithmetic::IntegerRange;
-use crate::integer_invocation::{EvaluationError, Scope, UNSUPPORTED_BODY};
-use num_bigint::BigInt;
-use omega_parser::NodeKind;
-use omega_typer::{NodeSemantics, ObligationKind, StaticIntegerRequest, TypedTree, ValueType};
+use crate::invocation::{EvaluationError, UNSUPPORTED_BODY};
+use omega_resolver::DeclarationId;
+use omega_typer::{Multiplicity, NodeSemantics, ObligationKind, TypedConstruction, TypedTree, ValueType};
+use std::collections::HashSet;
 
-/// A closed semantic value. Array elements are in index order; layout and
-/// target-specific bytes are decisions for materialization.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum PreparedValue {
-    Integer(BigInt),
-    Bool(bool),
-    Array(std::sync::Arc<[PreparedValue]>),
-}
+pub use omega_typer::StaticValue as PreparedValue;
 
 impl ConstantEvaluation<'_, '_> {
-    pub(super) fn owned_value(
-        &self,
-        request: &StaticIntegerRequest,
-    ) -> Result<PreparedValue, EvaluationError> {
-        // Visit literal elements in source order. Sized arrays can be nested
-        // without consuming a Rust call frame for each dimension.
-        enum Step<'a> {
-            Visit(usize, &'a ValueType),
-            Array(usize),
+    pub(super) fn construction<'a>(
+        &'a self,
+        tree: &'a TypedTree<'_>,
+        node: usize,
+        carrier: &ValueType,
+        owner: &DeclarationId,
+    ) -> Result<(&'a TypedConstruction, &'a [ValueType]), EvaluationError> {
+        let construction = tree
+            .construction(node)
+            .ok_or("the selected nominal value has no supported initializer")?;
+        if &construction.owner != owner || &construction.carrier != carrier {
+            return Err("the selected constructor has a different carrier".into());
         }
-        if let ValueType::Array(element, _) = &request.carrier {
-            let mut leaf = element.as_ref();
-            while let ValueType::Array(child, _) = leaf {
-                leaf = child;
-            }
-            if leaf != &ValueType::Bool && IntegerRange::for_type(leaf).is_none() {
-                return Err("the complete array element type is outside the prepared value fragment".into());
-            }
-        }
-        let tree = self
+        let shape = self
             .trees
-            .trees()
-            .nth(request.node.file)
+            .static_data_shapes
+            .get(carrier)
             .ok_or(UNSUPPORTED_BODY)?;
-        let file = tree.resolved().file;
-        let scope = Scope::Initializer {
-            root: request.node.node,
-            owner_arguments: None,
-        };
-        let mut steps = vec![Step::Visit(request.node.node, &request.carrier)];
-        let mut values = Vec::new();
+        let fields = match &construction.case {
+            Some(case) => shape
+                .cases
+                .iter()
+                .find(|(declared, _)| declared == case)
+                .map(|(_, payload)| payload),
+            None if shape.cases.is_empty() => Some(&shape.fields),
+            None => None,
+        }
+        .ok_or("the selected case does not belong to the carrier")?;
+        if tree
+            .semantics_at(node)
+            .any(|record| !matches!(record, NodeSemantics::Expression(_)))
+        {
+            return Err("the selected constructor requires proof outside the prepared value fragment".into());
+        }
+        if fields.len() != construction.initializers.len() {
+            return Err("the selected constructor must explicitly initialize each field".into());
+        }
+        Ok((construction, fields))
+    }
+
+    pub(super) fn check_owned_type(
+        &self,
+        carrier: &ValueType,
+        array: bool,
+    ) -> Result<(), EvaluationError> {
+        enum Step<'a> {
+            Check(&'a ValueType),
+            Complete(&'a ValueType),
+        }
+        let mut steps = vec![Step::Check(carrier)];
+        let mut active = HashSet::new();
+        let mut checked = HashSet::new();
         while let Some(step) = steps.pop() {
             match step {
-                Step::Visit(node, carrier) => {
-                    let node = file.ungroup(node);
-                    let value = match carrier {
-                        ValueType::Bool => PreparedValue::Bool(self.boolean_value(&tree, node, &scope)?),
-                        ValueType::Array(element, length) => {
-                            if let Some(value) = self.constant_reference(&tree, node, carrier)? {
-                                value.clone()
-                            } else {
-                                let literal = &file.nodes[node];
-                                if literal.kind != NodeKind::ArrayLiteral || literal.children.len() as u64 != *length {
-                                    return Err("the selected array value has no supported initializer".into());
-                                }
-                                steps.push(Step::Array(literal.children.len()));
-                                steps.extend(
-                                    literal
-                                        .children
-                                        .iter()
-                                        .rev()
-                                        .map(|child| Step::Visit(*child, element)),
-                                );
-                                continue;
-                            }
-                        }
-                        ValueType::Integer { .. } => PreparedValue::Integer(self.expression(&tree, node, carrier, &scope)?),
-                        _ => return Err("the initializer type has no supported frozen value".into()),
-                    };
-                    values.push(value);
+                Step::Complete(carrier) => {
+                    active.remove(carrier);
+                    checked.insert(carrier);
                 }
-                Step::Array(count) => {
-                    let elements = values.split_off(values.len() - count);
-                    values.push(PreparedValue::Array(elements.into()));
+                Step::Check(ValueType::Array(element, _)) => steps.push(Step::Check(element)),
+                Step::Check(carrier @ (ValueType::Nominal(owner) | ValueType::Applied(owner, _))) => {
+                    if checked.contains(carrier) {
+                        continue;
+                    }
+                    if !active.insert(carrier) {
+                        return Err("a recursive by-value type has no supported frozen value".into());
+                    }
+                    if !self
+                        .trees
+                        .data_properties
+                        .iter()
+                        .any(|(id, properties)| id == owner.as_ref() && properties.multiplicity == Multiplicity::Copy)
+                    {
+                        return Err(if array {
+                            "the complete array element type must permit copying"
+                        } else {
+                            "the complete constant type must permit copying"
+                        }
+                        .into());
+                    }
+                    if self
+                        .trees
+                        .cleanups
+                        .iter()
+                        .chain(
+                            self.trees
+                                .library
+                                .into_iter()
+                                .flat_map(|library| &library.cleanups),
+                        )
+                        .any(|selection| &selection.owner == owner.as_ref())
+                    {
+                        return Err("the complete constant type has a cleanup obligation".into());
+                    }
+                    let shape = self
+                        .trees
+                        .static_data_shapes
+                        .get(carrier)
+                        .ok_or("the complete constant type has no finite typed field shape")?;
+                    steps.push(Step::Complete(carrier));
+                    steps.extend(
+                        shape
+                            .cases
+                            .iter()
+                            .rev()
+                            .flat_map(|(_, fields)| fields.iter().rev())
+                            .map(Step::Check),
+                    );
+                    steps.extend(shape.fields.iter().rev().map(Step::Check));
+                }
+                Step::Check(value) if *value == ValueType::Bool || IntegerRange::for_type(value).is_some() => {}
+                Step::Check(_) => {
+                    let reason = if array {
+                        "the complete array element type is outside the prepared value fragment"
+                    } else {
+                        "the complete constant type is outside the prepared value fragment"
+                    };
+                    return Err(reason.into());
                 }
             }
         }
-        Ok(values.pop().expect("visited initializer"))
+        Ok(())
     }
 
     pub(super) fn constant_reference(

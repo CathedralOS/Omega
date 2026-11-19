@@ -8,6 +8,7 @@ impl BodyTyper<'_, '_> {
         &mut self,
         node_index: usize,
         expected: Option<&ValueType>,
+        machine_result: bool,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
         let mut result = None;
@@ -26,13 +27,13 @@ impl BodyTyper<'_, '_> {
                 }
                 Use | Data | Const | Trait | Domain | Conformance | MathLet if source.nodes[node_index].kind == Fragment => {}
                 Transition => {
-                    result = Some(self.dispatch(statement, expected)?);
+                    result = Some(self.dispatch(statement, expected, machine_result)?);
                     self.set_origin(node_index, self.origin(statement));
                 }
                 Tail | ExpressionStatement | Discard => {
                     let expr = self.unit.single_child(statement)?;
                     let tail = source.nodes[statement].kind == Tail;
-                    let value = self.type_expression_with_expected_type(expr, if tail { expected } else { None })?;
+                    let value = self.type_at_destination(expr, if tail { expected } else { None }, tail && machine_result)?;
                     if tail {
                         self.set_origin(node_index, self.origin(expr));
                         if let Some(ty) = expected {
@@ -156,6 +157,9 @@ impl BodyTyper<'_, '_> {
         }
         if !self.bind_pattern(pattern, &local_type, expr, &from)?.is_total() {
             return Err(TypeError::at(source, pattern, "let requires an irrefutable pattern"));
+        }
+        if source.nodes[pattern].kind == NodeKind::BindingPattern {
+            self.record_expression(pattern, local_type);
         }
         Ok(())
     }

@@ -13,3 +13,4 @@ num-bigint = "0.4"
 
 [dev-dependencies]
 omega-lexer = { path = "../00_bytes-to-tokens" }
+spec-corpus = { path = "../../tools/spec-corpus", features = ["parser"] }

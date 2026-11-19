@@ -160,4 +160,21 @@ impl<'a> TypedTree<'a> {
     ) -> impl Iterator<Item = NodeSemantics<'_>> {
         self.forest.semantics_at(self.resolved.file.node_id(node))
     }
+
+    pub fn construction(
+        &self,
+        node: usize,
+    ) -> Option<&crate::TypedConstruction> {
+        self.forest.constructions.get(&self.resolved.file.node_id(node))
+    }
+
+    pub fn owned_byte_literal(
+        &self,
+        node: usize,
+    ) -> Option<&[u8]> {
+        self.forest
+            .owned_byte_literals
+            .get(&self.resolved.file.node_id(node))
+            .map(AsRef::as_ref)
+    }
 }

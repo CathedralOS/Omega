@@ -3,11 +3,10 @@
 use crate::{
     AccessPolicySelection, BoundarySlot, CallableType, CleanupSelection, CollectionAccess, ConformanceRow, CrashRoute, CrashRouteRef, DataProperties,
     GuardedCall, GuardedInvocationRef, IndirectCall, InvocationTarget, LogicalHypothesis, MachineEffects, PackageConstruction, RankingWitness, Site,
-    StaticIntegerRequest, TraitRefinement, TypedCall, TypedExpression, TypedInstruction, TypedMembership, TypedNumericLanding, TypedOperation, TypedSignature,
-    TypingObligation, ValueType,
+    StaticValue, StaticValueRequest, TraitRefinement, TypedCall, TypedExpression, TypedInstruction, TypedMembership, TypedNumericLanding, TypedOperation,
+    TypedSignature, TypingObligation, ValueType,
 };
-use num_bigint::BigInt;
-use omega_resolver::DeclarationId;
+use omega_resolver::{DeclarationId, TreeNodeId};
 use std::sync::Arc;
 
 /// A stored field or requirement projection in a record's declaration order.
@@ -23,11 +22,35 @@ impl TypedField {
     }
 }
 
+/// A construction selects one data declaration and, for a sum, one exact case.
+/// Initializers stay in evaluation order, with each field's declaration-order slot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TypedConstruction {
+    pub owner: DeclarationId,
+    pub case: Option<DeclarationId>,
+    pub carrier: ValueType,
+    pub initializers: Vec<FieldInitializer>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FieldInitializer {
+    pub position: usize,
+    pub expression: usize,
+}
+
+/// Field carriers of a concrete data application, in declaration order. Every
+/// case is present so preparation can check the complete type.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StaticDataShape {
+    pub fields: Vec<ValueType>,
+    pub cases: Vec<(DeclarationId, Vec<ValueType>)>,
+}
+
 /// A local constant and the typed occurrence that initializes it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TypedConstant {
     pub declaration: DeclarationId,
-    pub initializer: StaticIntegerRequest,
+    pub initializer: StaticValueRequest,
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -37,12 +60,15 @@ pub struct TypedStage {
     pub mathematical_interfaces: Vec<(DeclarationId, ValueType, Vec<DeclarationId>)>,
     pub logical_hypotheses: Vec<LogicalHypothesis>,
     pub expressions: Vec<TypedExpression>,
-    pub evaluated_indices: Vec<(StaticIntegerRequest, BigInt)>,
+    pub evaluated_indices: Vec<(StaticValueRequest, StaticValue)>,
     pub constants: Vec<TypedConstant>,
     pub(crate) constant_references: Vec<(omega_resolver::TreeNodeId, DeclarationId)>,
     /// Evaluated receivers, projections, and aliases introduced by borrowed patterns.
     pub(crate) place_steps: std::collections::BTreeMap<omega_resolver::TreeNodeId, crate::PlaceStep>,
     pub record_fields: std::collections::HashMap<DeclarationId, Arc<Vec<TypedField>>>,
+    pub static_data_shapes: std::collections::HashMap<ValueType, StaticDataShape>,
+    pub(crate) constructions: std::collections::BTreeMap<TreeNodeId, TypedConstruction>,
+    pub(crate) owned_byte_literals: std::collections::BTreeMap<TreeNodeId, Arc<[u8]>>,
     pub signatures: Vec<Arc<TypedSignature>>,
     pub callable_bounds: Vec<(DeclarationId, usize, CallableType)>,
     pub calls: Vec<TypedCall>,

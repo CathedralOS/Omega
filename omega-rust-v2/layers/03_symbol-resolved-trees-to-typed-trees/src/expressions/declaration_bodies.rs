@@ -3,13 +3,12 @@ use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::{ObligationKind, TypeError, TypedStage, ValueType};
 use omega_parser::NodeKind;
-use omega_resolver::Symbol;
 
 pub(crate) fn check_static_argument(
     unit: &ResolvedSourceFile<'_>,
     catalog: &DeclarationCatalog<'_>,
     node_index: usize,
-    request: &crate::StaticIntegerRequest,
+    request: &crate::StaticValueRequest,
     evaluation: &crate::evaluation::check_static_indices::IndexEvaluation,
     output: &mut TypedStage,
 ) -> Result<(), TypeError> {
@@ -25,16 +24,7 @@ pub(crate) fn check_static_argument(
         })
         .cloned();
     let start = body.output.calls.len();
-    let value = if unit.file.nodes[node_index].kind == NodeKind::PathType
-        && let Some(Symbol::Declaration(id)) = unit.name_in_role(node_index, false)
-        && id.kind == NodeKind::Const
-    {
-        let value = body.constant_reference(node_index, id)?;
-        body.record_expression(node_index, value.clone());
-        value
-    } else {
-        body.type_expression_with_expected_type(node_index, Some(expected))?
-    };
+    let value = body.type_expression_with_expected_type(node_index, Some(expected))?;
     if body.output.calls[start..].iter().any(|c| c.evidence.is_some())
         && !matches!(
             evaluation,
@@ -70,7 +60,7 @@ pub(crate) fn check_fragment(
     output: &mut TypedStage,
 ) -> Result<(), TypeError> {
     let mut body = BodyTyper::new(unit, catalog, output);
-    body.check_block(0, None).map(|_| ())
+    body.check_block(0, None, false).map(|_| ())
 }
 pub(crate) fn check_callable(
     unit: &ResolvedSourceFile<'_>,
@@ -169,7 +159,7 @@ pub(crate) fn check_declaration(
                 let result = &signature
                     .ok_or_else(|| TypeError::unsupported(source, node_index))?
                     .result;
-                body.check_block(part, Some(result))?;
+                body.check_block(part, Some(result), true)?;
             }
             _ => {}
         }

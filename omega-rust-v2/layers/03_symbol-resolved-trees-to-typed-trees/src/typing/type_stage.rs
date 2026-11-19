@@ -10,7 +10,7 @@ use crate::evaluation::check_static_indices::{IndexEvaluations, check_static_ind
 use crate::expressions::check_bodies::check_bodies;
 use crate::toolchain_declarations::core_interface::{CheckedLibrary, configure_roles};
 use crate::type_system::definition_order::index_type_definitions;
-use crate::{StaticIntegerDemand, TypeError, TypedStage, TypedTrees, TypingEnvironment};
+use crate::{StaticValueDemand, TypeError, TypedStage, TypedTrees, TypingEnvironment};
 use omega_resolver::SymbolResolvedTrees;
 use omega_toolchain::CoreInterface;
 
@@ -27,7 +27,7 @@ pub(crate) fn type_stage_inner<'text>(
     library: Option<&'static CheckedLibrary>,
     environment: &TypingEnvironment<'_>,
     allow_pending: bool,
-) -> Result<(TypedTrees<'text>, Vec<StaticIntegerDemand>), TypeError> {
+) -> Result<(TypedTrees<'text>, Vec<StaticValueDemand>), TypeError> {
     let mut output = TypedStage::default();
     let mut catalog = library.map_or_else(DeclarationCatalog::default, |lib| lib.import(&mut output));
     let first_local_obligation = output.obligations.len();
@@ -50,6 +50,7 @@ pub(crate) fn type_stage_inner<'text>(
     }
     catalog.publish_declarations(&mut output);
     let demands = catalog.types.indices.take_demands();
+    catalog.publish_static_data_shapes(&demands, &mut output);
     Ok((crate::TypedTrees::new(resolved.clone(), output, first_local_obligation), demands))
 }
 

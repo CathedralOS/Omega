@@ -1,11 +1,10 @@
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
 
-use num_bigint::BigInt;
 use omega_resolver::DeclarationId;
-use omega_typer::{StaticIntegerRequest, TypeError, TypedConstant, TypedSignature, TypedTrees, ValueType};
+use omega_typer::{StaticValueRequest, TypeError, TypedConstant, TypedSignature, TypedTrees, ValueType};
 
-use crate::integer_invocation::EvaluationError;
+use crate::invocation::EvaluationError;
 use crate::{PreparedValue, refusal};
 
 /// Values belong to this typing pass because it owns the selected calls.
@@ -64,11 +63,11 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
 
     pub(super) fn evaluate(
         &mut self,
-        request: &StaticIntegerRequest,
+        request: &StaticValueRequest,
         arguments: Option<&[ValueType]>,
-    ) -> Result<BigInt, TypeError> {
+    ) -> Result<PreparedValue, TypeError> {
         loop {
-            match self.evaluate_request(request, arguments) {
+            match self.evaluate_value_request(request, arguments) {
                 Ok(value) => return Ok(value),
                 Err(EvaluationError::AtCall(error)) => return Err(error),
                 Err(EvaluationError::Refused(reason)) => return Err(refusal(&request.expression, reason)),
@@ -82,7 +81,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
 
     fn definition(
         &self,
-        request: &StaticIntegerRequest,
+        request: &StaticValueRequest,
         id: &DeclarationId,
     ) -> Result<&'trees TypedConstant, TypeError> {
         self.definitions
@@ -104,7 +103,7 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
         let mut active = HashSet::from([&root.declaration]);
         while let Some(&constant) = stack.last() {
             let request = &constant.initializer;
-            match self.owned_value(request) {
+            match self.evaluate_value_request(request, None) {
                 Ok(value) => {
                     self.values.insert(constant.declaration.clone(), value);
                     active.remove(&constant.declaration);

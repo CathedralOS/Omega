@@ -1,4 +1,4 @@
-use crate::{Access, CallableType, DomainApplication, Opening, RequirementSlot, Site};
+use crate::{Access, CallableType, DomainApplication, Opening, RequirementSlot, Site, StaticTemplate, StaticValue, StaticValueDemand};
 use num_bigint::{BigInt, Sign};
 use num_rational::BigRational;
 use omega_lexer::SourceSpan;
@@ -78,6 +78,16 @@ pub enum ValueType {
         carrier: Box<ValueType>,
         value: BigInt,
     },
+    StaticValue {
+        carrier: Box<ValueType>,
+        value: StaticValue,
+    },
+    PendingStatic(std::sync::Arc<StaticValueDemand>),
+    OpenStatic {
+        template: std::sync::Arc<StaticTemplate>,
+        arguments: Vec<ValueType>,
+    },
+    InvalidStatic(String),
     Parameter {
         owner: Box<DeclarationId>,
         index: usize,
@@ -191,6 +201,10 @@ impl fmt::Display for ValueType {
             }
             Self::StaticFormula { term, .. } => write!(f, "{term}"),
             Self::StaticInteger { value, .. } => write!(f, "{value}"),
+            Self::StaticValue { value, .. } => write!(f, "{value}"),
+            Self::PendingStatic(demand) => write!(f, "<pending {} value>", demand.request().carrier),
+            Self::OpenStatic { template, .. } => write!(f, "static expression at {}", template.request().expression.span.get_start_offset()),
+            Self::InvalidStatic(message) => write!(f, "{message}"),
             Self::Parameter { owner, index } => write!(f, "{}::{}<parameter {}>", owner.package, owner.path, index),
             Self::Applied(id, args) => write!(
                 f,
@@ -238,7 +252,8 @@ impl ValueType {
             width,
         })
     }
-    pub(crate) fn contains_integer(
+    /// Whether this integer carrier can represent the exact mathematical value.
+    pub fn contains_integer(
         &self,
         value: &BigInt,
     ) -> bool {

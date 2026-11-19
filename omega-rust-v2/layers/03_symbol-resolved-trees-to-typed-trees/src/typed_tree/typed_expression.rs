@@ -5,6 +5,8 @@ pub struct TypedExpression {
     pub node: omega_resolver::TreeNodeId,
     pub site: Site,
     pub ty: ValueType,
+    /// Position of the selected binder in the ordered arguments of the specialization owner.
+    pub static_argument_slot: Option<usize>,
 }
 
 /// An exact numeric value after the selected destination carrier is checked.
@@ -26,6 +28,7 @@ impl TypedExpression {
             node: source.node_id(index),
             site: Site::at(source, index),
             ty,
+            static_argument_slot: None,
         }
     }
 }

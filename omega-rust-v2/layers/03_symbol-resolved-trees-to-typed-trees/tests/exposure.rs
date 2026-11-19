@@ -276,7 +276,7 @@ fn competing_canonical_views_refuse_a_default_and_preserve_an_explicit_selection
 fn preparation_receives_typed_static_demands_before_dependent_identity_is_known() {
     use omega_resolver::{ParsedSource, StageSource};
     use omega_typer::{
-        NodeSemantics, SpecializedIndexValue, StaticIntegerDemand, TypingEnvironment, TypingProgress, type_source_package, type_source_package_for_preparation,
+        NodeSemantics, SpecializedIndexValue, StaticValueDemand, TypingEnvironment, TypingProgress, type_source_package, type_source_package_for_preparation,
     };
     let declarations = "data Buffer<const N:u8>{} machine width(n:u8)->u8{n+%1}";
     for (body, specialized) in [
@@ -328,7 +328,7 @@ fn preparation_receives_typed_static_demands_before_dependent_identity_is_known(
             assert_eq!(selected.machine.path, "width");
             assert_eq!(selected.operands.len(), 1);
             match demand {
-                StaticIntegerDemand::Specialized { arguments, .. } if specialized => {
+                StaticValueDemand::Specialized { arguments, .. } if specialized => {
                     assert_eq!(
                         arguments,
                         &[ValueType::StaticInteger {
@@ -349,7 +349,7 @@ fn preparation_receives_typed_static_demands_before_dependent_identity_is_known(
                         }
                     );
                 }
-                StaticIntegerDemand::Closed(_) if !specialized => {
+                StaticValueDemand::Closed(_) if !specialized => {
                     assert_eq!(
                         selected.operands[0].subject,
                         ValueType::StaticInteger {
@@ -367,11 +367,11 @@ fn preparation_receives_typed_static_demands_before_dependent_identity_is_known(
             let mut specialized_indices = Vec::new();
             for demand in pending.demands() {
                 match demand {
-                    StaticIntegerDemand::Closed(request) => evaluated_indices.push((request.clone(), value.into())),
-                    StaticIntegerDemand::Specialized { request, arguments } => specialized_indices.push(SpecializedIndexValue {
+                    StaticValueDemand::Closed(request) => evaluated_indices.push((request.clone(), omega_typer::StaticValue::Integer(value.into()))),
+                    StaticValueDemand::Specialized { request, arguments } => specialized_indices.push(SpecializedIndexValue {
                         request: request.clone(),
                         arguments: arguments.clone(),
-                        value: value.into(),
+                        value: omega_typer::StaticValue::Integer(value.into()),
                     }),
                 }
             }
@@ -404,7 +404,7 @@ fn preparation_receives_typed_static_demands_before_dependent_identity_is_known(
 
 #[test]
 fn array_return_waits_for_its_extent_and_rechecks_the_closed_type() {
-    use omega_typer::{StaticIntegerDemand, TypingEnvironment, TypingProgress, type_source_package_for_preparation};
+    use omega_typer::{StaticValueDemand, TypingEnvironment, TypingProgress, type_source_package_for_preparation};
     let source = "machine width(n:u64)->u64{n} machine f(x:[[u8; width(4)]; 2])->[[u8; 4]; 2]{x}";
     fn resolve(text: &str) -> omega_typer::SourcePackage<'_> {
         let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
@@ -425,14 +425,14 @@ fn array_return_waits_for_its_extent_and_rechecks_the_closed_type() {
     let TypingProgress::Pending(pending) = type_source_package_for_preparation(&resolved, &Default::default()).unwrap() else {
         panic!("the inner extent requires evaluation");
     };
-    let [StaticIntegerDemand::Closed(request)] = pending.demands() else {
+    let [StaticValueDemand::Closed(request)] = pending.demands() else {
         panic!("expected just the call that computes the inner extent");
     };
     let resume = |width: u64| {
         type_source_package_for_preparation(
             &resolved,
             &TypingEnvironment {
-                evaluated_indices: &[(request.clone(), width.into())],
+                evaluated_indices: &[(request.clone(), omega_typer::StaticValue::Integer(width.into()))],
                 ..Default::default()
             },
         )
@@ -491,4 +491,75 @@ fn constant_initializers_publish_references_calls_and_suffixed_values() {
                 record, NodeSemantics::Landing(landing) if landing.value == num_rational::BigRational::from_integer(7.into()) && landing.ty == byte
             ))
     );
+}
+
+#[test]
+fn boolean_static_identity_waits_for_checked_calls_and_constant_references() {
+    use omega_typer::{CallUse, NodeSemantics, StaticValue, StaticValueDemand, TypingEnvironment, TypingProgress, type_source_package_for_preparation};
+
+    for (argument, usage) in [("enabled()", false), ("ENABLED", false), ("enabled()", true)] {
+        let accepting_machine = if usage {
+            format!("machine sink<const Value:bool>(x:Flag<Value>){{}} machine accept(x:Flag<true>){{sink::<{argument}>(x);}}")
+        } else {
+            format!("machine accept(x:Flag<{argument}>)->Flag<true>{{x}}")
+        };
+        let source =
+            format!("data Flag<const Enabled:bool>{{}} machine enabled()->bool{{true}} const ENABLED:bool=enabled();              {accepting_machine}");
+        let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
+        let tree = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
+        let resolved = omega_typer::resolve_source_package(&[omega_resolver::StageSource {
+            package: "game",
+            source: omega_resolver::ParsedSource {
+                logical_path: "boolean.omg",
+                text: &source,
+                tokens: &tokens,
+                tree: &tree,
+            },
+        }])
+        .unwrap();
+        let TypingProgress::Pending(pending) = type_source_package_for_preparation(&resolved, &Default::default()).unwrap() else {
+            panic!("the Boolean argument requires evaluation");
+        };
+        let [StaticValueDemand::Closed(request)] = pending.demands() else {
+            panic!("expected one closed Boolean argument");
+        };
+        assert_eq!(request.carrier, ValueType::Bool);
+        let tree = pending.trees().trees().nth(request.node.file).unwrap();
+        assert_eq!(
+            tree.resolved()
+                .file
+                .span(request.node.node)
+                .slice(source.as_bytes()),
+            Some(argument.as_bytes())
+        );
+        assert!(
+            tree.semantics_at(request.node.node)
+                .any(|semantics| match semantics {
+                    NodeSemantics::Call(call) => call.machine.path == "enabled" && call.use_site == CallUse::StaticArgument,
+                    NodeSemantics::Constant(constant) => constant.path == "ENABLED",
+                    _ => false,
+                })
+        );
+
+        let resume = |answer| {
+            type_source_package_for_preparation(
+                &resolved,
+                &TypingEnvironment {
+                    evaluated_indices: &[(request.clone(), answer)],
+                    ..Default::default()
+                },
+            )
+        };
+        let TypingProgress::Complete(typed) = resume(StaticValue::Bool(true)).unwrap() else {
+            panic!("returning the equal closed type must finish typing");
+        };
+        assert_eq!(typed.evaluated_indices, [(request.clone(), StaticValue::Bool(true))]);
+        let wrong_value = resume(StaticValue::Bool(false)).unwrap_err();
+        if usage {
+            assert!(wrong_value.message.contains("conflicting type argument false"));
+        } else {
+            assert_eq!(wrong_value.message, "expected game::Flag<true>, found game::Flag<false>");
+        }
+        assert!(resume(StaticValue::Integer(1.into())).is_err());
+    }
 }

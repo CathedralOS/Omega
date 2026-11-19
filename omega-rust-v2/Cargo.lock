@@ -102,6 +102,7 @@ dependencies = [
  "omega-parser",
  "omega-resolver",
  "omega-typer",
+ "spec-corpus",
 ]
 
 [[package]]
