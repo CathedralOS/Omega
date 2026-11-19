@@ -27,19 +27,20 @@ impl ProductPolicyInputs<'_> {
         &self,
         continuation: &mut crate::SourceContinuation,
         subject: Option<semantic_vocabulary::PackageKeyIdentity>,
-    ) -> Result<crate::AdmittedProductPolicy, Vec<Diagnostic>> {
+    ) -> Result<(Option<symbols::SymbolHandle>, crate::AdmittedProductPolicy), Vec<Diagnostic>> {
         let activation = self.activation.map(|declaration| {
             crate::source_state::source_subjects::rejoin_build_activation(
                 continuation.typed(), subject, declaration,
             ).map_err(|reason| vec![Diagnostic::error(reason)])
         }).transpose()?;
-        continuation.admit_product_policy(crate::ProductPolicyRequest {
+        let admitted = continuation.admit_product_policy(crate::ProductPolicyRequest {
             activation,
             declared: self.declared,
             executed: self.executed,
             native_bindings: self.native_bindings,
             exclusions: self.exclusions,
-        })
+        })?;
+        Ok((activation, admitted))
     }
 }
 
@@ -108,7 +109,7 @@ pub(crate) fn prepare_lower_and_check(
     frontier: Option<&mut Option<crate::TypedFrontier>>,
     observer: &mut impl crate::PsiCompilationObserver,
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
-    let admitted = inputs.policy.admit(&mut continuation, inputs.subject)?;
+    let (activation, admitted) = inputs.policy.admit(&mut continuation, inputs.subject)?;
     let native_supplies = inputs.native_bindings.resolve(&mut continuation, admitted.native_bindings)?;
     let authored = continuation.complete_authored(observer)?;
     let crate::PreparedSource { mut typed, mut accounting } = match inputs.generated.take() {

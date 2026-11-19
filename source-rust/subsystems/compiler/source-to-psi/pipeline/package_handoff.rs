@@ -21,7 +21,7 @@ pub fn package_handoff_declarations(
     })?;
     let mut observer = UnmeasuredProduction;
     let (mut declarations, _) = lex_and_parse(&source, &mut observer)?.prepare(&mut observer)?;
-    let admitted = source
+    let (_, admitted) = source
         .selections
         .policy
         .admit(&mut declarations, Some(package))?;
