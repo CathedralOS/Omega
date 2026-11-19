@@ -543,3 +543,71 @@ fn a_local_build_selection_owns_every_exact_boundary_operator_coordinate() {
     }
     assert_eq!(orders[0], orders[1]);
 }
+
+#[test]
+fn a_provider_for_an_operator_must_include_the_exact_overload_in_its_record() {
+    let build = "machine build(builder: @mut Build) {
+        Build::select_provider<Buffer::index, Narrow>(builder, linux_x86_64);
+        Build::select_provider<Buffer::index, Both>(builder, macos_arm64);
+    }";
+    let product = "public data Buffer {}
+        public boundary operator [] Buffer::index(items: @Buffer, index: u32) -> u8;
+        public boundary operator [] Buffer::index(items: @Buffer, index: u64) -> u8;
+        public trait One { machine narrow(items: @Buffer, index: u32) -> u8; }
+        public trait Two {
+            machine narrow(items: @Buffer, index: u32) -> u8;
+            machine wide(items: @Buffer, index: u64) -> u8;
+        }
+        machine narrow_impl(items: @Buffer, index: u32) -> u8 satisfies Buffer::index { 1u8 }
+        machine wide_impl(items: @Buffer, index: u64) -> u8 satisfies Buffer::index { 2u8 }
+        public Narrow satisfies One { One::narrow = narrow_impl; }
+        public Both satisfies Two { Two::wide = wide_impl; Two::narrow = narrow_impl; }";
+    let fixture = Fixture::new(build, product, None);
+    let events = fixture.events(&[
+        (ProductTarget::LinuxX86_64, CompositionMode::Fused),
+        (ProductTarget::MacosArm64, CompositionMode::Fused),
+    ]);
+    let selected = fixture.collect(&events).unwrap();
+    let super::ProviderSelectionSubject::BoundaryOperatorFamily(family) = &selected[0].subject
+    else {
+        panic!("expected a selected operator family");
+    };
+    let mut missing = Vec::new();
+    let mut machines = Vec::new();
+    for selection in &selected {
+        for coordinate in family.coordinates() {
+            let supply = crate::source_state::trait_definition::Supply {
+                slot: coordinate.symbol,
+                provider: selection.provider_type.symbol,
+            };
+            match supply.realization(&fixture.typed, coordinate.symbol) {
+                Ok(machine) => machines.push((
+                    selection.provider_type.authored_path.as_str(),
+                    machine.name.as_str(),
+                )),
+                Err(_) => missing.push(coordinate.requirement_identity.as_str()),
+            }
+        }
+    }
+    machines.sort_unstable();
+    assert_eq!(
+        machines,
+        [
+            ("Both", "narrow_impl"),
+            ("Both", "wide_impl"),
+            ("Narrow", "narrow_impl")
+        ]
+    );
+    assert_eq!(missing.len(), 1);
+    let program = Arc::new(crate::source_state::FrozenTypedTrees::from(fixture.typed));
+    let error = crate::source_provider_choices::prepare_with_source_defaults(
+        &program,
+        &["linux_x86_64"],
+        &selected[..1],
+        &[],
+        &[],
+    )
+    .err()
+    .expect("the missing overload must refuse the entire provider choice");
+    assert!(error[0].message.contains(missing[0]), "{error:?}");
+}
