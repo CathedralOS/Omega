@@ -40,6 +40,10 @@ pub fn directory_namespace<'a>(
             "directory `{}` in source `{}` cannot name an Omega namespace; expected an ASCII identifier",
             directory.to_string_lossy(), path.display()
         ))?;
+        // The parser admits contextual keyword spellings in paths, except for the receiver.
+        if name == "self" {
+            return Err(format!("directory `self` in source `{}` cannot name an Omega namespace", path.display()));
+        }
         if symbols::BuiltinTypeAtom::is_builtin_type_spelling(name) {
             return Err(format!("module `{name}` is spelled like the builtin type `{name}`; choose another directory name in source `{}`", path.display()));
         }
@@ -389,6 +393,7 @@ mod directory_tests {
                     .unwrap_err()
                     .contains("bad-name")
             );
+            assert!(directory_namespace(&root.join("self/program.omg"), root).is_err());
             assert!(directory_namespace(Path::new("/elsewhere/program.omg"), root).is_err());
             assert!(directory_namespace(&root.join("u32/program.omg"), root).unwrap_err().contains("builtin type `u32`"));
         }
