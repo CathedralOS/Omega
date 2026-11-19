@@ -151,9 +151,9 @@ pub fn emit_component_exports<'input>(
     let mut targets = Vec::with_capacity(executions.len());
     for (export, execution) in inputs.exports().iter().zip(executions) {
         let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
-        let (input, execution) = artifact_lowering::lower_native_execution(
+        let input = artifact_lowering::lower_native_execution(
             proposal,
-            execution,
+            &execution,
             &[],
             scalars
                 .as_ref()
@@ -164,7 +164,6 @@ pub fn emit_component_exports<'input>(
         let selections = proposal.post_terminal_optimizations().selections();
         let prepared = artifact_lowering::prepare_native_providers(
             proposal,
-            artifact,
             artifact_lowering::RetainedNativeProviderInputs {
                 execution: &execution,
                 optimization_selections: selections,

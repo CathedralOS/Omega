@@ -103,11 +103,11 @@ fn produce(
             .iter()
             .map(components::EmittedComponent::admit_call)
             .collect::<Result<Vec<_>, _>>()?;
-        let (input, execution) = {
+        let input = {
             observation.enter(NativePipelineStage::TargetBoundProgramToAbstract);
             artifact_lowering::lower_native_execution(
                 proposal,
-                execution,
+                &execution,
                 &private_entry_ram,
                 scalars.map(|completed| artifact_lowering::NativeScalarApplications { completed }),
             )
@@ -115,7 +115,6 @@ fn produce(
         let prepared = {
             artifact_lowering::prepare_native_providers(
                 proposal,
-                artifact,
                 RetainedNativeProviderInputs {
                     execution: &execution,
                     optimization_selections: request.optimization_selections,

@@ -1,7 +1,9 @@
 //! Check provider admission against the selected abstract program and its authorized Psi.
 use provider_admission::{
-    AdmittedNativeProviders, ProviderAdmissionRequest, admit_native_providers,
-    realization_error,
+    AdmittedNativeProviders, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
+    PreparedSourceEvaluatedBindings, ProviderAdmissionRequest, SourceEvaluatedImportSettlement,
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, admit_native_providers,
+    prepare_source_evaluated_bindings, realization_error,
 };
 use crate::{ArtifactLoweringError, VerifiedNativeArtifactInput};
 use boundary_applications::TerminalBoundaryApplicationCoverage;
@@ -9,6 +11,121 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeSet;
 use terminal_codec::CanonicalTerminalArtifact;
+use verified_optimization_input::{PreparedNativeExecution, TerminalNativeRealizationProposal};
+
+pub struct RetainedNativeProviderInputs<'input> {
+    pub execution: &'input PreparedNativeExecution,
+    pub optimization_selections:
+        &'input optimization_selections::PostTerminalOptimizationSelections,
+    pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
+    pub imports: &'input [SourceEvaluatedImportSettlement<'input>],
+}
+
+pub struct PreparedRetainedNativeProviders<'input> {
+    execution: &'input PreparedNativeExecution,
+    proposal: &'input TerminalNativeRealizationProposal,
+    bindings: PreparedSourceEvaluatedBindings<'input>,
+    callbacks: &'input [crate::NativeCallbackArgumentProposal],
+    compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
+}
+
+impl PreparedRetainedNativeProviders<'_> {
+    pub fn program_settlements(&self) -> Vec<NativeProviderSettlement<'_>> {
+        self.bindings
+            .settlements()
+            .iter()
+            .filter(|settlement| {
+                self.execution
+                    .demands()
+                    .contains(settlement.provider_execution.requirement_identity())
+            })
+            .copied()
+            .collect()
+    }
+
+    pub fn admission_request<'request>(
+        &'request self,
+        settlements: &'request [NativeProviderSettlement<'request>],
+        terminal_authority_policy: &'request TerminalAuthorityPolicy,
+        receiving_permissions: &'request Option<TerminalAuthorityPermissionPolicy>,
+        installation_assumptions: &'request [installation_conditions::InstallationEnvironmentAssumption],
+    ) -> crate::NativeAdmissionRequest<'request, 'request> {
+        let proposal = self.proposal;
+        crate::NativeAdmissionRequest {
+            private_entry_ram: &[],
+            entry: terminal_psi::TargetMachineCallable::Machine(
+                proposal.program_entry().checked_entry().terminal_entry(),
+            ),
+            boundary_application_coverage: Some(self.execution.boundary_application_coverage()),
+            behavior_exclusions: proposal.behavior_exclusions(),
+            providers: ProviderAdmissionRequest {
+                profile: proposal.target_profile(),
+                bootstrap_entry: proposal.program_entry().checked_entry().terminal_entry(),
+                program_provider_context: None,
+                installation_assumptions,
+                selected_provider_plans: self.execution.selection(),
+                checked_adapters: self.execution.local_adapters(),
+                external_binding_rows: self.execution.external_bindings(),
+                settlements,
+                compiler_builtins: &self.compiler_builtins,
+                native_bindings: &proposal.providers().native_bindings,
+                native_callbacks: self.callbacks,
+                installed_interrupts: &proposal.occurrences().installed_interrupts,
+                installed_calling: &proposal.boundary_applications().calling,
+                callback_occurrences: &proposal.occurrences().callbacks,
+                terminal_authority_policy,
+                terminal_authority_permission_policy: receiving_permissions,
+                x86_scalar_fma_provider: proposal.providers().x86_scalar_fma,
+            },
+        }
+    }
+}
+
+pub fn prepare_native_providers<'input>(
+    proposal: &'input TerminalNativeRealizationProposal,
+    inputs: RetainedNativeProviderInputs<'input>,
+) -> Result<PreparedRetainedNativeProviders<'input>, Vec<Diagnostic>> {
+    if proposal.post_terminal_optimizations().selections() != inputs.optimization_selections {
+        return Err(diagnostics::error_in_context(
+            "Terminal native proposal",
+            "receiving lowerer selections differ from the exact post-Terminal build proposal",
+        ));
+    }
+    provider_admission::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
+        proposal.package_terminal_authority_permissions(),
+        proposal.package_terminal_authority_permission_identities(),
+        inputs.accepted_package_permissions,
+    )?;
+    let callbacks = proposal
+        .occurrences()
+        .callback_arguments
+        .as_deref()
+        .ok_or_else(|| {
+            diagnostics::error_in_context(
+                "Terminal callback custody",
+                "callback placement has no private registrar materialization",
+            )
+        })?;
+    let bindings = prepare_source_evaluated_bindings(
+        inputs.execution.selection().plans(),
+        inputs.execution.demands(),
+        inputs.imports,
+        inputs.execution.selection().identities(),
+    )?;
+
+    let compiler_builtins = provider_admission::prepare_retained_compiler_builtins(
+        inputs.execution.compiler_builtins(),
+        inputs.execution.selection().plans(),
+    )?;
+
+    Ok(PreparedRetainedNativeProviders {
+        execution: inputs.execution,
+        proposal,
+        bindings,
+        callbacks,
+        compiler_builtins,
+    })
+}
 
 #[derive(Clone, Copy)]
 pub struct NativeAdmissionRequest<'request, 'execution> {

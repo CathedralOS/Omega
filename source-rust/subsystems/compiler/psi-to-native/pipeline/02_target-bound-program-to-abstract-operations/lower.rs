@@ -8,13 +8,11 @@ mod selected_execution;
 mod selected_input;
 
 pub use admit_providers::{
-    AdmittedNativeRealization, NativeAdmissionRequest, admit_prepared_native_realization,
+    AdmittedNativeRealization, NativeAdmissionRequest, RetainedNativeProviderInputs,
+    admit_prepared_native_realization, prepare_native_providers,
 };
 pub use entry_receiver::admit_executable_entry;
-pub use selected_execution::{
-    RetainedNativeProviderInputs, lower_native_callable, lower_native_execution,
-    prepare_native_providers,
-};
+pub use selected_execution::{lower_native_callable, lower_native_execution};
 pub use selected_input::{NativeScalarApplications, VerifiedNativeArtifactInput};
 
 use provider_admission::{NativeCallbackArgumentProposal, SelectedProviderAdapter};
