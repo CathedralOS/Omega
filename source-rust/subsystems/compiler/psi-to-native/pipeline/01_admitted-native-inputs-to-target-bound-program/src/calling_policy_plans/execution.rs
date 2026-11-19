@@ -1,11 +1,11 @@
 //! Execute an already admitted policy over its exact native signature.
 //! No source producer or Build callback participates in this invocation.
 
+use super::values::{plan_value, signature_contents};
 use super::{
     CallingScalarScope, TerminalCallingPolicyInvocation, complete_calling_scalar_inputs,
     decode_boundary_plan_result, encode_calling_policy_signature, validate_calling_policy_result,
 };
-use artifact_evaluation::values::{input_contents, result_value};
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
@@ -129,9 +129,8 @@ pub(super) fn evaluate_terminal_calling_policy(
         .ok_or("calling policy result must be structural")?
         .structural_type;
     let argument = encode_calling_policy_signature(signature)?;
-    let contents = [input_contents(
+    let contents = [signature_contents(
         &program,
-        0,
         parameter.structural_type,
         &argument,
     )?];
@@ -165,7 +164,7 @@ pub(super) fn evaluate_terminal_calling_policy(
             ));
         }
     }
-    let value = result_value(&instance, result_type, &[])?;
+    let value = plan_value(&instance, result_type)?;
     let cells = value
         .retained_cell_count()
         .ok_or("calling policy result cell count overflowed")?;
