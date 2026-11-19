@@ -19,7 +19,7 @@ static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// Psi 00 through 04 on one fixture, without its Build.
 fn typed_frontier(
     name: &str,
-) -> Result<source_compiler::source_state::FrozenTypedTrees, Vec<String>> {
+) -> Result<source_compiler::preparation::PreparedTypedTrees, Vec<String>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);

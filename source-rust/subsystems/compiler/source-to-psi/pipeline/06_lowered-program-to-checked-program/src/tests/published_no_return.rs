@@ -180,7 +180,7 @@ fn a_dependency_body_does_not_silently_publish_nonreturn() {
             "stop",
         ));
     let resolved = crate::resolution::resolve(request).unwrap();
-    let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = crate::prepare_fixture(crate::typing::lower_symbol_resolved_trees(&resolved).unwrap());
     let entry = super::build_purpose::symbol(&typed, "entry");
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(

@@ -55,6 +55,7 @@ mod claim_publication;
 mod compilation;
 pub mod source_roster;
 pub use compilation::LoweredSourcePublication;
+pub use typed_trees_to_prepared_typed_trees::preparation::PreparedTypedTrees;
 mod publication;
 use publication::PreparedProgram;
 pub use publication::{

@@ -2,8 +2,9 @@
 
 Every program's typed trees cross this stage on their way to the checker, by
 one path: [`prepare_typed_trees`](src/driver.rs) runs an explicit, ordered
-list of passes over the typed trees and freezes the result. There is no way to
-freeze a program without running the list.
+list of passes over the typed trees and returns `PreparedTypedTrees`. Stage 05
+requires this output to lower a source compilation. A representation reader can
+freeze typed trees independently to inspect a read-only snapshot.
 
 A pass takes typed trees and returns typed trees. It either does its work or
 refuses, by name, a request it does not serve

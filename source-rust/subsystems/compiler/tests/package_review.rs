@@ -1655,7 +1655,7 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
     // or for a fresh judgment that has yet to publish the calling program.
     let publication = Arc::new(
         source_compiler::SourcePublication::judge(
-            Arc::clone(checked.source_inspection().program()),
+            checked.terminal_publication().accepted().unwrap().source().clone(),
             checked.terminal_publication().roster().unwrap().clone(),
             checked.terminal_publication().optimizations().clone(),
         )
@@ -2460,9 +2460,9 @@ machine main() {}
     assert_eq!(build.parameters().len(), 1);
     // A real Product judgment cannot stand in for the independently judged
     // Build invocation, and dropping Build custody cannot publish its rows.
-    let source = std::sync::Arc::clone(checked.source_inspection().program());
+    let source = checked.terminal_publication().accepted().unwrap().source().clone();
     let roster = checked.terminal_publication().roster().unwrap().clone();
-    let other_judgment = source_compiler::judge_source_roster(roster.clone(), std::sync::Arc::clone(&source)).unwrap();
+    let other_judgment = source_compiler::judge_source_roster(roster.clone(), source.clone()).unwrap();
     let publication = std::sync::Arc::new(
         source_compiler::SourcePublication::judge(
             source,

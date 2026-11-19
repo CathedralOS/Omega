@@ -239,12 +239,12 @@ pub(super) fn judge_build_with_core(
     build: &str,
     core: &[(&str, &str, &str)],
 ) -> Result<RouteVerdict, crate::checking::CompilationRefusal> {
-    let typed = frontier_with_core(
+    let typed = crate::prepare_fixture(frontier_with_core(
         "machine product_entry() { }",
         build,
         DependencyScope::Build,
         core,
-    );
+    ));
     let entry = symbol(&typed, "build_entry");
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
@@ -289,7 +289,7 @@ fn a_build_subject_cannot_hide_a_generic_guarantee_rejection() {
 pub(super) fn judge_build_all(
     build: &str,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let typed = frontier_of("machine product_entry() { }", build);
+    let typed = crate::prepare_fixture(frontier_of("machine product_entry() { }", build));
     let entry = symbol(&typed, "build_entry");
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
@@ -304,7 +304,7 @@ pub(super) fn judge_build_all(
 
 #[test]
 fn the_checker_judges_a_build_program_as_an_invocation() {
-    let typed = frontier();
+    let typed = crate::prepare_fixture(frontier());
     let entry = symbol(&typed, "build_entry");
     let mut verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(

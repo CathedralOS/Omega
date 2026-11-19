@@ -14,6 +14,7 @@ test-support = []
 path = "lib.rs"
 
 [dependencies]
+typed-trees-to-prepared-typed-trees = { path = "../04_typed-trees-to-prepared-typed-trees" }
 service-surface = { path = "../../../psi/service-surface" }
 proof-applications = { path = "../../../psi/proof-applications" }
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }

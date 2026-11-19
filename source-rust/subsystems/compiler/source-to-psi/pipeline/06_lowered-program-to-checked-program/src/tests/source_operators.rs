@@ -720,7 +720,7 @@ machine entry() -> bool { choose::<u16>() == 7u8 && unary_first::<u8>() }
 "#;
 
 fn copied_static_pattern() -> (
-    crate::source_state::FrozenTypedTrees,
+    crate::preparation::PreparedTypedTrees,
     crate::source_state::expression::ExpressionHandle,
     crate::source_state::expression::ExpressionHandle,
 ) {

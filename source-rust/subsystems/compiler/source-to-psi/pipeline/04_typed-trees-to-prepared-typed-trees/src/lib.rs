@@ -11,7 +11,7 @@ mod driver;
 mod passes;
 mod product;
 
-pub use driver::WireCompatibilityDemand;
+pub use driver::{PreparedTypedTrees, WireCompatibilityDemand};
 #[cfg(any(test, feature = "test-support"))]
 pub use driver::{PreparationAdmission, PreparationRequest, TypedPreparation, prepare_typed_trees};
 #[cfg(not(any(test, feature = "test-support")))]

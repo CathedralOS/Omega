@@ -34,7 +34,7 @@ fn first(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
 }
 
 struct Fixture {
-    source: Arc<source_compiler::source_state::FrozenTypedTrees>,
+    source: source_compiler::preparation::PreparedTypedTrees,
     entry: symbols::SymbolHandle,
     defaults: Vec<TargetProviderDefaults>,
 }
@@ -101,8 +101,12 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
         .find(|machine| machine.name.as_str() == "main")
         .expect("source main")
         .symbol;
+    let (prepared, _) = source_compiler::preparation::prepare_typed_trees(
+        typed,
+        &source_compiler::preparation::PreparationRequest::settled(),
+    )?;
     Ok(Fixture {
-        source: Arc::new(typed.into()),
+        source: prepared,
         entry,
         defaults,
     })
@@ -118,7 +122,7 @@ fn prepare(
 
 fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTerminalSource {
     source_compiler::judge_terminal_source(
-        Arc::clone(&fixture.source),
+        fixture.source.clone(),
         TerminalSourceCompilation {
             declaration_metadata: &[],
             supplies: &[],

@@ -91,7 +91,7 @@ machine entry() -> Applied {{
 
 #[test]
 fn source_applications_prepare_substituted_cases_before_checked_construction() {
-    let typed = source_program("7u64");
+    let typed = crate::prepare_fixture(source_program("7u64"));
     let applied = typed
         .data_definitions()
         .iter()
@@ -229,7 +229,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
 
 #[test]
 fn source_application_cannot_change_its_payload_type() {
-    let typed = source_program("true");
+    let typed = crate::prepare_fixture(source_program("true"));
     let entry = typed
         .machines()
         .iter()
@@ -271,7 +271,7 @@ fn source_application_cannot_change_its_payload_type() {
 #[test]
 fn a_local_generic_data_template_is_read_and_judged_where_it_is_applied() {
     for (payload, accepted) in [("7u64", true), ("true", false)] {
-        let typed = source_program_in_scope(payload, false);
+        let typed = crate::prepare_fixture(source_program_in_scope(payload, false));
         let optional = typed
             .data_definitions()
             .iter()

@@ -88,7 +88,7 @@ pub(crate) mod observation {
                 Self::Typing => ("Psi 03", "SymbolResolvedTrees", "TypedTrees"),
                 Self::SourceParsing => ("Source ingress", "SourceFiles", "SyntaxTrees"),
                 Self::SourcePreparation => {
-                    ("typed-source-preparation", "TypedTrees", "FrozenTypedTrees")
+                    ("typed-source-preparation", "TypedTrees", "PreparedTypedTrees")
                 }
             }
         }

@@ -656,7 +656,7 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
         "path[0..position] as +Path",
         "(path as -Path)[0..position] as +Path",
     );
-    let typed = super::build_purpose::frontier_with_core(
+    let typed = crate::prepare_fixture(super::build_purpose::frontier_with_core(
         "machine product_entry() {}",
         &format!("use omega::language::core::byte_observation;\n{source}"),
         source_provenance::DependencyScope::Build,
@@ -668,7 +668,7 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
                 "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
             )),
         )],
-    );
+    ));
     let prefix_symbol = super::build_purpose::symbol(&typed, "prefix_length");
     let entry = super::build_purpose::symbol(&typed, "build_entry");
     let verdicts = crate::checking::judge_compilation(

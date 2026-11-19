@@ -6,7 +6,7 @@ use lowered_program_to_checked_program::checking::judge_publication;
 use optimization::PsiOptimizationSelections;
 use std::sync::Arc;
 use typed_trees::source_state::FrozenTypedTrees;
-use prepared_typed_trees_to_lowered_program::lowering::LoweredSourcePublication;
+use prepared_typed_trees_to_lowered_program::lowering::{LoweredSourcePublication, PreparedTypedTrees};
 
 /// Typed source with its constant inputs materialized. An authored Build settles those
 /// inputs using its source consent and sponsorship. A nested call arrives with its
@@ -34,7 +34,7 @@ impl SettledSource<'_> {
                 .with_wire_compatibility_demands(self.wire_demands);
             let (program, _) = crate::preparation::prepare_typed_trees(self.program, &preparation)?;
             let constants = constant_reads(&program, self.demanded_constants)?;
-            Ok((Arc::new(program), constants))
+            Ok((program, constants))
         })();
         match result {
             Ok((program, constants)) => Ok(FrozenSource {
@@ -106,7 +106,7 @@ fn constant_reads(
 }
 
 pub struct FrozenSource {
-    pub program: Arc<crate::source_state::FrozenTypedTrees>,
+    pub program: PreparedTypedTrees,
     pub accounting: crate::compile_time::SourceCompletionAccounting,
     /// Actual demand before named uses became literals. This is result
     /// correspondence data, not declaration-selection or execution authority.
@@ -120,7 +120,7 @@ pub struct JudgedSource {
 }
 
 pub fn judge_terminal_source(
-    source: Arc<FrozenTypedTrees>,
+    source: PreparedTypedTrees,
     compilation: TerminalSourceCompilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
@@ -131,7 +131,7 @@ pub fn judge_terminal_source(
 #[cfg(any(test, feature = "test-support"))]
 pub fn judge_source_roster(
     roster: SourceCompilationRoster,
-    source: Arc<FrozenTypedTrees>,
+    source: PreparedTypedTrees,
 ) -> Result<Arc<AcceptedTerminalSource>, Vec<Diagnostic>> {
     let input = roster.lower_for_publication(source)?;
     AcceptedTerminalSource::from_judgment(judge_publication(input)?).map(Arc::new)
@@ -156,7 +156,7 @@ impl SourcePublication {
     }
 
     pub fn judge(
-        source: Arc<FrozenTypedTrees>,
+        source: PreparedTypedTrees,
         roster: SourceCompilationRoster,
         optimizations: PsiOptimizationSelections,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -181,7 +181,7 @@ impl SourcePublication {
             }
         }
         Self::judge(
-            Arc::clone(self.accepted()?.source()),
+            self.accepted()?.source().clone(),
             roster,
             self.optimizations().clone(),
         )

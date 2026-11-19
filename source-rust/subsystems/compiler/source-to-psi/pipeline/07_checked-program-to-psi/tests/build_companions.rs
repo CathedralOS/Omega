@@ -220,7 +220,7 @@ fn accepted_frontier_with_subjects(
         &source_compiler::preparation::PreparationRequest::settled(),
     )?;
     source_compiler::judge_terminal_source(
-        Arc::new(frozen),
+        frozen,
         source_compiler::lowering::Compilation {
             declaration_metadata: &[],
             entries: &[entry],

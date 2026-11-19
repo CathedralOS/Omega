@@ -42,6 +42,7 @@ fn judged_parts(
     typed: &crate::source_state::TypedTrees,
     select_first: bool,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+    let typed = &crate::prepare_fixture(typed.clone());
     let selected = if select_first {
         vec![typed.machines()[0].symbol]
     } else {

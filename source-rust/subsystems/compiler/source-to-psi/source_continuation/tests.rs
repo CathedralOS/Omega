@@ -182,7 +182,7 @@ fn completed_body_work_is_recorded_before_retained_source_activation() {
     )
     .unwrap();
     let refused = crate::judge_terminal_source(
-        Arc::new(program),
+        program,
         crate::TerminalSourceCompilation {
             calling: None,
             providers: None,

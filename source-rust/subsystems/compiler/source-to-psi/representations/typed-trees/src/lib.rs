@@ -880,6 +880,8 @@ pub(crate) mod frozen {
 
     impl Eq for ProductSourceIdentity {}
 
+    /// An immutable representation snapshot with sealed declaration indexes.
+    /// Stage 04 retains its completed output in a separate prepared source owner.
     #[derive(Clone, Default)]
     pub struct FrozenTypedTrees(TypedTrees, OnceLock<Arc<PreparedBoundarySignatures>>);
 

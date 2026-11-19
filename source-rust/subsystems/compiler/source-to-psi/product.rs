@@ -524,7 +524,7 @@ fn prepare_and_judge(
     source_completion_accounting.append(pass.accounting.clone());
     if let Some(frontier) = pass.frontier.as_deref_mut() {
         *frontier = Some(crate::TypedFrontier {
-            typed: program.as_ref().clone(),
+            typed: program.clone(),
             source_completion_accounting: source_completion_accounting.clone(),
             entries: roster.entries.clone(),
             subject,
@@ -535,7 +535,7 @@ fn prepare_and_judge(
         });
     }
     let judged =
-        crate::SourcePublication::judge(Arc::clone(&program), roster, build.optimizations.clone());
+        crate::SourcePublication::judge(program.clone(), roster, build.optimizations.clone());
     let terminal_publication = Arc::new(judged?);
     // The Product has one module for every target, so the providers each
     // target chooses are judged in it before anything is published. The
@@ -563,7 +563,7 @@ fn prepare_and_judge(
             layout_prepared: chosen_defaults,
         })?;
     Ok(JudgedSource {
-        program,
+        program: Arc::clone(&program),
         source_completion_accounting,
         judgment,
     })

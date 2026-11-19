@@ -323,7 +323,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
     let roster = checked.terminal_publication().roster().unwrap().clone();
     assert!(roster.declaration_metadata.contains(&boundary));
     let executable = source_compiler::SourcePublication::judge(
-        std::sync::Arc::clone(accepted.source()),
+        accepted.source().clone(),
         roster,
         checked.terminal_publication().optimizations().clone(),
     )

@@ -36,7 +36,7 @@ pub mod production;
 
 #[cfg(test)]
 fn judge_fixture(
-    source: std::sync::Arc<source_state::FrozenTypedTrees>,
+    source: lowering::PreparedTypedTrees,
     compilation: lowering::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {

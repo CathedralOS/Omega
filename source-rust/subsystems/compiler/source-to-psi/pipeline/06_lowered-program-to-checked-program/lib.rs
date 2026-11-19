@@ -25,3 +25,10 @@ use source_admission::LoadedSource;
 #[cfg(test)]
 #[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
+
+#[cfg(test)]
+fn prepare_fixture(typed: source_state::TypedTrees) -> preparation::PreparedTypedTrees {
+    preparation::prepare_typed_trees(typed, &preparation::PreparationRequest::settled())
+        .expect("prepare checker fixture")
+        .0
+}

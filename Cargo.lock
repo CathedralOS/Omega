@@ -2133,6 +2133,7 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "typed-trees",
+ "typed-trees-to-prepared-typed-trees",
  "wire",
 ]
 

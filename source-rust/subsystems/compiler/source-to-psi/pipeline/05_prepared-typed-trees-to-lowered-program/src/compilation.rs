@@ -29,7 +29,7 @@ pub struct LoweredSourcePublication {
 }
 
 pub struct PublicationSource {
-    pub owner: std::sync::Arc<crate::source_state::FrozenTypedTrees>,
+    pub owner: crate::lowering::PreparedTypedTrees,
     pub publication: terminal_codec::TerminalPublication,
     pub correspondence: crate::lowering::SourceCorrespondence,
     pub roster: Option<crate::lowering::source_roster::SourceCompilationRoster>,
@@ -44,8 +44,18 @@ impl terminal_check_tables::compilation::CompilationForPublication for LoweredSo
 }
 
 impl LoweredSourcePublication {
+    /// Bind the publication to the source that completed typed preparation.
+    ///
+    /// ```compile_fail,E0308
+    /// use std::sync::Arc;
+    /// use typed_trees::source_state::FrozenTypedTrees;
+    /// use prepared_typed_trees_to_lowered_program::lowering::{Compilation, LoweredSourcePublication};
+    /// fn bypass(snapshot: Arc<FrozenTypedTrees>, roots: Compilation<'_>) {
+    ///     let _ = LoweredSourcePublication::prepare(snapshot, roots, terminal_codec::TerminalPublication::Portable);
+    /// }
+    /// ```
     pub fn prepare(
-        owner: std::sync::Arc<crate::source_state::FrozenTypedTrees>,
+        owner: crate::lowering::PreparedTypedTrees,
         compilation: crate::lowering::Compilation<'_>,
         publication: terminal_codec::TerminalPublication,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
@@ -69,8 +79,17 @@ impl LoweredSourcePublication {
     }
 }
 
+/// Lower the compilation from stage 04's completed output.
+///
+/// ```compile_fail,E0308
+/// use typed_trees::source_state::FrozenTypedTrees;
+/// use prepared_typed_trees_to_lowered_program::lowering::{Compilation, prepare_compilation};
+/// fn bypass(snapshot: &FrozenTypedTrees, roots: Compilation<'_>) {
+///     let _ = prepare_compilation(snapshot, roots, terminal_codec::TerminalPublication::Portable);
+/// }
+/// ```
 pub fn prepare_compilation(
-    typed: &TypedTrees,
+    typed: &crate::lowering::PreparedTypedTrees,
     compilation: crate::lowering::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<PreparedSource, Vec<diagnostics::Diagnostic>> {
