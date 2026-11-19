@@ -105,6 +105,7 @@ impl ProductStage<'_> {
             build_host: self.build_host,
             build_accounting: Some(&self.product.evaluated().source_completion_accounting),
             selections: ProductSourceInputs {
+                generated: self.product.generated.clone(),
                 targets: &self.targets,
                 calling_targets: &self.deployments,
                 subject: self.scope.as_ref().map(|scope| scope.root()),

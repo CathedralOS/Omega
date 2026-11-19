@@ -38,6 +38,7 @@ fn product<'a>(
         roots: vec![root],
         imports: Vec::new(),
         selections: ProductSourceInputs {
+            generated: None,
             targets: &[],
             calling_targets: &[],
             subject: Some(package),

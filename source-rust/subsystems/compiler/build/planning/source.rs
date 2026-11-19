@@ -57,6 +57,7 @@ pub struct PlannedProduct {
     pub(crate) build_profile: TargetProfile,
     pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
     pub(crate) source: AssembledSyntax,
+    pub(super) generated: Option<source_compiler::SourceExtensionRequest>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) preparation: SourcePreparation,
     pub(crate) timings: CompileTimings,
@@ -326,7 +327,42 @@ impl PlanningSource {
                 )
             })?
             .1;
+        let generated = if evaluated.configuration.generated_sources.is_empty() {
+            None
+        } else {
+            let inputs = inputs.ok_or_else(|| {
+                refusal(
+                    "generated-source final compilation requires package-aware source custody"
+                        .to_owned(),
+                )
+            })?;
+            let root = inputs.package_root(inputs.root()).ok_or_else(|| {
+                refusal("generated-source handoff has no acquired package root".to_owned())
+            })?;
+            let extension = package_compilation::source_imports::admit_generated_extension(
+                &source.sources,
+                root,
+                Some(inputs.root()),
+                &evaluated.configuration.generated_sources,
+                &mut *self.preparation.catalogue()?,
+            )?;
+            let first_source = extension
+                .custody()
+                .first()
+                .map(|(source, _)| *source)
+                .ok_or_else(|| {
+                    refusal("generated-source handoff has no selected source".to_owned())
+                })?;
+            let (sources, units) = extension.source_input(&source.sources)?;
+            Some(source_compiler::SourceExtensionRequest {
+                sources,
+                units,
+                first_source,
+                selection_authority: Arc::new(inputs.clone()),
+            })
+        };
         Ok(PlannedProduct {
+            generated,
             evaluated,
             build_profile: self.profile,
             runtime_consents: None,

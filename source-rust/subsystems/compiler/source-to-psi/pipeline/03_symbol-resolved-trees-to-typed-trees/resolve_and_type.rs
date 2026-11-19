@@ -932,6 +932,7 @@ pub struct CompletedSource {
     pending_pre_checks: Vec<PreCheckEvaluation>,
 }
 
+#[derive(Clone)]
 pub struct SourceExtensionRequest {
     pub units: source_admission::LoadedSources,
     pub sources: Arc<crate::source_inputs::SourceMap>,

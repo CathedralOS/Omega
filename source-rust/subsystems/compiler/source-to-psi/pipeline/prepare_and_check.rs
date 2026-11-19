@@ -24,6 +24,8 @@ pub struct ProductPolicyInputs<'a> {
 
 #[derive(Clone)]
 pub struct ProductSourceInputs<'a> {
+    /// The generated source admitted after this Build's authored source was captured.
+    pub generated: Option<crate::SourceExtensionRequest>,
     pub targets: &'a [crate::source_targets::SourceTarget],
     pub calling_targets: &'a [&'a str],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -78,7 +80,7 @@ impl CompletedProductSource {
 
 pub(crate) fn prepare_lower_and_check(
     mut continuation: crate::SourceContinuation,
-    inputs: ProductSourceInputs<'_>,
+    mut inputs: ProductSourceInputs<'_>,
     build_accounting: &crate::evaluation::SourceCompletionAccounting,
     inspection: Option<&str>,
     test_root: Option<(&crate::registered_tests::TestRoot, &str)>,
@@ -99,8 +101,11 @@ pub(crate) fn prepare_lower_and_check(
         exclusions: policy.exclusions,
     })?;
     let native_supplies = inputs.native_bindings.resolve(&mut continuation, admitted.native_bindings)?;
-    let crate::PreparedSource { mut typed, mut accounting } =
-        continuation.complete_authored(observer)?.finish();
+    let authored = continuation.complete_authored(observer)?;
+    let crate::PreparedSource { mut typed, mut accounting } = match inputs.generated.take() {
+        Some(extension) => authored.extend(extension, observer)?,
+        None => authored.finish(),
+    };
     accounting
         .validate_charges()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
