@@ -1,11 +1,11 @@
+use Clock;
+use LinuxArmClockSleepRequest;
 // Linux ARM64 nanosleep consumes a borrowed __kernel_timespec, not the
 // millisecond count itself. Keep the request in ordinary checked local
 // storage: its reference carries the address through the native call ABI.
 // Both kernel fields are signed 64-bit integers, in seconds/nanoseconds order.
 // https://github.com/torvalds/linux/blob/master/include/uapi/linux/time_types.h
 use omega::language::core::widen_u32_to_i64;
-
-public data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
 
 // The raw nanosleep wait is its own boundary trait. Selecting `Clock` does not
 // grant this seam; the requirement names `Clock` as its explicit reach.
@@ -15,22 +15,4 @@ boundary trait LinuxArmClockWait {
         Clock
     blocks
     crashes none;
-}
-
-// Splitting before widening preserves every u32 duration and keeps the
-// fractional field below one billion. A null remainder asks the kernel not
-// to write back interrupted time; signals may interrupt this wait, as on
-// the other POSIX Clock providers.
-public LinuxArm64Clock satisfies Clock {
-    machine sleep(milliseconds: u32)
-    reaches Clock
-    invokes LinuxArmClockWait
-    blocks
-    {
-        let request: LinuxArmClockSleepRequest = LinuxArmClockSleepRequest {
-            seconds: widen_u32_to_i64(milliseconds / 1000),
-            nanoseconds: widen_u32_to_i64(milliseconds % 1000) * 1000000
-        };
-        block LinuxArmClockWait::nanosleep(@request, 0);
-    }
 }

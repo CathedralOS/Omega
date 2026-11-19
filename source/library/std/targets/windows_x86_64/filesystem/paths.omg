@@ -1,3 +1,11 @@
+use ErrorKind;
+use FileKind;
+use IoResult;
+use Metadata;
+use MetadataResult;
+use UnitResult;
+use WindowsFilesystemHost;
+use omega_language_std;
 // Namespace operations use non-copying rename. Recursive creation treats drive,
 // UNC and extended UNC roots as existing namespaces, not components to create.
 // An already-existing prefix succeeds only after a followed directory query;

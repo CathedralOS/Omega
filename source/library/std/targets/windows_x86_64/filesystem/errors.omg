@@ -1,3 +1,6 @@
+use ErrorKind;
+use IoResult;
+use UnitResult;
 // Portable translation of real Win32 failures. Unknown codes remain Other;
 // neither a zero last-error nor a malformed raw status can manufacture success.
 // Numeric identities: Microsoft WinError.h, system-error-codes--0-499-.

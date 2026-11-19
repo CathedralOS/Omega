@@ -748,6 +748,7 @@ impl ImmutableSourceParseCheckpoint {
             None => discover_imports(
                 &parsed,
                 &self.root_path,
+                &source_storage.toolchain_contract_custody,
                 &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
                 &mut source_storage.package_roots,
@@ -909,6 +910,7 @@ impl ImmutableSourceParseCheckpoint {
                 discover_imports(
                     &parsed,
                     &self.root_path,
+                    &storage.toolchain_contract_custody,
                     &storage.filesystem,
                     &mut storage.resolved_imports,
                     &mut storage.package_roots,
@@ -1274,6 +1276,7 @@ impl SourceRouting<'_> {
             } => discover_imports(
                 parsed,
                 root_path,
+                &source_storage.toolchain_contract_custody,
                 &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
                 &mut source_storage.package_roots,

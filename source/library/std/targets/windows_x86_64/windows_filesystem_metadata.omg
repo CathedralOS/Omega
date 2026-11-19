@@ -1,3 +1,6 @@
+use WindowsFileMetadata;
+use WindowsMetadataResult;
+use omega_language_std;
 // A same-access duplicate pins one file object across the three metadata
 // queries. Reopening by path could mix different objects after a rename; using
 // the original number could mix objects after concurrent close/reuse. Pinning

@@ -1,3 +1,5 @@
+use targets::windows_x86_64::WindowsFilesystemIo;
+use targets::windows_x86_64;
 // Dispose the exact opened object, then release that handle once. Namespace
 // mutation includes the close which commits a pending disposition; ordinary
 // empty-release authority is neither assumed nor manufactured here. The first

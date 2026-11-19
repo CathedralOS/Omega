@@ -1,3 +1,7 @@
+use targets::linux_arm64::LinuxArmClockWait;
+use targets::linux_x86_64::LinuxClockWait;
+use targets::macos_arm64::DarwinClockWait;
+use targets::windows_x86_64::WindowsClockWait;
 // Portable pacing requirement. The owning package Build selects ordinary
 // checked adapters where the native protocol differs, and binds the exact
 // requirement directly where the native signature already matches. Source

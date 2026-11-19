@@ -2,7 +2,7 @@
 // Authored imports select logical names; no filename-prefix lookup lives here.
 
 use diagnostics::Diagnostic;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(super) fn is_bundled_omega_path(path: &[String]) -> bool {
     path.first()
@@ -29,4 +29,28 @@ pub(crate) fn bundled_omega_root() -> Result<PathBuf, Vec<Diagnostic>> {
 
 pub fn bundled_core_root() -> Result<PathBuf, Vec<Diagnostic>> {
     Ok(bundled_omega_root()?.join("core"))
+}
+
+/// The entry contract is issued from the installed standard library without
+/// executing its Build. Its own package name selects that registered root, just
+/// as PackageCompilationInputs::package_name does for a reconciled package.
+pub(super) fn contract_package_prefix(root: &Path, first: &str) -> Result<usize, Vec<Diagnostic>> {
+    if first != "omega_language_std" {
+        return Ok(0);
+    }
+    Ok(usize::from(root == bundled_omega_root()?.join("std")))
+}
+
+#[cfg(test)]
+mod contract_package_names {
+    use super::*;
+
+    #[test]
+    fn only_the_installed_standard_library_owns_its_name() {
+        let std = bundled_omega_root().unwrap().join("std");
+        assert_eq!(contract_package_prefix(&std, "omega_language_std").unwrap(), 1);
+        assert_eq!(contract_package_prefix(&std, "unrelated").unwrap(), 0);
+        let other = std.join("otherwise_identically_named_package");
+        assert_eq!(contract_package_prefix(&other, "omega_language_std").unwrap(), 0);
+    }
 }

@@ -1,3 +1,9 @@
+use WindowsDirectoryEntryResult;
+use WindowsFileTimeResult;
+use WindowsFilesystemHost;
+use WindowsMetadataResult;
+use omega_language_std;
+use targets::windows_x86_64::filesystem_removal::windows_remove_tree;
 // Windows raw filesystem entrance. Select one complete public family map and
 // its exact native dependencies: control/query imports plus whole-view I/O.
 // Control/path operations live below windows_filesystem_control; borrowed-buffer

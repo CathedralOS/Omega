@@ -1,3 +1,7 @@
+use File;
+use TryLockResult;
+use UnitResult;
+use WindowsFilesystemHost;
 // Portable locking is ordinary same-object Windows range locking. Only a
 // try-acquisition's ERROR_LOCK_VIOLATION denotes contention; invalid handles,
 // denied access and unmatched unlocks remain errors. No service reach is added.

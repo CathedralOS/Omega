@@ -1,3 +1,4 @@
+use targets::windows_x86_64::WindowsGuiIo;
 use omega::language::core::WindowManagement;
 use omega::language::core::SurfacePresentation;
 use omega::language::core::WindowEventObservation;

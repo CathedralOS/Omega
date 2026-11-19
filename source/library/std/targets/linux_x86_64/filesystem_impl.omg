@@ -1,3 +1,16 @@
+use ErrorKind;
+use Metadata;
+use MetadataResult;
+use Permissions;
+use PosixDirectoryKind;
+use PosixFilesystem;
+use PosixFilesystemTarget;
+use PosixMetadata;
+use PosixMetadataResult;
+use TimestampResult;
+use error_kind_reconstruct;
+use posix_flag_bit;
+use posix_metadata_kind;
 // Linux x86-64 ABI facts; the POSIX algorithms live in the shared adapter.
 use omega::language::core::Schema;
 use omega::language::core::FieldPlan;

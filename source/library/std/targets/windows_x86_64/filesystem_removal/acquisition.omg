@@ -1,3 +1,9 @@
+use omega_language_std;
+use targets::windows_x86_64::WindowsFilesystemIo;
+use targets::windows_x86_64::WindowsFilesystemIoStatus;
+use targets::windows_x86_64::WindowsNativeDirectoryEntryInfo;
+use targets::windows_x86_64::windows_wide_path;
+use targets::windows_x86_64;
 // Root acquisition uses one fresh synchronous no-follow file object. Children
 // open one validated native component relative to its retained parent handle;
 // no pathname is reconstructed, case-folded, or reopened after classification.

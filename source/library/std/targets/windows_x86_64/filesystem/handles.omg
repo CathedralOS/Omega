@@ -1,3 +1,12 @@
+use ErrorKind;
+use File;
+use IoResult;
+use OpenOptions;
+use OpenResult;
+use UnitResult;
+use WindowsFilesystemHost;
+use omega_language_std;
+use open_options_truncate_conflict;
 // File handles remain native HANDLE values; zero is absent. Opens preserve
 // read/write/delete sharing. Append requests omit FILE_WRITE_DATA, so every
 // ordinary write uses the OS's append placement rather than a racy seek to EOF.

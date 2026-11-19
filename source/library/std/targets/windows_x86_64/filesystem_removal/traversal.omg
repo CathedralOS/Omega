@@ -1,3 +1,9 @@
+use targets::windows_x86_64::WindowsDirectoryStep;
+use targets::windows_x86_64::WindowsFilesystemIo;
+use targets::windows_x86_64::WindowsNativeDirectoryEntryInfo;
+use targets::windows_x86_64::windows_directory_entry_dot;
+use targets::windows_x86_64::windows_directory_next_entry;
+use targets::windows_x86_64;
 // Depth-first deletion retains opened directory objects in invocation-owned
 // storage. A native name opens relative to its retained parent; only actual
 // opened-object attributes authorize descent. Reparse objects remain leaves.

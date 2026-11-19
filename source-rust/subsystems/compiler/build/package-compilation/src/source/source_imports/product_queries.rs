@@ -550,7 +550,7 @@ impl ProductQueryInputs {
                     } else if let Some(root) =
                         storage.toolchain_contract_custody.root_for(&authored.path)
                     {
-                        (root.to_path_buf(), 0)
+                        (root.to_path_buf(), super::paths::contract_package_prefix(root, first)?)
                     } else if !authored.path.starts_with(storage.default_package_root()) {
                         let core = super::bundled_core_root()?;
                         if !authored.path.starts_with(&core) {
