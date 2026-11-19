@@ -28,6 +28,7 @@ provider-plans = { path = "build/providers/plans" }
 source-provenance = { path = "foundation/source-provenance" }
 psi-provider-selections = { path = "psi/providers" }
 evaluation-accounting = { path = "build/evaluation/accounting" }
+native-intrinsics = { path = "psi-to-native/targets/intrinsics" }
 entry-planning = { path = "psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning" }
 native-encoding = { path = "psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding" }
 service-surface = { path = "psi/service-surface" }

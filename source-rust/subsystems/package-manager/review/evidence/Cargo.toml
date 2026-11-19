@@ -7,6 +7,7 @@ version.workspace = true
 
 
 [dependencies]
+native-intrinsics = { path = "../../../compiler/psi-to-native/targets/intrinsics" }
 selected-provider-plans = { path = "../../../compiler/build/providers/selections" }
 target-provider-admission = { path = "../../../compiler/psi-to-native/verification/target-providers" }
 provider-plans = { path = "../../../compiler/build/providers/plans" }

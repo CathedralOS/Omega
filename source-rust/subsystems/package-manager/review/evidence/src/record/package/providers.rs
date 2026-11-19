@@ -16,8 +16,7 @@ use super::super::signatures::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackageReviewCompilerIntrinsicExecution {
-    AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
+pub enum PackageReviewCompilerIntrinsicExecution {    AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
     EmptyRunRelease,
     StaticInterrupt(language_core::static_interrupts::StaticInterruptOperation),
     HostedExitProcessI32,
@@ -33,21 +32,21 @@ pub enum PackageReviewCompilerIntrinsicExecution {
         contract: [u8; 32],
         placement_commitment: [u8; 32],
         access_slot: u32,
-        operation: effects::CompilerAccessorScalarOperation,
+        operation: native_intrinsics::CompilerAccessorScalarOperation,
     },
     BuiltinFunction(symbols::BuiltinFunction),
     PrimitiveFloatBinary {
-        operation: effects::CompilerPrimitiveFloatBinaryOperation,
+        operation: native_intrinsics::CompilerPrimitiveFloatBinaryOperation,
         format: numeric_literals::FloatFormat,
     },
     PrimitiveIntegerComparison {
-        operation: effects::CompilerPrimitiveIntegerComparisonOperation,
-        integer_type: effects::CompilerNumericType,
+        operation: native_intrinsics::CompilerPrimitiveIntegerComparisonOperation,
+        integer_type: native_intrinsics::CompilerNumericType,
     },
     NamedFloatNegation(numeric_literals::FloatFormat),
     NamedFloatConversion {
-        source: effects::CompilerNumericType,
-        target: effects::CompilerNumericType,
+        source: native_intrinsics::CompilerNumericType,
+        target: native_intrinsics::CompilerNumericType,
         domain: numerics::arithmetic::ArithmeticDomain,
     },
 }

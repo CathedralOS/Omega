@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use backend_plan::DirectBoundaryLeaf;
-use effects::CompilerIntrinsicExecutionIdentity;
+use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use provider_plans::ProviderPlan;
 use terminal_psi::TerminalModule;
 

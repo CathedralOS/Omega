@@ -92,7 +92,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
             || !matches!(
                 leaf.execution,
                 backend_plan::DirectBoundaryExecution::Intrinsic(Some(
-                    effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+                    native_intrinsics::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                 ))
             )
         {

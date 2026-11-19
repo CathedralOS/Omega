@@ -3,7 +3,7 @@
 use super::{Error, reader::Reader};
 use crate::encoding::intrinsic_tags::IntrinsicTag;
 use crate::record::PackageReviewCompilerIntrinsicExecution;
-use effects::{
+use native_intrinsics::{
     CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
@@ -64,7 +64,7 @@ pub(in crate::encoding::recovery) fn execution(
             }))
         }
         IntrinsicTag::AccessorScalarAccess => {
-            use effects::CompilerAccessorScalarOperation as Operation;
+            use native_intrinsics::CompilerAccessorScalarOperation as Operation;
             Execution::AccessorScalarAccess {
                 contract: reader.digest()?,
                 placement_commitment: reader.digest()?,

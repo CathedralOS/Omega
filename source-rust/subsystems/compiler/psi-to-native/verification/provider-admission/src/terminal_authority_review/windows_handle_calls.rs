@@ -42,11 +42,10 @@ impl<'a> From<ModuleInvocationInputs<'a>> for RuntimeArguments<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum CallTarget {
-    Machine(MachineId),
+pub(super) enum CallTarget {    Machine(MachineId),
     Boundary(BoundaryMachineId),
     /// The exact selected closed compiler mechanism, not a source effect row.
-    Intrinsic(effects::CompilerIntrinsicExecutionIdentity),
+    Intrinsic(native_intrinsics::CompilerIntrinsicExecutionIdentity),
 }
 
 #[derive(Clone, Copy)]

@@ -17,11 +17,12 @@ intrinsics exercise no host authority class.
 
 use std::sync::OnceLock;
 
-use effects::{
-    CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
-    TerminalAuthorityClass, TerminalAuthorityDisposition, primitive_float_operation_tag,
-};
+use effects::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 use language_core::BuiltinFunction;
+use native_intrinsics::{
+    CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
+    primitive_float_operation_tag,
+};
 use numeric_literals::FloatFormat;
 
 use super::UnclassifiedTerminalMechanism;

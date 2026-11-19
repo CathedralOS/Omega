@@ -459,7 +459,7 @@ pub(super) fn settle<'execution>(
     let mut settlements = Vec::with_capacity(executions.len());
     let mut mechanisms = Vec::with_capacity(executions.len());
     for (boundary, operation) in executions {
-        let identity = effects::CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation);
+        let identity = native_intrinsics::CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation);
         policy.classify(identity).map_err(|error| {
             fail(&format!(
                 "operation has no receiving physical classification: {error:?}"

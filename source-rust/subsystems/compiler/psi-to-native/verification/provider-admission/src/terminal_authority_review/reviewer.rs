@@ -97,12 +97,12 @@ impl<'a> Reviewer<'a> {
                     )
             })
             .map(|plan| {
-                effects::CompilerIntrinsicExecutionIdentity::AccessLifecycle(plan.operation)
+                native_intrinsics::CompilerIntrinsicExecutionIdentity::AccessLifecycle(plan.operation)
             });
         let intrinsic = if declaration.declaration.as_ref().map(|row| row.execution)
             == Some(terminal_psi::CheckedBoundaryExecution::EmptyRunRelease)
         {
-            Some(effects::CompilerIntrinsicExecutionIdentity::EmptyRunRelease)
+            Some(native_intrinsics::CompilerIntrinsicExecutionIdentity::EmptyRunRelease)
         } else {
             lifecycle
         };
@@ -136,7 +136,7 @@ impl<'a> Reviewer<'a> {
             .and_then(|row| row.execution.static_interrupt_operation())
         {
             let expected = TerminalMechanismIdentity::CompilerIntrinsic(
-                effects::CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation),
+                native_intrinsics::CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation),
             );
             if self.context.mechanism(boundary) != Some(&expected) {
                 return Err(format!(

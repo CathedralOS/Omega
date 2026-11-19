@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+native-intrinsics = { path = "../../../targets/intrinsics" }
 target-provider-admission = { path = "../../../verification/target-providers" }
 selected-provider-plans = { path = "../../../../build/providers/selections" }
 provider-plans = { path = "../../../../build/providers/plans" }

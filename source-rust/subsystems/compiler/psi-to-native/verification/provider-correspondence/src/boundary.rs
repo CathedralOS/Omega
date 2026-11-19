@@ -20,7 +20,7 @@ use declaration_contracts::boundary_provider_review::BoundaryOperatorApplication
 use declaration_contracts::boundary_provider_review::BoundaryProviderReview;
 use declaration_contracts::boundary_provider_review::BoundaryRequirementReview;
 use diagnostics::Diagnostic;
-use effects::CompilerIntrinsicExecutionIdentity;
+use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 
 pub struct CompilerIntrinsicPlanProvenance<'a> {

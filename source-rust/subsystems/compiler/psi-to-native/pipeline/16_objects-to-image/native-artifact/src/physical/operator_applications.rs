@@ -581,13 +581,13 @@ fn validate_checked_call_relocation(
 fn derive_integer_comparison_span(
     pass: crate::physical::PhysicalEvidencePass,
     occurrence: &OptimizedOperatorOccurrence,
-    execution: &effects::CompilerIntrinsicExecutionIdentity,
+    execution: &native_intrinsics::CompilerIntrinsicExecutionIdentity,
     object: &image_emission::ObjectArtifact,
     image: &[u8],
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     if !matches!(
         execution,
-        effects::CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. }
+        native_intrinsics::CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. }
     ) {
         return Err("D29 integer comparison rejoined a mismatched intrinsic realization");
     }

@@ -4,8 +4,8 @@ use crate::encoding::{
     encode::{encode_compiler_intrinsic_execution, encoder::Encoder},
 };
 use crate::record::PackageReviewCompilerIntrinsicExecution as Execution;
-use effects::CompilerAccessorScalarOperation;
 use language_core::static_interrupts::StaticInterruptOperation;
+use native_intrinsics::CompilerAccessorScalarOperation;
 use terminal_psi::TerminalAccessLifecycleOperation;
 
 fn encode(value: &Execution) -> Vec<u8> {
@@ -79,7 +79,7 @@ fn intrinsic_payloads_round_trip_without_changing_existing_bytes() {
 
 #[test]
 fn existing_intrinsic_variants_still_round_trip() {
-    use effects::{
+    use native_intrinsics::{
         CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
         CompilerPrimitiveIntegerComparisonOperation,
     };
@@ -134,7 +134,7 @@ fn existing_intrinsic_variants_still_round_trip() {
 
 #[test]
 fn integer_width_intrinsic_evidence_round_trips_and_refuses_malformed_metadata() {
-    use effects::{
+    use native_intrinsics::{
         CompilerNumericType as Numeric, CompilerPrimitiveIntegerComparisonOperation as Comparison,
     };
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
