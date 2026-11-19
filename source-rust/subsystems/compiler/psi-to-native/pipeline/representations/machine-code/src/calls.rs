@@ -328,7 +328,7 @@ pub mod foreign {
         pub x86_floating_control: Option<ForeignCallFloatingControlRecord>,
         pub aarch64_floating_control: Option<ForeignCallFloatingControlRecord>,
         pub unit_stack: UnitCallStackEvidence,
-        pub same_stack_contribution: task_plans::AdmittedSameStackContribution,
+        pub same_stack_contribution: provider_stack_contribution::AdmittedSameStackContribution,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]

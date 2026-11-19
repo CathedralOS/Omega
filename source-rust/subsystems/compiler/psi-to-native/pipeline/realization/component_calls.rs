@@ -9,7 +9,7 @@ use artifact_lowering::AdmittedNativeComponentCall;
 use diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
 use provider_admission::provider_admission::{NativeBoundaryRealization, NativeProviderSettlement};
-use task_plans::{SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment};
+use provider_stack_contribution::{SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment};
 
 use super::component_exports::{ComponentExportImage, component_export_slot};
 
@@ -18,7 +18,7 @@ pub struct ComponentNativeCall<'input> {
     call: &'input AdmittedNativeComponentCall<'input>,
     plan: &'input effects::provider_plan::ProviderPlan,
     locator: target::NormalizedComponentLocator,
-    same_stack: task_plans::AdmittedSameStackContribution,
+    same_stack: provider_stack_contribution::AdmittedSameStackContribution,
     commitment: [u8; 32],
 }
 
@@ -120,8 +120,8 @@ impl<'input> ComponentNativeCall<'input> {
             })?;
         let plan_commitment =
             SameStackProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes());
-        let same_stack = task_plans::admit_same_stack_contribution(
-            task_plans::SameStackContributionAdmissionCandidate {
+        let same_stack = provider_stack_contribution::admit_same_stack_contribution(
+            provider_stack_contribution::SameStackContributionAdmissionCandidate {
                 provider_plan_report_identity: plan.report_fingerprint(),
                 provider_plan_commitment: plan_commitment,
                 requirement_identity: requirement,

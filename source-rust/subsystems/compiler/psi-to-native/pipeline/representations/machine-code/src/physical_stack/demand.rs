@@ -33,8 +33,8 @@ struct Composition {
     active: Vec<bool>,
     peaks: Vec<Option<u64>>,
     machines: BTreeSet<MachineId>,
-    reports: BTreeSet<task_plans::AdmittedStackContributionReportId>,
-    commitments: BTreeSet<task_plans::SameStackContributionCommitment>,
+    reports: BTreeSet<provider_stack_contribution::AdmittedStackContributionReportId>,
+    commitments: BTreeSet<provider_stack_contribution::SameStackContributionCommitment>,
     hosted: BTreeSet<[u8; 32]>,
     compiler_imports: BTreeSet<target_vocabulary::CompilerImport>,
 }
@@ -184,9 +184,9 @@ pub struct StackDemand {
     stack_alignment: u32,
     contributing_machines: std::collections::BTreeSet<MachineId>,
     admitted_contribution_report_identities:
-        std::collections::BTreeSet<task_plans::AdmittedStackContributionReportId>,
+        std::collections::BTreeSet<provider_stack_contribution::AdmittedStackContributionReportId>,
     admitted_contribution_commitments:
-        std::collections::BTreeSet<task_plans::SameStackContributionCommitment>,
+        std::collections::BTreeSet<provider_stack_contribution::SameStackContributionCommitment>,
     hosted_native_bindings: std::collections::BTreeSet<[u8; 32]>,
     compiler_imports: BTreeSet<target_vocabulary::CompilerImport>,
     private_demands: Vec<(function_identity::MachineFunctionIdentity, StackDemand)>,
@@ -240,13 +240,13 @@ impl StackDemand {
 
     pub const fn admitted_contribution_report_identities(
         &self,
-    ) -> &std::collections::BTreeSet<task_plans::AdmittedStackContributionReportId> {
+    ) -> &std::collections::BTreeSet<provider_stack_contribution::AdmittedStackContributionReportId> {
         &self.admitted_contribution_report_identities
     }
 
     pub const fn admitted_contribution_commitments(
         &self,
-    ) -> &std::collections::BTreeSet<task_plans::SameStackContributionCommitment> {
+    ) -> &std::collections::BTreeSet<provider_stack_contribution::SameStackContributionCommitment> {
         &self.admitted_contribution_commitments
     }
 }

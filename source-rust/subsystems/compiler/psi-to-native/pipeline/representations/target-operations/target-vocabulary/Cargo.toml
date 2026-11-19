@@ -17,7 +17,7 @@ language-core = { path = "../../../../../foundation/language-core" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
 function-identity = { path = "../../function-identity" }
 target = { path = "../../../../targets/target" }
-task-plans = { path = "../../../../installation/task-plans" }
+provider-stack-contribution = { path = "../../../../verification/provider-admission/same-stack" }
 semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../../psi" }
 

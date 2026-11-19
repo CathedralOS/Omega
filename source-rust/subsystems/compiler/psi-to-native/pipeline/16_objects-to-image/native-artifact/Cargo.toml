@@ -13,7 +13,7 @@ target-vocabulary = { path = "../../representations/target-operations/target-voc
 published-runtime-input = { path = "../../../installation/published-runtime-input" }
 wire = { path = "../../../../../../foundation/wire" }
 component-description = { path = "../../../components/description" }
-task-plans = { path = "../../../installation/task-plans" }
+provider-stack-contribution = { path = "../../../verification/provider-admission/same-stack" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 terminal-installation = { path = "../../../../psi-admission" }
 platform-custody = { path = "../../../../../../foundation/filesystem" }

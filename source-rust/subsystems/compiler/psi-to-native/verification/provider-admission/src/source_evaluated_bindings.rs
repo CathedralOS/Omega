@@ -21,7 +21,7 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use installation_evidence::ProviderExecutionEvidence;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
-use task_plans::{
+use provider_stack_contribution::{
     AdmittedSameStackContribution, SameStackContributionAdmissionCandidate,
     SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment,
     admit_same_stack_contribution,

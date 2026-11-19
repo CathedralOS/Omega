@@ -20,12 +20,12 @@ use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
 #[derive(Debug, Clone, Copy)]
 pub enum NativeBoundaryRealization<'execution> {
     Builtin(BoundaryRealization),
-    NormalizedForeignCall(&'execution task_plans::AdmittedSameStackContribution),
+    NormalizedForeignCall(&'execution provider_stack_contribution::AdmittedSameStackContribution),
     Component {
         call: crate::ComponentCallFacts<'execution>,
         authority: &'execution super::AdmittedNativeCallableAuthority,
         locator: &'execution target::NormalizedComponentLocator,
-        same_stack: &'execution task_plans::AdmittedSameStackContribution,
+        same_stack: &'execution provider_stack_contribution::AdmittedSameStackContribution,
     },
     SystemCall, // Direct kernel entry with no foreign callee on the receiver stack.
 }

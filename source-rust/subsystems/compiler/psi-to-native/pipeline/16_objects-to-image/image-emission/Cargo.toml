@@ -47,7 +47,6 @@ function-identity = { path = "../../representations/function-identity" }
 installation-evidence = { path = "../../../installation/installation-evidence" }
 boundary-applications = { path = "../../../installation/boundary-applications" }
 target-operations = { path = "../../representations/target-operations" }
-task-plans = { path = "../../../installation/task-plans" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }

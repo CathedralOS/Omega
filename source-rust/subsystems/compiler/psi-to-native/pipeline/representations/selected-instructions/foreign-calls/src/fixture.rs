@@ -112,18 +112,18 @@ pub fn record(
     .unwrap()
     .plan()
     .clone();
-    let commitment = task_plans::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
+    let commitment = provider_stack_contribution::SameStackProviderPlanCommitment::from_digest([0x42; 32]);
     let identities =
         terminal_psi::TerminalIdentityTable::from(vec![String::new(), "Foreign::leaf".to_owned()]);
     let requirement_index = identities
         .index_of("Foreign::leaf")
         .expect("test requirement identity must intern");
-    let same_stack_contribution = task_plans::admit_same_stack_contribution(
-        task_plans::SameStackContributionAdmissionCandidate {
+    let same_stack_contribution = provider_stack_contribution::admit_same_stack_contribution(
+        provider_stack_contribution::SameStackContributionAdmissionCandidate {
             provider_plan_report_identity: 0xA1,
             provider_plan_commitment: commitment,
             requirement_identity: requirement_index,
-            receipt: task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+            receipt: provider_stack_contribution::SameStackContributionAdmissionReceiptId::from_normalized_identity(
                 0xA2,
             )
             .unwrap(),

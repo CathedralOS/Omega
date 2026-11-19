@@ -139,7 +139,7 @@ impl NativeComponentProduct {
     }
     pub fn validate_same_stack(
         &self,
-        contribution: &task_plans::AdmittedSameStackContribution,
+        contribution: &provider_stack_contribution::AdmittedSameStackContribution,
     ) -> Result<(), &'static str> {
         self.runtime_record.validate_same_stack(contribution)
     }
