@@ -9,6 +9,7 @@ build = false
 path = "build.rs"
 
 [dependencies]
+optimization-requests = { path = "optimization-policy/requests" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 installation-conditions = { path = "../psi-to-native/verification/installation-admission/conditions" }
 source-declarations = { path = "../source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }

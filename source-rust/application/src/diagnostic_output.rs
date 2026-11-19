@@ -12,15 +12,8 @@ impl DiagnosticOutput {
         write_grouped_diagnostics(formatter, diagnostics, self.verbose)
     }
 
-    pub fn build_error(self, error: &orchestration::BuildError) -> impl fmt::Display + '_ {
-        use orchestration::BuildError;
-        fmt::from_fn(move |formatter| match error {
-            BuildError::ProjectCompilation(error) => {
-                formatter.write_str("cannot compile admitted project: ")?;
-                error.fmt_with_diagnostics(formatter, &|f, rows| self.write(f, rows))
-            }
-            error => fmt::Display::fmt(error, formatter),
-        })
+    pub fn diagnostics<'a>(self, rows: &'a [Diagnostic]) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |formatter| self.write(formatter, rows))
     }
 
     pub fn package_error(

@@ -5,6 +5,7 @@ use build_declarations::BuildDeclaration;
 use compiler::{NativeApplicationSettings, Program, SourceNativeTarget, StageSource};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
+use optimization_requests::{OptimizationRollback, OptimizationRollbackReceipt};
 use package_compilation::PackageDependencyClosure;
 use semantic_vocabulary::source_selections::ProductTarget;
 use source_compiler::evaluation::BuildTimeSelectionAuthority;
@@ -19,6 +20,7 @@ use target::TargetProfile;
 /// The receiving declarations and deployment choices for one completed project Build.
 pub struct ProductStage<'a> {
     product: &'a PlannedProduct,
+    rollback: Option<OptimizationRollbackReceipt>,
     targets: Vec<SourceTarget>,
     deployments: Vec<&'static str>,
     build_host: ProductTarget,
@@ -48,6 +50,7 @@ impl PlannedProduct {
         })?;
         Ok(ProductStage {
             product: self,
+            rollback: None,
             targets: package_compilation::source_imports::source_targets(packages),
             deployments: deployments
                 .iter()
@@ -62,6 +65,27 @@ impl PlannedProduct {
 }
 
 impl ProductStage<'_> {
+    pub fn apply_rollback(
+        &mut self,
+        request: &OptimizationRollback,
+    ) -> Option<OptimizationRollbackReceipt> {
+        self.rollback = request.reconcile(
+            &self
+                .product
+                .evaluated()
+                .configuration
+                .config
+                .settings
+                .optimizations,
+        );
+        self.rollback.clone()
+    }
+
+    pub fn artifact_only(&self) -> bool {
+        matches!(&self.product.evaluated().configuration.project_declaration,
+            Some(BuildDeclaration::Application(application)) if application.artifact_only)
+    }
+
     pub fn source(&self) -> StageSource<'_> {
         let source = self.product.source();
         let build = &self.product.evaluated().configuration;
@@ -93,10 +117,12 @@ impl ProductStage<'_> {
                     .scope
                     .as_ref()
                     .map(|scope| Arc::clone(scope) as Arc<dyn BuildTimeSelectionAuthority>),
-                optimizations: build
-                    .config
-                    .settings
-                    .optimizations
+                optimizations: self
+                    .rollback
+                    .as_ref()
+                    .map_or(&build.config.settings.optimizations, |receipt| {
+                        receipt.effective()
+                    })
                     .project_psi()
                     .selections()
                     .clone(),
@@ -128,7 +154,10 @@ impl ProductStage<'_> {
                     subsystem: settings.subsystem,
                     elf_interpreter: settings.elf_interpreters.effective(profile),
                 },
-                optimizations: &settings.optimizations,
+                optimizations: self
+                    .rollback
+                    .as_ref()
+                    .map_or(&settings.optimizations, |receipt| receipt.effective()),
                 x86_scalar_fma_provider: settings
                     .x86_deployment_claim
                     .admit_for(Some(profile))
