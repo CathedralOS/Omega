@@ -27,7 +27,37 @@ pub struct ProductSourceInputs<'a> {
 pub struct CompletedProductSource {
     pub program: Arc<crate::source_state::FrozenTypedTrees>,
     pub source_completion_accounting: crate::evaluation::SourceCompletionAccounting,
-    pub terminal_publication: Arc<crate::SourcePublication>,
+    pub(crate) terminal_publication: Arc<crate::SourcePublication>,
+    deployments: Vec<String>,
+    explicit_providers: Vec<crate::provider_choice_inputs::ProviderSelection>,
+    native_supplies: Vec<crate::provider_choice_inputs::NativeBuildSupply>,
+}
+
+impl CompletedProductSource {
+    pub fn terminal_publication(&self) -> &Arc<crate::SourcePublication> {
+        &self.terminal_publication
+    }
+
+    /// Issue deployment facts from the same closed source and Build choices used for publication.
+    pub fn prepare_provider_demand(
+        &self,
+        target: &str,
+    ) -> Result<
+        crate::provider_supply::SourceProviderFacts<crate::provider_supply::SourceProviderDemand>,
+        Vec<Diagnostic>,
+    > {
+        if !self.deployments.iter().any(|deployment| deployment == target) {
+            return Err(vec![Diagnostic::error(format!(
+                "source compilation did not select deployment `{target}`",
+            ))]);
+        }
+        self.terminal_publication.prepare_provider_demand(
+            Some(target),
+            &self.explicit_providers,
+            &self.native_supplies,
+            false,
+        )
+    }
 }
 
 pub fn prepare_lower_and_check(
@@ -82,6 +112,11 @@ pub fn prepare_lower_and_check(
         program: judged.program,
         source_completion_accounting: judged.source_completion_accounting,
         terminal_publication,
+        deployments: pass.inputs.calling_targets.iter()
+            .map(|target| (*target).to_owned())
+            .collect(),
+        explicit_providers: pass.inputs.provider_selections.to_vec(),
+        native_supplies: pass.inputs.native_bindings.to_vec(),
     })
 }
 
