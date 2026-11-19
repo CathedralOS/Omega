@@ -644,8 +644,8 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
 
         machine Main::main(main: @mut Main) {
             transition main.player {
-                Player::Alive -> done()
-                Player { health, .. } if health > 5 -> done()
+                Player::Alive -> done(),
+                Player { health, .. } if health > 5 -> done(),
                 _ -> done()
             }
 
@@ -685,7 +685,7 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
         data Outcome { case Success(value: i32); case Failure; }
         machine inspect(result: Outcome) -> i32 {
             transition result {
-                Outcome::Success { value; selected: local, shorthand } -> value
+                Outcome::Success { value; selected: local, shorthand } -> value,
                 Outcome::Failure { } -> 0
             }
         }
@@ -729,7 +729,7 @@ fn outcome_proof_selectors_preserve_one_subject_and_the_same_arm_shape() {
         machine produce() -> Outcome { Outcome::Success }
         machine inspect() {
             transition produce() {
-                Outcome::Success { ; selected: local } -> {}
+                Outcome::Success { ; selected: local } -> {},
                 Outcome::Failure { } -> {}
             }
         }
@@ -739,7 +739,7 @@ fn outcome_proof_selectors_preserve_one_subject_and_the_same_arm_shape() {
         machine produce() -> Outcome { Outcome::Success }
         machine inspect() {
             transition produce() {
-                Outcome::Success { ; } -> {}
+                Outcome::Success { ; } -> {},
                 Outcome::Failure { } -> {}
             }
         }
@@ -840,7 +840,7 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
         data Header [copy] { ok: i32; version: i32; }
         machine inspect(h: Header) -> i32 {
             transition h {
-                Header { ok: 0, version } -> version
+                Header { ok: 0, version } -> version,
                 _ -> 1
             }
         }

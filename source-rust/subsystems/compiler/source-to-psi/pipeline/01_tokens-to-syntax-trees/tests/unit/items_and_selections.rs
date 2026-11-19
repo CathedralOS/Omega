@@ -304,7 +304,7 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
 fn opposite_boolean_subject_arms_retain_their_authored_patterns_and_shared_subject() {
     for first in [true, false] {
         let source = format!(
-            "machine value() -> u8 {{ transition probe() {{ {first} -> 1u8 {} -> 2u8 }} }}",
+            "machine value() -> u8 {{ transition probe() {{ {first} -> 1u8, {} -> 2u8 }} }}",
             !first
         );
         let parsed = crate::tests::parse_source_unwrap(&source);
@@ -340,7 +340,7 @@ fn opposite_boolean_subject_arms_retain_their_authored_patterns_and_shared_subje
 #[test]
 fn copying_a_dispatch_preserves_wildcard_positions_and_structural_bindings() {
     let source = "data Pair { v: u32; } machine inspect(first: Pair, second: bool) -> u32 {
-        transition (first, second) { (Pair { v }, _) if v > 0u32 -> {} (_, false) -> 7u32 }
+        transition (first, second) { (Pair { v }, _) if v > 0u32 -> {}, (_, false) -> 7u32 }
     }";
     let parsed = crate::tests::parse_source_unwrap(source);
     let mut copied = syntax_trees::SyntaxTrees::new_with_generation(parsed.source_id, 90);
@@ -387,9 +387,9 @@ fn copying_a_dispatch_preserves_wildcard_positions_and_structural_bindings() {
 #[test]
 fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
     for body in [
-        "transition { probe() -> 1u8 !probe() -> 2u8 }",
-        "transition probe() { true -> 1u8 true -> 2u8 }",
-        "transition probe() { true -> 1u8 true -> 2u8 false -> 3u8 }",
+        "transition { probe() -> 1u8, !probe() -> 2u8 }",
+        "transition probe() { true -> 1u8, true -> 2u8 }",
+        "transition probe() { true -> 1u8, true -> 2u8, false -> 3u8 }",
         "transition probe() { true -> 1u8 } transition probe() { false -> 2u8 }",
     ] {
         let source = format!("machine value() -> u8 {{ {body} }}");
