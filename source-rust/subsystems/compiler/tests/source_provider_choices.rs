@@ -151,8 +151,8 @@ fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTermin
 fn fixture_inputs(
     module: &terminal_psi::TerminalModule,
 ) -> provider_realization::target_supply::TargetSupplyExecutionInputs {
-    assert!(module.external_providers.is_empty());
-    assert!(module.calling_policy_requests.is_empty());
+    assert!(module.interfaces.external_providers.is_empty());
+    assert!(module.interfaces.calling_policy_requests.is_empty());
     provider_realization::target_supply::TargetSupplyExecutionInputs {
         calling_applications: Vec::new(),
         external_bindings: Vec::new(),
@@ -289,7 +289,7 @@ fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
     selected_provider(&fixture, &choices, "Native");
     let accepted = judge(&fixture, &choices);
     assert!(
-        !accepted.module().provider_candidates.is_empty(),
+        !accepted.module().interfaces.provider_candidates.is_empty(),
         "retained conformance is real"
     );
     assert!(
@@ -311,7 +311,7 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
     let [plan] = execution.plans().plans() else {
         panic!("one reached provider plan")
     };
-    let [choice] = accepted.module().provider_selections.as_slice() else {
+    let [choice] = accepted.module().interfaces.provider_selections.as_slice() else {
         panic!("one canonical source choice")
     };
     assert_eq!(

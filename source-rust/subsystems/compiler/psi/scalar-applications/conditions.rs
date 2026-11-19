@@ -185,7 +185,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             &observations
                 .artifact()
                 .module()
-                .scalar_applications
+                .scalars.scalar_applications
                 .conditions,
         ) && self.target.as_deref() == observations.target()
             && self.primary == (self.target.as_deref() == primary)
@@ -239,7 +239,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             &observations
                 .artifact()
                 .module()
-                .scalar_applications
+                .scalars.scalar_applications
                 .conditions,
         ) {
             return Err("scalar condition selection names another artifact".into());

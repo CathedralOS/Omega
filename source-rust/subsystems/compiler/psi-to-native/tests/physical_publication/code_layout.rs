@@ -37,7 +37,7 @@ fn query_artifact(selected: MachineId) -> Arc<CanonicalTerminalArtifact> {
         field(4, "regions", StructuralFieldType::Structural(view)),
     ];
     let mut declare = |id, name, multiplicity, shape| {
-        module.structural_types.push(StructuralTypeDeclaration {
+        module.types.structural_types.push(StructuralTypeDeclaration {
             id,
             identity: identities.intern(name),
             declaration_identity: Default::default(),

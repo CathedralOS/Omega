@@ -35,7 +35,7 @@ fn stored_fields(accepted: &crate::checking::AcceptedClosure) -> Vec<bool> {
     accepted
         .elaboration
         .module
-        .structural_types
+        .types.structural_types
         .iter()
         .filter_map(|declared| match &declared.shape {
             StructuralTypeShape::Record { fields, .. } => Some(fields),

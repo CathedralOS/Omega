@@ -43,10 +43,10 @@ impl ClosedTypeCatalog {
     /// Membership comes from the exact module catalog at complete encoding.
     pub(crate) fn record_callables(&mut self, module: &terminal_psi::TerminalModule) {
         self.callables = module
-            .callables
+            .execution.callables
             .contracts
             .iter()
-            .filter(|contract| module.callables.contract(contract.id).is_some())
+            .filter(|contract| module.execution.callables.contract(contract.id).is_some())
             .map(|contract| contract.id)
             .collect();
         self.callables.sort_unstable();

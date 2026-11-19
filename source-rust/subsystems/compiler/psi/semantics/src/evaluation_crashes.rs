@@ -15,7 +15,7 @@ pub fn require_crash_free_evaluation(
     module: &TerminalModule,
     root: ProofDeclarationId,
 ) -> Result<(), String> {
-    let scope = &module.scalar_applications.proof_scope;
+    let scope = &module.scalars.scalar_applications.proof_scope;
     let facts = evaluation_declaration(scope, root)?;
     let mut bodies = scope
         .callables

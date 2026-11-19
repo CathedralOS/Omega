@@ -167,7 +167,7 @@ pub(crate) fn publish_write_frames(
                 // The same region the ownership analysis gives a write of this
                 // storage, a stored view's descriptor included.
                 let path = terminal_semantics::canonical_inline_region(
-                    module.structural_types.iter(),
+                    module.types.structural_types.iter(),
                     structural_type,
                     &region.written_storage_path(),
                 )
@@ -264,19 +264,19 @@ fn carried_referent_writes(
             .structural_place_type(argument.place)
             .ok_or("a call argument has no structural type")?;
         let path = terminal_semantics::resolved_structural_path(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             root,
             &argument.path,
         )?;
         let Some(lent) = terminal_semantics::runtime_structural_path_tip(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             root,
             &argument.path,
         ) else {
             continue;
         };
         let referents = terminal_semantics::borrowed_storage::carried_exclusive_referents(
-            &module.structural_types,
+            &module.types.structural_types,
             lent.id,
             argument.access,
         )

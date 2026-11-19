@@ -523,7 +523,7 @@ impl<'a> HandleStorageGeometry<'a> {
             .carrier(location)?
             .ok_or("handle case observation has no original sum carrier")?;
         let mut geometry =
-            ReferenceStorageGeometry::new(self.module.structural_types.iter(), |application| {
+            ReferenceStorageGeometry::new(self.module.types.structural_types.iter(), |application| {
                 Err(StorageGeometryError::UnresolvedExtent(application))
             })
             .with_target_carriers(Some(runtime_abi::target_carrier_layout(
@@ -576,7 +576,7 @@ impl<'a> HandleStorageGeometry<'a> {
         let carrier = self
             .carrier(&owner)?
             .and_then(|carrier| {
-                terminal_psi::find_structural_type(&self.module.structural_types, carrier)
+                terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)
             })
             .ok_or("inline byte field has no original parent carrier")?;
         let fields = match selected_case {
@@ -614,7 +614,7 @@ impl<'a> HandleStorageGeometry<'a> {
             .ok_or("untyped handle content source is not a byte carrier".into())
     }
     pub(super) fn primitive_scalar(&self, carrier: StructuralTypeId) -> Option<ScalarType> {
-        match terminal_psi::find_structural_type(&self.module.structural_types, carrier)?.shape {
+        match terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)?.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
             _ => None,
         }
@@ -626,7 +626,7 @@ impl<'a> HandleStorageGeometry<'a> {
         place: PlaceId,
     ) -> Result<bool, String> {
         terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage
-            .owned_slots(&self.module.structural_types, place, carrier)
+            .owned_slots(&self.module.types.structural_types, place, carrier)
             .map(|slots| !slots.is_empty())
             .ok_or("handle collection element has no complete resident pointer inventory".into())
     }
@@ -658,7 +658,7 @@ impl<'a> HandleStorageGeometry<'a> {
     ) -> Result<Vec<HandlePointerSlot>, String> {
         let slots = terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage
             .owned_slots(
-                &self.module.structural_types,
+                &self.module.types.structural_types,
                 range.backing().place,
                 carrier,
             )
@@ -683,7 +683,7 @@ impl<'a> HandleStorageGeometry<'a> {
                         carrier
                     } else {
                         terminal_semantics::descriptor_lifetimes::descriptor_location_type(
-                            &self.module.structural_types,
+                            &self.module.types.structural_types,
                             carrier,
                             prefix,
                         )
@@ -699,13 +699,13 @@ impl<'a> HandleStorageGeometry<'a> {
                 Some(carrier)
             } else {
                 terminal_semantics::descriptor_lifetimes::descriptor_location_type(
-                    &self.module.structural_types,
+                    &self.module.types.structural_types,
                     carrier,
                     &slot.path,
                 )
             }
             .and_then(|selected| {
-                terminal_psi::find_structural_type(&self.module.structural_types, selected)
+                terminal_psi::find_structural_type(&self.module.types.structural_types, selected)
             });
             let kind = match kind.map(|declaration| &declaration.shape) {
                 Some(StructuralTypeShape::Reference { referent, .. }) => {
@@ -796,7 +796,7 @@ impl<'a> HandleStorageGeometry<'a> {
     fn is_byte_view(&self, location: &DescriptorLocation) -> Result<bool, String> {
         let carrier = match self.carrier(location)? {
             Some(carrier) => {
-                match terminal_psi::find_structural_type(&self.module.structural_types, carrier)
+                match terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)
                     .map(|declaration| &declaration.shape)
                 {
                     Some(StructuralTypeShape::ByteSequence(carrier)) => *carrier,
@@ -813,7 +813,7 @@ impl<'a> HandleStorageGeometry<'a> {
 
     pub(super) fn element_stride(&self, element: StructuralTypeId) -> Result<u64, String> {
         let (size, alignment) =
-            ReferenceStorageGeometry::new(self.module.structural_types.iter(), |application| {
+            ReferenceStorageGeometry::new(self.module.types.structural_types.iter(), |application| {
                 Err(StorageGeometryError::UnresolvedExtent(application))
             })
             .with_target_carriers(Some(runtime_abi::target_carrier_layout(
@@ -842,7 +842,7 @@ impl<'a> HandleStorageGeometry<'a> {
     ) -> Result<CapturedHandleSequence, String> {
         let stride = self.element_stride(element)?;
         if !representation {
-            let byte_element = terminal_psi::find_structural_type(&self.module.structural_types, element)
+            let byte_element = terminal_psi::find_structural_type(&self.module.types.structural_types, element)
                 .is_some_and(|declaration| matches!(declaration.shape,
                     StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                     if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8)));
@@ -879,7 +879,7 @@ impl<'a> HandleStorageGeometry<'a> {
         let carrier = self
             .carrier(destination)?
             .and_then(|carrier| {
-                terminal_psi::find_structural_type(&self.module.structural_types, carrier)
+                terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)
             })
             .ok_or("handle descriptor result has no original declared carrier")?;
         match &carrier.shape {
@@ -937,7 +937,7 @@ impl<'a> HandleStorageGeometry<'a> {
         let carrier = self
             .carrier(location)?
             .and_then(|carrier| {
-                terminal_psi::find_structural_type(&self.module.structural_types, carrier)
+                terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)
             })
             .ok_or("handle collection has no original declared carrier")?;
         match &carrier.shape {
@@ -989,14 +989,14 @@ impl<'a> HandleStorageGeometry<'a> {
     ) -> Result<DescriptorLocation, String> {
         let root = self.place_type(&DescriptorLocation::whole(place))?;
         terminal_semantics::descriptor_lifetimes::descriptor_location(
-            &self.module.structural_types,
+            &self.module.types.structural_types,
             place,
             root,
             path,
             None,
         )
         .ok_or_else(|| {
-            let shape = terminal_psi::find_structural_type(&self.module.structural_types, root)
+            let shape = terminal_psi::find_structural_type(&self.module.types.structural_types, root)
                 .map(|declaration| match &declaration.shape {
                     shape @ (StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::ByteSequence(_)
@@ -1023,7 +1023,7 @@ impl<'a> HandleStorageGeometry<'a> {
         }
         Ok(
             terminal_semantics::descriptor_lifetimes::descriptor_location_type(
-                &self.module.structural_types,
+                &self.module.types.structural_types,
                 root,
                 &location.path,
             ),
@@ -1032,7 +1032,7 @@ impl<'a> HandleStorageGeometry<'a> {
 
     pub(super) fn carrier_identity(&self, carrier: StructuralTypeId) -> Option<&str> {
         let declaration =
-            terminal_psi::find_structural_type(&self.module.structural_types, carrier)?;
+            terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)?;
         self.module.identities.text(declaration.identity)
     }
 
@@ -1041,7 +1041,7 @@ impl<'a> HandleStorageGeometry<'a> {
         carrier: StructuralTypeId,
     ) -> Option<terminal_psi::StructuralAccess> {
         let declaration =
-            terminal_psi::find_structural_type(&self.module.structural_types, carrier)?;
+            terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)?;
         terminal_semantics::stored_reference_access(&declaration.shape)
     }
 
@@ -1062,7 +1062,7 @@ impl<'a> HandleStorageGeometry<'a> {
         expected: StructuralTypeId,
         access: terminal_psi::StructuralAccess,
     ) -> bool {
-        unchanged_storage_presentation(&self.module.structural_types, actual, expected, access)
+        unchanged_storage_presentation(&self.module.types.structural_types, actual, expected, access)
     }
 
     pub(super) fn matches_resident_copy(
@@ -1079,7 +1079,7 @@ impl<'a> HandleStorageGeometry<'a> {
         // guessed for an owned canonical descriptor with no stored ceiling.
         let root_access = self.borrowed_root_access(transfer.source.root);
         Ok(shared_leaf_copy_presentation(
-            &self.module.structural_types,
+            &self.module.types.structural_types,
             operation,
             transfer,
             self.place_type(&transfer.source)?,
@@ -1169,10 +1169,10 @@ impl<'a> HandleStorageGeometry<'a> {
         root: StructuralTypeId,
         path: &[DescriptorPathSegment],
     ) -> Result<ReferenceStorageRegion, String> {
-        let path = descriptor_path(&self.module.structural_types, root, path)
+        let path = descriptor_path(&self.module.types.structural_types, root, path)
             .ok_or("handle storage path has no complete original typed projection")?;
         let mut geometry =
-            ReferenceStorageGeometry::new(self.module.structural_types.iter(), |application| {
+            ReferenceStorageGeometry::new(self.module.types.structural_types.iter(), |application| {
                 Err(StorageGeometryError::UnresolvedExtent(application))
             })
             .with_target_carriers(Some(runtime_abi::target_carrier_layout(
@@ -1236,7 +1236,7 @@ impl<'a> HandleStorageGeometry<'a> {
             let Some(carrier) = self.carrier(&prefix)? else {
                 continue;
             };
-            if !terminal_psi::find_structural_type(&self.module.structural_types, carrier)
+            if !terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)
                 .is_some_and(|declaration| {
                     matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
                 })
@@ -1397,7 +1397,7 @@ impl<'a> HandleStorageGeometry<'a> {
             .ok_or("handle reference capture has no original structural result")?;
         let StructuralTypeShape::Reference { referent, access } =
             terminal_psi::find_structural_type(
-                &self.module.structural_types,
+                &self.module.types.structural_types,
                 result.structural_type,
             )
             .ok_or("handle reference result has no declared reference carrier")?
@@ -1414,12 +1414,12 @@ impl<'a> HandleStorageGeometry<'a> {
             .get(&source.place)
             .ok_or("handle reference source has no declared carrier")?;
         let source_path = terminal_semantics::reference_source_storage_path(
-            self.module.structural_types.iter(),
+            self.module.types.structural_types.iter(),
             root,
             &source.path,
         );
         let source = terminal_semantics::descriptor_lifetimes::descriptor_location(
-            &self.module.structural_types,
+            &self.module.types.structural_types,
             source.place,
             root,
             source_path,

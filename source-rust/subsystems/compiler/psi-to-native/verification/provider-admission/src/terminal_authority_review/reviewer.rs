@@ -87,7 +87,7 @@ impl<'a> Reviewer<'a> {
             .context
             .input
             .module()
-            .access_lifecycle_plans
+            .access.access_lifecycle_plans
             .iter()
             .find(|plan| {
                 plan.boundary == boundary
@@ -405,7 +405,7 @@ impl<'a> Reviewer<'a> {
             .context
             .input
             .module()
-            .services
+            .interfaces.services
             .iter()
             .find(|declaration| declaration.id == instruction.service)
             .ok_or_else(|| {

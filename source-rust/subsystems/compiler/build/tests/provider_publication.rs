@@ -104,7 +104,7 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
         }
     }
     let actual: std::collections::BTreeSet<_> = module
-        .calling_abi_signatures
+        .interfaces.calling_abi_signatures
         .iter()
         .map(|abi| {
             assert!(abi.storage.is_ok(), "{:?}", abi.storage);
@@ -114,10 +114,10 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
         })
         .collect();
     assert_eq!(expected.len(), 5);
-    assert_eq!(module.calling_abi_signatures.len(), expected.len());
+    assert_eq!(module.interfaces.calling_abi_signatures.len(), expected.len());
     assert_eq!(actual, expected);
     let linear = module
-        .structural_types
+        .types.structural_types
         .iter()
         .find(|row| row.owns_linear_claim)
         .unwrap();
@@ -148,7 +148,7 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
     let reopened = Arc::new(CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap());
     let trust = HostProducerTrust::accept("source-produced Windows fixture");
     let authorized = authorize_terminal_artifact(Arc::clone(&reopened), Some(&trust)).unwrap();
-    let psi_provider_selections::publication::SourceProviderDemand::Target { bindings, .. } =
+    let source_compiler::provider_supply::SourceProviderDemand::Target { bindings, .. } =
         providers.receive(&reopened, profile.target_name()).unwrap()
     else {
         panic!("source did not issue a Windows deployment");
@@ -297,7 +297,7 @@ fn folded_product(path: &Path, profile: TargetProfile) -> product_publication::C
     assert!(
         source
             .semantic_module()
-            .folded_constants
+            .scalars.folded_constants
             .dependencies
             .is_empty()
     );
@@ -369,7 +369,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
     }
     let digests: Vec<_> = view
         .module()
-        .folded_constants
+        .scalars.folded_constants
         .dependencies
         .iter()
         .filter(|dependency| dependency.target == linux.target_name())

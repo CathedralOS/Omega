@@ -224,7 +224,7 @@ pub fn evaluate_with_source_consent(
             let invocation = prepared.prepare_entry(symbol, entry, &[])?;
             let module = invocation.accepted().module();
             if module
-                .scalar_applications
+                .scalars.scalar_applications
                 .declarations()
                 .iter()
                 .any(|application| {
@@ -233,7 +233,7 @@ pub fn evaluate_with_source_consent(
                         terminal_psi::ScalarApplication::Evaluate { .. }
                     )
                 })
-                || module.boundary_machines.iter().any(|boundary| {
+                || module.interfaces.boundary_machines.iter().any(|boundary| {
                     boundary
                         .declaration
                         .as_ref()

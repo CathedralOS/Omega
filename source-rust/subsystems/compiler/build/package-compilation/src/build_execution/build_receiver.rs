@@ -95,7 +95,7 @@ impl BuildReceiver {
             );
         }
         let storage =
-            terminal_psi::find_structural_type(&module.structural_types, parameter.structural_type)
+            terminal_psi::find_structural_type(&module.types.structural_types, parameter.structural_type)
                 .ok_or("accepted Build receiver has no storage declaration")?;
         if module.identities.text(storage.identity) != Some(record.storage_identity.as_str()) {
             return Err("accepted Build receiver lost its source storage identity".into());
@@ -159,7 +159,7 @@ impl BuildReceiver {
             return Err("published Build entry differs from its admitted mutable receiver".into());
         }
         let storage =
-            terminal_psi::find_structural_type(&module.structural_types, self.structural_type)
+            terminal_psi::find_structural_type(&module.types.structural_types, self.structural_type)
                 .ok_or("published Build receiver has no storage declaration")?;
         if module.identities.text(storage.identity) != Some(self.storage_identity.as_str()) {
             return Err(

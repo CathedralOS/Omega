@@ -1082,8 +1082,8 @@ impl<'a> Storage<'a> {
             + 1;
         let contents = initial_contents(machine, tables, graph.operation_count())?;
         let defaults = terminal_semantics::structural_qualifications::DefaultRequirements::new(
-            &module.structural_types,
-            &module.structural_domains,
+            &module.types.structural_types,
+            &module.types.structural_domains,
             lowered,
         )
         .map_err(|error| {
@@ -1133,7 +1133,7 @@ impl<'a> Storage<'a> {
             lowered,
             module,
             float_meanings: std::cell::OnceCell::new(),
-            types: &module.structural_types,
+            types: &module.types.structural_types,
             graph,
             initial_contents: contents.entry,
             returned_contents: contents.calls,
@@ -2029,7 +2029,7 @@ impl<'a> Storage<'a> {
                     },
                 ) => {
                     let view = terminal_semantics::representation_view_declaration(
-                        self.module.structural_types.iter(),
+                        self.module.types.structural_types.iter(),
                         *structural_type,
                         *stored_scalar,
                     )
@@ -5094,7 +5094,7 @@ impl<'a> Storage<'a> {
             return Err(self.foreign(concerns, "a byte literal has no declared literal root"));
         };
         if terminal_semantics::byte_qualification_predicates_in(
-            module.structural_domains.iter(),
+            module.types.structural_domains.iter(),
             structural_type,
             qualifications,
         )
@@ -5109,7 +5109,7 @@ impl<'a> Storage<'a> {
             ));
         }
         if !terminal_semantics::byte_literal_qualifications_hold(
-            &module.structural_domains,
+            &module.types.structural_domains,
             structural_type,
             qualifications,
             bytes,
@@ -8024,7 +8024,7 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
         let types = tables.values.map(|_, row| row.scalar_type);
         let descriptor_graph = reference_graph(module, machine.id).unwrap();
         let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
-            &module.structural_types,
+            &module.types.structural_types,
             &descriptor_graph,
         );
         let storage = Storage::new(
@@ -8246,7 +8246,7 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
         let types = tables.values.map(|_, row| row.scalar_type);
         let descriptor_graph = reference_graph(module, machine.id).unwrap();
         let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
-            &module.structural_types,
+            &module.types.structural_types,
             &descriptor_graph,
         );
         let mut storage = Storage::new(
@@ -8488,7 +8488,7 @@ machine entry() {
         let types = tables.values.map(|_, row| row.scalar_type);
         let descriptor_graph = reference_graph(module, machine.id).unwrap();
         let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
-            &module.structural_types,
+            &module.types.structural_types,
             &descriptor_graph,
         );
         let storage = Storage::new(
@@ -8641,7 +8641,7 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
             let types = tables.values.map(|_, row| row.scalar_type);
             let descriptor_graph = reference_graph(module, machine.id).unwrap();
             let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
-                &module.structural_types,
+                &module.types.structural_types,
                 &descriptor_graph,
             );
             let mut storage = Storage::new(
@@ -8791,7 +8791,7 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
             let types = tables.values.map(|_, row| row.scalar_type);
             let descriptor_graph = reference_graph(module, machine.id).unwrap();
             let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
-                &module.structural_types,
+                &module.types.structural_types,
                 &descriptor_graph,
             );
             let mut storage = Storage::new(

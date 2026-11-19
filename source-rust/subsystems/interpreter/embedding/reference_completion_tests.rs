@@ -94,7 +94,7 @@ fn setup(
         results: vec![Vec::new()],
     }]);
     let module = Arc::get_mut(&mut program).unwrap().fixture_module_mut();
-    module.boundary_machines.push(boundary.clone());
+    module.interfaces.boundary_machines.push(boundary.clone());
     for index in 1..=2 {
         let operation = semantic_vocabulary::OperationId::new(index).unwrap();
         let mut declared = result.clone();
@@ -841,7 +841,7 @@ fn edit_boundary(
     let module = Arc::get_mut(&mut execution.program)
         .unwrap()
         .fixture_module_mut();
-    update(&mut module.boundary_machines[0]);
+    update(&mut module.interfaces.boundary_machines[0]);
 }
 fn legacy_invocation(execution: &mut TerminalExecution<'_>, referent: u64) {
     edit_boundary(execution, |boundary| {
@@ -1120,7 +1120,7 @@ fn original_storage_sink(
     let module = Arc::get_mut(&mut execution.program)
         .unwrap()
         .fixture_module_mut();
-    module.boundary_machines.push(boundary);
+    module.interfaces.boundary_machines.push(boundary);
     module.machines[0].blocks[0].operations[1] = operation.clone();
     module.machines[0]
         .structural_places
@@ -1422,7 +1422,7 @@ fn live_reference_owner_rejects_wrong_types_and_partial_or_reinterpreted_geometr
             let module = Arc::get_mut(&mut execution.program)
                 .unwrap()
                 .fixture_module_mut();
-            module.structural_types.push(ty(
+            module.types.structural_types.push(ty(
                 3,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
             ));
@@ -1477,11 +1477,11 @@ fn live_reference_owner_rejects_wrong_types_and_partial_or_reinterpreted_geometr
             let module = Arc::get_mut(&mut execution.program)
                 .unwrap()
                 .fixture_module_mut();
-            module.structural_types.push(ty(
+            module.types.structural_types.push(ty(
                 3,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
             ));
-            module.structural_types.push(ty(
+            module.types.structural_types.push(ty(
                 4,
                 StructuralTypeShape::Reference {
                     referent: StructuralTypeId::new(3).unwrap(),
@@ -1989,7 +1989,7 @@ fn check_aggregate_reference_formation(control: AggregateReferenceControl) {
         );
     }
     module.identities = identities.build();
-    module.structural_types = types;
+    module.types.structural_types = types;
     let machine = semantic_vocabulary::MachineId::new(2).unwrap();
     module.entry = Some(TargetMachineCallable::Machine(machine));
     module.machines[0].id = machine;
@@ -2010,8 +2010,8 @@ fn check_aggregate_reference_formation(control: AggregateReferenceControl) {
             id: source.place,
             kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
         });
-    assert!(module.target_layout_applications.is_empty());
-    assert!(module.access_lifecycle_plans.is_empty());
+    assert!(module.layouts.target_layout_applications.is_empty());
+    assert!(module.access.access_lifecycle_plans.is_empty());
     // Seal the final catalog, then use ordinary admission. No fixture identity
     // or admitted layout object is manufactured after the catalog changes.
     let optimization =
@@ -2135,7 +2135,7 @@ fn check_aggregate_reference_formation(control: AggregateReferenceControl) {
     }
     let mut geometry =
         terminal_semantics::ReferenceStorageGeometry::new(
-            artifact.semantic_module().structural_types.iter(),
+            artifact.semantic_module().types.structural_types.iter(),
             |application| {
                 Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
                     application,

@@ -35,7 +35,7 @@ fn a_checked_boundary_returns_its_stored_descriptor() {
     let reopened = CanonicalTerminalArtifact::from_bytes(&bytes).expect("reopen the saved product");
     let module = reopened.view().module();
     let requirement = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|boundary| {
             module

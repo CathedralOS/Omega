@@ -207,7 +207,7 @@ pub fn admit_terminal_provider_installation(
 ) -> Result<psi_provider_selections::AdmittedProviderSelections, ProviderInstallationError> {
     let module = artifact.module();
     let candidates = module
-        .provider_candidates
+        .interfaces.provider_candidates
         .iter()
         .filter(|candidate| {
             selected.iter().any(|row| {

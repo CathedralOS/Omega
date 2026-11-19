@@ -134,7 +134,7 @@ pub fn close_providers(
         for provider in selected.providers() {
             for row in &provider.rows {
                 for &position in &row.candidate_positions {
-                    let candidate = &module.provider_candidates[position];
+                    let candidate = &module.interfaces.provider_candidates[position];
                     next.push(CallableBoundaryImplementation {
                         boundary: candidate.boundary,
                         machine: candidate.candidate,

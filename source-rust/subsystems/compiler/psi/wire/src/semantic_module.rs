@@ -51,21 +51,21 @@ pub(crate) mod canonical_order {
     pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         require_increasing(
             module
-                .structural_referents
+                .types.structural_referents
                 .iter()
                 .map(|referent| referent.id),
             "structural referent identities",
         )?;
         require_increasing(
             module
-                .callback_applications
+                .interfaces.callback_applications
                 .iter()
                 .map(|row| row.application_index),
             "callback applications",
         )?;
-        for application in module.callback_applications.iter().chain(
+        for application in module.interfaces.callback_applications.iter().chain(
             module
-                .installed_interrupt_registrations
+                .interfaces.installed_interrupt_registrations
                 .iter()
                 .flat_map(|registration| &registration.callbacks),
         ) {
@@ -91,9 +91,9 @@ pub(crate) mod canonical_order {
                 ));
             }
         }
-        r!(module.boundary_application_candidates.iter() => "boundary application candidates")?;
+        r!(module.interfaces.boundary_application_candidates.iter() => "boundary application candidates")?;
         require_increasing(
-            module.task_activation_demands.demands.iter().map(|demand| {
+            module.execution.task_activation_demands.demands.iter().map(|demand| {
                 (
                     demand.report_fingerprint,
                     demand.machine_callable_identity,
@@ -104,7 +104,7 @@ pub(crate) mod canonical_order {
         )?;
         require_increasing(
             module
-                .task_activation_demands
+                .execution.task_activation_demands
                 .structural_referents
                 .iter()
                 .map(|row| row.id),
@@ -112,13 +112,13 @@ pub(crate) mod canonical_order {
         )?;
         require_increasing(
             module
-                .task_activation_demands
+                .execution.task_activation_demands
                 .target_layout_applications
                 .iter()
                 .map(|row| row.id),
             "task target layout applications",
         )?;
-        for application in &module.task_activation_demands.target_layout_applications {
+        for application in &module.execution.task_activation_demands.target_layout_applications {
             require_increasing(
                 application
                     .realizations
@@ -127,7 +127,7 @@ pub(crate) mod canonical_order {
                 "task target layout alternatives",
             )?;
         }
-        for demand in &module.task_activation_demands.demands {
+        for demand in &module.execution.task_activation_demands.demands {
             r!(demand.frames.iter().map(|frame| frame.identity) => "task activation frames")?;
             require_increasing(
                 demand.crossings.iter().map(|crossing| crossing.identity),
@@ -145,7 +145,7 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
-                .task_activation_demands
+                .execution.task_activation_demands
                 .structural_types
                 .iter()
                 .map(|declaration| declaration.id),
@@ -153,12 +153,12 @@ pub(crate) mod canonical_order {
         )?;
         require_increasing(
             module
-                .boundary_application_demands
+                .interfaces.boundary_application_demands
                 .iter()
                 .map(|demand| demand.terminal_operation()),
             "boundary application demands by operation",
         )?;
-        for candidate in &module.boundary_application_candidates {
+        for candidate in &module.interfaces.boundary_application_candidates {
             if candidate.selection_identity.is_absent()
                 || candidate.target.as_ref().is_some_and(String::is_empty)
                 || candidate.body.contract == [0; 32]
@@ -174,12 +174,12 @@ pub(crate) mod canonical_order {
             }
         }
         for application in module
-            .boundary_application_demands
+            .interfaces.boundary_application_demands
             .iter()
             .map(|demand| demand.application())
             .chain(
                 module
-                    .boundary_application_candidates
+                    .interfaces.boundary_application_candidates
                     .iter()
                     .map(|candidate| &candidate.application),
             )
@@ -213,12 +213,12 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
-                .scalar_block_invariants
+                .proofs.scalar_block_invariants
                 .iter()
                 .map(|invariant| (invariant.machine, invariant.header)),
             "scalar block invariants by machine and header",
         )?;
-        for invariant in &module.scalar_block_invariants {
+        for invariant in &module.proofs.scalar_block_invariants {
             validate_canonical_proposition(&invariant.predicate)?;
             require_increasing(
                 invariant.arrivals.iter().map(|arrival| arrival.edge),
@@ -227,12 +227,12 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
-                .operation_crash_contracts
+                .proofs.operation_crash_contracts
                 .iter()
                 .map(|contract| (contract.machine, contract.operation)),
             "operation crash contracts by machine and operation",
         )?;
-        for contract in &module.operation_crash_contracts {
+        for contract in &module.proofs.operation_crash_contracts {
             if contract.published_routes.is_empty()
                 || !crash_routes_are_canonical(&contract.published_routes)
             {
@@ -250,19 +250,19 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
-                .suspension_call_sites
+                .execution.suspension_call_sites
                 .iter()
                 .map(|site| (site.operation, site.crossing)),
             "suspension call sites by operation and crossing",
         )?;
         require_increasing(
             module
-                .suspension_call_plans
+                .execution.suspension_call_plans
                 .iter()
                 .map(|plan| (plan.operation, plan.crossing)),
             "suspension call plans by operation and crossing",
         )?;
-        for plan in &module.suspension_call_plans {
+        for plan in &module.execution.suspension_call_plans {
             if !plan
                 .live_values
                 .iter()
@@ -283,21 +283,21 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .map(|declaration| declaration.id),
             "structural types by StructuralTypeId",
         )?;
         require_increasing(
             module
-                .proof_output_calls
+                .proofs.proof_output_calls
                 .iter()
                 .map(|invocation| (invocation.caller, invocation.ordinal)),
             "evidence package invocations by caller and ordinal",
         )?;
         require_increasing(
             module
-                .closed_conformance_applications
+                .proofs.closed_conformance_applications
                 .iter()
                 .map(|application| {
                     (
@@ -311,7 +311,7 @@ pub(crate) mod canonical_order {
                 }),
             "closed conformance applications by owner, declaration, and fingerprint",
         )?;
-        for invocation in &module.proof_output_calls {
+        for invocation in &module.proofs.proof_output_calls {
             if invocation
                 .outputs
                 .iter()
@@ -323,7 +323,7 @@ pub(crate) mod canonical_order {
                 return Err(noncanonical!("evidence package outputs by position"));
             }
         }
-        for declaration in &module.structural_types {
+        for declaration in &module.types.structural_types {
             if let Some(StructuralFieldType::RefinedScalar(refinement)) =
                 &declaration.scalar_restriction
             {
@@ -395,20 +395,20 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
-                .structural_domains
+                .types.structural_domains
                 .iter()
                 .map(|declaration| declaration.id),
             "structural domains by StructuralDomainId",
         )?;
         require_increasing(
             module
-                .structural_qualification_changes
+                .types.structural_qualification_changes
                 .iter()
                 .map(|change| (change.machine, change.edge, change.argument_ordinal)),
             "structural qualification changes by machine, edge and argument",
         )?;
         if module
-            .structural_qualification_changes
+            .types.structural_qualification_changes
             .iter()
             .any(|change| !strictly_increasing(change.establishments.iter().map(|row| row.domain)))
         {
@@ -416,21 +416,21 @@ pub(crate) mod canonical_order {
                 "structural qualification change establishments by StructuralDomainId"
             ));
         }
-        r!(module.services.iter().map(|declaration| declaration.id) => "services by ServiceId")?;
+        r!(module.interfaces.services.iter().map(|declaration| declaration.id) => "services by ServiceId")?;
         if module
-            .services
+            .interfaces.services
             .iter()
             .any(|declaration| !strictly_increasing(declaration.parents.iter().copied()))
         {
             return Err(noncanonical!("service parents by ServiceId"));
         }
         require_increasing(
-            module.root_service_reach.concrete.iter().copied(),
+            module.interfaces.root_service_reach.concrete.iter().copied(),
             "concrete root service reach by ServiceId",
         )?;
         require_increasing(
             module
-                .root_service_reach
+                .interfaces.root_service_reach
                 .installation_dependencies
                 .iter()
                 .map(|dependency| {
@@ -442,7 +442,7 @@ pub(crate) mod canonical_order {
             "installation reach dependencies by requirement identity",
         )?;
         if module
-            .root_service_reach
+            .interfaces.root_service_reach
             .installation_dependencies
             .iter()
             .any(|dependency| !strictly_increasing(dependency.upper_bound.iter().copied()))
@@ -452,7 +452,7 @@ pub(crate) mod canonical_order {
             ));
         }
         if module
-            .float_meaning_equalities
+            .scalars.float_meaning_equalities
             .iter()
             .enumerate()
             .any(|(index, proposition)| {
@@ -468,12 +468,12 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .map(|declaration| declaration.id),
             "boundary machines by BoundaryMachineId",
         )?;
-        for declaration in &module.boundary_machines {
+        for declaration in &module.interfaces.boundary_machines {
             if let BoundaryMachineResult::Structural(result) = &declaration.result {
                 require_increasing(
                     result.qualifications.iter().copied(),
@@ -525,7 +525,7 @@ pub(crate) mod canonical_order {
             )?;
         }
         require_increasing(
-            module.provider_candidates.iter().map(|candidate| {
+            module.interfaces.provider_candidates.iter().map(|candidate| {
                 (
                     candidate.boundary,
                     module
@@ -546,7 +546,7 @@ pub(crate) mod canonical_order {
             "provider candidates by exact conformance identity",
         )?;
         require_increasing(
-            module.provider_instance_requirements.iter().map(|row| {
+            module.interfaces.provider_instance_requirements.iter().map(|row| {
                 (
                     row.template,
                     row.package,
@@ -556,14 +556,14 @@ pub(crate) mod canonical_order {
             }),
             "provider instance requirement templates by callable and package",
         )?;
-        for row in &module.provider_instance_requirements {
+        for row in &module.interfaces.provider_instance_requirements {
             require_increasing(
                 row.required_instances.iter(),
                 "closed provider requirement identities",
             )?;
         }
         let mut float_projection_sources = Vec::new();
-        for (index, projection) in module.float_meaning_projections.iter().enumerate() {
+        for (index, projection) in module.scalars.float_meaning_projections.iter().enumerate() {
             let Ok(index) = u32::try_from(index) else {
                 return Err(noncanonical!(
                     "float-meaning projections by dense proof value and first-use source IDs"
@@ -592,12 +592,12 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
-                .scalar_predicate_definitions
+                .scalars.scalar_predicate_definitions
                 .iter()
                 .map(|definition| definition.declaration),
             "scalar predicate definitions by declaration identity",
         )?;
-        for definition in &module.scalar_predicate_definitions {
+        for definition in &module.scalars.scalar_predicate_definitions {
             require_increasing(
                 definition.parameters.iter().map(|parameter| parameter.id),
                 "scalar predicate inputs by ValueId",
@@ -606,7 +606,7 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
-                .proposition_declarations
+                .proofs.proposition_declarations
                 .iter()
                 .cloned()
                 .map(|mut declaration| {
@@ -617,14 +617,14 @@ pub(crate) mod canonical_order {
         )?;
         require_increasing(
             module
-                .proposition_declarations
+                .proofs.proposition_declarations
                 .iter()
                 .map(|declaration| declaration.id),
             "proposition declarations by PropositionId",
         )?;
         require_increasing(
             module
-                .proposition_applications
+                .proofs.proposition_applications
                 .iter()
                 .cloned()
                 .map(|mut application| {
@@ -635,35 +635,35 @@ pub(crate) mod canonical_order {
         )?;
         require_increasing(
             module
-                .proposition_applications
+                .proofs.proposition_applications
                 .iter()
                 .map(|application| application.id),
             "proposition applications by PropositionId",
         )?;
         require_increasing(
             module
-                .evidence_terms
+                .proofs.evidence_terms
                 .iter()
                 .map(|term| (term.proposition, &term.interface, term.id)),
             "evidence terms by proposition and EvidenceTermId",
         )?;
-        r!(module.evidence_terms.iter().map(|term| term.id) => "evidence terms by EvidenceTermId")?;
+        r!(module.proofs.evidence_terms.iter().map(|term| term.id) => "evidence terms by EvidenceTermId")?;
         require_increasing(
             module
-                .evidence_contract_lanes
+                .proofs.evidence_contract_lanes
                 .iter()
                 .map(|lane| (lane.owner, lane.kind, lane.position)),
             "evidence contract lanes by machine, kind, and position",
         )?;
         require_increasing(
             module
-                .declaration_contracts
+                .execution.declaration_contracts
                 .iter()
                 .map(|contract| contract.id),
             "declaration contracts by ContractId",
         )?;
         for contract in module
-            .declaration_contracts
+            .execution.declaration_contracts
             .iter()
             .chain(module.machines.iter().map(|machine| &machine.contract))
         {
@@ -1252,8 +1252,8 @@ pub(crate) mod dynamic_result_admission {
         module: &TerminalModule,
     ) -> Result<(), CodecError> {
         let mut rows = Vec::new();
-        for table in &module.dynamic_dispatch.tables {
-            let interface = module.dynamic_dispatch.interface(table.interface).ok_or(
+        for table in &module.execution.dynamic_dispatch.tables {
+            let interface = module.execution.dynamic_dispatch.interface(table.interface).ok_or(
                 CodecError::MalformedStructuralFoundation("dynamic table has no interface"),
             )?;
             if table.rows.len() != interface.slots.len() {
@@ -1267,7 +1267,7 @@ pub(crate) mod dynamic_result_admission {
                     continue;
                 };
                 let leaves = terminal_semantics::borrowed_result_leaves(
-                    module.structural_types.iter(),
+                    module.types.structural_types.iter(),
                     result.structural_type,
                     result.multiplicity,
                     slot.result_reference_regions.len(),
@@ -1284,7 +1284,7 @@ pub(crate) mod dynamic_result_admission {
             return Ok(());
         }
         let graph = terminal_graph(module);
-        let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
+        let mut analysis = DescriptorAnalysis::new(&module.types.structural_types, &graph);
         for (row, slot) in rows {
             let callee = module
                 .machine(row)
@@ -1308,7 +1308,7 @@ pub(crate) mod dynamic_result_admission {
                         "dynamic row has unknown returned descriptor contents",
                     ))?;
             terminal_semantics::validate_descriptor_result_regions(
-                &module.structural_types,
+                &module.types.structural_types,
                 &callee.structural_parameters,
                 result,
                 &slot.result_reference_regions,
@@ -1621,7 +1621,7 @@ pub(crate) mod machine_wire {
                 id: place,
                 kind: StructuralPlaceKind::Parameter { position: 0 },
             });
-            module.structural_types.push(StructuralTypeDeclaration {
+            module.types.structural_types.push(StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
@@ -1638,7 +1638,7 @@ pub(crate) mod machine_wire {
                     storage: StructuralRecordStorage::Packed,
                 },
             });
-            module.native_layouts.insert(
+            module.layouts.native_layouts.insert(
                 structural_type,
                 TerminalIdentityIndex(3),
                 TerminalIdentityIndex::ABSENT,
@@ -2972,12 +2972,12 @@ mod external_provider_tests {
             numeric_literals::FloatFormat::F32,
         ));
         module.identities = identity_table(8);
-        module.external_providers = vec![ExternalProviderConformance {
+        module.interfaces.external_providers = vec![ExternalProviderConformance {
             sealed_intrinsic: None,
             requirement: NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
             requirement_identity: TerminalIdentityIndex(3),
             requirement_package: None,
-            numeric_intrinsic: module.boundary_machines[0].numeric_intrinsic,
+            numeric_intrinsic: module.interfaces.boundary_machines[0].numeric_intrinsic,
             requirement_schema: Some(ExternalRequirementSchema {
                 identity: TerminalIdentityIndex(3),
                 method: TerminalIdentityIndex(4),
@@ -3021,13 +3021,13 @@ mod external_provider_tests {
             },
         ] {
             let mut module = module();
-            module.external_providers[0].binding = binding;
+            module.interfaces.external_providers[0].binding = binding;
             let bytes = encode_module(&module).unwrap();
             let decoded = decode_module(&bytes).unwrap();
             assert_eq!(decoded, module);
             assert_eq!(encode_module(&decoded).unwrap(), bytes);
             let mut missing = module.clone();
-            missing.external_providers.clear();
+            missing.interfaces.external_providers.clear();
             assert_ne!(
                 semantic_fingerprint(&module).unwrap(),
                 semantic_fingerprint(&missing).unwrap()
@@ -3038,11 +3038,11 @@ mod external_provider_tests {
     #[test]
     fn external_provider_satisfaction_survives_without_an_executable_boundary_call() {
         let mut module = module();
-        module.boundary_machines.clear();
+        module.interfaces.boundary_machines.clear();
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
-        assert_eq!(decoded.external_providers, module.external_providers);
-        assert!(decoded.boundary_machines.is_empty());
+        assert_eq!(decoded.interfaces.external_providers, module.interfaces.external_providers);
+        assert!(decoded.interfaces.boundary_machines.is_empty());
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
     }
 
@@ -3050,7 +3050,7 @@ mod external_provider_tests {
     fn external_provider_satisfaction_rejects_missing_coordinates_and_duplicate_edges() {
         for mutation in 0..6 {
             let mut module = module();
-            let candidate = &mut module.external_providers[0];
+            let candidate = &mut module.interfaces.external_providers[0];
             match mutation {
                 0 => candidate.realization.callable = TerminalIdentityIndex(99),
                 1 => candidate
@@ -3065,7 +3065,7 @@ mod external_provider_tests {
                 }
                 4 => {
                     let duplicate = candidate.clone();
-                    module.external_providers.push(duplicate);
+                    module.interfaces.external_providers.push(duplicate);
                 }
                 5 => candidate.target = Some(String::new()),
                 _ => unreachable!(),
@@ -3085,7 +3085,7 @@ mod external_provider_tests {
         let fingerprint = semantic_fingerprint(&original).unwrap();
         for mutation in 0..5 {
             let mut changed = original.clone();
-            let candidate = &mut changed.external_providers[0];
+            let candidate = &mut changed.interfaces.external_providers[0];
             match mutation {
                 0 => candidate.realization.contract = [18; 32],
                 1 => candidate.realization_package = PackageKeyIdentity::from_digest([3; 32]),
@@ -3125,7 +3125,7 @@ mod numeric_intrinsic_tests {
             NumericResult::Boolean => ScalarType::Boolean,
             NumericResult::FloatClass => panic!("this helper creates scalar boundaries"),
         };
-        module.boundary_machines.push(BoundaryMachineDeclaration {
+        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
             id: BoundaryMachineId::new(1).unwrap(),
             numeric_intrinsic: Some(meaning),
             declaration: None,
@@ -3175,12 +3175,12 @@ mod numeric_intrinsic_tests {
         let decoded = decode_module(&bytes).unwrap();
         assert_eq!(decoded, module);
         assert_eq!(
-            decoded.boundary_machines[0].numeric_intrinsic,
+            decoded.interfaces.boundary_machines[0].numeric_intrinsic,
             Some(meaning)
         );
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
         let mut changed = module.clone();
-        changed.boundary_machines[0].numeric_intrinsic = None;
+        changed.interfaces.boundary_machines[0].numeric_intrinsic = None;
         assert_ne!(
             semantic_fingerprint(&module).unwrap(),
             semantic_fingerprint(&changed).unwrap()
@@ -3192,7 +3192,7 @@ mod numeric_intrinsic_tests {
         let meaning = NumericIntrinsic::Negation(numeric_literals::FloatFormat::F32);
         for mutation in 0..4 {
             let mut module = module(meaning);
-            let boundary = &mut module.boundary_machines[0];
+            let boundary = &mut module.interfaces.boundary_machines[0];
             match mutation {
                 0 => boundary.scalar_parameters[0] = ScalarType::from_numeric_type(NumericType::F64).unwrap(),
                 1 => boundary.result = BoundaryMachineResult::Unit,
@@ -3206,8 +3206,8 @@ mod numeric_intrinsic_tests {
                 _ => unreachable!(),
             }
             let error = terminal_psi::validate_numeric_intrinsic_signature(
-                &module.boundary_machines[0],
-                &module.structural_types,
+                &module.interfaces.boundary_machines[0],
+                &module.types.structural_types,
             )
             .unwrap_err();
             assert!(error.contains("numeric intrinsic"), "{error}");
@@ -3236,7 +3236,7 @@ mod numeric_intrinsic_tests {
             let bytes = encode_module(&original).unwrap();
             assert_eq!(decode_module(&bytes).unwrap(), original);
             let mut substituted = original.clone();
-            substituted.boundary_machines[0].scalar_parameters[0] =
+            substituted.interfaces.boundary_machines[0].scalar_parameters[0] =
                 ScalarType::from_numeric_type(NumericType::Integer(FixedInteger::unsigned(16)))
                     .unwrap();
             assert!(decode_module(&encode_raw(&substituted).unwrap()).is_err());
@@ -3246,7 +3246,7 @@ mod numeric_intrinsic_tests {
     #[test]
     fn numeric_meaning_wire_rejects_noncanonical_padding_unknown_rows_and_truncation() {
         let meaning = NumericIntrinsic::Negation(numeric_literals::FloatFormat::F32);
-        let boundary = &module(meaning).boundary_machines[0];
+        let boundary = &module(meaning).interfaces.boundary_machines[0];
         let mut writer = super::wire::Writer::default();
         <super::structural_signature_wire::BoundaryMachine as super::wire_fields::Field<_>>::write(
             &mut writer,
@@ -3296,14 +3296,14 @@ mod reference_transport_tests {
         let mut module = TerminalModule::declarations();
         module.identities = identity_table(4);
         module
-            .structural_referents
+            .types.structural_referents
             .push(StructuralReferentIdentity {
                 id: StructuralTypeId::new(1).unwrap(),
                 identity: TerminalIdentityIndex(1),
                 foreign_descriptor,
                 abstract_opaque: false,
             });
-        module.structural_types.push(StructuralTypeDeclaration {
+        module.types.structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             requires: Vec::new(),
             id: StructuralTypeId::new(2).unwrap(),
@@ -3320,8 +3320,8 @@ mod reference_transport_tests {
                 access: StructuralAccess::SharedBorrow,
             },
         });
-        module.task_activation_demands.structural_types = module.structural_types.clone();
-        module.task_activation_demands.structural_referents = module.structural_referents.clone();
+        module.execution.task_activation_demands.structural_types = module.types.structural_types.clone();
+        module.execution.task_activation_demands.structural_referents = module.types.structural_referents.clone();
         module
     }
 
@@ -3346,7 +3346,7 @@ mod reference_transport_tests {
     fn reference_transport_cannot_supply_owned_field_storage() {
         for descriptor in [false, true] {
             let mut module = reference_module(descriptor);
-            module.native_layouts.insert(
+            module.layouts.native_layouts.insert(
                 StructuralTypeId::new(3).unwrap(),
                 TerminalIdentityIndex(3),
                 TerminalIdentityIndex::ABSENT,
@@ -3357,7 +3357,7 @@ mod reference_transport_tests {
                 }],
                 [],
             );
-            module.structural_types.push(StructuralTypeDeclaration {
+            module.types.structural_types.push(StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: StructuralTypeId::new(3).unwrap(),
@@ -3453,7 +3453,7 @@ mod reference_transport_tests {
         let StructuralTypeShape::Record { fields, .. } = &record.shape else {
             panic!("record")
         };
-        module.native_layouts.insert(
+        module.layouts.native_layouts.insert(
             record.id,
             record.identity,
             TerminalIdentityIndex::ABSENT,
@@ -3466,7 +3466,7 @@ mod reference_transport_tests {
                 }),
             [],
         );
-        module.structural_types = vec![carrier, duplicate, record];
+        module.types.structural_types = vec![carrier, duplicate, record];
         module
     }
 
@@ -3487,7 +3487,7 @@ mod reference_transport_tests {
             for identity in [3, 4, 99] {
                 let mut module = inline_carrier_module(byte_field);
                 let StructuralTypeShape::Record { fields, .. } =
-                    &mut module.structural_types[2].shape
+                    &mut module.types.structural_types[2].shape
                 else {
                     panic!("record")
                 };
@@ -3495,14 +3495,14 @@ mod reference_transport_tests {
                 if identity == 4 {
                     module.identities = identity_table(5);
                     module
-                        .structural_referents
+                        .types.structural_referents
                         .push(StructuralReferentIdentity {
                             id: StructuralTypeId::new(4).unwrap(),
                             identity: TerminalIdentityIndex(4),
                             foreign_descriptor: true,
                             abstract_opaque: false,
                         });
-                    let mut reference = module.structural_types[0].clone();
+                    let mut reference = module.types.structural_types[0].clone();
                     reference.id = StructuralTypeId::new(5).unwrap();
                     reference.identity = TerminalIdentityIndex(5);
                     reference.no_code_affine_cleanup = false;
@@ -3511,7 +3511,7 @@ mod reference_transport_tests {
                         referent: StructuralTypeId::new(4).unwrap(),
                         access: StructuralAccess::SharedBorrow,
                     };
-                    module.structural_types.push(reference);
+                    module.types.structural_types.push(reference);
                 }
                 let error =
                     decode_module(&super::module_wire::encode_raw(&module).unwrap()).unwrap_err();
@@ -3529,14 +3529,14 @@ mod reference_transport_tests {
         use application_identity::opaque_representations::selected_application_commitment;
         let mut module = inline_carrier_module(false);
         module.identities = identity_table(5);
-        let mut carrier = module.structural_types[2].clone();
+        let mut carrier = module.types.structural_types[2].clone();
         carrier.id = StructuralTypeId::new(4).unwrap();
         carrier.identity = TerminalIdentityIndex(5);
         let StructuralTypeShape::Record { fields, .. } = &mut carrier.shape else {
             panic!("record")
         };
         fields[0].id = StructuralFieldId::new(2).unwrap();
-        module.native_layouts.insert(
+        module.layouts.native_layouts.insert(
             carrier.id,
             TerminalIdentityIndex(3),
             TerminalIdentityIndex::ABSENT,
@@ -3549,7 +3549,7 @@ mod reference_transport_tests {
                 }),
             [],
         );
-        module.structural_types.push(carrier);
+        module.types.structural_types.push(carrier);
         let identity_encoding = b"opaque storage correspondence codec control".to_vec();
         let (application_report_fingerprint, conformance_application_commitment) =
             application_identity::conformance_identity::source_identity_commitments(
@@ -3559,7 +3559,7 @@ mod reference_transport_tests {
         let copy_disposition = OpaqueRepresentationCopyDisposition::CheckedSemanticCopy;
         let origin = OpaqueRepresentationApplicationOrigin::NamedConformance;
         module
-            .opaque_representations
+            .types.opaque_representations
             .push(terminal_psi::TerminalOpaqueRepresentation {
                 opaque: StructuralTypeId::new(3).unwrap(),
                 carrier: StructuralTypeId::new(4).unwrap(),
@@ -3588,7 +3588,7 @@ mod reference_transport_tests {
         assert_eq!(decode_module(&bytes).unwrap(), module);
         let mut redirected = module.clone();
         let mut noncopy = module.clone();
-        noncopy.structural_types[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+        noncopy.types.structural_types[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
         let error = decode_module(&super::module_wire::encode_raw(&noncopy).unwrap()).unwrap_err();
         assert!(
             error
@@ -3597,7 +3597,7 @@ mod reference_transport_tests {
             "{error}"
         );
         let mut nominal_mismatch = module.clone();
-        nominal_mismatch.structural_types[2].multiplicity =
+        nominal_mismatch.types.structural_types[2].multiplicity =
             terminal_psi::StructuralMultiplicity::Affine;
         let error =
             decode_module(&super::module_wire::encode_raw(&nominal_mismatch).unwrap()).unwrap_err();
@@ -3674,7 +3674,7 @@ mod reference_transport_tests {
                 );
             }
         }
-        redirected.opaque_representations[0].carrier = StructuralTypeId::new(2).unwrap();
+        redirected.types.opaque_representations[0].carrier = StructuralTypeId::new(2).unwrap();
         let error =
             decode_module(&super::module_wire::encode_raw(&redirected).unwrap()).unwrap_err();
         assert!(
@@ -3683,7 +3683,7 @@ mod reference_transport_tests {
                 .contains("substituted its exact storage identity"),
             "{error}"
         );
-        redirected.opaque_representations[0].carrier_storage_identity = TerminalIdentityIndex(2);
+        redirected.types.opaque_representations[0].carrier_storage_identity = TerminalIdentityIndex(2);
         let error =
             decode_module(&super::module_wire::encode_raw(&redirected).unwrap()).unwrap_err();
         assert!(
@@ -3693,13 +3693,13 @@ mod reference_transport_tests {
             "{error}"
         );
         let mut changed_native = module;
-        changed_native.native_layouts = terminal_psi::NativeLayoutCatalog::default();
+        changed_native.layouts.native_layouts = terminal_psi::NativeLayoutCatalog::default();
         for declaration in changed_native
-            .structural_types
+            .types.structural_types
             .iter()
             .filter(|row| row.is_record_shape())
         {
-            changed_native.native_layouts.insert(
+            changed_native.layouts.native_layouts.insert(
                 declaration.id,
                 declaration.identity,
                 TerminalIdentityIndex::ABSENT,
@@ -3790,7 +3790,7 @@ mod routed_scalar_tests {
         module.identities = identity_table(4);
         module.machines.push(machine);
         module
-            .scalar_qualifications
+            .types.scalar_qualifications
             .domains
             .push(ScalarDomainDeclaration {
                 required_memberships: Some(Vec::new()),
@@ -3808,14 +3808,14 @@ mod routed_scalar_tests {
                 }]),
             });
         module
-            .scalar_qualifications
+            .types.scalar_qualifications
             .sets
             .push(ScalarQualificationSet {
                 id: qualifications,
                 domains: vec![domain],
             });
         module
-            .scalar_qualifications
+            .types.scalar_qualifications
             .returns
             .push(ScalarReturnQualification {
                 site: ScalarReturnSite::NormalExit,
@@ -3832,8 +3832,8 @@ mod routed_scalar_tests {
     // A qualified input carries its domain predicate in the ordinary entry
     // contract, independently of whether this machine may establish membership.
     fn qualify_input(module: &mut TerminalModule) {
-        let qualifications = module.scalar_qualifications.sets[0].id;
-        let mut predicate = module.scalar_qualifications.domains[0]
+        let qualifications = module.types.scalar_qualifications.sets[0].id;
+        let mut predicate = module.types.scalar_qualifications.domains[0]
             .predicate
             .as_ref()
             .unwrap()
@@ -3853,14 +3853,14 @@ mod routed_scalar_tests {
         assert_eq!(decode_module(&bytes).unwrap(), module);
         let original = semantic_fingerprint(&module).unwrap();
         let mut changed = module.clone();
-        changed.scalar_qualifications.domains[0]
+        changed.types.scalar_qualifications.domains[0]
             .predicate
             .as_mut()
             .unwrap()
             .proposition = Proposition::Truth;
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
         let mut changed = module.clone();
-        changed.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
+        changed.types.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
     }
 
@@ -3873,7 +3873,7 @@ mod routed_scalar_tests {
         let mut module = module();
         let result = module.machines[0].result.scalar().unwrap().value_type();
         let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
-        module.boundary_machines.push(BoundaryMachineDeclaration {
+        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
             numeric_intrinsic: None,
             membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
@@ -3931,7 +3931,7 @@ mod routed_scalar_tests {
         for mutation in 0..4 {
             let mut malformed = module.clone();
             let BoundaryMachineResult::Scalar(declared) =
-                &mut malformed.boundary_machines[0].result
+                &mut malformed.interfaces.boundary_machines[0].result
             else {
                 panic!("scalar declaration");
             };
@@ -3982,7 +3982,7 @@ mod routed_scalar_tests {
             cleanup_actions: Vec::new(),
         };
         machine.blocks.push(completion);
-        let formation = &mut module.scalar_qualifications.returns[0];
+        let formation = &mut module.types.scalar_qualifications.returns[0];
         formation.site = ScalarReturnSite::Completion {
             argument_ordinal: 0,
         };
@@ -3993,8 +3993,8 @@ mod routed_scalar_tests {
         returned.source = destination;
         returned.result = machine.result.scalar().unwrap().id;
         returned.origins = vec![ScalarReturnOrigin::Forwarded];
-        module.scalar_qualifications.returns.push(returned);
-        let mut predicate = module.scalar_qualifications.domains[0]
+        module.types.scalar_qualifications.returns.push(returned);
+        let mut predicate = module.types.scalar_qualifications.domains[0]
             .predicate
             .as_ref()
             .unwrap()
@@ -4002,7 +4002,7 @@ mod routed_scalar_tests {
             .clone();
         predicate.remap_value_ids(|_| destination);
         module
-            .scalar_block_invariants
+            .proofs.scalar_block_invariants
             .push(terminal_psi::ScalarBlockInvariant {
                 machine: module.machines[0].id,
                 header: semantic_vocabulary::BlockId::new(2).unwrap(),
@@ -4017,7 +4017,7 @@ mod routed_scalar_tests {
             module
         );
         let mut missing_predicate = module.clone();
-        missing_predicate.scalar_block_invariants.clear();
+        missing_predicate.proofs.scalar_block_invariants.clear();
         assert_eq!(
             decode_module(&encode_raw(&missing_predicate).unwrap()),
             Err(crate::CodecError::MalformedStructuralFoundation(
@@ -4028,23 +4028,23 @@ mod routed_scalar_tests {
             let mut malformed = module.clone();
             match mutation {
                 0 => {
-                    malformed.scalar_qualifications.returns.remove(0);
+                    malformed.types.scalar_qualifications.returns.remove(0);
                 }
                 1 => {
-                    malformed.scalar_qualifications.returns[0].edge = EdgeId::new(2).unwrap();
+                    malformed.types.scalar_qualifications.returns[0].edge = EdgeId::new(2).unwrap();
                 }
                 2 => {
-                    malformed.scalar_qualifications.returns[0].site =
+                    malformed.types.scalar_qualifications.returns[0].site =
                         ScalarReturnSite::Completion {
                             argument_ordinal: 1,
                         };
                 }
                 3 => {
-                    malformed.scalar_qualifications.returns[0].origins =
+                    malformed.types.scalar_qualifications.returns[0].origins =
                         vec![ScalarReturnOrigin::Forwarded];
                 }
                 _ => {
-                    malformed.scalar_qualifications.returns[0].origins =
+                    malformed.types.scalar_qualifications.returns[0].origins =
                         vec![ScalarReturnOrigin::Vacuous];
                 }
             }
@@ -4053,9 +4053,9 @@ mod routed_scalar_tests {
                 "mutation {mutation}"
             );
         }
-        module.scalar_qualifications.domains[0].establishment_routes = None;
-        module.scalar_qualifications.domains[0].predicate = None;
-        module.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Vacuous];
+        module.types.scalar_qualifications.domains[0].establishment_routes = None;
+        module.types.scalar_qualifications.domains[0].predicate = None;
+        module.types.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Vacuous];
         assert_eq!(
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
@@ -4068,19 +4068,19 @@ mod routed_scalar_tests {
         for (label, mutate) in [
             (
                 "missing return row",
-                (|module| module.scalar_qualifications.returns.clear()) as Mutation,
+                (|module| module.types.scalar_qualifications.returns.clear()) as Mutation,
             ),
             ("wrong edge", |module| {
-                module.scalar_qualifications.returns[0].edge = EdgeId::new(9).unwrap()
+                module.types.scalar_qualifications.returns[0].edge = EdgeId::new(9).unwrap()
             }),
             ("wrong source", |module| {
-                module.scalar_qualifications.returns[0].source = ValueId::new(9).unwrap()
+                module.types.scalar_qualifications.returns[0].source = ValueId::new(9).unwrap()
             }),
             ("wrong result", |module| {
-                module.scalar_qualifications.returns[0].result = ValueId::new(9).unwrap()
+                module.types.scalar_qualifications.returns[0].result = ValueId::new(9).unwrap()
             }),
             ("wrong issuer", |module| {
-                module.scalar_qualifications.domains[0]
+                module.types.scalar_qualifications.domains[0]
                     .establishment_routes
                     .as_mut()
                     .unwrap()[0] = ScalarDomainEstablishmentRoute::ExactMachine {
@@ -4089,7 +4089,7 @@ mod routed_scalar_tests {
                 }
             }),
             ("missing predicate", |module| {
-                module.scalar_qualifications.domains[0].predicate = None
+                module.types.scalar_qualifications.domains[0].predicate = None
             }),
             ("missing result predicate", |module| {
                 module.machines[0].contract.ensures.clear()
@@ -4098,7 +4098,7 @@ mod routed_scalar_tests {
                 module.machines[0].contract.ensures[0].proposition = Proposition::Truth
             }),
             ("wrong subject carrier", |module| {
-                module.scalar_qualifications.domains[0]
+                module.types.scalar_qualifications.domains[0]
                     .predicate
                     .as_mut()
                     .unwrap()
@@ -4111,14 +4111,14 @@ mod routed_scalar_tests {
                 );
             }),
             ("false forwarding", |module| {
-                module.scalar_qualifications.returns[0].origins =
+                module.types.scalar_qualifications.returns[0].origins =
                     vec![ScalarReturnOrigin::Forwarded]
             }),
             ("missing origin", |module| {
-                module.scalar_qualifications.returns[0].origins.clear()
+                module.types.scalar_qualifications.returns[0].origins.clear()
             }),
             ("wrong route", |module| {
-                module.scalar_qualifications.returns[0].origins =
+                module.types.scalar_qualifications.returns[0].origins =
                     vec![ScalarReturnOrigin::Established { route: 1 }]
             }),
         ] {
@@ -4136,7 +4136,7 @@ mod routed_scalar_tests {
         let mut module = module();
         qualify_input(&mut module);
         module.machines[0].declaration.as_mut().unwrap().callable = TerminalIdentityIndex(2);
-        module.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
+        module.types.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
         assert_eq!(
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
@@ -4156,7 +4156,7 @@ mod routed_scalar_tests {
     #[test]
     fn empty_issuer_set_round_trips_without_authorizing_fresh_membership() {
         let mut denied = module();
-        denied.scalar_qualifications.domains[0].establishment_routes = Some(Vec::new());
+        denied.types.scalar_qualifications.domains[0].establishment_routes = Some(Vec::new());
         // Encoding trusts its stage producer. Receiving formation validation,
         // rather than serialization, must refuse this unchanged fresh result.
         let encoded = encode_module(&denied).unwrap();
@@ -4170,14 +4170,14 @@ mod routed_scalar_tests {
 
         qualify_input(&mut denied);
         denied.machines[0].declaration.as_mut().unwrap().callable = TerminalIdentityIndex(2);
-        denied.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
+        denied.types.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
         assert_eq!(
             decode_module(&encode_module(&denied).unwrap()).unwrap(),
             denied
         );
 
         let mut unrestricted = denied.clone();
-        unrestricted.scalar_qualifications.domains[0].establishment_routes = None;
+        unrestricted.types.scalar_qualifications.domains[0].establishment_routes = None;
         assert_eq!(
             decode_module(&encode_module(&unrestricted).unwrap()).unwrap(),
             unrestricted
@@ -4229,7 +4229,7 @@ mod routed_scalar_tests {
         // operational envelope, so publish one that repeats what the contract
         // already promises: no services, no suspension, guaranteed termination.
         module
-            .callables
+            .execution.callables
             .declaration_envelopes
             .push(terminal_psi::TerminalDeclarationEnvelope {
                 contract: required,
@@ -4248,7 +4248,7 @@ mod routed_scalar_tests {
                     },
                 },
             });
-        module.declaration_contracts.push(public);
+        module.execution.declaration_contracts.push(public);
         let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
         assert_eq!(decoded, module);
         assert_eq!(
@@ -4266,7 +4266,7 @@ mod routed_scalar_tests {
         );
 
         let mut missing_predicate = module.clone();
-        missing_predicate.declaration_contracts[0].ensures.clear();
+        missing_predicate.execution.declaration_contracts[0].ensures.clear();
         assert_eq!(
             decode_module(&encode_raw(&missing_predicate).unwrap()),
             Err(crate::CodecError::MalformedStructuralFoundation(
@@ -4306,7 +4306,7 @@ mod routed_scalar_tests {
         // Fixed model commitments isolate artifact reference integrity. They
         // establish no source application, selection or refinement proof.
         let mut captured = module.clone();
-        captured.declaration_contracts[0]
+        captured.execution.declaration_contracts[0]
             .declaration
             .as_mut()
             .unwrap()
@@ -4326,7 +4326,7 @@ mod routed_scalar_tests {
             decode_module(&encode_raw(&captured).unwrap()).unwrap(),
             captured
         );
-        captured.declaration_contracts[0]
+        captured.execution.declaration_contracts[0]
             .declaration
             .as_mut()
             .unwrap()
@@ -4344,7 +4344,7 @@ mod routed_scalar_tests {
 
         for mutation in 0..4 {
             let mut malformed = module.clone();
-            let contract = &mut malformed.declaration_contracts[0];
+            let contract = &mut malformed.execution.declaration_contracts[0];
             match mutation {
                 0 => contract.id = malformed.machines[0].contract.id,
                 1 => contract
@@ -5109,7 +5109,7 @@ pub(crate) fn encode_execution_module(module: &TerminalModule) -> Result<Vec<u8>
 pub fn encode_closed_execution_module(
     module: &TerminalModule,
 ) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
-    scalar_qualification_wire::validate(&module.scalar_qualifications)?;
+    scalar_qualification_wire::validate(&module.types.scalar_qualifications)?;
     validate_canonical_order(module)?;
     let (bytes, mut types) = module_wire::encode_raw_closed(module)?;
     types.record_callables(module);
@@ -5163,7 +5163,7 @@ pub fn decode_closed_parts(
     if reader.remaining() != 0 {
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
-    scalar_qualification_wire::validate(&module.scalar_qualifications)?;
+    scalar_qualification_wire::validate(&module.types.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     module_foundation_validation::validate_storage_foundation(&module)?;
     let opaque_storage = module
@@ -5322,7 +5322,7 @@ mod normal_qualification_tests {
         ];
         for (position, shape) in shapes.into_iter().enumerate() {
             if let StructuralTypeShape::Record { fields, .. } = &shape {
-                module.native_layouts.insert(
+                module.layouts.native_layouts.insert(
                     type_id(position as u64 + 1),
                     TerminalIdentityIndex(position as u32 + 4),
                     TerminalIdentityIndex::ABSENT,
@@ -5336,7 +5336,7 @@ mod normal_qualification_tests {
                     [],
                 );
             }
-            module.structural_types.push(StructuralTypeDeclaration {
+            module.types.structural_types.push(StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: type_id(position as u64 + 1),
@@ -5352,7 +5352,7 @@ mod normal_qualification_tests {
             });
         }
         let domain = StructuralDomainId::new(1).unwrap();
-        module.structural_domains.push(StructuralDomainDeclaration {
+        module.types.structural_domains.push(StructuralDomainDeclaration {
             subject_identity: Default::default(),
             access_policy: None,
             id: domain,
@@ -5366,7 +5366,7 @@ mod normal_qualification_tests {
             byte_predicate: None,
             establishment_routes: None,
         });
-        module.boundary_machines.push(BoundaryMachineDeclaration {
+        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
             id: BoundaryMachineId::new(1).unwrap(),
             declaration: None,
             role: terminal_psi::BoundaryDeclarationRole::Callable,
@@ -5448,7 +5448,7 @@ mod normal_qualification_tests {
     #[test]
     fn boundary_logical_result_lifetimes_round_trip_and_reject_missing_frontiers() {
         let mut module = module();
-        module.structural_types.push(StructuralTypeDeclaration {
+        module.types.structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             requires: Vec::new(),
             id: type_id(5),
@@ -5466,7 +5466,7 @@ mod normal_qualification_tests {
                 },
             ),
         });
-        let boundary = &mut module.boundary_machines[0];
+        let boundary = &mut module.interfaces.boundary_machines[0];
         boundary.result =
             BoundaryMachineResult::Structural(terminal_psi::BoundaryStructuralResultDeclaration {
                 structural_type: type_id(5),
@@ -5484,16 +5484,16 @@ mod normal_qualification_tests {
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
         assert_eq!(
-            decoded.boundary_machines[0].result_lifetimes,
-            module.boundary_machines[0].result_lifetimes
+            decoded.interfaces.boundary_machines[0].result_lifetimes,
+            module.interfaces.boundary_machines[0].result_lifetimes
         );
         assert!(
-            decoded.boundary_machines[0]
+            decoded.interfaces.boundary_machines[0]
                 .result_reference_regions
                 .is_empty()
         );
         let mut changed = module.clone();
-        changed.boundary_machines[0]
+        changed.interfaces.boundary_machines[0]
             .result_lifetimes
             .as_mut()
             .unwrap()[0]
@@ -5507,7 +5507,7 @@ mod normal_qualification_tests {
         );
         for missing in [None, Some(Vec::new())] {
             let mut changed = module.clone();
-            changed.boundary_machines[0].result_lifetimes = missing;
+            changed.interfaces.boundary_machines[0].result_lifetimes = missing;
             assert!(decode_module(&encode_module(&changed).unwrap()).is_err());
         }
     }
@@ -5515,7 +5515,7 @@ mod normal_qualification_tests {
     #[test]
     fn an_authored_record_keeps_its_invariant_through_public_module_readback() {
         let mut module = module();
-        let record = &mut module.structural_types[0];
+        let record = &mut module.types.structural_types[0];
         let StructuralTypeShape::Record { storage, fields } = &mut record.shape else {
             panic!("the fixture starts with an empty record");
         };
@@ -5538,17 +5538,17 @@ mod normal_qualification_tests {
     #[test]
     fn structural_wire_preserves_an_explicit_empty_issuer_set() {
         let mut unrestricted = module();
-        unrestricted.boundary_machines.clear();
+        unrestricted.interfaces.boundary_machines.clear();
         let unrestricted_bytes = encode_module(&unrestricted).unwrap();
         assert_eq!(decode_module(&unrestricted_bytes).unwrap(), unrestricted);
 
         let mut denied = unrestricted.clone();
-        denied.structural_domains[0].establishment_routes = Some(Vec::new());
+        denied.types.structural_domains[0].establishment_routes = Some(Vec::new());
         let denied_bytes = encode_module(&denied).unwrap();
         let decoded = decode_module(&denied_bytes).unwrap();
         assert_eq!(decoded, denied);
         assert_eq!(
-            decoded.structural_domains[0].establishment_routes,
+            decoded.types.structural_domains[0].establishment_routes,
             Some(Vec::new())
         );
         assert_ne!(denied_bytes, unrestricted_bytes);
@@ -5570,8 +5570,8 @@ mod normal_qualification_tests {
     #[test]
     fn input_fact_lifetimes_survive_encoding_and_change_the_semantic_identity() {
         let mut module = module();
-        let domain = module.structural_domains[0].id;
-        let parameters = &mut module.boundary_machines[0].structural_parameters;
+        let domain = module.types.structural_domains[0].id;
+        let parameters = &mut module.interfaces.boundary_machines[0].structural_parameters;
         parameters[0].qualifications.push(domain);
         parameters[0].additional_input_qualifications.push(
             terminal_psi::StructuralPathQualification {
@@ -5592,7 +5592,7 @@ mod normal_qualification_tests {
         let bytes = encode_module(&module).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), module);
         let identity = semantic_fingerprint(&module).unwrap();
-        for parameter in &mut module.boundary_machines[0].structural_parameters {
+        for parameter in &mut module.interfaces.boundary_machines[0].structural_parameters {
             parameter.additional_input_qualifications.clear();
         }
         assert_ne!(semantic_fingerprint(&module).unwrap(), identity);
@@ -5601,8 +5601,8 @@ mod normal_qualification_tests {
     #[test]
     fn an_input_fact_cannot_replace_missing_membership_evidence() {
         let mut module = module();
-        let domain = module.structural_domains[0].id;
-        module.boundary_machines[0].structural_parameters[0]
+        let domain = module.types.structural_domains[0].id;
+        module.interfaces.boundary_machines[0].structural_parameters[0]
             .additional_input_qualifications
             .push(terminal_psi::StructuralPathQualification {
                 path: Vec::new(),
@@ -5620,10 +5620,10 @@ mod normal_qualification_tests {
         let module = module();
         let original = semantic_fingerprint(&module).unwrap();
         let mut changed = module.clone();
-        changed.boundary_machines[0].normal_qualifications.clear();
+        changed.interfaces.boundary_machines[0].normal_qualifications.clear();
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
         let mut changed = module.clone();
-        changed.boundary_machines[0].normal_qualifications[2].path[1] =
+        changed.interfaces.boundary_machines[0].normal_qualifications[2].path[1] =
             StructuralPathSegment::FixedIndex(0);
         assert_eq!(
             decode_module(&encode_module(&changed).unwrap()).unwrap(),
@@ -5631,7 +5631,7 @@ mod normal_qualification_tests {
         );
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
         let mut changed = module.clone();
-        changed.boundary_machines[0].requires[0].path = vec![field(9)];
+        changed.interfaces.boundary_machines[0].requires[0].path = vec![field(9)];
         assert_eq!(
             decode_module(&encode_module(&changed).unwrap()).unwrap(),
             changed
@@ -5651,7 +5651,7 @@ mod normal_qualification_tests {
             vec![StructuralPathSegment::FixedIndex(0)],
         ] {
             let mut malformed = original.clone();
-            malformed.boundary_machines[0].normal_qualifications[2].path = path;
+            malformed.interfaces.boundary_machines[0].normal_qualifications[2].path = path;
             assert_eq!(
                 decode_module(&encode_raw(&malformed).unwrap()),
                 Err(CodecError::MalformedStructuralFoundation(
@@ -5660,7 +5660,7 @@ mod normal_qualification_tests {
             );
         }
         let mut malformed = original;
-        malformed.boundary_machines[0].requires[0].path = vec![field(12)];
+        malformed.interfaces.boundary_machines[0].requires[0].path = vec![field(12)];
         assert_eq!(
             decode_module(&encode_raw(&malformed).unwrap()),
             Err(CodecError::MalformedStructuralFoundation(
@@ -5684,13 +5684,13 @@ mod global_descriptor_table_tests {
         let mut module = TerminalModule::for_entry(machine_id);
         module.identities = identity_table(4);
         let service = ServiceId::new(1).unwrap();
-        module.services.push(ServiceDeclaration {
+        module.interfaces.services.push(ServiceDeclaration {
             id: service,
             identity: TerminalIdentityIndex(4),
             parents: vec![],
         });
         let carrier = StructuralTypeId::new(1).unwrap();
-        module.structural_types.push(StructuralTypeDeclaration {
+        module.types.structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             requires: Vec::new(),
             id: carrier,
@@ -5772,7 +5772,7 @@ mod global_descriptor_table_tests {
     #[test]
     fn descriptor_table_receiving_rejects_wrong_extent_and_shared_backing() {
         let mut short = descriptor_module(GlobalDescriptorTableOperation::Store);
-        short.structural_types[0].shape =
+        short.types.structural_types[0].shape =
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity: 9,
                 access: Some(StructuralAccess::MutableBorrow),
@@ -5780,7 +5780,7 @@ mod global_descriptor_table_tests {
         assert!(refusal(&short).contains("exact unqualified ten-byte array"));
 
         let mut shared = descriptor_module(GlobalDescriptorTableOperation::Store);
-        shared.structural_types[0].shape =
+        shared.types.structural_types[0].shape =
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity: 10,
                 access: Some(StructuralAccess::SharedBorrow),
@@ -5826,7 +5826,7 @@ mod descriptor_operation_tests {
         let mut module = TerminalModule::for_entry(machine_id);
         module.identities = identity_table(8);
         let service = ServiceId::new(1).unwrap();
-        module.services.push(ServiceDeclaration {
+        module.interfaces.services.push(ServiceDeclaration {
             id: service,
             identity: TerminalIdentityIndex(8),
             parents: vec![],
@@ -5847,7 +5847,7 @@ mod descriptor_operation_tests {
             StructuralTypeShape::PrimitiveScalar(unsigned(64)),
         ];
         for (index, shape) in shapes.into_iter().enumerate() {
-            module.structural_types.push(StructuralTypeDeclaration {
+            module.types.structural_types.push(StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: StructuralTypeId::new(index as u64 + 1).unwrap(),
@@ -5973,7 +5973,7 @@ mod descriptor_operation_tests {
         }
         assert!(refusal(&shared).contains("mutable GDT"));
         let mut short = task_module();
-        short.structural_types[1].shape =
+        short.types.structural_types[1].shape =
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity: 103,
                 access: Some(StructuralAccess::SharedBorrow),
@@ -5987,7 +5987,7 @@ mod descriptor_operation_tests {
         }
         assert!(refusal(&extent).contains("exact unqualified"));
         let mut narrow = task_module();
-        narrow.structural_types[3].shape = StructuralTypeShape::PrimitiveScalar(unsigned(32));
+        narrow.types.structural_types[3].shape = StructuralTypeShape::PrimitiveScalar(unsigned(32));
         assert!(refusal(&narrow).contains("declared element width"));
         let mut result = task_module();
         if let OperationResult::Scalar(result) =
@@ -6074,7 +6074,7 @@ mod descriptor_operation_tests {
             }
             assert!(refusal(&extent).contains("exact unqualified"));
             let mut scratch = segment_module(kind);
-            scratch.structural_types[2].shape =
+            scratch.types.structural_types[2].shape =
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                     capacity: 9,
                     access: Some(StructuralAccess::MutableBorrow),
@@ -6111,7 +6111,7 @@ mod opaque_value_tests {
         let mut module = TerminalModule::declarations();
         let identity = StructuralTypeId::new(1).unwrap();
         module.identities = identity_table(1);
-        module.structural_types.push(StructuralTypeDeclaration {
+        module.types.structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             requires: Vec::new(),
             id: identity,
@@ -6130,7 +6130,7 @@ mod opaque_value_tests {
         assert_eq!(decoded, module);
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
         assert!(!terminal_semantics::zeroed_structural_shape(
-            decoded.structural_types.iter(),
+            decoded.types.structural_types.iter(),
             identity,
         ));
         assert_eq!(
@@ -6158,7 +6158,7 @@ mod opaque_value_tests {
                 .is_err()
             );
         }
-        module.structural_types[0].quotient_carrier = Some(identity);
+        module.types.structural_types[0].quotient_carrier = Some(identity);
         assert!(
             encode_module(&module)
                 .unwrap_err()
@@ -6227,7 +6227,7 @@ mod scalar_predicate_definition_tests {
         let scalar = ScalarType::Integer(integer);
         let formal = ValueId::new(1).unwrap();
         module
-            .scalar_predicate_definitions
+            .scalars.scalar_predicate_definitions
             .push(ScalarPredicateDefinition {
                 declaration,
                 parameters: vec![ValueDeclaration {
@@ -6249,14 +6249,14 @@ mod scalar_predicate_definition_tests {
         let bytes = encode_module(&original).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), original);
         let mut changed = original.clone();
-        changed.scalar_predicate_definitions[0].body = Proposition::Truth;
+        changed.scalars.scalar_predicate_definitions[0].body = Proposition::Truth;
         assert_ne!(
             semantic_fingerprint(&original).unwrap(),
             semantic_fingerprint(&changed).unwrap()
         );
 
         let mut capture = original.clone();
-        capture.scalar_predicate_definitions[0]
+        capture.scalars.scalar_predicate_definitions[0]
             .body
             .remap_value_ids(|_| ValueId::new(2).unwrap());
         assert!(matches!(
@@ -6265,8 +6265,8 @@ mod scalar_predicate_definition_tests {
         ));
 
         let mut duplicate_input = original.clone();
-        let input = duplicate_input.scalar_predicate_definitions[0].parameters[0];
-        duplicate_input.scalar_predicate_definitions[0]
+        let input = duplicate_input.scalars.scalar_predicate_definitions[0].parameters[0];
+        duplicate_input.scalars.scalar_predicate_definitions[0]
             .parameters
             .push(input);
         assert!(matches!(
@@ -6278,8 +6278,8 @@ mod scalar_predicate_definition_tests {
 
         let mut duplicate_declaration = original.clone();
         duplicate_declaration
-            .scalar_predicate_definitions
-            .push(duplicate_declaration.scalar_predicate_definitions[0].clone());
+            .scalars.scalar_predicate_definitions
+            .push(duplicate_declaration.scalars.scalar_predicate_definitions[0].clone());
         assert!(matches!(
             decode_module(&module_wire::encode_raw(&duplicate_declaration).unwrap()),
             Err(CodecError::NonCanonicalOrder(
@@ -6289,11 +6289,11 @@ mod scalar_predicate_definition_tests {
 
         let mut unordered = original.clone();
         let mut identities = unordered.identities.into_builder();
-        let mut second = unordered.scalar_predicate_definitions[0].clone();
+        let mut second = unordered.scalars.scalar_predicate_definitions[0].clone();
         second.declaration = identities.intern("test::other-predicate");
         unordered.identities = identities.build();
-        unordered.scalar_predicate_definitions.push(second);
-        unordered.scalar_predicate_definitions.swap(0, 1);
+        unordered.scalars.scalar_predicate_definitions.push(second);
+        unordered.scalars.scalar_predicate_definitions.swap(0, 1);
         assert!(matches!(
             decode_module(&module_wire::encode_raw(&unordered).unwrap()),
             Err(CodecError::NonCanonicalOrder(
@@ -6302,7 +6302,7 @@ mod scalar_predicate_definition_tests {
         ));
 
         let mut unknown = original.clone();
-        unknown.scalar_predicate_definitions[0].declaration =
+        unknown.scalars.scalar_predicate_definitions[0].declaration =
             terminal_psi::TerminalIdentityIndex(u32::MAX);
         assert!(matches!(
             decode_module(&encode_module(&unknown).unwrap()),
@@ -6310,7 +6310,7 @@ mod scalar_predicate_definition_tests {
         ));
 
         let mut qualified = original;
-        qualified.scalar_predicate_definitions[0].parameters[0].qualifications =
+        qualified.scalars.scalar_predicate_definitions[0].parameters[0].qualifications =
             ScalarQualificationSetId::new(1);
         assert!(matches!(
             decode_module(&encode_module(&qualified).unwrap()),

@@ -156,7 +156,7 @@ requires depth > 0 && depth <= 2 && restart <= 1 {
                 assert!(
                     elaboration
                         .module
-                        .scalar_block_invariants
+                        .proofs.scalar_block_invariants
                         .iter()
                         .any(|invariant| invariant.machine == machine
                             && invariant.header == head

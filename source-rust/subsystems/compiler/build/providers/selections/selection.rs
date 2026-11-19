@@ -134,7 +134,7 @@ impl SelectedProviderPlanFacts {
     > {
         let find = |identity: &str| {
             let mut rows = module
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .filter(|row| module.identities.text(row.identity) == Some(identity));
             let row = rows
@@ -858,7 +858,7 @@ impl SelectedProviderPlanFacts {
         &self,
         module: &terminal_psi::TerminalModule,
     ) -> Result<Vec<semantic_vocabulary::ServiceId>, String> {
-        let reach = &module.root_service_reach;
+        let reach = &module.interfaces.root_service_reach;
         if reach.installation_dependencies.is_empty() {
             return Ok(reach.concrete.clone());
         }
@@ -870,7 +870,7 @@ impl SelectedProviderPlanFacts {
                 .ok_or_else(|| format!("root installation reach lost service {:?}", service.id))
         };
         let mut services = module
-            .services
+            .interfaces.services
             .iter()
             .map(|row| Ok((service_identity(row)?, row.id)))
             .collect::<Result<Vec<_>, String>>()?;
@@ -895,12 +895,12 @@ impl SelectedProviderPlanFacts {
                 .iter()
                 .map(|id| {
                     let position = module
-                        .services
+                        .interfaces.services
                         .binary_search_by_key(id, |service| service.id)
                         .map_err(|_| {
                             format!("root installation reach names an absent service {id:?}")
                         })?;
-                    service_identity(&module.services[position])
+                    service_identity(&module.interfaces.services[position])
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             upper.sort_unstable();

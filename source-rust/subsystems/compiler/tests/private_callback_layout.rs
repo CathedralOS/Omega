@@ -18,7 +18,7 @@ fn gate_placements(main: &Path) -> Result<Vec<LayoutPlacementReport>, Vec<Diagno
             .result
             .map_err(|failure| failure.into_diagnostics())?;
             let module = product.terminal_publication().accepted().unwrap().module();
-            let layouts = &module.native_layouts;
+            let layouts = &module.layouts.native_layouts;
             let mut slots = layouts
                 .records()
                 .filter_map(|record| layouts.for_target(record, "linux_x86_64").unwrap())

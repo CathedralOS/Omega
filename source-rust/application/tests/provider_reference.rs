@@ -164,7 +164,7 @@ machine build(builder: @mut Build) {{
     let boundary = program
         .view()
         .module()
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|boundary| {
             matches!(

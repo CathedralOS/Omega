@@ -133,13 +133,13 @@ pub(super) fn replay_installed_provider_calls(
                     declaration.completion,
                     &declaration.result,
                     &candidate.result,
-                    &module.structural_types,
+                    &module.types.structural_types,
                     declaration.identity,
                     declaration
                         .declaration
                         .as_ref()
                         .map(|callable| &callable.source.state),
-                    &module.structural_domains,
+                    &module.types.structural_domains,
                 )
                 .map_err(|reason| {
                     ProviderInstallationError::ExternalCompletionResultMismatch {
@@ -247,7 +247,7 @@ pub(super) fn replay_installed_provider_calls(
                     boundary_declaration,
                     &candidate.result,
                     terminal_candidate,
-                    &module.structural_domains,
+                    &module.types.structural_domains,
                 )
                 || structural_arguments.len() != provider.signature.parameters.len()
                 || boundary_declaration.structural_parameters.len() != structural_arguments.len()

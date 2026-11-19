@@ -1292,7 +1292,7 @@ impl<'a> Storage<'a> {
         }
         let root_type = self.root_type(source, concerns)?;
         if terminal_semantics::inline_descriptor_type(
-            self.module.structural_types.iter(),
+            self.module.types.structural_types.iter(),
             root_type,
             path,
         )

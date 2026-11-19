@@ -465,14 +465,14 @@ pub(crate) mod callback_application_wire {
                 unadmitted
             );
             let mut module = terminal_psi::TerminalModule::declarations();
-            module.callback_applications.push(unadmitted);
+            module.interfaces.callback_applications.push(unadmitted);
             super::super::super::canonical_order::validate_canonical_order(&module).unwrap();
-            module.callback_applications[0].entry_admitted = true;
+            module.interfaces.callback_applications[0].entry_admitted = true;
             assert!(
                 super::super::super::canonical_order::validate_canonical_order(&module).is_err()
             );
-            module.callback_applications[0].entry_admitted = false;
-            module.callback_applications[0].boundary =
+            module.interfaces.callback_applications[0].entry_admitted = false;
+            module.interfaces.callback_applications[0].boundary =
                 semantic_vocabulary::BoundaryMachineId::new(3);
             assert!(
                 super::super::super::canonical_order::validate_canonical_order(&module).is_err()
@@ -5477,67 +5477,164 @@ delegated_fields! {
         => boundary_application_wire::encode_candidate, boundary_application_wire::decode_candidate;
 }
 
+// The saved module interleaves fields from several parts of the in-memory model.
+// Use the same exhaustive pattern to borrow fields for writing and assemble them
+// after reading. The field codecs below run in the order of the published format.
+macro_rules! module_wire_record {
+    ($model:ident $layout:tt; $($field:ident: $codec:ty,)*) => {
+        struct Module;
+
+        impl Field<$model> for Module {
+            fn write(writer: &mut Writer, module: &$model) -> Result<(), CodecError> {
+                let $model $layout = module;
+                $(<$codec as Field<_>>::write(writer, $field)?;)*
+                Ok(())
+            }
+
+            fn read(reader: &mut Reader<'_>) -> Result<$model, CodecError> {
+                $(let $field = <$codec as Field<_>>::read(reader)?;)*
+                Ok($model $layout)
+            }
+        }
+    };
+}
+
+module_wire_record! {
+    TerminalModule {
+        vocabulary_marker,
+        identities,
+        entry,
+        machines,
+        types: terminal_psi::TypeDeclarations {
+            scalar_qualifications,
+            structural_types,
+            structural_referents,
+            structural_domains,
+            structural_qualification_changes,
+            opaque_representations,
+            mathematical_carriers,
+            identity_formations,
+            quotients,
+        },
+        scalars: terminal_psi::ScalarDeclarations {
+            scalar_applications,
+            folded_constants,
+            float_meaning_projections,
+            float_meaning_equalities,
+            scalar_predicate_definitions,
+        },
+        interfaces: terminal_psi::ProgramInterfaces {
+            services,
+            root_service_reach,
+            boundary_machines,
+            calling_signatures,
+            calling_abi_signatures,
+            calling_policy_requests,
+            service_schemas,
+            program_entry_contracts,
+            provider_selections,
+            external_providers,
+            provider_candidates,
+            provider_instance_requirements,
+            boundary_application_candidates,
+            callback_applications,
+            installed_interrupt_registrations,
+            boundary_application_demands,
+        },
+        access: terminal_psi::AccessDeclarations {
+            access_view_inputs,
+            access_view_plans,
+            access_lifecycle_plans,
+            reborrow_restored_call_uses,
+        },
+        execution: terminal_psi::ExecutionDeclarations {
+            dynamic_dispatch,
+            callables,
+            unoptimized_behavior,
+            declaration_contracts,
+            suspension_call_plan_count,
+            suspension_call_sites,
+            suspension_call_plans,
+            task_activation_demands,
+        },
+        proofs: terminal_psi::ProgramProofs {
+            indexed_theorems,
+            proposition_declarations,
+            proposition_applications,
+            evidence_terms,
+            evidence_contract_lanes,
+            proof_output_calls,
+            proof_recursive_components,
+            scalar_block_invariants,
+            operation_crash_contracts,
+            closed_conformance_applications,
+        },
+        layouts: terminal_psi::LayoutDeclarations {
+            target_layout_applications,
+            native_layouts,
+        },
+    };
+    vocabulary_marker: Vocabulary,
+    entry: Optional<callable_wire::Callable>,
+    identities: Identities,
+    indexed_theorems: List<IndexedTheorem>,
+    mathematical_carriers: List<MathematicalCarrier>,
+    identity_formations: IdentityFormations,
+    scalar_qualifications: ScalarQualifications,
+    quotients: quotient_wire::Catalog,
+    folded_constants: folded_constant_wire::Closure,
+    scalar_applications: ScalarApplications,
+    structural_types: List<StructuralType>,
+    structural_referents: List<Referent>,
+    structural_domains: List<declaration_wire::Domain>,
+    structural_qualification_changes: List<super::structural_result_wire::QualificationChange>,
+    services: List<declaration_wire::Service>,
+    root_service_reach: RootServiceReach,
+    access_view_plans: List<AccessViewPlan>,
+    access_lifecycle_plans: List<AccessLifecycle>,
+    access_view_inputs: List<access_view_wire::Input>,
+    reborrow_restored_call_uses: List<borrow_wire::RestoredCallUse>,
+    boundary_machines: List<super::structural_signature_wire::BoundaryMachine>,
+    calling_signatures: List<calling_signature_wire::Declaration>,
+    calling_abi_signatures: List<calling_signature_wire::AbiDeclaration>,
+    calling_policy_requests: List<calling_signature_wire::PolicyRequest>,
+    service_schemas: List<crate::service_schema_wire::Schema>,
+    program_entry_contracts: List<crate::service_schema_wire::EntryContract>,
+    provider_selections: List<crate::service_schema_wire::ProviderSelection>,
+    opaque_representations: List<opaque_representation_wire::Representation>,
+    unoptimized_behavior: List<unoptimized_behavior_wire::Behavior>,
+    external_providers: List<ExternalProvider>,
+    provider_candidates: List<ProviderCandidate>,
+    provider_instance_requirements: List<super::provider_candidate_wire::InstanceRequirements>,
+    dynamic_dispatch: dynamic_dispatch_wire::Catalog,
+    callables: callable_values_wire::Catalog,
+    float_meaning_projections: List<float_meaning_wire::Projection>,
+    float_meaning_equalities: List<float_meaning_wire::Equality>,
+    proposition_declarations: List<super::proof_declaration_wire::Declaration>,
+    scalar_predicate_definitions: List<super::proof_declaration_wire::ScalarPredicate>,
+    proposition_applications: List<super::proof_declaration_wire::Application>,
+    evidence_terms: List<evidence_wire::Term>,
+    evidence_contract_lanes: List<evidence_wire::Lane>,
+    proof_output_calls: List<proof_output_wire::Call>,
+    proof_recursive_components: List<recursive_component_wire::Component>,
+    closed_conformance_applications: List<closed_conformance_wire::Application>,
+    suspension_call_plan_count: U32,
+    suspension_call_sites: List<carry_and_suspension_wire::CallSite>,
+    suspension_call_plans: List<SuspensionPlan>,
+    scalar_block_invariants: List<scalar_block_invariant_wire::Invariant>,
+    operation_crash_contracts: List<operation_crash_contract_wire::Contract>,
+    declaration_contracts: List<super::contract_wire::Contract>,
+    machines: List<Machine>,
+    target_layout_applications: List<target_layout_wire::Application>,
+    native_layouts: native_layout_wire::Catalog,
+    boundary_application_demands: List<BoundaryDemand>,
+    callback_applications: List<callback_application_wire::Application>,
+    installed_interrupt_registrations: List<installed_interrupt_wire::Registration>,
+    boundary_application_candidates: List<BoundaryCandidate>,
+    task_activation_demands: task_activation_wire::Demands,
+}
+
 wire_record! {
-    Module: TerminalModule {
-        vocabulary_marker: Vocabulary,
-        entry: Optional<callable_wire::Callable>,
-        identities: Identities,
-        indexed_theorems: List<IndexedTheorem>,
-        mathematical_carriers: List<MathematicalCarrier>,
-        identity_formations: IdentityFormations,
-        scalar_qualifications: ScalarQualifications,
-        quotients: quotient_wire::Catalog,
-        folded_constants: folded_constant_wire::Closure,
-        scalar_applications: ScalarApplications,
-        structural_types: List<StructuralType>,
-        structural_referents: List<Referent>,
-        structural_domains: List<declaration_wire::Domain>,
-        structural_qualification_changes: List<super::structural_result_wire::QualificationChange>,
-        services: List<declaration_wire::Service>,
-        root_service_reach: RootServiceReach,
-        access_view_plans: List<AccessViewPlan>,
-        access_lifecycle_plans: List<AccessLifecycle>,
-        access_view_inputs: List<access_view_wire::Input>,
-        reborrow_restored_call_uses: List<borrow_wire::RestoredCallUse>,
-        boundary_machines: List<super::structural_signature_wire::BoundaryMachine>,
-        calling_signatures: List<calling_signature_wire::Declaration>,
-        calling_abi_signatures: List<calling_signature_wire::AbiDeclaration>,
-        calling_policy_requests: List<calling_signature_wire::PolicyRequest>,
-        service_schemas: List<crate::service_schema_wire::Schema>,
-        program_entry_contracts: List<crate::service_schema_wire::EntryContract>,
-        provider_selections: List<crate::service_schema_wire::ProviderSelection>,
-        opaque_representations: List<opaque_representation_wire::Representation>,
-        unoptimized_behavior: List<unoptimized_behavior_wire::Behavior>,
-        external_providers: List<ExternalProvider>,
-        provider_candidates: List<ProviderCandidate>,
-        provider_instance_requirements: List<super::provider_candidate_wire::InstanceRequirements>,
-        dynamic_dispatch: dynamic_dispatch_wire::Catalog,
-        callables: callable_values_wire::Catalog,
-        float_meaning_projections: List<float_meaning_wire::Projection>,
-        float_meaning_equalities: List<float_meaning_wire::Equality>,
-        proposition_declarations: List<super::proof_declaration_wire::Declaration>,
-        scalar_predicate_definitions: List<super::proof_declaration_wire::ScalarPredicate>,
-        proposition_applications: List<super::proof_declaration_wire::Application>,
-        evidence_terms: List<evidence_wire::Term>,
-        evidence_contract_lanes: List<evidence_wire::Lane>,
-        proof_output_calls: List<proof_output_wire::Call>,
-        proof_recursive_components: List<recursive_component_wire::Component>,
-        closed_conformance_applications: List<closed_conformance_wire::Application>,
-        suspension_call_plan_count: U32,
-        suspension_call_sites: List<carry_and_suspension_wire::CallSite>,
-        suspension_call_plans: List<SuspensionPlan>,
-        scalar_block_invariants: List<scalar_block_invariant_wire::Invariant>,
-        operation_crash_contracts: List<operation_crash_contract_wire::Contract>,
-        declaration_contracts: List<super::contract_wire::Contract>,
-        machines: List<Machine>,
-        target_layout_applications: List<target_layout_wire::Application>,
-        native_layouts: native_layout_wire::Catalog,
-        boundary_application_demands: List<BoundaryDemand>,
-        callback_applications: List<callback_application_wire::Application>,
-        installed_interrupt_registrations: List<installed_interrupt_wire::Registration>,
-        boundary_application_candidates: List<BoundaryCandidate>,
-        task_activation_demands: task_activation_wire::Demands,
-    }
     RootServiceReach: TerminalRootServiceReach {
         concrete: Ids,
         installation_dependencies: List<declaration_wire::ReachDependency>,

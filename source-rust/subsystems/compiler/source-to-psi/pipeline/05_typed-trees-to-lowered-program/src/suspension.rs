@@ -54,9 +54,9 @@ pub(crate) fn publish_crossings(module: &mut TerminalModule) -> Result<(), &'sta
     }
     plans.sort_by_key(|plan| (plan.operation, plan.crossing));
     let sites = plans.iter().map(|plan| call_site(module, plan)).collect();
-    module.suspension_call_plan_count = u32::try_from(plans.len())
+    module.execution.suspension_call_plan_count = u32::try_from(plans.len())
         .map_err(|_| "a module has more suspension plans than it can count")?;
-    module.suspension_call_sites = sites;
-    module.suspension_call_plans = plans;
+    module.execution.suspension_call_sites = sites;
+    module.execution.suspension_call_plans = plans;
     Ok(())
 }

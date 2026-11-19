@@ -197,7 +197,7 @@ fn loans_of(
 ) -> TerminalSuspensionValueLoans {
     if access == StructuralAccess::Owned
         && !terminal_psi::structural_type_contains_reference(
-            &module.structural_types,
+            &module.types.structural_types,
             structural_type,
         )
     {
@@ -327,7 +327,7 @@ pub fn call_plan(
             .structural_place_type(argument.place)
             .ok_or("a call argument names a root with no declared type")?;
         let structural_type = crate::runtime_structural_path_tip(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             root,
             &argument.path,
         )

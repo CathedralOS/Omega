@@ -24,8 +24,8 @@ pub(crate) fn install(
         .iter()
         .map(|machine| {
             DefaultRequirements::new(
-                &module.structural_types,
-                &module.structural_domains,
+                &module.types.structural_types,
+                &module.types.structural_domains,
                 machine,
             )
             .map_err(|error| {
@@ -53,7 +53,7 @@ pub(crate) fn install(
         refused
     })?;
     let mut references =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
     for (machine, required) in module.machines.iter().zip(defaults) {
         let unavailable =
             |detail| refuse(machine.id, Construct::Machine, Unserved::Machine(detail));

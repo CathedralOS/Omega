@@ -96,7 +96,7 @@ fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
             subject,
             measurement,
             ..
-        } = module.scalar_applications.declaration(application)?
+        } = module.scalars.scalar_applications.declaration(application)?
         else {
             return None;
         };
@@ -132,7 +132,7 @@ fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
             assert_eq!(retained, &condition);
             assert!(
                 module
-                    .scalar_applications
+                    .scalars.scalar_applications
                     .conditions
                     .predicates()
                     .contains(retained)

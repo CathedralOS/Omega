@@ -21,7 +21,7 @@ fn calling_policy_instances(
     String,
 > {
     let mut instances = Vec::new();
-    for request in &module.calling_policy_requests {
+    for request in &module.interfaces.calling_policy_requests {
         let declaration = *request.declaration.as_ref().map_err(Clone::clone)?;
         if module
             .identities
@@ -105,7 +105,7 @@ pub(crate) fn plan_inputs_and_review(
         }
         // Closed applications keep their original public ABI coordinate.
         for candidate in module
-            .provider_candidates
+            .interfaces.provider_candidates
             .iter()
             .filter(|row| row.boundary == identity)
         {
@@ -119,7 +119,7 @@ pub(crate) fn plan_inputs_and_review(
                     })?,
             );
         }
-        for external in module.external_providers.iter().filter(|external| {
+        for external in module.interfaces.external_providers.iter().filter(|external| {
             module.identities.text(external.realization.callable) == Some(requirement)
                 || module.identities.text(external.requirement_identity) == Some(requirement)
         }) {
@@ -223,7 +223,7 @@ pub(crate) fn plan_inputs_and_review(
     let requested_instances = calling_policy_instances(module).map_err(refuse)?;
     let mut calling_applications = Vec::new();
     let mut schemas = module
-        .provider_selections
+        .interfaces.provider_selections
         .iter()
         .filter(|choice| choice.target == profile.target_name())
         .map(|choice| (choice.schema_declaration, choice.schema_application))
@@ -488,7 +488,7 @@ mod tests {
         let mut module = terminal_psi::TerminalModule::declarations();
         assert!(calling_policy_instances(&module).unwrap().is_empty());
         module
-            .calling_policy_requests
+            .interfaces.calling_policy_requests
             .push(terminal_psi::CallingPolicyRequest {
                 declaration: Err("selected owner is unavailable".into()),
                 display_name: "selected".into(),
@@ -510,7 +510,7 @@ mod tests {
         require_unselected_calling_policy(&calling_policy_instances(&module).unwrap(), selected)
             .unwrap();
         module
-            .calling_policy_requests
+            .interfaces.calling_policy_requests
             .push(terminal_psi::CallingPolicyRequest {
                 declaration: Ok(declaration),
                 display_name: "selected".into(),

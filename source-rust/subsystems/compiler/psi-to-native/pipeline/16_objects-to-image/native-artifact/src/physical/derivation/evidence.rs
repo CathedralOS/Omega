@@ -128,7 +128,7 @@ fn derive_object_physical_evidence(
     // One current-form declaration owner serves every foreign result in this
     // receiving pass; no call reconstructs an index from claimed result rows.
     let result_geometry =
-        calling_conventions::terminal_layout::NativeGeometry::new(&module.structural_types)
+        calling_conventions::terminal_layout::NativeGeometry::new(&module.types.structural_types)
             .map_err(|_| "physical result declarations have invalid identities")?;
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
@@ -232,7 +232,7 @@ fn derive_object_physical_evidence(
     }
 
     let boundary_identities = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .map(|boundary| {
             (

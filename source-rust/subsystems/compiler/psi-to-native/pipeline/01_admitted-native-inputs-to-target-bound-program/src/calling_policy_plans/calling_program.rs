@@ -185,7 +185,7 @@ impl CallingProgram {
                         .artifact
                         .view()
                         .module()
-                        .scalar_applications
+                        .scalars.scalar_applications
                         .proof_scope
                         .callable_declaration(terminal_psi::TargetMachineCallable::Machine(entry))
                         .ok_or("calling policy entry has no exact checked proof declaration")?;
@@ -194,13 +194,13 @@ impl CallingProgram {
                             declaration,
                             applications: demand.applications(),
                         },
-                        terminal_work::WorkMeter::with_invocation(account.clone(), None)
+                        evaluation_work::sponsored_meter(account.clone(), None)
                             .map_err(|error| format!("calling ABI scalar work: {error:?}"))?,
                     )
                 }
                 CallingStorageScope::Description => (
                     super::scalar_completion::CallingScalarScope::AbiStorage(demand),
-                    terminal_work::WorkMeter::with_budget(CALLING_EVALUATION_WORK),
+                    evaluation_work::unsponsored_meter(Some(CALLING_EVALUATION_WORK)),
                 ),
             };
             let completed = super::scalar_completion::complete_calling_scalar_inputs(

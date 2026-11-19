@@ -24,7 +24,7 @@ pub(super) fn resolve_installation_reach(
     let fail = |reason: String| vec![Diagnostic::error(reason)];
     if installation_requirements.is_empty() {
         return if module
-            .root_service_reach
+            .interfaces.root_service_reach
             .installation_dependencies
             .is_empty()
         {
@@ -42,10 +42,10 @@ pub(super) fn resolve_installation_reach(
     };
     let service_name = |id| {
         module
-            .services
+            .interfaces.services
             .binary_search_by_key(&id, |service| service.id)
             .ok()
-            .and_then(|index| module.identities.text(module.services[index].identity))
+            .and_then(|index| module.identities.text(module.interfaces.services[index].identity))
             .filter(|name| !name.is_empty())
             .map(str::to_owned)
             .ok_or_else(|| fail(format!("installation reach lost exact service {id:?}")))

@@ -60,7 +60,7 @@ pub(crate) fn prepare<'input>(
         for initializer in request.private_entry_ram {
             let row = artifact
                 .semantic_module()
-                .access_view_inputs
+                .access.access_view_inputs
                 .iter()
                 .find(|row| row.machine == entry && row.position == initializer.position)
                 .ok_or_else(|| {
@@ -140,7 +140,7 @@ fn validate_installation_environment_inputs(
             ));
         }
         if !module
-            .installed_interrupt_registrations
+            .interfaces.installed_interrupt_registrations
             .iter()
             .any(|row| row.operation == assumption.installation())
         {

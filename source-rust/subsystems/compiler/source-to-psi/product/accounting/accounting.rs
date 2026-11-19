@@ -128,7 +128,7 @@ impl PureTerminalEvaluationReceipt {
         site: SourceInvocationSite<'_>,
         program: Arc<ProducedTerminalProgram>,
         admission: evaluation_admission::AdmittedCompilerEvaluation,
-        meter: &terminal_work::WorkMeter,
+        meter: &evaluation_work::EvaluationWorkMeter,
         result: SourceInvocationResult<'_>,
     ) -> Result<Self, String> {
         let SourceInvocationSite {
@@ -144,7 +144,7 @@ impl PureTerminalEvaluationReceipt {
             return Err("source invocation belongs to a different requesting program".into());
         }
         let account = meter
-            .invocation_account()
+            .payment().invocation()
             .ok_or("source invocation requires its actual sponsor")?
             .clone();
         let usage = meter.usage().clone();
@@ -509,7 +509,7 @@ impl SourceCompletionAccounting {
         site: SourceInvocationSite<'_>,
         program: Arc<ProducedTerminalProgram>,
         admission: evaluation_admission::AdmittedCompilerEvaluation,
-        meter: &terminal_work::WorkMeter,
+        meter: &evaluation_work::EvaluationWorkMeter,
         run: Result<build_invocation::InvocationOutcome, String>,
         complete: impl FnOnce(build_invocation::InvocationValue) -> Result<T, String>,
     ) -> Result<(T, evaluation_contracts::BuildEvaluationUsage), String> {

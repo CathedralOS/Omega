@@ -65,7 +65,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
     );
     let module = &accepted.elaboration.module;
     let primitive = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|boundary| {
             matches!(

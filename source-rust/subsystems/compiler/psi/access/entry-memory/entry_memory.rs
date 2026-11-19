@@ -110,7 +110,7 @@ pub fn admit_private_entry_ram(
 ) -> Result<CheckedPrivateEntryRamRecipe, String> {
     let module = artifact.module();
     if recipe.input.machine != entry
-        || !module.access_view_inputs.contains(&recipe.input)
+        || !module.access.access_view_inputs.contains(&recipe.input)
         || !matches!(
             recipe.input.access,
             terminal_psi::StructuralAccess::SharedBorrow
@@ -132,13 +132,13 @@ pub fn admit_private_entry_ram(
         .map_err(|reason| format!("private entry RAM lost selected geometry: {reason:?}"))?;
     let declarations = geometry.declarations().cloned().collect::<Vec<_>>();
     let plan = module
-        .access_view_plans
+        .access.access_view_plans
         .iter()
         .find(|plan| plan.carrier == parameter.structural_type)
         .ok_or("private entry RAM has no exact placed plan")?;
     let correspondence = terminal_semantics::access_ram_plan_correspondence(
         &declarations,
-        &module.access_view_plans,
+        &module.access.access_view_plans,
         plan,
         plan.schema,
     )?;
@@ -158,7 +158,7 @@ pub fn admit_private_entry_ram(
         );
     }
     if module
-        .structural_domains
+        .types.structural_domains
         .iter()
         .any(|domain| domain.carrier == plan.schema)
     {

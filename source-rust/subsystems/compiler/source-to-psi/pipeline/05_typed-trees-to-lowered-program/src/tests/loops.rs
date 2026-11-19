@@ -149,7 +149,7 @@ fn a_machine_that_calls_itself_in_terminal_position_is_a_head_block_and_a_jump_b
     // A member with no `requires` has no declared invariant. Each jump into
     // its head still owes an arrival, as every edge that passes arguments
     // does; with no predicate on the head its goal is `Truth`.
-    assert!(elaboration.module.scalar_block_invariants.is_empty());
+    assert!(elaboration.module.proofs.scalar_block_invariants.is_empty());
     let jumps: Vec<_> = lowered
         .blocks
         .iter()
@@ -198,7 +198,7 @@ fn a_members_requires_is_its_heads_invariant_owed_on_every_arrival() {
             predicate,
             arrivals,
         },
-    ] = elaboration.module.scalar_block_invariants.as_slice()
+    ] = elaboration.module.proofs.scalar_block_invariants.as_slice()
     else {
         panic!("one invariant row");
     };
@@ -279,7 +279,7 @@ fn every_member_of_a_component_holds_the_whole_component_in_its_own_graph() {
         // the entry too.
         let rows: Vec<_> = elaboration
             .module
-            .scalar_block_invariants
+            .proofs.scalar_block_invariants
             .iter()
             .filter(|row| row.machine == id(raw))
             .collect();
@@ -294,7 +294,7 @@ fn every_member_of_a_component_holds_the_whole_component_in_its_own_graph() {
     assert!(
         elaboration
             .module
-            .scalar_block_invariants
+            .proofs.scalar_block_invariants
             .windows(2)
             .all(|pair| (pair[0].machine, pair[0].header) < (pair[1].machine, pair[1].header))
     );

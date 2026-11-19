@@ -1973,7 +1973,7 @@ fn a_primitive_result_cannot_replace_a_policy_establishment_edge() {
             .unwrap();
         let coercion = lowered
             .module
-            .scalar_qualifications
+            .types.scalar_qualifications
             .coercions
             .iter()
             .find(|row| row.machine == machine && row.source == result)
@@ -2006,7 +2006,7 @@ fn a_primitive_result_cannot_replace_a_policy_establishment_edge() {
         // cannot be the reason this malformed module is refused.
         lowered
             .module
-            .scalar_qualifications
+            .types.scalar_qualifications
             .coercions
             .retain(|row| row.machine != machine || row.source != result);
         let error =

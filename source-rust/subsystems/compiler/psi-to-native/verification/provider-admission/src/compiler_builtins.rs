@@ -239,10 +239,10 @@ pub(super) fn settle_compiler_builtins<'request>(
             } => {
                 let module = input.module();
                 let demand = terminal_semantics::accessor_scalar_boundary_demand(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     &module.identities,
-                    &module.access_view_plans,
-                    &module.boundary_machines,
+                    &module.access.access_view_plans,
+                    &module.interfaces.boundary_machines,
                     boundary.id,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -530,7 +530,7 @@ fn validate_access_schema(
         return Err(invalid());
     }
     let placement = module
-        .access_view_plans
+        .access.access_view_plans
         .iter()
         .find(|placement| placement.carrier == demand.carrier)
         .ok_or_else(invalid)?;

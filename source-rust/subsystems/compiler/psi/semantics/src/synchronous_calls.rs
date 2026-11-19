@@ -165,7 +165,7 @@ impl<'module> SynchronousCallGraph<'module> {
                                 terminal_callable_values_with_boundary_implementations,
                             };
                             let mut implementations = Vec::new();
-                            for boundary in &self.module.boundary_machines {
+                            for boundary in &self.module.interfaces.boundary_machines {
                                 if let Some(machine) = self.boundary_callee(boundary.id)? {
                                     implementations.push(CallableBoundaryImplementation {
                                         boundary: boundary.id,
@@ -211,7 +211,7 @@ impl<'module> SynchronousCallGraph<'module> {
                             {
                                 for ceiling in &values.unresolved_ceilings {
                                     let contract =
-                                        self.module.callables.contract(*ceiling).ok_or(
+                                        self.module.execution.callables.contract(*ceiling).ok_or(
                                             "synchronous computed call has no exact contract",
                                         )?;
                                     if !contract.envelope.invocations.is_empty() {
@@ -262,7 +262,7 @@ impl<'module> SynchronousCallGraph<'module> {
         finite_family: bool,
     ) -> Result<Vec<MachineId>, String> {
         let mut callees = Vec::new();
-        let catalog = &self.module.dynamic_dispatch;
+        let catalog = &self.module.execution.dynamic_dispatch;
         let interface = catalog
             .interface(interface_id)
             .ok_or("synchronous dynamic call has no interface")?;
@@ -349,14 +349,14 @@ mod tests {
             });
         }
         module
-            .dynamic_dispatch
+            .execution.dynamic_dispatch
             .interfaces
             .push(TerminalDynamicInterface {
                 id: 0,
                 identity: interface_identity,
                 slots,
             });
-        module.dynamic_dispatch.tables.push(TerminalDynamicTable {
+        module.execution.dynamic_dispatch.tables.push(TerminalDynamicTable {
             id: 0,
             interface: 0,
             implementation_identity: identities.intern("Selected"),

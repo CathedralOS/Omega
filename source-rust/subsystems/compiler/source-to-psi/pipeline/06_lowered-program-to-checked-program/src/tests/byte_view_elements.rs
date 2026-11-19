@@ -859,7 +859,7 @@ fn a_subslice_cannot_claim_another_measurement_or_mutable_access() {
                 input.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
                 let declaration = changed
                     .module
-                    .structural_types
+                    .types.structural_types
                     .iter_mut()
                     .find(|row| row.id == input.structural_type)
                     .unwrap();
@@ -1097,7 +1097,7 @@ fn an_empty_byte_window_requires_existing_array_backing() {
         RouteVerdict::Accepted(accepted) => accepted,
         other => panic!("{other:?}"),
     };
-    let types = &mut accepted.elaboration.module.structural_types;
+    let types = &mut accepted.elaboration.module.types.structural_types;
     let array = types
         .iter()
         .find(|row| {
@@ -1205,7 +1205,7 @@ fn a_byte_store_cannot_claim_another_measurement_or_access() {
         let mut changed = elaborate();
         let array_type = changed
             .module
-            .structural_types
+            .types.structural_types
             .iter()
             .find(|row| {
                 matches!(

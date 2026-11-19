@@ -185,7 +185,7 @@ impl CanonicalCallingSignature {
         // External completion must retain the exact declared logical result,
         // even when that result has no physical calling slot.
         for binding in module
-            .calling_signatures
+            .interfaces.calling_signatures
             .iter()
             .filter(|binding| binding.application.as_ref() == Ok(&declaration))
         {
@@ -208,7 +208,7 @@ impl CanonicalCallingSignature {
                 terminal_semantics::inhabitation::external_result_is_erased(
                     boundary.completion,
                     storage.result,
-                    &module.structural_types,
+                    &module.types.structural_types,
                 )?;
             }
         }
@@ -219,7 +219,7 @@ impl CanonicalCallingSignature {
         // independently of how many executable calls use that application.
         let physical_result = match storage.result {
             Some(result) => {
-                let contracts = TerminalContracts::new(&module.structural_types);
+                let contracts = TerminalContracts::new(&module.types.structural_types);
                 let inhabitation = Inhabitation::prepare(&contracts)
                     .map_err(|error| format!("calling result domain is malformed: {error:?}"))?;
                 (inhabitation.status(result) != Status::ProvedEmpty).then_some(result)
@@ -245,7 +245,7 @@ impl CanonicalCallingSignature {
             .into_iter()
             .map(|occurrence| {
                 let selection = module
-                    .opaque_representations
+                    .types.opaque_representations
                     .get(occurrence.selection_ordinal)
                     .ok_or("boundary opaque occurrence lost its exact canonical selection")?;
                 Ok(CanonicalOpaqueUse {

@@ -8,7 +8,7 @@ use terminal_interpreter::{
     TerminalInstantiation, TerminalProgram, TerminalScalarApplicationRequest,
 };
 use terminal_semantics::entry_values::TerminalScalarValue;
-use terminal_work::WorkMeter;
+use evaluation_work::EvaluationWorkMeter;
 
 mod demand;
 
@@ -47,7 +47,7 @@ pub fn evaluate_scalar_applications<'artifact, 'scope>(
     value_scope: impl Into<Option<&'scope str>>,
     requested: &[ScalarApplicationId],
     address_model: Option<&semantic_vocabulary::ScalarAddressModel>,
-    meter: &mut WorkMeter,
+    meter: &mut EvaluationWorkMeter,
 ) -> Result<ScalarConditionSelection<'artifact>, String> {
     evaluate_scope(
         observations,
@@ -139,7 +139,7 @@ struct EntryObservation {
 fn execute_entry(
     job: &demand::Job,
     admission: &psi_scalar_applications::AdmittedScalarEntry<'_, '_>,
-    meter: &mut WorkMeter,
+    meter: &mut EvaluationWorkMeter,
 ) -> Result<EntryObservation, String> {
     let demand::Execution::Entry {
         machine,
@@ -151,7 +151,7 @@ fn execute_entry(
         return Err("scalar entry execution requires an actual entry job".into());
     };
     let observations = admission.observations();
-    let account = meter.invocation_account().cloned();
+    let account = meter.payment().invocation().cloned();
     let program = TerminalProgram::borrow(observations.artifact());
     let mut instance = program
         .instantiate(TerminalInstantiation {
@@ -219,9 +219,9 @@ pub(crate) fn evaluate_accounted_scope<'artifact>(
         import_realizations,
         |job, admission| {
             let mut meter = match sponsor {
-                Some(account) => WorkMeter::with_invocation(account.clone(), Some(ceiling))
+                Some(account) => evaluation_work::sponsored_meter(account.clone(), Some(ceiling))
                     .map_err(|error| format!("scalar evaluation sponsorship: {error:?}"))?,
-                None => WorkMeter::with_budget(ceiling),
+                None => evaluation_work::unsponsored_meter(Some(ceiling)),
             };
             let values = admission.observations().values().observed().collect();
             let result = execute_entry(job, admission, &mut meter);

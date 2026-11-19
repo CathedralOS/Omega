@@ -166,7 +166,7 @@ impl SettledSupplyNative for SettledTargetSupply {
                     "selected slot has no unique complete schema correspondence",
                 ));
             };
-            let mut schemas = module.service_schemas.iter().filter(|schema| {
+            let mut schemas = module.interfaces.service_schemas.iter().filter(|schema| {
                 module.identities.text(schema.declaration) == Some(source.declaration.as_str())
                     && module.identities.text(schema.application)
                         == source.surface.root_application_identity()
@@ -198,7 +198,7 @@ impl SettledSupplyNative for SettledTargetSupply {
                     "selected provider lost its actual boundary or machine",
                 ));
             }
-            let mut candidates = module.provider_candidates.iter().filter(|candidate| {
+            let mut candidates = module.interfaces.provider_candidates.iter().filter(|candidate| {
                 candidate.boundary == requirement.reached.boundary && candidate.candidate == machine
             });
             let (Some(candidate), None) = (candidates.next(), candidates.next()) else {
@@ -206,7 +206,7 @@ impl SettledSupplyNative for SettledTargetSupply {
                     "selected provider realization has no unique exact checked candidate",
                 ));
             };
-            let mut choices = module.provider_selections.iter().filter(|choice| {
+            let mut choices = module.interfaces.provider_selections.iter().filter(|choice| {
                 choice.target == target
                     && choice.schema_declaration == schema.declaration
                     && choice.schema_application == schema.application

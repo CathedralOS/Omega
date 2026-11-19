@@ -143,7 +143,7 @@ pub(crate) mod native_geometry {
             let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
             let identity = identities.intern("native_closed_input");
             module.identities = identities.build();
-            module.structural_types.push(StructuralTypeDeclaration {
+            module.types.structural_types.push(StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 id: StructuralTypeId::new(1).unwrap(),
                 identity,

@@ -216,14 +216,14 @@ fn multiple_provider_declarations_publish_in_portable_order() {
         }
     }
     let accepted = accepted.expect("the runtime closure");
-    assert_eq!(accepted.elaboration.module.provider_candidates.len(), 6);
+    assert_eq!(accepted.elaboration.module.interfaces.provider_candidates.len(), 6);
     let publication = accepted.publish().expect("all provider rows publish");
     let artifact = publication.artifact;
     let restored = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("the published provider roster decodes");
     assert_eq!(
-        restored.semantic_module().provider_candidates,
-        accepted.elaboration.module.provider_candidates,
+        restored.semantic_module().interfaces.provider_candidates,
+        accepted.elaboration.module.interfaces.provider_candidates,
     );
 }
 

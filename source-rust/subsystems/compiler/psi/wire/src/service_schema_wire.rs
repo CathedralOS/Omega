@@ -339,12 +339,12 @@ mod tests {
 
         let mut module = TerminalModule::declarations();
         module.identities = names.build();
-        module.service_schemas.push(decoded.clone());
+        module.interfaces.service_schemas.push(decoded.clone());
         assert!(module.service_schema(declaration, application).is_ok());
-        module.service_schemas.push(decoded);
+        module.interfaces.service_schemas.push(decoded);
         assert!(module.service_schema(declaration, application).is_err());
-        module.service_schemas.pop();
-        Arc::make_mut(&mut module.service_schemas[0].surface).methods[0].synchronous_invocations
+        module.interfaces.service_schemas.pop();
+        Arc::make_mut(&mut module.interfaces.service_schemas[0].surface).methods[0].synchronous_invocations
             [0] = ServiceSynchronousInvocation::Parameter(1);
         assert!(
             module
@@ -363,9 +363,9 @@ mod tests {
                 "unit",
             )
             .unwrap();
-        module.service_schemas = vec![no_result];
+        module.interfaces.service_schemas = vec![no_result];
         assert!(module.service_schema(declaration, application).is_ok());
-        Arc::make_mut(&mut module.service_schemas[0].surface).methods[0].has_result = true;
+        Arc::make_mut(&mut module.interfaces.service_schemas[0].surface).methods[0].has_result = true;
         assert!(module.service_schema(declaration, application).is_err());
     }
 

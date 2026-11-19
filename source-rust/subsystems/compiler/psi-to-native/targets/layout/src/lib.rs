@@ -132,11 +132,11 @@ pub fn terminal_layout_identity(
     target: TargetProfile,
 ) -> Result<Option<TerminalLayoutIdentity<'_>>, String> {
     let native = module
-        .native_layouts
+        .layouts.native_layouts
         .record(record)
         .ok_or("native layout lost its canonical record association")?;
     let Some(realization) = module
-        .native_layouts
+        .layouts.native_layouts
         .for_target(native, target.target_name())?
     else {
         return Ok(None);
@@ -202,7 +202,7 @@ impl RecordStorageResolver for TerminalRecordStorage<'_> {
     ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
         let application = self
             .module
-            .target_layout_applications
+            .layouts.target_layout_applications
             .iter()
             .find(|row| row.id == application && row.record == record)
             .ok_or(StorageGeometryError::UnresolvedLayout(record))?;

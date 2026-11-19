@@ -74,7 +74,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     else {
         return Err("installed D41 settlement owner is not a Terminal boundary call");
     };
-    let declaration = terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
+    let declaration = terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, *boundary)
         .ok_or("installed D41 settlement names an absent boundary")?;
     if *boundary != occurrence.boundary()
         || settlement.invocation_site != occurrence.invocation_site()

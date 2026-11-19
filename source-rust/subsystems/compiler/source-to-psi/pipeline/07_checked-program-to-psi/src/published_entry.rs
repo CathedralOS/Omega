@@ -8,7 +8,7 @@ pub(super) fn issue(
 ) -> terminal_psi::PublishedEntryMetadata {
     let module = artifact.semantic_module();
     let mut entry_custody = Vec::new();
-    for entry in &module.program_entry_contracts {
+    for entry in &module.interfaces.program_entry_contracts {
         let declaration = entry.schema_declaration;
         if entry_custody.iter().any(|(known, _)| *known == declaration) {
             continue;
@@ -25,7 +25,7 @@ pub(super) fn issue(
     }
 
     let mut calling: Vec<_> = module
-        .calling_policy_requests
+        .interfaces.calling_policy_requests
         .iter()
         .filter_map(|request| request.declaration.as_ref().ok().copied())
         .collect();

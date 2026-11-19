@@ -74,13 +74,13 @@ pub fn admit_component_provider<'receiver>(
     let receiver = receiver.into();
     let receiving = receiver
         .module()
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|row| row.id == receiving_boundary)
         .ok_or("component import names no receiving boundary")?;
     let supplying = provider
         .module()
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|row| row.id == selected.boundary)
         .ok_or("component export names no producing boundary")?;

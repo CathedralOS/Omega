@@ -78,7 +78,7 @@ pub fn selected_reference_result(
                 && schema.realization_identity == dispatch.realization_identity
         })
         .ok_or("selected reference result lost its original public definition")?;
-    let declared = declared_reference_result(&module.structural_types, contract)?;
+    let declared = declared_reference_result(&module.types.structural_types, contract)?;
     if definition::result_lifetimes(module, contract, schema)? != declared.groups {
         return Err("selected result lifetimes differ from the original public definition");
     }
@@ -98,10 +98,10 @@ pub fn requirement_reference_result(
     if !machine.blocks.is_empty() {
         return Ok(None);
     }
-    let declared = declared_reference_result(&module.structural_types, &machine.contract)?;
+    let declared = declared_reference_result(&module.types.structural_types, &machine.contract)?;
     if let Some(result) = machine.contract.result.structural()
         && crate::borrowed_result_leaves(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             result.structural_type,
             result.multiplicity,
             declared.leaves,

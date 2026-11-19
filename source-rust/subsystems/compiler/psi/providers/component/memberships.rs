@@ -77,11 +77,11 @@ fn admit_memberships(
 ) -> Result<Memberships, String> {
     let mut bindings = Vec::new();
     for source in source_module
-        .structural_domains
+        .types.structural_domains
         .iter()
         .filter(|row| row.carrier == source_type)
     {
-        let mut matches = target_module.structural_domains.iter().filter(|row| {
+        let mut matches = target_module.types.structural_domains.iter().filter(|row| {
             row.carrier == target_type && same_domain(source_module, source, target_module, row)
         });
         if let Some(destination) = matches.next() {
@@ -115,10 +115,10 @@ fn same_domain(
     target: &StructuralDomainDeclaration,
 ) -> bool {
     if source
-        .required_domain_closure(&left.structural_domains)
+        .required_domain_closure(&left.types.structural_domains)
         .is_none()
         || target
-            .required_domain_closure(&right.structural_domains)
+            .required_domain_closure(&right.types.structural_domains)
             .is_none()
     {
         return false;
@@ -177,7 +177,7 @@ fn required_domain<'a>(
     domain: semantic_vocabulary::DomainSemanticId,
 ) -> Option<&'a StructuralDomainDeclaration> {
     let mut matches = module
-        .structural_domains
+        .types.structural_domains
         .iter()
         .filter(|row| row.semantic_domain == domain && row.carrier == child.carrier);
     let row = matches.next()?;
@@ -206,7 +206,7 @@ fn same_domain_definition(
     };
     let carrier = |module: &TerminalModule, id| {
         module
-            .structural_types
+            .types.structural_types
             .iter()
             .find(|row| row.id == id)
             .map(|row| row.identity)
@@ -233,12 +233,12 @@ fn same_domain_definition(
         (Some(a), Some(b))
             if a.proposition == b.proposition
                 && terminal_semantics::domain_predicate_observes_no_storage(
-                    left.structural_types.iter(),
+                    left.types.structural_types.iter(),
                     source.carrier,
                     a,
                 )
                 && terminal_semantics::domain_predicate_observes_no_storage(
-                    right.structural_types.iter(),
+                    right.types.structural_types.iter(),
                     target.carrier,
                     b,
                 ) => {}
@@ -307,7 +307,7 @@ mod tests {
         let carrier = StructuralTypeId::new(carrier).unwrap();
         let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
         module.identities = identities.build();
-        module.structural_types.push(StructuralTypeDeclaration {
+        module.types.structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             requires: Vec::new(),
             id: carrier,
@@ -324,7 +324,7 @@ mod tests {
                 fields: Vec::new(),
             },
         });
-        module.structural_domains.push(StructuralDomainDeclaration {
+        module.types.structural_domains.push(StructuralDomainDeclaration {
             subject_identity: Default::default(),
             access_policy: None,
             required_memberships: Some(Vec::new()),
@@ -360,8 +360,8 @@ mod tests {
         };
         let mut module = module(carrier, carrier, pad, false);
         let mut identities = std::mem::take(&mut module.identities).into_builder();
-        module.structural_types[0].declaration_identity = identities.intern("test::Cell");
-        module.structural_domains[0].subject_identity = identities.intern("test::Cell");
+        module.types.structural_types[0].declaration_identity = identities.intern("test::Cell");
+        module.types.structural_domains[0].subject_identity = identities.intern("test::Cell");
         let root = SchemaNodeHandle::from_index(1);
         let left = SchemaNodeHandle::from_index(2);
         let right = SchemaNodeHandle::from_index(3);
@@ -394,7 +394,7 @@ mod tests {
         let region = if with_cases {
             let case = StructuralCaseId::new(carrier + 1).unwrap();
             let key = identities.intern("value");
-            module.structural_types[0].shape = StructuralTypeShape::Sum {
+            module.types.structural_types[0].shape = StructuralTypeShape::Sum {
                 cases: vec![
                     StructuralCaseDeclaration {
                         declaration_identity: identities.intern("test::Cell::Left"),
@@ -466,7 +466,7 @@ mod tests {
             },
         )
         .unwrap();
-        module.structural_domains[0].access_policy =
+        module.types.structural_domains[0].access_policy =
             Some(terminal_psi::StructuralDomainAccessPlan {
                 schema,
                 issuance: None,

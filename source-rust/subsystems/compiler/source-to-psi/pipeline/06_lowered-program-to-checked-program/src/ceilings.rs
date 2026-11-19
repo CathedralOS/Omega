@@ -186,7 +186,7 @@ fn service_row(
     }
     for service in row {
         let declaration = module
-            .services
+            .interfaces.services
             .iter()
             .find(|declaration| declaration.id == *service)
             .ok_or_else(|| fault(machine, "published row names an undeclared service"))?;
@@ -217,7 +217,7 @@ fn machine_envelope<'a>(
     elaboration: &'a terminal_check_tables::program::Elaboration,
     machine: MachineId,
 ) -> Checked<Envelope<'a>> {
-    let runtime = elaboration.module.callables.machine_envelope(machine);
+    let runtime = elaboration.module.execution.callables.machine_envelope(machine);
     if let Ok(position) = elaboration
         .check_form_envelopes
         .binary_search_by_key(&machine, |row| row.machine)
@@ -241,8 +241,8 @@ fn machine_envelope<'a>(
         ));
     }
     if !elaboration.requirements.is_empty()
-        && elaboration.module.callables.contracts.is_empty()
-        && elaboration.module.callables.descriptors.is_empty()
+        && elaboration.module.execution.callables.contracts.is_empty()
+        && elaboration.module.execution.callables.descriptors.is_empty()
         && let Some(envelope) = elaboration.requirement_ceilings.get(machine)
     {
         return Ok(Envelope::Abstract(envelope));
@@ -266,7 +266,7 @@ fn envelope_for<'a>(
                     .invocation_machine_contract(machine, Some(required))
                     .ok_or_else(|| fault(caller, "selected call has no exact public contract"))?;
                 module
-                    .callables
+                    .execution.callables
                     .declaration_envelope(required)
                     .map(Envelope::Runtime)
                     .ok_or_else(|| {
@@ -280,7 +280,7 @@ fn envelope_for<'a>(
             }
         }
         Callee::Declared(TargetMachineCallable::Boundary(boundary)) => module
-            .callables
+            .execution.callables
             .boundary_envelope(boundary)
             .map(Envelope::Runtime)
             .ok_or_else(|| {
@@ -291,7 +291,7 @@ fn envelope_for<'a>(
             }),
         Callee::Selected { .. } => inputs
             .contract
-            .and_then(|contract| module.callables.contract(contract))
+            .and_then(|contract| module.execution.callables.contract(contract))
             .map(|contract| Envelope::Runtime(&contract.envelope))
             .ok_or_else(|| {
                 fault(
@@ -419,7 +419,7 @@ impl Calls<'_> {
     }
     fn contract(&self, id: CallableContractId) -> Checked<&terminal_psi::TerminalCallableContract> {
         self.module
-            .callables
+            .execution.callables
             .contract(id)
             .ok_or_else(|| self.foreign("invoked callable lost its exact contract"))
     }
@@ -491,7 +491,7 @@ impl Calls<'_> {
         for descriptor in &values.descriptors {
             let descriptor = self
                 .module
-                .callables
+                .execution.callables
                 .descriptor(*descriptor)
                 .ok_or_else(|| {
                     self.foreign("invoked value names no exact constructed descriptor")
@@ -565,7 +565,7 @@ impl Calls<'_> {
                     })?;
                 let declaration = self
                     .module
-                    .structural_types
+                    .types.structural_types
                     .iter()
                     .find(|declaration| declaration.id == formal.structural_type)
                     .ok_or_else(|| {
@@ -665,7 +665,7 @@ impl Calls<'_> {
                     .ok_or_else(|| self.foreign("tail invokes lost its structural formal"))?;
                 let declaration = self
                     .module
-                    .structural_types
+                    .types.structural_types
                     .iter()
                     .find(|declaration| declaration.id == formal.structural_type)
                     .ok_or_else(|| {
@@ -690,7 +690,7 @@ impl Calls<'_> {
                         self.foreign("tail callable actual has no source declaration")
                     })?;
                 let projected = terminal_semantics::runtime_structural_path_tip(
-                    self.module.structural_types.iter(),
+                    self.module.types.structural_types.iter(),
                     root,
                     &actual.path,
                 )
@@ -701,7 +701,7 @@ impl Calls<'_> {
                     return Err(self.foreign("tail callable actual differs from its formal"));
                 }
                 let location = terminal_semantics::descriptor_lifetimes::descriptor_location(
-                    &self.module.structural_types,
+                    &self.module.types.structural_types,
                     actual.place,
                     root,
                     &actual.path,
@@ -781,7 +781,7 @@ fn validate_check_form_envelopes(
         let machine = module
             .machine(row.machine)
             .ok_or_else(|| fault(row.machine, "check-form envelope names an unknown machine"))?;
-        if machine.declaration.is_some() || module.callables.machine_envelope(row.machine).is_some()
+        if machine.declaration.is_some() || module.execution.callables.machine_envelope(row.machine).is_some()
         {
             return Err(fault(
                 row.machine,
@@ -863,7 +863,7 @@ fn validate_requirement_envelopes(
         if requirements.binary_search(&id).is_err()
             || !machine.blocks.is_empty()
             || machine.declaration.is_some()
-            || module.callables.machine_envelope(id).is_some()
+            || module.execution.callables.machine_envelope(id).is_some()
         {
             return Err(fault(
                 id,
@@ -1034,9 +1034,9 @@ fn judge_axes(
             service_row(module, machine.id, &services, false)?;
         }
     }
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         let envelope = module
-            .callables
+            .execution.callables
             .boundary_envelope(boundary.id)
             .ok_or_else(|| fault(first, "boundary has no complete operational envelope"))?;
         well_formed_reach(module, first, &envelope.service_reach)?;
@@ -1066,10 +1066,10 @@ fn judge_axes(
             ));
         }
     }
-    for contract in &module.callables.contracts {
+    for contract in &module.execution.callables.contracts {
         well_formed_reach(module, first, &contract.envelope.service_reach)?;
     }
-    for row in &module.callables.declaration_envelopes {
+    for row in &module.execution.callables.declaration_envelopes {
         well_formed_reach(module, first, &row.envelope.service_reach)?;
     }
     if let Some(TargetMachineCallable::Machine(entry)) = module.entry
@@ -1078,14 +1078,14 @@ fn judge_axes(
         // An unresolved installation row is bounded by its requirement, not
         // an unconditional contribution to this root's concrete services.
         let root_ceiling = if module
-            .root_service_reach
+            .interfaces.root_service_reach
             .installation_dependencies
             .is_empty()
         {
-            Cow::Borrowed(module.root_service_reach.concrete.as_slice())
+            Cow::Borrowed(module.interfaces.root_service_reach.concrete.as_slice())
         } else {
-            let mut ceiling = module.root_service_reach.concrete.clone();
-            for dependency in &module.root_service_reach.installation_dependencies {
+            let mut ceiling = module.interfaces.root_service_reach.concrete.clone();
+            for dependency in &module.interfaces.root_service_reach.installation_dependencies {
                 ceiling.extend(dependency.upper_bound.iter().copied());
             }
             ceiling.sort_unstable();
@@ -1119,7 +1119,7 @@ fn judge_axes(
             .iter()
             .any(|entry| matches!(entry, Entry::Parameter(_)))
     }) || module
-        .callables
+        .execution.callables
         .machine_envelopes
         .iter()
         .flatten()
@@ -1130,7 +1130,7 @@ fn judge_axes(
                 .any(|entry| matches!(entry, Entry::Parameter(_)))
         })
         || module
-            .callables
+            .execution.callables
             .boundary_envelopes
             .iter()
             .flatten()
@@ -1141,7 +1141,7 @@ fn judge_axes(
                     .any(|entry| matches!(entry, Entry::Parameter(_)))
             });
     let needs_values = needs_values
-        || module.callables.declaration_envelopes.iter().any(|row| {
+        || module.execution.callables.declaration_envelopes.iter().any(|row| {
             row.envelope
                 .invocations
                 .iter()

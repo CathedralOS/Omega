@@ -19,6 +19,7 @@ test-support = [
 ]
 
 [dependencies]
+evaluation-work = { path = "../build/evaluation/work" }
 build-invocation = { path = "../build/evaluation/invocations" }
 evaluation-accounting = { path = "../build/evaluation/accounting" }
 evaluation-admission = { path = "../build/evaluation/admission" }

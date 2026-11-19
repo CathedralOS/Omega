@@ -54,7 +54,7 @@ pub(super) mod scalar_completion {
     use psi_scalar_applications::{
         AdmittedScalarApplications, ScalarApplicationClosure, ScalarApplicationObservations,
     };
-    use terminal_work::WorkMeter;
+    use evaluation_work::EvaluationWorkMeter;
 
     pub enum CallingScalarScope<'request> {
         Invocation {
@@ -69,7 +69,7 @@ pub(super) mod scalar_completion {
         primary: target::TargetProfile,
         request: CallingScalarScope<'_>,
         providers: &AdmittedProviderSelections,
-        meter: &mut WorkMeter,
+        meter: &mut EvaluationWorkMeter,
     ) -> Result<AdmittedScalarApplications, String> {
         let (mut closure, requested) = match &request {
             CallingScalarScope::Invocation {

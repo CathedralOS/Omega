@@ -346,7 +346,7 @@ pub(crate) mod block_bindings {
             argument: &StructuralArgument,
             mut value: TerminalStructuralValue,
         ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-            let changes = &self.program.catalogs.structural_qualification_changes;
+            let changes = &self.program.catalogs.types.structural_qualification_changes;
             let key = (self.current_machine, edge, parameter.position);
             // The canonical catalog is sorted and unique by this exact key.
             // Reuse it directly for each captured descriptor, without a new
@@ -1169,7 +1169,7 @@ pub(crate) mod block_bindings {
                 projected_qualifications: Vec::new(),
                 additional_input_qualifications: Vec::new(),
             };
-            module.structural_types.push(StructuralTypeDeclaration {
+            module.types.structural_types.push(StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 quotient_carrier: None,
                 id: structural_type,
@@ -1185,7 +1185,7 @@ pub(crate) mod block_bindings {
                 scalar_restriction: None,
                 requires: Vec::new(),
             });
-            module.structural_domains.push(StructuralDomainDeclaration {
+            module.types.structural_domains.push(StructuralDomainDeclaration {
                 required_memberships: Some(Vec::new()),
                 complete_predicate_theory: true,
                 predicate: None,
@@ -1237,7 +1237,7 @@ pub(crate) mod block_bindings {
             block.structural_parameters.push(parameter.clone());
             machine.blocks.push(block);
             module
-                .structural_qualification_changes
+                .types.structural_qualification_changes
                 .push(StructuralQualificationChange {
                     machine: machine.id,
                     edge,
@@ -1329,7 +1329,7 @@ pub(crate) mod block_bindings {
                 .unwrap()
                 .fixture_module_mut();
             let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-            let domain = &mut module.structural_domains[0];
+            let domain = &mut module.types.structural_domains[0];
             domain.byte_predicate = None;
             domain.predicate = Some(terminal_psi::StructuralDomainPredicate {
                 subject: PlaceId::new(1).unwrap(),
@@ -1420,7 +1420,7 @@ pub(crate) mod block_bindings {
                 let module = std::sync::Arc::get_mut(&mut execution.program)
                     .unwrap()
                     .fixture_module_mut();
-                let changes = &mut module.structural_qualification_changes;
+                let changes = &mut module.types.structural_qualification_changes;
                 match invalid {
                     0 => changes[0].argument_ordinal = 1,
                     1 => changes[0].source = PlaceId::new(3).unwrap(),
@@ -1893,7 +1893,7 @@ pub(crate) mod structural_return {
         pub(crate) fn settle_return_structural(
             &mut self,
             terminator: &Terminator,
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
         ) -> Result<TerminatorFlow, TerminalInterpretError> {
             self.reject_no_normal_return()?;
             let Terminator::ReturnStructural {
@@ -2409,7 +2409,7 @@ use terminal_psi::{
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralPathSegment, TerminalMachineResult, Terminator,
 };
-use terminal_work::WorkMeter;
+use terminal_work::ExecutionMeter;
 
 struct SelectedSuccessor<'edge> {
     edge: EdgeId,
@@ -2423,7 +2423,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_invoke_no_normal(
         &mut self,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::InvokeNoNormal {
             edge,
@@ -2479,7 +2479,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_jump(
         &mut self,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::Jump {
             edge,
@@ -2509,7 +2509,7 @@ impl TerminalExecution<'_> {
         &mut self,
         successor: SelectedSuccessor<'_>,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let scalars = self.scalar_values_at(successor.arguments)?;
         self.settle_successor_with_scalars(successor, &scalars, terminator, meter)
@@ -2520,7 +2520,7 @@ impl TerminalExecution<'_> {
         successor: SelectedSuccessor<'_>,
         scalars: &[TerminalScalarValue],
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let SelectedSuccessor {
             edge,
@@ -2580,7 +2580,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_conditional(
         &mut self,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::Conditional {
             condition,
@@ -2611,7 +2611,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_structural_case(
         &mut self,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::StructuralCase {
             source,
@@ -2694,7 +2694,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_return(
         &mut self,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         self.reject_no_normal_return()?;
         let Terminator::Return {
@@ -2729,7 +2729,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_return_unit(
         &mut self,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         self.reject_no_normal_return()?;
         let Terminator::ReturnUnit {
@@ -2759,7 +2759,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_crash(
         &mut self,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::Crash {
             edge,
@@ -2792,7 +2792,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn settle_external_completion(
         &mut self,
         terminator: &Terminator,
-        meter: &mut WorkMeter,
+        meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::ExternalCompletion {
             edge,

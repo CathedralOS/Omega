@@ -50,7 +50,7 @@ fn header_matches_boundary(
 
 pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
     if elaboration.external_provider_candidates.is_empty()
-        && elaboration.module.external_providers.is_empty()
+        && elaboration.module.interfaces.external_providers.is_empty()
     {
         return Ok(());
     }
@@ -84,7 +84,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             detail,
         )
     };
-    if !elaboration.module.external_providers.is_empty() {
+    if !elaboration.module.interfaces.external_providers.is_empty() {
         return Err(refuse("checked native conformances were already published"));
     }
     let mut checked = Vec::with_capacity(elaboration.external_provider_candidates.len());
@@ -233,7 +233,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             })?;
         }
         let native_headers = module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .filter(|boundary| {
                 boundary.declaration.as_ref().is_some_and(|declaration| {
@@ -278,6 +278,6 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             "native conformance has duplicate exact source candidates",
         ));
     }
-    elaboration.module.external_providers = checked;
+    elaboration.module.interfaces.external_providers = checked;
     Ok(())
 }

@@ -16,7 +16,7 @@ impl FoldedTargetProgram {
         accepted_evidence: Option<&EvidenceSeals>,
         folded: terminal_psi::FoldedConstantClosure,
     ) -> Result<Self, String> {
-        if original.semantic_module().folded_constants.target.is_some()
+        if original.semantic_module().scalars.folded_constants.target.is_some()
             || !original.optimization().selections().is_empty()
         {
             return Err("folded constant custody requires an unbound portable product".into());
@@ -24,7 +24,7 @@ impl FoldedTargetProgram {
         let prior = original.view();
         folded.validate(prior.module()).map_err(str::to_owned)?;
         let mut module = prior.module().clone();
-        module.folded_constants = folded;
+        module.scalars.folded_constants = folded;
         let debug = original
             .debug_bytes()
             .map(|bytes| terminal_codec::decode_debug_map(prior.module(), bytes))
@@ -108,7 +108,7 @@ impl FoldedEntryReach {
         let root = module.program_entry_contract(target)?.entry;
         let mut selected = Vec::new();
         let mut reached = Default::default();
-        if !module.scalar_applications.declarations().is_empty() {
+        if !module.scalars.scalar_applications.declarations().is_empty() {
             selected = bindings
                 .iter()
                 .map(|binding| (binding.boundary, binding.machine))
@@ -136,7 +136,7 @@ impl FoldedEntryReach {
             return Err("folded scalar entry belongs to another program or deployment".into());
         }
         let module = artifact.module();
-        if module.scalar_applications.declarations().is_empty() {
+        if module.scalars.scalar_applications.declarations().is_empty() {
             return Ok(Default::default());
         }
         let rows = selected_checked_invocation_rows(plans, module)?;
@@ -199,7 +199,7 @@ pub(crate) fn folded_constant_dependencies(
     plans: &[ProviderPlan],
     roots: &[semantic_vocabulary::MachineId],
 ) -> Result<terminal_psi::FoldedConstantClosure, String> {
-    if roots.is_empty() || module.scalar_applications.declarations().is_empty() {
+    if roots.is_empty() || module.scalars.scalar_applications.declarations().is_empty() {
         return Ok(Default::default());
     }
     let rows = selected_checked_invocation_rows(plans, module)?;

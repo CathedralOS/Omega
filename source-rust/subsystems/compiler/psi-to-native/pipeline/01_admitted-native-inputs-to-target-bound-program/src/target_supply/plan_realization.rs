@@ -216,7 +216,7 @@ fn direct_leaves(
 ) -> Result<Vec<direct_boundary_bindings::DirectBoundaryLeaf>, String> {
     let mut leaves = Vec::new();
     let mut declarations = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .filter_map(|boundary| {
             boundary.declaration.as_ref().map(|source| {
@@ -229,7 +229,7 @@ fn direct_leaves(
         .collect::<Vec<_>>();
     declarations.sort_by_key(|(key, _)| *key);
     let mut requirements = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .filter_map(|boundary| {
             boundary.declaration.as_ref().map(|source| {
@@ -241,14 +241,14 @@ fn direct_leaves(
         })
         .collect::<Vec<_>>();
     requirements.sort_by_key(|(key, _)| *key);
-    let mut schemas = module.service_schemas.iter().collect::<Vec<_>>();
+    let mut schemas = module.interfaces.service_schemas.iter().collect::<Vec<_>>();
     schemas.sort_by_key(|schema| schema.declaration);
     let mut foreign_bindings = external
         .iter()
         .filter(|row| row.target_name == target)
         .collect::<Vec<_>>();
     foreign_bindings.sort_by_key(|row| row.requirement_identity.as_str());
-    for row in &module.external_providers {
+    for row in &module.interfaces.external_providers {
         if row
             .target
             .as_deref()

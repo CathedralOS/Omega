@@ -26,8 +26,8 @@ use terminal_psi::TerminalModule;
 mod demand;
 mod package_review;
 pub use demand::SourceProviderFacts;
-pub use psi_provider_selections::publication::{
-    SourceNativeBinding, SourcePackageReviewRequirements, SourceProviderDemand,
+pub use source_provider_publication::{
+    PublishedTargetProviders, SourceNativeBinding, SourcePackageReviewRequirements, SourceProviderDemand,
 };
 
 pub use psi_provider_selections::logical_reach::ClosedLogicalProviderReach;
@@ -179,7 +179,7 @@ impl PreparedTargetSupply {
         // but never become provider-selection slots. Their consumer joins the
         // explicit canonical requirement link when it realizes the operation.
         let provider_declarations = module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .filter(|boundary| !is_direct_compiler_primitive(boundary))
             .count();
@@ -556,25 +556,25 @@ fn selection_declarations(
 fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
     [
         (
-            !module.external_providers.is_empty(),
+            !module.interfaces.external_providers.is_empty(),
             "an external provider realization",
         ),
         (
-            !module.provider_instance_requirements.is_empty(),
+            !module.interfaces.provider_instance_requirements.is_empty(),
             "a provider instance",
         ),
         (
-            !module.boundary_application_candidates.is_empty()
-                || !module.boundary_application_demands.is_empty(),
+            !module.interfaces.boundary_application_candidates.is_empty()
+                || !module.interfaces.boundary_application_demands.is_empty(),
             "an applied boundary requirement",
         ),
         (
-            !module.callback_applications.is_empty()
-                || !module.installed_interrupt_registrations.is_empty(),
+            !module.interfaces.callback_applications.is_empty()
+                || !module.interfaces.installed_interrupt_registrations.is_empty(),
             "a callback",
         ),
         (
-            !module.task_activation_demands.demands.is_empty(),
+            !module.execution.task_activation_demands.demands.is_empty(),
             "a task activation",
         ),
     ]

@@ -233,8 +233,8 @@ pub fn admit_native_providers<'request>(
         }
         if let Some(boundary) = module.boundary_machine(settlement.boundary)
             && boundary.requires_checked_result(
-                &module.structural_domains,
-                &module.scalar_qualifications.domains,
+                &module.types.structural_domains,
+                &module.types.scalar_qualifications.domains,
             )
             && !checked_component
         {
@@ -375,7 +375,7 @@ fn admit_checked_provider_installation(
     )
     .map_err(|reason| realization_error("folded constant realization closure", reason))?;
     if plan.provider_candidates.is_empty() || request.checked_adapters.is_empty() {
-        if view.module().folded_constants.target.is_none() {
+        if view.module().scalars.folded_constants.target.is_none() {
             return Ok(None);
         }
         let selection = psi_provider_selections::admit_provider_installation(view, &[], &[])
@@ -412,7 +412,7 @@ fn admit_checked_provider_installation(
         .map_err(|error| {
             realization_error("checked-provider installation", format!("{error:?}"))
         })?;
-    if view.module().folded_constants.target.is_some() {
+    if view.module().scalars.folded_constants.target.is_some() {
         installation.terminal_selection = installation
             .terminal_selection
             .admit_folded_constant_closure(view, request.profile.target_name(), &dependencies)

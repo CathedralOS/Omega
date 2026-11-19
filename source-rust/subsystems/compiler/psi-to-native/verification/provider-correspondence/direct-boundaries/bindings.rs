@@ -99,7 +99,7 @@ impl DirectBoundaryLeaf {
         let service = boundary
             .owning_service
             .ok_or("direct foreign requirement has no owning service application")?;
-        let mut services = module.services.iter().filter(|row| row.id == service);
+        let mut services = module.interfaces.services.iter().filter(|row| row.id == service);
         let (Some(service), None) = (services.next(), services.next()) else {
             return Err("direct foreign requirement has no unique service application".into());
         };
@@ -231,7 +231,7 @@ impl DirectBoundaryLeaf {
         &mut self,
         module: &terminal_psi::TerminalModule,
     ) -> Result<bool, String> {
-        let mut declarations = module.boundary_machines.iter().filter(|boundary| {
+        let mut declarations = module.interfaces.boundary_machines.iter().filter(|boundary| {
             boundary.declaration.as_ref().is_some_and(|declaration| {
                 module.identities.text(
                     if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
@@ -419,7 +419,7 @@ impl DirectBoundaryLeaf {
             .plan
             .identities
             .text(self.plan.rows[0].requirement_identity);
-        let mut matching = module.boundary_machines.iter().filter(|boundary| {
+        let mut matching = module.interfaces.boundary_machines.iter().filter(|boundary| {
             module.identities.text(boundary.identity) == Some(route)
                 && boundary.declaration.as_ref().is_some_and(|declaration| {
                     module.identities.text(

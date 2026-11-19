@@ -121,7 +121,7 @@ fn validate_bounds(
                 .structural_domain(premise.domain)
                 .ok_or("callable progress premise names an unknown domain")?;
             if crate::qualification_path_carrier(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 formal.structural_type,
                 &premise.path,
             ) != Some(domain.carrier)
@@ -137,13 +137,13 @@ pub fn validate_callable_operational_refinements(
     module: &TerminalModule,
 ) -> Result<(), &'static str> {
     let mut services = module
-        .services
+        .interfaces.services
         .iter()
         .map(|service| service.id)
         .collect::<Vec<_>>();
     services.sort_unstable();
     services.dedup();
-    for contract in &module.callables.contracts {
+    for contract in &module.execution.callables.contracts {
         validate_envelope(
             module,
             &services,
@@ -157,19 +157,19 @@ pub fn validate_callable_operational_refinements(
         )?;
     }
     if module
-        .callables
+        .execution.callables
         .declaration_envelopes
         .windows(2)
         .any(|pair| pair[0].contract >= pair[1].contract)
     {
         return Err("declaration envelopes are repeated or unordered");
     }
-    for contract in &module.declaration_contracts {
-        if module.callables.declaration_envelope(contract.id).is_none() {
+    for contract in &module.execution.declaration_contracts {
+        if module.execution.callables.declaration_envelope(contract.id).is_none() {
             return Err("public declaration has no exact complete operational envelope");
         }
     }
-    for row in &module.callables.declaration_envelopes {
+    for row in &module.execution.callables.declaration_envelopes {
         let contract = module
             .declaration_contract(row.contract)
             .ok_or("declaration envelope has no exact public contract")?;
@@ -204,7 +204,7 @@ pub fn validate_callable_operational_refinements(
             return Err("declaration envelope differs from its checked publication");
         }
     }
-    for row in module.callables.machine_envelopes.iter().flatten() {
+    for row in module.execution.callables.machine_envelopes.iter().flatten() {
         let machine = module
             .machine(row.machine)
             .filter(|machine| machine.declaration.is_some())
@@ -240,7 +240,7 @@ pub fn validate_callable_operational_refinements(
             return Err("named callable operational envelope differs from its checked publication");
         }
     }
-    for row in module.callables.boundary_envelopes.iter().flatten() {
+    for row in module.execution.callables.boundary_envelopes.iter().flatten() {
         let boundary = module
             .boundary_machine(row.boundary)
             .filter(|boundary| boundary.declaration.is_some())
@@ -254,16 +254,16 @@ pub fn validate_callable_operational_refinements(
             &boundary.structural_parameters,
         )?;
     }
-    for descriptor in &module.callables.descriptors {
+    for descriptor in &module.execution.callables.descriptors {
         let required = module
-            .callables
+            .execution.callables
             .contract(descriptor.contract)
             .ok_or("selected machine has no callable operational contract")?;
         let machine = module
             .machine(descriptor.machine)
             .ok_or("selected callable machine is absent")?;
         let selected = module
-            .callables
+            .execution.callables
             .machine_envelope(descriptor.machine)
             .ok_or("selected callable machine has no published operational envelope")?;
         if required.parameter_order != machine.parameter_order {
@@ -302,7 +302,7 @@ pub fn validate_callable_bounds(
     structures: &[StructuralParameterDeclaration],
 ) -> Result<(), &'static str> {
     let mut services = module
-        .services
+        .interfaces.services
         .iter()
         .map(|service| service.id)
         .collect::<Vec<_>>();

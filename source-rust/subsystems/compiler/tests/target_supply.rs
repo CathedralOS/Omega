@@ -372,7 +372,7 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
     )
     .unwrap();
     let accepted = original.accepted().unwrap();
-    assert_eq!(accepted.module().boundary_machines.len(), 1);
+    assert_eq!(accepted.module().interfaces.boundary_machines.len(), 1);
     assert_eq!(accepted.module().machines.len(), 1);
     let (_, requirement) = source
         .trait_machine_signatures
@@ -524,7 +524,7 @@ fn a_target_demands_what_its_own_chosen_providers_reach() {
         .expect("every requirement Linux reaches has a provider");
     let module = linux.accepted().expect("the chosen providers were judged");
     assert_eq!(
-        module.module().boundary_machines.len(),
+        module.module().interfaces.boundary_machines.len(),
         3,
         "the one module declares both targets' raw requirements"
     );
@@ -880,7 +880,7 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
     assert!(
         accepted
             .module()
-            .calling_signatures
+            .interfaces.calling_signatures
             .iter()
             .any(|signature| {
                 signature.application.is_ok()
@@ -982,11 +982,11 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         .calling_abi_identity(row.boundary)
         .unwrap();
     let module = accepted.module();
-    assert_eq!(module.calling_signatures.len(), 2);
-    assert_eq!(module.calling_abi_signatures.len(), 2);
-    for declared in &module.boundary_machines {
+    assert_eq!(module.interfaces.calling_signatures.len(), 2);
+    assert_eq!(module.interfaces.calling_abi_signatures.len(), 2);
+    for declared in &module.interfaces.boundary_machines {
         let application = module
-            .calling_signatures
+            .interfaces.calling_signatures
             .iter()
             .find(|signature| signature.boundary == declared.id)
             .unwrap();
@@ -1282,7 +1282,7 @@ fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
         REACHES_NOTHING,
     );
     assert_eq!(defaults.len(), 1, "the default is declared");
-    assert!(accepted.module().boundary_machines.is_empty());
+    assert!(accepted.module().interfaces.boundary_machines.is_empty());
     let prepared = prepare(&accepted, &[], &defaults).unwrap();
     assert!(prepared.demands_nothing());
     let settled = prepared.settle().unwrap();
@@ -1386,15 +1386,15 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
         .expect("the product publication accepted");
     assert_eq!(settled.requirements().len(), 1, "only `go` is reached");
     let module = accepted.module();
-    assert_eq!(module.boundary_machines.len(), 2);
-    assert_eq!(module.provider_candidates.len(), 2);
+    assert_eq!(module.interfaces.boundary_machines.len(), 2);
+    assert_eq!(module.interfaces.provider_candidates.len(), 2);
 
     let execution = execution(Some(profile()), &publication, &settled)
         .expect("the chosen provider's plan covers its slot");
     let [plan] = execution.plans().plans() else {
         panic!("one provider is chosen: {:?}", execution.plans().plans());
     };
-    let [choice] = module.provider_selections.as_slice() else {
+    let [choice] = module.interfaces.provider_selections.as_slice() else {
         panic!("the accepted source selected exactly one whole-slot provider");
     };
     assert_eq!(choice.target, TARGET);
@@ -1413,7 +1413,7 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
         })
     );
     assert_eq!(plan.provider_type_package_identity, choice.provider_package);
-    assert!(module.provider_candidates.iter().all(|candidate| {
+    assert!(module.interfaces.provider_candidates.iter().all(|candidate| {
         candidate.provider_identity == choice.provider_identity
             && candidate.provider_declaration.identity() == choice.provider_declaration
     }));
@@ -1427,7 +1427,7 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
         "Native"
     );
     assert_eq!(plan.target, TARGET);
-    for candidate in &module.provider_candidates {
+    for candidate in &module.interfaces.provider_candidates {
         assert_eq!(
             plan.provider_declaration.as_deref(),
             module
@@ -1484,12 +1484,12 @@ fn a_whole_slot_keeps_each_members_exact_calling_declaration() {
     assert_eq!(target.supply.requirements().len(), 1, "only go is demanded");
     let accepted = target.publication.accepted().unwrap();
     let module = accepted.module();
-    assert_eq!(module.calling_signatures.len(), 2);
-    assert_eq!(module.calling_abi_signatures.len(), 2);
-    for boundary in &module.boundary_machines {
+    assert_eq!(module.interfaces.calling_signatures.len(), 2);
+    assert_eq!(module.interfaces.calling_abi_signatures.len(), 2);
+    for boundary in &module.interfaces.boundary_machines {
         let declaration = boundary.declaration.as_ref().unwrap();
         let signature = module
-            .calling_signatures
+            .interfaces.calling_signatures
             .iter()
             .find(|row| row.boundary == boundary.id)
             .unwrap();
@@ -1519,7 +1519,7 @@ fn a_whole_slot_keeps_each_members_exact_calling_declaration() {
 
     let mut changed = plan.clone();
     let sibling = module
-        .calling_abi_signatures
+        .interfaces.calling_abi_signatures
         .iter()
         .find(|abi| {
             module.identities.text(abi.requirement_identity)
@@ -1592,12 +1592,12 @@ data NativeDefaults {{}}
 
     let module = artifact.semantic_module();
     let terminal_psi::BoundaryMachineResult::Structural(result) =
-        &module.boundary_machines[0].result
+        &module.interfaces.boundary_machines[0].result
     else {
         panic!("the result keeps its logical case type")
     };
     let geometry =
-        calling_conventions::terminal_layout::NativeGeometry::new(&module.structural_types)
+        calling_conventions::terminal_layout::NativeGeometry::new(&module.types.structural_types)
             .unwrap();
     let layout = geometry.sum_layout(result.structural_type).unwrap();
     assert_eq!(
@@ -1831,7 +1831,7 @@ machine build(builder: @mut Build) {{
                     if binding.method == "write"));
             let leaf = leaves.next().expect("the actual Console wrapper reaches its raw write");
             assert!(leaves.next().is_none(), "one target has one exact raw write");
-            let mut boundaries = module.boundary_machines.iter().filter(|boundary|
+            let mut boundaries = module.interfaces.boundary_machines.iter().filter(|boundary|
                 module.identities.text(boundary.identity)
                     == Some(leaf.satisfied_requirement_identity.as_str()));
             let boundary = boundaries.next().expect("the original raw requirement is retained");
@@ -1914,7 +1914,7 @@ machine build(builder: @mut Build) {{
             // The caller of the raw write gets its permission from the package
             // that declared the schema. Native planning must retain that owner
             // after the source selections have been released.
-            let request = module.calling_policy_requests.iter().find(|request| {
+            let request = module.interfaces.calling_policy_requests.iter().find(|request| {
                 request.instances.as_ref().is_ok_and(|instances| {
                     instances.iter().any(|instance| instance.declaring_application == schema.application)
                 })

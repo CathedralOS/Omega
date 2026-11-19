@@ -111,7 +111,7 @@ where
         }
         let native = self
             .module
-            .native_layouts
+            .layouts.native_layouts
             .record(record)
             .ok_or("callback record lost its native layout association")?;
         let data_identity = self
@@ -120,10 +120,10 @@ where
             .text(native.data_identity)
             .filter(|identity| !identity.is_empty())
             .ok_or("callback record has no complete nominal data identity")?;
-        let nominal_fields = self.module.native_layouts.fields(native)?;
+        let nominal_fields = self.module.layouts.native_layouts.fields(native)?;
         let authored = crate::terminal_layout_identity(self.module, record, self.target)?;
         let mut storage =
-            ReferenceStorageGeometry::new(self.module.structural_types.iter(), &mut self.extents)
+            ReferenceStorageGeometry::new(self.module.types.structural_types.iter(), &mut self.extents)
                 .with_target_carriers(Some(runtime_abi::target_carrier_layout(
                     self.target.native_target(),
                 )))

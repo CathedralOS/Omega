@@ -112,7 +112,7 @@ pub(crate) fn publish_access_plans(
                 identity
             };
             let mut matches = module
-                .structural_domains
+                .types.structural_domains
                 .iter_mut()
                 .filter(|row| row.identity == identity && row.carrier == carrier);
             let domain = matches

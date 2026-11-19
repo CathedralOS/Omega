@@ -38,7 +38,7 @@ impl PreparedBuildMachineEntry {
     ) -> Result<T, String> {
         let (admitted, requirements) = self.admit_invocation(&produced, target)?;
         let sponsor = pure_terminal_invocation_account()?;
-        let mut meter = terminal_work::WorkMeter::with_invocation(sponsor, None)
+        let mut meter = evaluation_work::sponsored_meter(sponsor, None)
             .map_err(|error| format!("source invocation meter: {error:?}"))?;
         let run = self.execute_invocation(
             &produced,
@@ -75,8 +75,8 @@ impl PreparedBuildMachineEntry {
     ) -> Result<Vec<crate::compile_time::BuildTimeValue>, String> {
         let produced = Arc::new(self.produce_invocation()?);
         let module = produced.view().module();
-        if module.target_layout_applications.is_empty()
-            && module.scalar_applications.declarations().is_empty()
+        if module.layouts.target_layout_applications.is_empty()
+            && module.scalars.scalar_applications.declarations().is_empty()
         {
             let target = InvocationTarget {
                 name: None,
@@ -166,7 +166,7 @@ impl PreparedBuildMachineEntry {
             .module()
             .entry
             .ok_or("source invocation lost its emitted root")?;
-        let scope = &view.module().scalar_applications.proof_scope;
+        let scope = &view.module().scalars.scalar_applications.proof_scope;
         let root = scope
             .callable_declaration(selected)
             .ok_or("source invocation has no exact proof declaration")?;
@@ -228,7 +228,7 @@ impl PreparedBuildMachineEntry {
         let (Some(name), Some(facts)) = (target.name, target.layout_target) else {
             return Ok(None);
         };
-        if view.module().target_layout_applications.is_empty() {
+        if view.module().layouts.target_layout_applications.is_empty() {
             return Ok(None);
         }
         let selected = psi_target_layouts::terminal_target_context(view, name);
@@ -264,7 +264,7 @@ impl PreparedBuildMachineEntry {
         admitted: &evaluation_admission::AdmittedCompilerEvaluation,
         requirements: terminal_interpreter::TerminalExecutionRequirements,
         target: InvocationTarget<'_>,
-        meter: &mut terminal_work::WorkMeter,
+        meter: &mut evaluation_work::EvaluationWorkMeter,
         observed_calls: &[terminal_interpreter::TerminalCallObservation],
     ) -> Result<build_invocation::InvocationOutcome, String> {
         let selected = produced
@@ -288,7 +288,7 @@ impl PreparedBuildMachineEntry {
             let targets = psi_target_layouts::terminal_target_context(view, name);
             let declaration = view
                 .module()
-                .scalar_applications
+                .scalars.scalar_applications
                 .proof_scope
                 .callable_declaration(selected)
                 .ok_or("source scalar application has no exact invocation root")?;

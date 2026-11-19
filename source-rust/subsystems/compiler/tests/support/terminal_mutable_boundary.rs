@@ -12,7 +12,7 @@ pub(super) fn field(artifact: &CanonicalTerminalArtifact, name: &str) -> Path {
     let root = entry.structural_parameters[0].structural_type;
     let declaration = artifact
         .semantic_module()
-        .structural_types
+        .types.structural_types
         .iter()
         .find(|declaration| declaration.id == root)
         .unwrap();

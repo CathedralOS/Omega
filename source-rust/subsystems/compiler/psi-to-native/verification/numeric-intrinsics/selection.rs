@@ -27,7 +27,7 @@ pub fn visit_selected_intrinsics<'a>(
         &terminal_psi::CheckedBoundaryCallable,
     ) -> Result<(), Diagnostic>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let boundaries = &module.boundary_machines;
+    let boundaries = &module.interfaces.boundary_machines;
     let identities = &module.identities;
     let plans = selected.plans();
     if plans.len() != provenance.len() {
@@ -134,7 +134,7 @@ pub fn validate_external_provider_owners(
     selected: &selected_provider_plans::SelectedProviderPlanFacts,
 ) -> Result<(), String> {
     let mut retained = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .map(|boundary| {
             module
@@ -149,7 +149,7 @@ pub fn validate_external_provider_owners(
                 })
         })
         .collect::<Result<BTreeSet<_>, _>>()?;
-    for demand in &module.boundary_application_demands {
+    for demand in &module.interfaces.boundary_application_demands {
         let identity = demand.requirement().overload();
         if identity.is_empty() {
             return Err("retained boundary application has no callable identity".into());
@@ -157,7 +157,7 @@ pub fn validate_external_provider_owners(
         retained.insert(identity);
     }
     validate_retained_provider_owners(
-        &module.external_providers,
+        &module.interfaces.external_providers,
         &module.identities,
         selected,
         &retained,

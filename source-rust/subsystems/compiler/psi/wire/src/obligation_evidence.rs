@@ -621,7 +621,7 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
             .iter()
             .filter(|machine| selected.binary_search(&machine.id).is_ok())
             .map(|machine| {
-                MachineEvidenceGoals::new(machine, &module.structural_types, &mut indexed_types)
+                MachineEvidenceGoals::new(machine, &module.types.structural_types, &mut indexed_types)
             })
             .collect::<Vec<_>>();
         machines.sort_unstable_by_key(|row| row.machine.id);
@@ -2156,7 +2156,7 @@ mod projection_tests {
             qualifications: Default::default(),
         };
         body.parameters = vec![scalar(1, unsigned), scalar(2, signed)];
-        module.structural_types = [
+        module.types.structural_types = [
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(unsigned)),
             StructuralTypeShape::FixedArray {
                 element: ty(1),
@@ -2279,7 +2279,7 @@ mod projection_tests {
         };
         let source_block = dispatch.machines[0].blocks[0].id;
         let cases = [1, 2].map(|raw| semantic_vocabulary::StructuralCaseId::new(raw).unwrap());
-        dispatch.structural_types[0].shape = StructuralTypeShape::Sum {
+        dispatch.types.structural_types[0].shape = StructuralTypeShape::Sum {
             cases: cases
                 .iter()
                 .map(|case| terminal_psi::StructuralCaseDeclaration {
@@ -2344,7 +2344,7 @@ mod projection_tests {
         ));
         let mut changed_extent = dispatch.clone();
         let StructuralTypeShape::FixedArray { length, .. } =
-            &mut changed_extent.structural_types[1].shape
+            &mut changed_extent.types.structural_types[1].shape
         else {
             unreachable!()
         };
@@ -2370,7 +2370,7 @@ mod projection_tests {
 
         let mut narrower = module.clone();
         let StructuralTypeShape::FixedArray { length, .. } =
-            &mut narrower.structural_types[1].shape
+            &mut narrower.types.structural_types[1].shape
         else {
             unreachable!()
         };

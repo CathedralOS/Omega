@@ -122,7 +122,7 @@ pub fn finalize_callable_refinements(
     // A real construction owes its operational contract before acceptance,
     // even if its logical refinement already has retained certificates.
     // Abstract contract witnesses have no descriptor or nominal publication.
-    if let Some(descriptor) = module.callables.descriptors.first() {
+    if let Some(descriptor) = module.execution.callables.descriptors.first() {
         terminal_semantics::callable_envelopes::validate_callable_operational_refinements(module)
             .map_err(|detail| {
             crate::checking::refusal(
@@ -147,8 +147,8 @@ pub fn finalize_callable_refinements(
                 &error.detail,
             )
         })?;
-    let mut prepared = Vec::with_capacity(module.callables.descriptors.len());
-    for descriptor in &module.callables.descriptors {
+    let mut prepared = Vec::with_capacity(module.execution.callables.descriptors.len());
+    for descriptor in &module.execution.callables.descriptors {
         let refuse = |reason, detail: &str| {
             crate::checking::refusal(reason, descriptor.machine, Construct::Machine, detail)
         };
@@ -162,7 +162,7 @@ pub fn finalize_callable_refinements(
         let context = callable_refinement_context(module, descriptor.contract)
             .map_err(|detail| refuse(RefusalReason::ForeignIdentity, detail))?;
         let contract = module
-            .callables
+            .execution.callables
             .contract(descriptor.contract)
             .ok_or_else(|| {
                 refuse(
@@ -197,13 +197,13 @@ pub fn finalize_callable_refinements(
             .collect::<Checked<Vec<_>>>()?;
         prepared.push((descriptor.id, certificates));
     }
-    if let Some(descriptor) = module.callables.descriptors.first() {
+    if let Some(descriptor) = module.execution.callables.descriptors.first() {
         validate_callable_evidence_contracts_in(
-            &module.callables,
-            &module.proposition_declarations,
-            &module.proposition_applications,
-            &module.evidence_terms,
-            &module.evidence_contract_lanes,
+            &module.execution.callables,
+            &module.proofs.proposition_declarations,
+            &module.proofs.proposition_applications,
+            &module.proofs.evidence_terms,
+            &module.proofs.evidence_contract_lanes,
         )
         .map_err(|detail| {
             crate::checking::refusal(
@@ -216,14 +216,14 @@ pub fn finalize_callable_refinements(
     }
     for (id, certificates) in prepared {
         let descriptor = module
-            .callables
+            .execution.callables
             .descriptors
             .iter_mut()
             .find(|row| row.id == id)
             .expect("prepared descriptors remain in the borrowed catalog");
         descriptor.refinement_evidence = certificates;
     }
-    if let Some(descriptor) = module.callables.descriptors.first() {
+    if let Some(descriptor) = module.execution.callables.descriptors.first() {
         validate_descriptor_refinement_evidence(module).map_err(|detail| {
             crate::checking::refusal(
                 RefusalReason::ForeignIdentity,

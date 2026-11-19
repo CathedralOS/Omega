@@ -62,7 +62,7 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstance, TerminalInstantiation,
     TerminalProgram, TerminalProjectedHostAtom, TerminalStructuralInputs, TerminalStructuralValue,
 };
-use terminal_work::WorkMeter;
+use evaluation_work::EvaluationWorkMeter;
 
 use crate::host::bindings::TerminalBuildBindingHost;
 use crate::host::requests::{IssuedBuildRequest, TerminalBuildRequestHost};
@@ -150,7 +150,7 @@ impl OriginalOutput {
         let home = crate::host::requests::build_facet(artifact, original, "output")?;
         let declaration = artifact
             .module()
-            .structural_types
+            .types.structural_types
             .iter()
             .find(|declaration| declaration.id == home.structural_type)
             .ok_or("Build output facet lost its declaration")?;
@@ -312,7 +312,7 @@ impl TerminalBuildHost {
         }
         artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
         let instance = self.instantiate(None, true)?;
-        let work = WorkMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
+        let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
             host: Arc::clone(self),
@@ -352,7 +352,7 @@ impl TerminalBuildHost {
         let contents =
             build.contents(self.produced.view().module(), self.original.structural_type)?;
         let instance = self.instantiate(Some(contents), output_issued)?;
-        let work = WorkMeter::with_invocation(self.account.clone(), Some(0)).map_err(describe)?;
+        let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0)).map_err(describe)?;
         Ok(TerminalBuildActivation {
             instance,
             host: Arc::clone(self),
@@ -467,7 +467,7 @@ impl TerminalBuildHost {
             }
             let declaration = artifact
                 .module()
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .find(|declaration| declaration.id == boundary)
                 .ok_or("Build import has no Terminal declaration")?;
@@ -529,7 +529,7 @@ enum ActivationState {
 pub struct TerminalBuildActivation {
     instance: TerminalInstance<'static, 'static>,
     host: Arc<TerminalBuildHost>,
-    work: WorkMeter,
+    work: EvaluationWorkMeter,
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,

@@ -414,7 +414,7 @@ impl<'source> Questions<'source> {
                 let identity = typed
                     .runtime_callable_contract_identity(runtime.contract, &[])
                     .map_err(refused)?;
-                let retained = self.module.callables.contract(contract).ok_or_else(|| {
+                let retained = self.module.execution.callables.contract(contract).ok_or_else(|| {
                     refused("selected invocation names no retained callable contract")
                 })?;
                 if self.module.identities.text(retained.identity) != Some(identity.as_str()) {
@@ -904,7 +904,7 @@ impl<'source> Questions<'source> {
                             ));
                         }
                         let selected = module
-                            .callables
+                            .execution.callables
                             .descriptor(descriptor)
                             .ok_or_else(|| refused("selected descriptor has no retained row"))?;
                         let target =
@@ -2783,8 +2783,8 @@ machine entry() {
         let module = source.module();
         let bytes = terminal_codec::encode_module(module).unwrap();
         let decoded = terminal_codec::decode_module(&bytes).unwrap();
-        assert_eq!(module.structural_domains, decoded.structural_domains);
-        assert_eq!(module.structural_domains.len(), 2);
+        assert_eq!(module.types.structural_domains, decoded.structural_domains);
+        assert_eq!(module.types.structural_domains.len(), 2);
         let mut collapsed = module.clone();
         collapsed.structural_domains[1].identity = collapsed.structural_domains[0].identity;
         let invalid = terminal_codec::encode_module(&collapsed).unwrap();
@@ -2967,7 +2967,7 @@ machine entry() reaches Input {}
         );
         let module = source.module();
         let primitive = module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .find(|boundary| {
                 matches!(

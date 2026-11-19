@@ -180,7 +180,7 @@ pub fn direct_compiler_primitive_leaves(
         return Err(fail("requested primitive declaration is repeated"));
     }
     let mut boundaries = Vec::with_capacity(requested.len());
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         if requested.binary_search(&boundary.id).is_ok() {
             boundaries.push(boundary);
         }

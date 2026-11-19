@@ -108,7 +108,7 @@ pub(crate) fn issuer_route_authorizes(
             issuer,
             requirement_identity,
         } => module
-            .closed_conformance_applications
+            .proofs.closed_conformance_applications
             .iter()
             .any(|application| {
                 application.rows.iter().any(|row| {
@@ -154,10 +154,10 @@ impl<'a> ScalarValues<'a> {
 
 fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualificationError> {
     use terminal_psi::{OperationKind, TargetMachineCallable};
-    let catalog = &module.scalar_qualifications;
+    let catalog = &module.types.scalar_qualifications;
     validate_field_types(module)?;
     for contract in module
-        .declaration_contracts
+        .execution.declaration_contracts
         .iter()
         .chain(module.machines.iter().map(|machine| &machine.contract))
     {
@@ -178,7 +178,7 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
     }
     for primitive in &catalog.primitives {
         if module
-            .structural_types
+            .types.structural_types
             .iter()
             .find(|ty| ty.id == primitive.structural_type)
             .is_none_or(|ty| {
@@ -328,7 +328,7 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                             ),
                         )?;
                         if !crate::zeroed_structural_types_and_fields_satisfy(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             result.structural_type,
                             |ty| {
                                 qualification_domains(
@@ -411,7 +411,7 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                             ),
                         )?;
                         let (leaf, count) = crate::scalar_array_leaf_declaration(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             result.structural_type,
                         )
                         .ok_or(
@@ -483,7 +483,7 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                             ),
                         )?;
                         let view = crate::runtime_structural_path_tip(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             root,
                             &source.path,
                         )
@@ -529,9 +529,9 @@ fn validate_field_types(module: &TerminalModule) -> Result<(), ScalarQualificati
         CanonicalStructuralPathSegment, ContentPlaceVersion, PlaceId, ScalarTerm, ScalarType,
     };
     use terminal_psi::StructuralTypeShape;
-    for row in &module.scalar_qualifications.fields {
+    for row in &module.types.scalar_qualifications.fields {
         let mut found = false;
-        for owner in &module.structural_types {
+        for owner in &module.types.structural_types {
             let (fields, cases) = match &owner.shape {
                 StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), &[][..]),
                 StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
@@ -823,7 +823,7 @@ pub(crate) fn field_qualifications(
     module: &TerminalModule,
     field: semantic_vocabulary::StructuralFieldId,
 ) -> ScalarQualificationSetId {
-    let fields = &module.scalar_qualifications.fields;
+    let fields = &module.types.scalar_qualifications.fields;
     fields
         .binary_search_by_key(&field, |row| row.field)
         .ok()
@@ -837,7 +837,7 @@ pub(crate) fn primitive_qualifications(
     module: &TerminalModule,
     ty: semantic_vocabulary::StructuralTypeId,
 ) -> ScalarQualificationSetId {
-    let primitives = &module.scalar_qualifications.primitives;
+    let primitives = &module.types.scalar_qualifications.primitives;
     primitives
         .binary_search_by_key(&ty, |row| row.structural_type)
         .ok()
@@ -871,7 +871,7 @@ fn checked_introduction(
             .iter()
             .filter(|domain| !before.contains(domain))
             .all(|domain| {
-                module.scalar_qualifications.returns.iter().any(|row| {
+                module.types.scalar_qualifications.returns.iter().any(|row| {
                     row.machine == machine
                         && row.edge == edge
                         && row.source == source.id
@@ -902,11 +902,11 @@ fn storage_type_qualifications(
     root: semantic_vocabulary::StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
 ) -> Result<ScalarQualificationSetId, ScalarQualificationError> {
-    if let Some(field) = crate::runtime_structural_field(module.structural_types.iter(), root, path)
+    if let Some(field) = crate::runtime_structural_field(module.types.structural_types.iter(), root, path)
     {
         return Ok(field_qualifications(module, field.id));
     }
-    let tip = crate::runtime_structural_path_tip(module.structural_types.iter(), root, path)
+    let tip = crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, path)
         .ok_or(ScalarQualificationError::MalformedStructuralFoundation(
             "scalar storage path has no declared carrier",
         ))?;
@@ -917,7 +917,7 @@ fn storage_type_qualifications(
         return malformed("scalar storage path does not select a primitive carrier");
     }
     Ok(module
-        .scalar_qualifications
+        .types.scalar_qualifications
         .primitives
         .iter()
         .find(|row| row.structural_type == tip.id)
@@ -933,7 +933,7 @@ pub fn qualification_domains(
     if set.is_empty() {
         return Some(&[]);
     }
-    let sets = &module.scalar_qualifications.sets;
+    let sets = &module.types.scalar_qualifications.sets;
     sets.binary_search_by_key(&set, |row| row.id)
         .ok()
         .map(|index| sets[index].domains.as_slice())
@@ -943,7 +943,7 @@ pub fn scalar_domain(
     module: &TerminalModule,
     id: ScalarDomainId,
 ) -> Option<&ScalarDomainDeclaration> {
-    let domains = &module.scalar_qualifications.domains;
+    let domains = &module.types.scalar_qualifications.domains;
     domains
         .binary_search_by_key(&id, |domain| domain.id)
         .ok()
@@ -977,7 +977,7 @@ pub fn validate_for_bodies(
     module: &TerminalModule,
     bodies: &[MachineId],
 ) -> Result<(), ScalarQualificationError> {
-    let catalog = &module.scalar_qualifications;
+    let catalog = &module.types.scalar_qualifications;
     if catalog
         .domains
         .windows(2)
@@ -1180,7 +1180,7 @@ pub fn validate_for_bodies(
             if let Some(predicate) = &domain.predicate {
                 let mut expected = predicate.proposition.clone();
                 expected.remap_value_ids(|_| destination.id);
-                if !module.scalar_block_invariants.iter().any(|invariant| {
+                if !module.proofs.scalar_block_invariants.iter().any(|invariant| {
                     invariant.machine == machine.id
                         && invariant.header == target.id
                         && retains_conjunct(&invariant.predicate, &expected)
@@ -1280,7 +1280,7 @@ pub fn validate_for_bodies(
         {
             let mut expected = predicate.proposition.clone();
             expected.remap_value_ids(|_| result.id);
-            if !module.scalar_block_invariants.iter().any(|invariant| {
+            if !module.proofs.scalar_block_invariants.iter().any(|invariant| {
                 invariant.machine == machine.id
                     && machine.blocks.iter().any(|block| {
                         block.id == invariant.header

@@ -101,7 +101,7 @@ fn a_linear_leaf_cannot_lose_its_claim_by_erasing_all_claim_metadata() {
     // Keep the declared linear types and the program unchanged. A producer
     // cannot remove their obligations by consistently omitting every claim row.
     let mut removed_roots = 0;
-    for declaration in &mut erased.module.structural_types {
+    for declaration in &mut erased.module.types.structural_types {
         if declaration.owns_linear_claim {
             assert_eq!(
                 declaration.multiplicity,
@@ -112,7 +112,7 @@ fn a_linear_leaf_cannot_lose_its_claim_by_erasing_all_claim_metadata() {
         }
     }
     assert!(removed_roots > 0, "the source must declare a linear claim");
-    for contract in &mut erased.module.declaration_contracts {
+    for contract in &mut erased.module.execution.declaration_contracts {
         contract.entry_claims.clear();
     }
     for machine in &mut erased.module.machines {

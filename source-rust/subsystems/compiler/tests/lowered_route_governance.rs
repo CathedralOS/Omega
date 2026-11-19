@@ -345,7 +345,7 @@ fn named_predicate_terms_form_under_their_own_inputs() {
                 accepted
                     .elaboration()
                     .module
-                    .scalar_predicate_definitions
+                    .scalars.scalar_predicate_definitions
                     .len(),
                 if dependency { 1 } else { 2 },
                 "{name}: each reached declaration has one authoritative definition"

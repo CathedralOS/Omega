@@ -30,11 +30,11 @@ pub(super) fn argument_predicates(
         return None;
     }
     let carrier =
-        crate::runtime_structural_path_tip(module.structural_types.iter(), root, &argument.path)?;
+        crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, &argument.path)?;
     let length = byte_array_length(module, carrier)?;
     let defaults = crate::structural_qualifications::DefaultRequirements::new(
-        &module.structural_types,
-        &module.structural_domains,
+        &module.types.structural_types,
+        &module.types.structural_domains,
         machine,
     )
     .ok()?;
@@ -58,7 +58,7 @@ fn byte_array_length(
     else {
         return None;
     };
-    crate::byte_predicate_carrier(module.structural_types.iter(), carrier.id).then_some(length)
+    crate::byte_predicate_carrier(module.types.structural_types.iter(), carrier.id).then_some(length)
 }
 
 pub(super) fn referenced_array_predicates(
@@ -73,7 +73,7 @@ pub(super) fn referenced_array_predicates(
     }
     let root = machine.structural_place_type(source.place)?;
     let carrier =
-        crate::runtime_structural_path_tip(module.structural_types.iter(), root, &source.path)?;
+        crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, &source.path)?;
     let length = byte_array_length(module, carrier)?;
     let (block, index) = machine.blocks.iter().find_map(|block| {
         block
@@ -107,7 +107,7 @@ pub(super) fn referenced_array_predicates(
         })
         .filter_map(|domain| {
             crate::structural_qualifications::default_domain_clause(
-                &module.structural_types,
+                &module.types.structural_types,
                 domain,
             )
             .ok()

@@ -50,7 +50,7 @@ impl<'artifact> ScalarEntryPrerequisites<'artifact> {
         observations: &ScalarApplicationObservations<'artifact>,
         application: ScalarApplicationId,
     ) -> Result<Self, String> {
-        let catalog = &observations.artifact().module().scalar_applications;
+        let catalog = &observations.artifact().module().scalars.scalar_applications;
         let conditions = &catalog.conditions;
         let scope = &catalog.proof_scope;
         let entry = observations.entry(application)?;
@@ -222,7 +222,7 @@ impl<'artifact> ScalarEntryPrerequisites<'artifact> {
             &observations
                 .artifact()
                 .module()
-                .scalar_applications
+                .scalars.scalar_applications
                 .conditions,
         ) || self.target.as_deref() != observations.target()
             || self.providers != *observations.providers()
@@ -233,7 +233,7 @@ impl<'artifact> ScalarEntryPrerequisites<'artifact> {
         let scope = &observations
             .artifact()
             .module()
-            .scalar_applications
+            .scalars.scalar_applications
             .proof_scope;
         let root = scope
             .callable_declaration(TargetMachineCallable::Machine(self.entry))

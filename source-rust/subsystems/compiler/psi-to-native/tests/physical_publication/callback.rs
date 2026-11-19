@@ -187,21 +187,21 @@ fn build_fixture() -> Fixture {
     root_value.id = OperationId::new(4).unwrap();
     module.machines[0].blocks[0].operations.push(root_value);
     module.machines.push(value);
-    let mut value_boundary = module.boundary_machines[0].clone();
+    let mut value_boundary = module.interfaces.boundary_machines[0].clone();
     value_boundary.id = BoundaryMachineId::new(2).unwrap();
-    module.boundary_machines[0].identity = registrar_name;
-    module.boundary_machines[0].owner = NominalDeclarationIdentity::new(owner);
-    module.boundary_machines[0].result = BoundaryMachineResult::Unit;
-    let mut entry_boundary = module.boundary_machines[0].clone();
+    module.interfaces.boundary_machines[0].identity = registrar_name;
+    module.interfaces.boundary_machines[0].owner = NominalDeclarationIdentity::new(owner);
+    module.interfaces.boundary_machines[0].result = BoundaryMachineResult::Unit;
+    let mut entry_boundary = module.interfaces.boundary_machines[0].clone();
     entry_boundary.id = BoundaryMachineId::new(3).unwrap();
     entry_boundary.identity = entry_name;
     module
-        .boundary_machines
+        .interfaces.boundary_machines
         .extend([value_boundary, entry_boundary]);
-    module.provider_candidates[0].boundary = BoundaryMachineId::new(2).unwrap();
-    module.provider_candidates[0].candidate = MachineId::new(3).unwrap();
+    module.interfaces.provider_candidates[0].boundary = BoundaryMachineId::new(2).unwrap();
+    module.interfaces.provider_candidates[0].candidate = MachineId::new(3).unwrap();
     module
-        .callback_applications
+        .interfaces.callback_applications
         .push(TerminalCallbackApplication {
             application_index: 0,
             registrar_machine: MachineId::new(1).unwrap(),
@@ -218,11 +218,11 @@ fn build_fixture() -> Fixture {
     let inbound = calling_application(ENTRY, false);
     for (boundary, application) in [(1, &registrar), (3, &inbound)] {
         let callback = boundary == 1;
-        module.calling_signatures.push(CallingSignatureDeclaration {
+        module.interfaces.calling_signatures.push(CallingSignatureDeclaration {
             boundary: BoundaryMachineId::new(boundary).unwrap(),
             application: Ok(application.abi.id()),
         });
-        module.calling_abi_signatures.push(CallingAbiDeclaration {
+        module.interfaces.calling_abi_signatures.push(CallingAbiDeclaration {
             id: application.abi.id(),
             requirement_identity: identities.intern(&application.requirement_identity),
             declaring_application: owner,

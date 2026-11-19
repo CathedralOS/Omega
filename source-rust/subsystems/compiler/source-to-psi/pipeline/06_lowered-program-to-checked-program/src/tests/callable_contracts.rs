@@ -38,7 +38,7 @@ fn refinement_module() -> TerminalModule {
     for machine in &mut module.machines {
         machine.declaration = None;
     }
-    module.callables.machine_envelopes.clear();
+    module.execution.callables.machine_envelopes.clear();
     let selected = &module.machines[0];
     assert_eq!(selected.parameters[0].id, id(1));
     assert_eq!(selected.result.scalar().unwrap().id, id(2));
@@ -64,7 +64,7 @@ fn refinement_module() -> TerminalModule {
         obligation: id(90),
         proposition: subject_bound(11, 10),
     }];
-    module.callables.contracts.push(TerminalCallableContract {
+    module.execution.callables.contracts.push(TerminalCallableContract {
         id: id(1),
         identity,
         scalar_parameters: vec![parameter],
@@ -96,7 +96,7 @@ fn refinement_module() -> TerminalModule {
         })
         .collect();
     module
-        .callables
+        .execution.callables
         .descriptors
         .push(TerminalMachineDescriptor {
             id: id(1),
@@ -265,7 +265,7 @@ fn declared_refinement_module() -> TerminalModule {
     assert!(closure.elaboration.undeclared.is_empty());
     let mut module = closure.elaboration.module;
     assert!(module.machines[0].declaration.is_some());
-    assert!(module.callables.machine_envelope(id(1)).is_some());
+    assert!(module.execution.callables.machine_envelope(id(1)).is_some());
     let selected = &module.machines[0];
     let mut proof = selected.contract.clone();
     proof.id = id(2);
@@ -273,8 +273,8 @@ fn declared_refinement_module() -> TerminalModule {
     let identity = identities.intern(&required_identity);
     let application = identities.intern("source-owned-selected-application");
     module.identities = identities.build();
-    let envelope = module.callables.machine_envelope(id(1)).unwrap().clone();
-    module.callables.contracts.push(TerminalCallableContract {
+    let envelope = module.execution.callables.machine_envelope(id(1)).unwrap().clone();
+    module.execution.callables.contracts.push(TerminalCallableContract {
         id: id(1),
         identity,
         scalar_parameters: selected.parameters.clone(),
@@ -291,7 +291,7 @@ fn declared_refinement_module() -> TerminalModule {
     });
     let questions = callable_contract_refinement_goals(&module, id(1), id(1)).unwrap();
     module
-        .callables
+        .execution.callables
         .descriptors
         .push(TerminalMachineDescriptor {
             id: id(1),
@@ -316,7 +316,7 @@ fn derive_refinements(
     module: &TerminalModule,
 ) -> Result<Vec<terminal_psi::CertificateEnvelope>, &'static str> {
     let context = callable_refinement_context(module, id(1))?;
-    let required = &module.callables.contracts[0];
+    let required = &module.execution.callables.contracts[0];
     let mut declarations = required
         .scalar_parameters
         .iter()
@@ -350,7 +350,7 @@ fn callable_refinement_proves_input_weakening_and_remaps_result_formals() {
             &CallableRefinementGoalKind::NormalOutput
         ]
     );
-    module.callables.descriptors[0].refinement_evidence = derive_refinements(&module).unwrap();
+    module.execution.callables.descriptors[0].refinement_evidence = derive_refinements(&module).unwrap();
     assert_eq!(
         validate_descriptor_refinement_evidence(&module)
             .unwrap()
@@ -374,17 +374,17 @@ fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
     let mut module = declared_refinement_module();
     crate::checking::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
     assert!(
-        !module.callables.descriptors[0]
+        !module.execution.callables.descriptors[0]
             .refinement_evidence
             .is_empty()
     );
-    let retained = module.callables.descriptors[0].refinement_evidence.clone();
+    let retained = module.execution.callables.descriptors[0].refinement_evidence.clone();
     crate::checking::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
     assert_eq!(
-        module.callables.descriptors[0].refinement_evidence,
+        module.execution.callables.descriptors[0].refinement_evidence,
         retained
     );
-    module.callables.descriptors[0].refinement_evidence[0]
+    module.execution.callables.descriptors[0].refinement_evidence[0]
         .proof
         .conclusion = Proposition::Falsehood;
     assert!(
@@ -397,7 +397,7 @@ fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
 fn checker_refuses_operational_strengthening_before_publication() {
     let mut module = declared_refinement_module();
     crate::checking::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
-    module.callables.machine_envelopes[0]
+    module.execution.callables.machine_envelopes[0]
         .as_mut()
         .unwrap()
         .envelope
@@ -425,7 +425,7 @@ fn checker_refuses_operational_strengthening_before_publication() {
 #[test]
 fn callable_refinement_refuses_weaker_outputs_and_unpermitted_crashes() {
     let mut module = refinement_module();
-    module.callables.descriptors[0].refinement_evidence = derive_refinements(&module).unwrap();
+    module.execution.callables.descriptors[0].refinement_evidence = derive_refinements(&module).unwrap();
     let mut weaker = module.clone();
     weaker.machines[0].contract.ensures[0].proposition = at_most(2, u32::MAX.into());
     assert!(derive_refinements(&weaker).is_err());
@@ -444,7 +444,7 @@ fn callable_refinement_refuses_weaker_outputs_and_unpermitted_crashes() {
     ));
     assert!(validate_descriptor_refinement_evidence(&module).is_err());
     // Allocate the new question too: refusal must be logical, not only a stale count.
-    module.callables.descriptors[0]
+    module.execution.callables.descriptors[0]
         .refinement_obligations
         .push(id(102));
     assert!(derive_refinements(&module).is_err());
@@ -467,7 +467,7 @@ fn install_roster(module: &mut TerminalModule) {
             evidence_type: "proof-witness[u32]".into(),
         },
     };
-    module.proposition_declarations.push(declaration.clone());
+    module.proofs.proposition_declarations.push(declaration.clone());
     for (position, kind) in [
         EvidenceContractLaneKind::Requires,
         EvidenceContractLaneKind::Ensures,
@@ -499,7 +499,7 @@ fn install_roster(module: &mut TerminalModule) {
             proposition: application.id,
             interface: interface.clone(),
         };
-        module.callables.contracts[0]
+        module.execution.callables.contracts[0]
             .evidence_contract
             .push(TerminalCallableEvidenceLane {
                 kind,
@@ -509,9 +509,9 @@ fn install_roster(module: &mut TerminalModule) {
                 term: term.clone(),
                 argument_subjects: subjects.clone(),
             });
-        module.proposition_applications.push(application);
-        module.evidence_terms.push(term.clone());
-        module.evidence_contract_lanes.push(EvidenceContractLane {
+        module.proofs.proposition_applications.push(application);
+        module.proofs.evidence_terms.push(term.clone());
+        module.proofs.evidence_contract_lanes.push(EvidenceContractLane {
             owner: EvidenceCallableOwner::Runtime(id(1)),
             kind,
             position: 0,
@@ -524,11 +524,11 @@ fn install_roster(module: &mut TerminalModule) {
 
 fn roster_valid(module: &TerminalModule) -> bool {
     validate_callable_evidence_contracts_in(
-        &module.callables,
-        &module.proposition_declarations,
-        &module.proposition_applications,
-        &module.evidence_terms,
-        &module.evidence_contract_lanes,
+        &module.execution.callables,
+        &module.proofs.proposition_declarations,
+        &module.proofs.proposition_applications,
+        &module.proofs.evidence_terms,
+        &module.proofs.evidence_contract_lanes,
     )
     .is_ok()
 }
@@ -655,7 +655,7 @@ machine build_entry(value: u32) -> u32 crashes none { ACK Probe::read(value) }
                 .artifact
                 .view()
                 .module()
-                .callables
+                .execution.callables
                 .machine_envelopes
                 .iter()
                 .flatten()

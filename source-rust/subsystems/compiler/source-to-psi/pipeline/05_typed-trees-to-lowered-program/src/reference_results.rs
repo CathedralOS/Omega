@@ -92,7 +92,7 @@ pub(crate) fn publish_requirements(
             Construct::Machine,
         )?;
         let groups = program
-            .declared_result_lifetimes(requirement, signature, &module.structural_types)
+            .declared_result_lifetimes(requirement, signature, &module.types.structural_types)
             .map_err(|reason| unavailable(requirement, reason))?;
         module
             .machines
@@ -162,7 +162,7 @@ fn publish_retained_call_loans(elaboration: &mut crate::lowering::Elaboration) -
     let graph = terminal_borrowed_storage_graph_from(module, bodies.map(|machine| machine.id), &[])
         .map_err(|error| graph_unavailable(module, error))?;
     let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
     for machine in &module.machines {
         if callers.binary_search(&machine.id).is_err() {
             continue;
@@ -222,7 +222,7 @@ fn publish_retained_call_loans(elaboration: &mut crate::lowering::Elaboration) -
                         .ok_or_else(|| unavailable("retained call loan has no source origin"))?;
                     let captured = capture_argument(
                         machine,
-                        &module.structural_types,
+                        &module.types.structural_types,
                         tables,
                         &terminal_psi::StructuralArgument {
                             place: argument.place,
@@ -302,7 +302,7 @@ fn publish_successor_loans(
                     };
                     let authority = terminal_semantics::structural_projection_authority(
                         machine,
-                        &elaboration.module.structural_types,
+                        &elaboration.module.types.structural_types,
                         argument,
                     )
                     .ok_or_else(|| unavailable("successor loan has no actual source authority"))?;
@@ -317,7 +317,7 @@ fn publish_successor_loans(
                         })?;
                     if authority == parameter.access
                         && terminal_semantics::projection_stays_in_inline_storage(
-                            elaboration.module.structural_types.iter(),
+                            elaboration.module.types.structural_types.iter(),
                             root,
                             &argument.path,
                         )
@@ -331,7 +331,7 @@ fn publish_successor_loans(
                     };
                     let captured = capture_argument(
                         machine,
-                        &elaboration.module.structural_types,
+                        &elaboration.module.types.structural_types,
                         tables,
                         argument,
                     )?;
@@ -482,7 +482,7 @@ fn publish_results(
     // record. Keep those views during replay, even though the return header
     // names only the references found by `reference_result_contents`.
     let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
     let mut published = Vec::with_capacity(selected.len());
     for id in selected {
         let machine = module
@@ -504,7 +504,7 @@ fn publish_results(
                 })
         })?;
         let mappings = terminal_semantics::reference_result_contents(
-            &module.structural_types,
+            &module.types.structural_types,
             &machine.structural_parameters,
             result,
             &contents,
@@ -588,7 +588,7 @@ fn publish_parents(
                 })?;
                 let element =
                     terminal_semantics::descriptor_lifetimes::view_element_descriptor_prefix(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         root_type,
                         &segments,
                     )
@@ -670,7 +670,7 @@ fn publish_parents(
                     publish_call_payloads(
                         call.structural_arguments,
                         module
-                            .callables
+                            .execution.callables
                             .contract(call.contract)
                             .map(|contract| contract.structural_parameters.as_slice()),
                         before,
@@ -703,7 +703,7 @@ fn publish_parents(
                 })?;
             if terminal_semantics::borrowed_view_payload_parameter(
                 parameter,
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
             ) {
                 let row = tables
                     .obligations
@@ -735,7 +735,7 @@ fn publish_parents(
         let graph = terminal_borrowed_storage_graph_from(module, [machine.id], &[])
             .map_err(|error| graph_unavailable(module, error))?;
         let mut analysis =
-            DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+            DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
         let flow = analysis
             .flow(machine.id)
             .map_err(|error| graph_unavailable(module, error))?;
@@ -758,7 +758,7 @@ fn publish_parents(
                         unavailable(machine.id, "reference formation has no source storage type")
                     })?;
                     let source_location = descriptor_location(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         source.place,
                         ty,
                         &source.path,
@@ -805,13 +805,13 @@ fn publish_parents(
                         terminal_psi::OperationKind::EstablishElementView { .. }
                             | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                     ) && terminal_semantics::descriptor_lifetimes::descriptor_location_type(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         ty,
                         &source_location.path,
                     )
                     .is_some_and(|source_type| {
                         terminal_semantics::descriptor_results::is_descriptor(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             source_type,
                         )
                     }) {
@@ -1027,7 +1027,7 @@ fn retained_loan_row(
         .structural_place_type(source.place)
         .ok_or("retained call loan has no source type")?;
     let location = descriptor_location(
-        &module.structural_types,
+        &module.types.structural_types,
         source.place,
         ty,
         &source.path,
@@ -1088,7 +1088,7 @@ fn publish_payload_children(
         };
         if !terminal_semantics::borrowed_view_payload_parameter(
             formal,
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
         ) {
             continue;
         }
@@ -1096,7 +1096,7 @@ fn publish_payload_children(
             .structural_place_type(argument.place)
             .ok_or_else(|| unavailable("payload loan has no source type"))?;
         let location = descriptor_location(
-            &module.structural_types,
+            &module.types.structural_types,
             argument.place,
             ty,
             &argument.path,

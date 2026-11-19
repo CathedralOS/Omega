@@ -182,7 +182,7 @@ pub(crate) fn declare(
     // module-local number.
     let services: Vec<(semantic_vocabulary::ServiceId, String)> = elaboration
         .module
-        .services
+        .interfaces.services
         .iter()
         .map(|service| {
             (
@@ -256,7 +256,7 @@ pub(crate) fn declare(
             signatures.get(machine.id),
         ) {
             (Ok(sources), Some(symbol), Some(signature)) => (|| {
-                let envelope = elaboration.module.callables.machine_envelope(machine.id);
+                let envelope = elaboration.module.execution.callables.machine_envelope(machine.id);
                 let generic = if envelope.is_none()
                     && program.is_generic_check_form()
                     && typed
@@ -414,7 +414,7 @@ pub(crate) fn declare(
     let result = (|| {
         for definition in program.predicate_definitions.iter().flatten() {
             let declaration = semantic_identity(typed, definition.symbol, &mut identities)?;
-            elaboration.module.scalar_predicate_definitions.push(
+            elaboration.module.scalars.scalar_predicate_definitions.push(
                 terminal_psi::ScalarPredicateDefinition {
                     declaration,
                     parameters: definition.parameters.clone(),
@@ -435,11 +435,11 @@ pub(crate) fn declare(
         }
         elaboration
             .module
-            .scalar_predicate_definitions
+            .scalars.scalar_predicate_definitions
             .sort_unstable_by_key(|definition| definition.declaration);
         if elaboration
             .module
-            .scalar_predicate_definitions
+            .scalars.scalar_predicate_definitions
             .windows(2)
             .any(|pair| pair[0].declaration == pair[1].declaration)
         {
@@ -448,13 +448,13 @@ pub(crate) fn declare(
         elaboration
             .predicate_sources
             .sort_unstable_by_key(|source| source.declaration);
-        if elaboration.module.declaration_contracts.is_empty() {
+        if elaboration.module.execution.declaration_contracts.is_empty() {
             return Ok(());
         }
         let sources = sources
             .as_ref()
             .map_err(|_| "a public requirement toolchain source has no exact identity")?;
-        for contract in &mut elaboration.module.declaration_contracts {
+        for contract in &mut elaboration.module.execution.declaration_contracts {
             let original = *program
                 .declaration_representatives
                 .get(contract.id)
@@ -491,14 +491,14 @@ pub(crate) fn declare(
         for (required, application, mut dispatch, result_lifetimes) in links {
             let application = elaboration
                 .module
-                .closed_conformance_applications
+                .proofs.closed_conformance_applications
                 .get(application)
                 .ok_or("selected public contract lost its emitted application")?;
             dispatch.conformance_application_report_fingerprint = application.report_fingerprint;
             dispatch.conformance_application_commitment = application.commitment;
             let contract = elaboration
                 .module
-                .declaration_contracts
+                .execution.declaration_contracts
                 .iter_mut()
                 .find(|contract| contract.id == required)
                 .ok_or("selected application lost its exact public contract")?;
@@ -519,7 +519,7 @@ pub(crate) fn declare(
         }
         elaboration
             .module
-            .closed_conformance_applications
+            .proofs.closed_conformance_applications
             .sort_unstable_by(|left, right| {
                 (
                     left.owner,
@@ -532,7 +532,7 @@ pub(crate) fn declare(
                         right.report_fingerprint,
                     ))
             });
-        elaboration.module.closed_conformance_applications.dedup();
+        elaboration.module.proofs.closed_conformance_applications.dedup();
         Ok(())
     })();
     elaboration.module.identities = identities.build();
@@ -1387,7 +1387,7 @@ pub(crate) fn close_specializations_with_bases(
     };
     selections.sort_unstable_by_key(|(identity, _)| *identity);
     let service_identity = |id| {
-        let services = &closure.module.services;
+        let services = &closure.module.interfaces.services;
         let position = services
             .binary_search_by_key(&id, |service| service.id)
             .ok()?;

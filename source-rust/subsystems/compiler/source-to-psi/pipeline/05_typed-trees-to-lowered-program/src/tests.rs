@@ -264,7 +264,7 @@ fn emitted_calls_have_behavior_before_any_judgment() {
     signatures.push(signature(Vec::new(), None));
     let elaboration =
         crate::lowering::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
-    let behavior = &elaboration.module.unoptimized_behavior;
+    let behavior = &elaboration.module.execution.unoptimized_behavior;
     assert_eq!(behavior.len(), 2);
     assert_eq!(behavior[0].machine, id(1));
     assert!(matches!(behavior[0].operations.as_slice(),
@@ -3033,11 +3033,11 @@ fn a_module_with_records_declares_them_and_encodes() {
     let elaboration =
         crate::lowering::lower_bodies(id(1), &bodies, &signatures, &records()).unwrap();
     let module = &elaboration.module;
-    assert_eq!(module.structural_types.len(), 2);
-    assert_eq!(module.native_layouts.records().count(), 2);
+    assert_eq!(module.types.structural_types.len(), 2);
+    assert_eq!(module.layouts.native_layouts.records().count(), 2);
     assert!(
         module
-            .structural_types
+            .types.structural_types
             .iter()
             .all(|declaration| declaration.is_copyable())
     );
@@ -3057,8 +3057,8 @@ fn a_module_with_records_declares_them_and_encodes() {
         &IdTable::default(),
     )
     .unwrap();
-    assert!(scalar.module.structural_types.is_empty());
-    assert_eq!(scalar.module.native_layouts.records().count(), 0);
+    assert!(scalar.module.types.structural_types.is_empty());
+    assert_eq!(scalar.module.layouts.native_layouts.records().count(), 0);
 }
 
 fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
@@ -3133,7 +3133,7 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
         } if !path.is_empty()
     )));
     let verified =
-        terminal_semantics::plain_affine::verify(machine, &elaboration.module.structural_types)
+        terminal_semantics::plain_affine::verify(machine, &elaboration.module.types.structural_types)
             .expect("the checker reconstructs the restored field's custody");
     assert!(verified.unavailable.is_empty());
     for actual in [
@@ -3168,7 +3168,7 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
             matches!(
                 terminal_semantics::plain_affine::verify(
                     &forged,
-                    &elaboration.module.structural_types,
+                    &elaboration.module.types.structural_types,
                 ),
                 Err(terminal_semantics::plain_affine::Error::Malformed { .. })
             ),
@@ -3237,7 +3237,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
         } if path.len() == 1
     )));
     let checked =
-        terminal_semantics::plain_affine::verify(machine, &elaboration.module.structural_types)
+        terminal_semantics::plain_affine::verify(machine, &elaboration.module.types.structural_types)
             .expect("the containing owner is reconstructed from the complete subtree");
     assert!(checked.unavailable.is_empty());
 }
@@ -3470,7 +3470,7 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
         .structural_type;
     assert_eq!(home, id(3));
     assert!(matches!(
-        elaboration.module.structural_types[2].shape,
+        elaboration.module.types.structural_types[2].shape,
         terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type)
             if scalar_type == u32_type()
     ));
@@ -4083,7 +4083,7 @@ fn a_module_with_a_sum_declares_its_cases_and_encodes() {
     signatures.push(shaped(vec![u32_type().into()], Some(shape())));
     let elaboration = crate::lowering::lower_bodies(id(1), &bodies, &signatures, &sums()).unwrap();
     let module = &elaboration.module;
-    let StructuralTypeShape::Sum { cases } = &module.structural_types[1].shape else {
+    let StructuralTypeShape::Sum { cases } = &module.types.structural_types[1].shape else {
         panic!("a sum");
     };
     let declared: Vec<_> = cases
@@ -4105,7 +4105,7 @@ fn a_module_with_a_sum_declares_its_cases_and_encodes() {
         ]
     );
     // The decoder wants a layout row per record and none per sum.
-    assert_eq!(module.native_layouts.records().count(), 1);
+    assert_eq!(module.layouts.native_layouts.records().count(), 1);
     terminal_codec::encode_module(module).unwrap();
 }
 
@@ -4164,7 +4164,7 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     // Each type's declaration in the module states its clauses, and the
     // checker's table beside the module restates them by the type's
     // identity.
-    let declared = &elaboration.module.structural_types;
+    let declared = &elaboration.module.types.structural_types;
     assert_eq!(
         declared[0].requires,
         constrained().get(id(1)).unwrap().requires
@@ -4237,7 +4237,7 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     let decoded = terminal_codec::decode_module(&bytes).unwrap();
     assert_eq!(
         decoded.structural_types,
-        elaboration.module.structural_types
+        elaboration.module.types.structural_types
     );
 }
 

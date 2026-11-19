@@ -112,7 +112,7 @@ mod tests {
             parents,
         });
         let mut module = TerminalModule::declarations();
-        module.services = rows.to_vec();
+        module.interfaces.services = rows.to_vec();
         module.identities = identities.build();
         module
     }

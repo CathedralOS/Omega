@@ -644,7 +644,7 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
         let name = identities.intern("PhysicalFixture::value");
         module.identities = identities.build();
         module
-            .boundary_machines
+            .interfaces.boundary_machines
             .push(terminal_psi::BoundaryMachineDeclaration {
                 id: boundary,
                 identity: name,
@@ -683,7 +683,7 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
         let declaration = identities.intern("PhysicalValueMap");
         let candidate = identities.intern("PhysicalValueProvider::value");
         module
-            .provider_candidates
+            .interfaces.provider_candidates
             .push(terminal_psi::ProviderCandidateConformance {
                 boundary,
                 requirement_identity: name,

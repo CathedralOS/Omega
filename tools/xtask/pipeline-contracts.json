@@ -3751,7 +3751,7 @@
       "kind": "definition",
       "meaning": "Close the folded semantic module and rebind publication metadata and checked operation evidence to its identity.",
       "producer": "03 native program planning",
-      "signature": "63a962b462f9595cf6e4ef6a3f0ccc2b5c37270980ddfea4f574875c74315a38"
+      "signature": "d2a176213441ceb20e9ca043edd1f2d1ed1cc12186b63986f22240bc6b876e70"
     },
     {
       "consumers": [
@@ -3777,7 +3777,7 @@
       "kind": "producer",
       "meaning": "Close the folded semantic module and rebind publication metadata and checked operation evidence to its identity.",
       "producer": "03 native program planning",
-      "signature": "6b194994c415a3db12054db8d628174313a271f0e1e6ee2c832b062903d2d673"
+      "signature": "ef462386adb52330253b06de56cdb54e87d795d41b9451ab881d263a40ecba52"
     },
     {
       "consumers": [
@@ -16118,7 +16118,7 @@
       "kind": "checker",
       "meaning": "Verify the complete selected service schema against the module\u00e2\u20ac\u2122s canonical declaration and application.",
       "producer": "provider plan correspondence",
-      "signature": "964883a291b5849a4e545c3301075aa8cb387386efa4ac8c925bd1f78daf79b7"
+      "signature": "431b3e557d641bc75443923c4bdc283430505963898347e0ff9e6d2b0d57c82e"
     },
     {
       "consumers": [
@@ -16360,7 +16360,7 @@
       "kind": "test_support",
       "meaning": "Exercise an uncalled closed invocation still forms a selected cycle against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "cc0ee2650bc771dcdbd5f3af7645afa307d94bf7269f981b376df00f8ee6b152"
+      "signature": "eb5576c807f3ffa809c58ba96eea602d5328c9094ebad6ac873e26eaf31e76d4"
     },
     {
       "consumers": [
@@ -16404,7 +16404,7 @@
       "kind": "test_support",
       "meaning": "Exercise canonical projection rejects duplicate coordinates on every target against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "1b9a35de4038310fc802454f7a35fcd879a7601170b2f63e4e1b0fb1871e0aaf"
+      "signature": "062fef2ed79c73941626bdcd2477c46b03b9b300573d421c1a46fd9a7a2dde92"
     },
     {
       "consumers": [
@@ -16426,7 +16426,7 @@
       "kind": "test_support",
       "meaning": "Exercise component and native projection retain the same complete closed roster against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "6be0bd06abc372ef0c4c52095e4011ea52b0c07b22339defdf9a5eef33358546"
+      "signature": "bca5f796dfd860afff989131edf37b0701985087638e4053168c2e5a0c4dc3c5"
     },
     {
       "consumers": [
@@ -16448,7 +16448,7 @@
       "kind": "test_support",
       "meaning": "Exercise inherited requirement uses its declaring receiver not the child view against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "9228f28a815e655eda6b47338327af495dd26f6def0b66f0a5d456c7c40fe862"
+      "signature": "0bfb7d006774ddc129bef556eff90c4f78fc09b8be72a1e4ac874b04daec1d7e"
     },
     {
       "consumers": [
@@ -16459,7 +16459,7 @@
       "kind": "test_support",
       "meaning": "Exercise invocation fixture against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "787be4abfb374ba865cd1d269d3bf14cc15b9e8c731012425214d4a2323d61d7"
+      "signature": "434daac75be1d0fd4e3fb9ed1a4fb08670557f98165a5147c0af85c5a4a88045"
     },
     {
       "consumers": [
@@ -16470,7 +16470,7 @@
       "kind": "test_support",
       "meaning": "Exercise invocation rows consume all closed headers instead of the open template against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "62afa3d9dbca7679c3e4012c76068707c8c93592623c47b72c54da43fb790853"
+      "signature": "207b838bfb64cb6967100a240c28c7eea633752a32993f730e549814789e7feb"
     },
     {
       "consumers": [
@@ -17961,7 +17961,7 @@
       "kind": "producer",
       "meaning": "Publishes one immutable source closure result per actual package root set and gives review a read-only lookup bound to the original judgment.",
       "producer": "01 source compilation",
-      "signature": "ab362a3819eb28957794383d12d490856ee1cacd19307a7913e6c725f4c4f3d8"
+      "signature": "a90766b725aaaccc39033ca3df9fc96f8846a9f9ecf5dbf86f97262f80d685ff"
     },
     {
       "consumers": [
@@ -17973,7 +17973,7 @@
       "kind": "producer",
       "meaning": "Computes sorted unique numeric requirements from the accepted call closure. An unresolved indirect closure selects every declared numeric operation, and a rootless package selects none.",
       "producer": "01 source compilation",
-      "signature": "224e9a2ba8d364ecb6bc14fe65ee3fa5156ef87245fdff28759f2a098e82ba16"
+      "signature": "702e83b8a42fb26c5ea7595d3c97209a1d954d9705b6942e376bc2a35ecf962f"
     },
     {
       "consumers": [
@@ -18284,7 +18284,7 @@
       "kind": "definition",
       "meaning": "Methods for the SourcePublication contract in 01 source compilation.",
       "producer": "01 source compilation",
-      "signature": "28221d8521987557f2890083debe4d8f7f06439a2e5d832cd45ad99afc7d32ab"
+      "signature": "359b2223df6b8918c563aa697b5fa123db479cd6bd4c0d0c2fe34057272099c5"
     },
     {
       "consumers": [
@@ -18308,7 +18308,7 @@
       "kind": "producer",
       "meaning": "Close entry and explicitly selected source roots, source provider bodies and native declaration occurrences. Folded scalar and ABI planning consume these choices later.",
       "producer": "01 source compilation",
-      "signature": "e4619fa027700a6ea7a68586831dc8c149c21678bc37b2cf36a0791bf2a10b9f"
+      "signature": "226195d081bed04f285f2ea0d03be197720dada42f137639429ea99c3a54b120"
     },
     {
       "consumers": [
@@ -18932,7 +18932,7 @@
       "kind": "checker",
       "meaning": "Identify demanded module features whose target supply has no supported planning route.",
       "producer": "01 source compilation",
-      "signature": "1be42afc13353bb5282bfa78184ca3816ca89b4be0188b38e36229c37942535a"
+      "signature": "c255b71590cccdea84a562bb21b72cdd796b7fa7f590e3e4ad77a066530ef3b9"
     },
     {
       "consumers": [
@@ -19891,7 +19891,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "PublishedEntryMetadata::field:calling_custody#1",
       "kind": "carried_record",
       "meaning": "Retain each calling-policy schema owner or the source selection refusal.",
@@ -19903,7 +19903,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "PublishedEntryMetadata::field:entry_custody#1",
       "kind": "carried_record",
       "meaning": "For each entry schema, its authenticated source declaration owner or the original refusal.",
@@ -19916,7 +19916,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "PublishedEntryMetadata::field:has_bound_applications#1",
       "kind": "carried_record",
       "meaning": "Record whether source publication bound any applications before target folding.",
@@ -19928,7 +19928,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "PublishedEntryMetadata::field:provenance#1",
       "kind": "carried_record",
       "meaning": "Source-attested machine provenance used to attach entry roots to emitted code.",
@@ -19941,7 +19941,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "alias:DeclarationOwner#1",
       "kind": "definition",
       "meaning": "Pair a schema declaration with its source owner or the precise source refusal.",
@@ -19953,12 +19953,12 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::implementation#1",
       "kind": "definition",
       "meaning": "Carry machine provenance, bound application presence and the entry and calling-policy declaration owners in the portable program.",
       "producer": "Psi portable program publication",
-      "signature": "2c906d13859dc8f7d647143f05b934ed485d52db21e14a343bb835b619605b35"
+      "signature": "e311d9f56a6c79c3e3def79cfbb94345ed3668220a13ee11b67a4980c516b529"
     },
     {
       "consumers": [
@@ -19966,7 +19966,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:calling_schema_custody#1",
       "kind": "checker",
       "meaning": "Read the source-issued owner of the requested calling-policy declaration.",
@@ -19978,7 +19978,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:entry_schema_custody#1",
       "kind": "checker",
       "meaning": "Read the authenticated custody or original refusal for this exact target entry schema.",
@@ -19991,7 +19991,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:has_bound_applications#1",
       "kind": "carried_record",
       "meaning": "Read the source application-presence flag for entry reach.",
@@ -20003,7 +20003,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:machine_provenance#1",
       "kind": "carried_record",
       "meaning": "Read the original machine provenance for attaching target entry receipts.",
@@ -20015,7 +20015,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:new#1",
       "kind": "definition",
       "meaning": "Carry machine provenance, bound application presence and the entry and calling-policy declaration owners in the portable program.",
@@ -20028,7 +20028,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:owner#1",
       "kind": "checker",
       "meaning": "Find the exact declaration in the sorted custody table and preserve its recorded refusal.",
@@ -20041,7 +20041,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:require_calling_custody#1",
       "kind": "checker",
       "meaning": "Return the original global calling-policy refusal if source selection failed.",
@@ -20054,12 +20054,12 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:validate_declarations#1",
       "kind": "checker",
       "meaning": "Require exactly the declared entry and calling-policy rows in canonical order.",
       "producer": "Psi portable program publication",
-      "signature": "0a8d3d0244adbade7059b94634104d19d6dbd3b12c9191caf7cc23b54119f4c2"
+      "signature": "f49311daca1360b96b76bcf9445e5f0fc7f88914a3cece62dd729dd23389c42f"
     },
     {
       "consumers": [
@@ -20067,7 +20067,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::validate_declarations::function:matches#1",
       "kind": "checker",
       "meaning": "Compare the sorted owner rows with the unique declarations in the module.",
@@ -20079,7 +20079,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "struct:PublishedEntryMetadata#1",
       "kind": "carried_record",
       "meaning": "Carry machine provenance, bound application presence and the entry and calling-policy declaration owners in the portable program.",
@@ -20091,7 +20091,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "use:semantic_vocabulary :: compiler_evaluation :: DeclarationCustody#1",
       "kind": "definition",
       "meaning": "The nominal declaring authority carried for each entry schema.",
@@ -20144,7 +20144,7 @@
       "kind": "producer",
       "meaning": "Follow the program entry, scalar evaluation and chosen provider bodies to identify reachable requirements.",
       "producer": "Psi logical provider reach",
-      "signature": "4c49017c6d0f2dacb9f0526b09a4858e416e15ba97c312f445cb94ab9a991260"
+      "signature": "c017ee6c0caeb3817b88c946e00c6205a85b15d3c3f2d3edde2fcf1f64de3fe0"
     },
     {
       "consumers": [
@@ -20816,7 +20816,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "path": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",

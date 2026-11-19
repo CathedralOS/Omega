@@ -166,7 +166,7 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
             || elaboration.generic_binders.is_empty()
             || requirements.binary_search(&id).is_ok()
             || declaration.declaration.specialization.is_some()
-            || elaboration.module.callables.machine_envelope(id).is_some()
+            || elaboration.module.execution.callables.machine_envelope(id).is_some()
         {
             return Err(fault(
                 id,
@@ -267,14 +267,14 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
             |service| {
                 elaboration
                     .module
-                    .services
+                    .interfaces.services
                     .binary_search_by_key(&service, |row| row.id)
                     .ok()
                     .and_then(|position| {
                         elaboration
                             .module
                             .identities
-                            .text(elaboration.module.services[position].identity)
+                            .text(elaboration.module.interfaces.services[position].identity)
                     })
             },
         )

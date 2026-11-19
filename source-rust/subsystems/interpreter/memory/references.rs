@@ -1703,7 +1703,7 @@ pub(crate) mod placed {
                 let plan = self
                     .program
                     .catalogs
-                    .access_view_plans
+                    .access.access_view_plans
                     .iter()
                     .find(|plan| plan.carrier == captured.carrier())
                     .ok_or(malformed())?;
@@ -1757,7 +1757,7 @@ pub(crate) mod placed {
             structural_arguments: &[StructuralArgument],
         ) -> Result<bool, TerminalInterpretError> {
             let program = std::sync::Arc::clone(&self.program);
-            let mut operations = program.catalogs.access_view_plans.iter().flat_map(|plan| {
+            let mut operations = program.catalogs.access.access_view_plans.iter().flat_map(|plan| {
                 plan.fields.iter().flat_map(move |field| {
                     field
                         .operations
@@ -1871,7 +1871,7 @@ pub(crate) mod placed {
                         }
                     } else {
                         terminal_semantics::access_region_projection(
-                            &program.catalogs.structural_types,
+                            &program.catalogs.types.structural_types,
                             plan,
                             field,
                             &ram.projection,
@@ -2316,7 +2316,7 @@ impl TerminalExecution<'_> {
                 reference_type,
             ) || terminal_semantics::reference_byte_field_compatible(
                 self.structural_types().values(),
-                self.program.catalogs.structural_domains.iter(),
+                self.program.catalogs.types.structural_domains.iter(),
                 self.live_structural_type(source.place)?,
                 &source.path,
                 reference_type,
@@ -2722,7 +2722,7 @@ impl TerminalExecution<'_> {
             let observable = |identity| {
                 self.program
                     .catalogs
-                    .structural_domains
+                    .types.structural_domains
                     .iter()
                     .find(|domain| domain.id == identity)
                     .is_some_and(|domain| {
@@ -2740,7 +2740,7 @@ impl TerminalExecution<'_> {
                                         self.structural_types().values(),
                                         domain.carrier,
                                     ) && terminal_semantics::byte_qualification_predicates_in(
-                                        self.program.catalogs.structural_domains.iter(),
+                                        self.program.catalogs.types.structural_domains.iter(),
                                         domain.carrier,
                                         &[identity],
                                     )
@@ -2781,7 +2781,7 @@ impl TerminalExecution<'_> {
             if !referent.qualifications.contains(domain)
                 && terminal_semantics::scalar_projection_entails_membership(
                     self.structural_types().values(),
-                    self.program.catalogs.structural_domains.iter(),
+                    self.program.catalogs.types.structural_domains.iter(),
                     referent.structural_type,
                     &[],
                     *domain,
@@ -2794,7 +2794,7 @@ impl TerminalExecution<'_> {
             if !referent.projected_qualifications.contains(row)
                 && terminal_semantics::scalar_projection_entails_membership(
                     self.structural_types().values(),
-                    self.program.catalogs.structural_domains.iter(),
+                    self.program.catalogs.types.structural_domains.iter(),
                     referent.structural_type,
                     &row.path,
                     row.domain,
@@ -2843,7 +2843,7 @@ impl TerminalExecution<'_> {
                         && !self
                             .program
                             .catalogs
-                            .structural_domains
+                            .types.structural_domains
                             .iter()
                             .any(|domain| {
                                 domain.id == row.domain
@@ -3460,7 +3460,7 @@ impl TerminalExecution<'_> {
         }
         terminal_semantics::present_structural_memberships(
             self.structural_types().values(),
-            self.program.catalogs.structural_domains.iter(),
+            self.program.catalogs.types.structural_domains.iter(),
             expected,
             &mut value.qualifications,
             &mut value.projected_qualifications,

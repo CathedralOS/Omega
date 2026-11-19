@@ -202,7 +202,7 @@ impl TerminalExecution<'_> {
                     || self
                         .program
                         .catalogs
-                        .opaque_representations
+                        .types.opaque_representations
                         .iter()
                         .any(|r| {
                             r.opaque == formal.structural_type

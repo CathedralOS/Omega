@@ -117,7 +117,7 @@ fn a_rigid_array_extent_cannot_name_another_machine_or_an_undeclared_input() {
             rigid_array_form("machine entry<const N: u64>(items: @[u8; N]) -> u64 { N }");
         let extent = form
             .module
-            .structural_types
+            .types.structural_types
             .iter_mut()
             .find_map(|declaration| match &mut declaration.shape {
                 terminal_psi::StructuralTypeShape::FixedArray { length, .. } => Some(length),
@@ -538,7 +538,7 @@ fn const_extent_correspondence_only_treats_explicit_abstract_referents_as_leaves
     );
     let mut concrete = form
         .module
-        .structural_types
+        .types.structural_types
         .iter()
         .find(|declaration| {
             matches!(
@@ -552,7 +552,7 @@ fn const_extent_correspondence_only_treats_explicit_abstract_referents_as_leaves
         .unwrap()
         .clone();
     form.module
-        .structural_referents
+        .types.structural_referents
         .push(terminal_psi::StructuralReferentIdentity {
             id: unknown,
             identity: concrete.identity,
@@ -564,15 +564,15 @@ fn const_extent_correspondence_only_treats_explicit_abstract_referents_as_leaves
         "a referent row alone grants no opacity"
     );
     form.module
-        .structural_referents
+        .types.structural_referents
         .last_mut()
         .unwrap()
         .abstract_opaque = true;
     assert!(agrees(&form.module, 1));
     concrete.id = unknown;
-    form.module.structural_types.push(concrete);
+    form.module.types.structural_types.push(concrete);
     form.module
-        .structural_types
+        .types.structural_types
         .sort_unstable_by_key(|declaration| declaration.id);
     assert!(agrees(&form.module, 1));
     assert!(

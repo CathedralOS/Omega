@@ -128,7 +128,7 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
                 observed += 1;
                 let selected = caller.structural_place_type(actual.place).and_then(|root| {
                     terminal_semantics::runtime_structural_path_tip(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         root,
                         &actual.path,
                     )

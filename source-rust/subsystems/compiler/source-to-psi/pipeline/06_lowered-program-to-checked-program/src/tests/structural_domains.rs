@@ -69,7 +69,7 @@ machine entry() -> u32 {
 }
 "#;
     let mut elaboration = invocation(source).unwrap();
-    let domain = elaboration.module.structural_domains[0].id;
+    let domain = elaboration.module.types.structural_domains[0].id;
     let formed = elaboration
         .module
         .machines
@@ -145,7 +145,7 @@ machine entry() -> u32 {
 }
 "#;
     let mut elaboration = invocation(source).unwrap();
-    let domain = elaboration.module.structural_domains[0].id;
+    let domain = elaboration.module.types.structural_domains[0].id;
     let array = elaboration
         .module
         .machines
@@ -285,13 +285,13 @@ fn assert_unsigned_invocation(source: &str, expected: u128) {
 fn the_lowered_record_type_retains_its_domains_and_casts() {
     let elaboration = invocation(STAMPED).unwrap();
     let module = &elaboration.module;
-    assert_eq!(module.structural_domains.len(), 1, "one record domain");
+    assert_eq!(module.types.structural_domains.len(), 1, "one record domain");
     assert!(
-        module.structural_domains[0].establishment_routes.is_some(),
+        module.types.structural_domains[0].establishment_routes.is_some(),
         "the issuer restriction survives"
     );
     // The issuer's cast names its route; the erasure names none.
-    let changes = &module.structural_qualification_changes;
+    let changes = &module.types.structural_qualification_changes;
     assert_eq!(changes.len(), 2, "{changes:?}");
     assert_eq!(
         changes
@@ -331,7 +331,7 @@ fn the_lowered_record_type_retains_its_domains_and_casts() {
 #[test]
 fn a_qualified_parameter_does_not_replace_its_cast_edge() {
     let mut elaboration = invocation(STAMPED).unwrap();
-    elaboration.module.structural_qualification_changes.clear();
+    elaboration.module.types.structural_qualification_changes.clear();
     refused(
         elaboration,
         "a structural successor does not deliver its parameter's exact domains",
@@ -341,7 +341,7 @@ fn a_qualified_parameter_does_not_replace_its_cast_edge() {
 #[test]
 fn a_routed_cast_needs_its_issuer_route() {
     let mut elaboration = invocation(STAMPED).unwrap();
-    for change in &mut elaboration.module.structural_qualification_changes {
+    for change in &mut elaboration.module.types.structural_qualification_changes {
         change.establishments.clear();
     }
     refused(
@@ -353,7 +353,7 @@ fn a_routed_cast_needs_its_issuer_route() {
 #[test]
 fn an_empty_issuer_set_permits_no_cast() {
     let mut elaboration = invocation(STAMPED).unwrap();
-    elaboration.module.structural_domains[0].establishment_routes = Some(Vec::new());
+    elaboration.module.types.structural_domains[0].establishment_routes = Some(Vec::new());
     refused(
         elaboration,
         "a structural cast is not an authorized issuer of its domain",
@@ -382,7 +382,7 @@ fn a_move_cannot_carry_an_unchecked_operation_issuer_row() {
         .replace("machine holder(stub:", "machine transport(ticket: Ticket) -> Ticket in Stamped { stamp(ticket) }\nmachine holder(stub:")
         .replace("stamp(Ticket { number: 7u32 })", "transport(Ticket { number: 7u32 })");
     let mut elaboration = invocation(&source).unwrap();
-    let domain = elaboration.module.structural_domains[0].id;
+    let domain = elaboration.module.types.structural_domains[0].id;
     let caller = elaboration
         .module
         .machines
@@ -455,7 +455,7 @@ machine entry() -> u32 {
 "#;
     let elaboration = invocation(SOURCE).unwrap();
     let module = &elaboration.module;
-    let domain = module.structural_domains[0].id;
+    let domain = module.types.structural_domains[0].id;
     let choose = module
         .machines
         .iter()
@@ -565,7 +565,7 @@ fn normal_result_membership_rejects_missing_facts_and_wrong_subjects() {
             )
         });
     }
-    for header in &mut missing.module.declaration_contracts {
+    for header in &mut missing.module.execution.declaration_contracts {
         header.membership_ensures.retain(|row| {
             !matches!(
                 row,
@@ -638,12 +638,12 @@ machine entry() -> u32 crashes none {
 "#;
     let elaboration = invocation(text).unwrap();
     let module = elaboration.module;
-    let boundary = &module.boundary_machines[0];
-    let method = &module.service_schemas[0].surface.methods[0];
+    let boundary = &module.interfaces.boundary_machines[0];
+    let method = &module.interfaces.service_schemas[0].surface.methods[0];
     assert_eq!(method.normal_result_memberships.len(), 1);
     assert!(!boundary.requires_checked_result(
-        &module.structural_domains,
-        &module.scalar_qualifications.domains
+        &module.types.structural_domains,
+        &module.types.scalar_qualifications.domains
     ));
     terminal_semantics::validate_boundary_normal_memberships(&module, boundary, method).unwrap();
     let mut missing = boundary.clone();
@@ -835,7 +835,7 @@ fn normal_result_membership_checks_stored_machine_contracts_against_the_target()
     let application = identities.intern("normal-membership-test-selection");
     module.identities = identities.build();
     let scalar_result = proof.result.scalar_ref().unwrap();
-    module.callables.contracts.push(TerminalCallableContract {
+    module.execution.callables.contracts.push(TerminalCallableContract {
         id: semantic_vocabulary::CallableContractId::new(1).unwrap(),
         identity,
         scalar_parameters: proof.parameters.clone(),
@@ -857,7 +857,7 @@ fn normal_result_membership_checks_stored_machine_contracts_against_the_target()
         },
     });
     module
-        .callables
+        .execution.callables
         .descriptors
         .push(TerminalMachineDescriptor {
             id: semantic_vocabulary::MachineDescriptorId::new(1).unwrap(),
@@ -887,7 +887,7 @@ fn normal_result_membership_checks_stored_machine_contracts_against_the_target()
     assert!(refinement.unwrap_err().contains(
         "selected callable contract does not provide its required normal-result membership"
     ));
-    module.callables.descriptors[0].machine = unmarked;
+    module.execution.callables.descriptors[0].machine = unmarked;
     let error = terminal_semantics::scalar_qualifications::validate(&module).unwrap_err();
     assert!(
         format!("{error:?}")
@@ -963,8 +963,8 @@ ensures result in Positive { value as -Positive }
     ]
     .map(|(name, source)| {
         let mut elaboration = invocation(source).unwrap();
-        assert_eq!(elaboration.module.scalar_qualifications.domains.len(), 1);
-        let domain = elaboration.module.scalar_qualifications.domains[0].id;
+        assert_eq!(elaboration.module.types.scalar_qualifications.domains.len(), 1);
+        let domain = elaboration.module.types.scalar_qualifications.domains[0].id;
         for machine in &mut elaboration.module.machines {
             let result = machine.result.scalar_ref().unwrap();
             machine.contract.membership_ensures.push(
@@ -1010,19 +1010,19 @@ machine entry() -> u64 crashes none {
     .unwrap()
     .module;
     let own = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|row| !row.membership_ensures.is_empty())
         .unwrap();
     let other = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|row| row.membership_ensures.is_empty())
         .unwrap();
     let requires_checked = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
         boundary.requires_checked_result(
-            &module.structural_domains,
-            &module.scalar_qualifications.domains,
+            &module.types.structural_domains,
+            &module.types.scalar_qualifications.domains,
         )
     };
     let mut wrong_callable = own.clone();

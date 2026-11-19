@@ -41,7 +41,7 @@ impl AdmittedCompilerEvaluation {
         let artifact = artifact.into();
         let declaration = artifact
             .module()
-            .scalar_applications
+            .scalars.scalar_applications
             .proof_scope
             .callable_declaration(entry);
         if self.artifact != artifact.custody_identity()
@@ -95,7 +95,7 @@ pub fn admit_compiler_evaluation_with_source_consent<'code, 'target>(
     if providers.execution_identity() != &artifact.custody_identity() {
         return Err("compiler-evaluation provider installation names a different artifact".into());
     }
-    let scope = &artifact.module().scalar_applications.proof_scope;
+    let scope = &artifact.module().scalars.scalar_applications.proof_scope;
     let root = match target {
         Some(target) => scope.plan.callable_for_target(root, target),
         None => scope.plan.callable_without_target(root),
@@ -234,7 +234,7 @@ pub fn admit_declaration_selections(
             "declaration admission provider installation names a different artifact".into(),
         );
     }
-    let scope = &artifact.module().scalar_applications.proof_scope;
+    let scope = &artifact.module().scalars.scalar_applications.proof_scope;
     let root = scope
         .callable_declaration(entry)
         .ok_or("declaration admission entry lost its retained declaration")?;
@@ -304,7 +304,7 @@ fn require_invocation_selections(
         &dyn InvocationSourceSelection,
     )>,
 ) -> Result<(), String> {
-    let scope = &module.scalar_applications.proof_scope;
+    let scope = &module.scalars.scalar_applications.proof_scope;
     require_scope_selections(scope, closure, root, requester, authority, source_consent)?;
     let selected = selected_call_request_sources(module, closure)?;
     for edge in &closure.invocations {
@@ -380,7 +380,7 @@ fn selected_call_request_sources(
     use terminal_semantics::closed_conformances::{
         declaration_package, dispatch_application, dispatch_applications,
     };
-    let scope = &module.scalar_applications.proof_scope;
+    let scope = &module.scalars.scalar_applications.proof_scope;
     let mut declarations = scope
         .callables
         .iter()

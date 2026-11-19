@@ -51,7 +51,7 @@ fn accepted_verdicts(
 fn check_no_normal(accepted: &crate::checking::verdict::AcceptedClosure) -> MachineId {
     let module = &accepted.elaboration.module;
     let query =
-        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+        Inhabitation::prepare(&TerminalContracts::new(module.types.structural_types.iter())).unwrap();
     let calls = module
         .machines
         .iter()
@@ -226,8 +226,8 @@ fn canonical_process_exit_publishes_never_without_a_receiving_value() {
     check_no_normal(&accepted);
     let module = &accepted.elaboration.module;
     let query =
-        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
-    let [boundary] = module.boundary_machines.as_slice() else {
+        Inhabitation::prepare(&TerminalContracts::new(module.types.structural_types.iter())).unwrap();
+    let [boundary] = module.interfaces.boundary_machines.as_slice() else {
         panic!("the exact canonical boundary is retained");
     };
     let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
@@ -349,7 +349,7 @@ fn an_empty_input_can_be_syntactically_returned_without_creating_a_normal_value(
         "the original source needs no helper"
     );
     let query =
-        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+        Inhabitation::prepare(&TerminalContracts::new(module.types.structural_types.iter())).unwrap();
     let callee = module
         .machines
         .iter()
@@ -420,7 +420,7 @@ fn bare_empty_value(guarantee: &str) -> Box<crate::checking::verdict::AcceptedCl
         panic!("the actual Empty input must remain declared");
     };
     let query =
-        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+        Inhabitation::prepare(&TerminalContracts::new(module.types.structural_types.iter())).unwrap();
     assert_eq!(query.status(input.structural_type), Status::ProvedEmpty);
     assert_eq!(machine.module_invocations().count(), 0);
     assert!(module.operations().all(|operation| !matches!(
@@ -1000,7 +1000,7 @@ fn an_empty_input_crosses_an_annotated_local_without_fabricating_its_carrier() {
         "an impossible initializer must not materialize a scalar local value"
     );
     let query =
-        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+        Inhabitation::prepare(&TerminalContracts::new(module.types.structural_types.iter())).unwrap();
     let sources = terminal_semantics::normal_completion::ReturnSources::new(machine).unwrap();
     assert!(
         machine.blocks.iter().any(|block| {

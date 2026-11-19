@@ -7,6 +7,7 @@
 mod driver_calls;
 mod linear_pipeline;
 mod native_stages;
+mod psi_ir;
 
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -46,6 +47,10 @@ const CLI_APPLICATION: &str = "source-rust/application";
 const REVIEW_EVIDENCE: &str = "source-rust/subsystems/package-manager/review/evidence";
 #[cfg(test)]
 const PSI_FACADE: &str = linear_pipeline::SOURCE_DRIVER;
+const SOURCE_PROVIDER_PUBLICATION: &str =
+    "source-rust/subsystems/compiler/product-records/target-providers";
+const NATIVE_PROVIDER_DEMAND: &str =
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand";
 const FRONTEND_OPERATIONS: &[&str] = &[linear_pipeline::FRONTEND[0], linear_pipeline::FRONTEND[1]];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -145,6 +150,19 @@ pub fn forbidden_rules() -> Vec<Rule> {
                 "provider correspondence compares admitted declarations")
         },
     ];
+    rules.push(Rule {
+        forbidden_packages: vec![SOURCE_PROVIDER_PUBLICATION],
+        allowed: vec![
+            Allowance { owner: linear_pipeline::PSI_STAGES[7], dependency: SOURCE_PROVIDER_PUBLICATION },
+            Allowance { owner: NATIVE_PROVIDER_DEMAND, dependency: SOURCE_PROVIDER_PUBLICATION },
+        ],
+        ..rule(vec![""], vec![], "only source publication and native input admission exchange completed Build provider demand")
+    });
+    rules.push(rule(
+        vec!["source-rust/subsystems/compiler/psi/providers"],
+        vec!["source-rust/subsystems/compiler/build"],
+        "portable provider selection reads the artifact and receiving installation",
+    ));
     // Only the source driver runs the full numbered source pipeline. The text reader
     // preserves authored spelling and trivia. The other readers take stage 07 records.
     rules.push(Rule {
@@ -513,6 +531,7 @@ pub fn dependency_violations(
 pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>, String> {
     const SOURCE: &str = "source-rust/subsystems/compiler/source-to-psi";
     const FORMAT: &str = "source-rust/subsystems/compiler/psi";
+    const BUILD: &str = "source-rust/subsystems/compiler/build";
     const NATIVE: &str = native_stages::DRIVER;
 
     let root = Path::new(&metadata.workspace_root);
@@ -542,7 +561,7 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
     }
     for (owner, forbidden) in [
         (SOURCE, &[NATIVE][..]),
-        (FORMAT, &[SOURCE, NATIVE][..]),
+        (FORMAT, &[SOURCE, NATIVE, BUILD][..]),
         (NATIVE, &[SOURCE][..]),
     ] {
         let mut pending = VecDeque::new();
@@ -565,7 +584,7 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
                     .get(next)
                     .map_or(next.as_str(), |name| name.as_str());
                 let chain = format!("{chain} -> {next_name}");
-                if under(next, forbidden) {
+                if under(next, forbidden) || (owner == FORMAT && next == PRODUCT_COORDINATOR) {
                     violations.push(format!("forbidden compiler dependency: {chain} ({next})"));
                 } else {
                     pending.push_back((next, chain));
@@ -901,6 +920,16 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         )],
         "package numeric review demand can only be issued when publishing the accepted provider request",
     );
+    errors.extend(call_violations(
+        root,
+        &["issue_target_provider_demand"],
+        &[
+            "source-rust/subsystems/compiler/product-records/target-providers/publication.rs",
+            "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
+        ],
+        &[],
+        "only the accepted source judgment can issue target provider demand for its published artifact",
+    ));
     errors.extend(call_violations(root, &["retain_selected_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs"], &[("source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn retain_selected_body_facts(")], "only instruction selection may issue the joined body facts"));
     errors.extend(call_violations(root, &["into_framed_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs"], &[("source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn into_framed_body_facts(")], "only frame publication may open the carried body facts"));
     errors.extend(call_violations(
@@ -1039,6 +1068,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let rules = forbidden_rules();
         violations.extend(forbidden_dependency_violations(&metadata, &rules)?);
         violations.extend(stale_allowance_violations(&metadata, &rules)?);
+        violations.extend(psi_ir::violations(&root)?);
+        violations.extend(pipeline_dependency_violations(&metadata)?);
         if ownership_only {
             return Ok(violations);
         }
@@ -1088,11 +1119,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             SEALED_TERMINAL_MODULE,
             "a native form reaches the sealed Terminal Psi module; name the encoder from terminal-wire",
         )?);
-        violations.extend(pipeline_dependency_violations(&metadata)?);
+        let mut native_driver_owners = PERMITTED_OWNERS.to_vec();
+        native_driver_owners.push(SOURCE_PROVIDER_PUBLICATION);
         violations.extend(dependency_violations(
             &metadata,
             NATIVE_ROOT,
-            PERMITTED_OWNERS,
+            &native_driver_owners,
         )?);
         let provider_selection_owners = &PERMITTED_OWNERS[1..];
         violations.extend(dependency_violations(
@@ -1104,7 +1136,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(dependency_violations(
             &metadata,
             linear_pipeline::NATIVE_STAGES[1],
-            provider_selection_owners,
+            &native_driver_owners[1..],
         )?);
         let mut runtime_owners = vec![
             RUNTIME_ROOT,
@@ -1279,6 +1311,11 @@ mod tests {
         let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
             (native_stages::DRIVER, stages[7], None, true),
+            (linear_pipeline::PSI_STAGES[7], SOURCE_PROVIDER_PUBLICATION, None, true),
+            (NATIVE_PROVIDER_DEMAND, SOURCE_PROVIDER_PUBLICATION, None, true),
+            (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),
+            (stages[1], SOURCE_PROVIDER_PUBLICATION, None, false),
+            ("source-rust/subsystems/compiler/psi/providers", "source-rust/subsystems/compiler/build/evaluation/receipts", None, false),
             ("source-rust/subsystems/compiler/build/package-compilation", linear_pipeline::PSI_STAGES[7], None, false),
             ("source-rust/subsystems/compiler/build/package-compilation", stages[0], None, false),
             (library, stages[2], None, false),
@@ -1604,7 +1641,8 @@ mod tests {
             ),
             (
                 "source-rust/subsystems/compiler/psi-to-native/driver.rs".to_owned(),
-                "let pair = SemanticEmissionFacts::retain_target_operations;\n",
+                "let pair = SemanticEmissionFacts::retain_target_operations;\n\
+                 use source_provider_publication::issue_target_provider_demand as forge;\n",
             ),
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
             (
@@ -1657,9 +1695,12 @@ mod tests {
         assert_eq!(violations.len(), 6, "{violations:?}");
         assert_eq!(
             publication_violations.len(),
-            5,
+            6,
             "{publication_violations:?}"
         );
+        assert!(publication_violations.iter().any(|row| {
+            row.contains("psi-to-native/driver.rs:2:") && row.contains("target provider demand")
+        }));
         assert_eq!(
             execution_plan_violations.len(),
             5,
@@ -1872,6 +1913,30 @@ mod tests {
             );
         }
         assert_eq!(violations.len(), 4);
+    }
+
+    #[test]
+    fn psi_record_readers_do_not_reach_project_build_or_the_compiler_facade() {
+        let psi = "source-rust/subsystems/compiler/psi";
+        let build = "source-rust/subsystems/compiler/build/evaluation/receipts";
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg("psi", psi, &[]),
+                pkg("codec", &format!("{psi}/codec"), &[("psi", psi, None)]),
+                pkg("authorized", &format!("{psi}/authorization"), &[("codec", &format!("{psi}/codec"), None)]),
+                pkg("providers", &format!("{psi}/providers"), &[("helper", "shared/helper", None)]),
+                pkg("helper", "shared/helper", &[("facade", PRODUCT_COORDINATOR, None), ("receipts", build, Some("build"))]),
+                pkg("facade", PRODUCT_COORDINATOR, &[]),
+                pkg("receipts", build, &[]),
+                pkg("source", SOURCE_COMPILER, &[]),
+                pkg("native", native_stages::DRIVER, &[]),
+            ],
+        };
+        let violations = pipeline_dependency_violations(&metadata).unwrap();
+        assert_eq!(violations.len(), 2, "{violations:?}");
+        assert!(violations.iter().any(|row| row.contains("providers -> helper -> facade")));
+        assert!(violations.iter().any(|row| row.contains("providers -> helper -> receipts")));
     }
 
     #[test]

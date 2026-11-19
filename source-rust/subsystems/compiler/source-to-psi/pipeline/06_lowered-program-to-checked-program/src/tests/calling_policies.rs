@@ -509,7 +509,7 @@ ensures result == 9
     };
     let declaration = program
         .module
-        .structural_types
+        .types.structural_types
         .iter()
         .find(|declaration| declaration.id == callee.structural_parameters[0].structural_type)
         .unwrap();
@@ -795,7 +795,7 @@ fn runtime_record_replacement_needs_an_intact_array_and_its_actual_bound() {
         accepted.publish_invocation().unwrap();
         let module = &accepted.elaboration.module;
         let mut forged = module.machines[0].clone();
-        terminal_semantics::plain_affine::verify(&forged, &module.structural_types).unwrap();
+        terminal_semantics::plain_affine::verify(&forged, &module.types.structural_types).unwrap();
         let store = forged.blocks.iter_mut().flat_map(|block| &mut block.operations).find(|operation| {
             matches!(&operation.kind, terminal_psi::OperationKind::StoreStructuralField { path, .. }
                 if path.iter().any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::RuntimeIndex { .. })))
@@ -812,7 +812,7 @@ fn runtime_record_replacement_needs_an_intact_array_and_its_actual_bound() {
         *disposition = terminal_psi::StructuralStoreDisposition::Vacant;
         assert!(
             matches!(
-                terminal_semantics::plain_affine::verify(&forged, &module.structural_types),
+                terminal_semantics::plain_affine::verify(&forged, &module.types.structural_types),
                 Err(terminal_semantics::plain_affine::Error::Malformed {
                     detail: "a vacant store displaces established affine contents",
                     site: Some(terminal_semantics::plain_affine::Site::Operation(at)),
@@ -924,17 +924,17 @@ reaches Service crashes none terminates {{ Selected::apply() }}
     let source = typed(&text);
     let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source))
         .expect("publish the generic form's actual Calling declarations");
-    assert!(!form.module.calling_policy_requests.is_empty());
-    assert!(!form.module.service_schemas.is_empty());
+    assert!(!form.module.interfaces.calling_policy_requests.is_empty());
+    assert!(!form.module.interfaces.service_schemas.is_empty());
     assert!(
-        form.module.program_entry_contracts.is_empty(),
+        form.module.interfaces.program_entry_contracts.is_empty(),
         "the check form does not borrow the primary entry nomination"
     );
     assert!(
         !form.conformance_witnesses.is_empty(),
         "the source policy's real conformance still requires checking"
     );
-    let scope = &form.module.scalar_applications.proof_scope;
+    let scope = &form.module.scalars.scalar_applications.proof_scope;
     for (position, machine) in form.module.machines.iter().enumerate() {
         if form
             .tables
@@ -955,7 +955,7 @@ reaches Service crashes none terminates {{ Selected::apply() }}
             );
         }
     }
-    for request in &form.module.calling_policy_requests {
+    for request in &form.module.interfaces.calling_policy_requests {
         for instance in request.instances.as_ref().unwrap() {
             let declaration = *instance.policy_declaration.as_ref().unwrap();
             let TargetMachineCallable::Machine(policy) = *instance.policy.as_ref().unwrap() else {

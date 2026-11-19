@@ -564,15 +564,15 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
             && let LoweringError::MissingBoundarySettlement(boundary) = error
             && let Some(declaration) = boundary_machines.get(boundary)
         {
-            let installations = verified_input.map(|input| input.module().installed_interrupt_registrations.iter()
+            let installations = verified_input.map(|input| input.module().interfaces.installed_interrupt_registrations.iter()
                 .filter(|registration| registration.installer == *boundary)
                 .map(|registration| (registration.machine, registration.operation, registration.registrar_application.as_str(), registration.callbacks.len()))
                 .collect::<Vec<_>>());
             eprintln!("checked interrupt installation records: {installations:?}");
             if let Some(input) = verified_input {
                 let module = input.module();
-                for registration in module.installed_interrupt_registrations.iter().filter(|registration| registration.installer == *boundary) {
-                    let helpers = module.callback_applications.iter().filter(|application| application.registrar_machine == registration.machine && application.registrar == registration.operation)
+                for registration in module.interfaces.installed_interrupt_registrations.iter().filter(|registration| registration.installer == *boundary) {
+                    let helpers = module.interfaces.callback_applications.iter().filter(|application| application.registrar_machine == registration.machine && application.registrar == registration.operation)
                         .map(|application| (application.static_machine_ordinal, application.entry_admitted, application.requirement.as_str(), &application.body)).collect::<Vec<_>>();
                     eprintln!("installed operation helper selections: {helpers:?}");
                     eprintln!("installed registrar ABI: {:?}", module.calling_abi_identity(registration.registrar_boundary));

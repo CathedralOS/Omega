@@ -51,7 +51,7 @@ pub(crate) mod access_views {
     ) -> Result<BTreeMap<TerminalAccessViewInput, AccessViewOccurrence>, TerminalInterpretError>
     {
         let entry_rows = module
-            .access_view_inputs
+            .access.access_view_inputs
             .iter()
             .filter(|row| row.machine == entry)
             .map(|row| input_parameter(module, row).map(|_| row))
@@ -188,7 +188,7 @@ pub(crate) mod access_views {
             let mut bound: BTreeMap<TerminalAccessViewInput, AccessViewOccurrence> =
                 BTreeMap::new();
             for row in module
-                .access_view_inputs
+                .access.access_view_inputs
                 .iter()
                 .filter(|row| row.machine == callee)
             {
@@ -206,7 +206,7 @@ pub(crate) mod access_views {
                 let occurrence = if let Some(mut ram) = ram {
                     self.validate_access_backing(&ram)?;
                     let plan = module
-                        .access_view_plans
+                        .access.access_view_plans
                         .iter()
                         .find(|plan| plan.carrier == ram.carrier())
                         .ok_or(malformed())?;
@@ -1035,7 +1035,7 @@ pub(crate) mod byte_arrays {
             if !value.projected_qualifications.is_empty() {
                 return Err(malformed());
             }
-            let domains = self.program.catalogs.structural_domains.iter();
+            let domains = self.program.catalogs.types.structural_domains.iter();
             let original = terminal_semantics::byte_qualification_predicates_in(
                 domains.clone(),
                 value.structural_type,
@@ -1654,7 +1654,7 @@ pub(crate) mod byte_arrays {
             }
             let window = terminal_semantics::fixed_byte_array_loan(
                 self.structural_types().values(),
-                self.program.catalogs.structural_domains.iter(),
+                self.program.catalogs.types.structural_domains.iter(),
                 &source,
                 argument,
                 parameter,

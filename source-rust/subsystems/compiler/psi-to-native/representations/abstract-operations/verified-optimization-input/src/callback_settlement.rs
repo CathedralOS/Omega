@@ -120,7 +120,7 @@ mod placement {
     ) -> Result<Vec<NativeCallbackPlacement>, String> {
         let operations = CallbackTerminalOperations::new(
             module
-                .callback_applications
+                .interfaces.callback_applications
                 .iter()
                 .map(|application| (application.registrar_machine, application.registrar)),
             module.machines.iter().flat_map(|machine| {
@@ -130,7 +130,7 @@ mod placement {
             }),
         );
         let mut placements = Vec::new();
-        for application in &module.callback_applications {
+        for application in &module.interfaces.callback_applications {
             let operation = operations.find((application.registrar_machine, application.registrar)).map_err(|count| {
             format!("callback registrar resolves to {count} Terminal operations; exactly one is required")
         })?;
@@ -428,7 +428,7 @@ mod installed_placement {
         calling: &[BoundaryCallingApplication],
     ) -> Result<Vec<NativeCallbackPlacement>, String> {
         let mut placements = Vec::new();
-        for registration in &module.installed_interrupt_registrations {
+        for registration in &module.interfaces.installed_interrupt_registrations {
             let registrar_boundary = registration.registrar_boundary;
             let registrar = calling_application(
                 calling,
@@ -551,7 +551,7 @@ mod registrar_imports {
             }),
         );
         let declarations = terminal_module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .map(|declaration| {
                 (

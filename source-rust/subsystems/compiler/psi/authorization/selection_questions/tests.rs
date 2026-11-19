@@ -508,7 +508,7 @@ fn authority_walks_follow_the_evaluated_machine_and_leave_unused_code_out() {
     }
     let contract = CallableContractId::new(1).unwrap();
     let identity = identities.intern("closed no-argument callable");
-    module.callables.contracts.push(TerminalCallableContract {
+    module.execution.callables.contracts.push(TerminalCallableContract {
         id: contract,
         identity,
         scalar_parameters: Vec::new(),
@@ -532,7 +532,7 @@ fn authority_walks_follow_the_evaluated_machine_and_leave_unused_code_out() {
     for ordinal in 1..=2 {
         let descriptor = MachineDescriptorId::new(ordinal).unwrap();
         module
-            .callables
+            .execution.callables
             .descriptors
             .push(TerminalMachineDescriptor {
                 id: descriptor,

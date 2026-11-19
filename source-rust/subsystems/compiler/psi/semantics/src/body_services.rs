@@ -31,7 +31,7 @@ pub fn body_service_reaches(
         .windows(2)
         .any(|rows| rows[0].id >= rows[1].id)
         || module
-            .services
+            .interfaces.services
             .windows(2)
             .any(|rows| rows[0].id >= rows[1].id)
     {
@@ -51,12 +51,12 @@ pub fn body_service_reaches(
     };
     let service_position = |service| {
         module
-            .services
+            .interfaces.services
             .binary_search_by_key(&service, |row| row.id)
             .map_err(|_| "body service row names an absent service")
     };
-    let mut parent_positions = Vec::with_capacity(module.services.len());
-    for service in &module.services {
+    let mut parent_positions = Vec::with_capacity(module.interfaces.services.len());
+    for service in &module.interfaces.services {
         if service.parents.windows(2).any(|rows| rows[0] >= rows[1]) {
             return Err("body service inheritance repeats or reorders a parent".into());
         }
@@ -68,8 +68,8 @@ pub fn body_service_reaches(
                 .collect::<Result<Vec<_>>>()?,
         );
     }
-    let mut colors = vec![0u8; module.services.len()];
-    for root in 0..module.services.len() {
+    let mut colors = vec![0u8; module.interfaces.services.len()];
+    for root in 0..module.interfaces.services.len() {
         let mut pending = vec![(root, false)];
         while let Some((position, leaving)) = pending.pop() {
             if leaving {
@@ -97,7 +97,7 @@ pub fn body_service_reaches(
         }
         for service in row {
             let position = service_position(*service)?;
-            if module.services[position]
+            if module.interfaces.services[position]
                 .parents
                 .iter()
                 .any(|parent| row.binary_search(parent).is_err())
@@ -107,10 +107,10 @@ pub fn body_service_reaches(
         }
         Ok(())
     };
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         validate_row(&boundary.published_service_ceiling)?;
     }
-    for contract in &module.callables.contracts {
+    for contract in &module.execution.callables.contracts {
         validate_row(&contract.envelope.service_reach)?;
     }
     let program = terminal_callable_values(module)?;
@@ -136,7 +136,7 @@ pub fn body_service_reaches(
                 }
                 CallableInvocationTarget::Value(_, contract) => {
                     let contract = module
-                        .callables
+                        .execution.callables
                         .contract(contract)
                         .ok_or("body service invocation names a missing callable contract")?;
                     union(&mut rows[position], &contract.envelope.service_reach);
@@ -172,13 +172,13 @@ pub fn body_service_reaches(
         for operation in UnoptimizedMachineBehavior::capture(machine).operations {
             if let UnoptimizedBehaviorOperation::InstructionService { service, .. } = operation {
                 let mut pending = vec![service_position(service)?];
-                let mut retained = vec![false; module.services.len()];
+                let mut retained = vec![false; module.interfaces.services.len()];
                 while let Some(service) = pending.pop() {
                     if retained[service] {
                         continue;
                     }
                     retained[service] = true;
-                    union(&mut rows[position], &[module.services[service].id]);
+                    union(&mut rows[position], &[module.interfaces.services[service].id]);
                     pending.extend_from_slice(&parent_positions[service]);
                 }
             }

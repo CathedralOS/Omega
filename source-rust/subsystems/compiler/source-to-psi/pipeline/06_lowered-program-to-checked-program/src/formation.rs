@@ -61,7 +61,7 @@ pub fn prepare_replay<'source>(
     // Declared linear leaves owe their claims even when the producer omitted
     // every claim row. Check that premise before following the supplied rows.
     terminal_semantics::owned_structure::validate_intrinsic_claim_roots(
-        &elaboration.module.structural_types,
+        &elaboration.module.types.structural_types,
     )
     .map_err(|detail| {
         crate::checking::refusal(
@@ -499,7 +499,7 @@ impl ClauseBindings for Scope<'_, '_> {
         for (depth, segment) in path.iter().enumerate() {
             if matches!(segment, Segment::FixedIndex(_)) {
                 let prefix = terminal_semantics::canonical_structural_path_tip(
-                    self.module.structural_types.iter(),
+                    self.module.types.structural_types.iter(),
                     root.ty,
                     &path[..depth],
                 )
@@ -515,7 +515,7 @@ impl ClauseBindings for Scope<'_, '_> {
             }
         }
         let found = terminal_semantics::canonical_primitive_read_type(
-            self.module.structural_types.iter(),
+            self.module.types.structural_types.iter(),
             root.ty,
             &path,
         )
@@ -542,7 +542,7 @@ impl ClauseBindings for Scope<'_, '_> {
         let (index, root) = self.root(place)?;
         let path = self.subject_path(path);
         let selected = terminal_semantics::canonical_structural_path_tip(
-            self.module.structural_types.iter(),
+            self.module.types.structural_types.iter(),
             root.ty,
             &path,
         )
@@ -587,7 +587,7 @@ impl ClauseBindings for Scope<'_, '_> {
                 }
                 Segment::FixedIndex(index) => {
                     let prefix = terminal_semantics::canonical_structural_path_tip(
-                        self.module.structural_types.iter(),
+                        self.module.types.structural_types.iter(),
                         root.ty,
                         &path[..depth],
                     )
@@ -609,7 +609,7 @@ impl ClauseBindings for Scope<'_, '_> {
         let inline = match path.split_last() {
             Some((Segment::Field(field), prefix)) => {
                 terminal_semantics::observed_field_declaration(
-                    self.module.structural_types.iter(),
+                    self.module.types.structural_types.iter(),
                     root.ty,
                     prefix,
                     *field,
@@ -619,13 +619,13 @@ impl ClauseBindings for Scope<'_, '_> {
             _ => false,
         };
         let declared = terminal_semantics::canonical_structural_path_tip(
-            self.module.structural_types.iter(),
+            self.module.types.structural_types.iter(),
             root.ty,
             &path,
         )
         .is_some_and(|selected| {
             terminal_semantics::byte_predicate_carrier(
-                self.module.structural_types.iter(),
+                self.module.types.structural_types.iter(),
                 selected.id,
             )
         });
@@ -810,7 +810,7 @@ pub(crate) fn module(
         .map(|machine| machine.id)
         .unwrap_or_else(|| MachineId::new(1).expect("nonzero"));
     if module
-        .scalar_predicate_definitions
+        .scalars.scalar_predicate_definitions
         .windows(2)
         .any(|pair| pair[0].declaration >= pair[1].declaration)
     {
@@ -821,7 +821,7 @@ pub(crate) fn module(
             "mathematical predicate declarations are duplicated or unordered",
         ));
     }
-    for definition in &module.scalar_predicate_definitions {
+    for definition in &module.scalars.scalar_predicate_definitions {
         let source = predicate_sources
             .binary_search_by_key(&definition.declaration, |source| source.declaration)
             .ok()
@@ -887,10 +887,10 @@ pub(crate) fn module(
     for machine in &module.machines {
         contract(module, machine.id, &machine.contract, activity)?;
     }
-    for declared in &module.declaration_contracts {
+    for declared in &module.execution.declaration_contracts {
         contract(module, diagnostic, declared, activity)?;
     }
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         let guards: Vec<_> = crash_clauses(&boundary.crash_routes).collect();
         if !owes(
             boundary
@@ -949,7 +949,7 @@ pub(crate) fn module(
         scope.clauses(&boundary.scalar_ensures, "boundary ensures")?;
     }
     data_domains(module, diagnostic, activity)?;
-    for domain in &module.scalar_qualifications.domains {
+    for domain in &module.types.scalar_qualifications.domains {
         if let Some(predicate) = &domain.predicate
             && owes([&predicate.proposition])
         {
@@ -1064,7 +1064,7 @@ fn add_projected_defaults<'types>(
     mut pending: Vec<DataSubject<'types>>,
     default_subject: PlaceId,
 ) -> Checked<()> {
-    let types = &scope.module.structural_types;
+    let types = &scope.module.types.structural_types;
     let mut visited = BTreeSet::new();
     let mut defaults = Vec::new();
     while let Some(subject) = pending.pop() {
@@ -1143,7 +1143,7 @@ fn data_domains(
     activity: &mut crate::checking::ProofSearchActivity,
 ) -> Checked<()> {
     let mut predicates = module
-        .structural_domains
+        .types.structural_domains
         .iter()
         .filter_map(|domain| {
             let predicate = domain.predicate.as_ref()?;
@@ -1162,7 +1162,7 @@ fn data_domains(
     let mut remaining = predicates.len();
     let ordered = OnceCell::new();
     let default_subject = PlaceId::new(1).expect("one is a place");
-    for declared in &module.structural_types {
+    for declared in &module.types.structural_types {
         let first = predicates.partition_point(|row| row.0 < declared.id);
         let end = predicates.partition_point(|row| row.0 <= declared.id);
         let domains = &mut predicates[first..end];

@@ -81,7 +81,7 @@ impl IntegerParsingImport {
                 "strtol needs one authenticated normal-completion reference output",
             ));
         };
-        let types = program.module().structural_types.iter();
+        let types = program.module().types.structural_types.iter();
         let endpoint = terminal_semantics::runtime_structural_path_tip(
             types,
             output.structural_type,

@@ -176,7 +176,7 @@ fn check_preserved_rejection() {
     };
     let contract = elaboration
         .module
-        .callables
+        .execution.callables
         .contract(contract)
         .expect("public contract");
     let [amount] = contract.scalar_parameters.as_slice() else {

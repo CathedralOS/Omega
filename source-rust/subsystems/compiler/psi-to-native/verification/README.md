@@ -38,6 +38,9 @@ install a handler. Their callers need the checked records during compilation.
   [selected plans](../../build/providers/selections/selection.rs) to the
   canonical candidate and service declarations, checks synchronous call cycles
   and rechecks every retained folded-constant dependency before installation.
+- [Component descriptions](component-description/description.rs) reconstruct the published
+  entries, exports, authority and obligations from embedded Psi. Receivers compare
+  those records with the native component description before admitting a provider.
 - [Runtime publication](runtime-publication/publication.rs) compares the admitted
   component call, authority and exact ABI to the emitted image's export slot and
   [measured stack](../representations/machine-code/stack-demand/physical_stack.rs).

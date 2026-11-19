@@ -115,7 +115,7 @@ pub(super) fn prepare(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let assumed_installations = assumed_installation_sites(module, &assumed_entries);
-    for registration in &module.installed_interrupt_registrations {
+    for registration in &module.interfaces.installed_interrupt_registrations {
         let installation = (registration.machine, registration.operation);
         let first = ordered_entries
             .partition_point(|entry| (entry.machine, entry.operation) < installation);
@@ -152,7 +152,7 @@ pub(super) fn prepare(
             )));
         }
         if !module
-            .services
+            .interfaces.services
             .iter()
             .any(|service| service.id == registration.service)
         {
@@ -365,7 +365,7 @@ fn assumed_installation_sites(
     assumed_entries: &[(MachineId, terminal_semantics::synchronous_calls::SynchronousCallClosure<'_>)],
 ) -> std::collections::BTreeMap<(MachineId, OperationId), Option<super::OperationSite>> {
     let registration_sites: std::collections::BTreeMap<_, _> = module
-        .installed_interrupt_registrations
+        .interfaces.installed_interrupt_registrations
         .iter()
         .map(|registration| {
             (
@@ -736,7 +736,7 @@ mod assumption_owner_tests {
         let first = machine(1, first_boundary);
         let second = machine(2, second_boundary);
         let mut module = TerminalModule::declarations();
-        module.installed_interrupt_registrations = vec![
+        module.interfaces.installed_interrupt_registrations = vec![
             registration(&first, first_boundary),
             registration(&second, second_boundary),
         ];
@@ -770,7 +770,7 @@ mod assumption_owner_tests {
         let unregistered = machine(2, installer);
         let wrong_boundary = machine(3, installer);
         let mut module = TerminalModule::declarations();
-        module.installed_interrupt_registrations = vec![
+        module.interfaces.installed_interrupt_registrations = vec![
             registration(&checked, installer),
             registration(&wrong_boundary, another_installer),
         ];

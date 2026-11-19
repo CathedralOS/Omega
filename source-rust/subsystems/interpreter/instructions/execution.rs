@@ -266,7 +266,7 @@ pub(crate) mod capabilities {
         if private_entry_ram.iter().any(|recipe| {
             recipe.terminal() != program.identity.semantic()
                 || recipe.input().machine != entry
-                || !program.catalogs.access_view_inputs.contains(recipe.input())
+                || !program.catalogs.access.access_view_inputs.contains(recipe.input())
         }) {
             return Err(malformed());
         }
@@ -474,7 +474,7 @@ pub(crate) mod capabilities {
                             for descriptor in &values.descriptors {
                                 let selected = program
                                     .catalogs
-                                    .callables
+                                    .execution.callables
                                     .descriptor(*descriptor)
                                     .ok_or_else(malformed)?;
                                 pending.push(selected.machine);
@@ -484,7 +484,7 @@ pub(crate) mod capabilities {
                         OperationKind::CallDynamic {
                             interface, slot, ..
                         } => {
-                            let catalog = &program.catalogs.dynamic_dispatch;
+                            let catalog = &program.catalogs.execution.dynamic_dispatch;
                             let slot_index = usize::try_from(*slot).map_err(|_| malformed())?;
                             if catalog
                                 .interface(*interface)
@@ -663,7 +663,7 @@ pub(crate) mod capabilities {
             terminal_semantics::inline_storage_extent_dependencies(storage_roots, &declarations)
                 .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?,
         );
-        let catalog = &program.catalogs.scalar_applications;
+        let catalog = &program.catalogs.scalars.scalar_applications;
         let mut scalar_entry_conditions = Vec::new();
         for (position, declaration) in catalog.declarations().iter().enumerate() {
             let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
@@ -832,7 +832,7 @@ pub(crate) mod capabilities {
                 shape,
                 scalar_restriction: None,
             };
-            module.structural_types = vec![
+            module.types.structural_types = vec![
                 declaration(
                     1,
                     terminal_psi::StructuralTypeShape::Reference {
@@ -1811,7 +1811,7 @@ pub(crate) mod content_transformations {
                         .get(&input.subject.root)
                         .ok_or_else(invalid)?;
                     let path = terminal_semantics::content_transformations::structural_path(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         &module.identities,
                         root.structural_type,
                         &input.subject.segments,
@@ -1833,15 +1833,15 @@ pub(crate) mod content_transformations {
             }
             let mut actual = Vec::new();
             let types = module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .map(|declaration| (declaration.id, declaration))
                 .collect::<std::collections::BTreeMap<_, _>>();
             let boundaries = module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .filter_map(|declaration| declaration.owns_linear_claim.then_some(declaration.id))
-                .chain(module.structural_types.iter().filter_map(|declaration| {
+                .chain(module.types.structural_types.iter().filter_map(|declaration| {
                     declaration.nominal_cleanup.as_ref().map(|_| declaration.id)
                 }))
                 .collect::<std::collections::BTreeSet<_>>();
@@ -1912,8 +1912,8 @@ pub(crate) mod content_transformations {
                     .get(&parent.place)
                     .ok_or_else(invalid)?;
                 terminal_semantics::content_transformations::validate_parent_memberships(
-                &module.structural_types,
-                &module.structural_domains,
+                &module.types.structural_types,
+                &module.types.structural_domains,
                 &module.identities,
                 root.structural_type,
                 parent,
@@ -1999,7 +1999,7 @@ pub(crate) mod execution {
         StructuralPathSegment, StructuralTypeDeclaration, TerminalAccessViewInput, Terminator,
     };
     use terminal_semantics::validate_empty_erased_invocation_inputs;
-    use terminal_work::WorkMeter;
+    use terminal_work::ExecutionMeter;
 
     pub(crate) enum TerminatorFlow {
         Continue,
@@ -2860,11 +2860,11 @@ pub(crate) mod execution {
                 contract,
                 descriptor,
             } = scalar
-                && (self.program.catalogs.callables.contract(contract).is_none()
+                && (self.program.catalogs.execution.callables.contract(contract).is_none()
                     || self
                         .program
                         .catalogs
-                        .callables
+                        .execution.callables
                         .descriptor(descriptor)
                         .is_none_or(|selected| selected.contract != contract))
             {
@@ -2970,7 +2970,7 @@ pub(crate) mod execution {
 
         pub fn resume(
             &mut self,
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
         ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
             self.resume_with_components(meter, handler, &mut ComponentBindings::new())
@@ -2978,7 +2978,7 @@ pub(crate) mod execution {
 
         pub(crate) fn resume_with_components(
             &mut self,
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
             components: &mut ComponentBindings<'_, 'artifact>,
         ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
@@ -3018,7 +3018,7 @@ pub(crate) mod execution {
 
         fn resume_operations(
             &mut self,
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
             components: &mut ComponentBindings<'_, 'artifact>,
         ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
@@ -3224,10 +3224,10 @@ pub(crate) mod execution {
                                             self.execute_call(operation, &program)?
                                         }
                                         OperationKind::SelectMachine { descriptor } => {
-                                            let selected = program.catalogs.callables.descriptor(descriptor).ok_or_else(malformed)?;
+                                            let selected = program.catalogs.execution.callables.descriptor(descriptor).ok_or_else(malformed)?;
                                             let result = operation.result.scalar().ok_or_else(malformed)?;
                                             if result.scalar_type != semantic_vocabulary::ScalarType::Callable(selected.contract)
-                                                || program.catalogs.callables.contract(selected.contract).is_none() {
+                                                || program.catalogs.execution.callables.contract(selected.contract).is_none() {
                                                 return Err(malformed());
                                             }
                                             self.store_scalar(operation, TerminalScalarValue::Callable { contract: selected.contract, descriptor })?

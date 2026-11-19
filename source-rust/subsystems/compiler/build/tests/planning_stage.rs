@@ -134,7 +134,7 @@ fn authored_build_returns_its_application_and_target_bindings() {
     let artifact = output.retained_native_artifact().unwrap();
     assert!(artifact.image().output().bytes.starts_with(b"\x7fELF"));
     let module = artifact.psi_artifact().semantic_module();
-    let [boundary] = module.boundary_machines.as_slice() else {
+    let [boundary] = module.interfaces.boundary_machines.as_slice() else {
         panic!("getpid must be the only reached native requirement");
     };
     assert!(

@@ -66,7 +66,7 @@ impl crate::AcceptedTerminalSource {
     fn compute_numeric_requirements(&self, roots: &[MachineId]) -> NumericRequirements {
         let mut numeric: Vec<_> = self
             .module()
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .filter(|boundary| {
                 boundary.declaration.as_ref().is_some_and(|declaration| {

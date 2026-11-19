@@ -29,7 +29,7 @@ fn required_domains(module: &TerminalModule, domain: Domain) -> Option<Vec<Domai
     match domain {
         Domain::Scalar(id) => crate::scalar_qualifications::scalar_domain(module, id)
             .and_then(|domain| {
-                domain.required_domain_closure(&module.scalar_qualifications.domains)
+                domain.required_domain_closure(&module.types.scalar_qualifications.domains)
             })
             .map(|closure| {
                 closure
@@ -38,10 +38,10 @@ fn required_domains(module: &TerminalModule, domain: Domain) -> Option<Vec<Domai
                     .collect()
             }),
         Domain::Structural(id) => module
-            .structural_domains
+            .types.structural_domains
             .iter()
             .find(|domain| domain.id == id)
-            .and_then(|domain| domain.required_domain_closure(&module.structural_domains))
+            .and_then(|domain| domain.required_domain_closure(&module.types.structural_domains))
             .map(|closure| {
                 closure
                     .into_iter()
@@ -64,17 +64,17 @@ fn declared_scalar_domains<'module>(
     location: &DescriptorLocation,
 ) -> Option<&'module [ScalarDomainId]> {
     let path = crate::descriptor_lifetimes::descriptor_path(
-        &module.structural_types,
+        &module.types.structural_types,
         carrier,
         &location.path,
     )?;
     let set = if let Some(field) =
-        crate::runtime_structural_field(module.structural_types.iter(), carrier, &path)
+        crate::runtime_structural_field(module.types.structural_types.iter(), carrier, &path)
     {
         crate::scalar_qualifications::field_qualifications(module, field.id)
     } else {
         let tip =
-            crate::runtime_structural_path_tip(module.structural_types.iter(), carrier, &path)?;
+            crate::runtime_structural_path_tip(module.types.structural_types.iter(), carrier, &path)?;
         crate::scalar_qualifications::primitive_qualifications(module, tip.id)
     };
     crate::scalar_qualifications::qualification_domains(module, set)
@@ -115,7 +115,7 @@ fn observe(
     }
     let root_type = machine.structural_place_type(location.root)?;
     let Some(inventory) = crate::descriptor_results::DescriptorSlotKind::References.inventory(
-        &module.structural_types,
+        &module.types.structural_types,
         location.root,
         root_type,
     ) else {
@@ -496,7 +496,7 @@ impl ResultBinding {
                 return Err(invalid());
             }
             let selected =
-                canonical_descriptor_location(&module.structural_types, *formal, *carrier, path)
+                canonical_descriptor_location(&module.types.structural_types, *formal, *carrier, path)
                     .ok_or_else(|| {
                         unavailable(
                             machine,
@@ -562,7 +562,7 @@ impl ResultBinding {
                     })?;
                 if declared.carrier != subject.scalar_type()
                     || crate::canonical_primitive_read_type(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         *carrier,
                         path,
                     ) != Some(subject.scalar_type())
@@ -587,7 +587,7 @@ impl ResultBinding {
                     return Err(invalid());
                 };
                 let declared = module
-                    .structural_domains
+                    .types.structural_domains
                     .iter()
                     .find(|row| row.id == *domain)
                     .ok_or_else(|| {
@@ -597,7 +597,7 @@ impl ResultBinding {
                         )
                     })?;
                 if crate::canonical_structural_path_tip(
-                    module.structural_types.iter(),
+                    module.types.structural_types.iter(),
                     *carrier,
                     path,
                 )
@@ -667,7 +667,7 @@ fn structural_declaration(
         facts.push(Fact {
             subject: Subject::Storage {
                 version: ContentPlaceVersion::Current,
-                location: descriptor_location(&module.structural_types, root, ty, &row.path, None)
+                location: descriptor_location(&module.types.structural_types, root, ty, &row.path, None)
                     .ok_or_else(|| {
                         unavailable(
                             machine,
@@ -732,7 +732,7 @@ fn operation_call(
             }
         }
     } else if let Some(inputs) = operation.kind.callable_invocation() {
-        let contract = module.callables.contract(inputs.contract).ok_or_else(|| {
+        let contract = module.execution.callables.contract(inputs.contract).ok_or_else(|| {
             unavailable(
                 machine.id,
                 "membership call lost its exact callable contract",
@@ -862,7 +862,7 @@ fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
     // Pure predicates are still ordinary postconditions. Retain their header
     // rows, but do not invent an additional issuer obligation for their bodies.
     let predicates = module
-        .scalar_qualifications
+        .types.scalar_qualifications
         .domains
         .iter()
         .filter(|domain| {
@@ -871,7 +871,7 @@ fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
         .map(|domain| Domain::Scalar(domain.id))
         .chain(
             module
-                .structural_domains
+                .types.structural_domains
                 .iter()
                 .filter(|domain| domain.is_pure_predicate() && domain.byte_predicate.is_none())
                 .map(|domain| Domain::Structural(domain.id)),
@@ -899,7 +899,7 @@ fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
             &machine.contract.membership_ensures,
         )?;
     }
-    for header in &module.declaration_contracts {
+    for header in &module.execution.declaration_contracts {
         if header.membership_ensures.is_empty() {
             continue;
         }
@@ -919,7 +919,7 @@ fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
         )?;
         append(machine, binding, &header.membership_ensures)?;
     }
-    for candidate in &module.provider_candidates {
+    for candidate in &module.interfaces.provider_candidates {
         let boundary = module.boundary_machine(candidate.boundary).ok_or_else(|| {
             unavailable(
                 candidate.candidate,
@@ -942,9 +942,9 @@ fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
         )?;
         append(machine, binding, &boundary.membership_ensures)?;
     }
-    for descriptor in &module.callables.descriptors {
+    for descriptor in &module.execution.callables.descriptors {
         let contract = module
-            .callables
+            .execution.callables
             .contract(descriptor.contract)
             .ok_or_else(|| {
                 unavailable(
@@ -1173,7 +1173,7 @@ pub fn validate_boundary_normal_memberships(
             }
             RuntimeDomainMembership::Structural { path, domain, .. } => {
                 let domain =
-                    crate::exactly_one::exactly_one(module.structural_domains.iter(), |row| {
+                    crate::exactly_one::exactly_one(module.types.structural_domains.iter(), |row| {
                         row.id == *domain
                     })
                     .ok_or("normal-result membership names no unique structural domain")?;
@@ -1189,7 +1189,7 @@ pub fn validate_boundary_normal_memberships(
                 portable.push(match step {
                     Path::Field(field) => {
                         let field = crate::observed_field_declaration(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             *carrier,
                             &path[..ordinal],
                             *field,
@@ -1199,7 +1199,7 @@ pub fn validate_boundary_normal_memberships(
                     }
                     Path::Case(case) => {
                         let tip = crate::canonical_structural_path_tip(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             *carrier,
                             &path[..ordinal],
                         )
@@ -1244,7 +1244,7 @@ pub fn validate_boundary_normal_memberships(
 
 fn validate_boundary_outputs(module: &TerminalModule) -> Judged<()> {
     let diagnostic = None;
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         if boundary.membership_ensures.is_empty() {
             continue;
         }
@@ -1302,7 +1302,7 @@ fn validate_predicates<'a>(
                     Domain::Structural(domain),
                 ) => {
                     let domain = module
-                        .structural_domains
+                        .types.structural_domains
                         .iter()
                         .find(|row| row.id == domain)
                         .ok_or_else(|| {
@@ -1358,7 +1358,7 @@ fn validate_headers(module: &TerminalModule) -> Judged<()> {
                 .map(|clause| &clause.proposition),
         )?;
     }
-    for contract in &module.callables.contracts {
+    for contract in &module.execution.callables.contracts {
         validate_roster(None, &contract.proof.membership_ensures)?;
         let binding = result_binding(&contract.proof_result);
         for row in &contract.proof.membership_ensures {
@@ -1375,7 +1375,7 @@ fn validate_headers(module: &TerminalModule) -> Judged<()> {
                 .map(|clause| &clause.proposition),
         )?;
     }
-    for header in &module.declaration_contracts {
+    for header in &module.execution.declaration_contracts {
         let machine = header
             .selected_application
             .as_ref()
@@ -1641,15 +1641,15 @@ pub(crate) fn analyze_bodies(
         .iter()
         .any(|machine| !machine.contract.membership_ensures.is_empty())
         && !module
-            .declaration_contracts
+            .execution.declaration_contracts
             .iter()
             .any(|header| !header.membership_ensures.is_empty())
         && !module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .any(|header| !header.membership_ensures.is_empty())
         && !module
-            .callables
+            .execution.callables
             .contracts
             .iter()
             .any(|contract| !contract.proof.membership_ensures.is_empty())
@@ -1685,7 +1685,7 @@ pub(crate) fn analyze_bodies(
             "membership checking names an absent body",
         ));
     }
-    let mut storage = DescriptorAnalysis::with_reference_slots(&module.structural_types, &graphs);
+    let mut storage = DescriptorAnalysis::with_reference_slots(&module.types.structural_types, &graphs);
     for machine in &module.machines {
         if bodies.binary_search(&machine.id).is_err() {
             continue;
@@ -1953,7 +1953,7 @@ pub(crate) fn analyze_bodies(
             }
         }
         for change in module
-            .structural_qualification_changes
+            .types.structural_qualification_changes
             .iter()
             .filter(|change| change.machine == machine.id)
         {
@@ -2148,7 +2148,7 @@ mod tests {
         let mut module = TerminalModule::declarations();
         module.identities = vec![String::new(), "exact-domain-application".into()].into();
         module
-            .scalar_qualifications
+            .types.scalar_qualifications
             .domains
             .push(terminal_psi::ScalarDomainDeclaration {
                 required_memberships: Some(Vec::new()),
@@ -2180,9 +2180,9 @@ mod tests {
                 subject: ScalarTerm::value(result, carrier),
                 domain,
             });
-        module.declaration_contracts.push(header);
+        module.execution.declaration_contracts.push(header);
         assert!(analyze(&module).is_ok());
-        module.declaration_contracts[0].membership_ensures[0] = RuntimeDomainMembership::Scalar {
+        module.execution.declaration_contracts[0].membership_ensures[0] = RuntimeDomainMembership::Scalar {
             subject: ScalarTerm::value(ValueId::new(1).unwrap(), carrier),
             domain,
         };
@@ -2205,7 +2205,7 @@ mod tests {
         let mut module = TerminalModule::declarations();
         for id in 1..=3 {
             module
-                .scalar_qualifications
+                .types.scalar_qualifications
                 .domains
                 .push(terminal_psi::ScalarDomainDeclaration {
                     required_memberships: Some(if id == 2 {
@@ -2223,7 +2223,7 @@ mod tests {
         }
         let set = semantic_vocabulary::ScalarQualificationSetId::new(1);
         module
-            .scalar_qualifications
+            .types.scalar_qualifications
             .sets
             .push(terminal_psi::ScalarQualificationSet {
                 id: set,
@@ -2305,7 +2305,7 @@ mod tests {
         let ty = StructuralTypeId::new(1).unwrap();
         let case = StructuralCaseId::new(1).unwrap();
         let field = StructuralFieldId::new(1).unwrap();
-        module.structural_types.push(StructuralTypeDeclaration {
+        module.types.structural_types.push(StructuralTypeDeclaration {
             declaration_identity: TerminalIdentityIndex(1),
             quotient_carrier: None,
             id: ty,
@@ -2343,7 +2343,7 @@ mod tests {
             },
         });
         module
-            .scalar_qualifications
+            .types.scalar_qualifications
             .fields
             .push(terminal_psi::ScalarFieldQualification {
                 field,
@@ -2392,21 +2392,21 @@ mod tests {
 
         // The same formation rule applies to structural projected defaults.
         let nested = StructuralTypeId::new(2).unwrap();
-        let mut nested_type = module.structural_types[0].clone();
+        let mut nested_type = module.types.structural_types[0].clone();
         nested_type.id = nested;
         nested_type.identity = TerminalIdentityIndex(4);
         nested_type.shape = StructuralTypeShape::Record {
             fields: Vec::new(),
             storage: terminal_psi::StructuralRecordStorage::Packed,
         };
-        module.structural_types.push(nested_type);
-        let StructuralTypeShape::Sum { cases } = &mut module.structural_types[0].shape else {
+        module.types.structural_types.push(nested_type);
+        let StructuralTypeShape::Sum { cases } = &mut module.types.structural_types[0].shape else {
             unreachable!()
         };
         cases[0].fields[0].field_type = StructuralFieldType::Structural(nested);
         let domain = StructuralDomainId::new(1).unwrap();
         module
-            .structural_domains
+            .types.structural_domains
             .push(terminal_psi::StructuralDomainDeclaration {
                 required_memberships: Some(Vec::new()),
                 complete_predicate_theory: true,
@@ -2465,7 +2465,7 @@ mod tests {
         );
 
         // Required domains contribute their predicates to the same promise.
-        module.scalar_qualifications.domains[0].predicate =
+        module.types.scalar_qualifications.domains[0].predicate =
             Some(terminal_psi::ScalarDomainPredicate {
                 subject: ValueId::new(1).unwrap(),
                 proposition: semantic_vocabulary::Proposition::Falsehood,

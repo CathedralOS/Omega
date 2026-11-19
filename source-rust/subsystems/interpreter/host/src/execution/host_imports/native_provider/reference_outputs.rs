@@ -48,7 +48,7 @@ impl ReferenceOutputs {
         layouts: &[runtime_abi::NativeBorrowedStorageLayout],
     ) -> Self {
         Self {
-            types: program.module().structural_types.clone(),
+            types: program.module().types.structural_types.clone(),
             parameters: declaration
                 .structural_parameters
                 .iter()

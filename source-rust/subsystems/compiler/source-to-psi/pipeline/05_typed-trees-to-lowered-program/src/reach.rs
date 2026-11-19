@@ -210,7 +210,7 @@ impl ServiceMap {
         context: MachineId,
         module: &mut TerminalModule,
     ) -> Checked<Vec<String>> {
-        if !module.services.is_empty() {
+        if !module.interfaces.services.is_empty() {
             return Err(unavailable(
                 context,
                 "service namespace was already published",
@@ -240,7 +240,7 @@ impl ServiceMap {
                     application,
                     surface: std::sync::Arc::clone(schema.declaration),
                 });
-                module.services.push(ServiceDeclaration {
+                module.interfaces.services.push(ServiceDeclaration {
                     id: source.id,
                     identity: application,
                     parents: source.parents.clone(),
@@ -251,8 +251,8 @@ impl ServiceMap {
         })();
         module.identities = identities.build();
         prepared?;
-        module.service_schemas =
-            terminal_psi::TerminalServiceSchema::join(&module.service_schemas, &schemas)
+        module.interfaces.service_schemas =
+            terminal_psi::TerminalServiceSchema::join(&module.interfaces.service_schemas, &schemas)
                 .map_err(|reason| crate::lowering::read::services::unavailable(context, reason))?;
         Ok(names)
     }
@@ -444,7 +444,7 @@ pub(crate) fn publish(
             for call in machine.callable_invocations() {
                 let contract = elaboration
                     .module
-                    .callables
+                    .execution.callables
                     .contract(call.inputs.contract)
                     .ok_or_else(|| {
                         unavailable(machine.id, "reach call lost its retained callable contract")
@@ -486,7 +486,7 @@ pub(crate) fn publish(
         machine.published_service_ceiling = row.clone();
         if let Some(named) = elaboration
             .module
-            .callables
+            .execution.callables
             .machine_envelopes
             .get_mut(at)
             .and_then(Option::as_mut)
@@ -499,7 +499,7 @@ pub(crate) fn publish(
         }
     }
     if let Some(entry) = entry {
-        elaboration.module.root_service_reach.concrete = published
+        elaboration.module.interfaces.root_service_reach.concrete = published
             .get(position(entry)?)
             .ok_or_else(|| unavailable(entry, "program entry has no published reach"))?
             .clone();

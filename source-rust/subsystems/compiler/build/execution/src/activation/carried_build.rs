@@ -76,7 +76,7 @@ fn declaration(
     structural_type: StructuralTypeId,
 ) -> Result<&StructuralTypeDeclaration, String> {
     module
-        .structural_types
+        .types.structural_types
         .iter()
         .find(|declaration| declaration.id == structural_type)
         .ok_or_else(|| "Build value lost a structural declaration".to_owned())

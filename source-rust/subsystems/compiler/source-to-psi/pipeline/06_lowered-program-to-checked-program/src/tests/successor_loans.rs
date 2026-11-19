@@ -308,7 +308,7 @@ machine entry(first: bool) -> bool {
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
     let prepared = crate::checking::prepare(formed, domains, identity, tables).unwrap();
-    let mut references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.types.structural_types);
     let machine = module.machine(identity).unwrap();
     let storage = crate::checking::places::Storage::new(
         identity,
@@ -576,7 +576,7 @@ machine main() crashes Trap {
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
     let prepared = crate::checking::prepare(formed, domains, identity, tables).unwrap();
-    let mut references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.types.structural_types);
     let storage = crate::checking::places::Storage::new(
         identity,
         module.machine(identity).unwrap(),
@@ -698,7 +698,7 @@ fn loop_windows_keep_the_exact_original_input_permission() {
     )
     .unwrap_or_else(|error| panic!("{}", error.in_module(&input.module)));
     let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.types.structural_types, &graph);
     let mut checked = 0;
     for machine in &input.module.machines {
         for block in &machine.blocks {
@@ -714,13 +714,13 @@ fn loop_windows_keep_the_exact_original_input_permission() {
                     .zip(&machine.block(&target).unwrap().structural_parameters)
                 {
                     if !terminal_semantics::descriptor_results::is_descriptor(
-                        input.module.structural_types.iter(),
+                        input.module.types.structural_types.iter(),
                         formal.structural_type,
                     ) {
                         continue;
                     }
                     let location = descriptor_location(
-                        &input.module.structural_types,
+                        &input.module.types.structural_types,
                         actual.place,
                         machine.structural_place_type(actual.place).unwrap(),
                         &actual.path,
@@ -907,7 +907,7 @@ requires index < 2 {
     };
     let graph = graph_from_source();
     let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.types.structural_types, &graph);
     let machine = input
         .module
         .machines
@@ -982,7 +982,7 @@ requires index < 2 {
     }
     assert!(removed > 0);
     let mut missing =
-        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &missing);
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.types.structural_types, &missing);
     assert!(
         terminal_semantics::borrowed_loan_source(
             &input.module,
@@ -1018,7 +1018,7 @@ requires index < 2 {
     }
     assert!(changed > 0);
     let mut stale =
-        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &stale);
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.types.structural_types, &stale);
     assert!(
         stale
             .captured_storage_family(machine.id, *at, descriptor)
@@ -1078,7 +1078,7 @@ requires index < 2 {
     }
     assert!(crossed > 0);
     let mut ambiguous =
-        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &ambiguous);
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.types.structural_types, &ambiguous);
     assert!(
         terminal_semantics::borrowed_loan_source(
             &input.module,
@@ -1114,7 +1114,7 @@ requires index < 2 {
     // On a later cycle, shape can come from shapes[index]. Both must permit
     // forwarding without becoming one parent loan.
     let mut transported =
-        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.types.structural_types, &graph);
     let mut multiple_sources = 0;
     for candidate in &input.module.machines {
         for block in &candidate.blocks {
@@ -1122,7 +1122,7 @@ requires index < 2 {
             for parameter in &block.structural_parameters {
                 if parameter.access == StructuralAccess::Owned
                     || terminal_semantics::descriptor_results::is_descriptor(
-                        input.module.structural_types.iter(),
+                        input.module.types.structural_types.iter(),
                         parameter.structural_type,
                     )
                 {
@@ -1178,7 +1178,7 @@ requires index < 2 {
     let module = formed.source();
     let tables = checking.machines.get_mut(identity).unwrap();
     let prepared = crate::checking::prepare(formed, domains, identity, tables).unwrap();
-    let mut references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.types.structural_types);
     let storage = crate::checking::places::Storage::new(
         identity,
         module.machine(identity).unwrap(),

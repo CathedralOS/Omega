@@ -38,17 +38,17 @@ pub(crate) fn publish(diagnostic: MachineId, module: &mut TerminalModule) -> Che
     // Complete every public header before deriving call rows. The body and a
     // selected requirement can expose different contracts; neither borrows the
     // other's private promises. Boundary custody is separately authenticated.
-    for contract in &mut module.declaration_contracts {
+    for contract in &mut module.execution.declaration_contracts {
         terminal_semantics::plain_affine::publish_contract_claims(
             contract,
-            &module.structural_types,
+            &module.types.structural_types,
         )
         .map_err(|error| preparation_error(diagnostic, error))?;
     }
     for machine in &mut module.machines {
         terminal_semantics::plain_affine::publish_contract_claims(
             &mut machine.contract,
-            &module.structural_types,
+            &module.types.structural_types,
         )
         .map_err(|error| preparation_error(machine.id, error))?;
     }

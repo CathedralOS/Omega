@@ -9,7 +9,7 @@ fn the_lowered_scalar_type_retains_its_declared_domain() {
     // qualified_operator_home program, without depending on operator selection.
     let elaboration = invocation(UNIT_DOMAIN).unwrap();
     assert_eq!(
-        elaboration.module.scalar_qualifications.domains.len(),
+        elaboration.module.types.scalar_qualifications.domains.len(),
         1,
         "the checker must receive the nominal domain, not only its erased carrier"
     );
@@ -86,7 +86,7 @@ fn the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier() {
 #[test]
 fn a_qualified_result_annotation_does_not_replace_its_cast_edge() {
     let mut elaboration = invocation(UNIT_DOMAIN).unwrap();
-    elaboration.module.scalar_qualifications.coercions.clear();
+    elaboration.module.types.scalar_qualifications.coercions.clear();
     let refusal = judge(Ok(elaboration)).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
     assert!(
@@ -103,7 +103,7 @@ fn a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty() {
         ScalarDomainPredicate, ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite,
     };
     let mut elaboration = invocation(UNIT_DOMAIN).unwrap();
-    let catalog = &mut elaboration.module.scalar_qualifications;
+    let catalog = &mut elaboration.module.types.scalar_qualifications;
     catalog.domains[0].establishment_routes = Some(Vec::new());
     catalog.domains[0].predicate = Some(ScalarDomainPredicate {
         subject: semantic_vocabulary::ValueId::new(1).unwrap(),
@@ -228,10 +228,10 @@ machine entry() -> i64 {{ Probe::consume(issue({actual})) }}
 #[test]
 fn a_boundary_formal_keeps_its_domain_and_independent_requirement() {
     let elaboration = invocation(&boundary_consumer(7)).unwrap();
-    let [boundary] = elaboration.module.boundary_machines.as_slice() else {
+    let [boundary] = elaboration.module.interfaces.boundary_machines.as_slice() else {
         panic!("the source calls one qualified scalar boundary");
     };
-    let [domain] = elaboration.module.scalar_qualifications.domains.as_slice() else {
+    let [domain] = elaboration.module.types.scalar_qualifications.domains.as_slice() else {
         panic!("the source retains its one routed scalar domain");
     };
     let [required] = boundary.scalar_domain_requirements.as_slice() else {
@@ -279,8 +279,8 @@ fn a_boundary_call_rejects_an_unqualified_actual_with_the_same_carrier() {
         matches!(accepted, RouteVerdict::Accepted(_)),
         "{accepted:?}"
     );
-    let boundary = elaboration.module.boundary_machines[0].id;
-    let carrier = elaboration.module.boundary_machines[0].scalar_parameters[0];
+    let boundary = elaboration.module.interfaces.boundary_machines[0].id;
+    let carrier = elaboration.module.interfaces.boundary_machines[0].scalar_parameters[0];
     let caller = elaboration
         .module
         .machines
@@ -533,7 +533,7 @@ machine entry() -> i64 {{
     // A retained field label cannot stand in for the default-domain clause
     // which protects its contents through construction and mutation.
     let mut erased = invocation(&source(13)).unwrap();
-    for owner in &mut erased.module.structural_types {
+    for owner in &mut erased.module.types.structural_types {
         owner.requires.clear();
     }
     let refusal = judge(Ok(erased)).unwrap_err();

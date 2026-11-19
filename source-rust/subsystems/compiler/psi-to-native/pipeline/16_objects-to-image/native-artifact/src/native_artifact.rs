@@ -105,7 +105,7 @@ pub(super) fn validate_boundary_application_coverage(
         .transpose()?;
     let demands = expected
         .as_deref()
-        .unwrap_or(&module.boundary_application_demands);
+        .unwrap_or(&module.interfaces.boundary_application_demands);
     let Some(coverage) = coverage else {
         if !demands.is_empty() || physical_evidence_scope.requires_boundary_application_coverage() {
             return Err(
@@ -1113,7 +1113,7 @@ impl NativeSelectedProviderPlan {
                 }
             } else {
                 let Some(boundary) = module
-                    .boundary_machines
+                    .interfaces.boundary_machines
                     .iter()
                     .find(|boundary| module.identities.text(boundary.identity) == Some(current))
                 else {

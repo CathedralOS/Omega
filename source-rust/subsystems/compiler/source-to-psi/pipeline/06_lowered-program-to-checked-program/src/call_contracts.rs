@@ -426,7 +426,7 @@ pub(crate) fn invocation<'a>(
                 ));
             }
             let contract = module
-                .callables
+                .execution.callables
                 .contract(contract)
                 .ok_or_else(|| refuse("indirect call names no retained callable contract"))?;
             PublicContract::machine(
@@ -482,7 +482,7 @@ pub(crate) fn invocation<'a>(
             // published envelope is still required; suspension needs a separate
             // continuation/carry producer, checked with all call forms below.
             let envelope = module
-                .callables
+                .execution.callables
                 .boundary_envelope(boundary.id)
                 .ok_or_else(|| refuse("boundary has no complete operational envelope"))?;
             if boundary.declaration.as_ref().is_some_and(|declaration| {

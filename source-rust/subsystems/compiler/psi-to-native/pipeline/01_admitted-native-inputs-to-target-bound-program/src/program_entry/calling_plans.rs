@@ -33,7 +33,7 @@ pub fn entry_calling_policy<'module>(
     owner: &str,
 ) -> Result<&'module CallingPolicyInstance, String> {
     let mut selected = None;
-    for request in &module.calling_policy_requests {
+    for request in &module.interfaces.calling_policy_requests {
         if request
             .declaration
             .as_ref()

@@ -81,7 +81,7 @@ impl BoundaryNamespace {
             source_span: None,
             detail: detail.to_owned(),
         };
-        if !module.boundary_machines.is_empty() {
+        if !module.interfaces.boundary_machines.is_empty() {
             return Err(refusal("boundary declarations were already published"));
         }
         qualifications.identities = std::mem::take(&mut module.identities).into_builder();
@@ -107,7 +107,7 @@ impl BoundaryNamespace {
             }
             let result_lifetimes = declarations
                 .ok_or_else(|| refusal("boundary lost its prepared source lifetime context"))?
-                .declared_result_lifetimes(context, &source.signature, &module.structural_types)
+                .declared_result_lifetimes(context, &source.signature, &module.types.structural_types)
                 .map_err(refusal)?
                 .ok_or_else(|| {
                     refusal("boundary result has an unresolved declared lifetime frontier")
@@ -279,7 +279,7 @@ impl BoundaryNamespace {
                 .declared_reference_outputs(
                     context,
                     &source.signature,
-                    &module.structural_types,
+                    &module.types.structural_types,
                     &header.structural_parameters,
                 )
                 .map_err(refusal)?;
@@ -289,7 +289,7 @@ impl BoundaryNamespace {
                 .is_some_and(|(owner, signature)| {
                     owner.is_boundary && signature.service_reach_is_installation_bound
                 });
-            module.boundary_machines.push(BoundaryMachineDeclaration {
+            module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
                 declaration: Some(checked),
                 numeric_intrinsic: if execution == CheckedBoundaryExecution::NumericPrimitive { reader.typed.numeric_intrinsic_execution(source.source) } else { None },

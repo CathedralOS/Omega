@@ -430,14 +430,14 @@ fn discharge_inner(
     verified_borrow_ends: Option<&VerifiedBorrowEnds>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    for boundary in &elaboration.module.boundary_machines {
+    for boundary in &elaboration.module.interfaces.boundary_machines {
         terminal_semantics::boundary_result_lifetimes(
-            &elaboration.module.structural_types,
+            &elaboration.module.types.structural_types,
             boundary,
         )
         .and_then(|_| {
             terminal_semantics::references::validate_declared_boundary_reference_outputs(
-                &elaboration.module.structural_types,
+                &elaboration.module.types.structural_types,
                 boundary,
             )
         })
@@ -539,7 +539,7 @@ fn discharge_inner(
     // existing module-scoped exclusion graph serves every machine; only this
     // borrowed declaration view is needed beside it for projected paths.
     let empty_contracts =
-        terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
+        terminal_semantics::inhabitation::TerminalContracts::new(module.types.structural_types.iter());
     let application_sized_storage =
         terminal_semantics::application_sized_storage(module).map_err(|detail| {
             refusal(
@@ -760,7 +760,7 @@ fn check_prepared_machine(
         storage,
         references,
     } = prepared;
-    let invariants = &module.scalar_block_invariants;
+    let invariants = &module.proofs.scalar_block_invariants;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
@@ -1419,7 +1419,7 @@ fn prepare_inhabitation(
     id: MachineId,
 ) -> Checked<terminal_semantics::inhabitation::Inhabitation> {
     terminal_semantics::inhabitation::Inhabitation::prepare(
-        &terminal_semantics::inhabitation::TerminalContracts::new(&module.structural_types),
+        &terminal_semantics::inhabitation::TerminalContracts::new(&module.types.structural_types),
     )
     .map_err(|_| {
         refusal(
@@ -1454,7 +1454,7 @@ fn with_prepared_machine<Outcome>(
 ) -> Checked<(Prepared, Outcome)> {
     let module = formed.source();
     let machines = &module.machines;
-    let structural_types = &module.structural_types;
+    let structural_types = &module.types.structural_types;
     let lowered = terminal_machine(machines, id, id)?;
     let fill = tables.knowledge.is_empty();
     let types = tables.values.map(|_, row| row.scalar_type);
@@ -1470,7 +1470,7 @@ fn with_prepared_machine<Outcome>(
     let (context, ranking_bindings, result) = {
         let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                &module.structural_types,
+                &module.types.structural_types,
                 &reference_graph,
             );
         let storage = places::Storage::new(
@@ -1653,7 +1653,7 @@ fn result_equation(
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<Option<Proposition>> {
     if let Some(equation) =
-        terminal_semantics::scalar_application_read_equation(&module.scalar_applications, operation)
+        terminal_semantics::scalar_application_read_equation(&module.scalars.scalar_applications, operation)
             .map_err(|reason| {
                 refusal(
                     RefusalReason::ForeignIdentity,
@@ -2193,7 +2193,7 @@ fn stated_goal<'a>(
             edge,
             tables,
             storage,
-            &module.scalar_block_invariants,
+            &module.proofs.scalar_block_invariants,
             references,
         ),
         ObligationKind::CrashCoverage { site, cause } => {

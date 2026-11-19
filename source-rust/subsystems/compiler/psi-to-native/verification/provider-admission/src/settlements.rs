@@ -175,7 +175,7 @@ fn settle_boundary<'request>(
     };
     let matching_boundaries = input
         .module()
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .filter(|boundary| {
             (!matches!(settlement.realization, NativeBoundaryRealization::Component { call, .. } if boundary.id != call.selection().receiving_boundary()))

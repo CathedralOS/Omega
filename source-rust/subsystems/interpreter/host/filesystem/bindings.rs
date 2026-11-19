@@ -508,7 +508,7 @@ impl FilesystemContext {
     ) -> Result<(), &'static str> {
         for service in services {
             let supplied = module
-                .services
+                .interfaces.services
                 .iter()
                 .find(|row| row.id == service)
                 .and_then(|row| module.identities.text(row.identity))
@@ -913,12 +913,12 @@ mod tests {
                     requirement_identities: vec![],
                 });
             let application = identities.intern(&application);
-            module.services.push(ServiceDeclaration {
+            module.interfaces.services.push(ServiceDeclaration {
                 id: semantic_vocabulary::ServiceId::new(index as u64 + 1).unwrap(),
                 identity: application,
                 parents: vec![],
             });
-            module.service_schemas.push(TerminalServiceSchema {
+            module.interfaces.service_schemas.push(TerminalServiceSchema {
                 declaration,
                 application,
                 surface: std::sync::Arc::new(surface),
@@ -933,14 +933,14 @@ mod tests {
         let module = canonical_filesystem_module();
         let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
         assert_eq!(
-            context.admit_service_ids(&module, module.services.iter().map(|row| row.id)),
+            context.admit_service_ids(&module, module.interfaces.services.iter().map(|row| row.id)),
             Ok(())
         );
         assert_eq!(
             context.admit_service_ids(
                 &module,
                 module
-                    .services
+                    .interfaces.services
                     .iter()
                     .map(|row| row.id)
                     .chain([semantic_vocabulary::ServiceId::new(99).unwrap()])
@@ -967,9 +967,9 @@ mod tests {
             let mut identities = std::mem::take(&mut module.identities).into_builder();
             let changed = identities.intern(&text);
             module.identities = identities.build();
-            module.services[2].identity = changed;
-            module.service_schemas[2].application = changed;
-            let surface = std::sync::Arc::make_mut(&mut module.service_schemas[2].surface);
+            module.interfaces.services[2].identity = changed;
+            module.interfaces.service_schemas[2].application = changed;
+            let surface = std::sync::Arc::make_mut(&mut module.interfaces.service_schemas[2].surface);
             surface.receiver_applications[0].application = surface.identities.intern(&text);
             let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
             assert_eq!(
@@ -995,7 +995,7 @@ mod tests {
         .into_iter()
         .enumerate()
         {
-            module.services.push(terminal_psi::ServiceDeclaration {
+            module.interfaces.services.push(terminal_psi::ServiceDeclaration {
                 id: semantic_vocabulary::ServiceId::new(index as u64 + 1).unwrap(),
                 identity: identities.intern(label),
                 parents: vec![],
@@ -1004,7 +1004,7 @@ mod tests {
         module.identities = identities.build();
         let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
         assert_eq!(
-            context.admit_service_ids(&module, module.services.iter().map(|row| row.id)),
+            context.admit_service_ids(&module, module.interfaces.services.iter().map(|row| row.id)),
             Ok(())
         );
     }

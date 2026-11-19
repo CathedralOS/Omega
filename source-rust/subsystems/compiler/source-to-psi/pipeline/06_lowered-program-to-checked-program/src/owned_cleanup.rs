@@ -22,7 +22,7 @@ impl<'a> Catalog<'a> {
                 .map_err(|_| "cleanup machines do not have unique dense declaration identities")?;
         let types = IdTable::from_rows(
             module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .map(|declaration| (declaration.id, declaration)),
         )
@@ -74,7 +74,7 @@ fn subject_path(
         .structural_place_type(argument.place)
         .ok_or_else(fail)?;
     terminal_semantics::canonical_inline_region(
-        module.structural_types.iter(),
+        module.types.structural_types.iter(),
         root,
         &argument.path,
     )
@@ -447,7 +447,7 @@ pub(crate) fn writes(
                     .structural_place_type(cleanup.subject.place)
                     .ok_or_else(|| fail("cleanup subject has no type"))?;
                 let subject = descriptor_location(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     cleanup.subject.place,
                     root,
                     &cleanup.subject.path,
@@ -472,7 +472,7 @@ pub(crate) fn writes(
                 }
                 let views = DescriptorSlotKind::Views
                     .slots(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         cleanup.subject.place,
                         cleanup.structural_type,
                     )
@@ -484,7 +484,7 @@ pub(crate) fn writes(
                 }
                 let inventory = DescriptorSlotKind::References
                     .inventory(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         cleanup.subject.place,
                         cleanup.structural_type,
                     )
@@ -498,7 +498,7 @@ pub(crate) fn writes(
                         ));
                     }
                     let path = terminal_semantics::descriptor_lifetimes::descriptor_path(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         cleanup.structural_type,
                         &unknown.location.path,
                     )
@@ -510,7 +510,7 @@ pub(crate) fn writes(
                     .into_iter()
                     .any(|access| {
                         terminal_semantics::reference_source_projection_accessible(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             cleanup.structural_type,
                             terminal_psi::StructuralMultiplicity::Affine,
                             terminal_psi::StructuralAccess::Owned,
@@ -525,13 +525,13 @@ pub(crate) fn writes(
                 }
                 for leaf in inventory.slots {
                     let path = terminal_semantics::descriptor_lifetimes::descriptor_path(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         cleanup.structural_type,
                         &leaf.path,
                     )
                     .ok_or_else(|| fail("cleanup reference has no typed permission path"))?;
                     let leaf_type = terminal_semantics::runtime_structural_path_tip(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         cleanup.structural_type,
                         &path,
                     )
@@ -558,7 +558,7 @@ pub(crate) fn writes(
                     let mut path = actual_path;
                     path.push(terminal_psi::StructuralPathSegment::Referent);
                     if !terminal_semantics::reference_source_projection_accessible(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         root,
                         terminal_psi::StructuralMultiplicity::Affine,
                         terminal_psi::StructuralAccess::Owned,
@@ -568,7 +568,7 @@ pub(crate) fn writes(
                         continue;
                     }
                     let captured = descriptor_location(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         cleanup.subject.place,
                         root,
                         &path,
@@ -604,7 +604,7 @@ fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
         )?;
         let mut analysis =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                &elaboration.module.structural_types,
+                &elaboration.module.types.structural_types,
                 &graph,
             );
         pending.push((

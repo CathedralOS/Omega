@@ -234,7 +234,7 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
         let update = named("update");
         let incoming = named("incoming");
         let first = module
-            .structural_types
+            .types.structural_types
             .iter()
             .find_map(|declaration| match &declaration.shape {
                 terminal_psi::StructuralTypeShape::Record { fields, .. } => fields
@@ -448,7 +448,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
         closure
             .elaboration()
             .module
-            .structural_types
+            .types.structural_types
             .iter()
             .any(|ty| !ty.is_copyable())
     );

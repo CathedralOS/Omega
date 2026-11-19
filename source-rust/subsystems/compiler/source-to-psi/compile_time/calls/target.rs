@@ -1,6 +1,6 @@
 use psi_scalar_applications::{ScalarApplicationClosure, ScalarApplicationObservations};
 use semantic_vocabulary::ScalarApplicationId;
-use terminal_work::WorkMeter;
+use evaluation_work::EvaluationWorkMeter;
 
 /// The deployment target one build-time invocation runs under.
 ///
@@ -34,7 +34,7 @@ pub(super) fn complete_invocation_scalar_applications<'artifact>(
     providers: &'artifact psi_provider_selections::AdmittedProviderSelections,
     declaration: terminal_psi::ProofDeclarationId,
     requested: &[ScalarApplicationId],
-    meter: &mut WorkMeter,
+    meter: &mut EvaluationWorkMeter,
 ) -> Result<psi_scalar_applications::AdmittedScalarApplications, String> {
     let facts = target
         .layout_target

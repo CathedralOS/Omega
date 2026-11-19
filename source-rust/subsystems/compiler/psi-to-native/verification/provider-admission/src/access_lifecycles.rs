@@ -209,7 +209,7 @@ pub(super) fn settle_empty_releases<'execution>(
                 boundary.id,
             ))]
         };
-        terminal_semantics::empty_run_release_contract(&module.structural_types, boundary)
+        terminal_semantics::empty_run_release_contract(&module.types.structural_types, boundary)
             .map_err(fail)?;
         let mechanism = CompilerIntrinsicExecutionIdentity::EmptyRunRelease;
         policy.classify(mechanism).map_err(|error| {
@@ -340,7 +340,7 @@ fn require_fields(
             );
         }
         if let Some(child) = field.field_type.as_structural() {
-            if terminal_semantics::reference_storage_size(module.structural_types.iter(), child)
+            if terminal_semantics::reference_storage_size(module.types.structural_types.iter(), child)
                 == Some(0)
             {
                 return Err(
@@ -400,7 +400,7 @@ fn bind_profile(
         }
         let query = argument_query(module, graph, caller, profile)?;
         let original = descriptor_results::unchanged_payload_producer(
-            &module.structural_types,
+            &module.types.structural_types,
             graph,
             caller,
             position,
@@ -439,7 +439,7 @@ fn bind_profile(
             return Err("profile call differs from its shared extent contract");
         }
         let mut analysis =
-            DescriptorAnalysis::with_reference_slots(&module.structural_types, graph);
+            DescriptorAnalysis::with_reference_slots(&module.types.structural_types, graph);
         let supplied = argument_storage(
             module,
             graph,
@@ -452,7 +452,7 @@ fn bind_profile(
         if operand.occupied {
             backing.path.extend(
                 plan.storage
-                    .owner_storage_path(&module.structural_types)
+                    .owner_storage_path(&module.types.structural_types)
                     .ok_or("lifecycle owner lost its exact backing projection")?,
             );
         }
@@ -461,7 +461,7 @@ fn bind_profile(
             return Err("profile call and lifecycle refer to different extent occurrences");
         }
         descriptor_results::require_unchanged_observed_storage(
-            &module.structural_types,
+            &module.types.structural_types,
             graph,
             caller,
             original.producer,
@@ -502,7 +502,7 @@ fn argument_query(
         .and_then(|machine| machine.place_types.get(&argument.place))
         .ok_or("profile/extent argument has no retained root type")?;
     descriptor_results::descriptor_contents_query(
-        &module.structural_types,
+        &module.types.structural_types,
         argument.place,
         *root,
         &argument.path,

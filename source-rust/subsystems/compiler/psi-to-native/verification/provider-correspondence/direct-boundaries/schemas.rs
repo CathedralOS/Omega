@@ -59,7 +59,7 @@ pub fn hosted_requirement_schema(
         .owning_service
         .ok_or("hosted schema lost its declaring service")?;
     let owner_declaration = module
-        .services
+        .interfaces.services
         .iter()
         .find(|service| service.id == owner_service)
         .ok_or("hosted schema lost its declaring service")?;
@@ -101,7 +101,7 @@ fn requirement_schema(
     let text = |identity| text(module, identity);
     let service_name = |id| {
         let service = module
-            .services
+            .interfaces.services
             .iter()
             .find(|service| service.id == id)
             .ok_or_else(|| "primitive schema lost a declared service".to_owned())?;
@@ -141,7 +141,7 @@ fn requirement_schema(
         Ok::<_, String>(names)
     };
     let envelope = module
-        .callables
+        .execution.callables
         .boundary_envelope(boundary.id)
         .ok_or("primitive schema lost its checked invocation contract")?;
     let mut synchronous_invocations = envelope
@@ -192,7 +192,7 @@ fn requirement_schema(
 pub fn compiler_primitive_schemas(module: &TerminalModule) -> Result<Vec<ServiceSchema>, String> {
     let mut projected = Vec::new();
     let mut requirements = Vec::new();
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         let Some(declaration) = &boundary.declaration else {
             continue;
         };

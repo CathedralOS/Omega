@@ -34,7 +34,7 @@ pub fn selected_candidate_positions(
     for row in query.rows {
         let requirement = row.requirement;
         let matching = module
-            .provider_candidates
+            .interfaces.provider_candidates
             .iter()
             .enumerate()
             .filter(|(_, candidate)| {
@@ -61,7 +61,7 @@ pub fn selected_candidate_positions(
             .collect::<Vec<_>>();
         let mut requirements = matching
             .iter()
-            .map(|position| module.provider_candidates[*position].requirement_identity)
+            .map(|position| module.interfaces.provider_candidates[*position].requirement_identity)
             .collect::<Vec<_>>();
         requirements.sort();
         if requirements.windows(2).any(|pair| pair[0] == pair[1]) {
@@ -69,7 +69,7 @@ pub fn selected_candidate_positions(
                 "selected provider requirement `{requirement}` has duplicate canonical realizations: {:?}",
                 matching
                     .iter()
-                    .map(|position| &module.provider_candidates[*position])
+                    .map(|position| &module.interfaces.provider_candidates[*position])
                     .map(|candidate| (
                         candidate.candidate,
                         module.identities.text(candidate.candidate_identity),
@@ -95,7 +95,7 @@ pub fn selected_candidate_positions(
             .find(|method| query.surface.identity_text(method.requirement_identity) == requirement)
             .ok_or("selected provider row lost its exact requirement declaration")?;
         for obligations in module
-            .provider_instance_requirements
+            .interfaces.provider_instance_requirements
             .iter()
             .filter(|obligations| {
                 obligations.package == method.requirement_owner_package_identity
@@ -124,7 +124,7 @@ pub fn selected_candidate_positions(
                 let count = positions
                     .iter()
                     .filter(|position| {
-                        let candidate = &module.provider_candidates[**position];
+                        let candidate = &module.interfaces.provider_candidates[**position];
                         candidate.requirement_identity == required.requirement_identity
                             && (required.candidate_identity.is_absent()
                                 || candidate.candidate_identity == required.candidate_identity)

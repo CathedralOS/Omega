@@ -218,13 +218,13 @@ impl PreparedInstalledInterruptHelpers {
         }));
         let registrations = Rows::new(
             module
-                .installed_interrupt_registrations
+                .interfaces.installed_interrupt_registrations
                 .iter()
                 .map(|row| ((row.machine, row.operation), row)),
         );
         let callbacks = Associations::new(
             module
-                .installed_interrupt_registrations
+                .interfaces.installed_interrupt_registrations
                 .iter()
                 .flat_map(|row| {
                     row.callbacks.iter().map(move |callback| {

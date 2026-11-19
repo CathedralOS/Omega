@@ -263,7 +263,7 @@ pub(crate) mod instance {
         use semantic_vocabulary::{BoundaryMachineId, OperationId};
         use psi_provider_selections::AdmittedComponentProvider;
         use psi_scalar_applications::AdmittedScalarApplications;
-        use terminal_work::WorkMeter;
+        use terminal_work::ExecutionMeter;
 
         use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
         use crate::boundary::results::TerminalExecutionStatus;
@@ -537,7 +537,7 @@ pub(crate) mod instance {
                 operation: OperationId,
                 arguments: &[TerminalScalarValue],
                 structural_operands: &[terminal_psi::StructuralArgument],
-                meter: &mut WorkMeter,
+                meter: &mut dyn ExecutionMeter,
             ) -> Result<Option<TerminalExecutionStatus>, String> {
                 let pending = self
                     .pending
@@ -1260,7 +1260,7 @@ pub(crate) mod instance {
                 let structural_type = StructuralTypeId::new(1).unwrap();
                 let place = PlaceId::new(1).unwrap();
                 let mut identities = module.identities.clone().into_builder();
-                module.structural_types.push(StructuralTypeDeclaration {
+                module.types.structural_types.push(StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     id: structural_type,
                     identity: identities.intern("borrowed Boolean"),
@@ -1350,7 +1350,7 @@ pub(crate) mod instance {
                     (1, "host carrier", vec![field]),
                     (2, "empty host value", Vec::new()),
                 ] {
-                    module.structural_types.push(StructuralTypeDeclaration {
+                    module.types.structural_types.push(StructuralTypeDeclaration {
                         declaration_identity: Default::default(),
                         id: StructuralTypeId::new(id).unwrap(),
                         identity: identities.intern(name),
@@ -1682,7 +1682,7 @@ pub(crate) mod instance {
     use std::collections::BTreeMap;
 
     use semantic_vocabulary::BoundaryMachineId;
-    use terminal_work::WorkMeter;
+    use terminal_work::ExecutionMeter;
 
     use crate::boundary::effects::byte_buffers::TerminalBoundaryByteBuffer;
     use crate::boundary::effects::results::TerminalEffectResult;
@@ -2101,7 +2101,7 @@ pub(crate) mod instance {
 
         pub fn invoke(
             &mut self,
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
         ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
             if self.closed {
                 return Err(TerminalInstanceError::Closed);
@@ -2578,7 +2578,7 @@ pub(crate) mod program {
             {
                 return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
             }
-            if let Some(target) = self.catalogs.folded_constants.target.as_deref() {
+            if let Some(target) = self.catalogs.scalars.folded_constants.target.as_deref() {
                 let supplies = installation
                     .filter(|supplies| supplies.folded_constant_target.as_deref() == Some(target))
                     .ok_or(TerminalInterpretError::FoldedConstantClosure(
@@ -2634,13 +2634,13 @@ pub(crate) mod program {
                 {
                     return Err(TerminalInterpretError::TargetLayoutSelectionIdentityMismatch);
                 }
-            } else if let Some(application) = self.catalogs.target_layout_applications.first() {
+            } else if let Some(application) = self.catalogs.layouts.target_layout_applications.first() {
                 return Err(TerminalInterpretError::TargetLayoutSelectionMissing(
                     application.id,
                 ));
             } else if self
                 .catalogs
-                .access_lifecycle_plans
+                .access.access_lifecycle_plans
                 .iter()
                 .any(|plan| plan.target.is_some())
             {
@@ -2684,7 +2684,7 @@ pub(crate) mod program {
             &self,
         ) -> ProgramDeclarations<'_, StructuralTypeDeclaration> {
             ProgramDeclarations::with_replacements(
-                &self.catalogs.structural_types,
+                &self.catalogs.types.structural_types,
                 self.scalar_geometry.as_deref().unwrap_or_else(|| {
                     self.target_layouts
                         .as_ref()
@@ -2698,7 +2698,7 @@ pub(crate) mod program {
         ) -> &[terminal_psi::TerminalAccessLifecyclePlan] {
             self.target_layouts
                 .as_ref()
-                .map_or(self.catalogs.access_lifecycle_plans.as_slice(), |layouts| {
+                .map_or(self.catalogs.access.access_lifecycle_plans.as_slice(), |layouts| {
                     layouts.resolved_lifecycles()
                 })
         }
@@ -2713,12 +2713,12 @@ pub(crate) mod program {
         pub(crate) fn boundary_machines(
             &self,
         ) -> ProgramDeclarations<'_, BoundaryMachineDeclaration> {
-            ProgramDeclarations::new(&self.catalogs.boundary_machines)
+            ProgramDeclarations::new(&self.catalogs.interfaces.boundary_machines)
         }
 
         pub(crate) fn has_provider(&self, boundary: &BoundaryMachineId) -> bool {
             self.catalogs
-                .provider_candidates
+                .interfaces.provider_candidates
                 .binary_search_by_key(boundary, |candidate| candidate.boundary)
                 .is_ok()
         }
@@ -2827,7 +2827,7 @@ pub(crate) mod program {
                 machine: entry,
                 scalar_parameters: &machine.parameters,
                 structural_parameters: &machine.structural_parameters,
-                access_view_inputs: &self.program.catalogs.access_view_inputs,
+                access_view_inputs: &self.program.catalogs.access.access_view_inputs,
                 result: &machine.result,
                 requires: &machine.contract.requires,
             })
@@ -3258,7 +3258,7 @@ pub(crate) mod program {
                 && !self
                     .program
                     .catalogs
-                    .scalar_applications
+                    .scalars.scalar_applications
                     .conditions
                     .is_empty()
             {
@@ -3545,7 +3545,7 @@ pub(crate) mod program {
             };
             let row = artifact
                 .semantic_module()
-                .access_view_inputs
+                .access.access_view_inputs
                 .iter()
                 .find(|row| row.machine == entry)
                 .expect("actual direct placed row")

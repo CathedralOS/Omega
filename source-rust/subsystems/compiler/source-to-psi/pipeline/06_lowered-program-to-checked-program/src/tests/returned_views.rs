@@ -440,7 +440,7 @@ fn boundary_reference_completion_reads_inline_record_leaves() {
 fn boundary_reference_completion_reads_a_caller_chosen_provider_result() {
     let elaborated =
         elaborate(PROVIDER_REFERENCE).expect("the admitted reference keeps its provider contract");
-    let boundary = &elaborated.module.boundary_machines[0];
+    let boundary = &elaborated.module.interfaces.boundary_machines[0];
     assert!(boundary.result_reference_regions.is_empty());
     let groups = boundary.result_lifetimes.as_ref().unwrap();
     assert_eq!(groups.len(), 1);
@@ -487,7 +487,7 @@ fn provider_reference_has_no_captured_address(source: &str) {
         .expect("the original read borrows the provider's returned referent");
     let graph = terminal_borrowed_storage_graph_from(&input.module, [machine.id], &[]).unwrap();
     let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.types.structural_types, &graph);
     let descriptor =
         terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(actual.place);
     let origins = analysis
@@ -502,7 +502,7 @@ fn provider_reference_has_no_captured_address(source: &str) {
     );
     assert_eq!(provider.invocations.len(), 1);
     let referent = descriptor_location(
-        &input.module.structural_types,
+        &input.module.types.structural_types,
         actual.place,
         machine.structural_place_type(actual.place).unwrap(),
         &actual.path,
@@ -622,7 +622,7 @@ fn boundary_reference_completion_validates_its_provider_frontier() {
         DescriptorProviderOutput, DescriptorSlotKind, DescriptorStoredOrigin,
     };
     let mut baseline = elaborate(PROVIDER_VIEW).unwrap();
-    let boundary = &baseline.module.boundary_machines[0];
+    let boundary = &baseline.module.interfaces.boundary_machines[0];
     let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
         panic!("the provider returns a borrowed structural leaf");
     };
@@ -630,7 +630,7 @@ fn boundary_reference_completion_validates_its_provider_frontier() {
     let referent = boundary.structural_parameters[0].structural_type;
     baseline
         .module
-        .structural_types
+        .types.structural_types
         .iter_mut()
         .find(|row| row.id == result_type)
         .unwrap()
@@ -638,7 +638,7 @@ fn boundary_reference_completion_validates_its_provider_frontier() {
         referent,
         access: terminal_psi::StructuralAccess::SharedBorrow,
     };
-    let boundary = &baseline.module.boundary_machines[0];
+    let boundary = &baseline.module.interfaces.boundary_machines[0];
     let operation_result = baseline
         .module
         .machines
@@ -653,7 +653,7 @@ fn boundary_reference_completion_validates_its_provider_frontier() {
         .unwrap();
     let slots = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
         terminal_semantics::boundary_result_slots(
-            &baseline.module.structural_types,
+            &baseline.module.types.structural_types,
             boundary,
             DescriptorSlotKind::BorrowedStorage,
             operation_result,
@@ -717,7 +717,7 @@ fn boundary_reference_completion_validates_its_provider_frontier() {
 fn boundary_result_lifetime_metadata_is_independently_validated() {
     use terminal_psi::{BoundaryLifetimeDependency, StructuralAccess};
     let baseline = elaborate(PROVIDER_VIEW).unwrap();
-    let boundary = &baseline.module.boundary_machines[0];
+    let boundary = &baseline.module.interfaces.boundary_machines[0];
     assert!(boundary.result_reference_regions.is_empty());
     let groups = boundary.result_lifetimes.as_ref().unwrap();
     assert_eq!(groups.len(), 1);
@@ -730,7 +730,7 @@ fn boundary_result_lifetime_metadata_is_independently_validated() {
         }]
     );
     assert!(
-        terminal_semantics::boundary_result_lifetimes(&baseline.module.structural_types, boundary,)
+        terminal_semantics::boundary_result_lifetimes(&baseline.module.types.structural_types, boundary,)
             .is_ok()
     );
     let caller = baseline
@@ -755,13 +755,13 @@ fn boundary_result_lifetime_metadata_is_independently_validated() {
     );
     for receipts in [false, true] {
         assert_eq!(terminal_semantics::descriptor_results::boundary_completion_preserves_descriptor_storage(
-            baseline.module.structural_types.iter(), boundary, result, receipts,
+            baseline.module.types.structural_types.iter(), boundary, result, receipts,
             operation.kind.structural_arguments(), |place| caller.structural_place_type(place),
         ), !receipts, "a completion receipt keeps its independent custody obligation");
     }
     for corruption in 0..7 {
         let mut malformed = baseline.clone();
-        let boundary = &mut malformed.module.boundary_machines[0];
+        let boundary = &mut malformed.module.interfaces.boundary_machines[0];
         match corruption {
             0 => boundary.result_lifetimes = None,
             1 => boundary.result_lifetimes = Some(Vec::new()),
@@ -799,7 +799,7 @@ fn boundary_result_lifetime_metadata_is_independently_validated() {
         }
         assert!(
             terminal_semantics::boundary_result_lifetimes(
-                &malformed.module.structural_types,
+                &malformed.module.types.structural_types,
                 boundary,
             )
             .is_err(),
@@ -830,7 +830,7 @@ machine entry() reaches Fs invokes Fs {
 }
 "#;
     let elaborated = elaborate(source).unwrap();
-    let groups = elaborated.module.boundary_machines[0]
+    let groups = elaborated.module.interfaces.boundary_machines[0]
         .result_lifetimes
         .as_ref()
         .unwrap();
@@ -873,7 +873,7 @@ fn a_dynamic_view_without_declared_logical_lifetimes_is_refused() {
         crash_continuations: Vec::new(),
     };
     let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
-        &elaborated.module.structural_types,
+        &elaborated.module.types.structural_types,
         &[],
     );
     let refusal = match terminal_semantics::reference_call_lifetimes(

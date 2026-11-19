@@ -97,7 +97,7 @@ fn rows(accepted: &crate::checking::AcceptedClosure, position: u64) -> (Vec<Stri
         row.iter()
             .map(|service| {
                 let declaration = module
-                    .services
+                    .interfaces.services
                     .iter()
                     .find(|declaration| declaration.id == *service)
                     .unwrap();
@@ -130,7 +130,7 @@ fn a_body_publishes_its_written_ceiling_and_an_omitted_one_is_derived() {
     assert_eq!(published.len(), 1);
     assert!(published[0].contains("Output"), "{published:?}");
     assert_eq!(
-        accepted.elaboration.module.root_service_reach.concrete,
+        accepted.elaboration.module.interfaces.root_service_reach.concrete,
         accepted
             .elaboration
             .module
@@ -208,7 +208,7 @@ fn entries(accepted: &crate::checking::AcceptedClosure, position: u64) -> Vec<St
         .iter()
         .map(|service| {
             let declaration = module
-                .services
+                .interfaces.services
                 .iter()
                 .find(|declaration| declaration.id == *service)
                 .unwrap();
@@ -253,13 +253,13 @@ fn a_body_publishes_its_written_entries_and_an_omitted_clause_is_derived() {
     // The boundary declaration carries its requirement's row.
     let module = &accepted.elaboration.module;
     let published: Vec<usize> = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .map(|boundary| boundary.published_synchronous_entries.len())
         .collect();
     assert_eq!(published, [1]);
     // Entering a callback reaches no service by itself.
-    assert!(module.root_service_reach.concrete.is_empty());
+    assert!(module.interfaces.root_service_reach.concrete.is_empty());
     accepted.publish_invocation().unwrap();
     // Derived through both bodies when neither writes a clause.
     let derived = self::accepted(&entering("", ""));
@@ -551,17 +551,17 @@ fn a_supplied_callable_outside_the_required_ceiling_is_refused() {
 fn a_callable_witness_keeps_exact_service_declarations_for_its_abstract_ceilings() {
     let inside = "reaches Output crashes none invokes Handler";
     let mut witness = callable_witness(inside, inside).unwrap();
-    assert_eq!(witness.module.services.len(), 2);
+    assert_eq!(witness.module.interfaces.services.len(), 2);
     assert!(
         witness
             .module
-            .services
+            .interfaces.services
             .iter()
             .all(|service| { witness.module.identities.text(service.identity).is_some() })
     );
     // Removing the declarations must remain a foreign-identity refusal; the
     // logical witness cannot bypass service admission because it has no body.
-    witness.module.services.clear();
+    witness.module.interfaces.services.clear();
     let refused = crate::checking::prove_callable_refinement(
         witness,
         &mut crate::checking::ProofSearchActivity::default(),
@@ -623,7 +623,7 @@ terminates
     let requirement = form.module.machine(instance).unwrap();
     assert!(requirement.blocks.is_empty() && requirement.declaration.is_none());
     assert!(
-        !form.module.declaration_contracts.is_empty(),
+        !form.module.execution.declaration_contracts.is_empty(),
         "the requirement follows independently allocated declaration contracts"
     );
     let header = form
@@ -672,7 +672,7 @@ terminates
         "abstract requirement instance has no source signature"
     );
     assert!(
-        form.module.callables.machine_envelope(instance).is_none(),
+        form.module.execution.callables.machine_envelope(instance).is_none(),
         "the abstract contract does not acquire a runtime envelope"
     );
     let helper = source
@@ -760,7 +760,7 @@ requires machine Callback();
     };
     let helper = named("helper");
     let relay = named("relay");
-    let helper_envelope = form.module.callables.machine_envelope(helper).or_else(|| {
+    let helper_envelope = form.module.execution.callables.machine_envelope(helper).or_else(|| {
         form.check_form_envelopes
             .iter()
             .find(|row| row.machine == helper)
@@ -769,14 +769,14 @@ requires machine Callback();
     let helper_envelope = helper_envelope.expect("the independent body has a complete envelope");
     assert!(!helper_envelope.suspends && !helper_envelope.blocks);
     assert!(helper_envelope.service_reach.is_empty());
-    assert!(form.module.callables.machine_envelope(relay).is_none());
+    assert!(form.module.execution.callables.machine_envelope(relay).is_none());
     let relay_bounds = form.requirement_ceilings.get(relay).unwrap();
     assert_eq!(relay_bounds.suspension, Some(false));
     assert_eq!(relay_bounds.blocking, Some(false));
     let requirement = form.requirements[0];
     assert!(
         form.module
-            .callables
+            .execution.callables
             .machine_envelope(requirement)
             .is_none()
     );
@@ -845,7 +845,7 @@ machine helper() -> u32 { 7u32 }
         .unwrap();
     let helper_envelope = form
         .module
-        .callables
+        .execution.callables
         .machine_envelope(helper)
         .or_else(|| {
             form.check_form_envelopes
@@ -859,7 +859,7 @@ machine helper() -> u32 { 7u32 }
     let requirement = form.requirements[0];
     assert!(
         form.module
-            .callables
+            .execution.callables
             .machine_envelope(requirement)
             .is_none()
     );

@@ -119,7 +119,7 @@ impl<'input> ComponentNativeInputs<'input> {
                     .ok_or("component export lost its exact invocation identity")?;
                 let mut receiving = receiver
                     .module()
-                    .boundary_machines
+                    .interfaces.boundary_machines
                     .iter()
                     .filter(|boundary| {
                         receiver.module().identities.text(boundary.identity) == Some(requirement)
@@ -190,7 +190,7 @@ impl RetainedComponentNativeInputs {
                     candidate: self
                         .component
                         .module()
-                        .provider_candidates
+                        .interfaces.provider_candidates
                         .get(candidate_position)
                         .ok_or("retained component lost its selected export")?,
                     calling_application: proposal
@@ -231,7 +231,7 @@ impl RetainedComponentNativeInputs {
             .map_err(|error| error.to_string())?;
         let mut exports = Vec::with_capacity(candidates.len());
         for candidate_position in candidates {
-            let candidate = &component.module().provider_candidates[candidate_position];
+            let candidate = &component.module().interfaces.provider_candidates[candidate_position];
             let requirement = component
                 .module()
                 .identities

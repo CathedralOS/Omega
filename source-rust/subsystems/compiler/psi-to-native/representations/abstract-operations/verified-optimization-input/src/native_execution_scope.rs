@@ -37,7 +37,7 @@ impl ScalarDemand<'_> {
                 }
             }
         }
-        let catalog = &module.scalar_applications;
+        let catalog = &module.scalars.scalar_applications;
         for (position, declaration) in catalog.declarations().iter().enumerate() {
             let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
                 continue;
@@ -87,7 +87,7 @@ mod storage {
             layouts: &psi_target_layouts::AdmittedTargetLayouts,
         ) -> Result<BTreeSet<ScalarApplicationId>, String> {
             let mut declarations = module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .map(|declaration| (declaration.id, declaration))
                 .collect::<BTreeMap<_, _>>();
@@ -153,7 +153,7 @@ mod storage {
                 }
             }
             for boundary in module
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .filter(|boundary| self.contains_boundary(boundary.id))
             {

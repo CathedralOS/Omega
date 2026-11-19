@@ -39,7 +39,7 @@ pub(crate) fn selected_calling_applications(
         ));
     }
     let declarations = module
-        .calling_abi_signatures
+        .interfaces.calling_abi_signatures
         .iter()
         .filter(|declaration| {
             module.identities.text(declaration.requirement_identity) == Some(requirement)
@@ -286,7 +286,7 @@ pub(crate) fn native_calling_results(
             })?;
         let name = application_identity::type_identity::callable_display_path(requirement);
         let signature = module
-            .calling_signatures
+            .interfaces.calling_signatures
             .iter()
             .find(|signature| signature.boundary == supplied.boundary)
             .ok_or_else(|| {

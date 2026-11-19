@@ -1008,12 +1008,12 @@ machine build(builder: @mut Build) { Probe::send<u64>(9u64); Probe::send(11u64);
         .unwrap();
     let module = program.view().module();
     assert_eq!(
-        module.boundary_machines.len(),
+        module.interfaces.boundary_machines.len(),
         1,
         "explicit and inferred applications share one declaration"
     );
     let boundary = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|boundary| {
             boundary.scalar_parameters
@@ -1066,9 +1066,9 @@ machine build(builder: @mut Build) {
         .unwrap();
     let view = program.view();
     let module = view.module();
-    assert_eq!(module.boundary_machines.len(), 2);
+    assert_eq!(module.interfaces.boundary_machines.len(), 2);
     let identities = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .map(|boundary| {
             module
@@ -1432,7 +1432,7 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
         }
         let entry = module.entry.unwrap();
         assert!(matches!(entry, TargetMachineCallable::Machine(_)));
-        let scope = &module.scalar_applications.proof_scope;
+        let scope = &module.scalars.scalar_applications.proof_scope;
         let root = scope.callable_declaration(entry).unwrap();
         let facts = scope
             .callable_headers

@@ -3115,7 +3115,7 @@ pub(crate) mod primitive_storage {
                     };
                     terminal_semantics::primitive_store_restriction(
                         self.structural_types().values(),
-                        self.program.catalogs.structural_domains.iter(),
+                        self.program.catalogs.types.structural_domains.iter(),
                         root,
                         whole,
                         projected,
@@ -4465,7 +4465,7 @@ pub(crate) mod primitive_storage {
                 .ok_or(malformed())?;
             let restriction = terminal_semantics::primitive_store_restriction(
                 self.structural_types().values(),
-                self.program.catalogs.structural_domains.iter(),
+                self.program.catalogs.types.structural_domains.iter(),
                 root,
                 whole,
                 projected,
@@ -4475,7 +4475,7 @@ pub(crate) mod primitive_storage {
             .ok_or(malformed())?;
             let predicates = terminal_semantics::primitive_store_byte_predicates(
                 self.structural_types().values(),
-                self.program.catalogs.structural_domains.iter(),
+                self.program.catalogs.types.structural_domains.iter(),
                 root,
                 whole,
                 projected,

@@ -155,7 +155,7 @@ impl Program<'_> {
             self.declared_result_lifetimes(
                 machine.unwrap_or(context),
                 signature,
-                &module.structural_types,
+                &module.types.structural_types,
             )?
             .ok_or("public requirement result has an unresolved lifetime frontier")?
         };

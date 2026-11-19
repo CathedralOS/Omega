@@ -94,7 +94,7 @@ impl BuildProviderPlans {
             .iter()
             .map(|slot| {
                 let boundary =
-                    terminal_psi::find_boundary_machine(&module.boundary_machines, *slot)
+                    terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, *slot)
                         .ok_or_else(|| {
                             failure(format!("Build import {slot:?} has no boundary declaration"))
                         })?;

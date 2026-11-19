@@ -712,7 +712,7 @@ impl TerminalExecution<'_> {
         if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
             || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
                 self.structural_types().values(),
-                self.program.catalogs.structural_domains.iter(),
+                self.program.catalogs.types.structural_domains.iter(),
                 result.structural_type,
                 &result.projected_qualifications,
             )
@@ -1016,7 +1016,7 @@ impl TerminalExecution<'_> {
         let preserves = |root, whole: &[_], projected: &[_]| {
             terminal_semantics::scalar_field_store_preserves_domain_content(
                 self.structural_types().values(),
-                module.structural_domains.iter(),
+                module.types.structural_domains.iter(),
                 &module.identities,
                 root,
                 whole,
@@ -1025,7 +1025,7 @@ impl TerminalExecution<'_> {
                 field,
             ) && terminal_semantics::scalar_field_store_preserves_content(
                 self.structural_types().values(),
-                module.structural_domains.iter(),
+                module.types.structural_domains.iter(),
                 &module.identities,
                 root,
                 destination,
@@ -1203,8 +1203,8 @@ impl TerminalExecution<'_> {
         let projected = &value.projected_qualifications;
         if matches!(operation.kind, OperationKind::TransformContent { .. }) {
             terminal_semantics::content_transformations::validate_memberships(
-                &self.program.catalogs.structural_types,
-                &self.program.catalogs.structural_domains,
+                &self.program.catalogs.types.structural_types,
+                &self.program.catalogs.types.structural_domains,
                 &self.program.catalogs.identities,
                 result,
                 derivations,
@@ -1940,7 +1940,7 @@ impl TerminalExecution<'_> {
                 || self.byte_sequence_values.contains_key(&result.place)
                 || u64::try_from(bytes.len()).map_or(true, |length| length > *capacity)
                 || !terminal_semantics::byte_literal_qualifications_hold_in(
-                    self.program.catalogs.structural_domains.iter(),
+                    self.program.catalogs.types.structural_domains.iter(),
                     result.structural_type,
                     &result.qualifications,
                     bytes.bytes(),

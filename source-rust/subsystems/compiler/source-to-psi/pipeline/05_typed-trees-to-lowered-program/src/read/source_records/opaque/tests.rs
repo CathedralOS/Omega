@@ -164,8 +164,8 @@ fn by_value_abi_publishes_carrier_bytes_and_preserves_the_opaque_claim() {
     .unwrap();
     let mut module = TerminalModule::declarations();
     module.identities = decl.identities;
-    module.structural_types = decl.structural_types;
-    module.native_layouts = decl.native_layouts;
+    module.types.structural_types = decl.structural_types;
+    module.layouts.native_layouts = decl.native_layouts;
     let correspondence = program.source_record_correspondence(machine).unwrap();
     program
         .publish_source_declarations(machine, &correspondence, &mut module)
@@ -186,7 +186,7 @@ fn by_value_abi_publishes_carrier_bytes_and_preserves_the_opaque_claim() {
     program
         .publish_opaque_carriers(machine, carriers, std::iter::once(&abi), &mut module)
         .unwrap();
-    assert!(module.opaque_representations.is_empty());
+    assert!(module.types.opaque_representations.is_empty());
     assert_eq!(
         module.structural_type(opaque).unwrap().shape,
         StructuralTypeShape::Opaque
@@ -196,7 +196,7 @@ fn by_value_abi_publishes_carrier_bytes_and_preserves_the_opaque_claim() {
     program
         .publish_opaque_carriers(machine, carriers, std::iter::once(&abi), &mut module)
         .unwrap();
-    let [relation] = module.opaque_representations.as_slice() else {
+    let [relation] = module.types.opaque_representations.as_slice() else {
         panic!("one by-value selection")
     };
     assert_eq!(relation.opaque, opaque);
@@ -217,7 +217,7 @@ fn by_value_abi_publishes_carrier_bytes_and_preserves_the_opaque_claim() {
     assert!(nominal.owns_linear_claim);
     assert_eq!(nominal.shape, StructuralTypeShape::Opaque);
     assert!(!terminal_semantics::zeroed_structural_shape(
-        module.structural_types.iter(),
+        module.types.structural_types.iter(),
         opaque
     ));
     assert_eq!(
@@ -249,7 +249,7 @@ fn by_value_abi_publishes_carrier_bytes_and_preserves_the_opaque_claim() {
     // A by-reference permit needs no bytes. Changing that same argument to
     // owned must fail even though the receipt has a selected representation.
     module
-        .calling_abi_signatures
+        .interfaces.calling_abi_signatures
         .push(terminal_psi::CallingAbiDeclaration {
             id: signature,
             requirement_identity: Default::default(),
@@ -264,7 +264,7 @@ fn by_value_abi_publishes_carrier_bytes_and_preserves_the_opaque_claim() {
         terminal_semantics::calling_abi_extent_dependencies(module, signature, "linux_x86_64")
     };
     assert_eq!(dependencies(&module).unwrap(), []);
-    module.calling_abi_signatures[0]
+    module.interfaces.calling_abi_signatures[0]
         .storage
         .as_mut()
         .unwrap()
@@ -274,8 +274,8 @@ fn by_value_abi_publishes_carrier_bytes_and_preserves_the_opaque_claim() {
         dependencies(&module).unwrap_err(),
         "opaque boundary value has no selected storage representation"
     );
-    module.calling_abi_signatures.clear();
-    module.opaque_representations[0].carrier = opaque;
+    module.interfaces.calling_abi_signatures.clear();
+    module.types.opaque_representations[0].carrier = opaque;
     let redirected = terminal_codec::encode_module(&module).unwrap();
     assert!(
         terminal_codec::decode_module(&redirected)

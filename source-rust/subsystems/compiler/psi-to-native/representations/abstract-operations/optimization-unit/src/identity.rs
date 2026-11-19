@@ -1138,7 +1138,7 @@ pub(crate) mod runtime_evidence_encoding {
         fn invocation_subject_provenance_is_part_of_optimizer_content() {
             let machine = MachineId::new(1).unwrap();
             let mut module = TerminalModule::for_entry(machine);
-            module.proof_output_calls.push(ProofOutputCall {
+            module.proofs.proof_output_calls.push(ProofOutputCall {
                 caller: machine,
                 ordinal: 0,
                 target_identity: TerminalIdentityIndex(1),
@@ -1169,10 +1169,10 @@ pub(crate) mod runtime_evidence_encoding {
                 bytes.finish()
             };
             let before = encoded(&module);
-            module.proof_output_calls[0].evidence_arguments[0].source =
+            module.proofs.proof_output_calls[0].evidence_arguments[0].source =
                 EvidenceTermId::new(2).unwrap();
             assert_ne!(before, encoded(&module));
-            module.proof_output_calls[0]
+            module.proofs.proof_output_calls[0]
                 .runtime_call
                 .as_mut()
                 .unwrap()

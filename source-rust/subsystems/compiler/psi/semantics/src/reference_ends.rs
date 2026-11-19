@@ -83,7 +83,7 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
     .map_err(|error| Error::from_graph(module, error))?;
     graph.sort_unstable_by_key(|machine| machine.id);
     let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
     let mut result = IdTable::default();
     for machine in &module.machines {
         let candidates = if machine.blocks.is_empty() || !has_borrowed_storage(machine) {
@@ -173,7 +173,7 @@ fn validate_call_owners(
                         .get(&cleanup.subject.place)
                         .ok_or("reference cleanup source has no declared type")?;
                     let expected = crate::descriptor_lifetimes::descriptor_location(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         cleanup.subject.place,
                         *root,
                         &cleanup.subject.path,
@@ -221,21 +221,21 @@ fn indexed_store_contents(
                 )
             })?;
             let Some(array) = crate::plain_affine::runtime_array_region(
-                &module.structural_types,
+                &module.types.structural_types,
                 root_type,
                 path,
             ) else {
                 continue;
             };
             if !crate::projection_stays_in_inline_storage(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 root_type,
                 path,
             ) {
                 continue;
             }
             let location = canonical_descriptor_location(
-                &module.structural_types,
+                &module.types.structural_types,
                 *destination,
                 root_type,
                 &array,
@@ -292,7 +292,7 @@ fn machine_candidates(
     {
         let inventory = DescriptorSlotKind::BorrowedStorage
             .owned_inventory(
-                &module.structural_types,
+                &module.types.structural_types,
                 parameter.place,
                 parameter.structural_type,
             )
@@ -322,7 +322,7 @@ fn machine_candidates(
             };
             let inventory = DescriptorSlotKind::BorrowedStorage
                 .owned_inventory(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     output.place,
                     output.structural_type,
                 )
@@ -451,7 +451,7 @@ fn machine_candidates(
                 .ok_or_else(|| {
                     Error::local(machine.id, None, "reference disposition lost its root type")
                 })?;
-            let path = descriptor_path(&module.structural_types, root_type, &location.path)
+            let path = descriptor_path(&module.types.structural_types, root_type, &location.path)
                 .ok_or_else(|| {
                     Error::local(
                         machine.id,
@@ -460,14 +460,14 @@ fn machine_candidates(
                     )
                 })?;
             if !crate::projection_stays_in_inline_storage(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 root_type,
                 &path,
             ) {
                 continue;
             }
             let Some(tip) = crate::runtime_structural_path_tip(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 root_type,
                 &path,
             ) else {
@@ -585,7 +585,7 @@ fn add_dependencies(
         .position(|segment| segment.runtime_index().is_some())
         .unwrap_or(source.path.len());
     let mut captured = crate::descriptor_lifetimes::descriptor_location(
-        &module.structural_types,
+        &module.types.structural_types,
         source.place,
         source_type,
         &source.path[..static_prefix],
@@ -602,7 +602,7 @@ fn add_dependencies(
         vec![captured]
     } else {
         DescriptorSlotKind::BorrowedStorage
-            .owned_slots(&module.structural_types, source.place, source_type)
+            .owned_slots(&module.types.structural_types, source.place, source_type)
             .ok_or("reference parent has no finite descriptor inventory")?
             .into_iter()
             .filter(|parent| captured.contains(parent))

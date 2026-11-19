@@ -21,7 +21,7 @@ pub fn lower_artifact(
     let plan = super::operations::lower_selected_module(
         module,
         entry,
-        module.structural_types.clone(),
+        module.types.structural_types.clone(),
         None,
         None,
         None,

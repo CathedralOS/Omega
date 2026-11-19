@@ -135,7 +135,7 @@ pub(crate) fn install(
                         .operations
                         .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse).into());
                     let path = terminal_semantics::canonical_inline_region(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         end.structural_type,
                         &argument.path,
                     )

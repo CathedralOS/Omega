@@ -68,7 +68,7 @@ impl Program<'_> {
             .collect::<Vec<_>>();
         schemas.sort_unstable_by_key(|(identity, _)| *identity);
         let mut identities = std::mem::take(&mut module.identities).into_builder();
-        let previous = std::mem::take(&mut module.native_layouts);
+        let previous = std::mem::take(&mut module.layouts.native_layouts);
         let mut native = NativeLayoutCatalog::default();
         let mut applications = Vec::new();
         for old in previous.records() {
@@ -248,7 +248,7 @@ impl Program<'_> {
             let position = usize::try_from(old.record.get() - 1)
                 .map_err(|_| malformed(machine, "record coordinate exceeds host storage"))?;
             let declaration = module
-                .structural_types
+                .types.structural_types
                 .get_mut(position)
                 .filter(|declaration| declaration.id == old.record)
                 .ok_or_else(|| {
@@ -270,8 +270,8 @@ impl Program<'_> {
         }
         applications.sort_unstable_by_key(|application| application.id);
         module.identities = identities.build();
-        module.native_layouts = native;
-        module.target_layout_applications = applications;
+        module.layouts.native_layouts = native;
+        module.layouts.target_layout_applications = applications;
         Ok(())
     }
 }

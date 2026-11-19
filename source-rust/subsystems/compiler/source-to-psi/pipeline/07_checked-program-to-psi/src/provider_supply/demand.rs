@@ -65,6 +65,19 @@ impl<T> SourceProviderFacts<T> {
 }
 
 impl SourceProviderFacts<SourceProviderDemand> {
+    /// Seal these facts to the artifact the same source judgment published for this target.
+    pub fn for_published_target(
+        self,
+        publication: &SourcePublication,
+        target: &str,
+    ) -> Result<super::PublishedTargetProviders, Vec<Diagnostic>> {
+        let demand = self.receive(publication, Some(target))?;
+        let program = publication.require_published(publication.optimizations())?;
+        Ok(source_provider_publication::issue_target_provider_demand(
+            program.artifact(), target, demand,
+        ))
+    }
+
     /// A lock-policy request can prepare its source-derived review facts from
     /// the same closed choices that portable publication receives next.
     pub fn logical_provider_reach(
@@ -93,7 +106,7 @@ impl SourcePublication {
         let entry = match target {
             Some(target)
                 if !(self.roster()?.entries.is_empty()
-                    && module.program_entry_contracts.is_empty()) =>
+                    && module.interfaces.program_entry_contracts.is_empty()) =>
             {
                 let contract = module
                     .program_entry_contract(target)

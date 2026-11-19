@@ -73,7 +73,7 @@ fn assert_integer_conversion_policies(fixture: &str, width: u64) {
                             domain,
                         };
                         let boundary = module
-                            .boundary_machines
+                            .interfaces.boundary_machines
                             .iter()
                             .find(|row| row.numeric_intrinsic == Some(meaning))
                             .unwrap();
@@ -209,7 +209,7 @@ use numerics::intrinsics::NumericType;
             .unwrap();
             let module = reopened.module();
             let mut conversions = Vec::new();
-            for boundary in &module.boundary_machines {
+            for boundary in &module.interfaces.boundary_machines {
                 let Some(
                     meaning @ NumericIntrinsic::Conversion {
                         source: NumericType::F32 | NumericType::F64,
@@ -311,7 +311,7 @@ fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
     // A valid rootless capsule isolates declaration receiving from unrelated
     // callers and their proof scopes. Corruption must reach the catalog guard.
     let mut declaration = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|boundary| boundary.numeric_intrinsic == Some(original))
         .unwrap()
@@ -397,7 +397,7 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
             .unwrap();
             let module = publication.artifact.semantic_module();
             let mut conversions = 0;
-            for boundary in &module.boundary_machines {
+            for boundary in &module.interfaces.boundary_machines {
                 let Some(numerics::intrinsics::NumericIntrinsic::Conversion {
                     source,
                     ..
@@ -438,7 +438,7 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
                 module,
                 &schemas,
                 "windows_x86_64",
-                module.boundary_machines.iter().map(|boundary| boundary.id),
+                module.interfaces.boundary_machines.iter().map(|boundary| boundary.id),
             )
             .unwrap();
             for leaf in leaves {
@@ -497,7 +497,7 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
             assert!(program.admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
                 host_imports: &duplicates, ..request
             }).is_err(), "a canonical adapter is installed only once");
-            let numeric = module.boundary_machines.iter().filter(|boundary|
+            let numeric = module.interfaces.boundary_machines.iter().filter(|boundary|
                 boundary.declaration.as_ref().is_some_and(|declaration|
                     declaration.execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive)
             ).collect::<Vec<_>>();
@@ -522,13 +522,13 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
                 }
             }
             let schemas = provider_realization::compiler_primitive_schemas(module).unwrap();
-            let leaves = provider_realization::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap();
+            let leaves = provider_realization::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", module.interfaces.boundary_machines.iter().map(|boundary| boundary.id)).unwrap();
             assert_eq!(leaves.len(), 12);
             assert!(provider_realization::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", []).unwrap().is_empty(), "declarations alone do not request execution");
-            let first = module.boundary_machines[0].id;
+            let first = module.interfaces.boundary_machines[0].id;
             assert!(provider_realization::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [first, first]).is_err(), "a repeated request is not a second realization");
             assert!(provider_realization::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [semantic_vocabulary::BoundaryMachineId::new(u64::MAX).unwrap()]).is_err(), "a request cannot name another module's declaration");
-            let unsupported = provider_realization::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap_err();
+            let unsupported = provider_realization::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", module.interfaces.boundary_machines.iter().map(|boundary| boundary.id)).unwrap_err();
             assert!(format!("{unsupported:?}").contains("the target declares no floating-point realization table"), "{unsupported:?}");
             let selection = selected_provider_plans::SelectedProviderPlanFacts::default()
                 .with_direct_boundary_plans(leaves.iter().map(|leaf| leaf.plan.clone()).collect()).unwrap();
@@ -537,7 +537,7 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
                 let direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(execution) = leaf.execution else { panic!("numeric leaf needs an intrinsic") };
                 vec![execution]
             }).collect::<Vec<_>>();
-            let demands = module.boundary_machines.iter().map(|boundary|
+            let demands = module.interfaces.boundary_machines.iter().map(|boundary|
                 module.identities.text(boundary.identity).unwrap().to_owned()).collect();
             let settle = |direct: &[direct_boundary_bindings::DirectBoundaryLeaf]| {
                 provider_admission::derive_selected_intrinsic_settlement_proposals(
@@ -610,7 +610,7 @@ use numerics::intrinsics::PrimitiveFloatBinaryOperation as Operation;
             .unwrap();
             let module = publication.artifact.semantic_module();
             let arithmetic = module
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .filter(|boundary| {
                     matches!(
@@ -793,7 +793,7 @@ fn inline_float_comparison_keeps_the_literal_format_in_the_saved_operator() {
             )
             .unwrap();
             let module = reopened.module();
-            let [operator] = module.boundary_machines.as_slice() else {
+            let [operator] = module.interfaces.boundary_machines.as_slice() else {
                 panic!("the inline comparison selects exactly one numeric declaration");
             };
             assert_eq!(
@@ -876,7 +876,7 @@ fn float_zero_locals_keep_positive_bits_and_require_the_default_domain() {
                     };
                     let home = operation.result.as_structural().unwrap().structural_type;
                     let declaration = module
-                        .structural_types
+                        .types.structural_types
                         .iter()
                         .find(|row| row.id == home)
                         .unwrap();
@@ -959,7 +959,7 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
                 domain: numerics::arithmetic::ArithmeticDomain::Exact,
             };
             let boundary = module
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .find(|boundary| boundary.numeric_intrinsic == Some(meaning))
                 .unwrap();
@@ -1009,7 +1009,7 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
                 module,
                 &schemas,
                 "macos_arm64",
-                module.boundary_machines.iter().map(|boundary| boundary.id),
+                module.interfaces.boundary_machines.iter().map(|boundary| boundary.id),
             )
             .unwrap();
             let leaf = leaves
@@ -1107,7 +1107,7 @@ fn exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss() {
             .unwrap();
             let module = reopened.module();
             let goals = module
-                .scalar_block_invariants
+                .proofs.scalar_block_invariants
                 .iter()
                 .filter_map(|invariant| {
                     let Proposition::FloatMeaningEqual(clause) = &invariant.predicate else {
@@ -1141,7 +1141,7 @@ fn exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss() {
                 formats,
                 [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64]
             );
-            for boundary in &module.boundary_machines {
+            for boundary in &module.interfaces.boundary_machines {
                 if boundary.numeric_intrinsic.is_some() {
                     terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
                         .unwrap();
@@ -1209,7 +1209,7 @@ fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
                     domain: ArithmeticDomain::Exact,
                 };
                 let boundary = module
-                    .boundary_machines
+                    .interfaces.boundary_machines
                     .iter()
                     .find(|row| row.numeric_intrinsic == Some(meaning))
                     .unwrap();
@@ -1348,7 +1348,7 @@ fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract()
                     domain: ArithmeticDomain::Exact,
                 };
                 let boundary = module
-                    .boundary_machines
+                    .interfaces.boundary_machines
                     .iter()
                     .find(|row| row.numeric_intrinsic == Some(meaning))
                     .unwrap();
@@ -1420,7 +1420,7 @@ use numerics::intrinsics::NumericType;
                 module,
                 &schemas,
                 "macos_arm64",
-                module.boundary_machines.iter().map(|row| row.id),
+                module.interfaces.boundary_machines.iter().map(|row| row.id),
             )
             .unwrap();
             for source in [NumericType::F32, NumericType::F64] {
@@ -1431,7 +1431,7 @@ use numerics::intrinsics::NumericType;
                         domain: ArithmeticDomain::Saturating,
                     };
                     let boundary = module
-                        .boundary_machines
+                        .interfaces.boundary_machines
                         .iter()
                         .find(|row| row.numeric_intrinsic == Some(meaning))
                         .unwrap();
@@ -1876,7 +1876,7 @@ use numerics::intrinsics::NumericType;
                 };
                 let boundary = reloaded
                     .semantic_module()
-                    .boundary_machines
+                    .interfaces.boundary_machines
                     .iter()
                     .find(|boundary| boundary.numeric_intrinsic == Some(meaning))
                     .unwrap()

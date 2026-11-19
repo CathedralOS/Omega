@@ -46,7 +46,7 @@ pub(super) fn discover<'artifact>(
             let declaration = observations
                 .artifact()
                 .module()
-                .scalar_applications
+                .scalars.scalar_applications
                 .declaration(application)
                 .ok_or("scalar evaluation dependency is absent")?;
             let (execution, dependencies) = match declaration {
@@ -157,7 +157,7 @@ fn boundary_names(
     boundaries
         .iter()
         .map(|boundary| {
-            terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
+            terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, *boundary)
                 .and_then(|declaration| module.identities.text(declaration.identity))
                 .filter(|identity| !identity.is_empty())
                 .map_or_else(

@@ -1291,7 +1291,7 @@ fn finish_reading_into<'source>(
     .map_err(|error| error.into_refusal(diagnostic, &program))?;
     let mut requirements = elaboration.requirements.clone();
     requirements.sort_unstable();
-    for slot in &mut elaboration.module.callables.machine_envelopes {
+    for slot in &mut elaboration.module.execution.callables.machine_envelopes {
         // An abstract header retains its static bounds, never an executable
         // declaration or a synthetic checked body.
         if slot
@@ -1320,7 +1320,7 @@ fn finish_reading_into<'source>(
         elaboration
             .undeclared
             .sort_unstable_by_key(|(machine, _)| *machine);
-        for slot in &mut elaboration.module.callables.machine_envelopes {
+        for slot in &mut elaboration.module.execution.callables.machine_envelopes {
             if slot.as_ref().is_some_and(|row| {
                 elaboration
                     .undeclared
@@ -1649,14 +1649,14 @@ fn lower_program<'source>(
     )?;
     // Declaration checking publishes no executable arrival or root reach.
     if let Some(entry) = entry {
-        module.root_service_reach.concrete =
+        module.interfaces.root_service_reach.concrete =
             terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
                 .service_reach
                 .clone();
     }
     module.identities = declared.identities;
-    module.structural_types = declared.structural_types;
-    module.native_layouts = declared.native_layouts;
+    module.types.structural_types = declared.structural_types;
+    module.layouts.native_layouts = declared.native_layouts;
     let mut source_records = Vec::new();
     if let Some(program) = declarations {
         source_records = program.source_record_correspondence(diagnostic)?;
@@ -1744,7 +1744,7 @@ fn lower_program<'source>(
                     )
                 })?;
             module
-                .declaration_contracts
+                .execution.declaration_contracts
                 .push(lower::declaration_contract(
                     diagnostic,
                     id,
@@ -1775,7 +1775,7 @@ fn lower_program<'source>(
             )
         })?;
         let component = components.invocation_members(id)?;
-        let contract = u64::try_from(module.declaration_contracts.len())
+        let contract = u64::try_from(module.execution.declaration_contracts.len())
             .ok()
             .and_then(|count| count.checked_add(id.get()))
             .and_then(semantic_vocabulary::ContractId::new)
@@ -1795,7 +1795,7 @@ fn lower_program<'source>(
             signatures,
             &outcomes,
             &declared.records,
-            &module.structural_types,
+            &module.types.structural_types,
             callables,
             boundaries,
             requirements.contains(&id),
@@ -1813,7 +1813,7 @@ fn lower_program<'source>(
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
-        module.scalar_block_invariants.extend(lowered.invariants);
+        module.proofs.scalar_block_invariants.extend(lowered.invariants);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
@@ -1823,20 +1823,20 @@ fn lower_program<'source>(
         source.folded_calls.extend(lowered.source_folded_calls);
     }
     if let Some(source) = declarations {
-        let proof_scope = std::mem::take(&mut module.scalar_applications.proof_scope);
-        let conditions = std::mem::take(&mut module.scalar_applications.conditions);
-        module.scalar_applications = source.scalar_applications.published().map_err(|reason| {
+        let proof_scope = std::mem::take(&mut module.scalars.scalar_applications.proof_scope);
+        let conditions = std::mem::take(&mut module.scalars.scalar_applications.conditions);
+        module.scalars.scalar_applications = source.scalar_applications.published().map_err(|reason| {
             refuse(
                 MachineId::new(1).expect("nonzero identity"),
                 Construct::Machine,
                 Unserved::Declaration(reason),
             )
         })?;
-        module.scalar_applications.proof_scope = proof_scope;
-        module.scalar_applications.conditions = conditions;
+        module.scalars.scalar_applications.proof_scope = proof_scope;
+        module.scalars.scalar_applications.conditions = conditions;
     }
     module.identities = std::mem::take(&mut qualifications.identities).build();
-    module.scalar_qualifications = qualifications.catalog.clone();
+    module.types.scalar_qualifications = qualifications.catalog.clone();
     boundaries.publish(
         diagnostic,
         signatures.machines,
@@ -1860,7 +1860,7 @@ fn lower_program<'source>(
         &mut module,
         declarations,
     )?;
-    module.callables.declaration_envelopes = declaration_envelopes;
+    module.execution.callables.declaration_envelopes = declaration_envelopes;
     let external_provider_candidates = external_providers.publish(
         diagnostic,
         signatures.machines,
@@ -1887,12 +1887,12 @@ fn lower_program<'source>(
         declarations,
         &external_provider_candidates,
     )?;
-    module.scalar_qualifications = qualifications.catalog;
-    module.structural_domains = qualifications.structural;
+    module.types.scalar_qualifications = qualifications.catalog;
+    module.types.structural_domains = qualifications.structural;
     qualifications
         .structural_changes
         .sort_unstable_by_key(|change| (change.machine, change.edge, change.argument_ordinal));
-    module.structural_qualification_changes = qualifications.structural_changes;
+    module.types.structural_qualification_changes = qualifications.structural_changes;
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());
     }
@@ -2091,7 +2091,7 @@ fn finish_storage(
         };
         terminal_semantics::validate_structural_store_values(
             machine,
-            &module.structural_types,
+            &module.types.structural_types,
             &plan.stores,
         )
         .map_err(|error| match error {
@@ -2194,7 +2194,7 @@ fn finish_storage(
     claim_publication::publish(diagnostic, module)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
-    module.unoptimized_behavior = module
+    module.execution.unoptimized_behavior = module
         .machines
         .iter()
         .map(terminal_psi::UnoptimizedMachineBehavior::capture)
