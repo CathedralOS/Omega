@@ -1262,7 +1262,7 @@ pub(crate) mod load_forwarding {
                             structural_block_parameters: Vec::new(),
                             machine: semantic_vocabulary::MachineId::new(1).unwrap(),
                             attachment: None,
-                            provenance: target_operations::TerminalPsiProvenance {
+                            provenance: target_vocabulary::TerminalPsiProvenance {
                                 operations: vec![],
                                 edges: vec![],
                             },

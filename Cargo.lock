@@ -2056,7 +2056,6 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
  "terminal-psi",
  "wire",
 ]
@@ -2404,7 +2403,6 @@ dependencies = [
  "diagnostics",
  "frame-admission",
  "installation-admission",
- "legalized-operations",
  "machine-code",
  "operation-operands",
  "optimization-core",
@@ -2421,7 +2419,6 @@ dependencies = [
  "structural-storage",
  "target",
  "target-aarch64",
- "target-operations",
  "target-vocabulary",
  "target-x86_64",
  "terminal-psi",
@@ -3078,8 +3075,8 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
  "target-operations-to-selected-instructions",
+ "target-vocabulary",
  "terminal-psi",
 ]
 

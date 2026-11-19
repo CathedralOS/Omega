@@ -24,4 +24,3 @@ arena = { path = "../../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
 target = { path = "../../targets/target" }
-target-operations = { path = "../representations/target-operations" }
