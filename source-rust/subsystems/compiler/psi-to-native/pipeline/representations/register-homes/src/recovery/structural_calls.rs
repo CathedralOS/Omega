@@ -46,7 +46,7 @@ use target_vocabulary::{
     TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
 };
-use task_plans::{
+use provider_stack_contribution::{
     SameStackContributionAdmissionCandidate, SameStackContributionAdmissionReceiptId,
     SameStackProviderPlanCommitment, admit_same_stack_contribution,
 };

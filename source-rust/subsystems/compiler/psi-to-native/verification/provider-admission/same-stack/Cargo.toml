@@ -1,0 +1,9 @@
+[package]
+name = "provider-stack-contribution"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+terminal-psi = { path = "../../../../psi" }
+wire = { path = "../../../../../../foundation/wire" }

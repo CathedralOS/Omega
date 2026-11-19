@@ -33,4 +33,3 @@ legalized-operations = { path = "../../representations/target-operations/legaliz
 target-operations = { path = "../../representations/target-operations" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 terminal-psi = { path = "../../../../psi" }
-task-plans = { path = "../../../installation/task-plans" }

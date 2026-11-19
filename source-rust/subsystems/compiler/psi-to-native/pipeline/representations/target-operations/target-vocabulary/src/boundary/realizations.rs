@@ -180,26 +180,26 @@ pub enum NormalizedForeignCallMechanism {
     },
     Import {
         locator: target::NormalizedForeignLocator,
-        same_stack_contribution: task_plans::AdmittedSameStackContribution,
+        same_stack_contribution: provider_stack_contribution::AdmittedSameStackContribution,
     },
     Component {
         locator: target::NormalizedComponentLocator,
         provider: terminal_psi::TerminalPsiIdentity,
         candidate: semantic_vocabulary::MachineId,
         application_commitment: [u8; 32],
-        same_stack_contribution: task_plans::AdmittedSameStackContribution,
+        same_stack_contribution: provider_stack_contribution::AdmittedSameStackContribution,
     },
     SystemCall(NormalizedSystemCallBinding),
     Table {
         target: target::TargetProfile,
         byte_offset: u32,
         dispatch_only: bool,
-        same_stack_contribution: task_plans::AdmittedSameStackContribution,
+        same_stack_contribution: provider_stack_contribution::AdmittedSameStackContribution,
     },
 }
 
 impl NormalizedForeignCallMechanism {
-    fn same_stack_contribution(&self) -> Option<&task_plans::AdmittedSameStackContribution> {
+    fn same_stack_contribution(&self) -> Option<&provider_stack_contribution::AdmittedSameStackContribution> {
         match self {
             Self::Import {
                 same_stack_contribution,
@@ -467,7 +467,7 @@ impl NormalizedForeignCallBinding {
         &self,
     ) -> Option<(
         &target::NormalizedForeignLocator,
-        &task_plans::AdmittedSameStackContribution,
+        &provider_stack_contribution::AdmittedSameStackContribution,
     )> {
         match &self.mechanism {
             NormalizedForeignCallMechanism::Import {
@@ -513,7 +513,7 @@ impl NormalizedForeignCallBinding {
         }
     }
 
-    pub fn same_stack_contribution(&self) -> Option<&task_plans::AdmittedSameStackContribution> {
+    pub fn same_stack_contribution(&self) -> Option<&provider_stack_contribution::AdmittedSameStackContribution> {
         self.mechanism.same_stack_contribution()
     }
 

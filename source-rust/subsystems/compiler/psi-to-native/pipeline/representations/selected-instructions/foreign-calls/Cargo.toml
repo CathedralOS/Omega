@@ -14,7 +14,7 @@ test-support = [
     "dep:calling-conventions",
     "dep:function-identity",
     "dep:native-vocabulary",
-    "dep:task-plans",
+    "dep:provider-stack-contribution",
     "dep:target-vocabulary",
     "dep:terminal-psi",
 ]
@@ -28,6 +28,6 @@ semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 target = { path = "../../../../targets/target" }
 calling-conventions = { path = "../../../../targets/calling-conventions", optional = true }
 function-identity = { path = "../../function-identity", optional = true }
-task-plans = { path = "../../../../installation/task-plans", optional = true }
+provider-stack-contribution = { path = "../../../../verification/provider-admission/same-stack", optional = true }
 target-vocabulary = { path = "../../target-operations/target-vocabulary", optional = true }
 terminal-psi = { path = "../../../../../psi", optional = true }

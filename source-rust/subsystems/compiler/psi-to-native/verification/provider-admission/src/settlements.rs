@@ -332,7 +332,7 @@ fn rejoin_component_call(
     call: &crate::ComponentCallFacts<'_>,
     authority: &super::AdmittedNativeCallableAuthority,
     locator: &target::NormalizedComponentLocator,
-    same_stack: &task_plans::AdmittedSameStackContribution,
+    same_stack: &provider_stack_contribution::AdmittedSameStackContribution,
     selected_plan: &effects::provider_plan::ProviderPlan,
     requirement: &str,
     identities: &terminal_psi::TerminalIdentityTable,
@@ -342,7 +342,7 @@ fn rejoin_component_call(
 ) -> Result<target_operations::NormalizedForeignCallBinding, Vec<Diagnostic>> {
     let selection = call.selection();
     let application = call.application();
-    let selected_commitment = task_plans::SameStackProviderPlanCommitment::from_digest(
+    let selected_commitment = provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
         *selected_plan.identity_digest().as_bytes(),
     );
     if authority.subject() != selection.provider()
@@ -387,14 +387,14 @@ fn rejoin_component_call(
 fn rejoin_normalized_foreign_call(
     selected_plan: &effects::provider_plan::ProviderPlan,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
-    same_stack: &task_plans::AdmittedSameStackContribution,
+    same_stack: &provider_stack_contribution::AdmittedSameStackContribution,
     provider_plan_report_identity: u64,
     requirement: &str,
     identities: &terminal_psi::TerminalIdentityTable,
     target: target::NativeTarget,
     abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<NormalizedForeignCallBinding, Vec<Diagnostic>> {
-    let selected_commitment = task_plans::SameStackProviderPlanCommitment::from_digest(
+    let selected_commitment = provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
         *selected_plan.identity_digest().as_bytes(),
     );
     if same_stack.provider_plan_report_identity() != provider_plan_report_identity

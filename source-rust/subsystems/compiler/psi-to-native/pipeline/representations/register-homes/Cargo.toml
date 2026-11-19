@@ -19,7 +19,7 @@ target = { path = "../../../targets/target" }
 register-model = { path = "../../../targets/register-model" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 selected-instructions = { path = "../selected-instructions" }
-task-plans = { path = "../../../installation/task-plans" }
+provider-stack-contribution = { path = "../../../verification/provider-admission/same-stack" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-semantics = { path = "../../../../psi/semantics" }
 terminal-wire = { path = "../../../../psi/wire" }

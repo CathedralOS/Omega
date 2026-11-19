@@ -38,7 +38,7 @@ abstract-operations = { path = "pipeline/representations/abstract-operations" }
 wire = { path = "../../../foundation/wire" }
 bound-installations = { path = "installation/bound-installations" }
 installation-evidence = { path = "installation/installation-evidence" }
-task-plans = { path = "installation/task-plans" }
+provider-stack-contribution = { path = "verification/provider-admission/same-stack" }
 component-description = { path = "components/description" }
 effects = { path = "installation/native-effects" }
 selected-instruction-analyses = { path = "pipeline/06_selected-instructions-to-selected-instructions/analyses" }

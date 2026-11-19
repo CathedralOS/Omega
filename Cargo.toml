@@ -92,6 +92,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/tests/isa-conformance",
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission",
+    "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/same-stack",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence",
     "source-rust/subsystems/compiler/psi/access",
     "source-rust/subsystems/compiler/psi/application-identity",

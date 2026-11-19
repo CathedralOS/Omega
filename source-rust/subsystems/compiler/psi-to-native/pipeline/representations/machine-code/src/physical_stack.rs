@@ -22,7 +22,7 @@ pub struct PhysicalStackCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ForeignStackExtent {
     None,
-    Admitted(task_plans::AdmittedSameStackContribution),
+    Admitted(provider_stack_contribution::AdmittedSameStackContribution),
     Hosted { receipt: Option<[u8; 32]> },
     CompilerImport(target_vocabulary::CompilerImport),
 }
