@@ -1,5 +1,6 @@
 //! Source inputs and receipts used while resolving and preparing a program.
 pub use crate::preparation::WireCompatibilityDemand;
+pub use crate::source_targets::FixedLayoutTargetScope;
 pub use build_scalar_evaluation::{ScalarScopeEvaluation, prepare_scalar_applications};
 pub use build_time_values::BuildTimeValue;
 pub use declaration_scope::DeclarationSelectionAuthority as BuildTimeSelectionAuthority;
@@ -24,7 +25,6 @@ pub mod retained_product_application;
 use crate::declaration_selection::{
     BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
 };
-use std::sync::Arc;
 
 pub fn build_requests_any(
     declared: &[std::sync::Arc<ProductDeclarationRequest>],

@@ -3,16 +3,18 @@
 //! declaration. The portable declaration anchor lets review rejoin it in
 //! the accepted Product source.
 
-use source_declarations::source_selections::{AssumedBindingContract, TestGroupRegistration, TestGroupService};
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::declaration_selection::ProductOperandRole;
+use crate::preparation::WireCompatibilityDemand;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{ProductDeclarationLookup, ProductRequestAuthors};
-use crate::preparation::WireCompatibilityDemand;
 use diagnostics::Diagnostic;
 pub use source_declarations::source_selections::ServiceAuditRegistration;
+use source_declarations::source_selections::{
+    AssumedBindingContract, TestGroupRegistration, TestGroupService,
+};
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
@@ -69,6 +71,34 @@ pub fn admit(
     })
 }
 
+/// Report the authored site until source can authenticate its exclusion operand.
+pub(crate) fn require_supported_exclusions(
+    declared: &[Arc<ProductDeclarationRequest>],
+    executed: &[ExecutedProductSelection],
+    enums: &[crate::declaration_selection::ExecutedEnumExclusion],
+) -> Result<(), Vec<Diagnostic>> {
+    if let Some(request) = declared
+        .iter()
+        .map(Arc::as_ref)
+        .chain(executed.iter().map(|event| event.request.as_ref()))
+        .find(|request| request.operation == BuildOperation::ServiceExclusion)
+    {
+        return Err(refuse(
+            request,
+            "Build service exclusion requires its authenticated source declaration",
+        ));
+    }
+    if let Some(event) = enums.first() {
+        return Err(vec![
+            Diagnostic::error(
+                "Build behavior exclusion requires its authenticated source enum case",
+            )
+            .with_source_span(event.request.source_span),
+        ]);
+    }
+    Ok(())
+}
+
 fn admitted_here(operation: BuildOperation) -> bool {
     matches!(
         operation,
@@ -100,10 +130,10 @@ impl<'request> AuthoredFormations<'request> {
             request
                 .validate_shape()
                 .map_err(|reason| refuse(request, reason))?;
-            if !typed.symbols.symbol_is_in_dependency_scope(
-                *author,
-                source_provenance::DependencyScope::Build,
-            ) {
+            if !typed
+                .symbols
+                .symbol_is_in_dependency_scope(*author, source_provenance::DependencyScope::Build)
+            {
                 return Err(refuse(
                     request,
                     "Build declaration author is not Build source",

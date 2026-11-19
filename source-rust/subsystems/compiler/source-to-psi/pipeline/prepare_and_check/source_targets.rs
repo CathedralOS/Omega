@@ -3,6 +3,15 @@
 
 use diagnostics::Diagnostic;
 
+/// Layout observations and the exact source declarations that demand them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixedLayoutTargetScope {
+    pub target: String,
+    pub facts: Option<layout_plans::LayoutTargetFacts>,
+    pub entry_declarations: Vec<symbols::SymbolHandle>,
+    pub provider_declarations: Vec<crate::provider_choice_inputs::ProviderSelection>,
+}
+
 #[derive(Debug, Clone)]
 pub struct SourceTarget {
     pub name: &'static str,
