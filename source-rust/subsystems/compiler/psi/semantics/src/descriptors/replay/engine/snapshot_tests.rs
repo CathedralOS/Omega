@@ -2076,9 +2076,16 @@ fn exact_incoming_contents_keep_entry_identity_without_blessing_unknown_state() 
         replay.resolved(machine, BTreeSet::from([logical.clone()])),
         "unknown pointers retain their logical source for symbolic queries"
     );
+    let parameter = |origin: &Origin| match replay.exported(machine, origin) {
+        Some(DescriptorStoredOrigin::Parameter { position, projection }) => {
+            Some((position, projection))
+        }
+        _ => None,
+    };
+    let expected_parameter = parameter(&logical).expect("the logical source names a parameter");
     assert_eq!(
-        replay.exported(machine, &Origin::CapturedStorage(opaque.clone())),
-        replay.exported(machine, &logical),
+        parameter(&Origin::CapturedStorage(opaque.clone())),
+        Some(expected_parameter),
         "summary queries retain the same coordinate, without establishing a capture"
     );
     Arc::make_mut(&mut state.arrival_backing).insert(
