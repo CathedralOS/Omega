@@ -30,7 +30,7 @@ the returned activation via `validate_return`, `source_result`,
 `validate_source_join`, and `complete`.
 */
 
-use crate::{PreparedBuildExecution, PureBuildCompilation};
+use crate::PreparedBuildExecution;
 use artifacts::compile_timings::CompileTimings;
 use build_evaluation_result::CompileFailure;
 use diagnostics::Diagnostic;
@@ -45,7 +45,6 @@ use std::sync::Arc;
 
 pub struct BuildEvaluationRequest<'request> {
     pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose, // Measurement only; source custody and admission independently establish authority.
-    pub pure_build_compilation: Option<&'request PureBuildCompilation>,
     pub root_path: &'request Path,
     pub typed: &'request TypedTrees,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
@@ -304,7 +303,6 @@ pub fn prepare_build_evaluation(
 ) -> Result<PreparedBuildEvaluation, CompileFailure> {
     let BuildEvaluationRequest {
         execution_purpose,
-        pure_build_compilation: _,
         root_path,
         typed,
         build_source,

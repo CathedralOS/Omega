@@ -6,7 +6,6 @@ mod admission;
 mod build_evaluation;
 pub mod host;
 
-pub use activation::completed_pure_build::PureBuildCompilation;
 pub use activation::preparation::PreparedBuildExecution;
 pub use activation::{
     BuildDependencySelection, BuildSourceResult, ReturnedBuild, TerminalBuildActivation,

@@ -38,7 +38,6 @@ than a callback loop:
 */
 
 mod carried_build;
-pub(crate) mod completed_pure_build;
 pub(crate) mod preparation;
 mod project;
 mod provider_installation;

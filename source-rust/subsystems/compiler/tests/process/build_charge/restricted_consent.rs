@@ -99,7 +99,6 @@ machine build(builder: @mut Build) crashes Trap {
             build_execution::BuildEvaluationRequest {
                 execution_purpose:
                     artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
-                pure_build_compilation: None,
                 root_path: &entry,
                 typed: continuation.typed(),
                 build_source,

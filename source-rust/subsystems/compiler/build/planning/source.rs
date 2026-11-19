@@ -107,7 +107,6 @@ pub fn prepare(
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             execution_purpose: BuildExecutionPurpose::Source,
-            pure_build_compilation: None,
             root_path: request.root,
             typed: source.typed(),
             build_source: assembled.build_source,
