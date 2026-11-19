@@ -962,16 +962,29 @@ impl<'t> Program<'t> {
         // The owning-row query chooses the witness contract. A selected call
         // must agree with it; the call cannot replace the body's requirement
         // or supply a different public contract to make the witness pass.
-        if let Some(expected) = expected.filter(|expected| *expected != declared) {
-            let (expected, _) = self.requirement_signature(
+        if let Some(expected_source) = expected.filter(|expected| *expected != declared) {
+            let (mut expected, _) = self.requirement_signature(
                 id,
-                expected,
-                if expected.type_parameters.is_empty() {
+                expected_source,
+                if expected_source.type_parameters.is_empty() {
                     &[]
                 } else {
                     arguments
                 },
             )?;
+            // The two headers can introduce distinct names for the same
+            // lifetime parameters. Substitution must preserve both signatures
+            // in either direction before we compare the rest of the contract.
+            if expected != signature
+                && self.same_signature(id, &signature, &expected, expected_source.symbol)?
+                && self.same_signature(id, &expected, &signature, declared.symbol)?
+            {
+                expected.parameters.clone_from(&signature.parameters);
+                expected.result = signature.result;
+                for (selected, witnessed) in expected.borrowed.iter_mut().zip(&signature.borrowed) {
+                    selected.regions = witnessed.regions;
+                }
+            }
             if expected != signature {
                 return Err(refuse(
                     id,
@@ -3885,16 +3898,19 @@ impl<'t> Program<'t> {
                 return unserved("reference to a qualified scalar");
             }
             ValueType::Record(_, _, _) => None,
-            ValueType::Scalar(..) => Some(
-                Some(self.typed.normalized_type_identity_text(referee))
-                    .filter(|identity| !identity.is_empty())
-                    .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Spelling("referent type without an identity"),
-                        )
-                    })?,
+            ValueType::Scalar(scalar, _) => Some(
+                Some(
+                    self.typed
+                        .normalized_type_identity_text(self.plain_scalar_reference(id, scalar)?),
+                )
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Spelling("referent type without an identity"),
+                    )
+                })?,
             ),
         };
         let outer = match ordinary_region {

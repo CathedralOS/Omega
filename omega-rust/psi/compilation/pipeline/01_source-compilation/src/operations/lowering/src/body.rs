@@ -707,7 +707,7 @@ pub struct Borrowed {
     /// trees render it: Terminal Psi declares the primitive type of the
     /// formal's place with an interned text identity, as it does a scalar
     /// home's (`Statement::Declare`). `None` for a record referent, whose
-    /// `RecordType` holds its own. Nothing compares it.
+    /// `RecordType` holds its own.
     pub home: Option<String>,
 }
 
