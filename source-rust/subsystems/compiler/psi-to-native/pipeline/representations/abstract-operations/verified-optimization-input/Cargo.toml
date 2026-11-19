@@ -41,7 +41,7 @@ terminal-psi = { path = "../../../../../psi" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
 target = { path = "../../../../targets/target" }
 terminal-semantics = { path = "../../../../../psi/semantics" }
-program-entry-contracts = { path = "../../../01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
+program-entry-contracts = { path = "../../program-entry-contracts" }
 diagnostics = { path = "../../../../../../../foundation/diagnostics" }
 boundary-applications = { path = "../../operation-evidence/boundary-applications" }
 provider-correspondence = { path = "../../../../verification/provider-correspondence" }

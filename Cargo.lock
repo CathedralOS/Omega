@@ -573,7 +573,6 @@ dependencies = [
  "numerics",
  "optimization-selections",
  "product-publication",
- "program-entry-contracts",
  "project-build",
  "provider-acceptance",
  "provider-demand",
@@ -2125,7 +2124,6 @@ dependencies = [
  "provider-plans",
  "psi-entry-memory",
  "semantic-vocabulary",
- "source-provenance",
  "target",
  "terminal-psi",
  "wire",
@@ -3313,6 +3311,7 @@ dependencies = [
  "record-storage",
  "semantic-vocabulary",
  "sha2",
+ "source-provenance",
  "wire",
 ]
 

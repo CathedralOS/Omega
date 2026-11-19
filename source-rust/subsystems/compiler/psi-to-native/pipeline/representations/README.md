@@ -22,6 +22,7 @@ Other packages separate shared records and preparation from program roots:
 - [Operation evidence](operation-evidence/src/lib.rs) identifies where a row came
   from and preserves its charged work, claim sources and ownership frontier.
   The optimizer and later forms can name this evidence without opening a function.
+- [Program entry contracts](program-entry-contracts/program_entry.rs) carry the selected source signature, physical arrival and storage plan from stage 01 through emission and saved-input replay.
 - [Operation operands](operation-operands/src/lib.rs) hold the call targets,
   value bindings, integer operation policies and structural storage operands first produced during abstract lowering.
   Target and machine representations carry the same operands through later stages.

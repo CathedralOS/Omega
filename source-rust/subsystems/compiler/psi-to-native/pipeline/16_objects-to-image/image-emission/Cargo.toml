@@ -28,7 +28,7 @@ post-allocation-machine = { path = "../../representations/post-allocation-machin
 runtime-abi = { path = "../../../targets/runtime-abi" }
 arena = { path = "../../../../../../foundation/arena" }
 optimization-core = { path = "../../representations/optimization-records" }
-program-entry-contracts = { path = "../../01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
+program-entry-contracts = { path = "../../representations/program-entry-contracts" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 calling-conventions = { path = "../../../targets/calling-conventions" }

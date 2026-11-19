@@ -22,7 +22,7 @@ numeric-literals = { path = "../../foundation/numeric-literals" }
 numerics = { path = "../../psi/semantics/numeric" }
 operation-evidence = { path = "../pipeline/representations/operation-evidence" }
 optimization-selections = { path = "../../foundation/optimization-selections" }
-program-entry-contracts = { path = "../pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
+program-entry-contracts = { path = "../pipeline/representations/program-entry-contracts" }
 provider-acceptance = { path = "../../build/providers/acceptance" }
 provider-admission = { path = "../verification/provider-admission" }
 provider-plans = { path = "../../build/providers/plans" }

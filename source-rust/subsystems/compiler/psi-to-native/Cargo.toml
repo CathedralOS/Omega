@@ -39,7 +39,7 @@ instruction-selection = { package = "target-operations-to-selected-instructions"
 selected-rewrites = { package = "selected-instructions-to-selected-instructions", path = "pipeline/06_selected-instructions-to-selected-instructions" }
 allocation = { package = "selected-instructions-to-register-homes", path = "pipeline/07_selected-instructions-to-register-homes" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "pipeline/08_register-homes-to-post-allocation-machine" }
-program-entry-contracts = { path = "pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
+program-entry-contracts = { path = "pipeline/representations/program-entry-contracts" }
 installation-admission = { path = "verification/installation-admission" }
 physical-program = { path = "pipeline/representations/post-allocation-machine/body-facts" }
 provider-admission = { path = "verification/provider-admission" }

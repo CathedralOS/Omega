@@ -16,6 +16,3 @@ semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
 terminal-psi = { path = "../../../../psi" }
 wire = { path = "../../../../../../foundation/wire" }
-
-[dev-dependencies]
-source-provenance = { path = "../../../../foundation/source-provenance" }

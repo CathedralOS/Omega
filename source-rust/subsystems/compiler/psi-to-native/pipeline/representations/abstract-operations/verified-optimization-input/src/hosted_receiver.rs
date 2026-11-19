@@ -88,7 +88,7 @@ struct PhysicalContractRow {
 }
 
 fn physical_contract_row(target: target::NativeTarget) -> Option<PhysicalContractRow> {
-    use program_entry_contracts::{
+    use target::entry_contract::{
         LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_U64_TYPE_IDENTITY,
         LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY,
         MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
@@ -152,7 +152,7 @@ pub fn physical_contract_matches(
         return false;
     };
     let Some(expected) =
-        program_entry_contracts::exact_hosted_physical_boundary_entry_plan(package)
+        calling_conventions::process_entry::exact_hosted_physical_boundary_entry_plan(package)
     else {
         return false;
     };
@@ -160,7 +160,7 @@ pub fn physical_contract_matches(
     physical.target_slot() == slot
         && physical.target_package() == package
         && physical.target_package_source_digest()
-            == program_entry_contracts::exact_physical_contract_package_source_digest(package)
+            == target::entry_contract::exact_physical_contract_package_source_digest(package)
         && !physical.requirement_identity().is_absent()
         && physical.parameter_type_identities().len() == row.parameter_type_identities.len()
         && physical

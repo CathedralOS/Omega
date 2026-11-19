@@ -51,7 +51,16 @@ impl SelectedCompilerProgramEntry {
                     .unwrap_or("<absent>"),
             )));
         }
+        let entry_block = body
+            .blocks
+            .iter()
+            .find(|block| block.id == body.entry)
+            .ok_or_else(|| refuse("the selected entry has no entry block".into()))?;
         if !body.parameters.is_empty()
+            || !entry_block.parameters.is_empty()
+            || !entry_block.structural_parameters.is_empty()
+            || !entry_block.erased_scalar_formals.is_empty()
+            || !entry_block.erased_proof_formals.is_empty()
             || !body.structural_parameters.is_empty()
             || !body.parameter_order.is_empty()
             || !checked.parameter_types.is_empty()
@@ -67,6 +76,9 @@ impl SelectedCompilerProgramEntry {
             .ok_or_else(|| {
                 refuse("the selected entry lost its nominal declaration identity".into())
             })?;
+        if module.identities.text(checked.callable).is_none_or(str::is_empty) {
+            return Err(refuse("selected entry lost its checked callable identity".into()));
+        }
         let signature =
             program_entry_contracts::SelectedProgramEntrySignature::from_checked_declaration(
                 slot,

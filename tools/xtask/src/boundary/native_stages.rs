@@ -11,12 +11,6 @@ macro_rules! native {
 
 pub(super) const DRIVER: &str = native!("");
 const HOST_PROVIDERS: &str = native!("/pipeline/00_psi-to-admitted-native-inputs/host-providers");
-const ENTRY: &str =
-    native!("/pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts");
-const ENTRY_PLANNING: &str =
-    native!("/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning");
-const VERIFIED_INPUT: &str =
-    native!("/pipeline/representations/abstract-operations/verified-optimization-input");
 const ANALYSES: &str =
     native!("/pipeline/06_selected-instructions-to-selected-instructions/analyses");
 const ENCODING: &str = native!("/pipeline/representations/machine-code/encoding-admission");
@@ -33,10 +27,6 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
     let stages = &NATIVE_STAGES;
     let mut readers = vec![
         ("source-rust/subsystems/package-manager", HOST_PROVIDERS),
-        (ENTRY_PLANNING, ENTRY),
-        (VERIFIED_INPUT, ENTRY),
-        (IMAGE_EMISSION, ENTRY),
-        (native!("/saved-inputs"), ENTRY),
         (ENCODING, AARCH64),
         (ENCODING, X86),
         (
