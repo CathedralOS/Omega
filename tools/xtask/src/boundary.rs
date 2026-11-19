@@ -360,7 +360,7 @@ pub fn stale_allowance_violations(
 /// Earlier executable program forms: the abstract program, the optimization
 /// unit, and the unit's independent semantic checker (all under this path).
 const EARLIER_PROGRAM_FORMS: &str =
-    "omega-rust/omega/compilation/representations/abstract-operations";
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations";
 
 /// Stage 02's working program: `TargetOperationPlan` and its control graph.
 /// The records it shares with later forms live in `target-vocabulary`, nested
@@ -419,7 +419,9 @@ const PREPARED_EXECUTION_PLAN: &str =
 /// production edge, so a new path through a helper crate is caught too.
 const SELECTION_REPRESENTATIONS: &[&str] = &[
     "omega-rust/omega/compilation/representations/bound-installations",
-    "omega-rust/omega/compilation/representations/native-vocabulary",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-operands",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-evidence",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/structural-storage",
     "omega-rust/omega/compilation/representations/target-operations",
     "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
     "omega-rust/omega/compilation/representations/selected-instructions",
@@ -1066,7 +1068,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             &metadata,
             SELECTION_REPRESENTATIONS,
             EARLIER_PROGRAM_FORMS,
-            "a representation instruction selection reads or writes reaches an earlier program form; move the shared leaf type to native-vocabulary",
+            "a representation instruction selection reads or writes reaches an earlier program form; name the operand, operation evidence or storage contract from its owning representation",
         )?);
         violations.extend(transitive_exact_violations(
             &metadata,
@@ -1298,8 +1300,7 @@ mod tests {
         let plan =
             "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
-        let unit =
-            "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit";
+        let unit = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/optimization-unit";
         let reaches = |kind: Option<&str>| Metadata {
             workspace_root: "/repo".to_owned(),
             packages: vec![
@@ -1633,16 +1634,16 @@ mod tests {
 
     #[test]
     fn selection_cannot_reach_the_forms_its_plan_was_prepared_from() {
-        const ABSTRACT: &str = "omega-rust/omega/compilation/representations/abstract-operations";
+        const ABSTRACT: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations";
         for (dependency, kind, permitted) in [
             (ABSTRACT, None, false),
             (
-                "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit",
+                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/optimization-unit",
                 None,
                 false,
             ),
             (
-                "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics",
+                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/optimization-unit-semantics",
                 None,
                 false,
             ),
@@ -1659,7 +1660,7 @@ mod tests {
                 true,
             ),
             (
-                "omega-rust/omega/compilation/representations/native-vocabulary",
+                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-operands",
                 None,
                 true,
             ),

@@ -14,7 +14,7 @@ operation-operands = { path = "../../operation-operands" }
 arena = { path = "../../../../../../../foundation/arena" }
 wire = { path = "../../../../../../../foundation/wire" }
 target-vocabulary = { path = "../target-vocabulary" }
-native-vocabulary = { path = "../../../../native-vocabulary" }
+structural-storage = { path = "../../structural-storage" }
 language-core = { path = "../../../../../foundation/language-core" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
 function-identity = { path = "../../function-identity" }

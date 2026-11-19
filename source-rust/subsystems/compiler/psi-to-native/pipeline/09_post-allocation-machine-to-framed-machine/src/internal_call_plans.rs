@@ -391,7 +391,7 @@ fn published_call(
                     };
                     parameter.place != target.place
                         || parameter.structural_type != target.root_structural_type
-                        || native_vocabulary::address_joins::is_address_join_in(
+                        || structural_storage::address_joins::is_address_join_in(
                             parameter,
                             signature.structural_types.as_slice(),
                         )

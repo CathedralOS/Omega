@@ -4,7 +4,6 @@ Structural contract, function metadata, and boundary settlement codecs for regis
 Once the recovery codec has decoded structural type declarations and call descriptors, it must assemble the complete function contract (`encode_contracts` / `decode_contracts`), structural signature (`encode_signature` / `decode_signature`), local storage and outgoing argument slots, memory access descriptors, and boundary settlements (`encode_boundary_settlement` / `decode_boundary_settlement`). Recovery preserves the full structural type catalog—including quotient representations, access views, placed input demands, and access lifecycles—because storage declarations alone cannot reconstruct view demands or lifecycle plans after register allocation.
 */
 
-use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
 use operation_evidence::completion_claims::CompletionClaimSource;
 use operation_evidence::provenance::{EffectLink, OwnershipEvent};
 use selected_instructions::effects::program::identity::{
@@ -22,6 +21,7 @@ use semantic_vocabulary::{
     EdgeId, InvocationSite, MachineId, ObligationId, OperationId, PlaceId, ReferenceOriginExtent,
     ServiceId, StructuralDomainId, StructuralTypeId,
 };
+use structural_storage::structural_type_catalog::StructuralTypeCatalog;
 use target_vocabulary::{
     ClaimCompletionOnlyRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
@@ -1380,7 +1380,7 @@ mod signature_tests {
         use terminal_psi::{StructuralAccess, TerminalAccessViewInput, TerminalIdentityIndex};
         let signature = LegalizedStructuralContract {
             structural_types:
-                native_vocabulary::structural_type_catalog::StructuralTypeCatalog::default()
+                structural_storage::structural_type_catalog::StructuralTypeCatalog::default()
                     .with_access_view_inputs(vec![TerminalAccessViewInput {
                         machine: semantic_vocabulary::MachineId::new(1).unwrap(),
                         position: 2,
@@ -1447,7 +1447,7 @@ mod signature_tests {
                 }],
             }),
             structural_types:
-                native_vocabulary::structural_type_catalog::StructuralTypeCatalog::new(
+                structural_storage::structural_type_catalog::StructuralTypeCatalog::new(
                     vec![terminal_psi::StructuralTypeDeclaration {
                         declaration_identity: Default::default(),
                         requires: Vec::new(),
@@ -1523,7 +1523,7 @@ mod signature_tests {
         assert_eq!(family_cursor.remaining(), 0);
         let mut renamed = signature.clone();
         renamed.structural_types =
-            native_vocabulary::structural_type_catalog::StructuralTypeCatalog::new(
+            structural_storage::structural_type_catalog::StructuralTypeCatalog::new(
                 signature.structural_types.to_vec(),
                 vec![terminal_psi::StructuralReferentIdentity {
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
@@ -1540,7 +1540,7 @@ mod signature_tests {
         let mut referents = descriptor.structural_types.referents().to_vec();
         referents[0].foreign_descriptor = true;
         descriptor.structural_types =
-            native_vocabulary::structural_type_catalog::StructuralTypeCatalog::new(
+            structural_storage::structural_type_catalog::StructuralTypeCatalog::new(
                 signature.structural_types.to_vec(),
                 referents,
             );

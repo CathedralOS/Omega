@@ -24,7 +24,8 @@ impl PhysicalCallOrigins {
 pub struct PhysicalFunctionCallOrigins {
     pub machine: MachineId,
     pub calls: Vec<PhysicalInternalCallOrigin>,
-    pub structural_types: Option<native_vocabulary::structural_type_catalog::StructuralTypeCatalog>,
+    pub structural_types:
+        Option<structural_storage::structural_type_catalog::StructuralTypeCatalog>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

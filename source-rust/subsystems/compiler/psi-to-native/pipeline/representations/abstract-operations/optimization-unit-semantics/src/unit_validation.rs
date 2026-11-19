@@ -17642,8 +17642,8 @@ pub(crate) mod structural_catalog {
             )
         }
 
-        use native_vocabulary::storage_projection::resolve_path;
-        pub(crate) use native_vocabulary::storage_projection::structural_projection_type;
+        use structural_storage::storage_projection::resolve_path;
+        pub(crate) use structural_storage::storage_projection::structural_projection_type;
 
         pub(crate) fn byte_carrier_leaf_window(
             types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -17736,7 +17736,7 @@ pub(crate) mod structural_catalog {
         }
     }
     mod storage_projection {
-        pub use native_vocabulary::storage_projection::{
+        pub use structural_storage::storage_projection::{
             StructuralStorageProjection, shared_view_declaration,
             structural_borrowed_storage_projection, structural_storage_projection,
         };

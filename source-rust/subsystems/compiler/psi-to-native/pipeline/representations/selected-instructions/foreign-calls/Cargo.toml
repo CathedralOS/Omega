@@ -13,14 +13,14 @@ test-support = [
     "dep:layout-plans",
     "dep:calling-conventions",
     "dep:function-identity",
-    "dep:native-vocabulary",
+    "dep:operation-evidence",
     "dep:provider-stack-contribution",
     "dep:target-vocabulary",
     "dep:terminal-psi",
 ]
 
 [dependencies]
-operation-evidence = { path = "../../operation-evidence" }
+operation-evidence = { path = "../../operation-evidence", optional = true }
 layout-plans = { path = "../../../../../psi/layout", optional = true }
 register-model = { path = "../../../../targets/register-model" }
 selected-instructions = { path = ".." }

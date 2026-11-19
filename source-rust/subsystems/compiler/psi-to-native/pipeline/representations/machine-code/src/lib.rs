@@ -365,7 +365,7 @@ pub mod ownership {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct UnitAffineCleanupRecord {
         pub psi_edge: EdgeId,
-        pub structural_types: native_vocabulary::structural_type_catalog::StructuralTypeCatalog, // Verifier-owned type closure retained to reconstruct the exact residual partition.
+        pub structural_types: structural_storage::structural_type_catalog::StructuralTypeCatalog, // Verifier-owned type closure retained to reconstruct the exact residual partition.
         pub locals: Vec<(
             OperationId,
             StructuralPlaceDeclaration,

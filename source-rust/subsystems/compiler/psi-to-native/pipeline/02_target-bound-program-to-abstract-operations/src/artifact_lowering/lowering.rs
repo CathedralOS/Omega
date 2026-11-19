@@ -1913,13 +1913,14 @@ pub(crate) fn lower_selected_module(
     }
     let owned_sequence_bounds = match scope {
         Some(scope) => scope.owned_sequence_bounds().to_vec(),
-        None => abstract_operations::closed_owned_sequence_bounds(module, |_| true).map_err(
-            |reason| {
-                LoweringError::SemanticIdentity(
-                    terminal_codec::CodecError::MalformedStructuralFoundation(reason),
-                )
-            },
-        )?,
+        None => crate::artifact_lowering::NativeExecutionScope::full_module_owned_sequence_bounds(
+            module,
+        )
+        .map_err(|reason| {
+            LoweringError::SemanticIdentity(
+                terminal_codec::CodecError::MalformedStructuralFoundation(reason),
+            )
+        })?,
     };
     let functions = module
         .machines
