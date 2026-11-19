@@ -13,8 +13,8 @@ use super::{
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
     derive_native_artifact_identity,
 };
-use effects::provider_plan::ServiceSurface;
-use effects::provider_plan::{
+use provider_plans::ServiceSurface;
+use provider_plans::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceMethod,
     ServiceSchema,
 };
@@ -303,7 +303,7 @@ fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution(
         closed.into(),
         other.into(),
     ]);
-    let digest = effects::provider_plan::ProviderPlanDigest::from_digest([2; 32]);
+    let digest = provider_plans::ProviderPlanDigest::from_digest([2; 32]);
     let mut plan = NativeSelectedProviderPlan::new(
         7,
         NativeSelectedProviderPlanDigest::from_digest(*digest.as_bytes()),
@@ -346,7 +346,7 @@ fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution(
     .unwrap();
     let mut changed = plan.clone();
     changed.external_requirement_applications[0].provider_plan_digest =
-        effects::provider_plan::ProviderPlanDigest::from_digest([3; 32]);
+        provider_plans::ProviderPlanDigest::from_digest([3; 32]);
     assert!(
         validate_provider_execution_reports(&[changed], from_ref(&execution), &required).is_err()
     );

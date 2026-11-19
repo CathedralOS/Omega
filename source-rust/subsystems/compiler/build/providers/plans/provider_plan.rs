@@ -7,17 +7,16 @@ no author-selected trust field exists on these types; admission and trust
 classification belong to downstream review receipts.
 */
 
+#![forbid(unsafe_code)]
+
 mod digest_encoder;
-pub(crate) use digest_encoder::DigestFeed;
 mod evaluated_bindings;
 #[cfg(test)]
-mod retained_inputs;
+mod retained_inputs_tests;
 mod service_schemas;
 
-use declaration_contracts::service_surface::ServiceSynchronousInvocation;
+use service_surface::ServiceSynchronousInvocation;
 
-pub use declaration_contracts::service_surface::identities::ProviderIdentityId;
-pub use declaration_contracts::service_surface::identities::ProviderIdentityTable;
 pub use evaluated_bindings::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
@@ -32,8 +31,10 @@ pub use service_schemas::{
     ServiceReceiverApplication, ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
     ServiceSurface,
 };
+pub use service_surface::identities::ProviderIdentityId;
+pub use service_surface::identities::ProviderIdentityTable;
 
-use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
+use crate::digest_encoder::ProviderPlanDigestEncoder;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderBinding {
@@ -727,7 +728,7 @@ impl ProviderPlan {
                         claim.parameter_index
                     ));
                 }
-                if claim.effective_carry != declaration_contracts::CarryPolicy::STRICT {
+                if claim.effective_carry != language_core::CarryPolicy::STRICT {
                     errors.push(format!(
                         "{} entry claim for parameter {} and domain `{}` is not born-strict",
                         context(),
@@ -812,7 +813,7 @@ impl ProviderPlan {
                         context()
                     ));
                 }
-                if claim.effective_carry != declaration_contracts::CarryPolicy::STRICT {
+                if claim.effective_carry != language_core::CarryPolicy::STRICT {
                     errors.push(format!(
                         "{} result claim for domain `{}` is not born-strict",
                         context(),

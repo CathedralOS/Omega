@@ -31,7 +31,7 @@ pub(super) struct StackDemandFacts {
 fn component_references_plan(
     module: &TerminalModule,
     inventory: &DerivedInventory,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &provider_plans::ProviderPlan,
 ) -> bool {
     plan.rows.iter().any(|row| {
         component_references_requirement(
@@ -46,7 +46,7 @@ fn component_references_plan(
 fn component_references_requirement(
     module: &TerminalModule,
     inventory: &DerivedInventory,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &provider_plans::ProviderPlan,
     requirement: &str,
 ) -> bool {
     inventory

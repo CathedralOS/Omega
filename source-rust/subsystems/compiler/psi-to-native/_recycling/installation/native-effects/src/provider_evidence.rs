@@ -15,7 +15,8 @@ pub(crate) mod executable_scopes;
 pub(crate) mod providers;
 
 use crate::provider_evidence::digest_encoder::DomainDigestEncoder;
-use crate::provider_evidence::providers::provider_plan::DigestFeed;
+#[cfg(test)]
+mod selected_plan_tests;
 use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
 use std::collections::BTreeSet;
 use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTable};
@@ -392,14 +393,14 @@ impl SelectedProviderPlanFacts {
     }
 
     pub fn identity_digest(&self) -> SelectedProviderClosureDigest {
-        let mut encoder = SelectedProviderClosureDigestEncoder::new();
+        let mut encoder = DomainDigestEncoder::new(b"omega.selected-provider-closure.sha256.v5\0");
         encoder.len(self.plans.len());
         for plan in &self.plans {
             encoder.bytes(plan.identity_digest().as_bytes());
             // Equal provider values may have different selecting owners.
             // Bind the retained custody here without changing the ABI plan's
             // semantic identity or its row/report coordinates.
-            encoder.bool(plan.provider_declaration.is_some());
+            encoder.byte(u8::from(plan.provider_declaration.is_some()));
             if let Some(owner) = &plan.provider_declaration {
                 encoder.string(owner);
             }
@@ -422,7 +423,7 @@ impl SelectedProviderPlanFacts {
                     })
             });
             for (_, realization) in rows {
-                encoder.bool(realization.is_some());
+                encoder.byte(u8::from(realization.is_some()));
                 if let Some(realization) = realization {
                     encoder.string(realization);
                 }
@@ -433,7 +434,13 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.required);
             encoder.string(&row.supplied);
         }
-        encoder.execution_scope(self.execution_scope());
+        match self.execution_scope() {
+            crate::ExecutionScope::CallerAddressSpace => encoder.byte(0),
+            crate::ExecutionScope::IsolatedProvider(identity) => {
+                encoder.byte(1);
+                encoder.u64(identity);
+            }
+        }
         encoder.len(0);
 
         encoder.len(self.installation_reach_resolutions.len());
@@ -458,7 +465,7 @@ impl SelectedProviderPlanFacts {
             encoder.string(self.identity_text(row.selected_requirement_identity));
             encoder.string(self.identity_text(row.requirement_identity));
         }
-        encoder.finish()
+        SelectedProviderClosureDigest::from_digest(encoder.finish())
     }
 
     pub const fn execution_scope(&self) -> crate::ExecutionScope {
@@ -1148,36 +1155,6 @@ fn selected_closure_report_fingerprint(
         );
     }
     hash.finish()
-}
-
-struct SelectedProviderClosureDigestEncoder(DomainDigestEncoder);
-
-impl DigestFeed for SelectedProviderClosureDigestEncoder {
-    fn raw(&mut self, bytes: &[u8]) {
-        self.0.raw(bytes);
-    }
-}
-
-impl SelectedProviderClosureDigestEncoder {
-    fn new() -> Self {
-        Self(DomainDigestEncoder::new(
-            b"omega.selected-provider-closure.sha256.v5\0",
-        ))
-    }
-
-    fn finish(self) -> SelectedProviderClosureDigest {
-        SelectedProviderClosureDigest::from_digest(self.0.finish())
-    }
-
-    fn execution_scope(&mut self, scope: crate::ExecutionScope) {
-        match scope {
-            crate::ExecutionScope::CallerAddressSpace => self.byte(0),
-            crate::ExecutionScope::IsolatedProvider(identity) => {
-                self.byte(1);
-                self.u64(identity);
-            }
-        }
-    }
 }
 
 #[cfg(test)]
