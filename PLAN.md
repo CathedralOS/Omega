@@ -134,8 +134,11 @@ Psi to native code) are not planned yet.
 
 ### The `omega` application
 
-**Proposed delivery order, 2026-11-18.** The public executable can arrive
-before the stage driver. Jarod's spellings in the Fable session were
+**Application built through syntax parsing, 2026-11-18.** Build the executable
+with `cargo build --release -p omega`, or try it from this checkout with
+`cargo run -p omega -- source parse layers/01-parser/fixtures/accept/types.omg`.
+Success is silent. A lexical or grammar refusal identifies the file, line
+and byte column on stderr. Jarod's spellings in the Fable session were
 `omega run main.omg` and `omega build build.omg`. The command chooses the
 operation. The [build model](#v2s-build-model-a-chain-of-stages) records the
 entry conventions and which choices about direct execution are still open.
@@ -157,7 +160,7 @@ also supports Psi and differential runs.
 
 | Milestone | User-visible result | Acceptance test |
 | --- | --- | --- |
-| After L1 sign-off | Add an `application/` Rust workspace member producing `omega`. Proposed first command: `omega source parse <file>`. A file operation reads the bytes and invokes L0 and L1 through their public APIs. The CLI owns arguments, help, presentation and exit status. | Launch the built binary from another working directory against an existing accept fixture and a reject fixture. Check success on valid syntax, a located diagnostic on stderr for a lexical or grammar refusal, and useful errors for a missing file or argument. |
+| Syntax parsing (built) | The `application/` workspace member produces `omega source parse <file>`. The file operation reads the bytes and invokes L0 and L1 through their public APIs. | [CLI process tests](application/tests/cli.rs) cover V2 reference syntax, lexical and grammar refusals, invalid UTF-8, caller-relative paths, help, missing files and usage errors. |
 | As L2 through L5 land | Give the compiler one operation for compiling a stage from settled inputs and an entry. Each signed-off layer extends that operation. Carry source locations through failures and stable declaration identities across stages. | A refusal identifies the source file that caused it. A later stage rebinds a serialized identity to the intended declaration and refuses a mismatch. |
 | First execution | Once L5, a Terminal Psi interpreter and its required admission checks exist, connect the run request to the driver. Start with the permitted constant first plan and the explicit Psi engine. The first direct-run fixture supplies an explicitly named file containing `machine main`; the interpreter receives the product of that invocation. | Run the binary on a file called `hello.omg`, observe exact guest output and status, and verify a compile refusal produces a diagnostic before any guest output. A sibling build-file test fixes the direct-run policy once chosen. |
 | Project builds | `omega build <file>` enters `machine build`. The driver compiles and runs each requested stage with its own settled inputs and backings. A terminal artifact request compiles and publishes the product when checking and publication are available. | Exercise the four [build-model cases](#defaults-leaning-not-decided): bind an entry, select a provider, use a generated constant from authored code, and let the build itself write to Console. A cross-build returns its artifact without executing the target product on the host. |

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "application",
     "layers/00-lexer",
     "layers/01-parser",
     "tools/compare-builds",

@@ -18,6 +18,14 @@ name = "measure"
 version = "0.0.0"
 
 [[package]]
+name = "omega"
+version = "0.0.0"
+dependencies = [
+ "omega-lexer",
+ "omega-parser",
+]
+
+[[package]]
 name = "omega-lexer"
 version = "0.0.0"
 dependencies = [
