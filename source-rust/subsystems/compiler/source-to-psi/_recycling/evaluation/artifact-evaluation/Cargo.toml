@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+build-scalar-evaluation = { path = "../../../../build/evaluation/scalars" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 evaluation-contracts = { path = "../evaluation-contracts" }
 build-time-values = { path = "../build-time-values" }

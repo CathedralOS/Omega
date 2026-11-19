@@ -1,0 +1,26 @@
+[package]
+name = "build-scalar-evaluation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "scalar_evaluation.rs"
+
+[dependencies]
+build-time-values = { path = "../values" }
+evaluation-accounting = { path = "../accounting" }
+evaluation-contracts = { path = "../usage" }
+psi-provider-selections = { path = "../../../psi/providers" }
+psi-scalar-applications = { path = "../../../psi/scalar-applications" }
+psi-target-layouts = { path = "../../../psi/layout/admission" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+terminal-codec = { path = "../../../psi/codec" }
+terminal-interpreter = { path = "../../../../interpreter" }
+terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi/semantics" }
+terminal-work = { path = "../../../psi/work" }
+
+[dev-dependencies]
+proof-applications = { path = "../../../psi/proof-applications" }
