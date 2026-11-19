@@ -29,6 +29,7 @@ typed-trees-to-typed-trees = { path = "pipeline/04_typed-trees-to-typed-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 source-declarations = { path = "language/source-declarations" }
+source-symbol-table = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
 symbol-resolved-trees = { path = "pipeline/representations/symbol-resolved-trees" }
 typed-trees = { path = "pipeline/representations/typed-trees" }
 source-syntax = { path = "pipeline/01_tokens-to-syntax-trees/source-syntax" }

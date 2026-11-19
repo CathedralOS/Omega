@@ -11,24 +11,25 @@ pub use source_publication::SourcePublication;
 pub mod provider_choice_inputs;
 #[path = "src/provider_supply/mod.rs"]
 pub mod provider_supply;
+use lowered_program_to_checked_program::checking;
 pub use production::*;
-use source_declarations::{declaration_selection, source_inputs, source_symbols};
+#[cfg(test)]
+use source_admission::LoadedSource;
+use source_declarations::declaration_selection;
 #[cfg(test)]
 use source_lexer as lexing;
 #[cfg(test)]
 use source_parser as parsing;
 pub use source_roster::SourceCompilationRoster;
+use source_symbol_table::{source_inputs, source_symbols};
 #[cfg(test)]
 use symbol_resolved_trees_to_typed_trees::typing;
 #[cfg(test)]
 use syntax_trees_to_symbol_resolved_trees::resolution;
-use lowered_program_to_checked_program::checking;
 use typed_trees::source_state;
 use typed_trees_to_lowered_program::lowering;
 #[cfg(test)]
 use typed_trees_to_typed_trees::preparation;
-#[cfg(test)]
-use source_admission::LoadedSource;
 #[cfg(test)]
 #[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;

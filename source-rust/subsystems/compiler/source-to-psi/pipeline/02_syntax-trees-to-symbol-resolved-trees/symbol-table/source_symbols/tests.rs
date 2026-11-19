@@ -122,9 +122,9 @@ mod hierarchy {
     use crate::source_symbols::{
         SourceScopedTopLevelBinding, SymbolKind, SymbolNameRef, SymbolTableBuilder,
     };
-    use semantic_vocabulary::PackageKeyIdentity;
     use source_admission::SourceOrigin;
     use source_admission::SourceResolutionStratum;
+    use source_provenance::PackageKeyIdentity;
     use source_text::{SourceSpan, Span};
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -516,8 +516,8 @@ mod module_namespaces {
     use std::sync::Arc;
 
     use crate::source_inputs::SourceMap;
-    use semantic_vocabulary::PackageKeyIdentity;
     use source_admission::SourceOrigin;
+    use source_provenance::PackageKeyIdentity;
     use source_text::{SourceId, SourceSpan, Span};
 
     use crate::source_symbols::{
@@ -928,8 +928,8 @@ mod module_namespaces {
 
     #[test]
     fn logical_import_does_not_borrow_another_checked_scope_or_inactive_source() {
-        use declaration_contracts::source_identity::DependencyScope::Build;
-        use declaration_contracts::source_identity::DependencyScope::Product;
+        use source_provenance::DependencyScope::Build;
+        use source_provenance::DependencyScope::Product;
         for inactive in [false, true] {
             let (_, _, original) = namespace_table([1, 2, 2], Vec::new());
             let mut files = original.files().cloned().collect::<Vec<_>>();
@@ -1102,8 +1102,8 @@ mod module_namespaces {
 
     #[test]
     fn unmoduled_exact_imports_select_their_checked_instance_independent_of_order() {
-        use declaration_contracts::source_identity::DependencyScope::Build;
-        use declaration_contracts::source_identity::DependencyScope::Product;
+        use source_provenance::DependencyScope::Build;
+        use source_provenance::DependencyScope::Product;
         for reversed_sources in [false, true] {
             for reversed_declarations in [false, true] {
                 let helper_source = if reversed_sources { 1 } else { 2 };
@@ -1186,10 +1186,10 @@ mod module_namespaces {
     */
     #[test]
     fn unmoduled_exact_import_exposes_the_dependency_generated_stratum() {
-        use declaration_contracts::source_identity::DependencyScope::Build;
-        use declaration_contracts::source_identity::DependencyScope::Product;
         use source_admission::SourceResolutionStratum::Base;
         use source_admission::SourceResolutionStratum::DependencyActivationExtension;
+        use source_provenance::DependencyScope::Build;
+        use source_provenance::DependencyScope::Product;
         let consumer = PackageKeyIdentity::from_digest([1; 32]).unwrap();
         let kit = PackageKeyIdentity::from_digest([2; 32]).unwrap();
         let mut sources = SourceMap::default();
@@ -1312,9 +1312,9 @@ mod module_namespaces {
         for (ordinal, file) in files.iter_mut().enumerate() {
             file.origin = SourceOrigin::Toolchain;
             file.dependency_scope = if ordinal == 2 {
-                declaration_contracts::source_identity::DependencyScope::Product
+                source_provenance::DependencyScope::Product
             } else {
-                declaration_contracts::source_identity::DependencyScope::Build
+                source_provenance::DependencyScope::Build
             };
         }
         let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
@@ -1712,8 +1712,8 @@ mod package_scope_separation {
     use std::sync::Arc;
 
     use crate::source_inputs::SourceMap;
-    use semantic_vocabulary::PackageKeyIdentity;
     use source_admission::SourceOrigin;
+    use source_provenance::PackageKeyIdentity;
     use source_text::{SourceId, SourceSpan, Span};
 
     use crate::source_symbols::{
@@ -1847,8 +1847,8 @@ mod provenance {
     use super::sourced_symbol_table;
     use crate::source_inputs::SourceMap;
     use crate::source_symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
-    use semantic_vocabulary::PackageKeyIdentity;
     use source_admission::SourceOrigin;
+    use source_provenance::PackageKeyIdentity;
     use source_text::{SourceSpan, Span};
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -1916,8 +1916,8 @@ mod provenance {
             PackageKeyIdentity::from_digest([6; 32]).expect("nonzero package identity");
         let mut sources = SourceMap::default();
         let spans = [
-            declaration_contracts::source_identity::DependencyScope::Product,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Product,
+            source_provenance::DependencyScope::Build,
         ]
         .map(|scope| {
             let source_id = sources
@@ -2374,8 +2374,8 @@ use crate::source_inputs::SourceMap;
 use crate::source_symbols::{
     SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
 };
-use semantic_vocabulary::PackageKeyIdentity;
 use source_admission::SourceOrigin;
+use source_provenance::PackageKeyIdentity;
 use source_text::{SourceSpan, Span};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -2453,8 +2453,8 @@ mod closed_contract_scope {
         SourceScopedTopLevelBinding, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable,
         SymbolTableBuilder,
     };
-    use declaration_contracts::source_identity::DependencyScope;
     use source_admission::SourceOrigin;
+    use source_provenance::DependencyScope;
     use source_text::{SourceId, SourceSpan, Span};
     use std::path::PathBuf;
     use std::sync::Arc;

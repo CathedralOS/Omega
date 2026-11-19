@@ -9,7 +9,7 @@ read as the other.
 Rows match exactly like sealed intrinsic rows: the package-relative file, the
 declaration path and the exact bundled source bytes must all agree, and the
 source consumer first establishes toolchain origin through
-`source_compiler::source_symbols::core_vocabulary_at` or `SymbolTable::core_vocabulary`. A source-free
+`source_symbol_table::source_symbols::core_vocabulary_at` or `SymbolTable::core_vocabulary`. A source-free
 receiver instead joins the retained exact declaration owner to the catalog's
 source commitment. A lookalike user declaration, or an edited toolchain file,
 is therefore ordinary code to every consumer.

@@ -1,11 +1,13 @@
 #![forbid(unsafe_code)]
 
 #[cfg(test)]
-use source_declarations::{declaration_selection, source_inputs, source_symbols};
+use source_declarations::declaration_selection;
 #[cfg(test)]
 use source_lexer as lexing;
 #[cfg(test)]
 use source_parser as parsing;
+#[cfg(test)]
+use source_symbol_table::{source_inputs, source_symbols};
 #[cfg(test)]
 use symbol_resolved_trees_to_typed_trees::typing;
 #[cfg(test)]

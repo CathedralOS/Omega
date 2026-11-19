@@ -3,7 +3,7 @@
 //! `audit <bindings|fields> <size> [queries]` reports allocation/work counts.
 //! Generated graphs isolate lookup cost and do not represent whole compilations.
 
-use source_declarations::source_symbols::SymbolTableBuilder;
+use source_symbol_table::source_symbols::SymbolTableBuilder;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
 use std::sync::atomic::{AtomicU64, Ordering};

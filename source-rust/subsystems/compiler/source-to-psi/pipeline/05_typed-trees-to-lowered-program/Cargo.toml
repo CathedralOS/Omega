@@ -16,6 +16,7 @@ path = "lib.rs"
 [dependencies]
 proof-applications = { path = "../../../psi/proof-applications" }
 source-declarations = { path = "../../language/source-declarations" }
+source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../representations/typed-trees" }
 declaration-contracts = { path = "../../language/declaration-contracts" }
 schema-reflection = { path = "../../../psi/schema" }

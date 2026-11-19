@@ -138,10 +138,10 @@ mod tests {
     use super::*;
     use crate::source_inputs::SourceMap;
     use crate::source_symbols::{SymbolNameRef, SymbolTableBuilder};
-    use declaration_contracts::source_identity::DependencyScope;
-    use semantic_vocabulary::PackageKeyIdentity;
     use source_admission::SourceOrigin;
     use source_admission::SourceResolutionStratum;
+    use source_provenance::DependencyScope;
+    use source_provenance::PackageKeyIdentity;
     use source_text::SourceSpan;
     use std::path::PathBuf;
     use std::sync::Arc;

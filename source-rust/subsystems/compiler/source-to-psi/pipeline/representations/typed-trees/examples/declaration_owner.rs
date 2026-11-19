@@ -1,7 +1,7 @@
 //! Compare actual declaration-owner APIs from two explicitly built revisions.
 //! The generated tables are metadata payloads, not executable Omega programs.
 
-use source_declarations::source_symbols::SymbolTableBuilder;
+use source_symbol_table::source_symbols::SymbolTableBuilder;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
 use std::path::Path;

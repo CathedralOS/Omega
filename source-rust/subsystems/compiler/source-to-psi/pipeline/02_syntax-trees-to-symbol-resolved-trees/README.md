@@ -10,7 +10,7 @@ Start at [resolver.rs](resolver.rs). A spelling such as `kit::pick` becomes a re
 | What runs, and in what order? | [`resolve` and `resolve_forest`](resolver.rs). Lower the items, select operator homes, assign symbol identities, then settle constants and calls. |
 | What does a build pay for up front? | [`resolve_deferred`](resolver.rs) indexes declarations. [`complete_machine_bodies`](deferred_bodies.rs) completes the requested owners and the dependencies they need. |
 | Which declarations come from the toolchain library? | The [bundled declaration catalog](bundled-declarations/src/lib.rs) supplies exact library bytes to the resolver after source admission establishes ownership. |
-| Which names are visible at this use? | [Lexical scopes](names/scopes.rs), [qualified paths](names/paths.rs), and [lookup in the symbol table](names/lookup.rs). |
+| Which names are visible at this use? | [Lexical scopes](names/scopes.rs), [qualified paths](names/paths.rs), and [name resolution](names/lookup.rs) query the [source symbol table](symbol-table/source_symbols.rs) against the captured package and file. |
 | How do an alias, generic, or trait default become ordinary declarations? | [Declaration preparation](declarations/mod.rs) rewrites the parsed forest before assigning symbols. |
 | Where do mnemonics acquire targets, clobbers and flag effects? | [Assembly preparation](declarations/assembly/mod.rs) reads authored instructions and builds the block graph consumed by [statement lowering](lowering/statement/assembly.rs). |
 | Where does a syntax node become a resolved node? | [Lowering](lowering/mod.rs) dispatches by item, expression, statement, or type reference. |
