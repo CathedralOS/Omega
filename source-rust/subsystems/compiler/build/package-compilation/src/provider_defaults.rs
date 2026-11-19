@@ -8,7 +8,9 @@ use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceResolutionStratum;
-use source_compiler::evaluation::provider_declarations::RetainedProviderSelection;
+use source_compiler::evaluation::provider_declarations::{
+    RetainedOperatorFamily, RetainedProviderSelection, RetainedProviderSubject,
+};
 use std::path::PathBuf;
 
 pub(super) struct CompletedProviderDefaults {
@@ -47,18 +49,20 @@ impl CompletedProviderDefaults {
         for selection in self.selections() {
             let mut subject_paths = Vec::new();
             let mut selection_paths = Vec::new();
-            let subject_source = self.admit_source(inputs, selection.subject.source())?;
-            if subject_source.resolution_stratum == SourceResolutionStratum::Base {
-                subject_paths.push(subject_source.path.clone());
-                selection_paths.push(subject_source.path);
+            for declaration in selection.subject.declarations() {
+                let source = self.admit_source(inputs, declaration.source())?;
+                if source.resolution_stratum == SourceResolutionStratum::Base {
+                    subject_paths.push(source.path.clone());
+                    selection_paths.push(source.path);
+                }
             }
             let provider_source = self.admit_source(inputs, selection.provider.source())?;
             if provider_source.resolution_stratum == SourceResolutionStratum::Base {
                 selection_paths.push(provider_source.path);
             }
             for (is_subject, application) in [
-                (true, &selection.subject_application),
-                (false, &selection.provider_application),
+                (true, selection.subject.application()),
+                (false, selection.provider_application.as_ref()),
             ] {
                 let Some(application) = application else {
                     continue;
@@ -101,15 +105,29 @@ impl CompletedProviderDefaults {
         let mut selections = Vec::new();
         for selection in self.selections() {
             let mut selected = selection.clone();
-            selected.subject = self.admit_declaration(inputs, &selected.subject)?;
+            match &mut selected.subject {
+                RetainedProviderSubject::Declaration {
+                    declaration,
+                    application,
+                    ..
+                } => {
+                    *declaration = self.admit_declaration(inputs, declaration)?;
+                    if let Some(application) = application {
+                        *application = inputs
+                            .admit_retained_product_application(&self.supplier, application)?;
+                    }
+                }
+                RetainedProviderSubject::OperatorFamily(family) => {
+                    let mut members = family.coordinates().to_vec();
+                    for member in &mut members {
+                        member.declaration = self.admit_declaration(inputs, &member.declaration)?;
+                    }
+                    *family = RetainedOperatorFamily::new(family.canonical_path.clone(), members)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                }
+            }
             selected.provider = self.admit_declaration(inputs, &selected.provider)?;
-            for application in [
-                &mut selected.subject_application,
-                &mut selected.provider_application,
-            ]
-            .into_iter()
-            .flatten()
-            {
+            if let Some(application) = &mut selected.provider_application {
                 *application =
                     inputs.admit_retained_product_application(&self.supplier, application)?;
             }
