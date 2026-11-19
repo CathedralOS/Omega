@@ -1,26 +1,20 @@
-//! Shared installation facts for instruction selection and image publication.
+//! The interrupt tables, entries, helpers and stack requirements retained for a
+//! program. Instruction selection reads these facts to emit installations and
+//! helper calls. Frame binding and image publication read the same records.
 //!
-//! Provider admission checks every installed interrupt, its handler entries
-//! and its arrival-token helpers, and only admission can construct the sealed
-//! records that say so. Their shared data lives here so selection can read it
-//! without reaching the program forms admission checks. After measuring handler
-//! stacks, the driver binds one checked receipt. Selection reads its plain facts;
-//! image publication retains those same facts and sealed entry evidence.
-//!
-//! Admission keeps its sealed wrappers and checked issuance. These immutable
-//! leaf records carry the same scope and callback data to both native consumers;
-//! they do not retain admission's program inputs or grant new authority.
+//! Provider admission issues the checked entries; installation admission joins
+//! them to a program and checks its measured stacks.
 
 use calling_conventions::{BoundaryEntryPlan, NativePlace, PrivateCallbackPlacements};
 use function_identity::MachineFunctionIdentity;
-use installation_evidence::InstalledInterruptStackRequirement;
+use installation_conditions::InstalledInterruptStackRequirement;
 use language_core::static_interrupts::StaticInterruptOperation;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId, StructuralTypeId};
 use std::sync::Arc;
 use target::NativeTarget;
 use terminal_psi::{StructuralArgument, TerminalPsiIdentity};
 
-/// Installation authority bound to one program, projected from admission.
+/// Installation facts for one program, projected from provider and frame admission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundInstallations {
     /// The program the installations were admitted for.
@@ -54,13 +48,13 @@ pub struct BoundInterruptInstallation {
     pub fatal_entries: Vec<BoundFatalInterruptEntry>,
     pub context_anchor: Option<BoundInterruptContextAnchor>,
     pub completion: MachineId,
-    pub installation_assumptions: Vec<installation_evidence::InstallationEnvironmentAssumption>,
+    pub installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
 
 impl BoundInterruptInstallation {
     pub fn bootstrap_assumption(
         &self,
-    ) -> Option<&installation_evidence::BootstrapEnvironmentAssumption> {
+    ) -> Option<&installation_conditions::BootstrapEnvironmentAssumption> {
         self.installation_assumptions
             .iter()
             .find_map(|row| row.bootstrap())
@@ -68,7 +62,7 @@ impl BoundInterruptInstallation {
 
     pub fn interrupt_delivery_assumption(
         &self,
-    ) -> Option<&installation_evidence::X86InterruptDeliveryAssumption> {
+    ) -> Option<&installation_conditions::X86InterruptDeliveryAssumption> {
         self.installation_assumptions
             .iter()
             .find_map(|row| row.interrupt_delivery())
@@ -76,7 +70,7 @@ impl BoundInterruptInstallation {
 
     pub fn installation_assumptions(
         &self,
-    ) -> &[installation_evidence::InstallationEnvironmentAssumption] {
+    ) -> &[installation_conditions::InstallationEnvironmentAssumption] {
         &self.installation_assumptions
     }
 

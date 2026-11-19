@@ -21,7 +21,7 @@ layout-plans = { path = "../../../psi/layout" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 language-core = { path = "../../../foundation/language-core" }
-bound-installations = { path = "../../installation/bound-installations" }
+bound-installations = { path = "../../verification/installation-admission/bound-installations" }
 installation-conditions = { path = "../../verification/installation-admission/conditions" }
 target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
 access-vocabulary = { path = "../../../psi/access" }

@@ -13,7 +13,7 @@ terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../../pipeline/representations/selected-instructions" }
-bound-installations = { path = "../../installation/bound-installations" }
+bound-installations = { path = "bound-installations" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 frame-admission = { path = "../../pipeline/representations/machine-code/frame-admission" }
 installation-conditions = { path = "conditions" }
