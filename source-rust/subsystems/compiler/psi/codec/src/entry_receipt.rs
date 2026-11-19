@@ -1,5 +1,7 @@
 // A receipt joins an exact source declaration to one canonical artifact.
 // It belongs to the artifact boundary, independently of which checker produced it.
+pub mod application;
+
 use crate::CanonicalTerminalArtifact;
 use terminal_psi::{
     CheckedProgramEntryTerminalReceipt, PreparedNominalRoot, TerminalMachineResult,

@@ -78,11 +78,12 @@ impl PreparedTerminalPublication {
         let applications = applications
             .iter()
             .map(|application| {
-                application.attach(
+                crate::production::application::attach(
+                    application,
                     program.view(),
                     program.portable(),
                     &provenance,
-                    &mut crate::production::ApplicationReceiptObserver(observer),
+                    observer,
                 )
             })
             .collect();

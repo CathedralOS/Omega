@@ -612,6 +612,51 @@ mod tests {
     }
 
     #[test]
+    fn application_checks_view_identity_and_retains_portability_errors_on_the_receipt() {
+        use crate::entry_receipt::application::{
+            TerminalApplicationCustody, TerminalCompositionRoots,
+        };
+        use terminal_psi::{PreparedNominalRoot, TerminalMachineProvenance};
+
+        let closed = closed_module(false);
+        let record = optimization_record(&closed);
+        let artifact = CanonicalTerminalArtifact::from_closed_parts(closed, record, None).unwrap();
+        let invocation = InvocationTerminalCode::from_closed_module(closed_module(true)).unwrap();
+        let provenance = TerminalMachineProvenance::default();
+        let selected = TerminalApplicationCustody::prepare(
+            Ok(PreparedNominalRoot::new("Root", "Root", None).unwrap()),
+            Some([7; 32]),
+            Some(TerminalCompositionRoots::default()),
+        );
+
+        let mismatch = selected.attach(invocation.view(), Ok(&artifact), &provenance);
+        assert!(mismatch.is_err());
+        let local = selected
+            .attach(
+                invocation.view(),
+                Err(CanonicalTerminalArtifactError::Publication(
+                    "invocation only".into(),
+                )),
+                &provenance,
+            )
+            .unwrap();
+        assert_eq!(local.roots.len(), 1);
+        let error = local.entry_receipt.unwrap().check().unwrap_err();
+        assert!(error[0].message.contains("invocation only"));
+
+        let empty = TerminalApplicationCustody::prepare(
+            Err(vec![diagnostics::Diagnostic::error("unused entry")]),
+            None,
+            None,
+        );
+        let attached = empty
+            .attach(artifact.view().into(), Ok(&artifact), &provenance)
+            .unwrap();
+        assert!(attached.roots.is_empty());
+        assert!(attached.entry_receipt.is_none());
+    }
+
+    #[test]
     fn host_identity_commits_to_the_exact_publication_section() {
         let closed = closed_module(false);
         let record = optimization_record(&closed);

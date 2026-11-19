@@ -91,11 +91,11 @@ fn prepare_published_application<Publisher>(
             "executable callback and interrupt entries need their canonical composition roots before application preparation".into(),
         ));
     }
-    let custody = terminal_installation::application::TerminalApplicationCustody::prepare(
+    let custody = terminal_codec::entry_receipt::application::TerminalApplicationCustody::prepare(
         entry.nominal_root(),
         Some(entry.source_signature().identity().bytes()),
         Some(
-            terminal_installation::application::TerminalCompositionRoots {
+            terminal_codec::entry_receipt::application::TerminalCompositionRoots {
                 callbacks: None,
                 physical_adapter: entry.physical_adapter(),
             },
@@ -105,11 +105,11 @@ fn prepare_published_application<Publisher>(
         artifact.view().into(),
         Ok(artifact),
         publication.machine_provenance(),
-        &mut terminal_installation::application::UnmeasuredEntryReceipt,
     )?;
     let receipt = application
-        .receipt?
-        .ok_or_else(|| refuse("executable application has no checked entry receipt".into()))?;
+        .entry_receipt
+        .ok_or_else(|| refuse("executable application has no checked entry receipt".into()))?
+        .check()?;
     let mut roots = Vec::with_capacity(application.roots.len());
     for root in application.roots {
         let root = root?;
