@@ -1,8 +1,6 @@
 //! The text form of the parser's output that the golden fixtures compare against.
 //!
-//! This lives with the tests and not in the crate, because the parser has no use for it: the
-//! tests read it, and so does the `parse_spec` tool, which pulls this file in by path. It is
-//! written against the parser's public API alone, so the dump shows what any caller can see.
+//! The parser fixtures and the spec viewer render the same public syntax tree.
 
 use omega_lexer::{LineIndex, Token};
 use omega_parser::{ParseError, SyntaxTree, TreeEvent};

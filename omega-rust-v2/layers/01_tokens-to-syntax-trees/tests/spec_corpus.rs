@@ -4,32 +4,9 @@ mod support;
 
 use omega_lexer::lex;
 use omega_parser::{FragmentKind, ParseErrorKind, parse_fragment};
+use spec_corpus::parser_examples::{EXAMPLE_SHAPES, fragment_kind, parser_source};
 use std::path::Path;
 use support::dump_parse_error;
-
-/*
-    The spec's examples are V2's nearest thing to a conformance corpus, and
-    most of them are not whole files: they are a few statements, or a
-    declaration with a statement after it to show a call. So every example is
-    parsed as `FragmentKind::Statements`, which takes declarations and
-    statements in any order, unless it is listed here as one of the two
-    narrower shapes.
-
-    Examples are named by file and by the line of their opening fence. If the
-    spec is edited above one of these, its line moves and this table must
-    follow; the test says so rather than quietly parsing the example as the
-    wrong shape, because a clause list parsed as statements fails loudly.
-*/
-const EXAMPLE_SHAPES: &[(&str, FragmentKind)] = &[
-    ("language/generics.md:306", FragmentKind::Clauses),
-    ("language/termination.md:35", FragmentKind::Clauses),
-    ("resources/content_custody.md:129", FragmentKind::Clauses),
-    ("language/state_contracts.md:86", FragmentKind::GenericParam),
-];
-
-/// The spec writes a body it does not want to show as `{ ... }`. That is prose, not source.
-const ELIDED_BODY: &str = "{ ... }";
-const EMPTY_BODY: &str = "{     }";
 
 /// Statement fragments may mix items and tails. Clauses and single parameters must consume
 /// exactly their own grammar, including the optional final semicolon of a clause fragment.
@@ -55,13 +32,6 @@ fn fragment_entry_points_consume_their_entire_input() {
         let span = error.get_span();
         assert_eq!(span.get_start_offset()..span.get_end_offset(), expected_span, "{source}");
     }
-}
-
-fn get_fragment_kind(example_label: &str) -> FragmentKind {
-    EXAMPLE_SHAPES
-        .iter()
-        .find(|(shaped_label, _)| *shaped_label == example_label)
-        .map_or(FragmentKind::Statements, |&(_, fragment_kind)| fragment_kind)
 }
 
 /// Every example in the spec must parse, and its tree must pass the grammar-independent checks.
@@ -90,7 +60,7 @@ fn every_spec_example_parses() {
     for example in &examples {
         let example_label = example.get_label();
         // Same length as the original, so byte offsets in an error still point into the spec's text.
-        let source_text = example.source_text.replace(ELIDED_BODY, EMPTY_BODY);
+        let source_text = parser_source(&example.source_text);
         let source_bytes = source_text.as_bytes();
 
         let tokens = match lex(source_bytes) {
@@ -101,7 +71,7 @@ fn every_spec_example_parses() {
             }
         };
 
-        match parse_fragment(source_bytes, &tokens, get_fragment_kind(&example_label)) {
+        match parse_fragment(source_bytes, &tokens, fragment_kind(&example_label)) {
             Err(parse_error) => {
                 let error_line = get_line_text(&source_text, parse_error.get_span().get_start_offset());
 

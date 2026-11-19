@@ -59,7 +59,7 @@ def main():
         "--test", "stage", "--test", "contextual_examples", "--", "--format", "pretty",
     )
     products_code, products = run_mbx(
-        "run", "--locked", "-p", "omega-typer", "--example", "published_readiness",
+        "run", "--locked", "-p", "spec-corpus", "--features", "readiness", "--bin", "published_readiness",
     )
     verdicts = {
         label: all(f"test {name} ... ok" in tests for name in names)

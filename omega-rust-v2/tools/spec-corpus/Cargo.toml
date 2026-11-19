@@ -4,3 +4,22 @@ version = "0.0.0"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
+
+[features]
+parser = ["dep:omega-lexer", "dep:omega-parser"]
+readiness = ["parser", "dep:omega-resolver", "dep:omega-toolchain", "dep:omega-typer"]
+
+[dependencies]
+omega-lexer = { path = "../../layers/00_bytes-to-tokens", optional = true }
+omega-parser = { path = "../../layers/01_tokens-to-syntax-trees", optional = true }
+omega-resolver = { path = "../../layers/02_syntax-trees-to-symbol-resolved-trees", optional = true }
+omega-toolchain = { path = "../../toolchain", optional = true }
+omega-typer = { path = "../../layers/03_symbol-resolved-trees-to-typed-trees", optional = true }
+
+[[bin]]
+name = "parse_spec"
+required-features = ["parser"]
+
+[[bin]]
+name = "published_readiness"
+required-features = ["readiness"]
