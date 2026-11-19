@@ -16,7 +16,7 @@ installation-admission = { path = "../../verification/installation-admission" }
 target-lowering = { package = "abstract-operations-to-target-operations", path = "../04_abstract-operations-to-target-operations" }
 physical-program = { path = "../representations/post-allocation-machine/body-facts" }
 terminal-semantics = { path = "../../../psi/semantics" }
-access-admission = { path = "../../../../psi/compilation/access-admission" }
+access-admission = { path = "../../../psi/access/admission" }
 layout-plans = { path = "../../../psi/layout" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
 runtime-abi = { path = "../../targets/runtime-abi" }

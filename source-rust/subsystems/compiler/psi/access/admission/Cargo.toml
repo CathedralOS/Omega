@@ -1,0 +1,23 @@
+[package]
+name = "access-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "access_admission"
+path = "admission.rs"
+
+[features]
+test-support = ["layout-plans/test-support"]
+
+[dependencies]
+access-vocabulary = { path = ".." }
+schema-reflection = { path = "../../schema" }
+extent-contracts = { path = "../../extent-contracts" }
+wire = { path = "../../../../../foundation/wire" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+layout-plans = { path = "../../layout" }
+
+[dev-dependencies]
+layout-plans = { path = "../../layout", features = ["test-support"] }

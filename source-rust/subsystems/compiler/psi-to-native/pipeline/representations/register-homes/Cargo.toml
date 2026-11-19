@@ -28,4 +28,4 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 access-vocabulary = { path = "../../../../psi/access" }
-access-admission = { path = "../../../../source-to-psi/access-admission" }
+access-admission = { path = "../../../../psi/access/admission" }

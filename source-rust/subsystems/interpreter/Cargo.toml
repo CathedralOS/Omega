@@ -17,7 +17,7 @@ extent-contracts = { path = "../compiler/psi/extent-contracts" }
 evaluation-contracts = { path = "../compiler/build/evaluation/usage" }
 language-core = { path = "../compiler/foundation/language-core" }
 record-storage = { path = "../../foundation/record-storage" }
-access-admission = { path = "../compilation/access-admission" }
+access-admission = { path = "../compiler/psi/access/admission" }
 arena = { path = "../../foundation/arena" }
 extents = { path = "memory/extents" }
 evaluation-accounting = { path = "../evaluation/evaluation-accounting" }
