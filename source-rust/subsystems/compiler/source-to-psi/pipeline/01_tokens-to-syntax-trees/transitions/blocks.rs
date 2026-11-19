@@ -52,7 +52,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         } else {
             parse_transition_block_target_with_bindings(syntax_trees, input, &condition.bindings)?
         };
-        input = rest;
+        input = rest.after_dispatch_arm()?;
 
         arms.push(DispatchArm {
             patterns: condition.patterns,

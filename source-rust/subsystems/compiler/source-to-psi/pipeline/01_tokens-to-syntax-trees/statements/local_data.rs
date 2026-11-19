@@ -34,7 +34,7 @@ pub(crate) fn parse_if_transition_statement_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StatementHandle> {
     Err(input.error_here(
-        "the `if` statement is retired; dispatch is `transition <guard> { true -> ... _ -> ... }` \
+        "the `if` statement is retired; dispatch is `transition <guard> { true -> ..., _ -> ... }` \
          (every arm set must provably cover all cases)",
     ))
 }

@@ -1469,12 +1469,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             value,
             source_span: arm_start.source_span_until(rest),
         });
-        let input = if rest.at_punctuation(PunctuationKind::Comma) {
-            rest.take_punctuation(PunctuationKind::Comma, ",")?
-        } else {
-            rest
-        };
-        self.match_arms(syntax_trees, state, input)
+        self.match_arms(syntax_trees, state, rest.after_dispatch_arm()?)
     }
 
     /// The fields of a destructure pattern after its `{`: `member`,

@@ -6,10 +6,9 @@ use syntax_trees::expression::{ExpressionNode, MatchPattern};
 
 #[test]
 fn value_match_retains_subject_once_ordered_duplicate_arms_and_spans() {
-    for separator in [" ", ", "] {
-        let source = format!(
-            "match read() {{ 0 -> first(){separator}0 -> second(){separator}_ -> last() }}"
-        );
+    for trailing_comma in ["", ","] {
+        let source =
+            format!("match read() {{ 0 -> first(), 0 -> second(), _ -> last(){trailing_comma} }}");
         let source_id = SourceId::default();
         let tokens = Lexer::new(&source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source_id);
@@ -131,5 +130,54 @@ fn value_match_rejects_empty_dispatch_and_duplicate_bindings() {
                 "at least one arm"
             },
         );
+    }
+}
+
+#[test]
+fn dispatch_accepts_single_and_guarded_arms_with_optional_trailing_commas() {
+    for keyword in ["match", "transition"] {
+        for arms in [
+            "_ -> 1",
+            "_ -> 1,",
+            "Flag { tag } if tag -> 1, _ -> 2",
+            "Flag { tag } if tag -> 1, _ -> 2,",
+        ] {
+            let source =
+                format!("machine choose(value: Flag) -> i64 {{ {keyword} value {{ {arms} }} }}");
+            crate::tests::parse_source(&source, &source);
+        }
+    }
+
+    for source in [
+        "machine f() { transition { ready(1, 2) -> {}, _ -> again(1, 2), } }",
+        "machine f(a: Flag, b: i64) { transition (a, b) { (Flag { tag }, _) if tag -> again(), (_, _) -> {} } }",
+    ] {
+        crate::tests::parse_source(source, source);
+    }
+}
+
+#[test]
+fn dispatch_rejects_missing_or_doubled_arm_commas_at_the_offending_token() {
+    for keyword in ["match", "transition"] {
+        for (separator, expected_error) in [
+            (" /* next */ ", "expected `,` between arms"),
+            (", /* next */ ,", "expected an arm or `}` after `,`"),
+        ] {
+            let source =
+                format!("machine f(x: i64) -> i64 {{ {keyword} x {{ 1 -> 2{separator}_ -> 3 }} }}");
+            let error = crate::tests::parse_tokenized_error(&source, &source);
+            crate::tests::expect_error(&error, expected_error);
+            let following_arm = source.find("_ -> 3").unwrap();
+            let offending_token = if separator.ends_with(',') {
+                following_arm - 1
+            } else {
+                following_arm
+            };
+            assert_eq!(
+                error.source_span.span,
+                source_text::Span::new(offending_token, offending_token + 1),
+                "{source}"
+            );
+        }
     }
 }

@@ -219,6 +219,21 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    /// Separates consecutive match or transition arms and leaves the closing
+    /// brace for the enclosing dispatch, with or without a trailing comma.
+    pub(crate) fn after_dispatch_arm(self) -> Result<Self, ParseError> {
+        if self.at_punctuation(PunctuationKind::RightBrace) {
+            return Ok(self);
+        }
+        let Some(next) = self.take_comma()? else {
+            return Err(self.error_here("expected `,` between arms or `}` after the final arm"));
+        };
+        if next.at_punctuation(PunctuationKind::Comma) {
+            return Err(next.error_here("expected an arm or `}` after `,`"));
+        }
+        Ok(next)
+    }
+
     pub(crate) fn leading_paren_group_has_top_level_comma(&self) -> bool {
         let mut paren = 0usize;
         let mut bracket = 0usize;
