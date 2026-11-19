@@ -1,14 +1,20 @@
-//! The first L2 operation binds direct calls to ordinary machines in one admitted package.
-//! The resolver reads the parser's tree and uses lexer spans for each occurrence.
+//! L2 binds names in the parsed files and dependency scope admitted for one stage.
+//! Type-directed selections retain their candidates and the original source spans for L3.
 
 #![forbid(unsafe_code)]
 
 mod directory_lookup;
+mod stage;
+mod syntax;
 
 use omega_lexer::{SourceSpan, Token};
 use omega_parser::{NodeKind, SyntaxTree};
 
 pub use directory_lookup::resolve_machine_calls;
+pub use stage::{
+    Application, ArgumentAlternative, AssemblyVocabulary, DeclarationId, DefinitionSite, Dependency, EnclosingMachine, NameError, NameUse, OperatorDeclaration,
+    OperatorUse, ResolvedStage, StageSource, Symbol, resolve_stage, resolve_stage_for_target,
+};
 
 /// A whole-file parse and its original UTF-8 source and tokens. The package loader
 /// supplies a canonical, slash-separated logical path relative to the package root.

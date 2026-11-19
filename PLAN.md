@@ -124,7 +124,7 @@ Psi to native code) are not planned yet.
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
 | L1 Parser | tokens → syntax tree | done, signed off 2026-11-18 | 1.12 s |
-| L2 Resolver | syntax tree → names resolved | directory lookup for ordinary machine calls implemented and tested | 0.43 s (current slice) |
+| L2 Resolver | syntax tree → bound names and candidates for typing | stage resolver implemented and tested, awaiting Jarod's sign-off | 0.17 s (warm median, five runs of `cargo test -p omega-resolver --tests --quiet`) |
 | L3 Typer | resolved tree → typed tree | not started | — |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
 | L5 Lowering | typed tree → Terminal Psi | not started | — |
@@ -161,7 +161,8 @@ also supports Psi and differential runs.
 | Milestone | User-visible result | Acceptance test |
 | --- | --- | --- |
 | Syntax parsing (built) | The `application/` workspace member produces `omega source parse <file>`. The file operation reads the bytes and invokes L0 and L1 through their public APIs. | [CLI process tests](application/tests/cli.rs) cover V2 reference syntax, lexical and grammar refusals, invalid UTF-8, caller-relative paths, help, missing files and usage errors. |
-| As L2 through L5 land | Give the compiler one operation for compiling a stage from settled inputs and an entry. Each signed-off layer extends that operation. Carry source locations through failures and stable declaration identities across stages. | A refusal identifies the source file that caused it. A later stage rebinds a serialized identity to the intended declaration and refuses a mismatch. |
+| Name resolution (built) | `omega source resolve <file> [<file> ...]` treats the current directory as the package root. The library also accepts direct requester-local dependency aliases and target assembly names. | CLI process tests select a sibling declaration and identify the exact call site when its target moves into a child directory. |
+| As L3 through L5 land | Extend stage compilation with typing, evaluation and lowering. Finalize closed application identities after computing their arguments. | A later stage rebinds a serialized checked identity to the intended declaration and refuses a mismatch. |
 | First execution | Once L5, a Terminal Psi interpreter and its required admission checks exist, connect the run request to the driver. Start with the permitted constant first plan and the explicit Psi engine. The first direct-run fixture supplies an explicitly named file containing `machine main`; the interpreter receives the product of that invocation. | Run the binary on a file called `hello.omg`, observe exact guest output and status, and verify a compile refusal produces a diagnostic before any guest output. A sibling build-file test fixes the direct-run policy once chosen. |
 | Project builds | `omega build <file>` enters `machine build`. The driver compiles and runs each requested stage with its own settled inputs and backings. A terminal artifact request compiles and publishes the product when checking and publication are available. | Exercise the four [build-model cases](#defaults-leaning-not-decided): bind an entry, select a provider, use a generated constant from authored code, and let the build itself write to Console. A cross-build returns its artifact without executing the target product on the host. |
 
@@ -246,7 +247,7 @@ stage budget and lockfile details with the existing driver questions below.
   | Operator grouping | All 1,600 ordered pairs of binary operator spellings have their specified grouping or refusal. All 36 comparison pairs accept either explicit grouping. |
   | Reference syntax | 72 independently predicted fragment trees check all nine pairs of access modes in types and expressions, across four token separators. Twelve diagnostic cases cover incomplete and retired prefixes. |
   | Hostile input | 128 nested data declarations parse and 129 are refused. 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five ambiguous inputs, 30,000 random sources and 3,515 one-token deletions pass the robustness checks. |
-  | Mutation | All 37 deliberate parser changes were caught. Two remove recognition of a nested `@` after an access word, one in a type and one in an expression. The runner requires a passing baseline and exits with failure for any missed or unapplied change. |
+  | Mutation | All 38 deliberate parser changes were caught, including removal of conformance selection rows and two changes to nested `@` after an access word. The runner requires a passing baseline and exits with failure for any missed or unapplied change. |
   | Suite time | 1.12 s median wall clock across three warm runs of `cargo test -p omega-parser --tests` on Windows. Doctests and mutation checks run separately. |
   | Speed | The first three optimizations brought parsing to 571 MB/s on one thread (6.5 ns per token, 8.4% faster than the first build) and 8.1 GB/s on 32 threads. Experiment 9 cut parsing time on individual V2 fixtures by 8.5–11.2% and combined lexer and parser time by 2.6–4.0% across three build layouts. [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md) |
 
@@ -273,10 +274,13 @@ stage budget and lockfile details with the existing driver questions below.
 
 ### L2 to L4
 
-L2 begins with [directory namespaces and sibling declaration lookup](layers/02-resolver/CONTRACT.md).
-The first pair of fixtures changes only the declaring file's directory.
-`cargo test -p omega-resolver` runs both cases in both file orders through
-the lexer, parser and resolver.
+The [L2 resolver contract](layers/02-resolver/CONTRACT.md) covers the admitted
+stage, lexical and package scope, visibility, domains, operators, requirements,
+generic applications and target names. The suite checks source provenance,
+input-order independence and the outcome of every spec fragment.
+L2 binds the visible overload candidates at a call. L3 selects the machine
+using the typed operands. L3 and L4 establish closed application identities
+after argument values are known. L2 awaits owner sign-off.
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.
@@ -392,11 +396,12 @@ What follows from it:
   it with the backings its predecessor selected and the invocation granted,
   read its plan, repeat until a plan asks for an artifact. It is built after
   L5 and a Terminal Psi interpreter exist, and it is not part of any layer.
-- **Requirement on L2:** a declaration's identity is the same in every
-  universe and serializes. It is built from what the declaration *is*
-  (package, namespace path, name, and its application), never from a
-  per-compile index. The spec says the same of reflection: graph-local indices
-  are "not compared as cross-artifact identities".
+- L2 identifies a source declaration by its package, namespace, name and
+  authored declaration shape. It preserves generic argument expressions.
+  After typing and evaluation, the stage can serialize a checked identity
+  containing canonical argument values. For example, `Buffer<8>` and
+  `Buffer<4 + 4>` share one closed identity. Reflection likewise excludes
+  graph-local indices from cross-artifact identity.
 - **Each compile checks every identity it is handed** lands on a declaration
   matching the one the previous stage saw. Universes can disagree, since an
   alias may denote different packages in different graphs. A mismatch is an
@@ -588,7 +593,7 @@ before the layer that depends on it is signed off.
 | 8 | The punctuation vocabulary is "closed" but listed nowhere in one place. | `language/expressions.md` states the vocabulary is closed and gives only the arithmetic tiers. | L0 | Accepted with L0 sign-off (G5): V1's table without `>>`, plus V2's `@` |
 | 9 | Where `_` may appear in a number is not stated. | The spec says "digit underscores" and shows `0x1_0000u32`. | L0 | Accepted with L0 sign-off (G6): anywhere after the first digit |
 | 3 | Three links from the spec point at V1 files that no longer exist. | Two under `omega-rust/psi/compilation`, one ELF backend source file. | none | Ignore unless a layer needs them |
-| 4 | "Pre-resolution evaluation" and its "post-typing continuation" are named but not defined. | The terms appear once, in `build/execution.md` under the generated-source boundary. V1 runs an evaluation step before name resolution that returns rewritten syntax. | L2 to L4 | Open |
+| 4 | The spec names pre-resolution evaluation and a post-typing continuation without defining their handoff. | At pinned V1 revision `0b90bdba`, [evaluate_pre_resolution](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/psi/compilation/pipeline/01_source-compilation/src/evaluation/source_frontier.rs#L364) returns the syntax trees it received and an authority checkpoint. | L2 to L4 | V2 resolves settled inputs and retains argument expressions. Typing and evaluation finalize a closed application's identity before persistence or reuse. |
 
 ## Open decisions
 
@@ -683,3 +688,6 @@ files waits for. Full figures and method are in
 | 2026-11-18 | Comparisons do not chain: a comparison needs parentheses to be the operand of another, for `==` and `!=` as well as the relational four. V1 is not an audience; a rule is not justified by what a V1 user might write. | Jarod, with Zac |
 | 2026-11-18 | `&&` stays one token (owner question 6); the initial nested spelling was `& &T`. | Jarod |
 | 2026-11-18 | Prefix `@` introduces a reference or borrow. `@@T` and `@@x` supersede the spaced ampersands from owner question 6. | Jarod |
+| 2026-11-18 | L2 records the visible machines at an overloaded call. L3 selects among them using the typed operands. | Resolver implementation |
+| 2026-11-18 | Bind a generic declaration in L2 and finalize its closed application identity after computing argument values, before saving or reusing it. | Jarod |
+| 2026-11-18 | Reopen the L1 conformance body rule to accept the documented `Logger::write = write_log;` form. L2 binds its requirement and implementation machine. | Jarod |

@@ -8,3 +8,6 @@ publish.workspace = true
 [dependencies]
 omega-lexer = { path = "../00-lexer" }
 omega-parser = { path = "../01-parser" }
+
+[dev-dependencies]
+spec-corpus = { path = "../../tools/spec-corpus" }

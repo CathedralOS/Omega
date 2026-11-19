@@ -56,12 +56,8 @@ public boundary trait RangeSupplier {
     machine supply(region: Range) -> Range crashes none;
 }
 
-public data EchoSupplier { }
-
-machine EchoSupplier::supply(region: Range) -> Range
-satisfies RangeSupplier::supply
-{
-    region
+public EchoSupplier satisfies RangeSupplier {
+    machine supply(region: Range) -> Range { region }
 }
 
 machine claim_memory(region: Range) -> Range in Writable

@@ -8,3 +8,4 @@ publish.workspace = true
 [dependencies]
 omega-lexer = { path = "../layers/00-lexer" }
 omega-parser = { path = "../layers/01-parser" }
+omega-resolver = { path = "../layers/02-resolver" }

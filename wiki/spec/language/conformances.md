@@ -37,11 +37,11 @@ retain the behavior and safety obligations of their selected requirements.
 ## Declaration and selection
 
 ```omega
-trait Incrementable<T> {
+public trait Incrementable<T> {
     machine increment(counter: @mut T);
 }
 
-data Counter { value: i32; }
+public data Counter { value: i32; }
 
 public SaturatingIncrement satisfies Incrementable<Counter> {
     machine increment(counter: @mut Counter) {

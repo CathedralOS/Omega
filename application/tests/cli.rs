@@ -32,6 +32,25 @@ fn accepts_a_whole_file_with_v2_reference_syntax() {
 }
 
 #[test]
+fn resolves_only_the_named_package_files_and_locates_missing_callees() {
+    let root = application_directory().join("../layers/02-resolver/fixtures");
+    let pass = invoke(
+        &root.join("accept/sibling_machine"),
+        &["source", "resolve", "combat/main.omg", "combat/scoring.omg"],
+    );
+    assert!(pass.status.success(), "{}", String::from_utf8_lossy(&pass.stderr));
+    let fail = invoke(
+        &root.join("reject/child_machine"),
+        &["source", "resolve", "combat/main.omg", "combat/ai/scoring.omg"],
+    );
+    assert_eq!(fail.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&fail.stderr).trim(),
+        "combat/main.omg:2:5: resolver: unresolved name score"
+    );
+}
+
+#[test]
 fn reports_layer_refusals_at_the_original_file_position() {
     for (path, diagnostic) in [
         (

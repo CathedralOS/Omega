@@ -191,8 +191,8 @@ conformance for a type named `public`.
     body    = '{' statement* tail? machine* '}'
     tail    = expression | transition
 
-- Qualified names `machine EchoSupplier::supply(...)`
-  (build/assumed_binding_contracts.md:50).
+- Qualified names such as `boundary machine NativeConsole::write(...)`
+  (build/boundary_shapes.md:52).
 - Operator tokens: `machine + add(...)` (language/expressions.md:151),
   `machine > Small::greater(...)` (language/domains.md:910),
   `machine [] read<Element [copy]>(...)` (language/expressions.md:405). The

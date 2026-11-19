@@ -108,7 +108,7 @@
     <h2><span>1</span>The layers</h2>
     <figure>
       <div class="scroll">
-      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. The lexer and parser are signed off. Source bytes enter the lexer, tokens go to the parser, and a syntax tree goes to the resolver. The resolver contract is in progress. Later layers take the resolved tree through typing, preparation, lowering, checking and publication.">
+      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. The lexer and parser are signed off. Source bytes enter the lexer, tokens go to the parser, and a syntax tree goes to the resolver. The resolver is implemented and awaits sign-off. It sends visible overloads to typing. Later layers take the resolved tree through typing, preparation, lowering, checking and publication.">
         <text x="120" y="30" text-anchor="middle" class="mono">source bytes</text>
         <path class="a" d="M120,40 V70"/>
 
@@ -361,7 +361,7 @@
         <path class="a" d="M285,160 V100"/><text x="295" y="135" class="tl">rule settled</text>
       </svg>
       </div>
-      <figcaption>The lexer and parser have completed the loop. The first resolver fixtures now pass: a call finds a machine in a sibling file and reports its name when the machine moves into a child directory.</figcaption>
+      <figcaption>The lexer and parser have completed the loop. The resolver suite checks binding across files and packages and all 132 spec fragments. L2 awaits sign-off. When a call has several visible overloads, L3 will select one using the operand types.</figcaption>
     </figure>
   </section>
 
@@ -577,7 +577,7 @@
         <text x="800" y="246" text-anchor="middle" class="ts t-bad">a mismatch is an error</text>
       </svg>
       </div>
-      <figcaption>Each stage checks its own copy of a file. An identity is built from what a declaration is (package, namespace path, name), never from a per-compile index, which is the one requirement this puts on the resolver layer.</figcaption>
+      <figcaption>Each stage checks its own copy of a file. L2 identifies the owning declaration and preserves argument expressions. After typing and evaluation, a stage can save the closed identity. Buffer&lt;8&gt; and Buffer&lt;4 + 4&gt; then identify the same application.</figcaption>
     </figure>
   </section>
 
