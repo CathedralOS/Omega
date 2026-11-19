@@ -30,5 +30,3 @@ layout-plans = { path = "layout" }
 
 [dev-dependencies]
 bundled-declarations = { path = "../../source-to-psi/inputs/bundled-declarations" }
-# The source guards delegate their scan to the shared audit crate.
-source-audit = { path = "../../../../../test-support/source-audit" }
