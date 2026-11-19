@@ -33,7 +33,7 @@ use evaluation_accounting::EvaluationInvocationAccount;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::TargetMachineCallable;
 
-pub type TerminalCallingPolicyAdmission = terminal_installation::AdmittedCompilerEvaluation;
+pub type TerminalCallingPolicyAdmission = evaluation_admission::AdmittedCompilerEvaluation;
 
 pub struct TerminalCallingPolicyInvocation<'input> {
     pub artifact: &'input CanonicalTerminalArtifact,

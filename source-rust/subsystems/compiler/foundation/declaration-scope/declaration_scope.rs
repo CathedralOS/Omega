@@ -1,6 +1,9 @@
 //! Package selection permissions presented to a compilation.
 #![forbid(unsafe_code)]
 
+mod custody;
+pub use custody::require_declaration_selection;
+
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeMap;
 

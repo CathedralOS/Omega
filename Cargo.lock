@@ -269,6 +269,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "evaluation-accounting",
+ "evaluation-admission",
  "evaluation-contracts",
  "evaluation-receipts",
  "filesystem-authority",
@@ -445,6 +446,19 @@ name = "declaration-scope"
 version = "0.1.0"
 dependencies = [
  "semantic-vocabulary",
+]
+
+[[package]]
+name = "evaluation-admission"
+version = "0.1.0"
+dependencies = [
+ "declaration-scope",
+ "proof-applications",
+ "psi-provider-selections",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2376,6 +2390,7 @@ dependencies = [
 name = "admitted-native-inputs-to-target-bound-program"
 version = "0.1.0"
 dependencies = [
+ "evaluation-admission",
  "provider-demand",
  "host-provider-inputs",
  "application-identity",
@@ -3479,6 +3494,7 @@ dependencies = [
  "arena",
  "closed-predicates",
  "evaluation-accounting",
+ "evaluation-admission",
  "evaluation-contracts",
  "extent-contracts",
  "extents",
@@ -3495,7 +3511,6 @@ dependencies = [
  "storage-access",
  "storage-materialization",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",

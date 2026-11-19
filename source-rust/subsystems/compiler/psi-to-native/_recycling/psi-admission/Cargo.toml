@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+evaluation-admission = { path = "../../../build/evaluation/admission" }
 psi-provider-selections = { path = "../../../psi/providers" }
 psi-entry-memory = { path = "../../../psi/access/entry-memory" }
 psi-scalar-applications = { path = "../../../psi/scalar-applications" }

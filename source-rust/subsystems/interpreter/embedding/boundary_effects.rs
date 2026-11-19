@@ -4326,7 +4326,7 @@ impl TerminalRuntimeSupplies {
     pub fn require_compiler_evaluation(
         &self,
         code: terminal_codec::TerminalExecutionView<'_>,
-        admission: &terminal_installation::AdmittedCompilerEvaluation,
+        admission: &evaluation_admission::AdmittedCompilerEvaluation,
         scalars: Option<&psi_scalar_applications::AdmittedScalarApplications>,
     ) -> Result<(), String> {
         if self.code_identity != code.custody_identity()

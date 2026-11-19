@@ -1850,7 +1850,7 @@ pub(crate) mod instance {
         /// Select arguments of exact direct calls in an admitted compiler invocation.
         pub fn observe_calls(
             &mut self,
-            admitted: &terminal_installation::AdmittedCompilerEvaluation,
+            admitted: &evaluation_admission::AdmittedCompilerEvaluation,
             calls: &[crate::TerminalCallObservation],
         ) -> Result<(), TerminalInterpretError> {
             use super::program::ProgramStorage;
@@ -3150,7 +3150,7 @@ pub(crate) mod program {
         pub fn instantiate_compiler_evaluation<'host>(
             &self,
             request: TerminalInstantiation<'_>,
-            admitted: &terminal_installation::AdmittedCompilerEvaluation,
+            admitted: &evaluation_admission::AdmittedCompilerEvaluation,
         ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
             let refusal = || {
                 TerminalArtifactInterpretError::Execution(

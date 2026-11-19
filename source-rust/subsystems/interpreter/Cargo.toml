@@ -9,6 +9,7 @@ name = "terminal_interpreter"
 path = "interpreter.rs"
 
 [dependencies]
+evaluation-admission = { path = "../compiler/build/evaluation/admission" }
 psi-scalar-applications = { path = "../compiler/psi/scalar-applications" }
 psi-provider-selections = { path = "../compiler/psi/providers" }
 psi-entry-memory = { path = "../compiler/psi/access/entry-memory" }
@@ -33,5 +34,3 @@ terminal-codec = { path = "../compiler/psi/codec" }
 terminal-work = { path = "../compiler/psi/work" }
 terminal-semantics = { path = "../compiler/psi/semantics" }
 closed-predicates = { path = "../compiler/psi/semantics/closed-predicates" }
-
-terminal-installation = { path = "../compiler/psi-admission" }
