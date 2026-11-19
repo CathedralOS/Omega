@@ -99,7 +99,10 @@
           (EpsilonDeltaCompiled (epsilon_emit_stored_integer (epsilon_emit_decimal value) store output)))))
     ((EpsilonTrueExpression start end) (EpsilonDeltaCompiled (epsilon_emit_stored_integer "1" store output)))
     ((EpsilonFalseExpression start end) (EpsilonDeltaCompiled (epsilon_emit_stored_integer "0" store output)))
-    ((EpsilonStringExpression start end literal) (EpsilonDeltaUnsupported start))
+    ((EpsilonStringExpression start end literal)
+      (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_compiled_string"
+        (epsilon_emit_stored_fields (epsilon_emit_string (epsilon_delta_context_source context) start end)
+          (epsilon_emit_call "EpsilonU8Type" (epsilon_delta_span start end)) store output))))
     ((EpsilonQualifiedExpression start end owner member arguments)
       (epsilon_delta_stored_resolved_call context expression expression
         (match arguments

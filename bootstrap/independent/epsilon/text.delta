@@ -34,3 +34,29 @@
       (epsilon_emit_internal_at coordinate))
       (epsilon_emit_match expression (bytes_concat success (bytes_concat resultless
         "((EpsilonCompiledTrap ep_trap) (EpsilonCompiledTrap ep_trap))\n((EpsilonCompiledInternal ep_offset) (EpsilonCompiledInternal ep_offset))\n"))))))
+
+; The two checked languages share the quoted spellings except for Epsilon's
+; hexadecimal escape. Skip a whole escape so a quoted backslash stays literal.
+(def epsilon_emit_string_needs_octets ((source EpsilonSourceView) (cursor Int) (end Int)) Int
+  (if (eq cursor end) 0
+    (if (eq (epsilon_source_byte source cursor) 92)
+      (if (eq (epsilon_source_byte source (+ cursor 1)) 120) 1
+        (epsilon_emit_string_needs_octets source (+ cursor 2) end))
+      (epsilon_emit_string_needs_octets source (+ cursor 1) end))))
+
+; Binary strings use only ordinary Delta Bytes operations. Halving bounds
+; keeps the emitted expression depth logarithmic in the decoded length.
+(def epsilon_emit_string_octets ((value Bytes) (low Int) (high Int)) Bytes
+  (if (eq low high) "\"\""
+    (if (eq (+ low 1) high)
+      (epsilon_emit_call "bytes_single" (epsilon_emit_decimal (bytes_get value low)))
+      (let middle Int (+ low (/ (- high low) 2))
+        (epsilon_emit_call "bytes_concat" (epsilon_emit_spaced
+          (epsilon_emit_string_octets value low middle)
+          (epsilon_emit_string_octets value middle high)))))))
+
+(def epsilon_emit_string ((source EpsilonSourceView) (start Int) (end Int)) Bytes
+  (if (epsilon_emit_string_needs_octets source (+ start 1) (- end 1))
+    (let value Bytes (epsilon_runtime_decode_string source (+ start 1) (- end 1) "")
+      (epsilon_emit_string_octets value 0 (bytes_length value)))
+    (epsilon_emit_source_bytes source start end "")))

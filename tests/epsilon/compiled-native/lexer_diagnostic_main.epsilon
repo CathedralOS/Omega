@@ -23,5 +23,44 @@ machine Main::main(&mut self) {
     assert self.scanner.diagnostic_end == 8;
     self.scanner.reject(self.scanner.diagnostic_code, 9, 9);
     assert self.scanner.internal_failure == 1;
+    assert self.literal_bounds() == 255;
+    self.classified_token("as");
+    assert self.scanner.next_cursor == 2;
+    self.classified_token("aside");
+    assert self.scanner.next_cursor == 5;
     self.console.exit_process(42);
+}
+
+machine Main::classified_token(&mut self, word: &[u8]) -> OmegaTokenKind {
+    self.scanner.reset(0);
+    self.scanner.token_end = word.len;
+    self.scanner.classify_keyword(word);
+    return self.scanner.token_kind;
+}
+
+machine Main::literal_bounds(&mut self) -> i32 {
+    let escaped: &[u8] = "\x00\t\r\n\\\"\xff";
+    let tail: &[u8] = escaped[4..];
+    assert "".len == 0;
+    assert escaped.len == 7;
+    assert escaped[0] == 0;
+    assert escaped[1] == 9;
+    assert escaped[2] == 13;
+    assert escaped[3] == 10;
+    let common: &[u8] = "\t\r\n\\\"";
+    assert self.scanner.span_equals(escaped, 1, 6, common) == 1;
+    assert tail.len == 3;
+    assert tail[0] == 92;
+    assert tail[1] == 34;
+    assert tail[2] == 255;
+    assert "\\x41".len == 4;
+    transition self.console.read_byte() {
+        255 -> return tail[3]
+        _ -> return tail[2]
+    }
+}
+
+machine Main::classified_keyword(&mut self, word: &[u8]) -> OmegaKeywordKind {
+    self.classified_token(word);
+    return self.scanner.keyword;
 }
