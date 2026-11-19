@@ -7,7 +7,7 @@ use psi_authorization::{
     AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 
-pub use native_compiler::SavedProgramTarget as NativeTarget;
+pub use native_compiler::{SavedProgramTarget as NativeTarget, TargetProviderInstallation};
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource};
 
