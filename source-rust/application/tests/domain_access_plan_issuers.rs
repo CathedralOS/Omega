@@ -11,7 +11,6 @@ use std::process::{Command, Stdio};
 
 fn run_both(fixture: &str) -> (bool, String) {
     let project = support::repository_root()
-        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])
@@ -29,7 +28,7 @@ fn run_both(fixture: &str) -> (bool, String) {
 
 #[test]
 fn the_machine_a_domain_plan_lists_may_issue_it() {
-    let (succeeded, report) = run_both("run/domains/access_plan_issuer");
+    let (succeeded, report) = run_both("source-rust/application/tests/fixtures/domains/run/access_plan_issuer");
     assert!(succeeded, "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
@@ -38,7 +37,7 @@ fn the_machine_a_domain_plan_lists_may_issue_it() {
 
 #[test]
 fn a_machine_the_domain_plan_does_not_list_is_refused() {
-    let (succeeded, report) = run_both("fail/domains/access_plan_other_issuer");
+    let (succeeded, report) = run_both("source-rust/application/tests/fixtures/domains/fail/access_plan_other_issuer");
     assert!(!succeeded, "{report}");
     assert!(
         report.contains(

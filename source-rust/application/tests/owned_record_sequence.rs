@@ -10,9 +10,8 @@ use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str, name: &str) -> PathBuf {
     support::repository_root()
-        .join("tests/fixtures")
+        .join("source-rust/application/tests/fixtures/ownership")
         .join(tier)
-        .join("ownership")
         .join(name)
 }
 

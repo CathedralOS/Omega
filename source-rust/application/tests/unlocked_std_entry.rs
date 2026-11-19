@@ -11,7 +11,7 @@ use std::process::{Command, Stdio};
 #[test]
 fn an_unlocked_std_entry_runs_on_both_engines() {
     let project =
-        support::repository_root().join("tests/fixtures/run/calls/published_process_exit");
+        support::repository_root().join("tests/fixtures/calls/run/published_process_exit");
     assert!(
         !project.join("omega.lock").exists(),
         "the fixture must stay unlocked"

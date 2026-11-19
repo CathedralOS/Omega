@@ -24,7 +24,7 @@ pub(super) fn check(
 
 pub(super) fn run() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/run/calls/installed_entry_contract_exit/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/calls/run/installed_entry_contract_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
         Some("linux_x86_64"),

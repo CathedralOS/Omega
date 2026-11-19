@@ -15,7 +15,7 @@ fn float_range_delivery_uses_the_stored_bound_and_refuses_its_missing_premise() 
         compiler::checked::spawn_compile_worker(scope, || {
             for source in [
                 "samples/cli/facts/float_range_delivery/local/main.omg",
-                "tests/fixtures/run/float/range_delivery/main.omg",
+                "source-rust/subsystems/compiler/tests/fixtures/float/run/range_delivery/main.omg",
             ] {
                 let main = repository().join(source);
                 let checked = orchestration::check_source(
@@ -36,7 +36,7 @@ fn float_range_delivery_uses_the_stored_bound_and_refuses_its_missing_premise() 
                 )
                 .unwrap();
             }
-            let main = repository().join("tests/fixtures/fail/float/range_delivery/main.omg");
+            let main = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/range_delivery/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -63,7 +63,7 @@ fn ieee_self_equality_needs_an_explicit_premise() {
                 false,
             )
             .unwrap();
-            let build = repository().join("tests/fixtures/run/float/range_delivery/build.omg");
+            let build = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/range_delivery/build.omg");
             std::fs::copy(build, project.path().join("build.omg")).unwrap();
             let main = project.path().join("main.omg");
             let check = |premise| {

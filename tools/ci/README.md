@@ -1,7 +1,7 @@
 # Compiler integration CI
 
 A pull request merges by squash once its `admission` check passes, and main is
-checked after the merge. [Landing](../docs/landing.md) is the author procedure;
+checked after the merge. [Landing](../../wiki/development/landing.md) is the author procedure;
 there is no merge queue.
 
 ## Admission
@@ -21,7 +21,7 @@ Both commands run while the root Cargo workspace is under repair.
 
 Changes to the standalone V2 workspace or its CI toolchain also run
 `mbx test --locked --workspace` under `omega-rust-v2/`.
-[mbx setup](../docs/testing.md#checksum-capable-mbx-setup)
+[mbx setup](../../wiki/development/testing.md#checksum-capable-mbx-setup)
 
 ## Post-merge check
 

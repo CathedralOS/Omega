@@ -6,7 +6,7 @@ profile. It satisfies the EPSILON-EVALUATOR entry obligation: one explicit
 profile, exact and adjacent refusals, every lower-chain resource refusal
 carried to the section-10 outer `Incomplete`, and no Epsilon observation on
 any resource or transport refusal. The private diagnostic adapter
-(`tests/epsilon/interpreted-omega-experiment/execution_driver.delta`, profiled
+(`bootstrap/interpreted/drivers/execution_driver.delta`, profiled
 in [EVALUATOR_PROFILE.md](EVALUATOR_PROFILE.md)) is not this boundary; it
 remains the development transport only.
 
@@ -29,7 +29,7 @@ no observation can produce.
 | canonical evaluator receipt | 726,601 | `1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af` |
 
 The canonical entry source is
-[`tests/epsilon/evaluator-entry/evaluator_entry.delta`](../../../tests/epsilon/evaluator-entry/evaluator_entry.delta).
+[`bootstrap/tests/conformance/epsilon/evaluator_entry.delta`](../../tests/conformance/epsilon/evaluator_entry.delta).
 The closure's source inventory owns every `.delta` file under
 `bootstrap/interpreted/4_epsilon/`, so the entry lives beside its boundary gate — the same
 placement the diagnostic driver uses — rather than inside the closure it wraps.
@@ -37,7 +37,7 @@ The compiled Delta subject is exactly `packed closure bytes ++ entry bytes`;
 compiling that subject with the bound Delta support section through the bound
 Delta compiler (`DCREQ`, profile 1, `ConformanceBytesV1`) reconstructs exactly
 the canonical receipt. `tools/bootstrap/epsilon/evaluator_env.sh` and
-`tests/bootstrap/epsilon-identity.sh` bind every identity above; the receipt's
+`bootstrap/interpreted/tests/epsilon-identity.sh` bind every identity above; the receipt's
 first declaration is `(def $application () Int 1)`, so the Gamma evaluator
 classifies it as an application program.
 
@@ -168,11 +168,11 @@ of the selected lower chain, now charged against the canonical receipt.
 
 | Counter | Owner | Limit | Refusal | Witness |
 | --- | --- | ---: | --- | --- |
-| complete request | Gamma evaluator | 137,363,456 bytes | `Incomplete` via status 253, empty stdout | adjacent pinned by [EVALUATOR_PROFILE.md](EVALUATOR_PROFILE.md) and `tests/gamma` boundary gates |
-| sealed input | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 253, empty stdout | exact/adjacent executed in [`tests/epsilon/evaluator-entry/`](../../../tests/epsilon/evaluator-entry/README.md) |
+| complete request | Gamma evaluator | 137,363,456 bytes | `Incomplete` via status 253, empty stdout | adjacent pinned by [EVALUATOR_PROFILE.md](EVALUATOR_PROFILE.md) and `bootstrap/proofs/tests` boundary gates |
+| sealed input | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 253, empty stdout | exact/adjacent executed in [`bootstrap/interpreted/tests/epsilon/evaluator-entry/`](../../../_recycling/tests/epsilon/evaluator-entry/README.md) |
 | EREQ envelope fields | canonical entry | fixed 52-byte header, declared sections, exact end | EEOUT outcome 1 | exact/adjacent executed in the same gate |
-| published observation | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 254, empty stdout | adjacent pinned by [`tests/delta/staged-compiler/run.sh`](../../../tests/delta/staged-compiler/run.sh) |
-| cumulative immutable pairs | Gamma evaluator | 3,422,453,760 nodes | `Incomplete` via status 252, empty stdout | boundary no longer executable in gate time; [`tests/gamma/heap-boundary/`](../../../tests/gamma/heap-boundary/README.md) crosses the entire retired V4 arena and [`tests/epsilon/pair-boundary/`](../../../tests/epsilon/pair-boundary/README.md) retains the refused fixture for opt-in execution |
+| published observation | `ConformanceBytesV1` adapter | 4,194,304 bytes | `Incomplete` via status 254, empty stdout | adjacent pinned by [`bootstrap/interpreted/tests/delta/staged-compiler/run.sh`](../../../_recycling/tests/delta/staged-compiler/run.sh) |
+| cumulative immutable pairs | Gamma evaluator | 3,422,453,760 nodes | `Incomplete` via status 252, empty stdout | boundary no longer executable in gate time; [`bootstrap/proofs/tests/heap-boundary/`](../../../_recycling/tests/gamma/heap-boundary/README.md) crosses the entire retired V4 arena and [`bootstrap/interpreted/tests/epsilon/pair-boundary/`](../../../_recycling/tests/epsilon/pair-boundary/README.md) retains the refused fixture for opt-in execution |
 | live call contexts | Gamma evaluator | 256 contexts | `Incomplete` via status 250, empty stdout | exact/adjacent executed in the entry gate: 34 nested calls admitted, the 35th refused |
 | temporary value stack | Gamma evaluator | 524,288 entries | `Incomplete` via status 250, empty stdout | dominated by the context bound |
 | lexical environment rows | Gamma evaluator | 131,072 rows | `Incomplete` via status 250, empty stdout | dominated likewise |
@@ -202,14 +202,14 @@ peaked at 181,156 KiB RSS. The native evaluator built with the cursor took
 same program and input. Only the evaluator identity differed in the request.
 These times cover one invocation on a shared host.
 
-The [pair-boundary test](../../../tests/epsilon/pair-boundary/README.md)
+The [pair-boundary test](../../../_recycling/tests/epsilon/pair-boundary/README.md)
 exercises cumulative allocation through repeated sparse-array writes. An
 earlier macOS arm64 run reached its 40,265,319th pair during execution
 and returned status 252 with empty stdout and stderr in 4,250.673 seconds.
 
 ## Refusal witnesses
 
-The [entry gate](../../../tests/epsilon/evaluator-entry/README.md) exercises
+The [entry gate](../../../_recycling/tests/epsilon/evaluator-entry/README.md) exercises
 the following request and execution boundaries.
 
 | Boundary | Exact (admitted) | Adjacent (refused) |
@@ -240,12 +240,12 @@ sealed stdin, this profile, and the complete
 coverage the evaluator currently implements. The last two legs are now
 covered by these gates. The following measurements describe an earlier
 compiler and evaluator composition.
-[`tests/epsilon/d-composition/`](../../../tests/epsilon/d-composition/README.md)
+[`bootstrap/interpreted/tests/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md)
 checks and executes the whole 569,920-byte D closure — all eight manifested
 members — through this canonical edge, including D's own
 `OmegaScalarCompiler::compile` publishing the exact emitted Alpha tape, and
 records the checking-versus-execution allocation split (8e63b21300), while
-[`tests/epsilon/refinement/`](../../../tests/epsilon/refinement/README.md)
+[`bootstrap/interpreted/tests/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md)
 refines `RunEpsilon` over the exact D closure member sources: the
 contract-derived model's observations agree with this edge byte-for-byte on
 the same eight customers, with discriminating member mutations spanning

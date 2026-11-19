@@ -1047,7 +1047,7 @@ fn mixed_type_and_const_calls_keep_the_complete_tuple_and_contract() {
 fn a_guard_after_a_callback_proves_the_call_until_storage_changes() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/calls/lifetime_callback_contracts/main.omg"
+        "/../../../../../../tests/fixtures/calls/run/lifetime_callback_contracts/main.omg"
     ));
     let judge = |source: &str| {
         let (typed, _) = crate::preparation::prepare_typed_trees(
@@ -2202,7 +2202,7 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
     };
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/calls/constructed_slice_callback/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/run/constructed_slice_callback/main.omg"
     ));
     let accepted = judge_prepared_source(source);
     assert!(
@@ -2215,7 +2215,7 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
     );
     let invalid = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/fail/calls/constructed_slice_callback/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/fail/constructed_slice_callback/main.omg"
     ));
     let rejected = judge_prepared_source(invalid);
     assert!(
@@ -2239,7 +2239,7 @@ fn a_callback_retains_its_supplied_slice_type_and_access() {
 fn a_selected_callback_keeps_its_exact_applied_record_result() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/calls/closed_result_callback/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/run/closed_result_callback/main.omg"
     ));
     let accepted = judge_prepared_source(source);
     assert!(

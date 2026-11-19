@@ -141,7 +141,7 @@ fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict 
 fn a_complete_byte_check_does_not_become_a_helper_requirement() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/calls/inferred_branch_inputs/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/calls/run/inferred_branch_inputs/main.omg"
     ));
     let (typed, _) = crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(source),

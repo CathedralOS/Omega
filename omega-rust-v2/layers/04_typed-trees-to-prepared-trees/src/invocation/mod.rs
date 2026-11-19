@@ -1,14 +1,17 @@
 //! The evaluator executes immutable reads, owned constructions, exact landings
 //! and admitted scalar operations. A local invocation checks every premise
 //! before its value enters the prepared product.
-mod admission;
+pub(super) mod admission;
+mod collection_reads;
+mod floating_point;
 mod statements;
+pub(crate) mod static_callbacks;
 pub(super) mod termination;
 mod values;
 
-use crate::PreparedValue;
 use crate::constant_evaluation::ConstantEvaluation;
 use crate::integer_arithmetic::IntegerRange;
+use crate::{FloatFormat, FloatOperation, PreparedValue};
 use num_bigint::BigInt;
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol, TreeNodeId};
@@ -22,6 +25,7 @@ pub(super) enum EvaluationError {
     Refused(&'static str),
     NeedsConstant(DeclarationId),
     AtCall(omega_typer::TypeError),
+    OpenTarget(omega_typer::TypeError),
 }
 
 impl From<&'static str> for EvaluationError {
@@ -38,9 +42,10 @@ struct BindingValue {
     binder: usize,
     carrier: ValueType,
     value: PreparedValue,
+    writable: bool,
 }
 
-pub(super) struct CallBindings(RefCell<Vec<BindingValue>>);
+pub(super) struct CallBindings(RefCell<Vec<BindingValue>>, Option<Rc<TypedCall>>);
 
 #[derive(Clone)]
 pub(super) enum Scope<'a> {
@@ -53,6 +58,21 @@ pub(super) enum Scope<'a> {
 }
 
 impl Scope<'_> {
+    fn application(&self) -> Option<&TypedCall> {
+        match self {
+            Self::Body(bindings) | Self::Fact(bindings) => bindings.1.as_deref(),
+            Self::Initializer { .. } => None,
+        }
+    }
+
+    fn instantiate(
+        &self,
+        carrier: &ValueType,
+    ) -> ValueType {
+        self.application()
+            .map_or_else(|| carrier.clone(), |call| call.instantiate(carrier))
+    }
+
     fn call_use(&self) -> CallUse {
         match self {
             Self::Initializer { .. } => CallUse::StaticArgument,
@@ -72,7 +92,7 @@ impl Scope<'_> {
         };
         let Symbol::Binding {
             binder_node,
-            kind: NodeKind::Param | NodeKind::BindingPattern,
+            kind: NodeKind::Param | NodeKind::BindingPattern | NodeKind::FieldPattern,
             ..
         } = tree.resolved().symbol(node)?
         else {
@@ -93,7 +113,21 @@ impl Scope<'_> {
 enum Step<'a> {
     Evaluate(TreeNodeId, ValueType, Scope<'a>),
     Invoke(TreeNodeId, ValueType, Scope<'a>),
-    Enter(&'a TypedSignature),
+    Enter {
+        call: TreeNodeId,
+        signature: &'a TypedSignature,
+        requirement: Option<(&'a TypedSignature, Option<Rc<TypedCall>>)>,
+        application: Option<Rc<TypedCall>>,
+    },
+    EnterCheckedCallback {
+        request: static_callbacks::CallableUse,
+        signature: &'a TypedSignature,
+        application: Option<Rc<TypedCall>>,
+    },
+    CheckCallableGuarantee {
+        request: static_callbacks::CallableUse,
+        operands: Vec<PreparedValue>,
+    },
     Block {
         site: TreeNodeId,
         statement: usize,
@@ -104,16 +138,29 @@ enum Step<'a> {
         binder: usize,
         carrier: ValueType,
         bindings: Rc<CallBindings>,
+        writable: bool,
+    },
+    Store {
+        local: usize,
+        bindings: Rc<CallBindings>,
     },
     Select {
         site: TreeNodeId,
         carrier: ValueType,
+        subject_type: ValueType,
         scope: Scope<'a>,
+    },
+    RestoreBindings {
+        count: usize,
+        bindings: Rc<CallBindings>,
     },
     Reject(EvaluationError),
     Push(PreparedValue),
     FinishArray(usize),
+    FinishTuple(usize),
+    FinishZeroArray(usize),
     FinishConstruction {
+        proof_site: Option<TreeNodeId>,
         owner: DeclarationId,
         case: Option<DeclarationId>,
         positions: Vec<usize>,
@@ -124,7 +171,24 @@ enum Step<'a> {
     },
     Require(&'static str),
     CrashGuard(&'static str),
+    CheckInvocationProof(admission::ProofRequest<'a>, Rc<CallBindings>),
     ApplyInteger(IntegerRange, String),
+    ApplyFloat {
+        site: TreeNodeId,
+        format: FloatFormat,
+        operation: FloatOperation,
+    },
+    CoerceFloat {
+        site: TreeNodeId,
+        carrier: ValueType,
+    },
+    ProjectFields(Vec<DeclarationId>),
+    ReadArray,
+    ArrayLength,
+    ProduceZero {
+        site: TreeNodeId,
+        carrier: ValueType,
+    },
     Compare(String),
     ShortCircuit {
         right: TreeNodeId,
@@ -161,6 +225,34 @@ impl Execution<'_> {
 }
 
 impl ConstantEvaluation<'_, '_> {
+    /// Typing records a possible loan in an open result. Discharge that
+    /// obligation only for the current exact machine application whose
+    /// complete result is independently known to be an owned copy value.
+    fn admits_owned_return(
+        &self,
+        scope: &Scope<'_>,
+        obligation: &ObligationKind,
+        carrier: &ValueType,
+    ) -> bool {
+        let (Scope::Body(_), ObligationKind::ReturnBorrow { machine }) = (scope, obligation) else {
+            return false;
+        };
+        let Some(application) = scope.application() else { return false };
+        if application.machine != *machine || &application.result != carrier {
+            return false;
+        }
+        let Some((_, signature)) = self.signatures().get(machine) else { return false };
+        if application.instantiate(&signature.result) != *carrier {
+            return false;
+        }
+        if is_aggregate(carrier) {
+            return self
+                .check_owned_type(carrier, matches!(carrier, ValueType::Array(..)))
+                .is_ok();
+        }
+        carrier == &ValueType::Bool || IntegerRange::for_type(carrier).is_some() || FloatFormat::for_type(carrier).is_some()
+    }
+
     pub(super) fn evaluate_value_request(
         &self,
         request: &StaticValueRequest,
@@ -215,15 +307,26 @@ impl ConstantEvaluation<'_, '_> {
                 let tree = self.tree(site)?;
                 let file = tree.resolved().file;
                 let node = file.ungroup(site.node);
-                let result = if matches!(scope, Scope::Body(_)) && file.nodes[node].kind == NodeKind::Match {
-                    if checked_carrier(&tree, node)? != carrier {
+                let result = if file.nodes[node].kind == NodeKind::Match {
+                    if checked_carrier_in_scope(&tree, node, scope.application())? != carrier {
                         return Err(UNSUPPORTED_BODY.into());
                     }
-                    self.schedule_boolean_dispatch(&tree, node, &carrier, scope.clone(), execution)
+                    self.schedule_dispatch(&tree, node, &carrier, scope.clone(), execution)
+                } else if match file.nodes[node].kind {
+                    NodeKind::Index => self.schedule_array_read(&tree, node, &carrier, &scope, execution)?,
+                    NodeKind::FieldAccess => {
+                        self.schedule_array_length(&tree, node, &carrier, &scope, execution)?
+                            || self.schedule_owned_fields(&tree, node, &carrier, &scope, execution)?
+                    }
+                    _ => false,
+                } {
+                    Ok(())
                 } else if carrier == ValueType::Bool {
                     self.evaluate_boolean(&tree, site.node, &scope, execution)
                 } else if is_aggregate(&carrier) {
                     self.schedule_aggregate(&tree, site.node, &carrier, &scope, execution)
+                } else if FloatFormat::for_type(&carrier).is_some() {
+                    self.evaluate_float(&tree, site.node, &carrier, &scope, execution)
                 } else {
                     self.evaluate_integer(&tree, site.node, &carrier, &scope, execution)
                 };
@@ -237,31 +340,121 @@ impl ConstantEvaluation<'_, '_> {
                 execution
                     .chain
                     .push((site, IntegerRange::for_type(&carrier).is_none()));
-                let call = selected_call(&tree, site.node, scope.call_use())?.ok_or(UNSUPPORTED_BODY)?;
-                self.schedule_call(&tree, call, &scope, &carrier, execution)?;
+                let Some(call) = selected_call(&tree, site.node, scope.call_use())? else {
+                    execution.chain.last_mut().expect("visited callback").1 = true;
+                    return self.schedule_static_callback(&tree, site, &scope, &carrier, execution);
+                };
+                if let Some(query) = &call.layout_query {
+                    execution.chain.last_mut().expect("visited layout query").1 = true;
+                    if call.result != carrier
+                        || !call.operands.is_empty()
+                        || !call.enclosing_arguments.is_empty()
+                        || call.evidence.is_some()
+                        || call.acknowledgements.suspend
+                        || call.acknowledgements.block
+                    {
+                        return Err("the request does not select one core layout query".into());
+                    }
+                    let arguments = match scope {
+                        Scope::Initializer { owner_arguments, .. } => owner_arguments,
+                        Scope::Body(_) | Scope::Fact(_) => None,
+                    };
+                    let [subject] = call.type_arguments.as_slice() else {
+                        return Err("the request does not select one core layout query".into());
+                    };
+                    let subject = query
+                        .close_subject(scope.instantiate(subject), arguments)
+                        .ok_or("the layout query needs a closed type application")?;
+                    if self.boundary_slots.iter().any(|slot| {
+                        slot.requirement.declaration == call.machine
+                            && slot.requirement.trait_arguments.is_empty()
+                            && (slot.arguments.is_empty() || slot.arguments.as_slice() == std::slice::from_ref(&subject))
+                    }) {
+                        return Err("the selected runtime boundary slot cannot execute during preparation".into());
+                    }
+                    let target = self.target.ok_or_else(|| {
+                        EvaluationError::OpenTarget(self.call_diagnostic("the layout query requires a selected target", &execution.chain, &[]))
+                    })?;
+                    let (value, observation) = target.observe_layout(query.projection, &subject)?;
+                    self.record_observation(observation);
+                    execution.values.push(PreparedValue::Integer(value.into()));
+                    execution.chain.pop();
+                } else {
+                    self.schedule_call(&tree, call, &scope, &carrier, execution)?;
+                }
             }
-            Step::Enter(signature) => self.enter_call(signature, execution)?,
+            Step::Enter {
+                call,
+                signature,
+                requirement,
+                application,
+            } => self.enter_call(call, signature, requirement, application, execution)?,
+            Step::EnterCheckedCallback {
+                request,
+                signature,
+                application,
+            } => self.enter_checked_callback(request, signature, application, execution)?,
+            Step::CheckCallableGuarantee { request, operands } => {
+                let result = execution.values.last().ok_or(UNSUPPORTED_BODY)?;
+                self.admit_callable_use(&request, &operands, Some(result))?;
+            }
+            Step::CheckInvocationProof(request, arguments) => self.admit_proof(request, &arguments, &execution.values)?,
             Step::Block {
                 site,
                 statement,
                 carrier,
                 bindings,
             } => self.schedule_statement(site, statement, carrier, bindings, execution)?,
-            Step::Bind { binder, carrier, bindings } => {
+            Step::Bind {
+                binder,
+                carrier,
+                bindings,
+                writable,
+            } => {
                 let value = execution.values.pop().expect("visited binding initializer");
-                bindings
-                    .0
-                    .borrow_mut()
-                    .push(BindingValue { binder, carrier, value });
+                bindings.0.borrow_mut().push(BindingValue {
+                    binder,
+                    carrier,
+                    value,
+                    writable,
+                });
             }
-            Step::Select { site, carrier, scope } => self.select_boolean_arm(site, carrier, scope, execution)?,
+            Step::Store { local, bindings } => {
+                let value = execution.values.pop().expect("visited assignment value");
+                bindings.0.borrow_mut()[local].value = value;
+            }
+            Step::Select {
+                site,
+                carrier,
+                subject_type,
+                scope,
+            } => self.select_arm(site, carrier, &subject_type, scope, execution)?,
+            Step::RestoreBindings { count, bindings } => bindings.0.borrow_mut().truncate(count),
             Step::Reject(error) => return Err(error),
             Step::Push(value) => execution.values.push(value),
+            Step::FinishZeroArray(count) => {
+                let element = execution.values.pop().expect("visited zero array element");
+                let mut elements = Vec::new();
+                elements
+                    .try_reserve_exact(count)
+                    .map_err(|_| "zero-filling an array requires checked preparation storage")?;
+                elements.resize(count, element);
+                execution.values.push(PreparedValue::Array(elements.into()));
+            }
+            Step::FinishTuple(count) => {
+                let fields = execution.values.split_off(execution.values.len() - count);
+                execution.values.push(PreparedValue::Tuple(fields.into()));
+            }
             Step::FinishArray(count) => {
                 let elements = execution.values.split_off(execution.values.len() - count);
                 execution.values.push(PreparedValue::Array(elements.into()));
             }
-            Step::FinishConstruction { owner, case, positions } => {
+            Step::FinishConstruction {
+                proof_site,
+                owner,
+                case,
+                positions,
+            } => {
                 let count = positions.len();
                 let mut ordered = vec![None; count];
                 for (position, value) in positions
@@ -272,10 +465,13 @@ impl ConstantEvaluation<'_, '_> {
                         return Err(UNSUPPORTED_BODY.into());
                     }
                 }
-                let fields = ordered
+                let fields: std::sync::Arc<[PreparedValue]> = ordered
                     .into_iter()
                     .collect::<Option<_>>()
                     .ok_or(UNSUPPORTED_BODY)?;
+                if let Some(site) = proof_site {
+                    self.check_construction_proof(&self.tree(site)?, site.node, &fields)?;
+                }
                 execution.values.push(match case {
                     Some(case) => PreparedValue::Sum { owner, case, fields },
                     None => PreparedValue::Record { owner, fields },
@@ -305,6 +501,29 @@ impl ConstantEvaluation<'_, '_> {
                     .values
                     .push(PreparedValue::Integer(range.apply(&token, left, right)?));
             }
+            Step::ApplyFloat { site, format, operation } => self.apply_float(site, format, operation, execution)?,
+            Step::CoerceFloat { site, carrier } => self.coerce_float(site, &carrier, execution)?,
+            Step::ReadArray => {
+                let index = execution.pop_integer();
+                let Some(PreparedValue::Array(elements)) = execution.values.pop() else {
+                    return Err(UNSUPPORTED_BODY.into());
+                };
+                let element = usize::try_from(index)
+                    .ok()
+                    .and_then(|position| elements.get(position))
+                    .ok_or("selected array read requires index < items.len")?;
+                execution.values.push(element.clone());
+            }
+            Step::ArrayLength => {
+                let Some(PreparedValue::Array(elements)) = execution.values.pop() else {
+                    return Err(UNSUPPORTED_BODY.into());
+                };
+                execution
+                    .values
+                    .push(PreparedValue::Integer(elements.len().into()));
+            }
+            Step::ProjectFields(fields) => self.project_owned_fields(&fields, execution)?,
+            Step::ProduceZero { site, carrier } => self.produce_zero(site, &carrier, execution)?,
             Step::Compare(token) => {
                 let right = execution.pop_integer();
                 let left = execution.pop_integer();
@@ -359,6 +578,15 @@ impl ConstantEvaluation<'_, '_> {
         chain: &[(TreeNodeId, bool)],
         cycle: &[&TypedCall],
     ) -> EvaluationError {
+        EvaluationError::AtCall(self.call_diagnostic(reason, chain, cycle))
+    }
+
+    fn call_diagnostic(
+        &self,
+        reason: &str,
+        chain: &[(TreeNodeId, bool)],
+        cycle: &[&TypedCall],
+    ) -> omega_typer::TypeError {
         let site = cycle
             .last()
             .map_or_else(|| chain.last().expect("visited call").0, |call| call.node);
@@ -402,7 +630,7 @@ impl ConstantEvaluation<'_, '_> {
                 error.message.push_str(&call.machine.path);
             }
         }
-        EvaluationError::AtCall(error)
+        error
     }
 }
 
@@ -423,12 +651,16 @@ fn selected_boolean_operation<'a>(
 }
 
 fn is_aggregate(carrier: &ValueType) -> bool {
-    matches!(carrier, ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..))
+    matches!(
+        carrier,
+        ValueType::Array(..) | ValueType::Tuple(_) | ValueType::Nominal(_) | ValueType::Applied(..)
+    )
 }
 
-fn checked_carrier(
+fn checked_carrier_in_scope(
     tree: &TypedTree<'_>,
     node: usize,
+    application: Option<&TypedCall>,
 ) -> Result<ValueType, EvaluationError> {
     let mut expression_type = None;
     let mut landing_type = None;
@@ -443,7 +675,14 @@ fn checked_carrier(
         }
     }
     let carrier = landing_type.or(expression_type).ok_or(UNSUPPORTED_BODY)?;
-    if carrier != &ValueType::Bool && !is_aggregate(carrier) && IntegerRange::for_type(carrier).is_none() {
+    let specialized;
+    let carrier = if let Some(call) = application {
+        specialized = call.instantiate(carrier);
+        &specialized
+    } else {
+        carrier
+    };
+    if carrier != &ValueType::Bool && !is_aggregate(carrier) && IntegerRange::for_type(carrier).is_none() && FloatFormat::for_type(carrier).is_none() {
         return Err(UNSUPPORTED_BODY.into());
     }
     Ok(carrier.clone())
@@ -470,27 +709,35 @@ fn landed_value(
         }
     }
     if value.is_some() {
-        // A landing gives a value, not permission to skip the evaluation of a
-        // block or call that happens to produce it.
-        let file = tree.resolved().file;
-        if (node..file.nodes[node].end).any(|child| {
-            !matches!(file.nodes[child].kind, NodeKind::Literal | NodeKind::Paren | NodeKind::Binary | NodeKind::Unary)
-                || tree.semantics_at(child).any(|record| match record {
-                    NodeSemantics::Expression(_) | NodeSemantics::Landing(_) => false,
-                    NodeSemantics::Operation(operation) => {
-                        !matches!(operation.result, ValueType::Exact { .. })
-                            || !operation
-                                .operands
-                                .iter()
-                                .all(|operand| matches!(operand, ValueType::Exact { .. }))
-                    }
-                    _ => true,
-                })
-        }) {
-            return Err(UNSUPPORTED_BODY.into());
-        }
+        check_landing(tree, node)?;
     }
     Ok(value)
+}
+
+fn check_landing(
+    tree: &TypedTree<'_>,
+    node: usize,
+) -> Result<(), EvaluationError> {
+    // A landing gives a value, not permission to skip the evaluation of a
+    // block or call that happens to produce it.
+    let file = tree.resolved().file;
+    if (node..file.nodes[node].end).any(|child| {
+        !matches!(file.nodes[child].kind, NodeKind::Literal | NodeKind::Paren | NodeKind::Binary | NodeKind::Unary)
+            || tree.semantics_at(child).any(|record| match record {
+                NodeSemantics::Expression(_) | NodeSemantics::Landing(_) => false,
+                NodeSemantics::Operation(operation) => {
+                    !matches!(operation.result, ValueType::Exact { .. })
+                        || !operation
+                            .operands
+                            .iter()
+                            .all(|operand| matches!(operand, ValueType::Exact { .. }))
+                }
+                _ => true,
+            })
+    }) {
+        return Err(UNSUPPORTED_BODY.into());
+    }
+    Ok(())
 }
 
 fn selected_call<'a>(
@@ -513,21 +760,26 @@ fn selected_arithmetic<'a>(
     tree: &'a TypedTree<'_>,
     node: usize,
     carrier: &ValueType,
-) -> Result<(&'a str, &'a ValueType), EvaluationError> {
-    let operands_match = |token: &str, operands: &[ValueType]| {
-        matches!(operands, [left, right] if left == carrier && (right == carrier
-            || (token.starts_with("<<") || token.starts_with(">>")) && matches!(right, ValueType::Integer { .. })))
+    application: Option<&TypedCall>,
+) -> Result<(&'a str, ValueType), EvaluationError> {
+    let instantiate = |ty: &ValueType| application.map_or_else(|| ty.clone(), |call| call.instantiate(ty));
+    let right_carrier = |token: &str, operands: &[ValueType]| {
+        let [left, right] = operands else { return Err(UNSUPPORTED_BODY) };
+        let right = instantiate(right);
+        let shift = token.starts_with("<<") || token.starts_with(">>");
+        if &instantiate(left) != carrier || (&right != carrier && !(shift && matches!(right, ValueType::Integer { .. }))) {
+            return Err(UNSUPPORTED_BODY);
+        }
+        Ok(right)
     };
     let mut operation = None;
     let mut covers_trap = false;
     let mut contract = None;
     for record in tree.semantics_at(node) {
         match record {
-            NodeSemantics::Operation(selected) if operands_match(&selected.token, &selected.operands) && &selected.result == carrier => {
-                if operation
-                    .replace((selected.token.as_str(), &selected.operands[1]))
-                    .is_some()
-                {
+            NodeSemantics::Operation(selected) if &instantiate(&selected.result) == carrier => {
+                let right = right_carrier(&selected.token, &selected.operands)?;
+                if operation.replace((selected.token.as_str(), right)).is_some() {
                     return Err(UNSUPPORTED_BODY.into());
                 }
             }
@@ -546,7 +798,8 @@ fn selected_arithmetic<'a>(
                 let ObligationKind::OperationContract { token, operands } = &obligation.kind else {
                     return Err(UNSUPPORTED_BODY.into());
                 };
-                if !operands_match(token, operands) || contract.replace((token.as_str(), &operands[1])).is_some() {
+                let right = right_carrier(token, operands)?;
+                if contract.replace((token.as_str(), right)).is_some() {
                     return Err(UNSUPPORTED_BODY.into());
                 }
             }
@@ -555,7 +808,7 @@ fn selected_arithmetic<'a>(
         }
     }
     operation
-        .filter(|token| Some(*token) == contract && (!covers_trap || token.0.ends_with('!')))
+        .filter(|selection| Some(selection) == contract.as_ref() && (!covers_trap || selection.0.ends_with('!')))
         .ok_or_else(|| UNSUPPORTED_BODY.into())
 }
 

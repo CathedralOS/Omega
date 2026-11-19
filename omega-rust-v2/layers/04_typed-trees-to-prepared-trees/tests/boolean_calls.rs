@@ -144,7 +144,7 @@ fn boolean_static_computation_specializes_at_each_exact_owner_argument() {
                 call.machine.path == "flip"
                     && matches!(
                         call.type_arguments.as_slice(),
-                        [omega_typer::ValueType::StaticValue { value: PreparedValue::Bool(value), .. }] if *value == argument
+                        [omega_typer::ValueType::StaticValue { value: omega_typer::StaticValue::Bool(value), .. }] if *value == argument
                     )
             })
             .expect("selected call retained the closed Boolean binder");
@@ -214,7 +214,7 @@ fn compound_integer_calls_are_equivalent_to_their_literal_result() {
 
 #[test]
 fn a_selected_scalar_block_cannot_ignore_an_unsupported_statement() {
-    let source = "machine run(value:bool)->bool {let mut saved:bool=value; saved=false; saved} const VALUE:bool=run(true);";
+    let source = "machine run(value:bool)->bool {let saved:bool=value; _ = saved; saved} const VALUE:bool=run(true);";
     let error = prepare(source).unwrap_err();
     assert!(
         error
@@ -261,4 +261,26 @@ fn nested_integer_arguments_keep_the_enclosing_specialization() {
         let error = prepare(&source.replace("Outer<2>::Inner<4>", actuals)).unwrap_err();
         assert!(error.message.contains(&format!("found [u8; {expected}]")), "{error:?}");
     }
+}
+
+#[test]
+fn writes_only_the_selected_local_in_each_fresh_invocation() {
+    let machines = "machine invert(value:bool)->bool {!value}
+                    machine run(value:bool)->bool {
+                        let original:bool=value;
+                        let mut saved:bool=value;
+                        saved=invert(saved);
+                        saved != original && saved
+                    }";
+    let source = format!("{machines} const FALSE:bool=run(true); const TRUE:bool=run(false);");
+    let prepared = prepare(&source).unwrap();
+    for constant in &prepared.typed().constants {
+        let expected = constant.declaration.path == "TRUE";
+        assert_eq!(prepared.constant(&constant.declaration), Some(&PreparedValue::Bool(expected)));
+    }
+
+    let immutable = source.replace("let mut saved", "let saved");
+    let error = prepare(&immutable).unwrap_err();
+    assert_eq!(error.message, "place requires writable authority");
+    assert_eq!(error.span.slice(immutable.as_bytes()), Some(b"saved".as_slice()));
 }

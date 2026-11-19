@@ -175,7 +175,7 @@ require_beta_encoding_producer_entry_identity() {
     "$OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY" \
     "$BETA_ENCODING_PRODUCER_ENTRY_SIZE" \
     "$BETA_ENCODING_PRODUCER_ENTRY_SHA256" \
-    "tests/gamma/beta-encoding-theory/README.md"
+    "bootstrap/proofs/tests/beta-encoding-theory/README.md"
 }
 
 # require_derivation_*_entry_identity : the gate's diagnostic prefix entry is
@@ -187,35 +187,35 @@ require_derivation_admission_entry_identity() {
   require_bound_identity "main.gamma" \
     "$OMEGA_PATH_DERIVATION_ADMISSION_ENTRY" \
     "$DERIVATION_ADMISSION_ENTRY_SIZE" "$DERIVATION_ADMISSION_ENTRY_SHA256" \
-    "tests/gamma/derivation-admission/README.md"
+    "_recycling/tests/gamma/derivation-admission/README.md"
 }
 
 require_derivation_checking_entry_identity() {
   require_bound_identity "main.gamma" \
     "$OMEGA_PATH_DERIVATION_CHECKING_ENTRY" \
     "$DERIVATION_CHECKING_ENTRY_SIZE" "$DERIVATION_CHECKING_ENTRY_SHA256" \
-    "tests/gamma/derivation-checking/README.md"
+    "_recycling/tests/gamma/derivation-checking/README.md"
 }
 
 require_derivation_formation_entry_identity() {
   require_bound_identity "main.gamma" \
     "$OMEGA_PATH_DERIVATION_FORMATION_ENTRY" \
     "$DERIVATION_FORMATION_ENTRY_SIZE" "$DERIVATION_FORMATION_ENTRY_SHA256" \
-    "tests/gamma/derivation-formation/README.md"
+    "_recycling/tests/gamma/derivation-formation/README.md"
 }
 
 require_derivation_ground_entry_identity() {
   require_bound_identity "main.gamma" \
     "$OMEGA_PATH_DERIVATION_GROUND_ENTRY" \
     "$DERIVATION_GROUND_ENTRY_SIZE" "$DERIVATION_GROUND_ENTRY_SHA256" \
-    "tests/gamma/derivation-ground/README.md"
+    "_recycling/tests/gamma/derivation-ground/README.md"
 }
 
 require_derivation_layout_entry_identity() {
   require_bound_identity "main.gamma" \
     "$OMEGA_PATH_DERIVATION_LAYOUT_ENTRY" \
     "$DERIVATION_LAYOUT_ENTRY_SIZE" "$DERIVATION_LAYOUT_ENTRY_SHA256" \
-    "tests/gamma/derivation-layout/README.md"
+    "_recycling/tests/gamma/derivation-layout/README.md"
 }
 
 # require_derivation_substitution_prefixes_identity : the shared diagnostic
@@ -239,7 +239,7 @@ require_derivation_substitution_prefixes_identity() {
     set -- $DERIVATION_SUBSTITUTION_ENTRY
     require_bound_identity "$1" \
       "$OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES/$4/$1" "$2" "$3" \
-      "tests/gamma/derivation-substitution/README.md" || return $?
+      "bootstrap/proofs/tests/derivation-substitution/README.md" || return $?
   done
 }
 
@@ -260,6 +260,6 @@ require_derivation_comparison_prefixes_identity() {
     set -- $DERIVATION_COMPARISON_ENTRY
     require_bound_identity "$1" \
       "$OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES/$4/$1" "$2" "$3" \
-      "tests/gamma/derivation-comparison/README.md" || return $?
+      "bootstrap/proofs/tests/derivation-comparison/README.md" || return $?
   done
 }

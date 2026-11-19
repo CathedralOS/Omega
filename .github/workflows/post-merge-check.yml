@@ -78,7 +78,7 @@ jobs:
       - name: Check production dependency boundaries
         run: mbx xtask check-boundary
       # Observe mode: this lists rows the check would block once it enforces,
-      # and never fails the run (tools/docs/testing.md#library-cross-target-check).
+      # and never fails the run (wiki/development/testing.md#library-cross-target-check).
       - name: Report std cross-target differences (observe only)
         continue-on-error: true
         run: |
@@ -156,7 +156,7 @@ jobs:
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
             mbx xtask sample-gate --filter samples/cli/facts/length/local < /dev/null
       - name: Read errno after a failed realpath in both engines
-        working-directory: /workspace/Omega/tests/fixtures/run/providers/provider_errno_realpath
+        working-directory: /workspace/Omega/source-rust/application/tests/fixtures/providers/run/provider_errno_realpath
         run: |
           omega=/workspace/Omega/target/debug/omega
           test ! -e q
@@ -168,7 +168,7 @@ jobs:
       # compiler the sample gate just built and takes about three minutes.
       - name: Run a program that imports std natively and in the interpreter
         run: |
-          cd /workspace/Omega/tests/fixtures/run/providers/default_console_provider_reached
+          cd /workspace/Omega/tests/fixtures/providers/run/default_console_provider_reached
           omega=/workspace/Omega/target/debug/omega
           [ -x "$omega" ] || { echo "the sample gate left no compiler at $omega" >&2; exit 1; }
           env -u CI -u GITHUB_ACTIONS "$omega" run --both \

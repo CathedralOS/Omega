@@ -23,6 +23,7 @@ impl DeclarationCatalog<'_> {
             closed_runtime: false,
             pause: sig.pause.declared(),
             has_guarantee: sig.has_guarantee,
+            requires: sig.requires,
             reach: sig.reach.clone(),
             terminates: sig.terminates,
             crash_ceiling: sig.crash_ceiling.clone(),

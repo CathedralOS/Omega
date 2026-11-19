@@ -10,7 +10,7 @@ use target::TargetProfile;
 use terminal_codec::CanonicalTerminalArtifact;
 
 const SAVED: &[u8] = include_bytes!(
-    "../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/linux_x86_64.psi"
+    "../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
 );
 
 fn with_published_target<T>(
@@ -267,7 +267,7 @@ fn assert_native_exit(bytes: &[u8]) {
         BoundedCaptureBudget::new(2048),
     )
     .unwrap();
-    let expected = include_str!("../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/expected_native_exit.txt").trim().parse::<i32>().unwrap();
+    let expected = include_str!("../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/expected_native_exit.txt").trim().parse::<i32>().unwrap();
     assert_eq!(
         output.status.code(),
         Some(expected),

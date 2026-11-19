@@ -382,7 +382,7 @@ fn malformed_or_forged_operational_metadata_is_not_a_program_rejection() {
 #[test]
 fn the_kept_runtime_witness_checks_before_native_realization() {
     accepted(include_str!(
-        "../../../../../../../../tests/fixtures/run/calls/operational_contracts/main.omg"
+        "../../tests/fixtures/calls/run/operational_contracts/main.omg"
     ));
 }
 

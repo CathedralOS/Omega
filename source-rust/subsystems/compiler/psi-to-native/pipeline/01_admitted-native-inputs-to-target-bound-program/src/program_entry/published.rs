@@ -184,7 +184,7 @@ fn admit_entry_schema(
         }
         // Without an accepted binding, entry contract selection admits only the
         // package that alone supplies the target's contract source, and only its
-        // root-level schema bearing the target's default name. Admit exactly
+        // schema at the target's exact package-relative declaration path. Admit exactly
         // that schema here; any other unbound package schema stays refused.
         (DeclarationCustody::Package(owner), None)
             if schema.declaration.trait_package_identity == Some(owner)

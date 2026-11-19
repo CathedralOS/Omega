@@ -180,7 +180,7 @@ fn direct_and_literal_indices_share_a_closed_identity() {
         };
         assert_eq!(request.expression.span.slice(source.as_bytes()), Some(b"width(7)".as_slice()));
         assert_eq!(request.carrier, ValueType::Integer { signed: false, width: Some(8) });
-        assert_eq!(value, &omega_preparation::PreparedValue::Integer(BigInt::from(expected)));
+        assert_eq!(value, &omega_typer::StaticValue::Integer(BigInt::from(expected)));
     }
 }
 
@@ -472,12 +472,9 @@ fn boolean_calls_names_and_literals_have_one_closed_type_identity() {
     assert_eq!(computed, &signature("sink").parameters[0].1);
     assert_eq!(computed, &signature("carry").result);
     assert_eq!(prepared.constant(&typed.constants[0].declaration), Some(&PreparedValue::Bool(true)));
-    assert!(
-        typed
-            .evaluated_indices
-            .iter()
-            .any(|(request, value)| request.expression.span.slice(source.as_bytes()) == Some(b"enabled()".as_slice()) && value == &PreparedValue::Bool(true))
-    );
+    assert!(typed.evaluated_indices.iter().any(
+        |(request, value)| request.expression.span.slice(source.as_bytes()) == Some(b"enabled()".as_slice()) && value == &omega_typer::StaticValue::Bool(true)
+    ));
     let incompatible = source.replace("->bool{true}", "->bool{false}");
     let error = prepare(&incompatible).unwrap_err();
     assert_eq!(error.file, "main.omg");
@@ -991,7 +988,7 @@ fn an_unrelated_nested_declaration_does_not_block_its_container() {
             .iter()
             .find(|(request, _)| request.expression.span.slice(source.as_bytes()) == Some(b"enabled()".as_slice()))
             .unwrap();
-        assert_eq!(result.1, omega_preparation::PreparedValue::Bool(true));
+        assert_eq!(result.1, omega_typer::StaticValue::Bool(true));
     }
 }
 

@@ -106,7 +106,7 @@ fn integer_identity_uses_the_written_subjects_at_entry_and_return() {
                 .result
             };
             let positive =
-                unbuilt_frontier::repository("tests/fixtures/run/contracts/plain_integer_identity");
+                unbuilt_frontier::repository("source-rust/subsystems/compiler/tests/fixtures/contracts/run/plain_integer_identity");
             let checked = check(&positive)
                 .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
             let publication = checked
@@ -126,7 +126,7 @@ fn integer_identity_uses_the_written_subjects_at_entry_and_return() {
                 "identity_ensures_wrong_subject",
             ] {
                 let fixture =
-                    unbuilt_frontier::repository("tests/fixtures/fail/contracts").join(name);
+                    unbuilt_frontier::repository("source-rust/subsystems/compiler/tests/fixtures/contracts/fail").join(name);
                 let expected = std::fs::read_to_string(fixture.join("expected.txt")).unwrap();
                 let diagnostics = check(&fixture)
                     .expect_err("the written identity is not proved")

@@ -137,6 +137,6 @@ name-event envelope and the capture aggregate, now closed at
 [normalization audit](../normalization/README.md#capture-allocation-ownership).
 The envelope exceeding the arena from `N = 238` is settled by measurement: the
 [worst-shape
-study](../../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+study](../../../../../_recycling/tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
 projects 417,063,339 pairs at admitted extents, 8.2× under the
 3,422,453,760-pair arena.

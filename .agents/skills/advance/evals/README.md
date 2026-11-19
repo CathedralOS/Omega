@@ -76,7 +76,7 @@ Record the worker's revision, host, commands and exit codes, diff, customer
 result, publication state, remaining dependencies, and the instruction files it
 read. Compare commits against the recorded base, not the moving origin/main.
 Rerun the claimed checks on the tested commit before discarding anything. A
-full baseline run is an explicit experiment choice under tools/docs/testing.md,
+full baseline run is an explicit experiment choice under wiki/development/testing.md,
 not a routine grading step.
 
 Keep trial results out of the skill's instructions. Say whether you read

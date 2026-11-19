@@ -40,39 +40,39 @@ enum Expected {
 /// Programs with precise diagnostic checks are pinned below.
 const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
     (
-        "tests/fixtures/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/unformed_contradiction_cannot_hide_overflow",
         Expected::Rejected,
     ),
     (
-        "tests/fixtures/fail/constants/target_layout_derived_ground_guarantee_reject",
+        "source-rust/subsystems/compiler/tests/fixtures/constants/fail/target_layout_derived_ground_guarantee_reject",
         Expected::Rejected,
     ),
     (
-        "tests/fixtures/fail/contracts/overwritten_requirement_cannot_rule_out_branch",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/overwritten_requirement_cannot_rule_out_branch",
         Expected::Rejected,
     ),
     (
-        "tests/fixtures/fail/contracts/ruled_out_caller_does_not_bound_callee_body",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/ruled_out_caller_does_not_bound_callee_body",
         Expected::Rejected,
     ),
     (
-        "tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/unproved_branch_is_not_contradiction",
         Expected::Rejected,
     ),
     (
-        "tests/fixtures/fail/contracts/adapter_input_membership_is_not_result",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/adapter_input_membership_is_not_result",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/dyn_requirement_float_nonreflexive",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/dyn_requirement_float_nonreflexive",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/termination/computed_rank_no_decrease",
+        "source-rust/subsystems/compiler/tests/fixtures/termination/fail/computed_rank_no_decrease",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/termination/native_layout_family_circular",
+        "source-rust/subsystems/compiler/tests/fixtures/termination/fail/native_layout_family_circular",
         Expected::FallsBack,
     ),
 ];
@@ -83,147 +83,147 @@ const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
 /// whose entry is `machine main() {}`.
 const OTHER_SWEPT_DEFECTS: &[(&str, Expected)] = &[
     (
-        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_exact_overflow",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/integer_multiple_remainder_exact_overflow",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_saturation",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/integer_multiple_remainder_saturation",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_signed_minimum",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/integer_multiple_remainder_signed_minimum",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_wrapping",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/integer_multiple_remainder_wrapping",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_zero_divisor",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/integer_multiple_remainder_zero_divisor",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/contracts/match_contract_partial_operand_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/match_contract_partial_operand_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/contracts/match_contract_replaced_subject_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/match_contract_replaced_subject_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/contracts/match_contract_unknown_arm_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/match_contract_unknown_arm_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/contracts/match_contract_wrong_case_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/match_contract_wrong_case_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/contracts/recursive_result_bound_changed_actual",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/recursive_result_bound_changed_actual",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/contracts/ruled_out_arm_value_does_not_reach_join",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/ruled_out_arm_value_does_not_reach_join",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/contracts/written_element_cannot_rule_out_branch",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/written_element_cannot_rule_out_branch",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/core/content_projection_foreign_package",
+        "source-rust/subsystems/compiler/tests/fixtures/core/fail/content_projection_foreign_package",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/core/scoped_integer_call_wrapping_actual_requires_formation",
+        "source-rust/subsystems/compiler/tests/fixtures/core/fail/scoped_integer_call_wrapping_actual_requires_formation",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/applied_callable_unproven_law",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/applied_callable_unproven_law",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_inequality",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/dyn_requirement_float_alias_inequality",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_negated",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/dyn_requirement_float_alias_negated",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_strict",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/dyn_requirement_float_alias_strict",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/mathematical_negated_custom_order",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/mathematical_negated_custom_order",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/mathematical_negated_ieee_order",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/mathematical_negated_ieee_order",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/quotient_runtime_affine_carrier",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/quotient_runtime_affine_carrier",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/quotient_runtime_false_relation",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/quotient_runtime_false_relation",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/quotient_runtime_false_result",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/quotient_runtime_false_result",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/quotient_runtime_routed_carrier",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/quotient_runtime_routed_carrier",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/quotient_theorem_private_crash_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/quotient_theorem_private_crash_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/referenced_law_slot_ambiguous",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/referenced_law_slot_ambiguous",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/result_index_authored_operator",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/result_index_authored_operator",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/result_index_lexical_operator",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/result_index_lexical_operator",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/result_index_shadowed_result",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/result_index_shadowed_result",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/proofs/structural_application_premise_unknown_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/structural_application_premise_unknown_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/targets/target_local_precondition_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/targets/fail/target_local_precondition_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/termination/computed_rank_guard_write",
+        "source-rust/subsystems/compiler/tests/fixtures/termination/fail/computed_rank_guard_write",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/termination/computed_rank_operand_write",
+        "source-rust/subsystems/compiler/tests/fixtures/termination/fail/computed_rank_operand_write",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/termination/computed_rank_static_arity",
+        "source-rust/subsystems/compiler/tests/fixtures/termination/fail/computed_rank_static_arity",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/termination/native_layout_family_missing_premise",
+        "source-rust/subsystems/compiler/tests/fixtures/termination/fail/native_layout_family_missing_premise",
         Expected::FallsBack,
     ),
     (
-        "tests/fixtures/fail/termination/native_layout_family_unpromised",
+        "source-rust/subsystems/compiler/tests/fixtures/termination/fail/native_layout_family_unpromised",
         Expected::FallsBack,
     ),
 ];
@@ -350,7 +350,7 @@ fn arithmetic_contract_defects_keep_their_proof_refusals() {
 
     // The constructor's remainder predicate reaches a proof obligation.
     // The scalar prover cannot decide this comparison and refuses the value.
-    let fixture = "tests/fixtures/fail/arithmetic/integer_multiple_remainder_stale_capture";
+    let fixture = "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/integer_multiple_remainder_stale_capture";
     let frontier = rejected_frontier(fixture);
     let obligation = unproved_subject_obligation(&frontier);
     assert!(matches!(
@@ -378,7 +378,7 @@ fn arithmetic_contract_defects_keep_their_proof_refusals() {
     );
 
     // At u8 value 128 the wrapping product is zero while the result is 128.
-    let fixture = "tests/fixtures/fail/proofs/wrapping_zero_product_does_not_cancel_factor";
+    let fixture = "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/wrapping_zero_product_does_not_cancel_factor";
     let frontier = rejected_frontier(fixture);
     let obligation = unproved_subject_obligation(&frontier);
     assert!(matches!(
@@ -411,7 +411,7 @@ fn a_defect_in_a_machine_the_entry_never_calls_is_never_accepted() {
     let wrong = wrong_verdicts(UNCALLED_DEFECTS);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 
-    let fixture = "tests/fixtures/fail/contracts/ruled_out_branch_requires_resolved_names";
+    let fixture = "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/ruled_out_branch_requires_resolved_names";
     let frontier = rejected_frontier(fixture);
     let violation = rule_violation(&frontier);
     let rule = DeferredRequest::UndeclaredValueName.construct();
@@ -427,7 +427,7 @@ fn a_defect_in_a_machine_the_entry_never_calls_is_never_accepted() {
         "missing_name",
     );
 
-    let fixture = "tests/fixtures/fail/proofs/normal_return_expression_statement_is_not_return";
+    let fixture = "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/normal_return_expression_statement_is_not_return";
     let frontier = rejected_frontier(fixture);
     let (_, verdict) = route_verdict(&frontier);
     let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
@@ -478,7 +478,7 @@ fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier =
-        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
+        rejected_frontier("source-rust/subsystems/compiler/tests/fixtures/contracts/fail/unproved_branch_is_not_contradiction");
     let entry = *frontier.entries.first().expect("the Build binds an entry");
     let (machines, verdict) = route_verdict(&frontier);
     let machines = machines.expect("the whole program is inside the lowered subset");
@@ -523,44 +523,44 @@ fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
 /// an entry, so each machine is judged as the root of its own closure.
 const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
     (
-        "tests/fixtures/fail/arithmetic/fractional_integer_landing",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/fractional_integer_landing",
         "value",
         "expression fractional anonymous value while reading the body of `value`",
     ),
     (
-        "tests/fixtures/fail/arithmetic/fractional_integer_operand",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/fractional_integer_operand",
         "value",
         "expression fractional anonymous value while reading the body of `value`",
     ),
     (
-        "tests/fixtures/fail/arithmetic/anonymous_remainder_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/anonymous_remainder_rejected",
         "run",
         "expression anonymous operation without an exact meaning while reading the body of `run`",
     ),
     (
-        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/implicit_fractional_integer_landing",
         "returned",
         "expression anonymous value with a fractional intermediate while reading the body of `returned`",
     ),
     (
-        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/implicit_fractional_integer_landing",
         "local",
         "expression anonymous value with a fractional intermediate while reading the local binding of \
          `local::entry::value` while reading the body of `local`",
     ),
     (
-        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/implicit_fractional_integer_landing",
         "field",
         "expression anonymous value with a fractional intermediate while reading the local binding of \
          `field::entry::held` while reading the body of `field`",
     ),
     (
-        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/implicit_fractional_integer_landing",
         "argument",
         "expression anonymous value with a fractional intermediate while reading the body of `argument`",
     ),
     (
-        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/implicit_fractional_integer_landing",
         "half",
         "expression anonymous value with a fractional intermediate while reading the body of `half`",
     ),
@@ -611,7 +611,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier =
-        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
+        rejected_frontier("source-rust/subsystems/compiler/tests/fixtures/contracts/fail/unproved_branch_is_not_contradiction");
     let another = another_package(&frontier);
     // Checked as a dependency of some other package, the fixture's machines
     // are judged only when an entry reaches them.
@@ -653,7 +653,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier =
-        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
+        rejected_frontier("source-rust/subsystems/compiler/tests/fixtures/contracts/fail/unproved_branch_is_not_contradiction");
     let entry = *frontier.entries.first().expect("the Build binds an entry");
     let another = another_package(&frontier);
     let typed = &frontier.typed;
@@ -1191,7 +1191,7 @@ fn literal_constant_predicates_use_checked_initializers() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut frontier = unbuilt_frontier::fixture_frontier(
-        "tests/fixtures/pass/constants/literal_predicate_handoff",
+        "source-rust/subsystems/compiler/tests/fixtures/constants/pass/literal_predicate_handoff",
     );
     let (_, verdict) = route_verdict(&frontier);
     assert!(
@@ -1203,7 +1203,7 @@ fn literal_constant_predicates_use_checked_initializers() {
     // refusal must come from that constructor's predicate, not its spelling
     // or from a failure to encode the record.
     let main = unbuilt_frontier::repository(
-        "tests/fixtures/fail/constants/literal_predicate_handoff/main.omg",
+        "source-rust/subsystems/compiler/tests/fixtures/constants/fail/literal_predicate_handoff/main.omg",
     );
     let Err(messages) = unbuilt_frontier::frontier(&main, None, &[]) else {
         panic!("the false predicate on an unused constant must be refused");
@@ -1343,7 +1343,7 @@ fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let ruled_out = rejected_frontier(
-        "tests/fixtures/pending/contracts/requires_disequality_rules_out_crash_route_exit",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/pending/requires_disequality_rules_out_crash_route_exit",
     );
     let verdict = route_verdict(&ruled_out).1;
     assert!(
@@ -1351,7 +1351,7 @@ fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
         "every route is ruled out: {verdict:?}"
     );
     let left_open = rejected_frontier(
-        "tests/fixtures/fail/contracts/requires_disequality_leaves_crash_route_open",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/requires_disequality_leaves_crash_route_open",
     );
     let verdict = route_verdict(&left_open).1;
     assert!(
@@ -1371,11 +1371,11 @@ fn a_call_into_another_packages_private_machine_is_never_accepted() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     // The edge the fixture's Build registers, under the alias it gives.
     let frontier = unbuilt_frontier::bound_fixture_frontier(
-        "tests/fixtures/fail/build/executed_dependency_private_call",
+        "source-rust/subsystems/compiler/tests/fixtures/build/fail/executed_dependency_private_call",
         None,
         &[(
             "selected",
-            "tests/fixtures/pass/build/executed_dependency_source_library",
+            "tests/fixtures/build/pass/executed_dependency_source_library",
         )],
     );
     let verdict = route_verdict(&frontier).1;
@@ -1396,7 +1396,7 @@ fn a_statement_that_drops_its_value_is_never_accepted() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let wrong = wrong_verdicts(&[(
-        "tests/fixtures/fail/calls/non_unit_compound_expression_requires_use",
+        "source-rust/subsystems/compiler/tests/fixtures/calls/fail/non_unit_compound_expression_requires_use",
         Expected::FallsBack,
     )]);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
@@ -1564,7 +1564,7 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier =
-        unbuilt_frontier::fixture_frontier("tests/fixtures/pass/contracts/mutable_contract_input");
+        unbuilt_frontier::fixture_frontier("source-rust/subsystems/compiler/tests/fixtures/contracts/pass/mutable_contract_input");
     let counter = unbuilt_frontier::program_machine(&frontier.typed, "counter").unwrap();
     let closure = match route_verdict(&frontier).1 {
         Ok(RouteVerdict::Accepted(closure)) => closure,
@@ -1620,7 +1620,7 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
     );
 
     let wrong =
-        unbuilt_frontier::fixture_frontier("tests/fixtures/fail/contracts/mutable_contract_input");
+        unbuilt_frontier::fixture_frontier("source-rust/subsystems/compiler/tests/fixtures/contracts/fail/mutable_contract_input");
     let verdict = route_verdict(&wrong).1;
     let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
         panic!("the final-value interpretation must reject: {verdict:?}");

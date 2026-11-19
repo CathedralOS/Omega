@@ -100,7 +100,7 @@ The nested twin expects caller/state names `main`/`pick`; the diagnostic reports
 The compiler and library sources are also unchanged.
 The changed provider and control packages do not enter that nested program.
 The failure therefore predates this migration and is outside its changed scope,
-as allowed by [validation scope](../../../../tools/docs/testing.md#validation-scope).
+as allowed by [validation scope](../../../../wiki/development/testing.md#validation-scope).
 
 The expectation and strict validation rule are unchanged. Every failed report
 remains failed. Correcting that expectation is separate work on the broader row;

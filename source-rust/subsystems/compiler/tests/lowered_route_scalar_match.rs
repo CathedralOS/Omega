@@ -307,7 +307,7 @@ fn an_accepted_scalar_match_runs_the_arm_its_subject_selects() {
         )
     };
     let matching_carriers = std::fs::read_to_string(unbuilt_frontier::repository(
-        "tests/fixtures/run/calls/scalar_receiving_types/main.omg",
+        "source-rust/subsystems/compiler/tests/fixtures/calls/run/scalar_receiving_types/main.omg",
     ))
     .expect("the matching-carrier runtime witness is kept beside the test");
     // One-bit calls are checked and interpreted here; native call lowering
@@ -427,7 +427,7 @@ fn native_and_psi_execute_the_original_policy_transition() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let fixture = "tests/fixtures/run/control/scalar_pattern_operator_selection/main.omg";
+    let fixture = "source-rust/subsystems/compiler/tests/fixtures/control/run/scalar_pattern_operator_selection/main.omg";
     let root = fixture_package_inputs::repo_root().join(fixture);
     // Sealed fixtures retain repository-relative source identity. Keep this
     // generated neighbor beneath the ignored build root in a private directory.

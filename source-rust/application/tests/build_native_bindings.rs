@@ -245,7 +245,7 @@ fn a_dependency_binding_the_program_reaches_is_judged() {
 #[test]
 fn a_program_receives_the_bindings_of_the_standard_library() {
     let directory = support::repository_root()
-        .join("tests/fixtures/run/providers/default_console_provider_reached");
+        .join("tests/fixtures/providers/run/default_console_provider_reached");
     let stderr = omega_check(&directory);
     for refusal in ADMISSION_REFUSALS
         .into_iter()
@@ -264,7 +264,7 @@ fn a_program_receives_the_bindings_of_the_standard_library() {
 #[test]
 fn windows_console_emits_with_its_authored_imports() {
     let directory = support::repository_root()
-        .join("tests/fixtures/run/providers/default_console_provider_reached");
+        .join("tests/fixtures/providers/run/default_console_provider_reached");
     let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
     command.args(["run", "--both"]);
     if !cfg!(all(target_os = "windows", target_arch = "x86_64")) {

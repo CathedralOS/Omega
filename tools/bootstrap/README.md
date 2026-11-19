@@ -8,7 +8,7 @@ These temporary host scripts fall under the
 
 ```sh
 sh tools/bootstrap/check-chain-hygiene.sh
-sh tests/bootstrap/alpha-beta-edge.sh --edge
+sh bootstrap/interpreted/tests/alpha-beta-edge.sh --edge
 ```
 
 The second command, kept with the cross-rung tests, checks the finished part
@@ -22,7 +22,7 @@ audited Alpha container chosen in `bootstrap/interpreted/0_alpha/README.md`;
 `tools/bootstrap/beta/artifact_env.sh` pins the exact size and SHA-256 of
 `beta_compiler.beta` and `beta_compiler_bytecode.tape` and refuses any
 other bytes; these identities are audited in
-`bootstrap/interpreted/1_beta/AUDIT.md` and decoded by `tests/beta/compiler/root-audit.py`.
+`bootstrap/interpreted/1_beta/AUDIT.md` and decoded by `bootstrap/interpreted/tests/beta/compiler/root-audit.py`.
 `tools/bootstrap/gamma/evaluator_env.sh` pins `gamma_evaluator.beta` and
 `gamma_evaluator_bytecode.tape` the same way against
 `bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md`. A matching digest checks
@@ -35,14 +35,14 @@ repacked canonical closure and packed support section the same way against
 checks that the record names the chosen evaluator tape, packed closure
 and packed support section. It also pins the staged-compiler gate's
 `development_driver.gamma` diagnostic entry, packed on top of the pinned
-member bytes; `tests/bootstrap/delta-identity.sh` tests its refusals.
+member bytes. The archived [_Delta identity test_](../../_recycling/tests/bootstrap/delta-identity.sh) records its refusal cases.
 `tools/bootstrap/epsilon/evaluator_env.sh` pins the
 `epsilon_compiler.delta.sources` manifest and repacked evaluator closure
 against `bootstrap/interpreted/4_epsilon/README.md`. Both refuse before writing if
 the bytes differ from the pins, including a changed manifest or member. The Epsilon file also pins the canonical `execution_driver.delta`
 slice adapter and the evaluator receipt identity that the pinned Delta edge
 rebuilds from the pinned evaluator, driver and support section;
-`tests/bootstrap/epsilon-identity.sh` checks the driver and receipt refusals
+the archived [Epsilon identity test](../../_recycling/tests/bootstrap/epsilon-identity.sh) records the driver and receipt refusals
 and every consuming gate's record.
 
 `tools/bootstrap/omega/compiler_env.sh` pins the
@@ -63,9 +63,9 @@ repacked member closures against `bootstrap/proofs/checker/README.md` and
 diagnostic prefix entries packed on top of the pinned member bytes; each
 gate's README records its own.
 
-The fast `tests/bootstrap/*-identity.sh` gates check the exact bytes written
+The archived [identity gates](../../_recycling/tests/bootstrap/) checked the exact bytes written
 and that corrupted or truncated bytes are refused, against the pins. They
-check the records of the programs that use the bytes, but never grep
+checked the records of the programs that use the bytes, but never grep
 documentation for copies of the hashes or byte counts: a pin repeated in
 prose proves nothing new. The cited audit and profile documents explain each
 artifact and its obligations.
@@ -78,7 +78,7 @@ compiler from reaching past its immediate successor, and checks that
 manifest members and bootstrap step files omit the Rust producer.
 It finds directories from tracked and untracked non-ignored files in a Git
 checkout, or from the files in a source archive. Empty
-directories left by a move do not count. `sh tests/bootstrap/chain-hygiene.sh` checks this inventory
+directories left by a move do not count. `sh bootstrap/interpreted/tests/chain-hygiene.sh` checks this inventory
 behavior in disposable archive and checkout fixtures.
 Alpha, Beta and Gamma may not contain subdirectories. Delta, Epsilon and D
 may keep one folder per concept, but not a redundant root `compiler/`

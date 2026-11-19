@@ -334,7 +334,7 @@ resolution. Complete grammar/depth checking precedes this count. Generated
 helpers and typed metadata copies do not add authored rows. Gamma's selected
 function table fits every source admitted by its request extent, independently
 of Delta's authored-row count.
-The [generated-census gate](../../../tests/delta/generated-function-census/README.md)
+The [generated-census gate](../../../_recycling/tests/delta/generated-function-census/README.md)
 executes a complete receipt at the 32,768 authored-function allowance with
 additional Gamma runtime helpers. Complete payload admission bounds function
 storage, but does not close the other generated-program resources.
@@ -437,7 +437,7 @@ its cumulative pair allocation is that audit's
 no general bound shows that every admitted composition fits the selected
 3,422,453,760-pair arena. The
 [measured worst-shape
-study](../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+study](../../../_recycling/tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
 projects 417,063,339 pairs at admitted extents, below that arena. This
 supports the selected provision, but until the general proof closes it does
 not establish that an admitted compile never ends in a raw Gamma heap

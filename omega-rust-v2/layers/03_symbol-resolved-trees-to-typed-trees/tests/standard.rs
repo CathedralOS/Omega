@@ -517,6 +517,7 @@ fn receipt_admission_rejects_an_open_parameter_in_each_type_child() {
         closed_runtime: false,
         pause: Default::default(),
         has_guarantee: false,
+        requires: false,
         terminates: false,
         crash_ceiling: None,
     };

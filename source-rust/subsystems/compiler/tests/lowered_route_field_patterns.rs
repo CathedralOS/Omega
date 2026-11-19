@@ -42,15 +42,15 @@ fn judge_frontier(name: &str, frontier: &compiler::TypedFrontier) -> RouteVerdic
 fn a_payload_read_requires_all_other_cases_to_be_excluded() {
     let positive = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../tests/fixtures/run/contracts/case_refutation/main.omg"
+        "/../../../source-rust/subsystems/compiler/tests/fixtures/contracts/run/case_refutation/main.omg"
     ));
     let negative = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../tests/fixtures/fail/contracts/case_refutation/main.omg"
+        "/../../../source-rust/subsystems/compiler/tests/fixtures/contracts/fail/case_refutation/main.omg"
     ));
     let expected = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../tests/fixtures/fail/contracts/case_refutation/expected.txt"
+        "/../../../source-rust/subsystems/compiler/tests/fixtures/contracts/fail/case_refutation/expected.txt"
     ));
 
     let found = verdict("case_refutation", positive);
@@ -307,7 +307,7 @@ fn native_and_psi_observe_ordered_field_tests_and_fallback_effects() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/run/control/case_field_value_decisions/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/control/run/case_field_value_decisions/main.omg");
     let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
         .unwrap_or_else(|errors| panic!("pattern fixture discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {

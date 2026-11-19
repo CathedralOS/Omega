@@ -9,7 +9,7 @@ description: Use only when the user explicitly requests swarm. Coordinate concur
 This skill covers platform setup and how to start and message worker
 sessions. Ownership follows [AGENTS.md](../../../AGENTS.md#sessions-and-subagents),
 and merging follows
-[landing](../../../tools/docs/landing.md). Point workers to those files; do not
+[landing](../../../wiki/development/landing.md). Point workers to those files; do not
 copy their rules into prompts.
 
 - **Dispatch:** The coordinator chooses the outcome, reserves a worktree, registers the claim and starts the worker. Each worker reproduces the failure, implements and tests the repair, reviews the diff and lands it in its own `.agents/worktree/worker-N` pool slot and context window. A coordinator may review a diff; workers do not wait for its approval. Batch integration of uploaded source, used only on request, is in [Codex](references/codex.md).

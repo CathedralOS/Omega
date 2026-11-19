@@ -16,12 +16,12 @@ use terminal_psi::{
 use terminal_work::WorkMeter;
 
 fn fixtures() -> PathBuf {
-    fixture_repository::root().join("tests/fixtures")
+    fixture_repository::root().join("source-rust/subsystems/compiler/tests/fixtures/views")
 }
 
 #[test]
 fn representation_views_keep_backing_bytes_and_prove_the_converted_count() {
-    let root = fixtures().join("run/views/representation_collection/main.omg");
+    let root = fixtures().join("run/representation_collection/main.omg");
     let checked = orchestration::check_source(
         &mut compiler::CompilationSession::default(),
         compiler::CheckedCompileRequest::new(&root, Some("windows_x86_64")),
@@ -81,7 +81,7 @@ fn representation_views_keep_backing_bytes_and_prove_the_converted_count() {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
 
-    let root = fixtures().join("fail/views/representation_collection/main.omg");
+    let root = fixtures().join("fail/representation_collection/main.omg");
     let diagnostics = orchestration::check_source(
         &mut compiler::CompilationSession::default(),
         compiler::CheckedCompileRequest::new(&root, Some("windows_x86_64")),
@@ -104,7 +104,7 @@ fn reopened_byte_views_read_the_original_backing_after_arrival() {
         "mutable_byte_view_short_circuit",
         "whole_representation_view",
     ] {
-        let root = fixtures().join("run/views").join(fixture).join("main.omg");
+        let root = fixtures().join("run").join(fixture).join("main.omg");
         let checked = orchestration::check_source(
             &mut compiler::CompilationSession::default(),
             compiler::CheckedCompileRequest::new(&root, Some("macos_arm64")),
@@ -129,7 +129,7 @@ fn reopened_byte_views_read_the_original_backing_after_arrival() {
 
 #[test]
 fn arrival_index_equal_to_exact_view_length_refuses() {
-    let root = fixtures().join("fail/views/mutable_byte_view_arrival_bounds/main.omg");
+    let root = fixtures().join("fail/mutable_byte_view_arrival_bounds/main.omg");
     let diagnostics = orchestration::check_source(
         &mut compiler::CompilationSession::default(),
         compiler::CheckedCompileRequest::new(&root, Some("macos_arm64")),
@@ -150,7 +150,7 @@ fn arrival_index_equal_to_exact_view_length_refuses() {
 
 #[test]
 fn saved_field_element_read_requires_the_projected_descriptor_and_its_count() {
-    let source = fixtures().join("run/views/typed_slice_field_index/main.omg");
+    let source = fixtures().join("run/typed_slice_field_index/main.omg");
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let checked = orchestration::check_source(
@@ -199,7 +199,7 @@ fn saved_field_element_read_requires_the_projected_descriptor_and_its_count() {
                 "typed_slice_field_index_out_of_bounds",
                 "typed_slice_field_index_wrong_descriptor",
             ] {
-                let source = fixtures().join("fail/views").join(fixture).join("main.omg");
+                let source = fixtures().join("fail").join(fixture).join("main.omg");
                 let diagnostics = orchestration::check_source(
                     &mut compiler::CompilationSession::default(),
                     compiler::CheckedCompileRequest::new(&source, Some("macos_arm64")),
@@ -288,7 +288,7 @@ fn refuses_wrong_measurement(module: TerminalModule) {
 fn fixed_array_element_window_reopens_with_its_exact_measurement() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            let root = fixtures().join("run/views/typed_array_partial_window/main.omg");
+            let root = fixtures().join("run/typed_array_partial_window/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&root, Some("macos_arm64")),
@@ -334,7 +334,7 @@ fn fixed_array_element_window_reopens_with_its_exact_measurement() {
                 }
             ), "{refusal:?}");
 
-            let root = fixtures().join("fail/views/typed_array_partial_window_past_end/main.omg");
+            let root = fixtures().join("fail/typed_array_partial_window_past_end/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&root, Some("macos_arm64")),

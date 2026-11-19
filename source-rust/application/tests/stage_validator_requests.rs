@@ -7,13 +7,12 @@ mod support;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-const CASE_FIXTURE: &str = "run/calls/indexed_case_discriminator";
+const CASE_FIXTURE: &str = "tests/fixtures/calls/run/indexed_case_discriminator";
 const NAME: &str = "TargetOperationCorrespondence";
 
 // Each test compiles its own copy so concurrent tests never share a build directory.
 fn project(test: &str, fixture: &str) -> PathBuf {
     let source = support::repository_root()
-        .join("tests/fixtures")
         .join(fixture);
     let copy = std::env::temp_dir().join(format!(
         "omega-stage-validators-{test}-{}",
@@ -74,7 +73,7 @@ fn a_fixed_frame_request_retains_and_audits_the_original_allocation() {
     let name = "FixedFrameCorrespondence";
     let (success, console, report) = compile(
         "fixed-frame",
-        "run/ownership/borrowed_root_replacement",
+        "tests/fixtures/ownership/run/borrowed_root_replacement",
         &["--validator", name],
     );
     assert!(success, "{console}");
@@ -90,7 +89,7 @@ fn a_fixed_frame_request_retains_and_audits_the_original_allocation() {
 fn byte_view_home_retirement_passes_the_named_validator() {
     let (success, console, report) = compile(
         "view-retirement",
-        "run/views/byte_view_edge_retirement",
+        "source-rust/application/tests/fixtures/views/run/byte_view_edge_retirement",
         &["--validator", NAME],
     );
     assert!(success, "{console}");
@@ -182,7 +181,7 @@ fn unknown_and_unproduced_validators_are_invocation_errors() {
 fn failed_target_output_directory_still_reports_and_builds_a_valid_sibling() {
     let directory = project(
         "partial-target-output",
-        "run/providers/native_boundary_supply",
+        "tests/fixtures/providers/run/native_boundary_supply",
     );
     let outputs =
         platform_custody::temporary_directory::TemporaryDirectory::create("batch-targets", false)

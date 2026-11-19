@@ -7,9 +7,9 @@ use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
     let fixture = support::repository_root()
-        .join("tests/fixtures")
+        .join("source-rust/application/tests/fixtures/generics")
         .join(tier)
-        .join("generics/indexed_borrow_capture");
+        .join("indexed_borrow_capture");
     let scratch = TemporaryDirectory::create("indexed-borrow-capture", false).unwrap();
     for name in ["main.omg", "build.omg"] {
         std::fs::copy(fixture.join(name), scratch.path().join(name)).unwrap();

@@ -239,7 +239,7 @@ fn enum_comparison_observes_each_operand_once_in_native_and_psi() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/run/equality/intrinsic_enum_comparison/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/equality/run/intrinsic_enum_comparison/main.omg");
     let discovered = fixture_package_inputs::discover_fixture(&fixture, Default::default())
         .unwrap_or_else(|errors| panic!("enum fixture discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {

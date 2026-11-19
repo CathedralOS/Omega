@@ -35,7 +35,7 @@
 //   # zero the 16 UUID payload bytes in the LC_UUID load command
 //   codesign -f -s - alpha_arm64_macos
 // Modern dyld refuses images with no LC_UUID, so -Wl,-no_uuid is no longer an
-// option. tests/bootstrap/alpha-beta-edge.sh selects Xcode or xcrun's
+// option. bootstrap/interpreted/tests/alpha-beta-edge.sh selects Xcode or xcrun's
 // CommandLineTools clang/SDK and re-derives the binary, comparing it against
 // the committed container modulo the signature-coupled fields.
 // ============================================================================

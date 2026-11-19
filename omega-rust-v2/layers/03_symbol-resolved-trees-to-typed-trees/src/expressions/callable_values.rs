@@ -1,6 +1,6 @@
 use crate::contracts::effect_clauses;
 use crate::expressions::body_typer::BodyTyper;
-use crate::{CallableType, IndirectCall, ObligationKind, Site, TypeError, ValueType};
+use crate::{CallableType, IndirectCall, IndirectOperand, ObligationKind, Site, TypeError, ValueType};
 use omega_lexer::SourceSpan;
 use omega_resolver::DeclarationId;
 
@@ -175,20 +175,23 @@ impl BodyTyper<'_, '_> {
         if params.len() != source.nodes[args].children.len() {
             return Err(TypeError::at(source, node_index, "incorrect callback arity"));
         }
+        let mut operands = Vec::with_capacity(params.len());
         for (position, (&arg, p)) in source.nodes[args].children.iter().zip(params).enumerate() {
             let operand = self.argument_operand(arg, Some(p).into())?;
             self.admit_argument(node_index, position, &operand, p)?;
+            operands.push(IndirectOperand {
+                node: source.node_id(arg),
+                site: Site::at(source, arg),
+                subject: operand.subject(self.unit, p),
+                callable: matches!(operand.value, ValueType::Callable(_)).then(|| self.invocation_target(arg)),
+            });
         }
         let entry = self.invocation_target(callee);
         let use_site = self.record_call_use(node_index);
         self.output.indirect_calls.push(IndirectCall {
             node: source.node_id(node_index),
             use_site,
-            operands: source.nodes[args]
-                .children
-                .iter()
-                .map(|&a| Site::at(source, a))
-                .collect(),
+            operands,
             entry,
             site: Site::at(source, node_index),
             callee: Site::at(source, callee),

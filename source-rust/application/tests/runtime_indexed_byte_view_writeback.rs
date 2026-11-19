@@ -5,7 +5,6 @@ use std::process::{self, Command, Stdio};
 
 fn project(relative: &str, fixture: &str) -> PathBuf {
     support::repository_root()
-        .join("tests/fixtures")
         .join(relative)
         .join(fixture)
 }
@@ -72,13 +71,13 @@ fn indexed_view_store(inspected: &str) -> usize {
 
 #[test]
 fn a_call_replaces_only_the_selected_byte_view() {
-    let project = project("run/ownership", "runtime_indexed_byte_view_writeback");
+    let project = project("source-rust/application/tests/fixtures/ownership/run", "runtime_indexed_byte_view_writeback");
     indexed_view_store(&run_and_reopen(&project));
 }
 
 #[test]
 fn a_runtime_store_keeps_the_old_owned_array_contents_until_replacement() {
-    let project = project("run/ownership", "owned_runtime_indexed_byte_view_writeback");
+    let project = project("source-rust/application/tests/fixtures/ownership/run", "owned_runtime_indexed_byte_view_writeback");
     let inspected = run_and_reopen(&project);
     let store = indexed_view_store(&inspected);
     assert!(
@@ -103,7 +102,7 @@ fn a_runtime_store_keeps_the_old_owned_array_contents_until_replacement() {
 
 #[test]
 fn an_indexed_store_refuses_an_owned_array_with_a_moved_element() {
-    let project = project("fail/borrows", "owned_runtime_indexed_byte_view_writeback");
+    let project = project("source-rust/application/tests/fixtures/borrows/fail", "owned_runtime_indexed_byte_view_writeback");
     let output = omega(&project, &["--check", "build.omg"]);
     let refused = report(&output);
     assert_eq!(output.status.code(), Some(1), "{refused}");
@@ -116,7 +115,7 @@ fn an_indexed_store_refuses_an_owned_array_with_a_moved_element() {
 
 #[test]
 fn a_written_entry_contract_cannot_omit_the_store_bound() {
-    let project = project("fail/borrows", "runtime_indexed_byte_view_writeback");
+    let project = project("source-rust/application/tests/fixtures/borrows/fail", "runtime_indexed_byte_view_writeback");
     let output = omega(&project, &["--check", "build.omg"]);
     let refused = report(&output);
     assert_eq!(output.status.code(), Some(1), "{refused}");

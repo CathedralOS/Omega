@@ -71,15 +71,15 @@ must then rebuild the same Omega compiler source reproducibly.
   realization.
   The canonical evaluator boundary and `main` are realized by
   [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md): the packed closure plus the bound
-  [`evaluator_entry.delta`](../../../tests/epsilon/evaluator-entry/evaluator_entry.delta)
+  [`evaluator_entry.delta`](../../tests/conformance/epsilon/evaluator_entry.delta)
   source compiles to the canonical receipt that consumes the EREQ envelope and
   publishes canonical observations or EEOUT refusal frames within the
   evaluator's current construct coverage. Complete-D composition and
   `RunEpsilon` refinement over the exact D closure member sources share
   each base execution in
-  [`tests/epsilon/d-composition/`](../../../tests/epsilon/d-composition/README.md).
+  [`bootstrap/interpreted/tests/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md).
   The independent model and synthetic language corpus remain in
-  [`tests/epsilon/refinement/`](../../../tests/epsilon/refinement/README.md).
+  [`bootstrap/interpreted/tests/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md).
   The
   current fact pass does enforce contextual receiver/result relation and
   separate array-view extra-call rejection.
@@ -126,9 +126,9 @@ Start at [`epsilon_compiler.delta`](epsilon_compiler.delta). Its
 distinguishes rejection from internal failure, and starts the checked entry
 invocation. This library entrance is the evaluator's semantic core, not the
 physical request boundary; the canonical `main` is
-[`evaluator_entry.delta`](../../../tests/epsilon/evaluator-entry/evaluator_entry.delta)
+[`evaluator_entry.delta`](../../tests/conformance/epsilon/evaluator_entry.delta)
 and this file still exposes no artifact on its own.
-The [private execution driver](../../../tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
+The [private execution driver](../../../_recycling/tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
 preserves full `i32` exit codes, trap kinds and stdout prefixes, and rejection
 reasons and coordinates in distinct tagged results. Its transport is not a new
 normative Epsilon request or observation envelope.
@@ -140,7 +140,7 @@ separately: [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) defines EREQ v1, the
 canonical observation grammar, the EEOUT refusal frame, the carry of every
 lower-chain refusal status to the outer `Incomplete`, and the bound
 canonical receipt, gated by
-[`tests/epsilon/evaluator-entry/`](../../../tests/epsilon/evaluator-entry/README.md).
+[`bootstrap/interpreted/tests/epsilon/evaluator-entry/`](../../../_recycling/tests/epsilon/evaluator-entry/README.md).
 
 ## Follow the program
 
@@ -188,12 +188,12 @@ The packed evaluator is 12,096 lines / 616,939 bytes, SHA-256
 The manifest itself is 16,779 bytes, SHA-256
 `d8e2b9c0ef64c1be8a2b5b1582a4bde4cdba7f5d790cf95f2de0642b7bc69cc7`;
 `tools/bootstrap/epsilon/evaluator_env.sh` checks both identities against every
-materialization and `tests/bootstrap/epsilon-identity.sh` covers the refusals.
+materialization and `bootstrap/interpreted/tests/epsilon-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being evaluated, not a proof that
 the evaluator implements Epsilon.
 
 The canonical slice driver
-[`execution_driver.delta`](../../../tests/epsilon/interpreted-omega-experiment/execution_driver.delta)
+[`execution_driver.delta`](../drivers/execution_driver.delta)
 is 2,150 bytes, SHA-256
 `ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa`; every
 cross-rung consumer appends it after the packed evaluator to form the DCREQ
@@ -202,7 +202,7 @@ through the bound Delta compiler reconstructs exactly one evaluator receipt:
 719,006 bytes, SHA-256
 `f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340`.
 `tools/bootstrap/epsilon/evaluator_env.sh` binds both identities, and
-`tests/bootstrap/epsilon-identity.sh` covers the refusals and checks every
+`bootstrap/interpreted/tests/epsilon-identity.sh` covers the refusals and checks every
 consuming gate's record. The receipt identity is an obligation on the
 reconstructed bytes, not a proof that the evaluator implements Epsilon.
 When editing a member, update its manifest length and digest; change membership
@@ -257,25 +257,25 @@ fact. A resolved callable head has no value result to find, so this case avoids
 searching the accumulated whole-source expression ledger. Other heads retain
 the original value-category lookup and diagnostic ordering. This adds no index,
 cache, representation, or language/profile change. The
-[checking controls](../../../tests/epsilon/checking/README.md) cover nested
+[checking controls](../../../_recycling/tests/epsilon/checking/README.md) cover nested
 same-start calls, grouped/local value heads, and independent argument errors.
 
 From the repository root:
 
 ```sh
-sh tests/bootstrap/source-closure.sh
+sh bootstrap/interpreted/tests/source-closure.sh
 sh tools/bootstrap/check-chain-hygiene.sh
-sh tests/epsilon/checking/run.sh
-sh tests/epsilon/checking-invariants/run.sh
-sh tests/epsilon/runtime-references/run.sh
-sh tests/epsilon/runtime-invariants/run.sh
-sh tests/epsilon/array-storage/run.sh
-sh tests/epsilon/source-views/run.sh
-sh tests/epsilon/interpreted-omega-experiment/run.sh
-sh tests/epsilon/evaluator-entry/run.sh
-sh tests/epsilon/refinement/run.sh
-sh tests/epsilon/d-composition/run.sh
-sh tests/delta/staged-compiler/run.sh
+sh bootstrap/interpreted/tests/epsilon/checking/run.sh
+sh bootstrap/interpreted/tests/epsilon/checking-invariants/run.sh
+sh bootstrap/interpreted/tests/epsilon/runtime-references/run.sh
+sh bootstrap/interpreted/tests/epsilon/runtime-invariants/run.sh
+sh bootstrap/interpreted/tests/epsilon/array-storage/run.sh
+sh bootstrap/interpreted/tests/epsilon/source-views/run.sh
+sh bootstrap/interpreted/tests/epsilon/interpreted-omega-experiment/run.sh
+sh bootstrap/interpreted/tests/epsilon/evaluator-entry/run.sh
+sh bootstrap/interpreted/tests/epsilon/refinement/run.sh
+sh bootstrap/interpreted/tests/epsilon/d-composition/run.sh
+sh bootstrap/interpreted/tests/delta/staged-compiler/run.sh
 ```
 
 [Implementation notes](implementation_notes.md) describe the supported checking
@@ -300,18 +300,18 @@ still distinguish runtime instances. Replacing two syntax payloads with four
 coordinates and a type adds three Gamma payload pairs per new projection;
 existing projections and immutable child lists remain shared. There is no new
 index, primitive, or resource provision.
-The [complete-D comparison](../../../tests/bootstrap/omega-parser/README.md#field-identity-comparison)
+The [complete-D comparison](../../../_recycling/tests/bootstrap/omega-parser/README.md#field-identity-comparison)
 supports retaining this representation: both runs pass, with 43.25% less
 wall time and 0.40% more cumulative pair allocation in the measured pair.
 Those results are customer-specific and include concurrent-run caveats.
-The [field controls](../../../tests/epsilon/runtime-invariants/README.md) isolate
+The [field controls](../../../_recycling/tests/epsilon/runtime-invariants/README.md) isolate
 all four coordinates and reject invalid projection owners and sum cases.
 Record snapshots and nested-place updates retain their ordinary execution tests;
 array children use an immutable interval tree keyed by element index. Reads and
 updates traverse at most 31 partitions, independent of the number of populated
 elements, and updates share untouched branches. Parent reconstruction has its
 own stack, separate from either child representation. The
-[array-storage gate](../../../tests/epsilon/array-storage/README.md) covers an
+[array-storage gate](../../../_recycling/tests/epsilon/array-storage/README.md) covers an
 ordinary fill/read workload and private malformed-path controls.
 Sum constructors, first-case zero defaults, checked case
 transitions, and copied payload binders have staging execution paths. The
@@ -319,10 +319,10 @@ transitions, and copied payload binders have staging execution paths. The
 traps as `ByteRange` at a failing byte payload before later arguments run,
 preserving earlier output. This is not full evaluator completion. Remaining
 conformance obligations and final composition with D remain open.
-The [runtime-invariant controls](../../../tests/epsilon/runtime-invariants/README.md)
+The [runtime-invariant controls](../../../_recycling/tests/epsilon/runtime-invariants/README.md)
 exercise internal-failure defenses with synthetic state that bypasses checking;
 they do not claim additional admitted Epsilon behavior or final publication.
-The [source-window controls](../../../tests/epsilon/source-views/README.md) compare
+The [source-window controls](../../../_recycling/tests/epsilon/source-views/README.md) compare
 raw and bounded source routes, source-relative diagnostics, validated extents,
 and failure before publication for invalid internal source indexes.
 [LANGUAGE.md](LANGUAGE.md) governs semantics;

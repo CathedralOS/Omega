@@ -97,7 +97,7 @@ fn frontier_verdicts(
 fn named_structural_const_arguments_keep_their_closed_receiving_application() {
     let _guard = lock_fixture_compilation();
     let frontier =
-        unbuilt_frontier::fixture_frontier("tests/fixtures/pass/constants/receiving_application");
+        unbuilt_frontier::fixture_frontier("tests/fixtures/constants/pass/receiving_application");
     let typed = &frontier.typed;
     let mut closed_arguments = 0usize;
     let mut missing = Vec::new();
@@ -156,7 +156,7 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
             .join("\n")
     );
 
-    let negative = repository("tests/fixtures/fail/constants/receiving_application/main.omg");
+    let negative = repository("tests/fixtures/constants/fail/receiving_application/main.omg");
     let Err(messages) = unbuilt_frontier::frontier(&negative, None, &[]) else {
         panic!("a record constant must not enter an integer const parameter");
     };
@@ -170,7 +170,7 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
     // The unused index still distinguishes two applications. A different
     // payload cannot satisfy the same exact type equation at the call.
     let source = std::fs::read_to_string(repository(
-        "tests/fixtures/pass/constants/receiving_application/main.omg",
+        "tests/fixtures/constants/pass/receiving_application/main.omg",
     ))
     .unwrap();
     let source = source
@@ -199,7 +199,7 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
     )));
 
     let boolean = std::fs::read_to_string(repository(
-        "tests/fixtures/pass/constants/receiving_application/main.omg",
+        "tests/fixtures/constants/pass/receiving_application/main.omg",
     ))
     .unwrap()
     .replace(
@@ -223,7 +223,7 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
 /// `advance<Hold>` and `advance<Shift>`.
 #[test]
 fn an_implementation_parameter_body_is_checked_once_and_carried() {
-    let (outcome, rows) = carried("tests/fixtures/run/generics/implementation_parameter_contract");
+    let (outcome, rows) = carried("tests/fixtures/generics/run/implementation_parameter_contract");
     assert_eq!(outcome, "route=carried-accepted");
     assert_eq!(count(&rows, "generic", "proved"), 3);
     assert_eq!(count(&rows, "generic", "refused"), 0);
@@ -238,7 +238,7 @@ fn an_implementation_parameter_body_is_checked_once_and_carried() {
 #[test]
 fn a_bound_only_the_selected_implementations_give_is_refused_generically() {
     let (outcome, rows) = carried(
-        "tests/fixtures/fail/generics/implementation_parameter_contract_only_holds_for_selection",
+        "source-rust/subsystems/compiler/tests/fixtures/generics/fail/implementation_parameter_contract_only_holds_for_selection",
     );
     assert_eq!(outcome, "route=carried-refused");
     let refusals = |label: &str| {
@@ -274,7 +274,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
 
     let _guard = lock_fixture_compilation();
     let original = std::fs::read_to_string(repository(
-        "tests/fixtures/run/generics/implementation_parameter_contract/main.omg",
+        "tests/fixtures/generics/run/implementation_parameter_contract/main.omg",
     ))
     .unwrap();
     // The unchanged +5 body can satisfy the public <=20 result. Its
@@ -475,14 +475,14 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
 #[test]
 fn a_value_parameter_body_is_checked_once_and_carried() {
     let (outcome, rows) =
-        carried("tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit");
+        carried("source-rust/subsystems/compiler/tests/fixtures/facts/pass/lexical_generic_bound_through_local_exit");
     assert_eq!(outcome, "route=carried-accepted");
     assert_eq!(count(&rows, "generic", "proved"), 3);
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "accepted"), 3);
     assert_eq!(count(&rows, "carried", "refused"), 0);
     let verdicts =
-        source_verdicts("tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit");
+        source_verdicts("source-rust/subsystems/compiler/tests/fixtures/facts/pass/lexical_generic_bound_through_local_exit");
     assert!(
         verdicts.iter().all(|verdict| matches!(
             verdict,
@@ -499,7 +499,7 @@ fn a_value_parameter_body_is_checked_once_and_carried() {
 #[test]
 fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
     let (outcome, rows) =
-        carried("tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected");
+        carried("source-rust/subsystems/compiler/tests/fixtures/facts/fail/lexical_generic_bound_through_local_rejected");
     assert_eq!(outcome, "route=carried-refused");
     let refused = |label: &str| {
         rows.iter()
@@ -533,7 +533,7 @@ fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "accepted"), 2);
     let verdicts =
-        source_verdicts("tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected");
+        source_verdicts("source-rust/subsystems/compiler/tests/fixtures/facts/fail/lexical_generic_bound_through_local_rejected");
     assert!(
         verdicts.iter().all(|verdict| matches!(
             verdict,
@@ -557,7 +557,7 @@ fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
 /// and carried into the machines generated for `u8` and for `bool`.
 #[test]
 fn a_type_parameter_body_is_checked_once_and_carried() {
-    let (outcome, rows) = carried("tests/fixtures/run/generics/type_parameter_contract");
+    let (outcome, rows) = carried("source-rust/subsystems/compiler/tests/fixtures/generics/run/type_parameter_contract");
     assert_eq!(outcome, "route=carried-accepted", "{rows:?}");
     // `relay`: the call's requirement, the add and the guarantee.
     // `forward`: its guarantee.
@@ -575,7 +575,7 @@ fn a_type_parameter_body_is_checked_once_and_carried() {
 #[test]
 fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
     let (outcome, rows) =
-        carried("tests/fixtures/fail/generics/type_parameter_contract_exceeds_callee");
+        carried("source-rust/subsystems/compiler/tests/fixtures/generics/fail/type_parameter_contract_exceeds_callee");
     assert_eq!(outcome, "route=carried-refused", "{rows:?}");
     let refused: Vec<_> = rows
         .iter()
@@ -598,7 +598,7 @@ fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
 #[test]
 fn native_and_psi_execute_the_finite_family_contract() {
     let _guard = lock_fixture_compilation();
-    let root = repository("tests/fixtures/run/generics/finite_family_contract/main.omg");
+    let root = repository("source-rust/subsystems/compiler/tests/fixtures/generics/run/finite_family_contract/main.omg");
     let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
         .unwrap_or_else(|errors| panic!("generic fixture discovery: {errors:#?}"));
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
@@ -639,7 +639,7 @@ fn native_and_psi_execute_the_finite_family_contract() {
 #[test]
 fn the_comparison_witness_lowers_and_corresponds() {
     let (outcome, rows) =
-        carried("tests/fixtures/pass/facts/generic_comparison_body_through_match_join_exit");
+        carried("source-rust/subsystems/compiler/tests/fixtures/facts/pass/generic_comparison_body_through_match_join_exit");
     assert_eq!(outcome, "route=carried-accepted", "{rows:?}");
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "refused"), 0);
@@ -695,14 +695,14 @@ fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
 fn a_generated_machine_of_a_finite_family_is_read_under_its_own_type() {
     assert_eq!(
         generated_verdicts(
-            "tests/fixtures/pass/contracts/generic_effective_result_comparison_exit",
+            "source-rust/subsystems/compiler/tests/fixtures/contracts/pass/generic_effective_result_comparison_exit",
             "threshold",
         ),
         ["accepted", "accepted"]
     );
     assert_eq!(
         generated_verdicts(
-            "tests/fixtures/fail/contracts/specialized_normal_call_wrong_type_contract",
+            "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/specialized_normal_call_wrong_type_contract",
             "choose",
         ),
         ["accepted", "accepted"]
@@ -717,7 +717,7 @@ fn a_generated_machine_of_a_finite_family_is_read_under_its_own_type() {
 /// body it is, decided again by the kernel.
 #[test]
 fn a_finite_family_is_checked_once_per_alternative_and_carried() {
-    let (outcome, rows) = carried("tests/fixtures/run/generics/finite_family_contract");
+    let (outcome, rows) = carried("source-rust/subsystems/compiler/tests/fixtures/generics/run/finite_family_contract");
     assert_eq!(outcome, "route=carried-accepted");
     // One guarantee per alternative.
     assert_eq!(count(&rows, "generic", "proved"), 2);
@@ -733,7 +733,7 @@ fn a_finite_family_is_checked_once_per_alternative_and_carried() {
 #[test]
 fn a_finite_family_alternative_that_breaks_its_contract_is_refused() {
     let (outcome, rows) =
-        carried("tests/fixtures/fail/generics/finite_family_contract_wrong_alternative");
+        carried("source-rust/subsystems/compiler/tests/fixtures/generics/fail/finite_family_contract_wrong_alternative");
     assert_eq!(outcome, "route=carried-refused");
     assert_eq!(count(&rows, "generic", "proved"), 1);
     assert_eq!(count(&rows, "generic", "refused"), 1);
@@ -748,7 +748,7 @@ fn a_finite_family_alternative_that_breaks_its_contract_is_refused() {
 #[test]
 fn the_threshold_family_lowers_per_alternative_and_corresponds() {
     let (outcome, rows) =
-        carried("tests/fixtures/pass/contracts/generic_effective_result_comparison_exit");
+        carried("source-rust/subsystems/compiler/tests/fixtures/contracts/pass/generic_effective_result_comparison_exit");
     assert_eq!(outcome, "route=carried-accepted");
     assert!(rows.iter().all(|row| row[4] != "refused"), "{rows:?}");
 }
@@ -760,7 +760,7 @@ fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_thei
     let _guard = lock_fixture_compilation();
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            let main = repository("tests/fixtures/run/generics/nested_static_context/main.omg");
+            let main = repository("source-rust/subsystems/compiler/tests/fixtures/generics/run/nested_static_context/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
@@ -831,7 +831,7 @@ fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_thei
             );
 
             let main = repository(
-                "tests/fixtures/fail/generics/nested_static_context_bad_guarantee/main.omg",
+                "source-rust/subsystems/compiler/tests/fixtures/generics/fail/nested_static_context_bad_guarantee/main.omg",
             );
             let failure = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
@@ -859,7 +859,7 @@ fn a_transition_into_a_copied_lexical_child_checks_the_original_body() {
     let _guard = lock_fixture_compilation();
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            let main = repository("tests/fixtures/run/generics/lexical_child_transition/main.omg");
+            let main = repository("source-rust/subsystems/compiler/tests/fixtures/generics/run/lexical_child_transition/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
@@ -880,7 +880,7 @@ fn a_transition_into_a_copied_lexical_child_checks_the_original_body() {
             assert_eq!(decoded.semantic_module(), artifact.semantic_module());
 
             let main = repository(
-                "tests/fixtures/fail/generics/lexical_child_transition_bad_guarantee/main.omg",
+                "source-rust/subsystems/compiler/tests/fixtures/generics/fail/lexical_child_transition_bad_guarantee/main.omg",
             );
             let expected = std::fs::read_to_string(main.with_file_name("expected.txt")).unwrap();
             let failure = orchestration::check_source(
@@ -911,7 +911,7 @@ fn a_static_callable_specialization_keeps_its_exact_target_and_checks_the_binder
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let main =
-                repository("tests/fixtures/run/generics/static_callable_specialization/main.omg");
+                repository("source-rust/subsystems/compiler/tests/fixtures/generics/run/static_callable_specialization/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
@@ -999,7 +999,7 @@ fn a_static_callable_specialization_keeps_its_exact_target_and_checks_the_binder
             );
 
             let main =
-                repository("tests/fixtures/fail/generics/static_callable_precondition/main.omg");
+                repository("source-rust/subsystems/compiler/tests/fixtures/generics/fail/static_callable_precondition/main.omg");
             let expected = std::fs::read_to_string(main.with_file_name("expected.txt")).unwrap();
             let failure = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
@@ -1049,7 +1049,7 @@ fn a_static_callable_receipt_cannot_open_an_explicit_empty_bound() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let main =
-                repository("tests/fixtures/run/generics/static_callable_specialization/main.omg");
+                repository("source-rust/subsystems/compiler/tests/fixtures/generics/run/static_callable_specialization/main.omg");
             let source = std::fs::read_to_string(&main).unwrap();
             let binder = "const Callback: machine(value: u64) -> u64";
             assert_eq!(source.matches(binder).count(), 1);
@@ -1107,7 +1107,7 @@ fn the_default_product_publishes_generic_named_map_captures() {
     let _guard = lock_fixture_compilation();
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            let main = repository("tests/fixtures/run/generics/named_map_own_telescope/main.omg");
+            let main = repository("source-rust/subsystems/compiler/tests/fixtures/generics/run/named_map_own_telescope/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
@@ -1241,7 +1241,7 @@ fn the_default_product_publishes_generic_named_map_captures() {
                     .terminal_psi_identity(),
                 publication.artifact.manifest().semantic()
             );
-            let main = repository("tests/fixtures/fail/generics/named_map_universal_body/main.omg");
+            let main = repository("source-rust/subsystems/compiler/tests/fixtures/generics/fail/named_map_universal_body/main.omg");
             let failure = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
@@ -1269,7 +1269,7 @@ fn the_default_product_publishes_width_parameter_identity() {
     let _guard = lock_fixture_compilation();
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            let main = repository("tests/fixtures/run/generics/width_parameter_identity/main.omg");
+            let main = repository("source-rust/subsystems/compiler/tests/fixtures/generics/run/width_parameter_identity/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
@@ -1292,7 +1292,7 @@ fn the_default_product_publishes_width_parameter_identity() {
                 publication.artifact.manifest().semantic()
             );
             let main = repository(
-                "tests/fixtures/fail/generics/width_parameter_identity_wrong_body/main.omg",
+                "source-rust/subsystems/compiler/tests/fixtures/generics/fail/width_parameter_identity_wrong_body/main.omg",
             );
             let failure = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),

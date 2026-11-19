@@ -21,7 +21,7 @@
 //! Two properties of the staged layout matter:
 //!
 //! - A snapshot keeps the fixture's repository-relative path under one private
-//!   session root (`<session>/tests/fixtures/fail/build/<name>/`). Diagnostics
+//!   session root (`<session>/<owner>/tests/fixtures/build/fail/<name>/`). Diagnostics
 //!   show positions with the path they were compiled from, and the test
 //!   sanitizer strips a known root prefix to stay checkout-portable. Because the
 //!   relative path is mirrored, stripping the session root yields the text
@@ -36,8 +36,7 @@
 //!
 //! Dependencies are deliberately not staged for the root's compilation. A
 //! fixture resolves `Source::Path` locations against its authored project
-//! (fixtures reach the bundled standard library through
-//! `../../../../../source/library/std`), so those rows are still read and
+//! (each path is relative to the package that declares it), so those rows are still read and
 //! resolved from the authored directory; only the root package's binding moves
 //! to the snapshot. Nested members keep their existing staging. A dependency
 //! whose own Build runs is that Build's root, so it is sealed the same way,

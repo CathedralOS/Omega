@@ -88,18 +88,27 @@ fn canaries_ignore_local_build_output() {
         .ancestors()
         .find(|directory| directory.join("rust-toolchain.toml").is_file())
         .expect("parser tests need the Omega repository root");
-    let gitignore_path = repo_root.join("tests/fixtures/.gitignore");
-    let gitignore = fs::read_to_string(&gitignore_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", gitignore_path.display()));
-
-    // Depth-anchored on purpose (see tests/fixtures/.gitignore's comment):
-    // `**/build/` also swallowed the fail/build/ CATEGORY (the build.omg
-    // canaries), silently keeping committed FAIL_CANARIES entries' files out
-    // of git. The canary tree is uniformly <kind>/<category>/<name>/.
-    assert!(
-        gitignore.lines().any(|line| line.trim() == "*/*/*/build/"),
-        "canaries should ignore generated build directories at the uniform canary depth"
-    );
+    let ignored = |path: &str| {
+        std::process::Command::new("git")
+            .args(["check-ignore", "--quiet", "--no-index", "--", path])
+            .current_dir(repo_root)
+            .status()
+            .expect("query fixture output ignore rules")
+            .code()
+    };
+    for root in [
+        "tests/fixtures",
+        "source-rust/subsystems/compiler/tests/fixtures",
+    ] {
+        assert_eq!(
+            ignored(&format!("{root}/build/pass/example/main.omg")),
+            Some(1)
+        );
+        assert_eq!(
+            ignored(&format!("{root}/build/pass/example/build/output")),
+            Some(0)
+        );
+    }
 }
 
 fn collect_omega_files(path: &Path, files: &mut Vec<PathBuf>) {

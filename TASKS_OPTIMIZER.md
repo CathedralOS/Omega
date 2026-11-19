@@ -24,7 +24,7 @@ the compiler's own rewrites, or custody-mutation matrices; follow
 [verification placement](omega-rust/pipeline.md#verification-placement). Optimizer crates have no
 Rust tests. An acceptance below that names a corpus fixture, a `tests/omega/`
 path or a corpus command means a program of the former corpus
-([tests/README.md](tests/README.md#the-former-corpus)), kept under
+([tests/README.md](_recycling/tests/README.md#the-former-corpus)), kept under
 `tests/fixtures/` or restored there from history; it is met when that program
 passes `omega run --both`.
 
@@ -384,7 +384,7 @@ advanced rewrites and promotion are not needed for the first useful compiler.
   explained (mandatory recovery has no disabled mode).
 
 - **BENCHMARKS.** Complete subject/selection/target measurements with
-  [`omega-bench`](tools/benchmark/README.md) and the
+  [`omega-bench`](_recycling/tools/benchmark/README.md) and the
   [benchmark matrix](wiki/drafts/measurements/benchmarks.md). The earlier
   `omega-benchmark-record/2` rows from the deleted Python harness cover macOS
   ARM64 and Linux x86-64 and remain at

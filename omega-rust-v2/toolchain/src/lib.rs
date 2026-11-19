@@ -3,7 +3,7 @@
 mod collection;
 pub use collection::CollectionPrimitive;
 mod core_interface;
-pub use core_interface::{CoreInterface, core_interface};
+pub use core_interface::{CoreInterface, LayoutQuery, core_interface};
 use omega_lexer::SourceSpan;
 use omega_resolver::{Dependency, NameError, StageSource, SymbolResolvedTrees};
 

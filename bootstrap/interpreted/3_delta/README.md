@@ -15,7 +15,7 @@ Gamma-authored staged Delta implementation -> canonical Gamma/Delta receipts
 The selected compiler begins at [`delta_compiler.gamma`](delta_compiler.gamma),
 a Gamma-authored stage for finite arbitrary-field data, including recursive nominal fields and
 exhaustive matching through right-nested immutable pairs. The complete Delta
-edge remains open. [Selected validation](../../../tests/delta/README.md) owns
+edge remains open. [Selected validation](../../../_recycling/tests/delta/README.md) owns
 staged compiler behavior and conformance controls; there is no alternate
 concatenative compiler.
 
@@ -45,7 +45,7 @@ the packed `support/` member bytes that end every sealed compiler input, and
 evaluator-tape identity under `GammaComposedV2`, not the entry file alone.
 
 Bound edge identities, checked by `tools/bootstrap/delta/compiler_env.sh`
-against every materialization and by `tests/bootstrap/delta-identity.sh`:
+against every materialization and by `bootstrap/interpreted/tests/delta-identity.sh`:
 
 | Subject | Bytes | SHA-256 |
 | --- | ---: | --- |
@@ -144,7 +144,7 @@ the sealed-input support section. Callers use the role registry's
 `OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES`.
 Reading the entrance alone does not reconstruct the compiler.
 
-The separate `tests/delta/staged-compiler/development_driver.gamma` entry
+The separate `bootstrap/interpreted/tests/delta/staged-compiler/development_driver.gamma` entry
 invokes these same shared bytes as an unmarked raw-source transformer whose
 sealed input is raw Delta source followed by the same bound support section.
 It exists only for frontend/lowering diagnostics and does not select a compiler
@@ -420,12 +420,12 @@ Calls emitted in tail position remain in Gamma tail position through
 construction and traversal in bounded call context. Static acceptance of the
 scalar/nominal slice is not full-language admission.
 
-Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution,
-`sh tests/delta/normalization/run.sh` for body-height and capture behavior,
-`sh tests/delta/request-boundary/run.sh` for exact request outcomes,
-`sh tests/delta/resource-boundary/run.sh` for authored resource boundaries,
-`sh tests/delta/frontend-boundary/run.sh` for exact frontend outcomes, and
-`sh tests/gamma/composed-artifact.sh` for composed identity and publication.
+Run `sh bootstrap/interpreted/tests/delta/staged-compiler/run.sh` for lowering and generated execution,
+`sh bootstrap/interpreted/tests/delta/normalization/run.sh` for body-height and capture behavior,
+`sh bootstrap/interpreted/tests/delta/request-boundary/run.sh` for exact request outcomes,
+`sh bootstrap/interpreted/tests/delta/resource-boundary/run.sh` for authored resource boundaries,
+`sh bootstrap/interpreted/tests/delta/frontend-boundary/run.sh` for exact frontend outcomes, and
+`sh bootstrap/proofs/tests/composed-artifact.sh` for composed identity and publication.
 
 ## Measurements
 

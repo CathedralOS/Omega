@@ -41,7 +41,7 @@ fn assert_integer_conversion_policies(fixture: &str, width: u64) {
             use semantic_vocabulary::{
                 BoundaryRequirementKind, Proposition, ScalarQualificationSetId,
             };
-            let main = repository().join(format!("tests/fixtures/run/float/{fixture}/main.omg"));
+            let main = repository().join(format!("source-rust/subsystems/compiler/tests/fixtures/float/run/{fixture}/main.omg"));
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -110,7 +110,7 @@ fn assert_integer_conversion_policies(fixture: &str, width: u64) {
                 }
             }
             let invalid =
-                repository().join(format!("tests/fixtures/fail/float/{fixture}/main.omg"));
+                repository().join(format!("source-rust/subsystems/compiler/tests/fixtures/float/fail/{fixture}/main.omg"));
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -137,7 +137,7 @@ fn unqualified_float_integer_conversions_keep_the_normal_input_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let main = repository()
-                .join("tests/fixtures/run/float/unqualified_integer_conversion/main.omg");
+                .join("source-rust/subsystems/compiler/tests/fixtures/float/run/unqualified_integer_conversion/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -156,7 +156,7 @@ fn unqualified_float_integer_conversions_keep_the_normal_input_contract() {
             )
             .unwrap();
             let invalid = repository()
-                .join("tests/fixtures/fail/float/unqualified_integer_conversion/main.omg");
+                .join("source-rust/subsystems/compiler/tests/fixtures/float/fail/unqualified_integer_conversion/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -189,7 +189,7 @@ use numerics::intrinsics::NumericType;
             use numerics::arithmetic::ArithmeticDomain;
             use semantic_vocabulary::{CrashCause, Proposition};
             let main =
-                repository().join("tests/fixtures/run/float/trapping_integer_conversion/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/trapping_integer_conversion/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -271,7 +271,7 @@ use numerics::intrinsics::NumericType;
                 assert!(error.contains("MalformedStructuralFoundation"), "{error}");
             }
             let invalid =
-                repository().join("tests/fixtures/fail/float/trapping_integer_conversion/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/trapping_integer_conversion/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -378,7 +378,7 @@ fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
 fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            let main = repository().join("tests/fixtures/run/float/canonical_conversions/main.omg");
+            let main = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/canonical_conversions/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("windows_x86_64")),
@@ -446,7 +446,7 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
                 leaf.validate_bound_calling_custody(module).unwrap();
             }
             let invalid =
-                repository().join("tests/fixtures/fail/float/canonical_conversions/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/canonical_conversions/main.omg");
             let diagnostic = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("windows_x86_64")),
@@ -469,7 +469,7 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
 fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            let main = repository().join("tests/fixtures/run/float/canonical_comparisons/main.omg");
+            let main = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/canonical_comparisons/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -572,7 +572,7 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
             assert!(module.operations().all(|operation|
                 !matches!(operation.kind, terminal_psi::OperationKind::IeeeFloatCompare { .. })),
                 "canonical operators use the ordinary boundary call path");
-            let invalid = repository().join("tests/fixtures/fail/float/canonical_comparisons/main.omg");
+            let invalid = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/canonical_comparisons/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -591,7 +591,7 @@ use numerics::intrinsics::PrimitiveFloatBinaryOperation as Operation;
             use semantic_vocabulary::{
                 FloatMeaningClauseOperand, FloatMeaningClauseValue, ScalarTerm, ScalarType,
             };
-            let main = repository().join("tests/fixtures/run/float/canonical_arithmetic/main.omg");
+            let main = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/canonical_arithmetic/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -753,7 +753,7 @@ use numerics::intrinsics::PrimitiveFloatBinaryOperation as Operation;
             assert!(sources.validate_source(&term, &wrong_class).is_err());
 
             let invalid =
-                repository().join("tests/fixtures/fail/float/canonical_arithmetic/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/canonical_arithmetic/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -780,7 +780,7 @@ fn inline_float_comparison_keeps_the_literal_format_in_the_saved_operator() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let fixture =
-                repository().join("tests/fixtures/run/float/inline_literal_comparison/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/inline_literal_comparison/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&fixture, Some("macos_arm64")),
@@ -811,7 +811,7 @@ fn inline_float_comparison_keeps_the_literal_format_in_the_saved_operator() {
             terminal_semantics::numeric_primitives::validate_boundary(module, operator).unwrap();
 
             let invalid =
-                repository().join("tests/fixtures/fail/float/inline_literal_comparison/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/inline_literal_comparison/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -835,7 +835,7 @@ fn float_zero_locals_keep_positive_bits_and_require_the_default_domain() {
         compiler::checked::spawn_compile_worker(scope, || {
             use semantic_vocabulary::{IeeeFloatValue, ScalarType};
             let source =
-                repository().join("tests/fixtures/run/float/zero_constructed_locals/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/zero_constructed_locals/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&source, Some("macos_arm64")),
@@ -897,7 +897,7 @@ fn float_zero_locals_keep_positive_bits_and_require_the_default_domain() {
             );
 
             let invalid =
-                repository().join("tests/fixtures/fail/float/zero_constructed_locals/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/zero_constructed_locals/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -935,7 +935,7 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
             use semantic_vocabulary::{
                 FloatMeaningClauseValue, IeeeFloatFormat, ScalarType, ValueId,
             };
-            let main = repository().join("tests/fixtures/run/float/exact_widening/main.omg");
+            let main = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/exact_widening/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -1060,7 +1060,7 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
                 .unwrap();
             bytes[position] ^= 1;
             assert!(terminal_codec::ClosedTerminalModule::from_semantic_bytes(&bytes).is_err());
-            let invalid = repository().join("tests/fixtures/fail/float/exact_widening/main.omg");
+            let invalid = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/exact_widening/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -1088,7 +1088,7 @@ fn exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss() {
             use semantic_vocabulary::{
                 FloatMeaningClauseValue, IeeeFloatFormat, Proposition, ScalarType,
             };
-            let main = repository().join("tests/fixtures/run/float/exact_narrowing/main.omg");
+            let main = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/exact_narrowing/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -1148,7 +1148,7 @@ fn exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss() {
                         .unwrap();
                 }
             }
-            let invalid = repository().join("tests/fixtures/fail/float/exact_narrowing/main.omg");
+            let invalid = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/exact_narrowing/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -1184,7 +1184,7 @@ fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
             use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind};
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             use semantic_vocabulary::{IeeeFloatFormat, Proposition, ScalarType};
-            let main = repository().join("tests/fixtures/run/float/exact_integer_cast/main.omg");
+            let main = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/exact_integer_cast/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -1288,7 +1288,7 @@ fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
                 }
             }
             let invalid =
-                repository().join("tests/fixtures/fail/float/exact_integer_cast/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/exact_integer_cast/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -1319,7 +1319,7 @@ fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract()
             use numerics::intrinsics::NumericType;
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             let main =
-                repository().join("tests/fixtures/run/float/exact_integer_to_float/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run/exact_integer_to_float/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -1363,7 +1363,7 @@ fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract()
                 ));
             }
             let invalid =
-                repository().join("tests/fixtures/fail/float/exact_integer_to_float/main.omg");
+                repository().join("source-rust/subsystems/compiler/tests/fixtures/float/fail/exact_integer_to_float/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -1397,7 +1397,7 @@ use numerics::intrinsics::NumericType;
                 BoundaryRequirementKind, Proposition, ScalarQualificationSetId,
             };
             let main = repository()
-                .join("tests/fixtures/run/float/saturating_integer_conversion/main.omg");
+                .join("source-rust/subsystems/compiler/tests/fixtures/float/run/saturating_integer_conversion/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
@@ -1613,7 +1613,7 @@ use numerics::intrinsics::NumericType;
             }
             assert!(verify(target.working_program_for_validation(), &changed_abstract, &changed_unit).is_err());
             let invalid = repository()
-                .join("tests/fixtures/fail/float/saturating_integer_conversion/main.omg");
+                .join("source-rust/subsystems/compiler/tests/fixtures/float/fail/saturating_integer_conversion/main.omg");
             let diagnostics = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
@@ -1805,7 +1805,7 @@ fn assert_bad_integer_conversion_inputs(
             use numerics::intrinsics::NumericIntrinsic;
 use numerics::intrinsics::NumericType;
             use numerics::arithmetic::ArithmeticDomain;
-            let fixture = repository().join("tests/fixtures/run/float").join(fixture_name);
+            let fixture = repository().join("source-rust/subsystems/compiler/tests/fixtures/float/run").join(fixture_name);
             let kept = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
             let (helpers, _) = kept.split_once("machine main() crashes Trap {").unwrap();
             // These derived programs permit the live route rather than asking

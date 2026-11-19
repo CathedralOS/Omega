@@ -41,7 +41,7 @@ impl BuildHost for FinalStage<'_> {
 #[test]
 fn final_native_image_passes_checks_and_runtime_admission_obeys_applicability() {
     let bytes = include_bytes!(
-        "../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/linux_x86_64.psi"
+        "../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
     );
     let artifact = Arc::new(CanonicalTerminalArtifact::from_bytes(bytes).unwrap());
     let trust = HostProducerTrust::accept("published scalar contract route fixture");

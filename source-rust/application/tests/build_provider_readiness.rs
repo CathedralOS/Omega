@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn fixture() -> PathBuf {
-    support::repository_root().join("tests/fixtures/pass/build/explicit_provider_readiness_exit")
+    support::repository_root().join("tests/fixtures/build/pass/explicit_provider_readiness_exit")
 }
 
 fn copy(from: &Path, to: &Path) {

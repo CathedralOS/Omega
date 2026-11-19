@@ -297,7 +297,7 @@ A nonempty helper adds
 `16 + 2*name_length + 2*sum(binding_name_lengths) + 8*arity` bytes,
 including its definition LF. Capture order changes none of these lengths.
 
-The [opt-in resource control](../../../../../tests/delta/resource-boundary/README.md)
+The [opt-in resource control](../../../../../_recycling/tests/delta/resource-boundary/README.md)
 uses this exact source and a literal 40-byte DCOUT resource-12 expectation:
 coordinate and limit 16,777,212, requested 477,934,574. Its host watchdog is
 not a language limit. A successful refusal still does not close allocation
@@ -428,10 +428,10 @@ selected profile bound, or manufacture compiler-owned resource evidence.
 
 Exact body heights, capture behavior, evaluation and trap order, existing
 receipts, and actual Epsilon reconstruction remain validation obligations.
-The [normalization gate](../../../../../tests/delta/normalization/README.md)
+The [normalization gate](../../../../../_recycling/tests/delta/normalization/README.md)
 compares production-plan observations with authored expectations, then compiles
 and executes the generated Gamma. The separate
-[lowering-plan gate](../../../../../tests/delta/lowering-plan/README.md)
+[lowering-plan gate](../../../../../_recycling/tests/delta/lowering-plan/README.md)
 retains its pre-normalization measurements.
 The complete Delta edge remains open even when every generated body satisfies
 the nesting bound.

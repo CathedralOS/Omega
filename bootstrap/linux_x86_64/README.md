@@ -154,5 +154,5 @@ For a function-labeled disassembly, omit `,-s` from the linker option and run
 The Linux test supplies the five compiler source files, checks every stamped image
 against the audited seed, checks each static executable, compiles two changed
 Gamma programs, runs both on changed bytes and exercises malformed inputs.
-Run `python3 tests/bootstrap/linux-seed-construction.py` for native images and
-`python3 tests/bootstrap/linux-seed-construction.py --alpha` for Alpha tapes.
+Run `python3 bootstrap/interpreted/tests/linux-seed-construction.py` for native images and
+`python3 bootstrap/interpreted/tests/linux-seed-construction.py --alpha` for Alpha tapes.

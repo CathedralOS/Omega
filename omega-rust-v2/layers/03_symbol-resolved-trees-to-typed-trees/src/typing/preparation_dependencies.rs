@@ -83,6 +83,11 @@ impl<'a> PreparationDependencies<'a> {
         }
         for call in &output.calls {
             depend_on(call.node, &call.machine);
+            if call.layout_query.is_some() {
+                for declaration in call.type_arguments.iter().flat_map(type_dependencies) {
+                    depend_on(call.node, declaration);
+                }
+            }
             for argument in call
                 .type_arguments
                 .iter()

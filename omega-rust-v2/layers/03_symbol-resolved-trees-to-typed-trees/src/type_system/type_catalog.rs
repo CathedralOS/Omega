@@ -191,10 +191,20 @@ impl TypeCatalog<'_> {
         &self,
         id: &DeclarationId,
     ) -> Vec<ValueType> {
-        match self.scopes.get(id) {
-            Some(scopes) => scopes.iter().flat_map(|owner| self.formals(owner)).collect(),
-            None => self.formals(id),
-        }
+        self.specialization_scopes(id)
+            .flat_map(|owner| self.formals(owner))
+            .collect()
+    }
+    pub(crate) fn specialization_scopes<'b>(
+        &'b self,
+        owner: &'b DeclarationId,
+    ) -> impl Iterator<Item = &'b DeclarationId> {
+        let scopes = self.scopes.get(owner).map(Vec::as_slice);
+        scopes
+            .into_iter()
+            .flatten()
+            .copied()
+            .chain(scopes.is_none().then_some(owner))
     }
     pub(crate) fn specialization_slot(
         &self,

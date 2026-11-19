@@ -12,16 +12,15 @@ use std::path::{Path, PathBuf};
 
 fn kept_fixture(relative: &str) -> PathBuf {
     fixture_package_inputs::repo_root()
-        .join("tests/fixtures")
         .join(relative)
 }
 
 #[test]
 fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() {
     check_reusable_package_cases(&[
-        ("pass/float/rootless_target_realization_scope", None),
+        ("source-rust/subsystems/compiler/tests/fixtures/float/pass/rootless_target_realization_scope", None),
         (
-            "packages/selected-provider-unsupported-target",
+            "source-rust/subsystems/compiler/tests/fixtures/packages/selected-provider-unsupported-target",
             Some("the target declares no floating-point realization table"),
         ),
     ]);
@@ -31,11 +30,11 @@ fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() 
 fn reusable_package_checks_invalid_unused_declarations() {
     check_reusable_package_cases(&[
         (
-            "fail/constants/unused_scalar_constant_range",
+            "source-rust/subsystems/compiler/tests/fixtures/constants/fail/unused_scalar_constant_range",
             Some("scalar constant `VALUE` is invalid"),
         ),
         (
-            "fail/proofs/ordinary_denotational_call_requires_normal_return",
+            "source-rust/subsystems/compiler/tests/fixtures/proofs/fail/ordinary_denotational_call_requires_normal_return",
             Some("has no observation-free, reach-free, crash-free value denotation"),
         ),
     ]);
@@ -89,7 +88,7 @@ fn execute_build(
 #[test]
 fn review_retains_installation_reach_across_staggered_dependency_resolution() {
     let target = "macos_arm64";
-    let fixture = kept_fixture("pass/providers/staggered_installation_reach_exit/main.omg");
+    let fixture = kept_fixture("source-rust/subsystems/compiler/tests/fixtures/providers/pass/staggered_installation_reach_exit/main.omg");
     let prepared =
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("installation reach fixture inputs");
@@ -231,9 +230,9 @@ fn narrow_installation_bound_uses_the_selected_child_row() {
     let target = "linux_x86_64";
     let mut failures = Vec::new();
     for (fixture, refusal) in [
-        ("pass/providers/narrow_installation_reach", None),
+        ("source-rust/subsystems/compiler/tests/fixtures/providers/pass/narrow_installation_reach", None),
         (
-            "fail/providers/narrow_installation_reach",
+            "source-rust/subsystems/compiler/tests/fixtures/providers/fail/narrow_installation_reach",
             Some("exceeds its published upper bound"),
         ),
     ] {
@@ -352,7 +351,7 @@ fn check_reopened_installation_reach(
 
 #[test]
 fn package_target_batch_binds_runtime_consent_to_its_own_target() {
-    let fixture = kept_fixture("pass/calls/machine_self_call_recursion_compile/main.omg");
+    let fixture = kept_fixture("tests/fixtures/calls/pass/machine_self_call_recursion_compile/main.omg");
     let targets = [
         target::TargetProfile::LinuxX64,
         target::TargetProfile::LinuxArm64,
@@ -417,7 +416,7 @@ fn package_target_batch_binds_runtime_consent_to_its_own_target() {
 #[test]
 fn review_product_keeps_exact_custody_and_policy_budget() {
     let target = "linux_x86_64";
-    let fixture = kept_fixture("pass/calls/machine_self_call_recursion_compile/main.omg");
+    let fixture = kept_fixture("tests/fixtures/calls/pass/machine_self_call_recursion_compile/main.omg");
     let prepared =
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("fixture has admitted package inputs");
@@ -470,7 +469,7 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
 #[test]
 fn review_policy_round_trip_preserves_inferred_imported_reach() {
     // Review the package that declares the public helper and its private call.
-    let fixture = kept_fixture("pass/effects/inferred_imported_reach/support/main.omg");
+    let fixture = kept_fixture("source-rust/subsystems/compiler/tests/fixtures/effects/pass/inferred_imported_reach/support/main.omg");
     let recovered = reviewed_and_recovered(&fixture, "macos_arm64");
     let callable = recovered
         .callables()
@@ -496,7 +495,7 @@ fn review_policy_round_trip_preserves_inferred_imported_reach() {
         panic!("one Mark requirement");
     };
     let consumer = reviewed_and_recovered(
-        &kept_fixture("pass/effects/inferred_imported_reach/consumer/main.omg"),
+        &kept_fixture("source-rust/subsystems/compiler/tests/fixtures/effects/pass/inferred_imported_reach/consumer/main.omg"),
         "macos_arm64",
     );
     let [plan] = consumer.selected_providers().plans() else {
@@ -668,7 +667,7 @@ fn selected_affine_provider_reopens_with_its_published_authority() {
 
 #[test]
 fn build_service_audit_rejects_an_ordinary_trait() {
-    let fixture = kept_fixture("fail/build/service_audit_requires_boundary/main.omg");
+    let fixture = kept_fixture("source-rust/subsystems/compiler/tests/fixtures/build/fail/service_audit_requires_boundary/main.omg");
     let expected = std::fs::read_to_string(fixture.with_file_name("expected.txt")).unwrap();
     let Err(diagnostics) =
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, None)
@@ -690,7 +689,7 @@ fn build_service_audit_rejects_an_ordinary_trait() {
 #[test]
 fn review_policy_round_trip_keeps_unsupplied_driver_requirements() {
     let recovered = reviewed_and_recovered(
-        &kept_fixture("pass/effects/root_service_audit/driver/main.omg"),
+        &kept_fixture("source-rust/subsystems/compiler/tests/fixtures/effects/pass/root_service_audit/driver/main.omg"),
         "macos_arm64",
     );
     assert!(recovered.selected_providers().plans().is_empty());
@@ -728,7 +727,7 @@ fn review_policy_round_trip_keeps_unsupplied_driver_requirements() {
 #[test]
 fn review_policy_round_trip_preserves_authored_reach_slack() {
     let recovered = reviewed_and_recovered(
-        &kept_fixture("pass/effects/optional_reach_declared_slack_exit/main.omg"),
+        &kept_fixture("tests/fixtures/effects/pass/optional_reach_declared_slack_exit/main.omg"),
         "macos_arm64",
     );
     let callable = recovered
@@ -778,7 +777,7 @@ fn review_policy_round_trip_preserves_authored_reach_slack() {
 #[test]
 fn review_policy_round_trip_distinguishes_explicit_and_inferred_empty_reach() {
     let recovered = reviewed_and_recovered(
-        &kept_fixture("pass/effects/optional_reach_empty_exit/main.omg"),
+        &kept_fixture("source-rust/subsystems/compiler/tests/fixtures/effects/pass/optional_reach_empty_exit/main.omg"),
         "macos_arm64",
     );
     let callables = recovered.callables().callables();
@@ -931,7 +930,7 @@ fn historical_constant_build_retains_its_authored_answer_selections() {
 #[test]
 fn review_records_dynamic_slot_origin_and_qualification() {
     let target = "linux_x86_64";
-    let fixture = kept_fixture("pass/traits/runtime_dyn_slot_metadata_exit/main.omg");
+    let fixture = kept_fixture("source-rust/subsystems/compiler/tests/fixtures/traits/pass/runtime_dyn_slot_metadata_exit/main.omg");
     let prepared =
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("slot metadata fixture inputs");
@@ -1051,7 +1050,7 @@ fn trait_requirement_contract_binders_recover_in_the_declared_static_telescope()
     // so its contract names the requirement's own static binder. A trait has no
     // implicit subject binder before its declared statics.
     let recovered = reviewed_and_recovered(
-        &kept_fixture("pass/facts/static_callback_reach_boundary_schema/main.omg"),
+        &kept_fixture("source-rust/subsystems/compiler/tests/fixtures/facts/pass/static_callback_reach_boundary_schema/main.omg"),
         "linux_x86_64",
     );
     let contract = recovered
@@ -1077,8 +1076,8 @@ fn toolchain_boundary_applications_recover_against_their_owner_qualified_require
     // overload, whose requirement identity typed Psi qualifies with the
     // toolchain owner namespace.
     for fixture in [
-        "pass/float/live_float_parameter_across_call_exit/main.omg",
-        "run/float/canonical_arithmetic/main.omg",
+        "source-rust/subsystems/compiler/tests/fixtures/float/pass/live_float_parameter_across_call_exit/main.omg",
+        "source-rust/subsystems/compiler/tests/fixtures/float/run/canonical_arithmetic/main.omg",
     ] {
         let recovered = reviewed_and_recovered(&kept_fixture(fixture), "linux_x86_64");
         let add = recovered
@@ -1212,7 +1211,7 @@ fn numeric_library_review_does_not_deploy_unused_calls() {
 #[test]
 fn numeric_review_retains_calls_inside_a_selected_provider() {
     let recovered = reviewed_and_recovered(
-        &kept_fixture("run/float/reviewed_provider/main.omg"),
+        &kept_fixture("source-rust/subsystems/compiler/tests/fixtures/float/run/reviewed_provider/main.omg"),
         "linux_x86_64",
     );
     assert!(
@@ -1231,7 +1230,7 @@ fn numeric_review_retains_calls_inside_a_selected_provider() {
 fn native_process_exit_review_preserves_its_source_type_without_a_calling_result() {
     use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
 
-    let fixture = kept_fixture("run/effects/native_process_exit_review/main.omg");
+    let fixture = kept_fixture("source-rust/subsystems/compiler/tests/fixtures/effects/run/native_process_exit_review/main.omg");
     for target in [
         "linux_x86_64",
         "linux_arm64",
@@ -1281,7 +1280,7 @@ fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
 
     // The Build supplies the exact requirement without declaring a machine
     // body. Its checked calling application and inherited ceiling both survive.
-    let fixture = kept_fixture("pass/boundary/native_provider_unoffered_read/main.omg");
+    let fixture = kept_fixture("source-rust/subsystems/compiler/tests/fixtures/boundary/pass/native_provider_unoffered_read/main.omg");
     for (target, version, calling_policy) in [
         (
             "linux_x86_64",
@@ -1589,7 +1588,7 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
     use review_evidence::{project_checked_package_policy, record::PackagePolicyBaseline};
     use std::sync::Arc;
 
-    let fixture = kept_fixture("pass/boundary/native_provider_unoffered_read/main.omg");
+    let fixture = kept_fixture("source-rust/subsystems/compiler/tests/fixtures/boundary/pass/native_provider_unoffered_read/main.omg");
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-unused-native-binding",
         false,
@@ -1705,14 +1704,14 @@ fn review_recovery_retains_native_build_intents_without_runtime_demand() {
 fn completed_scalar_call_preserves_wrapping_index_guard() {
     check_wrapping_index_guards(&[
         (
-            "pass/facts/compound_index_guard_through_call_result_exit",
+            "source-rust/subsystems/compiler/tests/fixtures/facts/pass/compound_index_guard_through_call_result_exit",
             true,
         ),
         (
-            "fail/facts/compound_index_guard_through_call_result_rejected",
+            "source-rust/subsystems/compiler/tests/fixtures/facts/fail/compound_index_guard_through_call_result_rejected",
             false,
         ),
-        ("fail/facts/compound_index_guard_wrong_call_actual", false),
+        ("source-rust/subsystems/compiler/tests/fixtures/facts/fail/compound_index_guard_wrong_call_actual", false),
     ]);
 }
 
@@ -1720,11 +1719,11 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
 fn match_join_preserves_wrapping_index_guard() {
     check_wrapping_index_guards(&[
         (
-            "pass/facts/compound_index_guard_through_match_join_exit",
+            "source-rust/subsystems/compiler/tests/fixtures/facts/pass/compound_index_guard_through_match_join_exit",
             true,
         ),
         (
-            "fail/facts/compound_index_guard_through_match_join_rejected",
+            "source-rust/subsystems/compiler/tests/fixtures/facts/fail/compound_index_guard_through_match_join_rejected",
             false,
         ),
     ]);

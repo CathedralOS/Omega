@@ -10,9 +10,8 @@ use terminal_interpreter::{
 use terminal_work::WorkMeter;
 
 fn fixture(kind: &str, name: &str) -> PathBuf {
-    fixture_repository::root().join("tests/fixtures")
+    fixture_repository::root().join("source-rust/subsystems/compiler/tests/fixtures/contracts")
         .join(kind)
-        .join("contracts")
         .join(name)
         .join("main.omg")
 }

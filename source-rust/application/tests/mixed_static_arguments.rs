@@ -7,9 +7,8 @@ use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str, sample: &str) -> (Output, String) {
     let fixture = support::repository_root()
-        .join("tests/fixtures")
+        .join("source-rust/application/tests/fixtures/calls")
         .join(tier)
-        .join("calls")
         .join(sample);
     let scratch = TemporaryDirectory::create("mixed-static-arguments", false).unwrap();
     for name in ["main.omg", "build.omg"] {

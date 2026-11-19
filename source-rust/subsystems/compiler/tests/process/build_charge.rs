@@ -124,8 +124,8 @@ fn main() {
     }
     initial_build_source_isolation();
     deferred_product_uses_captured_imports();
-    unbound_build_invocation("separate_build_product_imports_exit");
-    unbound_build_invocation("executed_project_identity_exit");
+    unbound_build_invocation("tests/fixtures/build/pass/separate_build_product_imports_exit");
+    unbound_build_invocation("source-rust/subsystems/compiler/tests/fixtures/build/pass/executed_project_identity_exit");
     executed_dependency_source_join("executed_dependency_source_join_exit", false);
     executed_dependency_source_join("executed_dependency_source_join_exit", true);
     executed_dependency_source_join("executed_dependency_shared_source_exit", false);
@@ -153,7 +153,7 @@ fn main() {
 
 fn pure_build_accounting() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/run/calls/installed_entry_contract_exit/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/calls/run/installed_entry_contract_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
         Some("linux_x86_64"),
@@ -325,7 +325,7 @@ fn pure_build_accounting() {
 /// Discovery binds the complete root snapshot before its first effect.
 fn nested_readiness_jobs() {
     let authored = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/nested_provider_readiness");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/nested_provider_readiness");
     let temporary = exclusive_workspace("nested-readiness-jobs");
     let root = temporary.path().join("project");
     for package in ["", "backing", "backing/leaf"] {
@@ -406,7 +406,7 @@ machine build(builder: @mut Build) suspends {
 fn source_discovery_root_inputs() {
     let temporary = exclusive_workspace("discovery-root-inputs");
     let repository = fixture_package_inputs::repo_root();
-    let fixture = repository.join("tests/fixtures/pass/build/captured_named_input_required_output");
+    let fixture = repository.join("source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_named_input_required_output");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg", "input.txt", "package-only.txt"] {
@@ -546,7 +546,7 @@ fn source_discovery_root_inputs() {
 fn source_discovery_root_resources() {
     let temporary = exclusive_workspace("discovery-root-resources");
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/fail/build/staging_byte_limit_exhausted/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/fail/staging_byte_limit_exhausted/main.omg");
     let profile = target::TargetProfile::host_if_supported().unwrap();
     let preparation = || {
         package_manager::operations::begin_local_project_preparation(&root, &[profile], true)
@@ -657,7 +657,7 @@ fn source_discovery_root_resources() {
 fn anonymous_generator_source_scope() {
     let temporary = exclusive_workspace("anonymous-build-generator");
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/captured_source_generated_constant");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg", "asset.txt"] {
@@ -945,7 +945,7 @@ fn terminal_build_filesystem() {
         }
     }
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/captured_source_generated_constant/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant/main.omg");
     let profile = target::TargetProfile::host_if_supported().expect("host profile");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
@@ -1090,7 +1090,7 @@ fn terminal_build_filesystem() {
 /// Both phases still consume the same closed source capture.
 fn initial_build_source_isolation() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/separate_build_product_imports_exit/main.omg");
+        .join("tests/fixtures/build/pass/separate_build_product_imports_exit/main.omg");
     let mut timings = artifacts::compile_timings::CompileTimings::default();
     let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
@@ -1163,7 +1163,7 @@ fn initial_build_source_isolation() {
 /// including existence/canonicalization, not just the final file-byte read.
 fn deferred_product_uses_captured_imports() {
     let authored = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/separate_build_product_imports_exit");
+        .join("tests/fixtures/build/pass/separate_build_product_imports_exit");
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock after epoch")
@@ -1206,10 +1206,9 @@ fn deferred_product_uses_captured_imports() {
     println!("deferred_product_import_used_captured_namespace_after_live_deletion");
 }
 
-fn unbound_build_invocation(project_name: &str) {
-    let authored = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build")
-        .join(project_name);
+fn unbound_build_invocation(project: &str) {
+    let authored = fixture_package_inputs::repo_root().join(project);
+    let project_name = authored.file_name().unwrap().to_str().unwrap();
     let temporary =
         platform_custody::temporary_directory::TemporaryDirectory::create("unbound-build", false)
             .expect("exclusive source workspace");
@@ -1288,7 +1287,7 @@ fn unbound_build_invocation(project_name: &str) {
 
     let other = source_acquisition::local::operations::capture_local_source_input(
         fixture_package_inputs::repo_root()
-            .join("tests/fixtures/pass/build/activation_yields_without_replay"),
+            .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/activation_yields_without_replay"),
         source_acquisition::LocalSourceLimits::default(),
     )
     .expect("different acquired namespace for refusal control");
@@ -1417,7 +1416,7 @@ fn executed_source_workspace(
         false,
     )
     .expect("exclusive source graph workspace");
-    let fixtures = fixture_package_inputs::repo_root().join("tests/fixtures/pass/build");
+    let fixtures = fixture_package_inputs::repo_root().join("tests/fixtures/build/pass");
     for package in [project, "executed_dependency_source_library"] {
         std::fs::create_dir(temporary.path().join(package)).unwrap();
         for name in ["main.omg", "build.omg"] {
@@ -1431,7 +1430,7 @@ fn executed_source_workspace(
     if private_call {
         std::fs::copy(
             fixture_package_inputs::repo_root()
-                .join("tests/fixtures/fail/build/executed_dependency_private_call/main.omg"),
+                .join("source-rust/subsystems/compiler/tests/fixtures/build/fail/executed_dependency_private_call/main.omg"),
             temporary.path().join(project).join("main.omg"),
         )
         .unwrap();
@@ -1822,7 +1821,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
 fn project_session_lifecycle() {
     let temporary = exclusive_workspace("project-session");
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/project_session_shared_budget_exit");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/project_session_shared_budget_exit");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg"] {
@@ -1915,7 +1914,7 @@ fn project_session_lifecycle() {
 fn completed_build_target_fanout() {
     let temporary = exclusive_workspace("build-target-fanout");
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/project_session_shared_budget_exit");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/project_session_shared_budget_exit");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg"] {
@@ -2066,7 +2065,7 @@ fn completed_build_target_fanout() {
 fn settled_build_product_contexts() {
     let temporary = exclusive_workspace("settled-product-contexts");
     let repository = fixture_package_inputs::repo_root();
-    let fixture = repository.join("tests/fixtures/pass/build/project_session_shared_budget_exit");
+    let fixture = repository.join("source-rust/subsystems/compiler/tests/fixtures/build/pass/project_session_shared_budget_exit");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     std::fs::copy(fixture.join("main.omg"), project.join("main.omg")).unwrap();
@@ -2240,7 +2239,7 @@ fn settled_default_build_contexts() {
 fn production_project_discovery() {
     let temporary = exclusive_workspace("production-source-discovery");
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/executed_project_identity_exit");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/executed_project_identity_exit");
     let project = temporary.path().join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg", "naming.omg", "result.omg"] {
@@ -2341,7 +2340,7 @@ fn unbound_join_inputs(
 
 fn package_invocation_requests(fixture: &str) -> impl Fn() -> CheckedCompileRequest {
     let repository = fixture_package_inputs::repo_root();
-    let authored = repository.join("tests/fixtures").join(fixture);
+    let authored = repository.join(fixture);
     let captured = fixture_package_inputs::sealed_fixture_staging::stage_sealed_snapshot(
         &repository,
         &authored,
@@ -2388,7 +2387,7 @@ fn return_execution(
 }
 
 fn foreign_source_return_refuses() {
-    let request = package_invocation_requests("pass/build/activation_yields_without_replay");
+    let request = package_invocation_requests("source-rust/subsystems/compiler/tests/fixtures/build/pass/activation_yields_without_replay");
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
     let sources_before = counters::source_build_execution_count();
@@ -2428,7 +2427,7 @@ fn foreign_source_return_refuses() {
 fn source_native_roundtrip() {
     let repository = fixture_package_inputs::repo_root();
     let root =
-        repository.join("tests/fixtures/pass/build/activation_yields_without_replay/main.omg");
+        repository.join("source-rust/subsystems/compiler/tests/fixtures/build/pass/activation_yields_without_replay/main.omg");
     let directory = repository.join("build/one-shot-native");
     let request = compiler::CompileRequest::for_targets(
         root,
@@ -2460,7 +2459,7 @@ fn source_native_roundtrip() {
 
 fn interleaved_build_invocations() {
     build_sequence::print_execution_counts("before interleaved builds");
-    let request = package_invocation_requests("pass/build/activation_yields_without_replay");
+    let request = package_invocation_requests("source-rust/subsystems/compiler/tests/fixtures/build/pass/activation_yields_without_replay");
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
     let sources_before = counters::source_build_execution_count();
@@ -2554,7 +2553,7 @@ fn interleaved_build_invocations() {
 }
 
 fn foreign_build_return_refuses() {
-    let request = package_invocation_requests("pass/build/activation_yields_without_replay");
+    let request = package_invocation_requests("source-rust/subsystems/compiler/tests/fixtures/build/pass/activation_yields_without_replay");
     let mut session = CompilationSession::default();
     let mut first = session
         .begin_package_build(request())
@@ -2579,7 +2578,7 @@ fn foreign_build_return_refuses() {
 }
 
 fn ignored_build_request_still_requires_join() {
-    let request = package_invocation_requests("fail/build/unjoined_executed_dependency");
+    let request = package_invocation_requests("source-rust/subsystems/compiler/tests/fixtures/build/fail/unjoined_executed_dependency");
     let mut session = CompilationSession::default();
     let mut invocation = session
         .begin_package_build(request())
@@ -2616,7 +2615,7 @@ fn ignored_build_request_still_requires_join() {
 /// early project declaration and late entry bindings must each execute once.
 fn sliced_build_retains_effects() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/activation_yields_without_replay/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/activation_yields_without_replay/main.omg");
     let account = sponsor(limits(1_000_000));
     let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
     request.build.evaluation_sponsor = Some(account.clone());
@@ -2681,7 +2680,7 @@ fn sliced_build_retains_effects() {
 /// Two requested targets consume the same completed anonymous Build.
 fn anonymous_build_completes_before_product() {
     let repository = fixture_package_inputs::repo_root();
-    let root = repository.join("tests/fixtures/pass/build/terminal_project_requests/main.omg");
+    let root = repository.join("source-rust/subsystems/compiler/tests/fixtures/build/pass/terminal_project_requests/main.omg");
     let targets = ["windows_x86_64", "linux_x86_64"]
         .into_iter()
         .map(|name| Some(target::TargetProfile::from_omega_target_name(Some(name)).unwrap()))
@@ -2734,7 +2733,7 @@ fn anonymous_build_completes_before_product() {
 /// occurrences must retain the exact bytes, but only one executes guest code.
 fn logged_build_reuse() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/build_log_line_written/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/build_log_line_written/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
         Some("linux_x86_64"),
