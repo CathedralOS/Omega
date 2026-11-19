@@ -751,6 +751,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "compiler-tools"
+version = "0.1.0"
+dependencies = [
+ "compiler",
+ "package-compilation",
+ "semantic-vocabulary",
+ "source-admission",
+ "source-compiler",
+ "source-provenance",
+ "symbols",
+ "terminal-check-tables",
+ "terminal-codec",
+]
+
+[[package]]
 name = "compiler-check-site"
 version = "0.1.0"
 
@@ -2045,15 +2060,11 @@ dependencies = [
 name = "omega-bench"
 version = "0.1.0"
 dependencies = [
- "arena",
  "bounded-process",
- "declaration-contracts",
  "libc",
  "serde",
  "serde_json",
  "sha2",
- "source-admission",
- "source-compiler",
 ]
 
 [[package]]

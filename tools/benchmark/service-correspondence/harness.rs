@@ -64,7 +64,7 @@ fn typed(text: &str) -> source_compiler::source_state::TypedTrees {
             Some(semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap()),
             source_admission::SourceOrigin::User,
             source_admission::SourceResolutionStratum::Base,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         )
         .source_id;
     let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
@@ -85,7 +85,7 @@ fn projected<'program>(
         .find(|row| row.name.as_str() == name)
         .unwrap();
     projection::from_typed(
-        ProviderPlanningContext::new(program, declaration_contracts::source_identity::DependencyScope::Product),
+        ProviderPlanningContext::new(program, source_provenance::DependencyScope::Product),
         declaration,
     )
     .unwrap()
