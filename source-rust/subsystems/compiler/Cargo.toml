@@ -19,6 +19,9 @@ target = { path = "psi-to-native/targets/target" }
 terminal-codec = { path = "representations/psi/codec" }
 terminal-installation = { path = "psi-admission" }
 
+[dev-dependencies]
+optimization-selections = { path = "foundation/optimization-selections" }
+
 [[test]]
 name = "build_charge"
 path = "tests/process/build_charge.rs"

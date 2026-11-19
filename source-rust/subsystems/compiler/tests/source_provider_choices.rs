@@ -242,7 +242,7 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
     let proposal = execution
         .provider_proposal(
             artifact.view(),
-            optimization_core::OptimizationSelections::default().identity(),
+            optimization_selections::OptimizationSelections::default().identity(),
         )
         .expect("the selected target has an actual provider proposal");
     assert_eq!(proposal.target, TARGET);
@@ -330,7 +330,7 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
     let proposal = execution
         .provider_proposal(
             artifact.view(),
-            optimization_core::OptimizationSelections::default().identity(),
+            optimization_selections::OptimizationSelections::default().identity(),
         )
         .expect("the selected target has an actual provider proposal");
     assert_eq!(check_conditions(&artifact, &proposal), Ok(()));

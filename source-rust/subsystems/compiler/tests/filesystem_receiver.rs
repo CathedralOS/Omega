@@ -244,7 +244,7 @@ fn windows_canonicalize_receiver() {
     .expect("independent exact receiver permissions");
     let receiver_identity = receiver.identity();
     eprintln!("windows filesystem receiver policy: {receiver_identity:?}");
-    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let optimizations = optimization_selections::PostTerminalOptimizationSelections::default();
     eprintln!("Windows receiver: preparing restricted native admission");
     let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
     let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)

@@ -7,7 +7,7 @@ version.workspace = true
 [dependencies]
 placement = { package = "selected-form-encoding-to-resolved-layout", path = "../12_selected-form-encoding-to-resolved-layout" }
 machine-code = { path = "../representations/machine-code" }
-optimization-core = { path = "../../optimization-contracts" }
+optimization-core = { path = "../representations/optimization-records" }
 post-allocation-machine = { path = "../representations/post-allocation-machine" }
 register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }

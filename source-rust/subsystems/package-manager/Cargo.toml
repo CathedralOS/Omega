@@ -30,7 +30,6 @@ effects = { path = "../compiler/psi-to-native/installation/native-effects" }
 review-evidence = { path = "review/evidence" }
 source-acquisition = { path = "revsision-control-providers" }
 package-compilation = { path = "../compiler/build/package-compilation" }
-optimization-core = { path = "../compiler/psi-to-native/optimization-contracts" }
 platform-custody = { path = "../../foundation/filesystem" }
 target = { path = "../compiler/psi-to-native/targets/target" }
 provider-admission = { path = "../compiler/psi-to-native/verification/provider-admission" }

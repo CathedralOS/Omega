@@ -34,7 +34,7 @@ image-emission = { path = "../image-emission" }
 installation-evidence = { path = "../../../installation/installation-evidence" }
 machine-code = { path = "../../representations/machine-code" }
 object-file = { path = "../../15_placed-functions-to-objects" }
-optimization-core = { path = "../../../optimization-contracts" }
+optimization-core = { path = "../../representations/optimization-records" }
 target-operations = { path = "../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi" }
@@ -49,4 +49,4 @@ provider-admission = { path = "../../../verification/provider-admission" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 
 [dev-dependencies]
-optimization-core = { path = "../../../optimization-contracts" }
+optimization-core = { path = "../../representations/optimization-records" }

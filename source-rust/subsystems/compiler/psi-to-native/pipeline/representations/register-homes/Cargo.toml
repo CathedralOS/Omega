@@ -13,7 +13,7 @@ native-vocabulary = { path = "../../../native-vocabulary" }
 layout-plans = { path = "../../../../psi/layout" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../function-identity" }
-optimization-core = { path = "../../../optimization-contracts" }
+optimization-core = { path = "../optimization-records" }
 target = { path = "../../../targets/target" }
 register-model = { path = "../../../targets/register-model" }
 runtime-abi = { path = "../../../targets/runtime-abi" }

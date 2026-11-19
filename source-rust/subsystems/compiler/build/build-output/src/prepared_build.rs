@@ -83,7 +83,7 @@ pub struct PreparedProductSource {
 
 #[derive(Clone)]
 pub struct CheckedProductSource {
-    pub optimizations: optimization_core::OptimizationSelections,
+    pub optimizations: optimization_selections::OptimizationSelections,
     pub source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     pub program: Arc<source_compiler::source_state::FrozenTypedTrees>,
     pub provider_inventory:

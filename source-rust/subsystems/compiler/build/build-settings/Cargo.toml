@@ -30,7 +30,6 @@ arena = { path = "../../../../foundation/arena" }
 language-core = { path = "../../foundation/language-core" }
 build-output = { path = "../../packages/build-output" }
 effects = { path = "../../psi-to-native/installation/native-effects" }
-optimization-core = { path = "../../psi-to-native/optimization-contracts" }
 package-compilation = { path = "../../packages/package-compilation" }
 provider-admission = { path = "../../compilation/verification/provider-admission" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }

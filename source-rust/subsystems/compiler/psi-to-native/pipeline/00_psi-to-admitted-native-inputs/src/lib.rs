@@ -116,7 +116,7 @@ impl RequestedCompileProduct {
                 Self::Check => true,
                 Self::TerminalArtifact | Self::PublishedPsi => {
                     optimization.execution_phase()
-                        != optimization_core::OptimizationExecutionPhase::Psi
+                        != optimization_selections::OptimizationExecutionPhase::Psi
                 }
                 Self::NativeArtifact => false,
             })

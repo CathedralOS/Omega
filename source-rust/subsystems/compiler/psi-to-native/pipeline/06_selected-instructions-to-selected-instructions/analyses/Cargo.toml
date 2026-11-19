@@ -12,7 +12,7 @@ target-vocabulary = { path = "../../representations/target-operations/target-voc
 native-vocabulary = { path = "../../../native-vocabulary" }
 arena = { path = "../../../../../../foundation/arena" }
 register-environment = { path = "../../../targets/register-environment" }
-optimization-core = { path = "../../../optimization-contracts" }
+optimization-core = { path = "../../representations/optimization-records" }
 register-model = { path = "../../../targets/register-model" }
 register-homes = { path = "../../representations/register-homes" }
 selected-instructions = { path = "../../representations/selected-instructions" }

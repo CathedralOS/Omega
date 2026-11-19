@@ -16,7 +16,6 @@ diagnostics = { path = "../../../../../../foundation/diagnostics" }
 image = { path = "../image" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 object-file = { path = "../../15_placed-functions-to-objects" }
-optimization-core = { path = "../../../optimization-contracts" }
 target = { path = "../../../targets/target" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 sha2 = "0.10"

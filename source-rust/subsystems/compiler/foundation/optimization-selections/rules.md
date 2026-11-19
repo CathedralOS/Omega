@@ -2,7 +2,7 @@
 
 This table copies the rule names from the selection vocabulary and the stage
 catalogs that own each rule; nothing checks it automatically.
-The [optimization contract](../../../../wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+The [optimization contract](../../../../../wiki/spec/build/optimizations.md#release-rollback-and-promotion)
 defines selection and promotion. Every rule today is explicit, opt-in and
 experimental.
 There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
@@ -86,7 +86,7 @@ representation, target or combination is unsupported.
 
 ## Release rollback procedure
 
-Follow the [exact-rule rollback procedure](../../optimization.md#operational-rollback). It leaves the
+Follow the [exact-rule rollback procedure](../../../../../wiki/spec/build/optimizations.md#release-rollback-and-promotion). It leaves the
 `build.omg` selection unchanged, passes one native-build argument per affected
 row (repeat it for each), saves the printed requested/applied/effective
 receipt, and says how to verify and restore.

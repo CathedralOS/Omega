@@ -13,7 +13,7 @@ arena = { path = "../../../../../../../foundation/arena" }
 wire = { path = "../../../../../../../foundation/wire" }
 native-vocabulary = { path = "../../../../native-vocabulary" }
 numerics = { path = "../../../../../psi/semantics/numeric" }
-optimization-core = { path = "../../../../optimization-contracts" }
+optimization-core = { path = "../../optimization-records" }
 abstract-operations = { path = ".." }
 language-core = { path = "../../../../../foundation/language-core" }
 semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }

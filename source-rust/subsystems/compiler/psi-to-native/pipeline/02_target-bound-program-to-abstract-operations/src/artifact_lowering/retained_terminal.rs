@@ -26,7 +26,7 @@ mod native_providers {
 
     pub struct RetainedNativeProviderInputs<'input> {
         pub execution: &'input PreparedNativeExecution,
-        pub optimization_selections: &'input optimization_core::PostTerminalOptimizationSelections,
+        pub optimization_selections: &'input optimization_selections::PostTerminalOptimizationSelections,
         pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
         pub imports: &'input [SourceEvaluatedImportSettlement<'input>],
     }

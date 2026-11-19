@@ -27,7 +27,7 @@ register-model = { path = "../../../targets/register-model" }
 post-allocation-machine = { path = "../../representations/post-allocation-machine" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 arena = { path = "../../../../../../foundation/arena" }
-optimization-core = { path = "../../../optimization-contracts" }
+optimization-core = { path = "../../representations/optimization-records" }
 program-entry-plan = { path = "../../../installation/program-entry" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 selected-instructions = { path = "../../representations/selected-instructions" }
@@ -68,7 +68,7 @@ image-fixtures = { path = "../../../../../test-support/image-fixtures" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../psi/layout" }
-optimization-core = { path = "../../../optimization-contracts" }
+optimization-core = { path = "../../representations/optimization-records" }
 extents = { path = "../../../../../interpreter/memory/extents" }
 
 source-compiler = { path = "../../../../source-to-psi", features = ["test-support"] }

@@ -13,7 +13,6 @@ orchestration = { path = "../../../../omega-rust/omega/build-system/orchestratio
 terminal-runtime = { path = "../../../../source-rust/subsystems/interpreter/host" }
 products = { path = "../../../../omega-rust/omega/compilation/products" }
 review-evidence = { path = "../../../../source-rust/subsystems/package-manager/review/evidence" }
-optimization-core = { path = "../../../../source-rust/subsystems/compiler/psi-to-native/optimization-contracts" }
 build-declarations = { path = "../../../../source-rust/subsystems/compiler/build/build-declarations" }
 package-compilation = { path = "../../../../source-rust/subsystems/compiler/build/package-compilation" }
 package-manager = { path = "../../../../source-rust/subsystems/package-manager" }

@@ -785,7 +785,7 @@ fn declaration(
                 1,
                 MachineAlternativeApplicability::OptimizationSelected {
                     optimization:
-                        optimization_core::Optimization::X86SelectXorZeroI64MaterializationV1,
+                        optimization_selections::Optimization::X86SelectXorZeroI64MaterializationV1,
                 },
                 Size::ExactBytes(3),
             )?,

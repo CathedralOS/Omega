@@ -1220,7 +1220,7 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
     let artifact = produced(&accepted);
     let proposal = execution.provider_proposal(
         artifact.view(),
-        optimization_core::OptimizationSelections::default().identity(),
+        optimization_selections::OptimizationSelections::default().identity(),
     );
     let proposal = proposal.expect("selected deployment retains its provider proposal");
     assert_eq!(proposal.target, TARGET);
@@ -1305,7 +1305,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
         execution
             .provider_proposal(
                 artifact.view(),
-                optimization_core::OptimizationSelections::default().identity()
+                optimization_selections::OptimizationSelections::default().identity()
             )
             .is_none()
     );
@@ -1448,7 +1448,7 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
     let proposal = execution
         .provider_proposal(
             artifact.view(),
-            optimization_core::OptimizationSelections::default().identity(),
+            optimization_selections::OptimizationSelections::default().identity(),
         )
         .expect("selected deployment retains its provider proposal");
     let selection = proposal
@@ -1580,7 +1580,7 @@ data NativeDefaults {{}}
     let proposal = execution
         .provider_proposal(
             artifact.view(),
-            optimization_core::OptimizationSelections::default().identity(),
+            optimization_selections::OptimizationSelections::default().identity(),
         )
         .unwrap();
     let selection = proposal.selection.as_ref().unwrap();

@@ -9,7 +9,7 @@ backend-plan = { path = "../../installation/provider-plans" }
 terminal-codec = { path = "../../../psi/codec" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 installation-evidence = { path = "../../installation/installation-evidence" }
-optimization-core = { path = "../../optimization-contracts" }
+optimization-selections = { path = "../../../foundation/optimization-selections" }
 optimization-requests = { path = "../../../build/optimization-policy/requests" }
 provider-admission = { path = "../../verification/provider-admission" }
 target = { path = "../../targets/target" }

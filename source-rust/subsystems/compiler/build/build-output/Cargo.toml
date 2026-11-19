@@ -10,4 +10,4 @@ wire = { path = "../../../../foundation/wire" }
 record-storage = { path = "../../../../foundation/record-storage" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
-optimization-core = { path = "../../psi-to-native/optimization-contracts" }
+optimization-selections = { path = "../../foundation/optimization-selections" }

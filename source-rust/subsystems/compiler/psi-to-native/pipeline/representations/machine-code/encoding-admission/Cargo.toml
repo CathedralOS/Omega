@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 frame-admission = { path = "../frame-admission" }
 register-environment = { path = "../../../../targets/register-environment" }
-optimization-core = { path = "../../../../optimization-contracts" }
+optimization-selections = { path = "../../../../../foundation/optimization-selections" }
 target-vocabulary = { path = "../../target-operations/target-vocabulary" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
 machine-code = { path = ".." }

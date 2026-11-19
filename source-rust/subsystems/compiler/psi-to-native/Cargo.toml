@@ -51,7 +51,7 @@ post-allocation-machine = { path = "pipeline/representations/post-allocation-mac
 register-homes = { path = "pipeline/representations/register-homes" }
 function-layout = { path = "pipeline/14_resolved-layout-to-placed-functions" }
 native-artifact = { path = "pipeline/16_objects-to-image/native-artifact" }
-optimization-core = { path = "optimization-contracts" }
+optimization-core = { path = "pipeline/representations/optimization-records" }
 register-environment = { path = "targets/register-environment" }
 runtime-abi = { path = "targets/runtime-abi" }
 target = { path = "targets/target" }

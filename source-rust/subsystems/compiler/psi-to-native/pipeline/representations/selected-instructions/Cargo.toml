@@ -20,7 +20,7 @@ native-vocabulary = { path = "../../../native-vocabulary" }
 function-identity = { path = "../function-identity" }
 arena = { path = "../../../../../../foundation/arena" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-optimization-core = { path = "../../../optimization-contracts" }
+optimization-core = { path = "../optimization-records" }
 register-model = { path = "../../../targets/register-model" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 target = { path = "../../../targets/target" }

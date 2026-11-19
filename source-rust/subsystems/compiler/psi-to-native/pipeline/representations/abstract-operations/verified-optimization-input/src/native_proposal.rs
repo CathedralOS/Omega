@@ -40,7 +40,7 @@ pub(crate) struct TerminalNativeBodyProposal {
 pub struct TerminalNativeRealizationProposal {
     application: target::NativeApplicationMetadata,
     program_entry: crate::ValidatedNativeProgramEntrySettlement,
-    post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
+    post_terminal_optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
     providers: TerminalNativeProviders,
     occurrences: TerminalNativeOccurrences,
     boundary_applications: TerminalNativeBoundaryApplications,
@@ -62,7 +62,7 @@ impl TerminalNativeRealizationProposal {
     pub(crate) fn new(
         application: target::NativeApplicationMetadata,
         program_entry: crate::ValidatedNativeProgramEntrySettlement,
-        post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
+        post_terminal_optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
         providers: TerminalNativeProviders,
         occurrences: TerminalNativeOccurrences,
         boundary_applications: TerminalNativeBoundaryApplications,
@@ -129,7 +129,7 @@ impl TerminalNativeRealizationProposal {
 
     pub const fn post_terminal_optimizations(
         &self,
-    ) -> &optimization_core::PostTerminalOptimizationSelectionProjection {
+    ) -> &optimization_selections::PostTerminalOptimizationSelectionProjection {
         &self.post_terminal_optimizations
     }
 
@@ -178,7 +178,7 @@ mod proposal {
         pub native_target: Option<target::NativeTarget>,
         pub program_entry: Option<crate::NativeProgramEntrySettlement<'input>>,
         pub application: target::NativeApplicationMetadata,
-        pub optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
+        pub optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
         pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
         pub behavior_exclusions: &'input [effects::AuthoredBehaviorExclusion],
         pub package_terminal_authority_permissions:

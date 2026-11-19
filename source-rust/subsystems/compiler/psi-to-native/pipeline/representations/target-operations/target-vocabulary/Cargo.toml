@@ -24,5 +24,5 @@ runtime-abi = { path = "../../../../targets/runtime-abi" }
 terminal-semantics = { path = "../../../../../psi/semantics" }
 
 
-optimization-core = { path = "../../../../optimization-contracts" }
+optimization-core = { path = "../../optimization-records" }
 terminal-wire = { path = "../../../../../psi/wire" }

@@ -123,7 +123,7 @@ pub fn validate_current_resolved_layout(
         .context
         .publication
         .selections()
-        .contains(optimization_core::Optimization::X86RelaxConditionalBranchesToRel8V1);
+        .contains(optimization_selections::Optimization::X86RelaxConditionalBranchesToRel8V1);
     validate_layout_forms(program, allow_x86_short)
 }
 

@@ -9,7 +9,6 @@ dependencies = [
  "record-storage",
  "language-core",
  "native-vocabulary",
- "optimization-core",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -243,7 +242,7 @@ version = "0.1.0"
 dependencies = [
  "record-storage",
  "declaration-contracts",
- "optimization-core",
+ "optimization-selections",
  "source-compiler",
  "syntax-trees",
 ]
@@ -255,7 +254,7 @@ dependencies = [
  "record-storage",
  "diagnostics",
  "filesystem-authority",
- "optimization-core",
+ "optimization-selections",
  "wire",
 ]
 
@@ -279,7 +278,6 @@ dependencies = [
  "filesystem-authority",
  "language-core",
  "layout-plans",
- "optimization-core",
  "optimization-requests",
  "package-compilation",
  "products",
@@ -328,7 +326,6 @@ dependencies = [
  "arena",
  "layout-planning",
  "layout-plans",
- "optimization-core",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -448,8 +445,8 @@ dependencies = [
  "backend-plan",
  "diagnostics",
  "installation-evidence",
- "optimization-core",
  "optimization-requests",
+ "optimization-selections",
  "provider-admission",
  "target",
  "terminal-codec",
@@ -508,8 +505,8 @@ dependencies = [
  "numerics",
  "object-file",
  "optimization",
- "optimization-core",
  "optimization-requests",
+ "optimization-selections",
  "optimization-unit",
  "optimization-unit-semantics",
  "orchestration",
@@ -712,7 +709,7 @@ dependencies = [
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
- "optimization-core",
+ "optimization-selections",
  "post-allocation-machine",
  "register-environment",
  "register-homes",
@@ -949,7 +946,6 @@ dependencies = [
  "machine-code",
  "mutation-matrix",
  "object-file",
- "optimization-core",
  "semantic-vocabulary",
  "target",
  "terminal-psi",
@@ -967,7 +963,6 @@ dependencies = [
  "image-fixtures",
  "machine-code",
  "object-file",
- "optimization-core",
  "target",
  "wire",
 ]
@@ -1060,7 +1055,6 @@ dependencies = [
  "image-fixtures",
  "machine-code",
  "object-file",
- "optimization-core",
  "sha2",
  "target",
  "target-x86_64",
@@ -1101,7 +1095,6 @@ dependencies = [
  "diagnostics",
  "effects",
  "mimalloc",
- "optimization-core",
  "orchestration",
  "package-compilation",
  "package-manager",
@@ -1754,7 +1747,7 @@ dependencies = [
 name = "optimization-core"
 version = "0.1.0"
 dependencies = [
- "optimization",
+ "optimization-selections",
  "wire",
 ]
 
@@ -1762,7 +1755,15 @@ dependencies = [
 name = "optimization-requests"
 version = "0.1.0"
 dependencies = [
- "optimization-core",
+ "optimization-selections",
+]
+
+[[package]]
+name = "optimization-selections"
+version = "0.1.0"
+dependencies = [
+ "optimization",
+ "wire",
 ]
 
 [[package]]
@@ -1850,8 +1851,8 @@ dependencies = [
  "evaluation-receipts",
  "filesystem-authority",
  "flow-effects",
- "optimization-core",
  "optimization-requests",
+ "optimization-selections",
  "platform-custody",
  "semantic-vocabulary",
  "sha2",
@@ -1888,7 +1889,6 @@ dependencies = [
  "evaluation-contracts",
  "evaluation-receipts",
  "filesystem-authority",
- "optimization-core",
  "package-compilation",
  "platform-custody",
  "products",
@@ -2152,7 +2152,6 @@ dependencies = [
  "layout-plans",
  "numeric-literals",
  "numerics",
- "optimization-core",
  "optimization-unit-semantics",
  "provider-correspondence",
  "runtime-abi",
@@ -2219,7 +2218,7 @@ dependencies = [
  "language-core",
  "layout",
  "optimization",
- "optimization-core",
+ "optimization-selections",
  "program-entry-plan",
  "provider-admission",
  "provider-correspondence",
@@ -2392,7 +2391,6 @@ dependencies = [
 name = "register-model"
 version = "0.1.0"
 dependencies = [
- "optimization-core",
  "sha2",
  "target",
  "wire",
@@ -2445,7 +2443,6 @@ dependencies = [
  "layout-plans",
  "numeric-literals",
  "numerics",
- "optimization-core",
  "package-compilation",
  "products",
  "semantic-vocabulary",
@@ -2743,7 +2740,6 @@ dependencies = [
  "record-storage",
  "filesystem-authority",
  "nix",
- "optimization-core",
  "platform-custody",
  "resolver-execution",
  "sha1-checked",
@@ -3062,7 +3058,6 @@ dependencies = [
  "diagnostics",
  "language-core",
  "layout-plans",
- "optimization-core",
  "semantic-vocabulary",
  "sha2",
  "wire",
@@ -3162,7 +3157,7 @@ dependencies = [
  "isa-x86_64",
  "layout-plans",
  "normalized-foreign-call-plan",
- "optimization-core",
+ "optimization-selections",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -3294,7 +3289,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "installation-evidence",
- "optimization-core",
+ "optimization-selections",
  "provider-admission",
  "runtime-abi",
  "semantic-vocabulary",
@@ -3602,7 +3597,7 @@ dependencies = [
  "native-vocabulary",
  "numeric-literals",
  "numerics",
- "optimization-core",
+ "optimization-selections",
  "optimization-unit",
  "program-entry-plan",
  "provider-admission",

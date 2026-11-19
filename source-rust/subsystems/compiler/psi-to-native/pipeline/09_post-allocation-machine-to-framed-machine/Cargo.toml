@@ -18,7 +18,7 @@ terminal-semantics = { path = "../../../psi/semantics" }
 physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
 frame-admission = { path = "../representations/machine-code/frame-admission" }
 machine-code = { path = "../representations/machine-code" }
-optimization-core = { path = "../../optimization-contracts" }
+optimization-core = { path = "../representations/optimization-records" }
 post-allocation-machine = { path = "../representations/post-allocation-machine" }
 register-environment = { path = "../../targets/register-environment" }
 register-homes = { path = "../representations/register-homes" }

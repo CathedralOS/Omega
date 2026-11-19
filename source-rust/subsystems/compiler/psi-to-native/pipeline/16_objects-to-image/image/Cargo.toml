@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 machine-code = { path = "../../representations/machine-code" }
 wire = { path = "../../../../../../foundation/wire" }
-optimization-core = { path = "../../../optimization-contracts" }
 semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../representations/function-identity" }
@@ -23,5 +22,4 @@ target = { path = "../../../targets/target" }
 [dev-dependencies]
 image-fixtures = { path = "../../../../../test-support/image-fixtures" }
 mutation-matrix = { path = "../../../../../test-support/mutation-matrix", features = ["test-support"] }
-optimization-core = { path = "../../../optimization-contracts" }
 terminal-psi = { path = "../../../../psi" }

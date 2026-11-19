@@ -41,7 +41,7 @@ diagnostics = { path = "../../../../../../../foundation/diagnostics" }
 boundary-applications = { path = "../../../../installation/boundary-applications" }
 provider-correspondence = { path = "../../../../verification/provider-correspondence" }
 function-identity = { path = "../../function-identity" }
-optimization-core = { path = "../../../../optimization-contracts" }
+optimization-selections = { path = "../../../../../foundation/optimization-selections" }
 component-description = { path = "../../../../components/description" }
 task-plans = { path = "../../../../installation/task-plans" }
 numerics = { path = "../../../../../psi/semantics/numeric" }

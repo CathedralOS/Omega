@@ -10,7 +10,7 @@ mod selection;
 mod vocabulary;
 
 use diagnostics::Diagnostic;
-use optimization_core::OptimizationSelections;
+use optimization_selections::OptimizationSelections;
 use source_compiler::evaluation::BuildTimeValue;
 use source_compiler::source_state::TypedTrees;
 

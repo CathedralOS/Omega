@@ -81,7 +81,7 @@ mod admissions {
         }
     }
 
-    impl RecordValue for optimization_core::OptimizationSelectionIdentity {
+    impl RecordValue for optimization_selections::OptimizationSelectionIdentity {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.bytes().write(output)
         }
@@ -90,13 +90,13 @@ mod admissions {
         }
     }
 
-    impl RecordValue for optimization_core::PostTerminalOptimizationSelectionProjection {
+    impl RecordValue for optimization_selections::PostTerminalOptimizationSelectionProjection {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.complete_selections().encode().write(output)
         }
         fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
             let complete =
-                optimization_core::OptimizationSelections::decode(&Vec::<u8>::read(input)?)
+                optimization_selections::OptimizationSelections::decode(&Vec::<u8>::read(input)?)
                     .map_err(|reason| {
                         input.error(format!("complete optimization selection: {reason}"))
                     })?;
@@ -1963,7 +1963,7 @@ struct DerivationInputs {
     native: Option<target::NativeTarget>,
     entry: Option<EntryRecord>,
     application: target::NativeApplicationMetadata,
-    optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
+    optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
     external: Vec<calling_conventions::ExternalBindingRow>,
     exclusions: Vec<effects::AuthoredBehaviorExclusion>,
     permissions: Vec<effects::ServiceTerminalAuthorityPermission>,

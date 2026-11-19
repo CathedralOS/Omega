@@ -20,7 +20,7 @@ source-acquisition = { path = "../../../package-manager/revsision-control-provid
 evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
 artifacts = { path = "../../foundation/measurements" }
 flow-effects = { path = "../../source-to-psi/language/source-effects" }
-optimization-core = { path = "../../psi-to-native/optimization-contracts" }
+optimization-selections = { path = "../../foundation/optimization-selections" }
 arena = { path = "../../../../foundation/arena" }
 symbols = { path = "../../source-to-psi/language/declaration-identity" }
 source-compiler = { path = "../../source-to-psi" }
