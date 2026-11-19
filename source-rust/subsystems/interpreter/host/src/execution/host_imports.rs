@@ -1,5 +1,5 @@
 /*
-We bind admitted native host operation slots (`bind`, `bind_admitted_intrinsics`,
+We bind admitted native host operation slots (`bind`,
 `HostContext`) to typed interpreter adapters.
 
 A slot's realization selects its semantics while its complete declaration
@@ -392,20 +392,15 @@ fn bind_numeric_import<'host>(
     instance.bind_import(slot, adapter)
 }
 
-pub fn bind_admitted_intrinsics(
+/// Supply an explicit numeric handler in an embedded instance. The demanded
+/// declaration determines its signature and the caller chooses the operation.
+pub fn bind_numeric_import_slot(
     instance: &mut TerminalInstance<'_, '_>,
-    admitted: &provider_admission::provider_admission::AdmittedTerminalIntrinsics,
+    slot: BoundaryMachineId,
+    realization: target_vocabulary::NearestIeeeFloatArithmeticRealization,
 ) -> Result<(), TerminalRuntimeError> {
     let program = instance.program().clone();
-    if program.execution_identity() != admitted.terminal() {
-        return Err(TerminalRuntimeError::InvalidProvision(
-            "semantic intrinsic admission belongs to another Terminal artifact",
-        ));
-    }
-    for (slot, realization) in admitted.operations() {
-        bind_numeric_import(&program, instance, *slot, *realization)?;
-    }
-    Ok(())
+    bind_numeric_import(&program, instance, slot, realization)
 }
 
 pub(super) fn bind<'host>(

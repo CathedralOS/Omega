@@ -27,7 +27,6 @@ terminal-work = { path = "../../compiler/psi/work" }
 terminal-interpreter = { path = ".." }
 target-vocabulary = { path = "../../compiler/psi-to-native/pipeline/representations/target-operations/target-vocabulary" }
 calling-conventions = { path = "../../compiler/psi-to-native/targets/calling-conventions" }
-provider-admission = { path = "../../compiler/psi-to-native/verification/provider-admission" }
 
 [dev-dependencies]
 service-surface = { path = "../../compiler/psi/service-surface" }

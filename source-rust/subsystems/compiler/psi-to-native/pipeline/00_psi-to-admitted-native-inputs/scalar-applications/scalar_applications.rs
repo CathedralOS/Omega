@@ -327,17 +327,21 @@ struct AdmittedIntrinsics(provider_admission::provider_admission::AdmittedTermin
 
 impl artifact_evaluation::scalar_applications::AdmittedImportRealizations for AdmittedIntrinsics {
     fn realizes(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> bool {
-        self.0
-            .operations()
-            .iter()
-            .any(|(slot, _)| *slot == boundary)
+        self.0.realizes(boundary)
     }
 
     fn bind(
         &self,
         instance: &mut terminal_interpreter::TerminalInstance<'_, '_>,
     ) -> Result<(), String> {
-        terminal_runtime::bind_admitted_intrinsics(instance, &self.0)
-            .map_err(|reason| format!("constant evaluation intrinsic binding: {reason:?}"))
+        let operations = self
+            .0
+            .operations_for(instance.program().execution_identity())
+            .map_err(|reason| format!("constant evaluation intrinsic binding: {reason}"))?;
+        for &(slot, operation) in operations {
+            terminal_runtime::embedding::bind_numeric_import_slot(instance, slot, operation)
+                .map_err(|reason| format!("constant evaluation intrinsic binding: {reason:?}"))?;
+        }
+        Ok(())
     }
 }
