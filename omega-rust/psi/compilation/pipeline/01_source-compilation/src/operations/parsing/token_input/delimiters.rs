@@ -10,30 +10,23 @@ pub(crate) fn find_top_level_punctuation(
     let mut brace_depth = 0usize;
 
     for (index, token) in input.tokens.iter().enumerate() {
-        match token.punctuation() {
+        let punctuation = token.punctuation();
+        // At depth zero a closing token belongs to the caller. Check before
+        // updating the depths so a close in this input stays part of it.
+        if punctuation == Some(delimiter)
+            && paren_depth == 0
+            && bracket_depth == 0
+            && brace_depth == 0
+        {
+            return Some(index);
+        }
+        match punctuation {
             Some(PunctuationKind::LeftParen) => paren_depth += 1,
             Some(PunctuationKind::RightParen) => paren_depth = paren_depth.saturating_sub(1),
             Some(PunctuationKind::LeftBracket) => bracket_depth += 1,
             Some(PunctuationKind::RightBracket) => bracket_depth = bracket_depth.saturating_sub(1),
-            Some(PunctuationKind::LeftBrace) => {
-                if delimiter == PunctuationKind::LeftBrace
-                    && paren_depth == 0
-                    && bracket_depth == 0
-                    && brace_depth == 0
-                {
-                    return Some(index);
-                }
-                brace_depth += 1;
-            }
+            Some(PunctuationKind::LeftBrace) => brace_depth += 1,
             Some(PunctuationKind::RightBrace) => brace_depth = brace_depth.saturating_sub(1),
-            Some(punctuation)
-                if punctuation == delimiter
-                    && paren_depth == 0
-                    && bracket_depth == 0
-                    && brace_depth == 0 =>
-            {
-                return Some(index);
-            }
             _ => {}
         }
     }

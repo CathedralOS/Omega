@@ -1218,7 +1218,7 @@ mod structural_case {
 
 mod terminator {
     use super::LiveDefinitions;
-    use super::{observations, structural_case};
+    use super::structural_case;
     use crate::target_lowering::LoweringError;
     use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::{
@@ -1900,20 +1900,9 @@ mod terminator {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 plain_home_cleanup(function, live, structural_types, cleanup_actions)?;
-                let expression = if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
-                    TargetScalarExpression::IeeeFloat(super::scalar_sources::source(
-                        *value, function, live,
-                    )?)
-                } else {
-                    observations::scalar_values(
-                        live,
-                        &prepared.scalar_parameters,
-                        structural_types,
-                    )?
-                    .remove(value)
-                    .ok_or(LoweringError::UnknownValue(*value))?
-                    .into_expression(*value)?
-                };
+                let expression = TargetScalarExpression::Source(super::scalar_sources::source(
+                    *value, function, live,
+                )?);
                 if expression.scalar_type() != *scalar_type {
                     return Err(LoweringError::ValueTypeMismatch(*value));
                 }
