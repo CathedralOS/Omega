@@ -30,7 +30,8 @@ impl BodyTyper<'_, '_> {
             .peek()
             .is_some_and(|&i| source.nodes[i].kind != NodeKind::Arm)
         {
-            Some(self.type_expression(parts.next().unwrap())?)
+            let expr = parts.next().unwrap();
+            Some((expr, self.type_expression(expr)?))
         } else {
             None
         };
@@ -51,8 +52,8 @@ impl BodyTyper<'_, '_> {
             let [pattern, expr] = *source.nodes[arm].children.as_slice() else {
                 return Err(TypeError::unsupported(source, arm));
             };
-            let cover = if let Some(ty) = &subject {
-                self.bind_pattern(pattern, ty)?
+            let cover = if let Some((initializer, ty)) = &subject {
+                self.bind_pattern(pattern, ty, *initializer)?
             } else {
                 self.guard(pattern)?
             };
@@ -84,7 +85,7 @@ impl BodyTyper<'_, '_> {
         self.local_views = merged_views;
         self.version = if changed { Some(crate::Site::at(source, node_index)) } else { entry_version };
         self.cases = if changed { Default::default() } else { entry_cases };
-        let subject = subject.as_ref().map(pattern_subject);
+        let subject = subject.as_ref().map(|(_, ty)| pattern_subject(ty));
         let complete_sum = subject
             .and_then(ValueType::nominal_parts)
             .and_then(|(id, _)| self.catalog.cases.get(id))
@@ -147,10 +148,13 @@ impl BodyTyper<'_, '_> {
             _ => Err(TypeError::unsupported(self.unit.file, node_index)),
         }
     }
+    /// `initializer` is the expression whose value the whole pattern receives:
+    /// a let initializer or a dispatch subject.
     pub(super) fn bind_pattern(
         &mut self,
         node_index: usize,
         subject: &ValueType,
+        initializer: usize,
     ) -> Result<PatternCoverage, TypeError> {
         use NodeKind::*;
         let source = self.unit.file;
@@ -158,6 +162,7 @@ impl BodyTyper<'_, '_> {
         match node.kind {
             WildcardPattern => Ok(PatternCoverage::All),
             BindingPattern if self.unit.symbol(node_index).is_none() => {
+                self.require_declared_number(initializer, subject)?;
                 self.locals.insert(source.span(node_index), subject.clone());
                 Ok(PatternCoverage::All)
             }
@@ -169,7 +174,7 @@ impl BodyTyper<'_, '_> {
                     _ => PatternCoverage::Partial,
                 })
             }
-            ParenPattern => self.bind_pattern(self.unit.single_child(node_index)?, subject),
+            ParenPattern => self.bind_pattern(self.unit.single_child(node_index)?, subject, initializer),
             ValuePattern => {
                 let expr = self.unit.single_child(node_index)?;
                 if let Some(Symbol::Declaration(id)) = self.unit.symbol(expr)
@@ -199,7 +204,7 @@ impl BodyTyper<'_, '_> {
                     .children
                     .iter()
                     .zip(types)
-                    .map(|(&p, t)| self.bind_pattern(p, t))
+                    .map(|(&p, t)| self.bind_pattern(p, t, initializer))
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 Ok(if parts.iter().all(PatternCoverage::is_total) {
                     PatternCoverage::All
@@ -246,7 +251,7 @@ impl BodyTyper<'_, '_> {
                             .get(i)
                             .ok_or_else(|| TypeError::at(source, part, "too many pattern components"))?;
                         let ty = self.catalog.types.field_type(&fields[name], owner, args);
-                        total &= self.bind_pattern(part, &ty)?.is_total();
+                        total &= self.bind_pattern(part, &ty, initializer)?.is_total();
                         seen.insert(name.as_str());
                         continue;
                     }

@@ -81,6 +81,22 @@ impl BodyTyper<'_, '_> {
         }
         Ok(())
     }
+    /// numeric_values.md refuses an unannotated binding of an unsuffixed number
+    /// at its initializer, because later uses never choose a binding's type.
+    pub(super) fn require_declared_number(
+        &self,
+        initializer: usize,
+        ty: &ValueType,
+    ) -> Result<(), TypeError> {
+        if ty.holds_anonymous_number() {
+            return Err(TypeError::at(
+                self.unit.file,
+                initializer,
+                "an unsuffixed numeric binding must declare its type, as in `let count: u8 = 5` or `5u8`",
+            ));
+        }
+        Ok(())
+    }
     pub(super) fn check_binding(
         &mut self,
         node_index: usize,
@@ -95,7 +111,7 @@ impl BodyTyper<'_, '_> {
             if source.nodes[node_index].words().any(|w| w.text == "mut") {
                 self.writable.insert(source.span(pattern));
             }
-            if !self.bind_pattern(pattern, &ty)?.is_total() {
+            if !self.bind_pattern(pattern, &ty, annotation)?.is_total() {
                 return Err(TypeError::at(source, pattern, "let requires an irrefutable pattern"));
             }
             return Ok(());
@@ -113,13 +129,10 @@ impl BodyTyper<'_, '_> {
             self.check_destination(expr, &value, &expected)?;
             expected
         } else {
-            if matches!(value, ValueType::Exact { .. }) {
-                return Err(TypeError::at(
-                    source,
-                    expr,
-                    "an unsuffixed numeric binding must declare its type, as in `let count: u8 = 5`",
-                ));
-            }
+            // The whole initializer is checked, not only the parts a binder
+            // keeps: `let _ = 5;` and `let (_, b) = (5, 6u8);` also declare
+            // a binding without saying what its anonymous part holds.
+            self.require_declared_number(expr, &value)?;
             value
         };
         if local_type == ValueType::NoResult {
@@ -131,7 +144,7 @@ impl BodyTyper<'_, '_> {
         if self.local_view(expr) {
             self.local_views.insert(source.span(pattern));
         }
-        if !self.bind_pattern(pattern, &local_type)?.is_total() {
+        if !self.bind_pattern(pattern, &local_type, expr)?.is_total() {
             return Err(TypeError::at(source, pattern, "let requires an irrefutable pattern"));
         }
         Ok(())

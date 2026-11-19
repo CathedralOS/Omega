@@ -55,7 +55,7 @@ pub(crate) fn infer_constant(
 ) -> Result<ValueType, TypeError> {
     let mut body = BodyTyper::new(unit, catalog, output);
     let value = body.type_expression(expr)?;
-    if matches!(value, ValueType::Exact { .. } | ValueType::NoResult) {
+    if value.holds_anonymous_number() || value == ValueType::NoResult {
         return Err(TypeError::at(unit.file, expr, "constant requires a concrete value type"));
     }
     Ok(value)
