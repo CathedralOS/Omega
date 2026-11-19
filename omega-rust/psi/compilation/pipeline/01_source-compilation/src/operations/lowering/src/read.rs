@@ -211,7 +211,10 @@ pub(crate) struct Program<'t> {
     resolving_services: Vec<SymbolHandle>,
     /// The machines whose bodies a contract clause is unfolding, innermost
     /// last (`clause_calls`): a recursive predicate is refused.
-    unfolding_calls: Vec<SymbolHandle>,
+    unfolding_calls: Vec<clause_calls::Unfolding>,
+    /// Each active clause retains the arguments an unfolded helper evaluates,
+    /// even when its result does not use them. Frames keep nested scopes apart.
+    clause_arguments: Vec<Vec<semantic_vocabulary::ScalarTerm>>,
     /// The services a Build selection awaits a provider for, in first-read
     /// order (`designate`, `publish_readiness`).
     readiness: Vec<semantic_vocabulary::ServiceId>,
@@ -490,6 +493,7 @@ impl<'t> Program<'t> {
             services: IdTable::default(),
             resolving_services: Vec::new(),
             unfolding_calls: Vec::new(),
+            clause_arguments: Vec::new(),
             readiness: Vec::new(),
             names: IdTable::default(),
             rigid,

@@ -800,3 +800,150 @@ machine build_entry() { let value: Count = Count { value: 7 }; }
     rejected_source(&SCALAR.replace("self >= 1, ", ""));
     rejected_source(&RECORD.replace("value >= 1, ", ""));
 }
+
+#[test]
+fn unused_helper_arguments_keep_their_formation_obligations() {
+    for predicate in [
+        "always(1u64 / self)",
+        "zero(1u64 / self) == 0u64",
+        "always(zero(1u64 / self))",
+        "always(identity(1u64 / self))",
+        "identity(1u64 / self) == 1u64 / self",
+        "always(identity(zero(1u64 / self)))",
+    ] {
+        let source = format!(
+            r#"
+machine always(input: u64) -> bool {{ true }}
+machine zero(input: u64) -> u64 {{ 0u64 }}
+machine identity(input: u64) -> u64 {{ input }}
+domain u64::Safe requires self >= 1u64, {predicate};
+machine build_entry() {{ let value: u64 in Safe = 7u64 as +Safe; }}
+"#
+        );
+        executed_source(&source);
+        let invalid = source.replace("self >= 1u64, ", "");
+        let verdict = source_result(&invalid);
+        let RouteVerdict::Rejected { violations, .. } = verdict else {
+            panic!(
+                "an ignored division still needs its independent nonzero bound: {predicate}: {verdict:?}"
+            );
+        };
+        assert!(
+            violations.iter().any(|row| row.statement.contains(
+                "scalar domain: contract arithmetic is not proved total before its condition"
+            )),
+            "{predicate}: {violations:?}"
+        );
+    }
+}
+
+#[test]
+fn a_false_helper_result_does_not_hide_unformed_arguments() {
+    for predicate in ["never(1u64 / self)", "!always(1u64 / self)"] {
+        let source = format!(
+            r#"
+machine never(input: u64) -> bool {{ false }}
+machine always(input: u64) -> bool {{ true }}
+domain u64::Never requires self >= 1u64, {predicate};
+machine build_entry() {{ let value: u64 in Never = 7u64 as +Never; }}
+"#
+        );
+        // The guarded declaration forms, but no actual may establish its false
+        // predicate. The twin must fail earlier, when forming the division.
+        let guarded = source_result(&source);
+        let RouteVerdict::Rejected {
+            violations,
+            unproved,
+            ..
+        } = guarded
+        else {
+            panic!("a false helper cannot establish the selected cast: {predicate}");
+        };
+        assert!(violations.is_empty(), "{predicate}: {violations:?}");
+        assert!(
+            !unproved.is_empty(),
+            "the formed false predicate still has an unpaid cast obligation: {predicate}"
+        );
+        let verdict = source_result(&source.replace("self >= 1u64, ", ""));
+        let RouteVerdict::Rejected { violations, .. } = verdict else {
+            panic!("a false result does not excuse argument formation: {predicate}");
+        };
+        assert!(
+            violations.iter().any(|row| row.statement.contains(
+                "scalar domain: contract arithmetic is not proved total before its condition"
+            )),
+            "{predicate}: {violations:?}"
+        );
+    }
+}
+
+#[test]
+fn helper_argument_formation_keeps_already_formed_float_inputs() {
+    executed_source(
+        r#"
+machine ignore(value: f64) -> bool { true }
+machine checked(value: f64) -> bool ensures ignore(value) { true }
+machine build_entry() { let result: bool = checked(0.0f64); }
+"#,
+    );
+}
+
+#[test]
+fn membership_arguments_keep_unfolded_scalar_argument_formation() {
+    const SOURCE: &str = r#"
+machine zero(input: u64) -> u64 { 0u64 }
+domain u64::Zero requires self == 0u64;
+machine need(input: u64)
+requires input >= 1u64, zero(1u64 / input) in Zero
+{ }
+machine build_entry() { need(7u64); }
+"#;
+    executed_source(SOURCE);
+    let verdict = source_result(&SOURCE.replace("input >= 1u64, ", ""));
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("membership cannot discard its value's argument formation: {verdict:?}");
+    };
+    assert!(
+        violations.iter().any(|row| row
+            .statement
+            .contains("contract arithmetic is not proved total before its condition")),
+        "{violations:?}"
+    );
+}
+
+#[test]
+fn helper_argument_formation_keeps_decided_alternatives() {
+    const SOURCE: &str = r#"
+machine always(input: u64) -> bool { true }
+machine need(input: u64)
+requires input >= 1u64, always(1u64 / input) || true
+{ }
+machine build_entry() { need(7u64); }
+"#;
+    executed_source(SOURCE);
+    executed_source(
+        r#"
+machine always(input: u64) -> bool { true }
+domain u64::Safe requires self >= 1u64 && always(1u64 / self);
+machine build_entry() { let value: u64 in Safe = 7u64 as +Safe; }
+"#,
+    );
+    executed_source(
+        r#"
+machine always(input: u64) -> bool { true }
+machine bounded(input: u64) -> bool { input >= 1u64 && always(1u64 / input) }
+domain u64::Safe requires bounded(self);
+machine build_entry() { let value: u64 in Safe = 7u64 as +Safe; }
+"#,
+    );
+    let verdict = source_result(&SOURCE.replace("input >= 1u64, ", ""));
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("a decided alternative still forms the eager argument: {verdict:?}");
+    };
+    assert!(
+        violations.iter().any(|row| row
+            .statement
+            .contains("contract arithmetic is not proved total before its condition")),
+        "{violations:?}"
+    );
+}

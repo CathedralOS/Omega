@@ -307,7 +307,16 @@ impl Program<'_> {
     ) -> Checked<Option<(Proposition, ClauseText)>> {
         if let ProofFact::Membership(membership) = fact {
             return match scope.logical {
-                Some(logical) => logical.membership_clause(self, scope, membership).map(Some),
+                Some(logical) => {
+                    let ((clause, text), arguments) = self
+                        .with_clause_arguments(id, |program| {
+                            logical.membership_clause(program, scope, membership)
+                        })?;
+                    Ok(Some((
+                        self.form_call_arguments(id, clause, arguments)?,
+                        text,
+                    )))
+                }
                 None => self.runtime_membership_clause(id, scope, membership),
             };
         }
@@ -329,10 +338,91 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<Proposition> {
-        let mut operands = [None, None];
-        let read = self.read_clause(id, scope, expression, &mut operands)?;
-        self.complete_contract_operator(id, scope, expression, operands)?;
-        Ok(read)
+        let (clause, arguments) = self.with_clause_arguments(id, |program| {
+            let mut operands = [None, None];
+            let clause = program.read_clause(id, scope, expression, &mut operands)?;
+            program.complete_contract_operator(id, scope, expression, operands)?;
+            Ok(clause)
+        })?;
+        self.form_call_arguments(id, clause, arguments)
+    }
+
+    /// Reading a helper can discard an argument's value, but must still form
+    /// that argument. Keep this work in the enclosing clause's own scope.
+    pub(super) fn with_clause_arguments<T>(
+        &mut self,
+        id: MachineId,
+        read: impl FnOnce(&mut Self) -> Checked<T>,
+    ) -> Checked<(T, Vec<ScalarTerm>)> {
+        self.clause_arguments.push(Vec::new());
+        let read = read(self);
+        let arguments = self.clause_arguments.pop().ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("clause lost its argument formation scope"),
+            )
+        })?;
+        read.map(|result| (result, arguments))
+    }
+
+    pub(super) fn retain_call_arguments(
+        &mut self,
+        id: MachineId,
+        bound: impl IntoIterator<Item = (SymbolHandle, ScalarTerm)>,
+    ) -> Checked<()> {
+        // Declared scalar inputs and validated literals are already formed.
+        // Projections and computations still need their own formation check.
+        let mut pending = bound
+            .into_iter()
+            .map(|(_, term)| term)
+            .filter(|term| {
+                !matches!(
+                    term,
+                    ScalarTerm::Value { .. }
+                        | ScalarTerm::Boolean(_)
+                        | ScalarTerm::Integer { .. }
+                        | ScalarTerm::IeeeFloatLiteral(_)
+                )
+            })
+            .peekable();
+        if pending.peek().is_none() {
+            return Ok(());
+        }
+        let arguments = self.clause_arguments.last_mut().ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("called machine has no owning clause for argument formation"),
+            )
+        })?;
+        arguments.extend(pending);
+        Ok(())
+    }
+
+    /// Reflexivity keeps each argument in ordinary formation. Keep the result
+    /// in the same clause: a false result must not become an independent
+    /// premise that excuses its own argument's partial computations.
+    pub(super) fn form_call_arguments(
+        &self,
+        id: MachineId,
+        clause: Proposition,
+        arguments: Vec<ScalarTerm>,
+    ) -> Checked<Proposition> {
+        if arguments.is_empty() {
+            return Ok(clause);
+        }
+        let mut formed = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            formed.push(canonical::equal(argument.clone(), argument, id)?);
+        }
+        // Once its terms form, the reflexive premise is true, so this retains
+        // exactly the helper's result. Formation visits the whole implication
+        // before publishing any consequence of the result.
+        Ok(Proposition::Implication {
+            premise: Box::new(canonical::conjunction(formed, id)?),
+            conclusion: Box::new(clause),
+        })
     }
 
     fn read_clause(
@@ -1227,11 +1317,12 @@ impl Program<'_> {
                 if typed.expression_table.name_path_members(path.members).len() != 1 {
                     return unserved("projected value parameter");
                 }
-                let literal = scope
+                let (position, literal) = scope
                     .bound
                     .iter()
-                    .find(|(symbol, _)| *symbol == path.symbol)
-                    .map(|(_, literal)| literal.clone())
+                    .enumerate()
+                    .find(|(_, (symbol, _))| *symbol == path.symbol)
+                    .map(|(position, (_, literal))| (position, literal.clone()))
                     .ok_or_else(|| {
                         refuse(
                             id,
@@ -1239,6 +1330,7 @@ impl Program<'_> {
                             Unserved::Contract("value parameter binding"),
                         )
                     })?;
+                self.use_unfolded_argument(id, scope.owner, position)?;
                 let scalar_type = literal.scalar_type();
                 Ok((literal, ValueType::plain(scalar_type)))
             }

@@ -47,6 +47,13 @@ struct Unfolded {
     result: ScalarType,
 }
 
+/// A scalar term forms all its operands. Track substitutions during its
+/// expansion so only discarded arguments need a separate formation clause.
+pub(super) struct Unfolding {
+    machine: SymbolHandle,
+    used: Vec<bool>,
+}
+
 impl Program<'_> {
     /// The clause a call of a declared Boolean machine states.
     pub(super) fn called_clause(
@@ -64,10 +71,13 @@ impl Program<'_> {
             ));
         }
         let body = unfolded.body;
-        self.within_unfolding(unfolded.machine, |program| {
-            let callee = callee_scope(&unfolded.bound, unfolded.machine);
-            program.clause(id, &callee, body)
-        })
+        let (clause, _) =
+            self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
+                let callee = callee_scope(&unfolded.bound, unfolded.machine);
+                program.clause(id, &callee, body)
+            })?;
+        self.retain_call_arguments(id, unfolded.bound)?;
+        Ok(clause)
     }
 
     /// The term a call of a declared scalar machine denotes.
@@ -80,10 +90,11 @@ impl Program<'_> {
         let unfolded = self.unfold(id, scope, call)?;
         let body = unfolded.body;
         let result = unfolded.result;
-        let (term, value_type) = self.within_unfolding(unfolded.machine, |program| {
-            let callee = callee_scope(&unfolded.bound, unfolded.machine);
-            program.term(id, &callee, body, Some(result))
-        })?;
+        let ((term, value_type), used) =
+            self.within_unfolding(id, unfolded.machine, unfolded.bound.len(), |program| {
+                let callee = callee_scope(&unfolded.bound, unfolded.machine);
+                program.term(id, &callee, body, Some(result))
+            })?;
         if value_type.scalar() != Some(result) {
             return Err(refuse(
                 id,
@@ -91,6 +102,18 @@ impl Program<'_> {
                 Unserved::Contract("called machine's body differs from its result type"),
             ));
         }
+        // This body returns a scalar term, whose complete operand tree must
+        // form. A substituted argument survives there, or in a nested call's
+        // discarded-argument clause. Boolean clause bodies keep every guard:
+        // reading a branch alone does not establish eager argument formation.
+        self.retain_call_arguments(
+            id,
+            unfolded
+                .bound
+                .into_iter()
+                .zip(used)
+                .filter_map(|(bound, used)| (!used).then_some(bound)),
+        )?;
         Ok((term, ValueType::plain(result)))
     }
 
@@ -99,17 +122,51 @@ impl Program<'_> {
     /// finite unfolding.
     fn within_unfolding<T>(
         &mut self,
+        id: MachineId,
         machine: SymbolHandle,
+        arguments: usize,
         body: impl FnOnce(&mut Self) -> Checked<T>,
-    ) -> Checked<T> {
-        self.unfolding_calls.push(machine);
+    ) -> Checked<(T, Vec<bool>)> {
+        self.unfolding_calls.push(Unfolding {
+            machine,
+            used: vec![false; arguments],
+        });
         let read = body(self);
-        self.unfolding_calls.pop();
+        let unfolding = self.unfolding_calls.pop().ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("called machine lost its unfolding scope"),
+            )
+        })?;
         if read.is_ok() {
             self.admitted_declarations.include(machine);
             self.admitted_bodies.include(machine);
         }
-        read
+        read.map(|result| (result, unfolding.used))
+    }
+
+    pub(super) fn use_unfolded_argument(
+        &mut self,
+        id: MachineId,
+        owner: SymbolHandle,
+        position: usize,
+    ) -> Checked<()> {
+        if let Some(unfolding) = self
+            .unfolding_calls
+            .last_mut()
+            .filter(|frame| frame.machine == owner)
+        {
+            let used = unfolding.used.get_mut(position).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Contract("called machine argument is outside its unfolding scope"),
+                )
+            })?;
+            *used = true;
+        }
+        Ok(())
     }
 
     fn unfold(
@@ -162,7 +219,11 @@ impl Program<'_> {
         if target != machine && target != state.symbol {
             return unserved("call in a clause of a state other than the entry");
         }
-        if self.unfolding_calls.contains(&machine) {
+        if self
+            .unfolding_calls
+            .iter()
+            .any(|frame| frame.machine == machine)
+        {
             return unserved("recursive call in a clause");
         }
         if !declaration.body_is_present
