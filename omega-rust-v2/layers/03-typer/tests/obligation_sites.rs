@@ -144,3 +144,64 @@ fn hypothesis_application_keeps_requirement_and_operand_order() {
         if spelling(site,&source)==requirement && operands.iter().map(|s|spelling(s,&source)).eq(["y","x"]))
     });
 }
+
+#[test]
+fn copy_returns_read_the_value_without_returning_a_loan() {
+    for (source, read_site) in [
+        ("machine f()->u8 {let x:u8=7; let view=@x; view}", "view"),
+        ("machine f()->u8 {let x:u8=7; let view=@x; let n:u8=view; n}", "view"),
+        ("machine f(view:@u8)->u8 {view}", "view"),
+        ("machine f<'a>(view:@'a u8)->u8 {view}", "view"),
+        ("machine f<'a>(view:@'a mut u8)->u8 {let n:u8=view; n}", "view"),
+        ("machine f()->bool {let flag:bool=true; @flag}", "@flag"),
+    ] {
+        let stage = support::check(&[("handoff.omg", source)]).unwrap();
+        expect_at(&stage, source, read_site, |k| matches!(k, ObligationKind::CopyRead(_)));
+        assert!(
+            !stage
+                .obligations
+                .iter()
+                .any(|o| matches!(o.kind, ObligationKind::ReturnBorrow { .. })),
+            "{source}"
+        );
+    }
+    for source in [
+        "machine f(view:@write u8)->u8 {view}",
+        "machine f<'a>(view:@'a write u8)->u8 {view}",
+        "machine f<'a>(view:@'a u8)->bool {view}",
+    ] {
+        let error = support::check(&[("handoff.omg", source)]).unwrap_err();
+        assert_eq!(error.span.slice(source.as_bytes()), Some(b"view".as_slice()));
+        assert!(error.message.starts_with("expected "), "{error:?}");
+    }
+}
+
+#[test]
+fn terminal_transitions_record_the_borrow_they_forward() {
+    let source = "machine f(left:@u8,right:@u8,b:bool)->@u8 {transition b {true->left,false->right,}}";
+    let stage = support::check(&[("handoff.omg", source)]).unwrap();
+    for arm in ["left", "right"] {
+        expect_at(
+            &stage,
+            source,
+            arm,
+            |k| matches!(k, ObligationKind::ReturnBorrow { machine } if machine.path=="f"),
+        );
+    }
+    let copied = source.replace(")->@u8", ")->u8");
+    let stage = support::check(&[("handoff.omg", &copied)]).unwrap();
+    for arm in ["left", "right"] {
+        expect_at(&stage, &copied, arm, |k| matches!(k, ObligationKind::CopyRead(_)));
+    }
+    assert!(
+        !stage
+            .obligations
+            .iter()
+            .any(|o| matches!(o.kind, ObligationKind::ReturnBorrow { .. }))
+    );
+
+    let local = "machine f(x:u8,right:@u8,b:bool)->@u8 {transition b {true->@x,false->right,}}";
+    let error = support::check(&[("handoff.omg", local)]).unwrap_err();
+    assert_eq!(error.message, "returned reference borrows invocation-local storage");
+    assert_eq!(error.span.slice(local.as_bytes()), Some(b"@x".as_slice()));
+}
