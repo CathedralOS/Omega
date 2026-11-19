@@ -91,7 +91,7 @@ machine entry() -> Applied {{
 
 #[test]
 fn source_applications_prepare_substituted_cases_before_checked_construction() {
-    let typed = crate::prepare_fixture(source_program("7u64"));
+    let typed = source_program("7u64");
     let applied = typed
         .data_definitions()
         .iter()
@@ -145,7 +145,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         })
         .collect();
     assert_eq!(fields.len(), 3);
-    let mut prepared_again = typed.clone().into_inner();
+    let mut prepared_again = typed.clone();
     let retained_members = prepared_again.data_members.len();
     let retained_payloads = prepared_again.data_payload_fields.len();
     for reference in &fields {
@@ -184,6 +184,8 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         .find(|machine| machine.name.as_str() == "entry")
         .unwrap()
         .symbol;
+    let optional_symbol = optional.symbol;
+    let typed = crate::prepare_fixture(typed);
     let prepared = crate::lowering::prepare_compilation(
         &typed,
         crate::lowering::Compilation {
@@ -211,7 +213,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         .expect("accepted primary form retains its source correspondence")
         .records
         .iter()
-        .filter(|record| record.declaration == optional.symbol)
+        .filter(|record| record.declaration == optional_symbol)
         .collect();
     assert_eq!(
         records.len(),
