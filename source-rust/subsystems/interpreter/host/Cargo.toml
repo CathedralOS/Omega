@@ -31,7 +31,7 @@ provider-admission = { path = "../../compiler/psi-to-native/verification/provide
 
 [dev-dependencies]
 service-surface = { path = "../../compiler/psi/service-surface" }
-native-provider-sponsor = { path = "../../host-support/native-provider-sponsor" }
+native-provider-sponsor = { path = "native-sponsor" }
 application-identity = { path = "../../compiler/psi/application-identity" }
 language-core = { path = "../../compiler/foundation/language-core" }
 orchestration = { path = "../../build-system/orchestration" }

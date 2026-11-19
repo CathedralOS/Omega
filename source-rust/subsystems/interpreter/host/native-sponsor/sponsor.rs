@@ -3,11 +3,11 @@
 
 use bounded_process::{BoundedProcessChild, BoundedProcessLimits, BoundedProcessPrepared};
 use calling_conventions::PublishedForeignAdapterIdentity;
+use image_emission::NativeForeignAdapterImage;
 use native_provider_runtime::{
     NativeAdapterStorage, NativeProviderCommand, NativeProviderError, NativeProviderOperation,
     NativeProviderProcess, NativeProviderSession, transport,
 };
-use product_publication::{NativeForeignAdapterImage, TerminalRuntimeProvisions};
 use std::{
     io,
     process::Command,
@@ -19,15 +19,11 @@ use std::{
 };
 use transport::{Duplex, Packet};
 
-pub fn for_provisions(
+pub fn for_adapters<'a>(
     command: Command,
-    provisions: Option<&TerminalRuntimeProvisions>,
+    adapters: impl IntoIterator<Item = &'a Arc<NativeForeignAdapterImage>>,
 ) -> NativeProviderCommand {
-    let roster = provisions
-        .into_iter()
-        .flat_map(|runtime| runtime.published_native_adapters())
-        .cloned()
-        .collect();
+    let roster = adapters.into_iter().cloned().collect();
     NativeProviderCommand::new(command, move |command, timeout| {
         launch(command, timeout, roster)
     })
@@ -275,7 +271,10 @@ mod tests {
         };
         let locator = locate(b"getpid");
         let image = image_emission::emit_native_foreign_adapter(
-            image_fixtures::prepare_foreign_adapter_object(request, locator, [1; 32]).unwrap(),
+            native_compiler::test_support::compile_runtime_foreign_adapter(
+                request, locator, [1; 32],
+            )
+            .unwrap(),
         )
         .unwrap();
         let roster = [Arc::new(image)];

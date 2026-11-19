@@ -1092,22 +1092,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "image-fixtures"
-version = "0.1.0"
-dependencies = [
- "entry-planning",
- "function-layout",
- "image",
- "installation-binding",
- "machine-code",
- "native-encoding",
- "object-file",
- "resolved-layout-to-resolved-layout",
- "selected-form-encoding-to-resolved-layout",
- "target",
-]
-
-[[package]]
 name = "image-macho"
 version = "0.1.0"
 dependencies = [
@@ -1643,9 +1627,8 @@ dependencies = [
  "bounded-process",
  "calling-conventions",
  "image-emission",
- "image-fixtures",
+ "native-compiler",
  "native-provider-runtime",
- "product-publication",
  "target",
 ]
 

@@ -1009,9 +1009,12 @@ machine build(builder: @mut Build) {{
         for failed in [false, true] {
             let mut worker = Command::new(std::env::current_exe().unwrap());
             worker.args(["internal_native_provider_worker", "--nocapture"]);
-            let worker = native_provider_sponsor::for_provisions(
+            let worker = native_provider_sponsor::for_adapters(
                 worker,
-                report.published_runtime_provisions(),
+                report
+                    .published_runtime_provisions()
+                    .into_iter()
+                    .flat_map(|runtime| runtime.published_native_adapters()),
             );
             let context = NativeContext::new(
                 Some(worker),

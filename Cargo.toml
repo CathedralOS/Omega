@@ -150,6 +150,7 @@ members = [
     "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/typed-trees",
     "source-rust/subsystems/interpreter",
     "source-rust/subsystems/interpreter/host",
+    "source-rust/subsystems/interpreter/host/native-sponsor",
     "source-rust/subsystems/interpreter/host/native-worker",
     "source-rust/subsystems/interpreter/memory/extents",
     "source-rust/subsystems/interpreter/memory/materialization",
