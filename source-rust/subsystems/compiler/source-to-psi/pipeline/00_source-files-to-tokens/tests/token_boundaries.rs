@@ -57,5 +57,8 @@ fn comment_scans_preserve_absolute_utf8_spans_and_nested_delimiters() {
     );
 }
 
-#[path = "../../../../../../tests/support/frontend.rs"]
+use source_files::LoadedSource;
+use source_lexer as lexing;
+
+#[path = "../../../../../../../tests/support/lexing.rs"]
 mod frontend_fixture;

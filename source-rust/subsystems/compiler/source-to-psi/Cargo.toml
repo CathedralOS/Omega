@@ -19,6 +19,7 @@ test-support = [
 ]
 
 [dependencies]
+source-files = { path = "pipeline/representations/source-files" }
 checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi" }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program" }
 typed-trees-to-lowered-program = { path = "pipeline/05_typed-trees-to-lowered-program" }
@@ -84,26 +85,6 @@ typed-trees-to-typed-trees = { path = "pipeline/04_typed-trees-to-typed-trees", 
 symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
 syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 mimalloc = { version = "0.1", default-features = false }
-
-[[test]]
-name = "lexing_lexing"
-path = "pipeline/00_source-files-to-tokens/tests/lexing.rs"
-required-features = ["test-support"]
-
-[[test]]
-name = "lexing_source_batches"
-path = "pipeline/00_source-files-to-tokens/tests/source_batches.rs"
-required-features = ["test-support"]
-
-[[test]]
-name = "lexing_source_coverage"
-path = "pipeline/00_source-files-to-tokens/tests/source_coverage.rs"
-required-features = ["test-support"]
-
-[[test]]
-name = "lexing_token_boundaries"
-path = "pipeline/00_source-files-to-tokens/tests/token_boundaries.rs"
-required-features = ["test-support"]
 
 [[bench]]
 name = "lexing_lexer_timing"

@@ -23,6 +23,6 @@ syntax-trees = { path = "../representations/syntax-trees" }
 tokens = { path = "../representations/tokens" }
 
 [dev-dependencies]
-declaration-contracts = { path = "../../language/declaration-contracts" }
+source-files = { path = "../representations/source-files" }
 source-admission = { path = "../../inputs/source-admission" }
 source-lexer = { path = "../00_source-files-to-tokens" }

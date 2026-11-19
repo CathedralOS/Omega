@@ -1,6 +1,5 @@
-use declaration_contracts::source_identity::DependencyScope;
-use source_admission::{LoadedSource, LoadedSources, SourceOrigin};
-use source_compiler::lexing::lex as lex_sources;
+use source_files::{DependencyScope, LoadedSource, LoadedSources, SourceOrigin};
+use source_lexer::lex as lex_sources;
 use source_text::SourceId;
 use std::path::PathBuf;
 use std::sync::Arc;

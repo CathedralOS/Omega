@@ -315,5 +315,8 @@ fn assert_profile_rejection(source: &str, expected_start: usize, expected_end: u
     assert_eq!(error.span.end, expected_end, "source: {source:?}");
 }
 
-#[path = "../../../../../../tests/support/frontend.rs"]
+use source_files::LoadedSource;
+use source_lexer as lexing;
+
+#[path = "../../../../../../../tests/support/lexing.rs"]
 mod frontend_fixture;

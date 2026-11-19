@@ -1,9 +1,12 @@
 # Lexical scanning
 
 Start at [lexer.rs](lexer.rs). It turns loaded UTF-8 source into ordered token
-streams. The [source-compilation coordinator](../source-compilation/src/source_parsing.rs) calls
-`lex_unit_reusing` for each file and recycles token buffers between files.
+streams. The [streaming parser](../01_tokens-to-syntax-trees/streaming.rs) calls
+`lex_file` for each file and recycles token buffers between files.
 `lex(LoadedSources)` returns a complete token batch for consumers that retain it.
+The [source-files representation](../representations/source-files/source_files.rs) carries the captured text, origin and scope.
+
+Run the scanner and batch tests with `mbx test --locked -p source-lexer`.
 The private scanner publishes each token, and `lex_next_token` dispatches its spelling. The cursor, small lexical
 error type, comments, identifiers and punctuation scanning stay with that flow.
 
@@ -19,9 +22,9 @@ comments retain exact spans, including LF after a line comment.
 
 Behavior tests live under `tests/`. They check exact source coverage, token
 boundaries, accepted and refused spellings, decoded bytes, and batch order.
-The source-loading test lives with the source-compilation coordinator. Small
-fixture adapters in [tests/support/frontend.rs](../../../../../tests/support/frontend.rs)
-construct complete stage inputs; they expose no additional production route.
+The source-loading test lives with the source-compilation coordinator. The
+[shared lexer fixture](../../../../../../tests/support/lexing.rs)
+calls the ordinary batch lexer on retained text.
 
 ## Benchmark scanning through its consumer
 
@@ -45,7 +48,7 @@ fingerprint and consumed token/root counts.
 
 For paired comparisons, build without running with
 `mbx bench -p source-compiler --features test-support --bench lexing_lexer_timing --no-run`. Retain the
-executable at the printed path and use [omega-bench](../../../../../tools/benchmark/README.md)'s `reported_work`
+executable at the printed path and use [omega-bench](../../../../../../tools/benchmark/README.md)'s `reported_work`
 plans. Keep input files and executables unchanged during a run. The
-[initial comparison](../../../../../wiki/drafts/measurements/rust_lexer_2026_11_16.md)
+[initial comparison](../../../../../../wiki/drafts/measurements/rust_lexer_2026_11_16.md)
 records the measured changes and host limitations.

@@ -1,7 +1,6 @@
 use crate::frontend_fixture::Lexer;
 use crate::{parse_into as parse, parse_source_units, parse_sources};
-use declaration_contracts::source_identity::DependencyScope;
-use source_admission::{LoadedSource, LoadedSources, SourceOrigin};
+use source_files::{DependencyScope, LoadedSource, LoadedSources, SourceOrigin};
 use source_lexer::lex as lex_sources;
 use source_text::SourceId;
 use std::sync::Arc;

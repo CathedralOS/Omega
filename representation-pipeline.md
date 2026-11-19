@@ -606,7 +606,7 @@ These examples cover different amounts of the pipeline. The saved-program admiss
 
 | Layer | What the test checks | Run one test |
 | --- | --- | --- |
-| 00 · Files → tokens | Report the earlier source error when parallel jobs finish out of order [Test](omega-rust/psi/compilation/pipeline/00_source-files-to-tokens/tests/source_batches.rs#L79) | `mbx test --locked -p source-compiler --test lexing_source_batches --features test-support lexing_preserves` |
+| 00 · Files → tokens | Report the earlier source error when parallel jobs finish out of order [Test](source-rust/subsystems/compiler/source-to-psi/pipeline/00_source-files-to-tokens/tests/source_batches.rs#L79) | `mbx test --locked -p source-lexer --test lexing_source_batches lexing_preserves` |
 | 01 · Tokens → syntax trees | Read syntax names after releasing the token and source rows [Test](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/tests/unit/source_parsing.rs#L243) | `mbx test --locked -p source-parser --lib syntax_names` |
 | 02 · Syntax trees → resolved trees | Keep declaration slots and reject missing or duplicate declarations [Test](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/constants/receiving_applications.rs#L315) | `mbx test --locked -p syntax-trees-to-symbol-resolved-trees --lib selected_inputs_keep` |
 | 03 · Resolved trees → typed trees | Retain a boundary parameter’s qualification in its typed header [Test](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/bodyless_headers_tests.rs#L6) | `mbx test --locked -p symbol-resolved-trees-to-typed-trees --lib a_bodyless_boundary` |
