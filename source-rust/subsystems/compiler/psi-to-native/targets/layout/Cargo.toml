@@ -16,7 +16,7 @@ terminal-psi = { path = "../../../representations/psi" }
 terminal-semantics = { path = "../../../representations/psi/semantics" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
 layout-plans = { path = "../../../psi/layout" }
-numerics = { path = "../../../source-to-psi/language/scalar-values" }
+numerics = { path = "../../../psi/semantics/numeric" }
 runtime-abi = { path = "../runtime-abi" }
 target = { path = "../target" }
 calling-conventions = { path = "../calling-conventions" }

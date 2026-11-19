@@ -7,6 +7,9 @@ preserve their exact decimal spelling so every format read rounds once through
 `FloatSemantics` without double-rounding.
 */
 
+mod evaluated_constant;
+pub use evaluated_constant::EvaluatedConstant;
+
 use numerics::integer_carrier::FixedInteger;
 use std::borrow::Cow;
 use std::sync::Arc;

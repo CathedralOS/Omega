@@ -10,7 +10,7 @@ version.workspace = true
 evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
 declaration-contracts = { path = "../../../compiler/source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../compiler/source-to-psi/language/application-identity" }
-numeric-literals = { path = "../../../compiler/source-to-psi/language/numeric-literals" }
+numeric-literals = { path = "../../../compiler/foundation/numeric-literals" }
 source-admission = { path = "../../../compiler/source-to-psi/inputs/source-admission" }
 source-text = { path = "../../../../foundation/source-text" }
 wire = { path = "../../../../foundation/wire" }
@@ -30,7 +30,7 @@ target = { path = "../../compilation/target-description/target" }
 semantic-vocabulary = { path = "../../../compiler/source-to-psi/language/semantic-vocabulary" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
 flow-effects = { path = "../../../compiler/source-to-psi/language/source-effects" }
-language-core = { path = "../../../compiler/source-to-psi/language/source-vocabulary" }
-numerics = { path = "../../../compiler/source-to-psi/language/scalar-values" }
+language-core = { path = "../../../compiler/foundation/language-core" }
+numerics = { path = "../../../compiler/psi/semantics/numeric" }
 symbols = { path = "../../../compiler/source-to-psi/language/declaration-identity" }
 

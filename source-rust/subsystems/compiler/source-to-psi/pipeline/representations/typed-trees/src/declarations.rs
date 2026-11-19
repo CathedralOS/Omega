@@ -624,7 +624,7 @@ pub mod constant {
         pub declared_type: crate::source_state::types::TypeReferenceHandle,
         pub initializer_source_span: source_text::SourceSpan,
         pub pending_target_observation: bool,
-        pub evaluated_value: Option<language_core::constant_value::EvaluatedConstant>,
+        pub evaluated_value: Option<numeric_literals::EvaluatedConstant>,
         pub authored_initializer: crate::source_state::expression::ExpressionHandle,
         pub materialized_initializer: crate::source_state::expression::ExpressionHandle,
         pub evaluation_entry: arena::Handle<crate::source_state::machine::Machine>,

@@ -1,32 +1,5 @@
-/*
-We provide target-neutral source-language vocabulary shared across Psi frontend
-stages. We define source-semantics tables that resolution and typing consult
-(`source_semantics`, with `receiver_binding`, `place_root`, and
-`contract_result`), memory orderings and compare-exchange outcome schemas
-(`atomic`), value and borrow-recast cast forms (`cast_form`), inline-assembly
-catalog contracts and scratch-register tables (`inline_assembly`), operator
-spellings (`operator_spelling`), compiler-owned layout query names
-(`data_layout_queries`), evaluated constant values (`constant_value`), and core
-surface operation descriptors (`activation_storage`, `descriptor_tables`,
-`layout_storage`, `static_interrupts`), and the sealed intrinsic catalog of
-bundled declarations that receive compiler custody (`sealed_intrinsics`), and
-the separate catalog of core declarations checking recognizes by identity
-without granting custody (`core_vocabulary`).
-*/
-
-/*
-Several frontend and checking stages must agree on the exact spellings,
-multiplicity axes, carry policies, atomic ordering plans, and inline-assembly
-contracts without coupling to any single AST or typed-tree representation crate.
-By keeping this shared vocabulary in a zero-representation foundation crate, we
-let parsing, name resolution, type checking, and verification share canonical
-rules and tables without circular dependencies.
-*/
-
-/*
-We neither parse nor judge a program, and we depend on `record_storage` and
-`numerics` for record derives and float literal formats.
-*/
+//! Language spellings, operation catalogs, atomic ordering laws and access contracts
+//! shared by the source compiler, portable Psi and native code.
 
 #![forbid(unsafe_code)]
 
@@ -126,51 +99,6 @@ pub mod cast_form {
                 Self::Entry(entry) => Some(entry),
                 Self::Value | Self::Recast(_) => None,
             }
-        }
-    }
-}
-
-pub mod constant_value {
-    use numeric_literals::FloatFormat;
-
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-    pub enum EvaluatedConstant {
-        Encoded(String), // An existing declaration encoding; index consumers still validate eligibility.
-        UndeterminedNaN(FloatFormat), // Format and NaN meaning are known, but no observable payload bits are fixed.
-    }
-
-    impl EvaluatedConstant {
-        pub fn encoding(&self) -> Option<&str> {
-            match self {
-                Self::Encoded(encoding) => Some(encoding),
-                Self::UndeterminedNaN(_) => None,
-            }
-        }
-    }
-
-    impl Default for EvaluatedConstant {
-        fn default() -> Self {
-            Self::Encoded(String::new())
-        }
-    }
-
-    impl From<String> for EvaluatedConstant {
-        fn from(encoding: String) -> Self {
-            Self::Encoded(encoding)
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{EvaluatedConstant, FloatFormat};
-
-        #[test]
-        fn semantic_nan_never_supplies_an_encoding() {
-            for format in [FloatFormat::F32, FloatFormat::F64] {
-                assert_eq!(EvaluatedConstant::UndeterminedNaN(format).encoding(), None);
-            }
-            let encoded = EvaluatedConstant::from("boolean4:true".to_owned());
-            assert_eq!(encoded.encoding(), Some("boolean4:true"));
         }
     }
 }

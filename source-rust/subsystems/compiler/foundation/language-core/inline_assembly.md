@@ -30,7 +30,7 @@ and refusal tests for the claimed profile.
 | x86 `cli` / `sti` | MachineOwner requirement; immediate IF clear versus interrupt recognition after STI's following instruction. |
 | x86 structured `pushfq` / `popfq` | Exact `u64` writable/saved place; snapshot or restore with balanced RSP. Restore requires MachineOwner; a literal is not a saved-flags place. |
 | x86 `rdmsr` / `wrmsr` | Exact `u32` ECX selector and `u64` EDX:EAX value; explicit read destination; MachineOwner. |
-| x86 `sgdt` / `lgdt` | Store/read exactly ten plain bytes through `&write [u8; 10]` (or `&mut`) / `&[u8; 10]` (or `&mut`). Both require MachineOwner and the catalog's R10 scratch clobber. Numeric addresses and arbitrary equal-sized records supply no operand authority. |
+| x86 `sgdt` / `lgdt` | Store/read exactly ten plain bytes through `@write [u8; 10]` (or `@mut`) / `@[u8; 10]` (or `@mut`). Both require MachineOwner and the catalog's R10 scratch clobber. Numeric addresses and arbitrary equal-sized records supply no operand authority. |
 | x86 control-register access | Exact `u64` places/values; CR0/2/3/4 reads, CR0/3/4 writes; MachineOwner. |
 | AArch64 system-register access | Exact `u64` places/values via `read_<sysreg>`/`write_<sysreg>` (architecturally `mrs`/`msr`); EL1 control, translation and thread registers (SCTLR/TCR/TTBR0/TTBR1/MAIR/VBAR/TPIDR) plus read-only ESR_EL1/FAR_EL1; MachineOwner. Deferred-effect writes synchronize through a caller-sequenced `isb`. |
 | x86 `serialize` / AArch64 `isb` | Zero operands; instruction-stream serialization — every prior instruction completes and instruction fetch re-synchronizes — not memory ordering; UserChecked, no authority, no clobbers. |
@@ -70,9 +70,9 @@ Unknown mnemonics fail separately. Service-admission candidates
 (`cl*`/`tlbi`/`ic`/`dc`) stay unrecognized until each has its own contract.
 Target gates never substitute another ISA's instruction.
 
-[Parsing](../../pipeline/01_tokens-to-syntax-trees/assembly/parse.rs)
+[Parsing](../../source-to-psi/pipeline/01_tokens-to-syntax-trees/assembly/parse.rs)
 records instruction spelling, operands, clauses and labels, and checks separators.
-[Instruction preparation](../../pipeline/02_syntax-trees-to-symbol-resolved-trees/declarations/assembly/mod.rs)
+[Instruction preparation](../../source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/declarations/assembly/mod.rs)
 looks up contracts, checks transfer position and the exact clobber union, and
 builds the block graph. Requires and ensures clauses become assertions around the
 instructions, with a proof-neutral entry marker for an ensures-only block.
@@ -91,7 +91,7 @@ reach correction.
 A source gate, catalog row, parser test or instruction encoder is not evidence
 for the final artifact or native execution.
 
-The [implicit freestanding entry plan](../../../../omega/compilation/target-description/calling-conventions/src/plans.rs)
+The [implicit freestanding entry plan](../../psi-to-native/targets/calling-conventions/src/plans.rs)
 adds instruction-pointer, stack-pointer and control-state use to its ordinary
 limit on volatile state. This compatibility path applies only to the
 compiler-selected boot root; it must not widen an explicit source-selected

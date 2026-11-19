@@ -130,7 +130,7 @@ impl PreparedTerminalPublication {
 pub struct ConstantRead {
     pub name: String,
     pub declaration: Option<source_admission::RetainedDeclaration>,
-    pub value: Option<language_core::constant_value::EvaluatedConstant>,
+    pub value: Option<numeric_literals::EvaluatedConstant>,
 }
 
 /// One boundary requirement an accepted module declares.

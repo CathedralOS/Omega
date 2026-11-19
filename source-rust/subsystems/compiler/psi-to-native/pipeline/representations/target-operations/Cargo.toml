@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 target-vocabulary = { path = "target-vocabulary" }
 native-vocabulary = { path = "../../../native-vocabulary" }
-language-core = { path = "../../../../source-to-psi/language/source-vocabulary" }
+language-core = { path = "../../../../foundation/language-core" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../../native-vocabulary/function-identity" }
 target = { path = "../../../targets/target" }

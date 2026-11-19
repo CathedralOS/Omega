@@ -17,7 +17,7 @@ pub mod declarations {
             pub authored_initializer: crate::source_resolved::expression::ExpressionHandle,
             pub initializer_source_span: source_text::SourceSpan,
             pub pending_target_observation: bool,
-            pub evaluated_value: Option<language_core::constant_value::EvaluatedConstant>,
+            pub evaluated_value: Option<numeric_literals::EvaluatedConstant>,
         }
     }
     pub mod data {

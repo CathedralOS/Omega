@@ -1,7 +1,7 @@
 # Atomic vocabulary and downstream admission
 
-Contract: [concurrency and atomic observation](../../../../wiki/spec/language/concurrency.md).
-The [atomic vocabulary](src/atomic.rs) defines the shared atomic orderings. The [access-plan crate](../access-plans/README.md)
+Contract: [concurrency and atomic observation](../../../../../wiki/spec/language/concurrency.md).
+The [atomic vocabulary](src/atomic.rs) defines the shared atomic orderings. Access admission
 validates placed permissions, resident ownership and specialized requests.
 
 Keep decisive/single-attempt and observing/non-observing independent. Recognizing an ordering or publishing a core outcome
@@ -124,4 +124,4 @@ publication.
 Instruction mappings and serial differential tests do not prove concurrent
 behavior. Complete memory-model and fence axioms, target-refinement proofs,
 coverage under real concurrent activations, and proof-scoped weaker
-acquire selection remain separate items in [TASKS.md](../../../../TASKS.md).
+acquire selection remain separate items in [TASKS.md](../../../../../TASKS.md).

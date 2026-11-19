@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-language-core = { path = "../../../compiler/source-to-psi/language/source-vocabulary" }
+language-core = { path = "../../../compiler/foundation/language-core" }
 access-vocabulary = { path = "../../../compiler/source-to-psi/language/access-vocabulary" }
 access-admission = { path = "../../compilation/access-admission" }
 extent-contracts = { path = "../../../compiler/source-to-psi/language/extent-contracts" }

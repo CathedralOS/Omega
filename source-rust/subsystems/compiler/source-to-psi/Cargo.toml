@@ -36,7 +36,7 @@ declaration-contracts = { path = "language/declaration-contracts" }
 schema-reflection = { path = "language/schema-reflection" }
 application-identity = { path = "language/application-identity" }
 layout-planning = { path = "../psi/layout/integer-defaults" }
-numeric-literals = { path = "language/numeric-literals" }
+numeric-literals = { path = "../foundation/numeric-literals" }
 evaluation-contracts = { path = "evaluation/evaluation-contracts" }
 evaluation-receipts = { path = "evaluation/evaluation-receipts" }
 source-capture = { path = "../../../../host-support/source-capture" }
@@ -58,9 +58,9 @@ evaluation-accounting = { path = "evaluation/evaluation-accounting" }
 worker-budget = { path = "../foundation/worker-budget" }
 filesystem-authority = { path = "evaluation/filesystem-authority" }
 flow-effects = { path = "language/source-effects" }
-language-core = { path = "language/source-vocabulary" }
+language-core = { path = "../foundation/language-core" }
 layout-plans = { path = "../psi/layout" }
-numerics = { path = "language/scalar-values" }
+numerics = { path = "../psi/semantics/numeric" }
 optimization = { path = "../representations/psi/optimization-selections" }
 proof-admission = { path = "proof-admission" }
 rayon = "1.11"

@@ -13,7 +13,7 @@ calling-conventions = { path = "../../target-description/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 function-identity = { path = "../../native-vocabulary/function-identity" }
 installation-evidence = { path = "../../installation/installation-evidence" }
-language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+language-core = { path = "../../../foundation/language-core" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
 native-vocabulary = { path = "../../native-vocabulary" }
 optimization-core = { path = "../../optimization-contracts" }

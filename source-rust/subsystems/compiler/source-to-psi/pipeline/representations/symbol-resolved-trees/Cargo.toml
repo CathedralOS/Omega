@@ -12,13 +12,13 @@ test-support = []
 
 [dependencies]
 declaration-contracts = { path = "../../../language/declaration-contracts" }
-numeric-literals = { path = "../../../language/numeric-literals" }
+numeric-literals = { path = "../../../../foundation/numeric-literals" }
 source-text = { path = "../../../../../../foundation/source-text" }
 wire = { path = "../../../../../../foundation/wire" }
 arena = { path = "../../../../../../foundation/arena" }
 record-storage = { path = "../../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-language-core = { path = "../../../language/source-vocabulary" }
-numerics = { path = "../../../language/scalar-values" }
+language-core = { path = "../../../../foundation/language-core" }
+numerics = { path = "../../../../psi/semantics/numeric" }
 symbols = { path = "../../../language/declaration-identity" }
 source-declarations = { path = "../../../language/source-declarations" }
