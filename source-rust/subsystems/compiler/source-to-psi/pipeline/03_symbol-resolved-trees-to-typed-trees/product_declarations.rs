@@ -1,28 +1,7 @@
-/*
-We answer a Build's questions about Product declarations
-(`describe_schema`, `describe_provider`, `describe_entry`).
-*/
+//! Resolve Build requests for declarations from their authored source scope.
 
-/*
-A Build may ask for a Product declaration by path and receive a description
-it can hand back to a later request: `BuildProduct::entry(&builder.product,
-"support::setup::launch", slot)` yields the entry a root binding then names
-(`wiki/spec/build/scoped_execution.md`, "Selecting product declarations
-without executing them"). Nothing of the Product runs. The answer is the one
-declaration the path selects from where the Build asked.
-
-A path is read in the package of the Build source that wrote it. A bare path
-names a declaration of that package's Product. A path through a Product
-dependency alias names a public declaration of that dependency. Borrowing the
-Build grants no other package's names, and the ordinary temporal rule still
-decides whether the declaration exists yet where the question was asked.
-
-A description says which declaration, and no more. Whether a described
-machine is a valid entry for its slot is judged where the entry is checked,
-as it is for an entry bound by a written path (`root_bindings`). So two
-visible machines of one name are refused as ambiguous here; neither is
-preferred for fitting the slot.
-*/
+mod root_bindings;
+pub use root_bindings::{RootBinding, collect_root_bindings};
 
 use crate::declaration_selection::DescribedProductEntry;
 use crate::declaration_selection::DescribedProductProvider;
@@ -136,7 +115,7 @@ fn select_declaration(
     })
 }
 
-pub(crate) fn describe_schema(
+pub fn describe_schema(
     program: &TypedTrees,
     occurrence: SourceSpan,
     path: &[u8],
@@ -160,7 +139,7 @@ pub(crate) fn describe_schema(
     })
 }
 
-pub(crate) fn describe_provider(
+pub fn describe_provider(
     program: &TypedTrees,
     occurrence: SourceSpan,
     path: &[u8],
@@ -184,7 +163,7 @@ pub(crate) fn describe_provider(
     })
 }
 
-pub(crate) fn describe_entry(
+pub fn describe_entry(
     program: &TypedTrees,
     occurrence: SourceSpan,
     path: &[u8],
@@ -231,7 +210,7 @@ pub(crate) fn describe_entry(
     })
 }
 
-pub(crate) fn describe_parameter(
+pub fn describe_parameter(
     program: &TypedTrees,
     occurrence: SourceSpan,
     selecting: SourceSpan,
@@ -261,7 +240,7 @@ pub(crate) fn describe_parameter(
     )
 }
 
-pub(crate) fn describe_field(
+pub fn describe_field(
     program: &TypedTrees,
     occurrence: SourceSpan,
     selecting: SourceSpan,

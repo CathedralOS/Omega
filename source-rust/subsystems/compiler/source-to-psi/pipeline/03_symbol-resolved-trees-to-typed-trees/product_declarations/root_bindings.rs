@@ -1,25 +1,22 @@
-/*
-We resolve the root bindings a Build executed to the machines they name
-(`collect_root_bindings`).
-*/
-
-/*
-A Build binds a root slot, such as a target's program entry, either to a path
-it wrote or to a product description it was handed. Each binding is resolved
-in the package of the build source that wrote it: a bare name is a machine of
-that package, and a path through a dependency alias is a public machine of
-that dependency. Borrowing the Build grants no other package's names. A slot
-is bound once. This reads declarations and names only; whether the bound
-machine is a valid entry is judged where the entry is checked.
-*/
+//! Resolve each executed root binding to its exact visible machine. Entry checking
+//! later decides whether that machine satisfies its selected slot.
 
 use crate::declaration_selection::ExecutedRootBinding;
 use crate::declaration_selection::RootBindingSelection;
 use crate::source_state::TypedTrees;
-use declaration_contracts::selection::RootBinding;
 use diagnostics::Diagnostic;
+use source_text::SourceSpan;
+use symbols::SymbolHandle;
 
-pub(crate) fn collect_root_bindings(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootBinding {
+    pub slot: String,
+    pub implementation: String,
+    pub implementation_symbol: SymbolHandle,
+    pub source_span: Option<SourceSpan>,
+}
+
+pub fn collect_root_bindings(
     typed: &TypedTrees,
     executed: &[ExecutedRootBinding],
 ) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
@@ -31,13 +28,12 @@ pub(crate) fn collect_root_bindings(
         let (implementation, implementation_symbol) = match &binding.implementation {
             RootBindingSelection::Described(described) => {
                 if slot != described.slot {
-                    diagnostics.push(
-                Diagnostic::error(format!(
-                    "root binding slot `{slot}` does not match the product description's slot `{}`",
-                    described.slot
-                ))
-                .with_source_span(binding.source_span),
-            );
+                    let message = format!(
+                        "root binding slot `{slot}` does not match the product description's slot `{}`",
+                        described.slot
+                    );
+                    diagnostics
+                        .push(Diagnostic::error(message).with_source_span(binding.source_span));
                     continue;
                 }
                 let selected = crate::source_symbols::rejoin_declaration(
@@ -152,9 +148,11 @@ pub(crate) fn collect_root_bindings(
             }
         };
         if let Some(existing) = bindings.iter().find(|binding| binding.slot == slot) {
-            diagnostics.push(Diagnostic::error(format!(
-        "root slot `{slot}` is already bound to `{}`; it cannot also bind `{implementation}`", existing.implementation
-    )).with_source_span(binding.source_span));
+            let message = format!(
+                "root slot `{slot}` is already bound to `{}`; it cannot also bind `{implementation}`",
+                existing.implementation
+            );
+            diagnostics.push(Diagnostic::error(message).with_source_span(binding.source_span));
             continue;
         }
         bindings.push(RootBinding {
@@ -243,6 +241,26 @@ mod tests {
             error[0].message.contains("unknown entry machine `absent`"),
             "{error:?}"
         );
+    }
+
+    #[test]
+    fn a_product_schema_description_retains_the_selected_data_declaration() {
+        let (typed, _) = typed("data Record {}\nmachine main() {}\n");
+        let occurrence = typed
+            .symbols
+            .symbol_source_span(typed.machines()[0].symbol)
+            .unwrap();
+        let schema = crate::product_declarations::describe_schema(&typed, occurrence, b"Record")
+            .expect("Record is a visible data declaration");
+        let declaration = typed.data_definitions()[0].symbol;
+        assert_eq!(schema.canonical_path, "Record");
+        assert_eq!(
+            schema.declaration,
+            crate::source_symbols::retain_declaration(&typed.symbols, declaration).unwrap()
+        );
+        let error =
+            crate::product_declarations::describe_schema(&typed, occurrence, b"main").unwrap_err();
+        assert!(error.contains("names no data declaration"), "{error}");
     }
 
     #[test]

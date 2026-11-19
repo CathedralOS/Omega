@@ -4,6 +4,7 @@ pub use source_symbol_table::{source_inputs, source_symbols, source_tables};
 #[cfg(any(test, feature = "test-support"))]
 pub use symbol_resolved_trees::source_resolved;
 pub use typed_trees::source_state;
+pub use symbol_resolved_trees_to_typed_trees::product_declarations::RootBinding;
 pub use typed_trees_to_typed_trees::preparation::WireCompatibilityDemand;
 pub use typed_trees::{
     constrained_type_reference_pair, digest_commitment, executable_leaf_expression_pattern,
@@ -52,10 +53,6 @@ pub use checked_program_to_psi::source_roster::{
     SourceProgramEntryInput,
 };
 
-#[path = "../language/source-declarations/product_descriptions.rs"]
-pub(crate) mod product_descriptions;
-#[path = "../language/source-declarations/root_bindings.rs"]
-pub(crate) mod root_bindings;
 #[path = "04_typed-trees-to-typed-trees/prepare_for_checking.rs"]
 pub(crate) mod source_checking;
 #[path = "03_symbol-resolved-trees-to-typed-trees/resolve_and_type.rs"]
