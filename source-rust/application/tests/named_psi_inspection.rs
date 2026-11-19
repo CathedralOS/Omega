@@ -196,7 +196,7 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
     let schema = contract.schema_declaration;
     assert_eq!(
         module.identities.text(schema),
-        Some("toolchain-contract::LinuxX86_64Application")
+        Some("toolchain-contract::targets::linux_x86_64::LinuxX86_64Application")
     );
     assert_eq!(
         metadata.entry_schema_custody(schema).unwrap(),
