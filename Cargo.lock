@@ -1467,6 +1467,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
+ "target-vocabulary",
  "target-aarch64",
  "target-operations",
  "target-x86_64",
