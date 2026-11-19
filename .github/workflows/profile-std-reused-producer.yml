@@ -1,0 +1,87 @@
+name: Profile std with the existing compiler
+
+on:
+  push:
+    branches: [work/codex/profile-std-reused-producer]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PRODUCER_RUN: '44438657931'
+      REVIEWED_SOURCE: 'a89695997d67291c436a20a362710adae22c0083'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify the compiler built for the filesystem run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          retained="$RUNNER_TEMP/std-producer"
+          gh run download "$PRODUCER_RUN" --repo "$GITHUB_REPOSITORY" --name fs-cut-qualified-producer --dir "$retained"
+          receipt="$retained/producer.json"
+          revision=$(jq -er '.revision' "$receipt")
+          digest=$(jq -er '.executables[] | select(.cargo_artifact.target.name == "omega" and .cargo_artifact.profile.opt_level == "1") | .sha256' "$receipt")
+          printf '%s  %s\n' "$digest" "$retained/retained-omega" | sha256sum --check
+          chmod +x "$retained/retained-omega"
+          git fetch --no-tags origin "$revision" "$REVIEWED_SOURCE"
+          git switch --detach "$revision"
+          git diff --exit-code "$REVIEWED_SOURCE" HEAD -- omega-rust source/library .cargo Cargo.toml Cargo.lock rust-toolchain.toml
+          mkdir -p "$RUNNER_TEMP/std-qualification"
+          cp "$receipt" "$RUNNER_TEMP/std-qualification/producer.json"
+      - name: Sample the retained compiler while it checks std
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v gdb >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq gdb
+          fi
+          compiler="$RUNNER_TEMP/std-producer/retained-omega"
+          records="$RUNNER_TEMP/std-qualification"
+          test -z "$(git status --porcelain)"
+          git rev-parse HEAD HEAD:source/library/std HEAD:source/library/core > "$records/source-trees.txt"
+          sha256sum "$compiler" > "$records/compiler.sha256"
+          RAYON_NUM_THREADS=1 "$compiler" --check --target linux_x86_64 source/library/std/main.omg </dev/null \
+            > "$records/compiler.stdout" 2> "$records/compiler.stderr" &
+          compiler_pid=$!
+          trap 'kill "$compiler_pid" 2>/dev/null || true' EXIT
+          started=$SECONDS
+          for checkpoint in 60 100 135 170 210 250; do
+            delay=$((started + checkpoint - SECONDS))
+            if [ "$delay" -gt 0 ]; then sleep "$delay"; fi
+            if ! kill -0 "$compiler_pid" 2>/dev/null; then break; fi
+            printf '%s seconds\n' "$((SECONDS - started))" >> "$records/checkpoints.txt"
+            ps -p "$compiler_pid" -o pid=,rss=,time= >> "$records/checkpoints.txt"
+            status=0
+            sudo timeout --signal=TERM --kill-after=5s 20s gdb -nx -q -batch -p "$compiler_pid" \
+              -ex 'set debuginfod enabled off' -ex 'thread apply all bt 24' -ex detach \
+              > "$records/stack-$checkpoint.txt" 2>&1 || status=$?
+            printf 'gdb status %s\n' "$status" >> "$records/checkpoints.txt"
+            grep -m 10 -E '^#(0|1|2|3|4|5|6|7) ' "$records/stack-$checkpoint.txt" || true
+          done
+          status=0
+          if kill -0 "$compiler_pid" 2>/dev/null; then
+            kill "$compiler_pid"
+            wait "$compiler_pid" || true
+            status=124
+          else
+            wait "$compiler_pid" || status=$?
+          fi
+          printf '%s\t%s\n' "$status" "$((SECONDS - started))" > "$records/profile-result.tsv"
+          test -z "$(git status --porcelain)"
+      - name: Retain the package check results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: std-process-samples
+          path: ${{ runner.temp }}/std-qualification
+          retention-days: 14
