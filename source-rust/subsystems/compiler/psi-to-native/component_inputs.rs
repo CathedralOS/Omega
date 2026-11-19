@@ -1,10 +1,12 @@
 //! Admit each component input and select the scalar values and stage 01 execution scope for its exports.
 
-use verified_optimization_input::{AdmittedNativeComponentCall, ComponentNativeInputs, PreparedNativeExecution};
 use diagnostics::Diagnostic;
-use provider_plans::ProviderPlan;
 use provider_admission::TerminalAuthorityPermissionPolicy;
+use provider_plans::ProviderPlan;
 use terminal_psi::TerminalIdentityTable;
+use verified_optimization_input::{
+    AdmittedNativeComponentCall, ComponentNativeInputs, PreparedNativeExecution,
+};
 
 pub struct ComponentCompilation<'input> {
     pub input: ComponentNativeInputs<'input>,

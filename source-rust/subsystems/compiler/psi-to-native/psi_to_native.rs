@@ -21,29 +21,29 @@ pub mod stage_validators;
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;
 pub use target_inputs::published_application::{
-    NativeApplicationSettings, SavedProgramTarget, SourceNativeTarget,
-    prepare_saved_program, prepare_source_program,
+    NativeApplicationSettings, SavedProgramTarget, SourceNativeTarget, prepare_saved_program,
+    prepare_source_program,
 };
 
 use diagnostics::Diagnostic;
-use target_inputs::published_application::complete_entry_scalars;
-use request::NativeCompileRequest;
 use provider_admission::current_terminal_authority_policy;
 use psi_authorization::AuthorizedTerminalArtifact;
 use psi_entry_memory::PrivateEntryRamInitialization;
+use request::NativeCompileRequest;
+use target_inputs::published_application::complete_entry_scalars;
 use verified_optimization_input::RetainedTerminalArtifact;
 
 /// Integration tests can supply an already retained input to isolate admission or
 /// observe how often ordinary compilation enters a stage.
 #[cfg(feature = "test-support")]
 pub mod test_support {
+    pub use crate::driver::{admit_runtime, compile};
+    pub use crate::foreign_adapters::compile_runtime_foreign_adapter;
     pub use crate::observations::{
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
-    pub use crate::target_inputs::published_application::complete_entry_scalars;
-    pub use crate::foreign_adapters::compile_runtime_foreign_adapter;
     pub use crate::request::NativeCompileRequest;
-    pub use crate::driver::{admit_runtime, compile};
+    pub use crate::target_inputs::published_application::complete_entry_scalars;
 }
 
 /// Emit the requested native image from a published Psi program.

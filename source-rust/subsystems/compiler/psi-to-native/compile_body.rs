@@ -3,12 +3,12 @@
 //! Validators can request the original stage inputs for independent replay.
 
 use crate::observations::{NativePipelineObservation, NativePipelineStage};
+use artifact_lowering::VerifiedNativeArtifactInput;
 use function_layout::FunctionRelativeOptimizationRealizationError;
 use instruction_selection::OptimizedSelectionPipelineError;
 use machine::OptimizedPostAllocationMachinePipelineError;
-use selected_rewrites::SelectedInstructionOptimizationError;
-use artifact_lowering::VerifiedNativeArtifactInput;
 use optimization_core::{OptimizationWorkBudget, PostTerminalOptimizationSelections};
+use selected_rewrites::SelectedInstructionOptimizationError;
 use std::sync::atomic::{AtomicU64, Ordering};
 use target_lowering::{NativeBodyPlan, OptimizedTargetLoweringRequest};
 

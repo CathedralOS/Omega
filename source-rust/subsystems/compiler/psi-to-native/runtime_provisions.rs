@@ -1,14 +1,14 @@
 //! Plan each admitted foreign ABI adapter as a separate native root.
 #![forbid(unsafe_code)]
 
-use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
-use semantic_vocabulary::ScalarType;
-use artifact_lowering::AdmittedNativeRealization;
 use crate::driver::AdmittedRealization;
 use crate::observations::NativePipelineObservation;
 use crate::request::native_optimization_budget;
+use artifact_lowering::AdmittedNativeRealization;
+use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
+use semantic_vocabulary::ScalarType;
 use verified_optimization_input::runtime_provisions::AdmittedRuntimeForeignCall;
 pub use verified_optimization_input::runtime_provisions::{
     NativeBindingRuntimeInputs, NativeRuntimePlan, TerminalCallableRuntimeProvisions,
@@ -160,10 +160,7 @@ pub(crate) fn prepare_terminal_runtime(
     target: target::NativeTarget,
     selections: &optimization_core::PostTerminalOptimizationSelections,
     observation: &NativePipelineObservation,
-) -> Result<
-    NativeRuntimePlan<object_file::ForeignAdapterObject>,
-    Vec<Diagnostic>,
-> {
+) -> Result<NativeRuntimePlan<object_file::ForeignAdapterObject>, Vec<Diagnostic>> {
     let AdmittedRealization {
         admitted: AdmittedNativeRealization { input, .. },
         runtime_provisions,
@@ -174,8 +171,7 @@ pub(crate) fn prepare_terminal_runtime(
         target,
         selections,
         native_optimization_budget(),
-        observation
-            .counter(crate::observations::NativePipelineStage::AbstractOptimization),
+        observation.counter(crate::observations::NativePipelineStage::AbstractOptimization),
     )
     .map_err(|error| match error {
         crate::compile_body::NativeBodyPlanningError::AbstractOptimization(error) => {

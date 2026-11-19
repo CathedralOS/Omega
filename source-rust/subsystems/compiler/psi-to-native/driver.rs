@@ -3,18 +3,23 @@
 //! scalar applications and admitted providers. A failure returns the image
 //! request with its original diagnostics.
 
-use crate::{emit_program, request, runtime_provisions, target_inputs};
 use crate::emit_program::components;
-use verified_optimization_input::RetainedTerminalArtifact;
 use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
-use crate::target_inputs::PreparedNativeCompilation;
 use crate::request::NativeCompileRequest;
-use artifact_lowering::{AdmittedNativeRealization, RetainedNativeProviderInputs, admit_prepared_native_realization};
-use verified_optimization_input::{PreparedNativeExecution, TerminalNativeRealizationProposal, ValidatedNativeProgramEntrySettlement};
+use crate::target_inputs::PreparedNativeCompilation;
+use crate::{emit_program, request, runtime_provisions, target_inputs};
+use artifact_lowering::{
+    AdmittedNativeRealization, RetainedNativeProviderInputs, admit_prepared_native_realization,
+};
 use diagnostics::Diagnostic;
 use native_artifact::FinishedNativeImage;
 use published_object_verification::NativeStageReplay;
 use target::ExecutableImageEmissionRequest;
+use verified_optimization_input::RetainedTerminalArtifact;
+use verified_optimization_input::{
+    PreparedNativeExecution, TerminalNativeRealizationProposal,
+    ValidatedNativeProgramEntrySettlement,
+};
 
 pub fn compile(
     retained: &RetainedTerminalArtifact,
@@ -52,8 +57,7 @@ enum NativeProductionStop {
     RuntimeAdmission,
 }
 
-enum Produced {
-    Image(FinishedNativeImage, NativeStageReplay),
+enum Produced {    Image(FinishedNativeImage, NativeStageReplay),
     Runtime(runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>),
 }
 
@@ -125,8 +129,7 @@ fn produce(
             &request.terminal_authority_permission_policy,
             request.installation_assumptions,
         );
-        let realization =
-            admit_realization(artifact, input, proposal, &execution, &admission)?;
+        let realization = admit_realization(artifact, input, proposal, &execution, &admission)?;
         if stop == NativeProductionStop::RuntimeAdmission {
             let provisions = runtime_provisions::prepare_terminal_runtime(
                 realization,
@@ -178,9 +181,7 @@ pub(crate) struct AdmittedRealization<'request> {
     pub(crate) admitted: AdmittedNativeRealization<'request>,
     pub(crate) entry_settlement: Option<ValidatedNativeProgramEntrySettlement>,
     pub(crate) runtime_provisions: Option<
-        runtime_provisions::NativeRuntimePlan<
-            runtime_provisions::NativeForeignAdapterRequest,
-        >,
+        runtime_provisions::NativeRuntimePlan<runtime_provisions::NativeForeignAdapterRequest>,
     >,
 }
 
