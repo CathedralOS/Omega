@@ -15,7 +15,7 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
-use source_compiler::evaluation::product_declarations::ServiceAuditRegistration;
+use source_declarations::source_selections::ServiceAuditRegistration;
 use std::path::Path;
 use target::TargetProfile;
 

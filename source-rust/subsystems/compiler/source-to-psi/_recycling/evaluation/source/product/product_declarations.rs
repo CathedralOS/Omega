@@ -13,14 +13,9 @@ use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{ProductDeclarationLookup, ProductRequestAuthors};
 use crate::preparation::WireCompatibilityDemand;
 use diagnostics::Diagnostic;
-use source_admission::RetainedDeclaration;
+pub use source_declarations::source_selections::ServiceAuditRegistration;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ServiceAuditRegistration {
-    pub declaration: RetainedDeclaration,
-}
 
 pub struct AdmittedProductDeclarations {
     pub service_audits: Vec<ServiceAuditRegistration>,

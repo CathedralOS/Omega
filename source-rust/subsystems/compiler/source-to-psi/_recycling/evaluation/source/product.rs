@@ -46,24 +46,10 @@ pub fn build_requests_any(
 }
 
 pub mod test_groups {
-    use symbols::SymbolHandle;
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct TestGroupRegistration {
-        pub requirement: SymbolHandle,
-        pub selecting_machine: SymbolHandle,
-        pub source_span: source_text::SourceSpan,
-        /// Service slots this group's runner backs with private per-test state,
-        /// in selection order; empty runs the group without services.
-        pub services: Vec<TestGroupService>,
-    }
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct TestGroupService {
-        pub slot: SymbolHandle,
-        pub source_span: source_text::SourceSpan,
-    }
+    pub use source_declarations::source_selections::{TestGroupRegistration, TestGroupService};
 }
 pub mod assumed_bindings {
-    pub use declaration_contracts::selection::AssumedBindingContract;
+    pub use source_declarations::source_selections::AssumedBindingContract;
 }
 #[path = "product/native_bindings.rs"]
 pub mod native_bindings;
