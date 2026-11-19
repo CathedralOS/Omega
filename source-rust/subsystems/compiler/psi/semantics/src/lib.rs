@@ -31,6 +31,7 @@ pub mod bytes;
 pub mod call_projection;
 pub mod callable_envelopes;
 pub mod callable_values;
+pub mod synchronous_calls;
 pub mod calls;
 pub mod content_transformations;
 pub use content_transformations::{domain_preservation, quotients};

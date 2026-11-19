@@ -362,7 +362,7 @@ pub(super) fn prepare(
 // checked installation. Two owners with the same local number are ambiguous.
 fn assumed_installation_sites(
     module: &TerminalModule,
-    assumed_entries: &[(MachineId, terminal_installation::SynchronousCallClosure<'_>)],
+    assumed_entries: &[(MachineId, terminal_semantics::synchronous_calls::SynchronousCallClosure<'_>)],
 ) -> std::collections::BTreeMap<(MachineId, OperationId), Option<super::OperationSite>> {
     let registration_sites: std::collections::BTreeMap<_, _> = module
         .installed_interrupt_registrations
@@ -548,7 +548,7 @@ impl ConfigurationLease {
     fn require(
         &mut self,
         module: &TerminalModule,
-        closure: &terminal_installation::SynchronousCallClosure<'_>,
+        closure: &terminal_semantics::synchronous_calls::SynchronousCallClosure<'_>,
     ) -> Result<(), String> {
         for body in &closure.machines {
             if !self.bodies.insert(body.id) {
@@ -610,7 +610,7 @@ impl ConfigurationLease {
 
     fn require_masked(
         &mut self,
-        closure: &terminal_installation::SynchronousCallClosure<'_>,
+        closure: &terminal_semantics::synchronous_calls::SynchronousCallClosure<'_>,
     ) -> Result<(), String> {
         for body in &closure.machines {
             if !self.masked_bodies.insert(body.id) {
@@ -650,7 +650,7 @@ mod assumption_owner_tests {
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
     };
-    use terminal_installation::SynchronousCallClosure;
+    use terminal_semantics::synchronous_calls::SynchronousCallClosure;
     use terminal_psi::{
         Block, MachineContract, NominalDeclarationIdentity, Operation, OperationKind,
         OperationResult, RegisterTargetApplicability, TerminalIdentityIndex,

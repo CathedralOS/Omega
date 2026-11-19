@@ -80,7 +80,7 @@ impl RealizedTargetSupply {
         module: &TerminalModule,
         roots: &[semantic_vocabulary::MachineId],
     ) -> Result<Self, String> {
-        let graph = terminal_installation::SynchronousCallGraph::new(module, None)?;
+        let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)?;
         let mut demanded_roots = roots.to_vec();
         for root in graph.scalar_evaluation_roots(roots, None)? {
             match root {

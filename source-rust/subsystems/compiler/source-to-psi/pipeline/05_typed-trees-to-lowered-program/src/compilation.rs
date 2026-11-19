@@ -343,7 +343,7 @@ fn retain_installation_reach(
     if requirements.is_empty() {
         return Ok(());
     }
-    let reach = terminal_installation::SynchronousCallGraph::new(module, None)
+    let reach = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
         .and_then(|graph| graph.service_reach_from(entry, &requirements))
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     if !reach.installation_dependencies.is_empty() {

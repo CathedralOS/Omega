@@ -63,7 +63,7 @@ fn prepare_published_application<Publisher>(
         .program_entry_contract(profile.target_name())
         .map_err(refuse)?
         .entry;
-    let closure = terminal_installation::SynchronousCallGraph::new(module, None)
+    let closure = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
         .and_then(|graph| graph.with_boundary_calls(calls))
         .and_then(|graph| graph.from_root(root))
         .map_err(refuse)?;

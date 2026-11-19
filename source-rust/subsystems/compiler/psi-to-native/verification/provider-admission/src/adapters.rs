@@ -14,9 +14,8 @@
 use crate::SelectedProviderAdapter;
 use effects::provider_plan::ProviderBinding;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use terminal_installation::{
-    AdmittedProviderSelections, SynchronousCallGraph, TerminalTargetContext,
-};
+use terminal_installation::{AdmittedProviderSelections, TerminalTargetContext};
+use terminal_semantics::synchronous_calls::SynchronousCallGraph;
 
 pub fn retain_selected_provider_adapters(
     selected: &effects::SelectedProviderPlanFacts,

@@ -196,7 +196,7 @@ impl PreparedTargetSupply {
         let mut resolved = Vec::<(BoundaryMachineId, MachineId)>::new();
         let mut requirements = Vec::<DemandedRequirement>::new();
         loop {
-            let graph = terminal_installation::SynchronousCallGraph::new(module, None)
+            let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
                 .and_then(|graph| graph.with_boundary_calls(resolved.iter().copied()))
                 .map_err(defect)?;
             let scalar_roots = graph

@@ -1,7 +1,7 @@
 /*
 Physical authority observations over the shared canonical synchronous closure.
 
-`AuthorityGraph` pairs `terminal_installation::SynchronousCallGraph` with
+`AuthorityGraph` pairs `terminal_semantics::synchronous_calls::SynchronousCallGraph` with
 native-owned physical mechanism observations (`PortWrite`, register/descriptor
 operations, and admitted static-interrupt `Scope` installations). When a
 reachable machine carries checked assembly whose catalog applicability rejects
@@ -38,7 +38,7 @@ pub(crate) struct ReachableAuthorityEdges {
 pub(crate) struct AuthorityGraph<'a> {
     input: &'a crate::AdmissionSource<'a>,
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
-    calls: terminal_installation::SynchronousCallGraph<'a>,
+    calls: terminal_semantics::synchronous_calls::SynchronousCallGraph<'a>,
     target_profile: target::TargetProfile,
     installed_scopes: Option<Vec<&'a crate::AdmittedInstalledInterruptScope>>,
 }
@@ -80,7 +80,7 @@ impl<'a> AuthorityGraph<'a> {
         let bridge = input
             .selected_program_entry_call()
             .map(|entry| (entry.boundary(), entry.entry()));
-        let calls = terminal_installation::SynchronousCallGraph::new(input.module(), bridge)?;
+        let calls = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(input.module(), bridge)?;
         Ok(Self {
             input,
             functions,

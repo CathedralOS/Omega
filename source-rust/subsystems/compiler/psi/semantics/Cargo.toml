@@ -9,6 +9,7 @@ name = "terminal_semantics"
 path = "src/lib.rs"
 
 [dependencies]
+graphs = { path = "../../foundation/graphs" }
 service-surface = { path = "../service-surface" }
 source-provenance = { path = "../../foundation/source-provenance" }
 access-vocabulary = { path = "../access" }
@@ -29,3 +30,6 @@ semantic-vocabulary = { path = "../../foundation/semantic-records" }
 numerics = { path = "numeric" }
 terminal-psi = { path = ".." }
 proof-admission = { path = "../proofs/bounded" }
+
+[dev-dependencies]
+proof-applications = { path = "../proof-applications" }
