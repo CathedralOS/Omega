@@ -27,7 +27,7 @@ physical-program = { path = "pipeline/representations/post-allocation-machine/bo
 provider-admission = { path = "verification/provider-admission" }
 installation-binding = { path = "pipeline/10_framed-machine-to-bound-framed-machine" }
 arena = { path = "../../../foundation/arena" }
-function-identity = { path = "native-vocabulary/function-identity" }
+function-identity = { path = "pipeline/representations/function-identity" }
 selected-instructions = { path = "pipeline/representations/selected-instructions" }
 abstract-operations = { path = "pipeline/representations/abstract-operations" }
 wire = { path = "../../../foundation/wire" }

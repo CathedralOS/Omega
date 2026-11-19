@@ -26,7 +26,7 @@ selected-instructions = { path = ".." }
 semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
 target = { path = "../../../../targets/target" }
 calling-conventions = { path = "../../../../targets/calling-conventions", optional = true }
-function-identity = { path = "../../../../native-vocabulary/function-identity", optional = true }
+function-identity = { path = "../../function-identity", optional = true }
 native-vocabulary = { path = "../../../../native-vocabulary", optional = true }
 task-plans = { path = "../../../../installation/task-plans", optional = true }
 target-vocabulary = { path = "../../target-operations/target-vocabulary", optional = true }

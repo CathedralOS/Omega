@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-function-identity = { path = "../../native-vocabulary/function-identity" }
+function-identity = { path = "../representations/function-identity" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 target-aarch64 = { path = "../../targets/target-aarch64" }
 target-x86_64 = { path = "../../targets/target-x86_64" }

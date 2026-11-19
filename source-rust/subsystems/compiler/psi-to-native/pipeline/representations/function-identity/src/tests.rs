@@ -18,8 +18,11 @@ fn callback_identity_is_scoped_to_the_terminal_program_and_placement() {
     for different in [other_program, other_placement] {
         assert_ne!(first, different);
         assert_ne!(first.to_bytes(), different.to_bytes());
-        assert_ne!(first.private_symbol(), different.private_symbol());
     }
+    let mut expected = [1; 42];
+    expected[..2].copy_from_slice(&VocabularyMarker::CURRENT.get().to_le_bytes());
+    expected[34..].copy_from_slice(&7_u64.to_le_bytes());
+    assert_eq!(first.to_bytes(), expected);
     assert_eq!(first.caller(), caller(1));
     assert_eq!(first.callback_thunk_placement_index(), Some(7));
     assert_eq!(
@@ -33,7 +36,6 @@ fn absent_and_unknown_vocabulary_identities_reject() {
     assert!(MachineFunctionIdentity::callback_thunk(caller(0), 0).is_none());
     let absent = MachineFunctionIdentity::default();
     assert!(!absent.is_valid());
-    assert!(absent.private_symbol().is_none());
     assert!(MachineFunctionIdentity::from_bytes(absent.to_bytes()).is_none());
     let identity = MachineFunctionIdentity::callback_thunk(caller(1), 0).unwrap();
     let mut bytes = identity.to_bytes();

@@ -11,7 +11,7 @@ application-identity = { path = "../../../source-to-psi/language/application-ide
 arena = { path = "../../../../../foundation/arena" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-function-identity = { path = "../../native-vocabulary/function-identity" }
+function-identity = { path = "../representations/function-identity" }
 installation-evidence = { path = "../../installation/installation-evidence" }
 language-core = { path = "../../../foundation/language-core" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }

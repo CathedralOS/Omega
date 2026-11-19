@@ -44,7 +44,7 @@ image-pe = { path = "../image-pe" }
 object-file = { path = "../../15_placed-functions-to-objects" }
 target = { path = "../../../targets/target" }
 machine-code = { path = "../../representations/machine-code" }
-function-identity = { path = "../../../native-vocabulary/function-identity" }
+function-identity = { path = "../../representations/function-identity" }
 installation-evidence = { path = "../../../installation/installation-evidence" }
 boundary-applications = { path = "../../../installation/boundary-applications" }
 target-operations = { path = "../../representations/target-operations" }

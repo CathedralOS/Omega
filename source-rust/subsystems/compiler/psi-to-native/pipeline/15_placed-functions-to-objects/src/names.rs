@@ -53,6 +53,17 @@ pub fn object_symbol_handle_by_import_locator(
     }
 }
 
+pub fn private_function_symbol_name(identity: MachineFunctionIdentity) -> Option<String> {
+    let placement = identity.callback_thunk_placement_index()?;
+    let caller = identity.caller();
+    Some(format!(
+        "__omega_callback_v{}_{}_p{}",
+        caller.vocabulary_marker.get(),
+        caller.program_fingerprint,
+        placement,
+    ))
+}
+
 pub fn normalized_foreign_import_symbol_name(locator: &NormalizedForeignLocator) -> String {
     format!(
         "__omega_foreign_import_{:016x}",
@@ -164,6 +175,36 @@ mod tests {
         Architecture, ForeignLocatorCandidate, NativeTarget, ObjectFormat, TargetProfile,
         normalize_foreign_locator,
     };
+
+    #[test]
+    fn private_symbol_binds_the_program_and_placement() {
+        use function_identity::MachineFunctionIdentity;
+        use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+
+        let name = |fingerprint, placement| {
+            let caller = TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([fingerprint; 32]),
+            };
+            let identity = MachineFunctionIdentity::callback_thunk(caller, placement).unwrap();
+            super::private_function_symbol_name(identity).unwrap()
+        };
+        let first = name(1, 7);
+        assert_eq!(
+            first,
+            format!(
+                "__omega_callback_v{}_{}_p7",
+                VocabularyMarker::CURRENT.get(),
+                "01".repeat(32)
+            )
+        );
+        assert_ne!(first, name(2, 7));
+        assert_ne!(first, name(1, 8));
+        assert_eq!(
+            super::private_function_symbol_name(MachineFunctionIdentity::default()),
+            None
+        );
+    }
 
     #[test]
     fn foreign_locator_lookup_joins_exact_coordinates_and_rejects_duplicates() {

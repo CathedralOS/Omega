@@ -16,7 +16,7 @@ runtime-abi = { path = "../../targets/runtime-abi" }
 provider-correspondence = { path = "../provider-correspondence" }
 component-description = { path = "../../components/description" }
 optimization-core = { path = "../../optimization-contracts" }
-function-identity = { path = "../../native-vocabulary/function-identity" }
+function-identity = { path = "../../pipeline/representations/function-identity" }
 numerics = { path = "../../../psi/semantics/numeric" }
 layout-plans = { path = "../../../psi/layout" }
 target-operations = { path = "../../pipeline/representations/target-operations" }

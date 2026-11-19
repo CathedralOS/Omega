@@ -1,20 +1,6 @@
-/*
-Compiler-private callback function identities (`MachineFunctionIdentity`)
-scoped to their owning Terminal Psi program.
-
-Callback placements name call-site occurrences inside a specific Terminal Psi
-program rather than source declarations or machine addresses. Pairing the
-caller's `TerminalPsiIdentity` (2-byte little-endian `VocabularyMarker` +
-32-byte `SemanticFingerprint`) with the 8-byte little-endian `placement_index`
-produces a fixed 42-byte identity (`to_bytes` / `from_bytes`) and deterministic
-private linker symbol (`__omega_callback_v<vocab>_<fingerprint>_p<index>`) so
-identical local placement indices never alias across independently compiled
-programs.
-
-An all-zero program fingerprint (`MachineFunctionIdentity::default()`) marks an
-absent identity and is rejected by `callback_thunk`, `from_bytes`, and
-`private_symbol`.
-*/
+//! A native callback is identified by its published Psi program and placement.
+//! Its 42-byte encoding carries the vocabulary marker, program fingerprint and
+//! placement index in that order. A zero program fingerprint marks absence.
 
 #![forbid(unsafe_code)]
 
@@ -78,17 +64,6 @@ impl MachineFunctionIdentity {
             },
             usize::try_from(u64::from_le_bytes(placement)).ok()?,
         )
-    }
-
-    pub fn private_symbol(self) -> Option<String> {
-        self.is_valid().then(|| {
-            format!(
-                "__omega_callback_v{}_{}_p{}",
-                self.caller.vocabulary_marker.get(),
-                self.caller.program_fingerprint,
-                self.placement_index,
-            )
-        })
     }
 }
 
