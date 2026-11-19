@@ -9,10 +9,6 @@ version.workspace = true
 path = "compiler.rs"
 
 [dependencies]
-provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
-host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
-declaration-scope = { path = "foundation/declaration-scope" }
-installation-conditions = { path = "psi-to-native/verification/installation-admission/conditions" }
 psi-entry-memory = { path = "psi/access/entry-memory" }
 diagnostics = { path = "../../foundation/diagnostics" }
 native-compiler = { path = "psi-to-native" }
@@ -29,6 +25,8 @@ psi-authorization = { path = "psi/authorization" }
 wire = { path = "../../foundation/wire" }
 
 [dev-dependencies]
+provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
+host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 verified-optimization-input = { path = "psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input" }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
 build-evaluation-result = { path = "build/build-settings/result" }

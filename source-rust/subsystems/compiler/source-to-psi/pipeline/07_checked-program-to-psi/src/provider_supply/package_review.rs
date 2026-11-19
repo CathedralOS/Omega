@@ -3,13 +3,8 @@
 //! absent from a runnable entry's call graph.
 use crate::{AcceptedTerminalSource, DeclaredBoundaryRequirement};
 use diagnostics::Diagnostic;
-use evaluation_receipts::NativeBindingMaterialization;
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
-
-pub struct SourcePackageReviewRequirements {
-    pub numeric: Result<Vec<BoundaryMachineId>, Vec<Diagnostic>>,
-    pub bindings: Result<Vec<(BoundaryMachineId, NativeBindingMaterialization)>, Vec<Diagnostic>>,
-}
+use super::SourcePackageReviewRequirements;
+use semantic_vocabulary::MachineId;
 
 impl AcceptedTerminalSource {
     pub fn source_package_review_requirements(

@@ -8,7 +8,8 @@ pub mod stage_validators;
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;
 pub use pipeline::prepare::published_application::{
-    NativeApplicationSettings, SavedProgramTarget, prepare_issued_program, prepare_saved_program,
+    NativeApplicationSettings, SavedProgramTarget, SourceNativeTarget,
+    prepare_saved_program, prepare_source_program,
 };
 
 use diagnostics::Diagnostic;

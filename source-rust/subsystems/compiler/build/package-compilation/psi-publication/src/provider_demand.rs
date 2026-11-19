@@ -1,6 +1,6 @@
 //! Project the source owner's completed provider choices onto its immutable portable program.
 use super::ProductCodeSource;
-use ::provider_demand::{IssuedProviderDemand, PackageReviewRequirements, ProviderDemandInputs};
+use ::provider_demand::IssuedProviderDemand;
 use host_provider_inputs::ProviderExecutionOrigins;
 use checked_program_to_psi::provider_supply::{
     SourceNativeBinding, SourceProviderDemand, SourceProviderFacts,
@@ -72,49 +72,16 @@ impl ProductCodeSource<'_> {
         )?;
         let program = self.publish(self.publication.optimizations(), observer)?;
         let issuer = PortableDemandIssuer(self.sources.source_identity().clone());
-        match (profile, facts) {
-            (None, SourceProviderDemand::Unscoped { roots }) => Ok(PublishedProviderDemand::issue(
-                issuer,
-                ProviderDemandInputs::Unscoped {
-                    artifact: Arc::clone(program.artifact()),
-                    roots,
-                },
-            )),
-            (
-                Some(profile),
-                SourceProviderDemand::Target {
-                    closed,
-                    labels,
-                    bindings,
-                    review,
-                },
-            ) => {
-                let (logical, bodies) = closed.into_parts();
-                let origins = capture_origins(&program, self.sources, profile, bindings);
-                let review =
-                    review.map(
-                        |facts| PackageReviewRequirements {
-                            numeric: facts.numeric,
-                            bindings: facts.bindings,
-                        },
-                    );
-                Ok(PublishedProviderDemand::issue(
-                    issuer,
-                    ProviderDemandInputs::Target {
-                        profile,
-                        logical,
-                        has_bound_applications: !program.applications().is_empty(),
-                        bodies,
-                        labels,
-                        origins,
-                        review,
-                    },
-                ))
-            }
-            _ => Err(vec![Diagnostic::error(
-                "closed provider demand has a different deployment scope",
-            )]),
-        }
+        PublishedProviderDemand::from_publication(
+            issuer,
+            Arc::clone(program.artifact()),
+            profile,
+            facts,
+            self.sources
+                .dependency_closure()
+                .map(|graph| graph.declaration_permissions()),
+            Arc::from(self.sources.accepted_semantic_bindings()),
+        )
     }
 
     pub fn publish_provider_origins(

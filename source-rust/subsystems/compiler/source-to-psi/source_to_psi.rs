@@ -36,12 +36,17 @@ pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>>
 /// Source choices for one deployment, judged by the same stage that published the Psi.
 pub struct PublishedTargetProgram {
     artifact: PublishedPsi,
-    demand: provider_supply::SourceProviderDemand,
+    providers: psi_provider_selections::publication::PublishedTargetProviders,
+    exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
 }
 
 impl PublishedTargetProgram {
-    pub fn into_parts(self) -> (PublishedPsi, provider_supply::SourceProviderDemand) {
-        (self.artifact, self.demand)
+    pub fn into_parts(self) -> (
+        PublishedPsi,
+        psi_provider_selections::publication::PublishedTargetProviders,
+        Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
+    ) {
+        (self.artifact, self.providers, self.exclusions)
     }
 }
 
@@ -58,7 +63,14 @@ pub fn compile_for_target(
     let demand = checked
         .prepare_provider_demand(target)?
         .receive(checked.terminal_publication(), Some(target))?;
-    Ok(PublishedTargetProgram { artifact, demand })
+    let providers = psi_provider_selections::publication::PublishedTargetProviders::new(
+        &artifact, target, demand,
+    );
+    Ok(PublishedTargetProgram {
+        artifact,
+        providers,
+        exclusions: checked.exclusions,
+    })
 }
 
 fn publish_stage(
