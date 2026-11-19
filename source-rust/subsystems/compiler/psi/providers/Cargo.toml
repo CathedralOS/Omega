@@ -13,3 +13,6 @@ semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-codec = { path = "../codec" }
 terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }
+
+[dev-dependencies]
+schema-reflection = { path = "../schema" }

@@ -4370,7 +4370,7 @@ impl TerminalRuntimeSupplies {
 
     pub fn with_component_provider(
         mut self,
-        selected: &terminal_installation::AdmittedComponentProvider,
+        selected: &psi_provider_selections::AdmittedComponentProvider,
     ) -> Result<Self, TerminalInterpretError> {
         let boundary = selected.receiving_boundary();
         if selected.receiver() != &self.code_identity || self.supplies.contains_key(&boundary) {

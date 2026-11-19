@@ -19,7 +19,6 @@ wire = { path = "../../../../../../foundation/wire" }
 component-description = { path = "../../../../psi/component-description" }
 provider-stack-contribution = { path = "../../../verification/provider-admission/same-stack" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
-terminal-installation = { path = "../../../../psi-admission" }
 platform-custody = { path = "../../../../../../foundation/filesystem" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 abstract-operations = { path = "../../representations/abstract-operations" }
