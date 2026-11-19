@@ -719,3 +719,44 @@ fn a_shadowing_initializer_reads_the_previous_binding_and_the_tail_reads_the_new
         assert_eq!(error.span.get_start_offset(), outside.rfind(name).unwrap());
     }
 }
+
+#[test]
+fn alias_binder_roles_follow_the_imports_of_each_overload() {
+    let caller = "data X{} machine f<X:u8>(){pick::<X>(true)}";
+    let files = [
+        ("app", "type/kind.omg", "public data Sort=core::Type<0>;"),
+        ("app", "value/kind.omg", "public data Sort=u8;"),
+        ("app", "a.omg", "use type::Sort; machine pick<A:Sort>(x:u8){}"),
+        ("app", "b.omg", "use value::Sort; machine pick<N:Sort>(x:bool){}"),
+        ("app", "caller.omg", caller),
+    ];
+    let stage = run(&files, &[]).unwrap();
+    let site = caller.rfind("X").unwrap();
+    let target = &stage
+        .uses
+        .iter()
+        .find(|u| u.file == "caller.omg" && u.span.get_start_offset() == site)
+        .unwrap()
+        .target;
+    let Symbol::ByOverload(options) = target else { panic!("{target:?}") };
+    assert_eq!(options.len(), 2);
+    for option in options {
+        match option.candidate.operands[0].as_str() {
+            "u8" => assert!(matches!(option.target.as_deref(),Some(Symbol::Declaration(decl)) if decl.path=="X")),
+            "bool" => assert!(matches!(
+                option.target.as_deref(),
+                Some(Symbol::Binding {
+                    kind: omega_parser::NodeKind::KindedParam,
+                    ..
+                })
+            )),
+            operand => panic!("unexpected overload {operand}"),
+        }
+    }
+    for (src, message) in [
+        ("data Sort=core::Type<0>; machine f<u8:Sort>(){}", "builtin type u8 cannot be redeclared"),
+        ("data Byte=u8; machine f<N:Byte>(){} machine g(){f::<u8>()}", "unresolved name u8"),
+    ] {
+        assert_eq!(run(&[("app", "main.omg", src)], &[]).unwrap_err().message, message);
+    }
+}

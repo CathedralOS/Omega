@@ -371,9 +371,10 @@ impl TypeCatalog<'_> {
                     declaration: *id,
                     arguments: args,
                 };
-                self.check_domain_universes(&app, memberships)?;
-                let atoms = self.domains.expanded(&app, carrier, true)?;
-                break Ok(domains::qualified(carrier.clone(), atoms));
+                // A child's declared carrier includes its parent qualification.
+                // Normalize both domain spellings through the same qualified type.
+                ty = Qualified(Box::new(carrier.clone()), vec![app]);
+                continue;
             }
             let arity = self
                 .scopes

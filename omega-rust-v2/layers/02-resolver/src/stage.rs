@@ -1,4 +1,5 @@
 //! Collect declarations, admit file-local imports, then bind occurrences against one settled stage.
+mod binder_roles;
 mod declarations;
 mod lookup;
 mod model;
@@ -59,13 +60,10 @@ struct GenericBinder {
 }
 
 impl GenericBinder {
-    fn new(
-        kind: NodeKind,
-        universe: bool,
-    ) -> Self {
+    fn from_kind(kind: NodeKind) -> Self {
         Self {
             kind,
-            takes_type: matches!(kind, NodeKind::TypeParam | NodeKind::SomeParam) || universe,
+            takes_type: matches!(kind, NodeKind::TypeParam | NodeKind::SomeParam),
         }
     }
 }
@@ -91,6 +89,8 @@ struct Local {
 }
 #[derive(Default)]
 struct Context<'a> {
+    // Keep the syntax node and its position among locals of the same name until imports are settled.
+    binder_annotations: Vec<(usize, usize)>,
     heads: BTreeSet<usize>,
     entries: HashMap<usize, usize>,
     locals: HashMap<&'a str, Vec<Local>>,
@@ -181,7 +181,7 @@ pub fn resolve_stage_with_exports(
             generic_roles: export
                 .generic_roles
                 .iter()
-                .map(|&kind| GenericBinder::new(kind, false))
+                .map(|&kind| GenericBinder::from_kind(kind))
                 .collect(),
         });
         let mut module = export.module;
@@ -276,7 +276,11 @@ pub fn resolve_stage_with_exports(
             owners
         })
         .collect();
+    let universe_binders = provisional.bind_universe_roles(&mut contexts)?;
     let trait_parents = provisional.trait_parents;
+    for (slot, position) in universe_binders {
+        entries[slot].generic_roles[position].takes_type = true;
+    }
     for (i, signature_owners) in owners.into_iter().enumerate() {
         entries[i].id.signature_owners = signature_owners;
         if let Some(owner) = entries[i].lexical_owner.and_then(|n| {

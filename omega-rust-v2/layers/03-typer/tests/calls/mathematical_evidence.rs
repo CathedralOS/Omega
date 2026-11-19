@@ -259,3 +259,59 @@ fn type_applications_require_the_same_universe_membership_as_machine_calls() {
     let strict = "data StrictBox<A:core::Strict<1>>{} machine f(x:StrictBox<core::Type<0>>){}";
     assert_eq!(check(&[("universe.omg", strict)]).unwrap_err().message, "universe argument requires its exact successor universe");
 }
+
+#[test]
+fn transparent_binder_kinds_preserve_argument_roles_and_universe_levels() {
+    let aliases = "data Identity<T> = T; data Sort = Identity<core::Type<0>>; data High<L:core::Level> = core::Type<L>; data Byte = u8;";
+    for bound in ["core::Type<0>", "Sort", "High<0>", "Identity<Sort>"] {
+        for call in ["id(x)", "id::<u8>(x)"] {
+            let machines = format!("machine id<A:{bound}>(x:A)->A{{x}} machine f(x:u8)->u8{{{call}}}");
+            let ordered = [("a.omg", aliases), ("z.omg", machines.as_str())];
+            let stage = check(&ordered).unwrap();
+            let selected = stage
+                .calls
+                .iter()
+                .find(|call| call.machine.path == "id")
+                .unwrap();
+            assert_eq!(
+                selected
+                    .type_arguments
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+                ["u8"]
+            );
+            assert_eq!(stage, check(&[ordered[1], ordered[0]]).unwrap());
+            check(&[("a.omg", &machines), ("z.omg", aliases)]).unwrap();
+        }
+    }
+    let family = "data Family = u8::D::Child->core::Type<0>; domain u8::D; machine ready(x:u8 in D)->bool{true} domain u8::D::Child requires ready(self); machine f<F:Family>(){}";
+    check(&[("family.omg", family)]).unwrap();
+    let wrong_carrier = format!("{family} machine wrong(x:u16)->bool{{x in u8::D::Child}}");
+    assert_eq!(check(&[("family.omg", &wrong_carrier)]).unwrap_err().message, "membership subject has the wrong carrier");
+    let cyclic = "data A=B; data B=A; machine f<T:A>(){}";
+    assert!(
+        check(&[("cycle.omg", cyclic)])
+            .unwrap_err()
+            .message
+            .contains("cyclic type alias")
+    );
+    let nominal = "data Sort{} machine f<A:Sort>(){}";
+    assert!(check(&[("nominal.omg", nominal)]).is_err());
+    let strict = "data S=core::Strict<1>; data Box<A:S>{} machine f(x:Box<core::Type<0>>){}";
+    assert_eq!(
+        check(&[("strict.omg", strict)]).unwrap_err().message,
+        "universe argument requires its exact successor universe"
+    );
+    let indices = "data Buffer<N:Byte>{} machine f(x:Buffer<7>)->Buffer<7>{x}";
+    check(&[("index.omg", indices), ("sort.omg", aliases)]).unwrap();
+    for (level, accepted) in [(0, false), (1, true), (2, false)] {
+        let code = format!("data Box<A:High<{level}>>{{}} machine f(x:Box<core::Type<0>>){{}}");
+        let result = check(&[("box.omg", &code), ("sort.omg", aliases)]);
+        if accepted {
+            result.unwrap();
+        } else {
+            assert_eq!(result.unwrap_err().message, "universe argument requires its exact successor universe");
+        }
+    }
+}

@@ -3,20 +3,6 @@ use crate::syntax::{File, Leaf};
 use omega_parser::NodeKind;
 use std::collections::{HashMap, HashSet};
 
-// Universe-bound parameters take types. A level or an integer binder takes values
-// even though all three declarations use the same colon syntax.
-fn generic_binder(
-    file: &File<'_>,
-    index: usize,
-) -> GenericBinder {
-    let node = &file.nodes[index];
-    let universe = matches!(node.kind, NodeKind::KindedParam | NodeKind::ConstParam)
-        && file
-            .child(index, NodeKind::PathType)
-            .is_some_and(|kind| matches!(file.nodes[kind].path().as_str(), "core::Type" | "core::Strict"));
-    GenericBinder::new(node.kind, universe)
-}
-
 pub(super) fn index_file<'a>(
     file: &File<'a>,
     file_number: usize,
@@ -38,14 +24,18 @@ pub(super) fn index_file<'a>(
                 .unwrap_or(0)
         };
         let add_local = |ctx: &mut Context<'a>, leaf: Leaf<'a>, owner, start, end, static_binding| {
-            ctx.locals.entry(leaf.text).or_default().push(Local {
+            let locals = ctx.locals.entry(leaf.text).or_default();
+            if matches!(node.kind, KindedParam | ConstParam) {
+                ctx.binder_annotations.push((n, locals.len()));
+            }
+            locals.push(Local {
                 kind: node.kind,
                 span: leaf.span,
                 owner,
                 start,
                 end,
                 static_binding,
-                type_binding: generic_binder(file, n).takes_type,
+                type_binding: matches!(node.kind, TypeParam | SomeParam),
                 annotation: node
                     .children
                     .iter()
@@ -82,7 +72,7 @@ pub(super) fn index_file<'a>(
                         };
                         return Err(file.error(leaf.span, format!("duplicate {category} {}", leaf.text)));
                     }
-                    if builtin(leaf.text) && generic_binder(file, n).takes_type {
+                    if builtin(leaf.text) && matches!(node.kind, TypeParam | SomeParam) {
                         return Err(file.error(leaf.span, format!("builtin type {} cannot be redeclared", leaf.text)));
                     }
                     let owner = scope();
@@ -171,7 +161,7 @@ pub(super) fn index_file<'a>(
             .map(|&b| {
                 let binder = &file.nodes[b];
                 let index = usize::from(matches!(binder.kind, ConstParam | MachineParam | SomeParam));
-                (binder.words().nth(index).map_or("", |w| w.text), generic_binder(file, b))
+                (binder.words().nth(index).map_or("", |w| w.text), GenericBinder::from_kind(binder.kind))
             })
             .collect();
         let mut binder_ids = HashMap::new();

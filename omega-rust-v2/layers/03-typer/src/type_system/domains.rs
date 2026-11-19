@@ -62,48 +62,60 @@ impl<'a> ResolvedSourceFile<'a> {
         types: &mut TypeCatalog<'a>,
     ) -> Result<(), TypeError> {
         let f = &self.file;
-        for (n, node) in f
+        for (n, _) in f
             .nodes
             .iter()
             .enumerate()
             .filter(|(_, node)| node.kind == NodeKind::Domain)
         {
-            let id = self.declaration(n)?;
-            let head = f
-                .child(n, NodeKind::PathType)
-                .ok_or_else(|| TypeError::unsupported(f, n))?;
-            let indices = f
-                .child(head, NodeKind::TypeArgs)
-                .map_or(0, |a| f.nodes[a].children.len());
-            let carrier = if indices == 0 {
-                self.annotation(head, types)?
-            } else {
-                match self.symbol(head) {
-                    Some(Symbol::Builtin(s)) => ValueType::integer(s).ok_or_else(|| TypeError::unsupported(f, head))?,
-                    Some(Symbol::Declaration(owner)) if owner.kind == NodeKind::Data => types.open_data(owner),
-                    _ => return Err(TypeError::unsupported(f, head)),
-                }
-            };
-            if indices != 0 && types.arities[id] != indices {
-                return Err(TypeError::at(f, head, "indexed domain requires its complete binder tuple"));
+            if types.domains.known_carrier(self.declaration(n)?).is_none() {
+                self.index_domain(n, types)?;
             }
-            let mut alias = Vec::new();
-            for &d in &node.children {
-                if d == head || f.nodes[d].kind == NodeKind::GenericParams {
-                    continue;
-                }
-                match f.nodes[d].kind {
-                    NodeKind::PathType => alias.push(self.domain(d)?),
-                    NodeKind::Requires | NodeKind::DroppedBy | NodeKind::Access => {}
-                    _ => return Err(TypeError::unsupported(f, d)),
-                }
-            }
-            types
-                .domains
-                .entries
-                .insert(id, Domain { carrier, indices, alias });
-            types.domains.paths.insert((&id.package, &id.path), id);
         }
+        Ok(())
+    }
+    pub(super) fn index_domain(
+        &self,
+        n: usize,
+        types: &mut TypeCatalog<'a>,
+    ) -> Result<(), TypeError> {
+        let f = &self.file;
+        let node = &f.nodes[n];
+        let id = self.declaration(n)?;
+        let head = f
+            .child(n, NodeKind::PathType)
+            .ok_or_else(|| TypeError::unsupported(f, n))?;
+        let indices = f
+            .child(head, NodeKind::TypeArgs)
+            .map_or(0, |a| f.nodes[a].children.len());
+        let carrier = if indices == 0 {
+            self.annotation(head, types)?
+        } else {
+            match self.symbol(head) {
+                Some(Symbol::Builtin(s)) => ValueType::integer(s).ok_or_else(|| TypeError::unsupported(f, head))?,
+                Some(Symbol::Declaration(owner)) if owner.kind == NodeKind::Data => types.open_data(owner),
+                _ => return Err(TypeError::unsupported(f, head)),
+            }
+        };
+        if indices != 0 && types.arities[id] != indices {
+            return Err(TypeError::at(f, head, "indexed domain requires its complete binder tuple"));
+        }
+        let mut alias = Vec::new();
+        for &d in &node.children {
+            if d == head || f.nodes[d].kind == NodeKind::GenericParams {
+                continue;
+            }
+            match f.nodes[d].kind {
+                NodeKind::PathType => alias.push(self.domain(d)?),
+                NodeKind::Requires | NodeKind::DroppedBy | NodeKind::Access => {}
+                _ => return Err(TypeError::unsupported(f, d)),
+            }
+        }
+        types
+            .domains
+            .entries
+            .insert(id, Domain { carrier, indices, alias });
+        types.domains.paths.insert((&id.package, &id.path), id);
         Ok(())
     }
 }
@@ -131,7 +143,18 @@ impl Domains<'_> {
         id: &DeclarationId,
         carrier: &ValueType,
     ) -> bool {
-        self.carrier(id) == carrier || matches!(self.carrier(id),ValueType::Parameter{owner,index:0} if owner.as_ref()==id)
+        let declared = self.carrier(id);
+        declared == carrier
+            || declared == carrier.carrier()
+            || (self.parent_domain(id).is_some() && declared.carrier() == carrier.carrier())
+            || matches!(declared,ValueType::Parameter{owner,index:0} if owner.as_ref()==id)
+    }
+    fn parent_domain(
+        &self,
+        id: &DeclarationId,
+    ) -> Option<&DeclarationId> {
+        let (parent, _) = id.path.rsplit_once("::")?;
+        self.paths.get(&(id.package.as_str(), parent)).copied()
     }
     pub fn expanded(
         &self,
@@ -180,10 +203,7 @@ impl Domains<'_> {
             } else {
                 pending.extend(info.alias.iter().map(|a| (*a, false)));
             }
-            if ancestors
-                && let Some((parent, _)) = id.path.rsplit_once("::")
-                && let Some(parent) = self.paths.get(&(id.package.as_str(), parent))
-            {
+            if ancestors && let Some(parent) = self.parent_domain(id) {
                 pending.push((parent, false));
             }
         }
