@@ -102,6 +102,7 @@ members = [
     "source-rust/subsystems/compiler/psi/layout/integer-defaults",
     "source-rust/subsystems/compiler/psi/optimization-selections",
     "source-rust/subsystems/compiler/psi/proof-applications",
+    "source-rust/subsystems/compiler/psi/schema",
     "source-rust/subsystems/compiler/psi/semantics",
     "source-rust/subsystems/compiler/psi/semantics/numeric",
     "source-rust/subsystems/compiler/psi/storage-bounds",

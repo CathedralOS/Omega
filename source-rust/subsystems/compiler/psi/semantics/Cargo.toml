@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 access-vocabulary = { path = "../access" }
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
-schema-reflection = { path = "../../../source-to-psi/language/schema-reflection" }
+schema-reflection = { path = "../schema" }
 application-identity = { path = "../application-identity" }
 layout-planning = { path = "../layout/integer-defaults" }
 resource-bounds = { path = "../storage-bounds" }
