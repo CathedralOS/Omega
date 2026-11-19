@@ -84,7 +84,7 @@ impl SourceCatalogue {
                 "source selection does not belong to this catalogue's coordinate prefix".into(),
             );
         }
-        source_admission::directory_namespace(&path, &package_root)?;
+        resolution_stratum.directory_namespace(&path, &package_root)?;
         let source = source.into();
         if resolution_stratum != SourceResolutionStratum::CurrentActivationExtension
             && !(origin == SourceOrigin::User && package_identity.is_none())
