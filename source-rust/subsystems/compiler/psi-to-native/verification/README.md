@@ -11,6 +11,8 @@ install a handler. Their callers need the checked records during compilation.
   installations and callbacks. Its [same-stack evidence](provider-admission/same-stack/src/lib.rs)
   binds an opaque call's stack use to the exact provider plan, requirement and receipt.
   Later stages retain these records through publication.
+  [Task activation checks](provider-admission/src/task_activations/mod.rs) match the selected
+  runtime, stack geometry and suspension obligations to the published demand.
 - [Installation admission](installation-admission/src/lib.rs) checks handler
   requirements against the selected program. Instruction selection obtains
   the planned resources, frame binding checks the measured handlers, and

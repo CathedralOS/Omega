@@ -23,6 +23,8 @@ pub use installation_evidence::{
 
 pub mod provider_admission;
 pub mod provider_installation;
+mod task_activations;
+pub use task_activations::validate_task_activations;
 
 pub(crate) use ::wire::digest_encoder;
 

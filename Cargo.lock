@@ -3702,7 +3702,6 @@ dependencies = [
  "target",
  "target-operations",
  "target-vocabulary",
- "task-plans",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
