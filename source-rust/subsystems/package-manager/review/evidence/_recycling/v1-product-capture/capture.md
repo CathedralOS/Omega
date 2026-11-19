@@ -1,13 +1,13 @@
 # Review capture joins
 
-The [review contract](../../../../../wiki/spec/packages/review.md) defines review's
-meaning. This note maps it to where the compiler keeps that data. Start at [src/capture.rs](src/capture.rs);
-[record](src/record) does not depend on compiler state. Supported forms and
-private size limits live in [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md).
+The [review contract](../../../../../../../wiki/spec/packages/review.md) defines review's
+meaning. This note maps it to where the compiler keeps that data. Start at [capture.rs](capture.rs);
+[record](../../src/record) does not depend on compiler state. Supported forms and
+private size limits live in [EVIDENCE_SCHEMA.md](../../EVIDENCE_SCHEMA.md).
 
 ## Immutable custody and supplied semantics
 
-[PackageReviewInput](src/capture/input.rs) borrows the semantic candidate and
+[PackageReviewInput](capture/input.rs) borrows the semantic candidate and
 the original compilation's read-only source and selection records
 separately. Normal callers pass `&CheckedCompilation`; adversarial
 reconstruction may pass raw trees without forging or changing a checked
@@ -23,7 +23,7 @@ proof arena.
 
 ## Source roles
 
-[Source capture](src/capture/declarations.rs) keeps exact symbols and authored spans
+[Source capture](capture/declarations.rs) keeps exact symbols and authored spans
 beside semantic rows before canonical sorting. Paths are relative to
 exact package/toolchain owners. Package-less user source, a missing owner
 link or a changed owner never counts as exact toolchain origin.
@@ -72,7 +72,7 @@ when equal semantic routes deduplicate.
 
 ## Structural identity
 
-[Semantic capture](src/capture/declarations.rs) links authored nominal types
+[Semantic capture](capture/declarations.rs) links authored nominal types
 through exact package ownership or private source identity. Only the
 canonical source commitment enters toolchain review bytes. Generic binders
 get no invented owner. Root builtin-type slots are chosen by compiler
@@ -111,7 +111,7 @@ authority.
 
 ## Realization joins
 
-[Callable capture](src/capture/callables.rs) cross-checks supply mode, exact
+[Callable capture](capture/callables.rs) cross-checks supply mode, exact
 `satisfies` edge, structural binding and requirement declaration. An external
 leaf has one complete application even when private and absent from public
 rows. A table-field binding requires the exact data declaration its

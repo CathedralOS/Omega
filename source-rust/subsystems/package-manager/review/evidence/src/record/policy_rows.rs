@@ -47,6 +47,14 @@ pub enum PackagePolicyRowKind {
 }
 
 impl PackagePolicyRowKind {
+    /// The runtime decisions retained for a locked root Product occurrence.
+    pub const fn requires_runtime_consent(self) -> bool {
+        matches!(
+            self,
+            Self::TerminalPermission | Self::AssumedBindingContract | Self::ComponentAssumption
+        )
+    }
+
     pub const fn tag_and_name(self) -> (u8, &'static str) {
         match self {
             Self::Header => (0, "header"),
