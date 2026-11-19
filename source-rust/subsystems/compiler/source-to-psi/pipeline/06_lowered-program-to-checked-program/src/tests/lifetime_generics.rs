@@ -364,7 +364,7 @@ machine entry(left: @[u8], right: @[u8], count: @mut u64) {
             2,
             "preparation keeps the exact application even when its callable has open lifetimes"
         );
-        let verdicts = super::boundary_calls::compilation_results_of(&prepared);
+        let verdicts = super::boundary_calls::compilation_results_for_subjects(&prepared, &[]);
         assert!(
             verdicts.len() > 1,
             "the selected application and its declaration are both judged: {verdicts:?}"

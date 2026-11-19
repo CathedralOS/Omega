@@ -341,7 +341,7 @@ mod tests {
             .insert(crate::source_state::mathematical::MathematicalDefinition::default());
         let before = program.clone();
         let (frozen, _) = prepare_typed_trees(program, &PreparationRequest::settled()).unwrap();
-        assert!(*frozen == before);
+        assert_eq!(frozen.into_inner(), before);
     }
 
     #[test]

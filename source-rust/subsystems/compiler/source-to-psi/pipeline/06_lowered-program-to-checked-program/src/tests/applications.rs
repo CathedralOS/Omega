@@ -145,7 +145,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         })
         .collect();
     assert_eq!(fields.len(), 3);
-    let mut prepared_again = typed.clone();
+    let mut prepared_again = typed.clone().into_inner();
     let retained_members = prepared_again.data_members.len();
     let retained_payloads = prepared_again.data_payload_fields.len();
     for reference in &fields {

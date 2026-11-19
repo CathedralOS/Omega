@@ -1863,7 +1863,7 @@ Previous satisfies Step {{
 machine entry() crashes none {{}}
 "#
     );
-    compilation_results_for_subjects(&typed(&text), &[None])
+    compilation_results_for_subjects(&crate::prepare_fixture(typed(&text)), &[None])
         .into_iter()
         .map(Result::unwrap)
         .collect()
@@ -1959,11 +1959,11 @@ crashes none
 }
 
 fn declared_verdicts(text: &str) -> Vec<RouteVerdict> {
-    compilation_verdicts_of(&typed(text))
+    compilation_verdicts_of(&crate::prepare_fixture(typed(text)))
 }
 
-fn compilation_verdicts_of(typed: &crate::source_state::TypedTrees) -> Vec<RouteVerdict> {
-    compilation_results_of(typed)
+fn compilation_verdicts_of(typed: &crate::preparation::PreparedTypedTrees) -> Vec<RouteVerdict> {
+    compilation_results_for_subjects(typed, &[])
         .into_iter()
         .map(Result::unwrap)
         .collect()
@@ -1972,14 +1972,13 @@ fn compilation_verdicts_of(typed: &crate::source_state::TypedTrees) -> Vec<Route
 pub(super) fn compilation_results_of(
     typed: &crate::source_state::TypedTrees,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    compilation_results_for_subjects(typed, &[])
+    compilation_results_for_subjects(&crate::prepare_fixture(typed.clone()), &[])
 }
 
-fn compilation_results_for_subjects(
-    typed: &crate::source_state::TypedTrees,
+pub(super) fn compilation_results_for_subjects(
+    typed: &crate::preparation::PreparedTypedTrees,
     subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let typed = &crate::prepare_fixture(typed.clone());
     let entry = entry(typed);
     let prepared = crate::lowering::prepare_compilation(
         typed,
@@ -3045,7 +3044,7 @@ fn named_two_packages(public_map: bool) -> crate::source_state::TypedTrees {
 
 #[test]
 fn a_named_map_controls_visibility_without_publishing_its_private_body() {
-    let prepared = named_two_packages(true);
+    let prepared = crate::prepare_fixture(named_two_packages(true));
     let verdicts = compilation_verdicts_of(&prepared);
     assert!(
         verdicts
@@ -3239,7 +3238,7 @@ machine entry() -> u64 crashes none {
     Large::apply(9)
 }
 "#;
-    let prepared = typed(text);
+    let prepared = crate::prepare_fixture(typed(text));
     let verdicts = compilation_verdicts_of(&prepared);
     let RouteVerdict::Accepted(accepted) = &verdicts[0] else {
         panic!("both applied calls must be accepted")
@@ -3797,12 +3796,12 @@ fn generic_named_map_captures_keep_every_unused_binder() {
             .all(|capture| capture.parameter_kinds == [0, 0])
     );
     assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
-    let mut missing = (*prepared).clone();
+    let mut missing = prepared.clone().into_inner();
     missing.captured_machine_applications = Default::default();
     missing
         .captured_machine_applications
         .insert(captures[1].clone());
-    let verdicts = compilation_verdicts_of(&missing);
+    let verdicts = compilation_verdicts_of(&crate::prepare_fixture(missing));
     assert!(
         matches!(&verdicts[0], RouteVerdict::FallBack(refusal)
         if refusal.detail.contains("named map body has no prepared capture")),
@@ -3921,8 +3920,7 @@ fn generic_named_map_closed_call_also_judges_its_original_template() {
     );
 }
 
-fn full_named_map_verdicts(typed: &crate::source_state::TypedTrees) -> Vec<RouteVerdict> {
-    let typed = &crate::prepare_fixture(typed.clone());
+fn full_named_map_verdicts(typed: &crate::preparation::PreparedTypedTrees) -> Vec<RouteVerdict> {
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             typed,
