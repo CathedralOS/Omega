@@ -89,7 +89,7 @@ pub mod boundary_application_settlement {
             };
             if !matches!(
                 demand.application(),
-                boundary_applications::BoundaryApplication::Empty
+                terminal_psi::BoundaryApplication::Empty
             ) {
                 return Err(vec![Diagnostic::error(
                     "native binding application needs its complete applied requirement",
@@ -130,7 +130,7 @@ pub mod boundary_application_settlement {
                 .map_err(|reason| vec![Diagnostic::error(reason)])?,
             );
         }
-        let provider_demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
+        let provider_demands = terminal_psi::TerminalBoundaryApplicationDemands::new(
             demands.terminal_psi(),
             provider_demands,
         )

@@ -33,7 +33,7 @@ pub fn select_boundary_applications(
     provenance: &[CompilerIntrinsicPlanProvenance<'_>],
     selected: &effects::SelectedProviderPlanFacts,
     module: &terminal_psi::TerminalModule,
-    demands: &boundary_applications::TerminalBoundaryApplicationDemands,
+    demands: &terminal_psi::TerminalBoundaryApplicationDemands,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {
     use boundary_applications::BoundaryApplicationRealization as Realization;
     let error = |message| vec![Diagnostic::error(message)];

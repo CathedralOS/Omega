@@ -5,14 +5,14 @@
 use std::sync::Arc;
 
 use boundary_applications::{
-    TerminalBoundaryApplicationCoverage, TerminalBoundaryApplicationDemands,
-    TerminalBoundaryApplicationRealizations,
+    TerminalBoundaryApplicationCoverage, TerminalBoundaryApplicationRealizations,
 };
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_codec::CanonicalTerminalArtifact;
+use terminal_psi::TerminalBoundaryApplicationDemands;
 use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,

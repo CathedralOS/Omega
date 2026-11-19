@@ -406,7 +406,7 @@ fn check_callback_publication(retain_body_source: bool) {
     )
     .unwrap();
     let artifact = &fixture.artifact;
-    let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
+    let demands = terminal_psi::TerminalBoundaryApplicationDemands::new(
         artifact.manifest().semantic(),
         Vec::new(),
     )
