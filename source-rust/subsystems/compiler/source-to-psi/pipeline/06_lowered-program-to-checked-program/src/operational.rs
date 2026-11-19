@@ -269,15 +269,17 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
         for call in calls {
             let site = at(call.site);
             let violation = |detail| {
-                let span = elaboration
-                    .sources
-                    .get(machine.id)
-                    .and_then(|sources| match site {
-                        Construct::Operation(id) => sources.operations.get(id).copied(),
-                        Construct::Edge(id) => sources.edges.get(id).copied(),
-                        _ => None,
-                    })
-                    .and_then(terminal_check_tables::program::SourceOrigin::authored_span);
+                let span = elaboration.sources.get(machine.id).and_then(|sources| {
+                    sources
+                        .call_targets
+                        .iter()
+                        .find(|(at, _)| *at == call.site)
+                        .map(|(_, span)| *span)
+                        .or_else(|| match call.site {
+                            CallSite::Operation(id) => sources.operations.get(id)?.authored_span(),
+                            CallSite::Edge(id) => sources.edges.get(id)?.authored_span(),
+                        })
+                });
                 refusal(RefusalReason::Violation, machine.id, site, detail).with_source_span(span)
             };
             let flags = envelope(call, &inferred, machine.id, site)?;

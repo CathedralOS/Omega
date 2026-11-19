@@ -1701,6 +1701,26 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
             .expect("the authored call's operational violation");
         let call = text.rfind("read(").expect("the authored boundary call");
         assert_eq!(site.span, source_text::Span::new(call, call + "read".len()));
+        let terminal_check_tables::Construct::Operation(operation) = refusal.concerns else {
+            panic!("the boundary has a normal call operation");
+        };
+        let origins = elaboration.sources.get(refusal.machine).unwrap();
+        let full = origins
+            .operations
+            .get(operation)
+            .unwrap()
+            .authored_span()
+            .unwrap();
+        assert_eq!(&text[full.span.start..full.span.end], "Probe::read(7)");
+        let operand = text.rfind('7').expect("the authored operand");
+        let operand = source_text::SourceSpan::new(
+            full.source_id,
+            source_text::Span::new(operand, operand + 1),
+        );
+        assert!(
+            origins.operations.iter().any(|(_, origin)| origin.authored_span() == Some(operand)),
+            "argument evaluation retains its own source span"
+        );
         assert_eq!(
             refusal.detail,
             format!("call may {acknowledgement} and requires a {acknowledgement} acknowledgement")

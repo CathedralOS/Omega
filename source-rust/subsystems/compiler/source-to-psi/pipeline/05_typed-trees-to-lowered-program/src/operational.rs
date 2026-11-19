@@ -37,6 +37,54 @@ pub(crate) fn boundary(expression: &mut Expression) {
     }
 }
 
+/// Resolve the parsed target token while the original typed call is still available.
+pub(crate) fn retain_callee_spans(
+    typed: &crate::source_state::TypedTrees,
+    lowered: &mut super::lower::Lowered,
+) {
+    use crate::source_state::{SourceNode, statement::StatementNode};
+    use semantic_vocabulary::InvocationSite;
+    use terminal_psi::CallSite;
+
+    let callee_span = |node| {
+        let occurrence = match node {
+            SourceNode::Expression(id) if typed.expression_table.expression_is_valid(id) => {
+                typed.expression_table.call_node(id)?.authored_call_selection
+            }
+            SourceNode::Statement(id) if typed.statement_table.statement_is_valid(id) => {
+                let StatementNode::Call(call) = typed.statement_table.statement(id) else {
+                    return None;
+                };
+                call.authored_call_selection
+            }
+            _ => None,
+        }?;
+        let selection = typed.authored_declaration_selections().get(occurrence)?;
+        (selection.kind() == crate::declaration_selection::AuthoredDeclarationSelectionKind::Call)
+            .then(|| selection.source_span())
+    };
+    for call in &lowered.source_calls {
+        let site = match call.site {
+            InvocationSite::Operation(id) => CallSite::Operation(id),
+            InvocationSite::InvokeNoNormal(id) | InvocationSite::ExternalCompletion(id) => {
+                CallSite::Edge(id)
+            }
+            InvocationSite::Cleanup { .. } => continue,
+        };
+        if let Some(span) = callee_span(call.source) {
+            lowered.sources.call_targets.push((site, span));
+        }
+    }
+    for &(_, edge, _, node) in &lowered.source_folded_calls {
+        if let Some(span) = callee_span(node) {
+            lowered
+                .sources
+                .call_targets
+                .push((CallSite::Edge(edge), span));
+        }
+    }
+}
+
 pub(crate) fn positions(machine: MachineId, body: &Body) -> Checked<()> {
     fn target(machine: MachineId, target: &Target) -> Checked<()> {
         if let Target::Value(value) = target {
