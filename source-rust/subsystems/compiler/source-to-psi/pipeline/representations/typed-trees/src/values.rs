@@ -388,14 +388,14 @@ pub mod expression {
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct BuildSelectionCall {
         pub request: BuildSelectionRequest,
-        pub operation: declaration_contracts::build_requests::SelectionProtocolOperation,
+        pub operation: language_core::build_protocol::SelectionProtocolOperation,
     }
 
     impl Default for BuildSelectionCall {
         fn default() -> Self {
             Self {
                 request: BuildSelectionRequest::default(),
-                operation: declaration_contracts::build_requests::SelectionProtocolOperation::Bind,
+                operation: language_core::build_protocol::SelectionProtocolOperation::Bind,
             }
         }
     }
@@ -6208,8 +6208,8 @@ mod build_selection_input_tests {
         BuildSelectionCall, BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest,
         ExpressionNode, ExpressionTable, TableCallExpression,
     };
+    use language_core::build_protocol::SelectionProtocolOperation as Protocol;
     use record_storage::{RecordLimits, decode, encode};
-    use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
     use symbols::SymbolHandle;
 
     #[test]

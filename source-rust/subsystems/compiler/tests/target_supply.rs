@@ -762,7 +762,7 @@ fn first(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
 
 fn native_supply(
     accepted: &AcceptedTerminalSource,
-    target: declaration_contracts::selection::ProductTarget,
+    target: semantic_vocabulary::source_selections::ProductTarget,
     supplier: semantic_vocabulary::PackageKeyIdentity,
 ) -> provider_choices::NativeBuildSupply {
     use evaluation_accounting::BuildEvaluationSponsor;
@@ -813,7 +813,7 @@ fn native_supply(
                 .service_declaration,
             target,
             locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 39 },
-            producer: declaration_contracts::selection::NativeBindingProducer {
+            producer: semantic_vocabulary::source_selections::NativeBindingProducer {
                 package: supplier,
                 declaration_path: "build".into(),
                 callable_identity: "build::bind_service".into(),
@@ -835,7 +835,7 @@ fn native_supply(
 
 #[test]
 fn a_native_binding_supplies_only_its_reached_requirement() {
-    use declaration_contracts::selection::ProductTarget;
+    use semantic_vocabulary::source_selections::ProductTarget;
     let (source, defaults, roster) = judged(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
     let original = Arc::new(
         source_compiler::SourcePublication::judge(
@@ -1019,7 +1019,7 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
 
 #[test]
 fn native_binding_targets_and_supplier_conflicts_are_enforced() {
-    use declaration_contracts::selection::ProductTarget;
+    use semantic_vocabulary::source_selections::ProductTarget;
     let (accepted, _) = accepted(WHOLE_SLOT, REACHES);
     let native = native_supply(&accepted, ProductTarget::LinuxArm64, package());
     let missing = prepare_for_target(&accepted, &[], &[native], &[], Some(TARGET))
@@ -1041,7 +1041,7 @@ fn native_binding_targets_and_supplier_conflicts_are_enforced() {
 
 #[test]
 fn an_explicit_checked_selection_overrides_a_native_binding() {
-    use declaration_contracts::selection::ProductTarget;
+    use semantic_vocabulary::source_selections::ProductTarget;
     let (accepted, defaults) = accepted(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
     let explicit = defaults[0].selections[0].clone();
     let native = native_supply(&accepted, ProductTarget::LinuxX86_64, package());

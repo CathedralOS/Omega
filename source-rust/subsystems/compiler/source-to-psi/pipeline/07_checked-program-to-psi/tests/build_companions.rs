@@ -710,11 +710,11 @@ fn native_binding_prelude() -> String {
     );
     // Use the same target catalog and conversion as the Build prelude.
     let mut targets = String::from("public data BuildTarget [copy] {\n");
-    for target in declaration_contracts::selection::ProductTarget::ALL {
+    for target in semantic_vocabulary::source_selections::ProductTarget::ALL {
         targets.push_str(&format!("    case {};\n", target.source_case()));
     }
     targets.push_str("}\n");
-    for target in declaration_contracts::selection::ProductTarget::ALL {
+    for target in semantic_vocabulary::source_selections::ProductTarget::ALL {
         targets.push_str(&format!(
             "public const {}: BuildTarget = BuildTarget::{};\n",
             target.canonical_name(),
@@ -724,7 +724,7 @@ fn native_binding_prelude() -> String {
     targets.push_str(
         "public machine build_selection_target(target: BuildTarget) -> u64 { match target {\n",
     );
-    for target in declaration_contracts::selection::ProductTarget::ALL {
+    for target in semantic_vocabulary::source_selections::ProductTarget::ALL {
         targets.push_str(&format!(
             "BuildTarget::{} -> {}u64\n",
             target.source_case(),
@@ -831,7 +831,7 @@ machine build(builder: @mut Build) {
 
 #[test]
 fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
-    use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
+    use language_core::build_protocol::SelectionProtocolOperation as Protocol;
     use source_compiler::source_state::expression::ExpressionNode;
     let build = "machine build(builder: @mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
     let typed = || {

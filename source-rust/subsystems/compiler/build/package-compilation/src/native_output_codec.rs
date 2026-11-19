@@ -5,9 +5,9 @@
 
 use super::{NativeBuildEvaluation, PackageBuildHandoff};
 use crate::build_execution::build_record_codec;
-use declaration_contracts::selection::NativeBindingProducer;
-use declaration_contracts::selection::ProductTarget;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
+use semantic_vocabulary::source_selections::NativeBindingProducer;
+use semantic_vocabulary::source_selections::ProductTarget;
 use semantic_vocabulary::{ForeignLocatorCandidate, NativeBindingLocator, PackageKeyIdentity};
 use source_compiler::declaration_selection::CapturedNativeIntent;
 use source_compiler::declaration_selection::NativeBindingSource;

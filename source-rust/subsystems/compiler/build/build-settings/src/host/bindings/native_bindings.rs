@@ -12,7 +12,7 @@ mod locator;
 use locator::{NativeLocatorCase, NativeLocatorValue, decode_native_locator};
 
 use super::{TerminalBuildBindingAdapter, activation_ticket, lock_state};
-use declaration_contracts::selection::ProductTarget;
+use semantic_vocabulary::source_selections::ProductTarget;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerSign, IntegerValue};
 use source_compiler::declaration_selection::BuildOperation;
 use source_compiler::declaration_selection::BuildSelectionRequest;

@@ -1359,7 +1359,7 @@ impl<'t> Program<'t> {
                 crate::source_symbols::is_build_protocol(
                     &self.typed.symbols,
                     owner.symbol,
-                    declaration_contracts::build_requests::SELECTION_PROTOCOL,
+                    language_core::build_protocol::SELECTION_PROTOCOL,
                 )
             });
         if !protocol {

@@ -10,7 +10,7 @@ use crate::wire_fields::{
     wire_record,
 };
 use declaration_contracts::DomainPredicatePresence;
-use declaration_contracts::selection::CompositionMode;
+use semantic_vocabulary::source_selections::CompositionMode;
 use service_surface::ServiceEntryAuthorityFlow;
 use service_surface::ServiceEntryClaim;
 use service_surface::ServiceMethod;

@@ -17,8 +17,8 @@ inert until the product owner resolves and admits them.
 */
 
 use crate::host::requests::build_facet;
-use declaration_contracts::selection::CompositionMode;
-use declaration_contracts::selection::ProductTarget;
+use semantic_vocabulary::source_selections::CompositionMode;
+use semantic_vocabulary::source_selections::ProductTarget;
 use source_compiler::declaration_selection::BuildOperation;
 use source_compiler::declaration_selection::BuildSelectionRequest;
 use source_compiler::declaration_selection::ExecutedBuildSelection;
