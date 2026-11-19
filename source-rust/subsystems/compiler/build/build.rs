@@ -4,16 +4,15 @@ pub mod output_directory;
 pub mod planning;
 pub mod published_terminal;
 
-use build_settings::PreparedBuildEvaluation;
 use compiler::{Artifact, CompileRequest, compile};
 use diagnostics::Diagnostic;
-use planning::{PlanningServices, ReturnedPlanningStage};
+use planning::{PlanningServices, PreparedPlanningStage, ReturnedPlanningStage};
 
 /// The host resolves the inert plan into exact inputs and granted services.
 pub enum NextStage<'a, Services, Grants> {
     Run {
         name: String,
-        evaluation: Box<PreparedBuildEvaluation>,
+        evaluation: Box<PreparedPlanningStage>,
         services: Services,
         grants: Grants,
     },

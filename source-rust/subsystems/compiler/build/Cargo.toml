@@ -9,6 +9,10 @@ build = false
 path = "build.rs"
 
 [dependencies]
+source-declarations = { path = "../source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
+build-declarations = { path = "build-declarations" }
+source-compiler = { path = "../source-to-psi" }
+artifacts = { path = "../foundation/measurements" }
 build-settings = { path = "build-settings" }
 package-compilation = { path = "package-compilation" }
 terminal-interpreter = { path = "../../interpreter" }
@@ -20,11 +24,8 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
 
 [dev-dependencies]
-artifacts = { path = "../foundation/measurements" }
-build-declarations = { path = "build-declarations" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
-source-acquisition = { path = "../../package-manager/source-acquisition" }
-source-compiler = { path = "../source-to-psi" }
+package-manager = { path = "../../package-manager" }
 psi-authorization = { path = "../psi/authorization" }
 terminal-codec = { path = "../psi/codec" }
 terminal-psi = { path = "../psi" }

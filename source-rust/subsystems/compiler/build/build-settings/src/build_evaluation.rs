@@ -177,6 +177,13 @@ impl PreparedBuildEvaluation {
         &self.source_completion_accounting
     }
 
+    /// Retain provider helper work charged to this returned activation with its source work.
+    pub fn record_return(&mut self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
+        self.validate_return(returned)?;
+        self.source_completion_accounting.append(returned.helper_accounting.clone());
+        Ok(())
+    }
+
     pub fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
         self.execution
             .validate_return(returned)

@@ -76,6 +76,7 @@ pub(crate) fn measurement() -> evaluation_contracts::EvaluationMeasurementIdenti
 }
 
 pub struct ReturnedBuild {
+    pub(crate) helper_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) declaration: Option<build_declarations::BuildDeclaration>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
@@ -787,6 +788,7 @@ impl TerminalBuildActivation {
         }
         let declared_product_selections = self.host.bindings.declared()?;
         Ok(ReturnedBuild {
+            helper_accounting: self.helper_accounting,
             identity: self.host.produced.view().custody_identity(),
             declaration,
             source_join: self.host.default_sources.clone(),
