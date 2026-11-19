@@ -4,8 +4,8 @@ mod batches {
     use arena::Arena;
     use diagnostics::Diagnostic;
     use rayon::prelude::*;
-    use source_admission::LoadedSource;
-    use source_admission::LoadedSources;
+    use source_files::LoadedSource;
+    use source_files::LoadedSources;
     use syntax_trees::{ParsedSource, ParsedSources, SyntaxTrees};
 
     struct ParsedPageSources {
@@ -208,8 +208,8 @@ mod batches {
 use crate::{PsiCompilationObserver, PsiCompilationStage};
 use arena::Arena;
 use diagnostics::Diagnostic;
-use source_admission::LoadedSource;
-use source_admission::LoadedSources;
+use source_files::LoadedSource;
+use source_files::LoadedSources;
 use syntax_trees::{ParsedSource, ParsedSources, ParsedUnit, SyntaxTrees};
 
 pub struct SourceInput(pub LoadedSources);

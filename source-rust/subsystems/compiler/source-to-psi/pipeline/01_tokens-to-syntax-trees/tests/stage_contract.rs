@@ -1,4 +1,4 @@
-use source_admission::LoadedSource;
+use source_files::LoadedSource;
 use source_compiler::parsing::{ParseOptions, parse};
 use source_text::SourceId;
 

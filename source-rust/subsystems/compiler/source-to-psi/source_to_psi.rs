@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use diagnostics::Diagnostic;
-use source_admission::{LoadedSource, LoadedSources};
+use source_files::{LoadedSource, LoadedSources};
 
 #[path = "pipeline/modules.rs"]
 mod stages;

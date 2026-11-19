@@ -11,11 +11,27 @@ autobenches = false
 path = "lexer.rs"
 
 [dependencies]
+source-files = { path = "../representations/source-files" }
 arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 worker-budget = { path = "../../../foundation/worker-budget" }
 memchr = "2"
 rayon = "1.11"
-source-admission = { path = "../../inputs/source-admission" }
 source-text = { path = "../../../../../foundation/source-text" }
 tokens = { path = "../representations/tokens" }
+
+[[test]]
+name = "lexing_lexing"
+path = "tests/lexing.rs"
+
+[[test]]
+name = "lexing_source_batches"
+path = "tests/source_batches.rs"
+
+[[test]]
+name = "lexing_source_coverage"
+path = "tests/source_coverage.rs"
+
+[[test]]
+name = "lexing_token_boundaries"
+path = "tests/token_boundaries.rs"

@@ -24,5 +24,8 @@ fn line_comments_leave_the_newline_in_the_token_stream() {
     }
 }
 
-#[path = "../../../../../../tests/support/frontend.rs"]
+use source_files::LoadedSource;
+use source_lexer as lexing;
+
+#[path = "../../../../../../../tests/support/lexing.rs"]
 mod frontend_fixture;

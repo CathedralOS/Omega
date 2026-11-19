@@ -1,5 +1,5 @@
 //! Measure the compiler's complete loaded-source to syntax operation.
-use source_admission::{LoadedSource, LoadedSources};
+use source_files::{LoadedSource, LoadedSources};
 use source_compiler::{SourceInput, UnmeasuredProduction};
 use source_text::SourceId;
 use std::hash::{Hash, Hasher};

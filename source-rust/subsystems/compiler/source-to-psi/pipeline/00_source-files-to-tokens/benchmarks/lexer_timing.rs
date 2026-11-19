@@ -1,7 +1,7 @@
 //! Time the real lexer, optionally through parsing, with retained source inputs.
 //! The ordinary omega-bench runner owns pairing, resource capture and output checks.
 
-use source_admission::{LoadedSource, LoadedSources};
+use source_files::{LoadedSource, LoadedSources};
 use source_text::SourceId;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};

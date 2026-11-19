@@ -635,12 +635,13 @@ name = "declaration-contracts"
 version = "0.1.0"
 dependencies = [
  "bignum",
- "record-storage",
  "language-core",
  "numeric-literals",
  "numerics",
+ "record-storage",
  "semantic-vocabulary",
  "sha2",
+ "source-files",
  "source-text",
  "symbols",
  "wire",
@@ -1272,8 +1273,6 @@ name = "language-core"
 version = "0.1.0"
 dependencies = [
  "record-storage",
- "numeric-literals",
- "numerics",
 ]
 
 [[package]]
@@ -2753,9 +2752,10 @@ name = "source-admission"
 version = "0.1.0"
 dependencies = [
  "arena",
- "record-storage",
  "declaration-contracts",
+ "record-storage",
  "semantic-vocabulary",
+ "source-files",
  "source-text",
  "symbols",
 ]
@@ -2783,13 +2783,11 @@ dependencies = [
  "bignum",
  "build-time-values",
  "checked-terminal-psi-to-published-psi",
- "record-storage",
  "declaration-contracts",
  "diagnostics",
  "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
- "worker-budget",
  "filesystem-authority",
  "flow-effects",
  "language-core",
@@ -2802,6 +2800,7 @@ dependencies = [
  "proof-admission",
  "provider-choices",
  "rayon",
+ "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
  "serde",
@@ -2810,6 +2809,7 @@ dependencies = [
  "source-admission",
  "source-capture",
  "source-declarations",
+ "source-files",
  "source-lexer",
  "source-parser",
  "source-syntax",
@@ -2832,6 +2832,7 @@ dependencies = [
  "typed-trees-to-terminal-psi",
  "typed-trees-to-typed-trees",
  "wire",
+ "worker-budget",
 ]
 
 [[package]]
@@ -2854,17 +2855,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "source-files"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "record-storage",
+ "source-text",
+]
+
+[[package]]
 name = "source-lexer"
 version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
- "worker-budget",
  "memchr",
  "rayon",
- "source-admission",
+ "source-files",
  "source-text",
  "tokens",
+ "worker-budget",
 ]
 
 [[package]]
@@ -2872,18 +2882,18 @@ name = "source-parser"
 version = "0.1.0"
 dependencies = [
  "arena",
- "declaration-contracts",
  "diagnostics",
- "worker-budget",
  "language-core",
  "numeric-literals",
  "numerics",
  "rayon",
  "source-admission",
+ "source-files",
  "source-lexer",
  "source-text",
  "syntax-trees",
  "tokens",
+ "worker-budget",
 ]
 
 [[package]]
@@ -3446,8 +3456,7 @@ name = "tokens"
 version = "0.1.0"
 dependencies = [
  "arena",
- "declaration-contracts",
- "source-admission",
+ "source-files",
  "source-text",
 ]
 

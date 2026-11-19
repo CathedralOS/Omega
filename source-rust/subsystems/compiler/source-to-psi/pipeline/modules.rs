@@ -118,7 +118,7 @@ pub mod entry_contracts;
 pub mod entry_shapes;
 #[path = "prepare_and_check.rs"]
 pub mod product_source;
-#[path = "representations/source-files/source_targets.rs"]
+#[path = "prepare_and_check/source_targets.rs"]
 pub mod source_targets;
 #[path = "representations/typed-trees/typed_frontier.rs"]
 pub(crate) mod typed_frontier;

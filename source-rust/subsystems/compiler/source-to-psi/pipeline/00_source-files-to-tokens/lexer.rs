@@ -13,7 +13,7 @@ use arena::Arena;
 use diagnostics::Diagnostic;
 use literals::quoted_bytes::decode_string_literal;
 use rayon::prelude::*;
-use source_admission::{LoadedSource, LoadedSources};
+use source_files::{LoadedSource, LoadedSources};
 use source_text::{SourcePosition, Span};
 use std::str::Chars;
 use tokens::{

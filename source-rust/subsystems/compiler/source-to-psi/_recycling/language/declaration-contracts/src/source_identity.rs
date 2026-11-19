@@ -2,14 +2,7 @@
 //! These records contain content digests and coordinates, never file contents,
 //! filesystem authority, declaration lookup or a source compiler continuation.
 use sha2::{Digest, Sha256};
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-)]
-pub enum DependencyScope {
-    #[default]
-    Product,
-    Build,
-}
+pub use source_files::DependencyScope;
 
 const SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CONSUMED-SOURCE-CONTENT-V1\0";
 
