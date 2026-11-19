@@ -37,8 +37,9 @@ mod calling_plans {
                 "selected ProgramEntry storage contract drifted from its target slot".into(),
             );
         }
-        let semantic_method = selected_method(storage, slot.semantic_arrival_requirement)?;
-        let physical_method = selected_method(storage, physical_requirement)?;
+        let methods = &storage.schema().declaration.methods;
+        let semantic_method = selected_method(methods, slot.semantic_arrival_requirement)?;
+        let physical_method = selected_method(methods, physical_requirement)?;
         if Some(
             storage
                 .schema()
@@ -203,16 +204,13 @@ mod calling_plans {
     }
 
     fn selected_method<'schema>(
-        storage: &'schema SelectedProgramStorageEntryPlan,
+        methods: &'schema [ServiceMethod],
         spelling: &str,
     ) -> Result<&'schema ServiceMethod, String> {
-        let (owner, name) = spelling.split_once("::").ok_or_else(|| {
+        let (owner, name) = spelling.rsplit_once("::").ok_or_else(|| {
             "selected ProgramEntry has an invalid target requirement spelling".to_owned()
         })?;
-        let mut methods = storage
-            .schema()
-            .declaration
-            .methods
+        let mut methods = methods
             .iter()
             .filter(|method| method.requirement_owner == owner && method.name == name);
         let method = methods
@@ -224,6 +222,31 @@ mod calling_plans {
             ));
         }
         Ok(method)
+    }
+
+    #[test]
+    fn replay_selects_the_exact_hosted_arrival_owner_and_method() {
+        let entry = target::TargetProfile::LinuxX64.program_entry_slot();
+        let arrival = entry.physical_arrival_requirement.unwrap();
+        let exact = ServiceMethod {
+            requirement_owner: "targets::linux_x86_64::LinuxX86_64PhysicalEntry".into(),
+            name: "enter".into(),
+            ..ServiceMethod::default()
+        };
+        let wrong_owner = ServiceMethod {
+            requirement_owner: "other::linux_x86_64::LinuxX86_64PhysicalEntry".into(),
+            ..exact.clone()
+        };
+        let wrong_method = ServiceMethod {
+            name: "leave".into(),
+            ..exact.clone()
+        };
+        let mut methods = vec![wrong_owner, wrong_method];
+        assert!(selected_method(&methods, arrival).is_err());
+        methods.push(exact.clone());
+        assert_eq!(selected_method(&methods, arrival), Ok(&exact));
+        methods.push(exact);
+        assert!(selected_method(&methods, arrival).is_err());
     }
 
     fn join_application<'application>(
