@@ -16,22 +16,22 @@ wire = { path = "../../../../foundation/wire" }
 record-storage = { path = "../../../../foundation/record-storage" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
-source-acquisition = { path = "../source-acquisition" }
+source-acquisition = { path = "../../../package-manager/revsision-control-providers" }
 evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
-artifacts = { path = "../../compilation/products/measurements" }
+artifacts = { path = "../../foundation/measurements" }
 flow-effects = { path = "../../source-to-psi/language/source-effects" }
 optimization-core = { path = "../../psi-to-native/optimization-contracts" }
 arena = { path = "../../../../foundation/arena" }
 symbols = { path = "../../source-to-psi/language/declaration-identity" }
-source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
+source-compiler = { path = "../../source-to-psi" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
 platform-custody = { path = "../../../../foundation/filesystem" }
 effects = { path = "../../psi-to-native/installation/native-effects" }
-target = { path = "../../compilation/target-description/target" }
+target = { path = "../../psi-to-native/targets/target" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 semantic-vocabulary = { path = "../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../representations/psi" }
+terminal-psi = { path = "../../psi" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
 sha2 = "0.10.9"
 

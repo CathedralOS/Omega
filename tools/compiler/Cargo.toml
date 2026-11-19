@@ -22,4 +22,4 @@ source-admission = { path = "../../source-rust/subsystems/compiler/source-to-psi
 source-compiler = { path = "../../source-rust/subsystems/compiler/source-to-psi", features = ["test-support"] }
 symbols = { path = "../../source-rust/subsystems/compiler/source-to-psi/language/declaration-identity" }
 terminal-check-tables = { path = "../../source-rust/subsystems/compiler/source-to-psi/pipeline/representations/lowered-program" }
-terminal-codec = { path = "../../source-rust/subsystems/compiler/representations/psi/codec" }
+terminal-codec = { path = "../../source-rust/subsystems/compiler/psi/codec" }

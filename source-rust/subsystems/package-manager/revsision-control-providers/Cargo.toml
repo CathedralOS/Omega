@@ -4,6 +4,8 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[lib]
+path = "lib.rs"
 
 [features]
 test-fixtures = []
@@ -16,7 +18,7 @@ filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 bounded-process = { path = "../../../foundation/bounded-process" }
 optimization-core = { path = "../../compiler/psi-to-native/optimization-contracts" }
 platform-custody = { path = "../../../foundation/filesystem" }
-resolver-execution = { path = "../resolver-execution" }
+resolver-execution = { path = "git/execution" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
 sha1-checked = { version = "0.10.0", default-features = false }

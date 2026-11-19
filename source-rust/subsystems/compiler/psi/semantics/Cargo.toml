@@ -16,10 +16,10 @@ application-identity = { path = "../../../source-to-psi/language/application-ide
 layout-planning = { path = "../layout/integer-defaults" }
 resource-bounds = { path = "../storage-bounds" }
 numeric-literals = { path = "../../foundation/numeric-literals" }
-arena = { path = "../../../../../foundation/arena" }
+arena = { path = "../../../../foundation/arena" }
 source-text = { path = "../../../../foundation/source-text" }
-bignum = { path = "../../../../../foundation/bignum" }
-wire = { path = "../../../../../foundation/wire" }
+bignum = { path = "../../../../foundation/bignum" }
+wire = { path = "../../../../foundation/wire" }
 language-core = { path = "../../foundation/language-core" }
 layout-plans = { path = "../layout" }
 access-admission = { path = "../../../source-to-psi/access-admission" }

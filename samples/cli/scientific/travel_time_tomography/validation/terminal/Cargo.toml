@@ -12,6 +12,6 @@ path = "main.rs"
 [dependencies]
 orchestration = { path = "../../../../../../omega-rust/omega/build-system/orchestration" }
 compiler = { path = "../../../../../../omega-rust/omega/compilation/compiler" }
-terminal-runtime = { path = "../../../../../../omega-rust/omega/interpreter/terminal-runtime" }
-terminal-interpreter = { path = "../../../../../../omega-rust/psi/interpreter" }
-target = { path = "../../../../../../omega-rust/omega/compilation/target-description/target" }
+terminal-runtime = { path = "../../../../../../source-rust/subsystems/interpreter/host" }
+terminal-interpreter = { path = "../../../../../../source-rust/subsystems/interpreter" }
+target = { path = "../../../../../../source-rust/subsystems/compiler/psi-to-native/targets/target" }

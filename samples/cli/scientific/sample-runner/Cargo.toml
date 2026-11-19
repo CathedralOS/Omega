@@ -6,8 +6,8 @@ edition = "2024"
 [dependencies]
 bounded-process = { path = "../../../../source-rust/foundation/bounded-process" }
 orchestration = { path = "../../../../omega-rust/omega/build-system/orchestration" }
-package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
-terminal-runtime = { path = "../../../../omega-rust/omega/interpreter/terminal-runtime" }
+package-manager = { path = "../../../../source-rust/subsystems/package-manager" }
+terminal-runtime = { path = "../../../../source-rust/subsystems/interpreter/host" }
 serde_json = "=1.0.151"
-target = { path = "../../../../omega-rust/omega/compilation/target-description/target" }
+target = { path = "../../../../source-rust/subsystems/compiler/psi-to-native/targets/target" }
 sha2 = "0.10.9"

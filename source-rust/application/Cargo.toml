@@ -14,23 +14,23 @@ test = true
 native-provider-sponsor = { path = "../host-support/native-provider-sponsor" }
 worker-budget = { path = "../subsystems/compiler/foundation/worker-budget" }
 orchestration = { path = "../build-system/orchestration" }
-terminal-runtime = { path = "../interpreter/terminal-runtime" }
+terminal-runtime = { path = "../subsystems/interpreter/host" }
 mimalloc = { version = "0.1", default-features = false }
 bounded-process = { path = "../foundation/bounded-process" }
 compiler = { path = "../compilation/compiler" }
 products = { path = "../compilation/products" }
-artifacts = { path = "../compilation/products/measurements" }
+artifacts = { path = "../subsystems/compiler/foundation/measurements" }
 platform-custody = { path = "../foundation/filesystem" }
-package-manager = { path = "../packages/package-manager" }
-source-acquisition = { path = "../packages/source-acquisition" }
-package-compilation = { path = "../packages/package-compilation" }
-resolver-execution = { path = "../packages/resolver-execution" }
-target = { path = "../compilation/target-description/target" }
+package-manager = { path = "../subsystems/package-manager" }
+source-acquisition = { path = "../subsystems/package-manager/revsision-control-providers" }
+package-compilation = { path = "../subsystems/compiler/build/package-compilation" }
+resolver-execution = { path = "../subsystems/package-manager/revsision-control-providers/git/execution" }
+target = { path = "../subsystems/compiler/psi-to-native/targets/target" }
 semantic-vocabulary = { path = "../subsystems/compiler/source-to-psi/language/semantic-vocabulary" }
 diagnostics = { path = "../foundation/diagnostics" }
-terminal-codec = { path = "../subsystems/compiler/representations/psi/codec" }
-terminal-psi = { path = "../subsystems/compiler/representations/psi" }
-terminal-semantics = { path = "../subsystems/compiler/representations/psi/semantics" }
+terminal-codec = { path = "../subsystems/compiler/psi/codec" }
+terminal-psi = { path = "../subsystems/compiler/psi" }
+terminal-semantics = { path = "../subsystems/compiler/psi/semantics" }
 terminal-installation = { path = "../subsystems/compiler/psi-admission" }
 
 [target.'cfg(windows)'.dev-dependencies]

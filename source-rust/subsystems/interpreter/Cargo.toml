@@ -10,24 +10,24 @@ path = "src/lib.rs"
 
 [dependencies]
 access-vocabulary = { path = "../compiler/source-to-psi/language/access-vocabulary" }
-storage-access = { path = "../runtime/storage-access" }
+storage-access = { path = "memory/storage-access" }
 storage-materialization = { path = "memory/materialization" }
-resource-bounds = { path = "../compiler/representations/psi/storage-bounds" }
+resource-bounds = { path = "../compiler/psi/storage-bounds" }
 extent-contracts = { path = "../compiler/source-to-psi/language/extent-contracts" }
 evaluation-contracts = { path = "../evaluation/evaluation-contracts" }
 language-core = { path = "../compiler/foundation/language-core" }
 record-storage = { path = "../../foundation/record-storage" }
 access-admission = { path = "../compilation/access-admission" }
 arena = { path = "../../foundation/arena" }
-extents = { path = "../runtime/extents" }
+extents = { path = "memory/extents" }
 evaluation-accounting = { path = "../evaluation/evaluation-accounting" }
 layout-plans = { path = "../compiler/psi/layout" }
 semantic-vocabulary = { path = "../compiler/source-to-psi/language/semantic-vocabulary" }
 numerics = { path = "../compiler/psi/semantics/numeric" }
-terminal-psi = { path = "../compiler/representations/psi" }
-terminal-codec = { path = "../compiler/representations/psi/codec" }
-terminal-work = { path = "../compiler/representations/psi/work" }
-terminal-semantics = { path = "../compiler/representations/psi/semantics" }
+terminal-psi = { path = "../compiler/psi" }
+terminal-codec = { path = "../compiler/psi/codec" }
+terminal-work = { path = "../compiler/psi/work" }
+terminal-semantics = { path = "../compiler/psi/semantics" }
 proof-admission = { path = "../compilation/proof-admission" }
 
 terminal-installation = { path = "../compiler/psi-admission" }

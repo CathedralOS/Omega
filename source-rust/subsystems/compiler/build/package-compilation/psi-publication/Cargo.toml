@@ -5,13 +5,13 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-target = { path = "../../target-description/target" }
+target = { path = "../../../psi-to-native/targets/target" }
 effects = { path = "../../../psi-to-native/installation/native-effects" }
 backend-plan = { path = "../../../psi-to-native/installation/provider-plans" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-optimization = { path = "../../../representations/psi/optimization-selections" }
-package-compilation = { path = "../../../packages/package-compilation" }
+optimization = { path = "../../../psi/optimization-selections" }
+package-compilation = { path = ".." }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
-checked-program-to-psi = { path = "../../../../psi/compilation/pipeline/07_checked-program-to-psi" }
+checked-program-to-psi = { path = "../../../source-to-psi/pipeline/07_checked-program-to-psi" }
 typed-trees = { path = "../../../source-to-psi/pipeline/representations/typed-trees" }
-terminal-psi = { path = "../../../representations/psi" }
+terminal-psi = { path = "../../../psi" }

@@ -15,10 +15,10 @@ declaration-contracts = { path = "../../../source-to-psi/language/declaration-co
 schema-reflection = { path = "../../../source-to-psi/language/schema-reflection" }
 application-identity = { path = "../../../source-to-psi/language/application-identity" }
 numeric-literals = { path = "../../foundation/numeric-literals" }
-bignum = { path = "../../../../../foundation/bignum" }
-wire = { path = "../../../../../foundation/wire" }
+bignum = { path = "../../../../foundation/bignum" }
+wire = { path = "../../../../foundation/wire" }
 language-core = { path = "../../foundation/language-core" }
-arena = { path = "../../../../../foundation/arena" }
+arena = { path = "../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
 optimization = { path = "../optimization-selections" }
 numerics = { path = "../semantics/numeric" }
