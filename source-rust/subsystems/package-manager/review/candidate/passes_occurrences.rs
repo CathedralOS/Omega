@@ -1,8 +1,8 @@
 //! Reuse a complete package review only when its exact source, Build inputs, target and decisions match.
 //! A missing occurrence requires a new project compilation before it can become a review.
 
-use package_compilation::build_execution::BuildSnapshotRequest;
 use crate::build_session::dependency_first_package_order;
+use package_compilation::build_execution::BuildSnapshotRequest;
 use source_completion_accounting::SourceCompletionAccounting;
 
 use super::super::{
@@ -403,9 +403,7 @@ impl<'pass> PackageReviewRound<'pass> {
         } else {
             None
         }
-        .unwrap_or_else(|| {
-            BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
-        });
+        .unwrap_or_else(|| BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
         Ok((
             inputs,
             AssembledOccurrence {

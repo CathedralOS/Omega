@@ -641,10 +641,11 @@ fn review_fixture_recording(
                 .inventory()
                 .services_for(program.as_ref())
                 .map_err(|diagnostic| vec![diagnostic])?;
-            let declaration = source_compiler::product::entry_contracts::selected_program_entry_boundary(
-                catalog,
-                &package_compilation::source_imports::source_target(slot.owner, Some(&inputs)),
-            )?;
+            let declaration =
+                source_compiler::product::entry_contracts::selected_program_entry_boundary(
+                    catalog,
+                    &package_compilation::source_imports::source_target(slot.owner, Some(&inputs)),
+                )?;
             if program.symbols.symbol_package_identity(declaration) != Some(owner) {
                 return Err(vec![Diagnostic::error(
                     "fixture Product selected a different entry supplier",

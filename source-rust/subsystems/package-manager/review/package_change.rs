@@ -9,8 +9,8 @@ custody and compiler input identity, and assembles the proposed `PackageLockTarg
 without writing `build.omg` or `omega.lock`.
 */
 
-use package_compilation::build_execution::BuildSnapshotRequest;
 use crate::build_session::PackageBuildSession;
+use package_compilation::build_execution::BuildSnapshotRequest;
 
 #[path = "package_change_error.rs"]
 mod error;

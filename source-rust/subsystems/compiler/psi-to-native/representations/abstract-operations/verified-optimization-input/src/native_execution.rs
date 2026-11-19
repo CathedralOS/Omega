@@ -92,7 +92,13 @@ impl TerminalNativeRealizationProposal {
         } else {
             adapters
         };
-        self.scope_request(artifact, entry, None, local.to_vec(), previous.map(PreparedNativeExecution::selection))
+        self.scope_request(
+            artifact,
+            entry,
+            None,
+            local.to_vec(),
+            previous.map(PreparedNativeExecution::selection),
+        )
     }
 
     fn scope_request<'a>(

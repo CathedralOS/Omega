@@ -155,7 +155,9 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_native_binding_outputs(
         self,
-        declarations: Vec<source_compiler::product::native_binding_declarations::CapturedNativeDeclaration>,
+        declarations: Vec<
+            source_compiler::product::native_binding_declarations::CapturedNativeDeclaration,
+        >,
         intents: Vec<source_compiler::declaration_selection::CapturedNativeIntent>,
         evaluation: Option<Arc<super::NativeBuildEvaluation>>,
     ) -> Result<Self, String> {
@@ -185,9 +187,7 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_retained_provider_selections(
         self,
-        selections: Vec<
-            source_compiler::product::provider_declarations::RetainedProviderSelection,
-        >,
+        selections: Vec<source_compiler::product::provider_declarations::RetainedProviderSelection>,
         observation: Option<[u8; 32]>,
     ) -> Result<Self, &'static str> {
         if let (Some(provider_observation), Some(native)) = (observation, self.native_evaluation())

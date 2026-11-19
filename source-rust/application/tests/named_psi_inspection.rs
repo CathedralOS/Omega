@@ -414,8 +414,13 @@ fn authored_getpid_build_runs_and_reopens_its_published_psi() {
             .env("OMEGA_LIBRARY_ROOT", &library)
             .args(flags)
             .args([
-                "--target", "linux_x86_64", "--build-input", "build.omg",
-                "--build-input", "main.omg", "main.omg",
+                "--target",
+                "linux_x86_64",
+                "--build-input",
+                "build.omg",
+                "--build-input",
+                "main.omg",
+                "main.omg",
             ])
             .output()
             .unwrap();
@@ -423,7 +428,8 @@ fn authored_getpid_build_runs_and_reopens_its_published_psi() {
         String::from_utf8(output.stdout).unwrap()
     };
     let stdout = build(&["--build-dir", "native"]);
-    let executable = stdout.lines()
+    let executable = stdout
+        .lines()
         .find_map(|line| line.strip_prefix("published native output to "))
         .unwrap_or_else(|| panic!("build did not report a native executable: {stdout}"));
     // The fixture traps unless the selected syscall returns a positive process ID.
@@ -441,7 +447,9 @@ fn authored_getpid_build_runs_and_reopens_its_published_psi() {
     assert!(reopened.status.success(), "{reopened:?}");
     let stdout = String::from_utf8(reopened.stdout).unwrap();
     assert!(
-        stdout.lines().any(|line| line.starts_with("boundary ") && line.contains("HostProcessId::get")),
+        stdout
+            .lines()
+            .any(|line| line.starts_with("boundary ") && line.contains("HostProcessId::get")),
         "{stdout}"
     );
 }

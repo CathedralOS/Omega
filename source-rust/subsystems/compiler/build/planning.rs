@@ -1,7 +1,7 @@
 //! Run the admitted Build entry and retain its original activation through source settlement.
 
-mod registered_tests;
 mod product;
+mod registered_tests;
 pub use product::ProductStage;
 mod source;
 pub use source::{
@@ -9,9 +9,7 @@ pub use source::{
 };
 
 use build_declarations::BuildRequest;
-use build_execution::host::bindings::{
-    BuildProductQuery, BuildProviderRequest,
-};
+use build_execution::host::bindings::{BuildProductQuery, BuildProviderRequest};
 use build_execution::host::requests::BuildDependencyPreparation;
 use build_execution::{
     BuildDependencySelection, BuildSourceResult, CompileFailure, EvaluatedBuild,

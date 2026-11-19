@@ -262,8 +262,11 @@ pub fn emit_component_exports<'input>(
     }
     let mut planned = Vec::with_capacity(targets.len());
     for (export, target, ordinals) in targets {
-        let physical =
-            crate::emit_program::callable_objects::prepare_callable_physical(target, None, Vec::new())?;
+        let physical = crate::emit_program::callable_objects::prepare_callable_physical(
+            target,
+            None,
+            Vec::new(),
+        )?;
         if !physical.body.stage.program().private_references.is_empty() {
             return Err(realization_error(
                 "component export closure",

@@ -33,8 +33,8 @@ pub mod resolution {
 /// executes in the subsystem that owns the associated state.
 pub mod operations {
     pub use crate::dependencies::{
-        AcceptedDeployment, LocalProjectPreparation, PrepareLocalProjectError, PreparedLocalProject, ReviewedHostPackages,
-        begin_local_project_preparation,
+        AcceptedDeployment, LocalProjectPreparation, PrepareLocalProjectError,
+        PreparedLocalProject, ReviewedHostPackages, begin_local_project_preparation,
     };
     pub use crate::review::inspect_source::{SourceAdapter, inspect_package_source_locator};
     pub use crate::review::{

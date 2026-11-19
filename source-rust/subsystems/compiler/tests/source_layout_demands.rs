@@ -30,23 +30,24 @@ mod layout_demand_tests {
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([3; 32]).unwrap();
         let subject = symbols::SymbolHandle::from_parts(1, 0);
         let requirement = symbols::SymbolHandle::from_parts(2, 0);
-        let selection = source_compiler::product::native_binding_declarations::NativeBindingSelection {
-            application: None,
-            subject,
-            requirement,
-            requirement_identity: "DarwinTimespec::read".into(),
-            service_declaration: [1; 32],
-            target: ProductTarget::MacosArm64,
-            locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 1 },
-            producer: NativeBindingProducer {
-                package,
-                declaration_path: "build".into(),
-                callable_identity: "build::bind_times".into(),
-            },
-            source_occurrence_digest: [5; 32],
-            supplier_package: package,
-            source_span: Default::default(),
-        };
+        let selection =
+            source_compiler::product::native_binding_declarations::NativeBindingSelection {
+                application: None,
+                subject,
+                requirement,
+                requirement_identity: "DarwinTimespec::read".into(),
+                service_declaration: [1; 32],
+                target: ProductTarget::MacosArm64,
+                locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 1 },
+                producer: NativeBindingProducer {
+                    package,
+                    declaration_path: "build".into(),
+                    callable_identity: "build::bind_times".into(),
+                },
+                source_occurrence_digest: [5; 32],
+                supplier_package: package,
+                source_span: Default::default(),
+            };
         let scopes = source_compiler::product::layout_target_scopes(
             &source_compiler::source_state::TypedTrees::default(),
             &[],

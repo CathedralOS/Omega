@@ -14,13 +14,7 @@ fn compile(
     requested: Product,
 ) -> Result<CompletedProduct, Vec<diagnostics::Diagnostic>> {
     let profile = TargetProfile::MacosArm64;
-    let product = super::open_product(
-        &project.join("main.omg"),
-        profile,
-        true,
-        None,
-        None,
-    )?;
+    let product = super::open_product(&project.join("main.omg"), profile, true, None, None)?;
     let stage = product.product_stage(&[profile])?;
     let program = stage.program(profile, Vec::new())?;
     match requested {

@@ -53,7 +53,9 @@ pub(crate) fn run(arguments: InspectTerminalArguments, diagnostics: DiagnosticOu
         Err(error) => {
             use crate::inspection::InspectTerminalError;
             match &error {
-                InspectTerminalError::Diagnostics(rows) => eprintln!("{}", diagnostics.diagnostics(rows)),
+                InspectTerminalError::Diagnostics(rows) => {
+                    eprintln!("{}", diagnostics.diagnostics(rows))
+                }
                 InspectTerminalError::Artifact(_) => eprintln!("{error}"),
             }
             std::process::exit(1);

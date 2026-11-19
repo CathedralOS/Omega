@@ -1,9 +1,11 @@
 //! Select the exact contract source that discovery chose for a target entry.
 //! This nominates source to check; package policy still admits its schema.
 
+use crate::product::source_targets::{
+    SourceEntryContractOwner as EntryContractSource, SourceTarget,
+};
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationEnvironment};
 use crate::source_state::{FrozenTypedTrees, ProductSourceIdentity};
-use crate::product::source_targets::{SourceEntryContractOwner as EntryContractSource, SourceTarget};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;

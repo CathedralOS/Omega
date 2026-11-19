@@ -10,10 +10,10 @@ use package_compilation::PackageDependencyClosure;
 use semantic_vocabulary::source_selections::ProductTarget;
 use source_compiler::compile_time::BuildTimeSelectionAuthority;
 use source_compiler::product::provider_declarations::RetainedProviderSelection;
+use source_compiler::product::source_targets::SourceTarget;
 use source_compiler::product::{
     NativeBindingInputs, PackageNativeBindings, ProductPolicyInputs, ProductSourceInputs,
 };
-use source_compiler::product::source_targets::SourceTarget;
 use std::sync::Arc;
 use target::TargetProfile;
 
@@ -91,7 +91,8 @@ impl ProductStage<'_> {
         profile: TargetProfile,
         declaration_path: &str,
     ) -> Result<source_compiler::ProducedBuildProvider, Vec<Diagnostic>> {
-        self.source().produce_build_provider(profile.target_name(), declaration_path)
+        self.source()
+            .produce_build_provider(profile.target_name(), declaration_path)
     }
 
     pub fn source(&self) -> StageSource<'_> {
@@ -155,9 +156,11 @@ impl ProductStage<'_> {
     pub(super) fn runtime_consent(
         &self,
         profile: TargetProfile,
-    ) -> Result<Option<&review_evidence::permission_acceptance::TerminalPermissionAcceptance>, Vec<Diagnostic>> {
-        self
-            .product
+    ) -> Result<
+        Option<&review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+        Vec<Diagnostic>,
+    > {
+        self.product
             .runtime_consents
             .as_ref()
             .map(|consents| {

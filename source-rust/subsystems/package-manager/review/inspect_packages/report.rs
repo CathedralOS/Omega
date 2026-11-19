@@ -1,6 +1,5 @@
 // Bounded text report rendering for observational package inspection (`omega packages`), contrasting accepted lock history with fresh compiler findings and build-snapshot settlements.
 
-use package_compilation::build_execution::BuildObservationSummary;
 use crate::Hex;
 use crate::declarations::PackageKey;
 use crate::lock::PackageLockTarget;

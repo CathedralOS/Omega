@@ -41,11 +41,11 @@ pub(crate) fn prepare_components<'input>(
             .iter()
             .map(|export| {
                 provider_realization::native_execution::prepare_export(
-                        proposal,
-                        input.authorization(),
-                        terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
-                    )?
-                    .with_operation_evidence(artifact, input.evidence().cloned())
+                    proposal,
+                    input.authorization(),
+                    terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
+                )?
+                .with_operation_evidence(artifact, input.evidence().cloned())
             })
             .collect::<Result<Vec<_>, _>>()?;
         let mut demand = Vec::new();

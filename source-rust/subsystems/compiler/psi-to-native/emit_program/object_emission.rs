@@ -3,9 +3,8 @@
 // membership; merely available callbacks do not become emission roots.
 
 use super::callback_thunks::{PreparedCallbackBodies, prepare_installed_callbacks};
-use crate::compile_body::{self, BodyEmissionError};
 use super::selected_physical_pipeline_failed;
-use verified_optimization_input::ValidatedNativeProgramEntrySettlement;
+use crate::compile_body::{self, BodyEmissionError};
 use diagnostics::Diagnostic;
 use native_artifact::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,

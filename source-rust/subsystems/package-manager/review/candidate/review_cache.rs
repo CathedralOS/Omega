@@ -16,7 +16,9 @@
     `IndependentComponentDescription`).
 */
 
-use package_compilation::build_execution::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest};
+use package_compilation::build_execution::{
+    BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest,
+};
 use std::process::id;
 mod key;
 mod record_codec;

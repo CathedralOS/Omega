@@ -64,7 +64,6 @@ pub(crate) mod source_parsing;
 #[path = "pipeline/02_syntax-trees-to-symbol-resolved-trees/build_helpers.rs"]
 pub(crate) mod target_helpers;
 
-pub use ::source_syntax::{ParsedText, SourceParseError, parse_text};
 pub use crate::source_preparation::{ProductRepresentationInput, SourcePreparationFailure};
 #[cfg(not(any(test, feature = "test-support")))]
 pub(crate) use crate::source_preparation::{SourceAdmission, SourcePreparationRequest};
@@ -124,11 +123,11 @@ pub fn prepare_source_for_test(
 #[cfg(test)]
 use source_files::LoadedSource;
 #[cfg(test)]
-#[path = "../../../../tests/support/frontend_operations.rs"]
-pub(crate) mod frontend_fixture;
-#[cfg(test)]
 #[path = "../../../../tests/support/fixture_repository.rs"]
 pub(crate) mod fixture_repository;
+#[cfg(test)]
+#[path = "../../../../tests/support/frontend_operations.rs"]
+pub(crate) mod frontend_fixture;
 #[cfg(test)]
 #[path = "../tests/support/schema_customer_source.rs"]
 pub(crate) mod schema_customer_source;

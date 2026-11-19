@@ -159,15 +159,18 @@ pub(crate) fn prepare_admitted_build(
         ));
     }
     let subject = check_subject.then(|| packages.map(PackageCompilationInputs::root));
-    let judged = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
-        source_compiler::CheckedBuildInvocation::judge(
-            typed,
-            entry,
-            subject.as_slice(),
-            anonymous_source.map(|capture| Arc::new(capture.clone()) as Arc<_>),
-        )
-    })
-    .map_err(|failure| CompileFailure::source_completion(failure.diagnostics, failure.accounting))?;
+    let judged = timings
+        .record_result(BUILD_SOURCE_JUDGMENT, || {
+            source_compiler::CheckedBuildInvocation::judge(
+                typed,
+                entry,
+                subject.as_slice(),
+                anonymous_source.map(|capture| Arc::new(capture.clone()) as Arc<_>),
+            )
+        })
+        .map_err(|failure| {
+            CompileFailure::source_completion(failure.diagnostics, failure.accounting)
+        })?;
     Ok((
         judged.invocation,
         super::provider_execution::BuildProviderPlans::for_packages(packages),

@@ -17,7 +17,6 @@ pub use crate::provider_choice_inputs::{
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject, TargetProviderDefaults,
     source_application,
 };
-pub use crate::product::provider_choices::retain_provider_defaults;
 pub use crate::source_state::provider_declarations::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use requests::collect_product_provider_selections;

@@ -23,8 +23,8 @@ pub(in crate::encoding) use values::providers::encode_compiler_intrinsic_executi
 #[cfg(test)]
 pub(in crate::encoding) use values::crashes::{encode_primitive_type, encode_scalar_expression};
 
-pub(crate) use policy_rows::runtime_service_permission_rows;
 pub use policy_rows::restricted_build_request_acceptance_text;
+pub(crate) use policy_rows::runtime_service_permission_rows;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {

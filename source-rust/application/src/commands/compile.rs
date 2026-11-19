@@ -291,7 +291,12 @@ fn compile_targets(
             .identity();
         for profile in &profiles {
             println!("Psi manifest {identity}");
-            writeln!(report, "target: {}\nPsi manifest {identity}", profile.target_name()).unwrap();
+            writeln!(
+                report,
+                "target: {}\nPsi manifest {identity}",
+                profile.target_name()
+            )
+            .unwrap();
         }
     }
     let count = profiles.len();
@@ -383,7 +388,9 @@ fn compile_target(
                 Some(&mut advisories),
             )?
             else {
-                return Err(output_error("source compilation returned an unexpected product"));
+                return Err(output_error(
+                    "source compilation returned an unexpected product",
+                ));
             };
             portable = Some(
                 CompletedProduct::from_published_psi(artifact, rollback.cloned())

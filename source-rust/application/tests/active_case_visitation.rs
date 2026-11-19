@@ -46,7 +46,10 @@ fn run_visitation(name: &str) {
     let (status, diagnostics) = invoke(&fixture, &source, &["run", "--both"]);
     assert!(status.success(), "{diagnostics}");
     for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(diagnostics.lines().any(|line| line == receipt), "{diagnostics}");
+        assert!(
+            diagnostics.lines().any(|line| line == receipt),
+            "{diagnostics}"
+        );
     }
 }
 

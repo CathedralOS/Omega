@@ -84,8 +84,12 @@ pub(crate) fn prepare<'input>(
             .iter()
             .flat_map(|component| &component.calls)
             .collect::<Vec<_>>();
-        let execution = provider_realization::native_execution::prepare_program(proposal, retained.authorization(), &calls)?
-            .with_operation_evidence(artifact, retained.evidence().cloned())?;
+        let execution = provider_realization::native_execution::prepare_program(
+            proposal,
+            retained.authorization(),
+            &calls,
+        )?
+        .with_operation_evidence(artifact, retained.evidence().cloned())?;
         let scalars = self::required_scalars::required_scalars(
             artifact,
             &execution.scalar_application_demand(proposal.target_profile())?,
