@@ -786,14 +786,31 @@ requires machine Callback();
     ));
     assert!(crate::checking::ceilings::judge(&form).unwrap().is_empty());
 
-    // Losing the relay's inferred bound must still prevent its caller from
-    // claiming calls cannot suspend. The independent helper stays complete.
     let mut unknown = form.clone();
     unknown
         .requirement_ceilings
         .get_mut(relay)
         .unwrap()
         .suspension = None;
+    // The generic declaration still establishes the relay's suspension bound.
+    assert!(
+        crate::checking::ceilings::judge(&unknown)
+            .unwrap()
+            .is_empty()
+    );
+
+    // Retain its known empty invocation row in the abstract signature so only
+    // the missing suspension bound can refuse.
+    let position = unknown
+        .generic_callable_declarations
+        .iter()
+        .position(|row| row.machine == relay)
+        .expect("the relay retains its generic callable declaration");
+    let declaration = unknown.generic_callable_declarations.remove(position);
+    assert!(!declaration.envelope.suspends);
+    assert!(declaration.envelope.invocations.is_empty());
+    unknown.requirement_ceilings.get_mut(relay).unwrap().invokes =
+        terminal_check_tables::contracts::Ceiling::Authored(Vec::new());
     let refused = crate::checking::ceilings::judge(&unknown).unwrap_err();
     assert_eq!(
         refused.detail,
