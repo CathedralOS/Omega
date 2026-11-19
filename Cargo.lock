@@ -3541,7 +3541,6 @@ dependencies = [
  "language-core",
  "layout-plans",
  "numerics",
- "optimization",
  "proof-applications",
  "psi-effect-contracts",
  "psi-program-identity",

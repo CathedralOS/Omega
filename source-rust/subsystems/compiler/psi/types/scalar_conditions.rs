@@ -322,7 +322,7 @@ impl ScalarConditions {
 impl ScalarApplications {
     /// A ground comparison can follow its observations into target
     /// closure. Runtime values still need the ordinary source proof.
-    pub(super) fn layout_predicate(
+    pub(crate) fn layout_predicate(
         &self,
         subject: Option<ProofDeclarationId>,
         description: impl FnOnce() -> String,

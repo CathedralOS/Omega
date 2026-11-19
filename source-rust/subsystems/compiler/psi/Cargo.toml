@@ -21,7 +21,6 @@ wire = { path = "../../../foundation/wire" }
 symbols = { path = "../foundation/declaration-identity" }
 record-storage = { path = "../../../foundation/record-storage" }
 arena = { path = "../../../foundation/arena" }
-optimization = { path = "optimization-selections" }
 numerics = { path = "semantics/numeric" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 language-core = { path = "../foundation/language-core" }
