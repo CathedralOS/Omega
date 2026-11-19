@@ -15,7 +15,7 @@
               nextStore nextOutput))
           ((EpsilonRuntimeAggregate typeValue children)
             (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))
-          ((EpsilonRuntimeSumValue owner caseValue payloads)
+          ((EpsilonRuntimeSumValue caseValue payloads)
             (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))
           ((EpsilonRuntimeViewValue view)
             (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))))

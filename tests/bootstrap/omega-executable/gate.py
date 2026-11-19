@@ -119,17 +119,17 @@ def main():
     source = b"" if controls else (options.source or gate / "program.omg").read_bytes()
     limit = env_seconds("OMEGA_EXECUTABLE_OBSERVATION_SECONDS", "14400")
     adapter = options.adapter.read_bytes()
-    require_identity("execution adapter", adapter, 2565,
-                     "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
+    require_identity("execution adapter", adapter, 2150,
+                     "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa")
     epsilon = (directory / "epsilon_compiler.delta").read_bytes()
-    require_identity("Epsilon", epsilon, 617354,
-                     "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e")
+    require_identity("Epsilon", epsilon, 616982,
+                     "e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9")
     delta_compiler = (directory / "delta_compiler.gamma").read_bytes()
     require_identity("Delta compiler", delta_compiler, 151525,
                      "de94946dd946c90c3311dba52aa4622a3c80a18866d5483531de1312cc62e0c6")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 818946,
-                     "30f8b6de9e15312b4445c2194cbdb857bf5b2e27f08caa59281c5b0170fc088f")
+    require_identity("D", compiler, 845569,
+                     "8738a77cfab9544646f2ddaee35c94df3efb67dbda3f4f0b7648883452b10d7b")
     subject = epsilon + adapter
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))

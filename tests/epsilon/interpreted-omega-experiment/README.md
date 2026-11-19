@@ -13,11 +13,14 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
   -> omega compiler Alpha tape
 ```
 
-The gate requires the Omega product build to bind exactly one
-`alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
-construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 12,097
-lines / 617,354 bytes, authored in 87 explicitly manifested members.
+The gate checks that the compiler construction build binds exactly one
+`alpha_bootstrap::ProgramEntry` to `entry_start`. It also requires Omega D to
+retain its Alpha tape construction and rejects any `EpsilonAlpha`/`epsilon_alpha_`
+backend residue in the Delta-written Epsilon implementation.
+[Compiler construction build](../../../source/omega/application/construction/build.omg).
+
+The evaluator is currently 12,096
+lines / 616,982 bytes, authored in 96 explicitly manifested members.
 The complete gate checks 150 ordinary fixtures, six D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
@@ -69,11 +72,11 @@ Views and all four Console operations execute with the controls below.
 The obsolete `Unsupported` staging cases are absent from execution outcomes.
 This removes no language observation and does not close the resource profile.
 
-The gate compiles the exact evaluator plus the 55-line / 2,565-byte
+The gate compiles the exact evaluator plus the 45-line / 2,150-byte
 `execution_driver.delta` (SHA-256
-`ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38`) through the
-selected Delta route and pins the measured 721,484-byte receipt, SHA-256
-`71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082`.
+`ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa`) through the
+selected Delta route and pins the measured 719,068-byte receipt, SHA-256
+`a682c628b7255ffb358d00bdf536369acf2078ff4510d621c20b2ab0468197b2`.
 `tools/bootstrap/epsilon/evaluator_env.sh` binds both identities and
 `tests/bootstrap/epsilon-identity.sh` covers the refusals and every consuming
 gate's record.
@@ -171,10 +174,13 @@ of this source-program execution gate.
 The development driver receives a four-byte little-endian source length,
 exactly that many Epsilon source bytes, and all remaining bytes as sealed stdin.
 The host only frames bytes; ordinary Delta code separates the two inputs.
-Source bytes remain in a validated bounded view over the request; only sealed
-stdin is rebuilt into balanced byte trees. The host diagnostic timeout is 300 seconds
-per compilation or execution, not an Epsilon observation or resource verdict.
-Gamma's published resource profile is unchanged.
+The source view ends where the Console cursor starts. Both use the same
+request bytes, and Console returns EOF at the request end.
+The host allows 600 seconds for receipt reconstruction
+(`OMEGA_EPSILON_RECEIPT_SECONDS`), 300 seconds per ordinary fixture and
+14,400 seconds per D customer (`OMEGA_DCOMP_OBSERVATION_SECONDS`).
+Both environment settings accept positive seconds. A timeout leaves the
+language result unknown.
 This is private test framing, not the final evaluator request/observation
 envelope. Six malformed-frame controls expect the single tag byte `05`,
 including a declared source length of `0xffffffff` without its body. A
@@ -225,14 +231,16 @@ state transfers and recursive calls. Console controls pin exact `write_line`
 bytes and LF, trap prefixes, ordered reads of `0`, `128`, and `255`, and stable
 EOF through nested calls and states.
 
+Both evaluator entries use the same six member programs. Their production
+members, test entry sources, packed bytes and literal observations are
+checked against the [shared customer records](../d-composition/customers.py).
+
 One customer concatenates the whole, unchanged Omega D
 `representations.epsilon` and `lexical_classification.epsilon` members with
 [`customers/omega_lexical/main.epsilon`](customers/omega_lexical/main.epsilon).
 Its 29 assertions exercise four actual D lexical helpers, including nested
-machine calls and machine parameters read across state transitions. Every
-member and the 34,911-byte packed source is pinned. The host performs no
-function extraction, source rewriting, or semantic substitution. Its actual
-260-field `OmegaParser` also exercises bounded-stack member census and type
+machine calls and machine parameters read across state transitions. The production
+`OmegaParser` also exercises bounded-stack member census and type
 formation. Two static 260-field negative fixtures require ordinary Epsilon
 rejection for a final duplicate or unknown field type, not Gamma stack
 exhaustion. A wide Main control declares 260 distinct `i32` locals followed by
@@ -243,7 +251,7 @@ profile is unchanged.
 The second customer concatenates the whole, unchanged D
 `representations.epsilon` and `alpha_tape.epsilon` members with
 [`customers/omega_alpha_tape/main.epsilon`](customers/omega_alpha_tape/main.epsilon).
-Every member and its 69,011-byte packed source is pinned. Its two distinct
+Its two distinct
 `AlphaTapeBuffer` receivers execute D's actual `initialize`,
 `write_reserved_word`, and `payload_length` machines, including their nested
 calls. It checks separate byte storage and lengths, little-endian word writes,
@@ -300,7 +308,7 @@ sh tests/epsilon/interpreted-omega-experiment/run.sh --customer 'Omega D Alpha t
 The third customer concatenates whole `representations.epsilon` and
 `request_and_utf8.epsilon` members with
 [`customers/omega_request/main.epsilon`](customers/omega_request/main.epsilon).
-Its 65,181-byte packed source exercises the actual `OmegaRequestEnvelope`,
+It exercises the actual `OmegaRequestEnvelope`,
 `OmegaRequestStructure`, and `OmegaUtf8Validation` receiver machines using
 literals and a Main-owned array view. It checks empty/nonempty outer OCREQ
 frames, hostile lengths and trailing bytes, valid multibyte UTF-8, and
@@ -329,12 +337,12 @@ invocation extent. Its expected observation is tagged `Exit(0)` with stdout
 `A` followed by LF.
 On macOS arm64 under ordinary shared-host load the subject customer produced
 the exact observation in 160.100 seconds and the invocation customer in
-131.069 seconds, inside the unchanged 300-second watchdog; earlier shapes of
+131.069 seconds, inside that run's 300-second watchdog; earlier shapes of
 this coverage are not a matched comparison.
 The fifth customer concatenates whole `representations.epsilon` and
 `lexical_classification.epsilon` with
 [`customers/omega_numeric_base/main.epsilon`](customers/omega_numeric_base/main.epsilon).
-Its 34,904-byte source exercises all four cases in D's actual
+It exercises all four cases in D's actual
 `omega_digit_in_base` machine and the first-case default. Eighteen assertions
 cover admitted and rejected digits; the expected result is tagged `Exit(0)`
 with stdout `A`.
@@ -342,17 +350,15 @@ with stdout `A`.
 The sixth customer combines the unchanged `representations.epsilon`,
 `request_and_utf8.epsilon`, `lexical_classification.epsilon`, and `lexer.epsilon`
 members with [`customers/omega_lexer/main.epsilon`](customers/omega_lexer/main.epsilon).
-The four production members total 85,458 bytes. The 160-line / 6,771-byte Main
-has SHA-256 `e4a262f1b011402970f958afbc6c950882bb75906fc7244b3ea19c8d489a0e06`;
-the complete 3,377-line / 92,229-byte customer has SHA-256
+An earlier measurement used a 92,229-byte packed customer with SHA-256
 `d53f8f57eb7963c1a3126d206edc9b3b6c2bd4c2fd19c0989cf68053c7abf4bd`.
-Its 32 assertions and 14 checked sum cases call D's actual `scan_at` and
+The entry's 32 assertions and 14 checked sum cases call D's actual `scan_at` and
 `validate_lexical` entries. They require exact token kinds, spans, cursors,
 keyword/punctuation/base metadata, escaped-string length, nested comments,
 whole-view completion, UTF-8 priority, trailing out-of-profile rejection,
 unterminated comments, unsupported escapes, and recovery after a previous
 failure. The required observation is tagged `Exit(0)` with stdout `A`.
-On macOS arm64, base `564b45e205` ran this unchanged customer in 145.273
+On macOS arm64, base `564b45e205` ran its lexer customer in 145.273
 seconds. Reusing the exact current callable fact during checking reduced the
 measured invocation to 120.518 seconds; that 712,070-byte receipt was
 reconstructed separately in 107.401 seconds. Both customer runs used the same
@@ -367,8 +373,8 @@ evidence of complete Omega parsing or compilation.
 
 With compact runtime field coordinates, a paired macOS arm64 comparison on
 the same evaluator and unchanged customer observed 136.905 seconds for the
-712,070-byte baseline receipt and 126.065 seconds for the 713,259-byte receipt
-pinned above (135.839 and 125.229 child CPU seconds). Other bootstrap checks
+712,070-byte baseline receipt and 126.065 seconds for the then-current 713,259-byte receipt
+(135.839 and 125.229 child CPU seconds). Other bootstrap checks
 were running. This single pair is not a benchmark series or a full-parser
 speedup; the canonical selected-customer command independently returned the
 same observation in 132.815 seconds. The baseline is the receipt at
@@ -405,8 +411,8 @@ preservation, and a whole-record snapshot across subsequent updates. The private
 [runtime controls](../runtime-invariants/README.md) separately isolate each
 identity coordinate and malformed projection admission.
 
-The inventory specifies 155 language/customer judgments (150 ordinary fixtures
-and five whole-member D customers). Seven private-framing controls are counted
+The inventory specifies 156 language/customer judgments (150 ordinary fixtures
+and six whole-member D customers). Seven private-framing controls are counted
 separately. The companion
 [checking gate](../checking/README.md) pins exact checker reasons and coordinates
 without executing Epsilon programs; this gate retains execution and whole-D

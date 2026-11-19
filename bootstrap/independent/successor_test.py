@@ -123,7 +123,7 @@ def main():
                 ("epsilon_elf", "epsilon.elf")))
     if args.compile_epsilon:
         compilation_spec = importlib.util.spec_from_file_location(
-            "epsilon_compilation_controls", Path(__file__).parent / "epsilon/compile_test.py")
+            "epsilon_compilation_controls", ROOT / "tests/epsilon/compiled-native/compile_test.py")
         compilation_controls = importlib.util.module_from_spec(compilation_spec)
         compilation_spec.loader.exec_module(compilation_controls)
         result["compiled_epsilon"] = compilation_controls.run(

@@ -1,9 +1,11 @@
 
 (def epsilon_evaluate_entry_slice ((source Bytes) (input Bytes))
   EpsilonEvaluatorSliceOutcome
-  (epsilon_evaluate_entry_view (epsilon_source_whole source) input))
+  (epsilon_evaluate_entry_view (epsilon_source_whole source)
+    (EpsilonRuntimeConsoleInputAt input 0)))
 
-(def epsilon_evaluate_entry_view ((source EpsilonSourceView) (input Bytes))
+(def epsilon_evaluate_entry_view ((source EpsilonSourceView)
+  (input EpsilonRuntimeConsoleInput))
   EpsilonEvaluatorSliceOutcome
   (match (epsilon_check_through_body_view source)
     ((EpsilonLocalResolutionRejected reasonValue errorOffset)

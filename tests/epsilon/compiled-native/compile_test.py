@@ -13,11 +13,12 @@ import struct
 import time
 import traceback
 
-SPEC = importlib.util.spec_from_file_location('epsilon_composition', Path(__file__).with_name('composition.py'))
+ROOT = Path(__file__).resolve().parents[3]
+COMPILER = ROOT / 'bootstrap/independent/epsilon'
+SPEC = importlib.util.spec_from_file_location('epsilon_composition', COMPILER / 'composition.py')
 composition = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(composition)
-ROOT = composition.ROOT
-FIXTURES = ROOT / 'tests/epsilon/compiled-native'
+FIXTURES = Path(__file__).resolve().parent
 CONSOLE = b'''boundary trait Console {
  machine exit_process(return_code: i32) -> never;
  machine write_byte(value: i32);
@@ -54,13 +55,13 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     boundary = CONSOLE[:CONSOLE.index(b'data Main')]
     driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
 
-    def program(source, name):
+    def program(source, name, entry=driver):
         (work / f'{name}.epsilon').write_bytes(source)
         observation = observe(compiler, source)
         (work / f'{name}.observation').write_bytes(observation)
         generated, runtime = composition.decode_module(observation)
         assert runtime == 'storage', observation[:80]
-        target = composition.program_source(generated, driver, runtime)
+        target = composition.program_source(generated, entry, runtime)
         executable = compile_delta(target, name)
         return executable, {'source': identity(source), 'generated': identity(generated),
                             'target': identity(target), 'image': identity(executable.read_bytes())}
@@ -91,6 +92,66 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
             assert fields[12] == 0 and fields[13] == 0, fields
         request_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
 
+    # The production keyword classifier compares its actual literal views.
+    lexer = (base / 'lexer.epsilon').read_bytes()
+    source = ((base / 'representations.epsilon').read_bytes()
+              + lexer[:lexer.index(b'machine OmegaLexScan::scan_whitespace(')] + boundary
+              + (FIXTURES / 'lexer_diagnostic_main.epsilon').read_bytes())
+    main_start = source.index(b'Main::main(')
+    span = f'{main_start} {main_start + len("Main")}'
+    main_type = f'(EpsilonNamedType {span} (EpsilonNameSpan {span}))'
+    entry = ((FIXTURES / 'lexer_case_driver.delta').read_bytes()
+             + f'(def main ((input Bytes)) Bytes (test_lexer_entry {main_type} input))\n'.encode())
+    executable, diagnostic_report = program(source, 'lexer-diagnostic', entry)
+
+    def case_span(owner, name):
+        owner_start = source.index(b'data ' + owner + b' {')
+        owner_end = source.index(b'}', owner_start)
+        declaration = b'case ' + name + b';'
+        start = source.index(declaration, owner_start, owner_end)
+        return struct.pack('<II', start, start + len(declaration))
+
+    expected_exit = b'\0' + struct.pack('<i', 42)
+    diagnostic_report['cases'] = []
+    keyword = case_span(b'OmegaTokenKind', b'Keyword')
+    identifier = case_span(b'OmegaTokenKind', b'Identifier')
+    for label, word, observed_cases in [
+            ('empty', b'', b''), ('as', b'as', keyword + case_span(b'OmegaKeywordKind', b'As')),
+            ('copy', b'copy', keyword + case_span(b'OmegaKeywordKind', b'Copy')),
+            ('identifier', b'aside', identifier),
+            ('bounds', b'\xff', identifier)]:
+        expected = b'\x01\x06' if label == 'bounds' else expected_exit
+        assert reference(source, word, f'lexer-diagnostic-{label}') == expected
+        output = observe(executable, word)
+        # The token after a refused empty span and the keyword of an identifier
+        # are unspecified. Only check fields committed by the lexer.
+        required = expected + keyword + observed_cases
+        assert output.startswith(required) and len(output) - len(expected) in (8, 16, 24), (label, output)
+        diagnostic_report['cases'].append({'input': identity(word), 'output': identity(output)})
+
+    malformed = source.replace(br'\x00\t', br'\x0g\t', 1)
+    offset = malformed.index(br'\x0g')
+    assert observe(compiler, malformed) == b'rejected 5 ' + str(offset).encode()
+    assert reference(malformed, b'', 'lexer-invalid-string') == b'\x02\x05' + struct.pack('<I', offset)
+
+    # Substitute a different sum owner at the same call and check its exact diagnostic.
+    offset = source.index(b'self.scanner.reject(self.diagnostic,')
+    invalid = source.replace(b'reject(self.diagnostic,', b'reject(self.scanner.token_kind,', 1)
+    assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
+    assert reference(invalid, b'', 'lexer-diagnostic-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
+
+    offset = source.index(b'self.scanner.set_keyword(OmegaKeywordKind::As)')
+    invalid = source.replace(b'self.scanner.set_keyword(OmegaKeywordKind::As)',
+                             b'self.scanner.set_keyword(OtherKeyword::As)', 1)
+    assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
+    assert reference(invalid, b'', 'stored-case-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
+
+    payload = source + (b'\ndata Number { case Box(value: i32); }\n'
+                        b'machine Main::save_number(&mut self) { let number: Number = Number::Box(7); }\n')
+    offset = payload.index(b'Number::Box(7)')
+    assert observe(compiler, payload) == b'unsupported ' + str(offset).encode()
+    assert reference(payload, b'', 'stored-case-payload') == expected_exit
+
     source = boundary + (FIXTURES / 'storage_main.epsilon').read_bytes()
     executable, storage_report = program(source, 'storage-target')
     storage_report['cases'] = []
@@ -105,7 +166,26 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     actual = observe(executable, b'\2\1')
     assert actual == b'\0' + struct.pack('<i', 42) + b'A', actual
     storage_report['native_state_transfers'] = 300000
-    return {'request': request_report, 'storage': storage_report}
+
+    # A free function can take a literal enum. Reading a live parameter for
+    # that ABI needs a conversion before the compiler can emit a module.
+    offset = source.index(b'Marker::Set) == 1')
+    live = source[:offset] + source[offset:].replace(b'Marker::Set', b'tag', 1)
+    assert observe(compiler, live) == b'unsupported ' + str(offset).encode()
+    assert reference(live, b'\2', 'stored-pure-argument') == b'\1\10'
+    # Echo all decoded octets from one source literal, crossing each control,
+    # delimiter and non-ASCII byte as data in the generated Delta program.
+    octets = bytes(range(256))
+    encoded = b''.join(f'\\x{byte:02x}'.encode() for byte in octets)
+    fixture = (FIXTURES / 'literal_bytes_main.epsilon').read_bytes()
+    assert fixture.count(b'"test bytes"') == 1
+    source = CONSOLE + fixture.replace(b'"test bytes"', b'"' + encoded + b'"')
+    executable, literal_report = program(source, 'literal-bytes')
+    expected = expected_exit + octets
+    assert observe(executable) == reference(source, b'', 'literal-bytes-reference') == expected
+    literal_report['output'] = identity(expected)
+    return {'request': request_report, 'lexer_diagnostic': diagnostic_report,
+            'storage': storage_report, 'literal_bytes': literal_report}
 
 
 def run(work, vm, producer, realize, seconds):
@@ -247,7 +327,7 @@ def run(work, vm, producer, realize, seconds):
                 b'\0' + struct.pack('<i', 0))
         report['stage'] = 'complete-lexical-module'
         checkpoint()
-        enum_spec = importlib.util.spec_from_file_location('epsilon_enum_controls', Path(__file__).with_name('enum_test.py'))
+        enum_spec = importlib.util.spec_from_file_location('epsilon_enum_controls', COMPILER / 'enum_test.py')
         enum_controls = importlib.util.module_from_spec(enum_spec)
         enum_spec.loader.exec_module(enum_controls)
         report['enum_customer'] = enum_controls.run(work, vm, producer, realize, seconds, composition, compiler)

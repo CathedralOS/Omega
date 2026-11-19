@@ -724,14 +724,14 @@ mod tests {
             ),
             (
                 "bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources",
-                818946,
-                "30f8b6de9e15312b4445c2194cbdb857bf5b2e27f08caa59281c5b0170fc088f",
+                845569,
+                "8738a77cfab9544646f2ddaee35c94df3efb67dbda3f4f0b7648883452b10d7b",
                 None,
             ),
             (
                 "bootstrap/interpreted/4_epsilon/epsilon_compiler.delta.sources",
-                617354,
-                "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e",
+                616982,
+                "e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9",
                 None,
             ),
             (

@@ -2225,7 +2225,8 @@ impl<'t> Program<'t> {
         } else {
             (self.machine(target)?, Vec::new())
         };
-        self.fixed_inputs.push(body);
+        self.fixed_contracts
+            .push(super::FixedContract::Interface(body));
         let application = self
             .typed
             .static_operand_identity(

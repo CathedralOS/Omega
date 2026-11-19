@@ -27,8 +27,8 @@ def write_json(path, value):
 
 def frame(directory, source, stdin):
     receipt = (directory / 'canonical-receipt.gamma').read_bytes()
-    assert identity(receipt) == {'bytes': 729060, 'sha256':
-        'bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368'}
+    assert identity(receipt) == {'bytes': 726667, 'sha256':
+        'a2c85b9ea741d9957e1ea2f19a82b8ccace7637d40c4368ac838dfb501b16b87'}
     closure = (directory / 'epsilon_compiler.delta').read_bytes()
     sealed = (b'EEREQ\x01\x00\x00' + struct.pack('<III', 1, len(source), len(stdin))
               + hashlib.sha256(closure).digest() + source + stdin)
@@ -93,7 +93,7 @@ def prepare(directory, frozen=None):
             assert 0 < len(unit) <= 131072
             units.append((member['path'], unit))
         stdin, unit_records = b'\2', []
-        cursor_points, output_points = {0: 'checking-finished', 1: 'mode-read'}, {}
+        cursor_points, output_points = {0: 'stdin-cursor-ready', 1: 'mode-read'}, {}
         for index, (path, unit) in enumerate(units):
             header_end = len(stdin) + 4
             stdin += struct.pack('<I', len(unit)) + unit
@@ -161,12 +161,12 @@ machine Main::main(&mut self) {
 }
 '''
     output = observe(directory, 'phase-calibration', frame(directory, source, b'ABC'), 120, b'ABC',
-                     {0: 'entry-ready', 1: 'read-one', 2: 'read-two', 3: 'read-three'},
+                     {0: 'stdin-cursor-ready', 1: 'read-one', 2: 'read-two', 3: 'read-three'},
                      {3: 'write-one', 4: 'write-two', 5: 'write-three', 6: 'finish'})
     assert output == bytes(5) + b'L0ABCE'
     phases = json.loads((directory / 'phase-calibration.phases.json').read_text())
     assert [row['name'] for row in phases['events']] == [
-        'stdin-tree-ready', 'entry-ready', 'read-one', 'output-prefix', 'read-two',
+        'sealed-input-ready', 'stdin-cursor-ready', 'read-one', 'output-prefix', 'read-two',
         'read-three', 'write-one', 'write-two', 'write-three', 'finish']
     array_window_selfcheck(directory)
     subprocess.run([sys.executable, str(Path(__file__).with_name('measure_observer_test.py')),
@@ -261,8 +261,8 @@ def main():
         request += source + (directory / 'support.bin').read_bytes()
         compiler = (directory / 'delta_compiler.gamma').read_bytes()
         receipt = observe(directory, 'receipt', struct.pack('<I', len(compiler)) + compiler + request, 1800)
-        assert identity(receipt) == {'bytes': 729060, 'sha256':
-            'bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368'}
+        assert identity(receipt) == {'bytes': 726667, 'sha256':
+            'a2c85b9ea741d9957e1ea2f19a82b8ccace7637d40c4368ac838dfb501b16b87'}
         (directory / 'canonical-receipt.gamma').write_bytes(receipt)
     elif command == 'selfcheck':
         selfcheck(directory)

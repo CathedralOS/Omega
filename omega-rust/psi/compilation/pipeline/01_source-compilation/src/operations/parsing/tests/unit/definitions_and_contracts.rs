@@ -865,6 +865,42 @@ fn typed_callable_delimiters_preserve_nested_signatures_and_regular_fact_lists()
 }
 
 #[test]
+fn parses_a_callable_argument_before_the_enclosing_parenthesis() {
+    let source = r#"
+        machine retain(
+            chosen: machine(value: u32) -> u32 reaches none crashes none
+                requires value >= 3u32 ensures result <= value
+        ) -> machine(value: u32) -> u32 reaches none crashes none
+            requires value >= 3u32 ensures result <= value
+        {
+            chosen
+        }
+    "#;
+    let parsed = crate::tests::parse_source(source, "both callable contracts should parse");
+    let machine = crate::tests::root_machine(&parsed, "retain");
+    let state = crate::tests::entry_state(&parsed, machine);
+    let [parameter] = parsed.items.state_parameters(state.parameters) else {
+        panic!("retain takes one parameter");
+    };
+    let parameter = parsed.items.state_parameter(*parameter);
+    for reference in [parameter.type_reference, state.return_type] {
+        let TypeReferenceNode::Callable { signature } =
+            parsed.type_references.type_reference(reference)
+        else {
+            panic!("the input and result are both callable types");
+        };
+        let signature = parsed.items.state_signature(*signature);
+        assert_eq!(parsed.items.state_parameters(signature.parameters).len(), 1);
+        assert_eq!(
+            parsed.items.capability_contracts(signature.contracts).len(),
+            2
+        );
+        assert_eq!(signature.service_reach_keyword_source_spans.len(), 1);
+        assert!(signature.declares_no_crash_route);
+    }
+}
+
+#[test]
 fn parses_machine_parameter_with_mandatory_contract() {
     let source = r#"
         data Card {}

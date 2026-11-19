@@ -304,8 +304,10 @@ decoder. Parsing runs between
 markers and includes their call-boundary overhead. The newline control exposes
 fixed reset/marker work. These intervals avoid subtracting checking times from
 separate, differently contended runs. They do not remove host contention.
-`stdin-tree-ready` to `checking-finished` covers Epsilon's checking of D and the
-entry setup before the initial Console cursor is constructed.
+`sealed-input-ready` marks the backing bytes supplied to the evaluator.
+`stdin-cursor-ready` marks the cursor at the start of the admitted stdin suffix,
+before Epsilon checks D. The interval from that cursor to `mode-read` includes
+checking D, entering its main machine and executing the first Console read.
 
 Replay on Linux x86-64 (Windows: WSL; macOS: an x86-64 Linux guest):
 
@@ -349,7 +351,9 @@ source-cost and resource observations.
 ### 2026-10-21 bounded observation
 
 The [observation ledger](layer0-2026-10-21.json) retains the producer identities,
-controls, raw phase trace and limitations. This is an **unfinished layer-0
+controls, raw phase trace and limitations. Its evaluator copied stdin into a
+separate byte tree. Its `stdin-tree-ready` and `checking-finished` events refer
+to that earlier representation. This is an **unfinished layer-0
 measurement**. On a Ryzen 7950X with 128 GB RAM, Windows 11 and Ubuntu WSL,
 the unchanged 20,511-byte `source/psi/parse/input.omg` invocation reached the
 four-hour watchdog without publishing any output. The child was killed by that

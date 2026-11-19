@@ -83,7 +83,7 @@
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
         ((EpsilonRuntimeAggregate typeValue children)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
-        ((EpsilonRuntimeSumValue owner caseValue payload)
+        ((EpsilonRuntimeSumValue caseValue payload)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))))))
 
 (def epsilon_compiled_finish_call ((floor Int)
@@ -146,3 +146,11 @@
       (EpsilonRuntimeStoreState next
         (epsilon_compiled_retain_rows floor values homes receiver roots roots
           NoEpsilonRuntimeRoots) input))))
+
+; A string view owns immutable bytes and has no assignable place.
+(def epsilon_compiled_string ((text Bytes) (element EpsilonType)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (EpsilonEvaluatorValue
+    (EpsilonRuntimeViewValue (EpsilonRuntimeViewAt (EpsilonRuntimeLiteralBacking text)
+      element 0 (bytes_length text)))
+    NoEpsilonRuntimePlace store output))

@@ -158,7 +158,7 @@
                             nextStore nextOutput))
                         ((EpsilonRuntimeAggregate typeValue children)
                           (EpsilonEvaluatorBlockInternal start))
-                        ((EpsilonRuntimeSumValue owner caseValue payload)
+                        ((EpsilonRuntimeSumValue caseValue payload)
                           (EpsilonEvaluatorBlockInternal start))
                         ((EpsilonRuntimeViewValue view)
                           (EpsilonEvaluatorBlockInternal start))))))))))))))

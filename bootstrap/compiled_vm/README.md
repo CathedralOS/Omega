@@ -193,22 +193,23 @@ restricted escapes. All source bytes, including comments, are validated.
 The backend first censuses declarations and parameter scopes. It counts lexical
 slots by traversing expression positions, then compiles through an explicit
 action stack. Every function and branch is visited, including unreachable code.
-Instructions are immutable records; a second pass builds an AVL map from
-numeric labels to byte addresses. Only after successful validation and label
-resolution does the compiler publish instruction bytes. Function and local name
-lookup currently uses exact span comparison in lists; this deliberately simple
-implementation can be measured and replaced if larger customers justify it.
+The lowering calls named target operations such as `i_add` and `i_jeq`. Their
+encoders prepend little-endian fields. Reading them backwards gives each
+label its distance from the code end, which the compiler saves in an AVL map.
+After validation and the capacity check, the writer encodes jump targets and
+outputs the fields in program order. Function and local name lookup compares
+exact source spans in lists.
 
 The small integer tags in `c_kind` name syntax, not source shapes:
 `1=def`, `2=Int`, `3=main`, `4=$application`, `5=if`, `6=let`,
 `7..11=+,-,*,/,%`, `12=eq`, `13=lt`, `14=pair`, `15=read`, `16=write`,
 `17=first`, `18=second`, `19=input`. All other names remain source spans.
-Instruction opcodes are the existing Alpha opcodes; private record opcode 21
-marks a label and emits no bytes. Label identifiers 1..13 belong to runtime
+The Alpha assembler writes the existing Alpha opcodes. A label marks a
+position between emitted fields. Label identifiers 1..13 belong to runtime
 helpers, function identifiers start at 100, and subsequent labels follow them.
 
-The source files total 33,329 bytes (851 lines); the one joining newline makes
-the executed source 33,330 bytes, SHA-256
+In the original Alpha construction, the two source files totaled 33,329 bytes
+(851 lines). One joining newline brought the executed source to 33,330 bytes, SHA-256
 `7b439ef26f2cb8a27bb9c0a2b4d5bfca6e7efeed0a5bdf9d798c04b65370b946`.
 On Linux x86-64 its actual reference construction completed in 62.362 seconds.
 It produced a 457,252-byte compiler tape, SHA-256
@@ -652,15 +653,81 @@ This is construction of an actual compiler-source component, not complete Omega
 compiler construction or reproducible self-rebuild. Full modules, sums and
 broader compiler-source facilities remain delivery work.
 
-Both Gamma realizations still carry reviewability debt in the shared numeric
-instruction protocol and deeply nested dispatch: see `i_size` and `i_emit` in
-[the Alpha realization](alpha_backend.gamma) and `i_size`/`i_emit` in
-[the native realization](../independent/native.gamma). Their compact size does
-not make the operation meanings and byte lengths easy to trace. The executable
-correspondence receipts justify retaining both while their representations are
-improved; they do not establish that either realization meets the whole-chain
-independent-reviewability goal. This debt belongs in the comparison alongside
-execution time, memory and trust assumptions.
+## Following an instruction through both assemblers
+
+For a register addition, the shared lowering calls `i_add`. Alpha writes
+opcode 3 and two register indices in one three-byte field. Linux x86-64
+loads the same two slots, appends `48 01 d8` for `add rax,rbx`, then stores
+the result. Each field adds its own width to the label positions used by
+later jumps. A jump holds the label identity until publication.
+
+For `(def main () Int 42)`, the generated input loop checks whether the read
+returned EOF. At Alpha tape offset `0x48`, the bytes `10 00 01` compare
+registers 0 and 1 for equality. The next eight bytes encode the destination
+`0xa1` in little-endian order. In the ELF, `48 39 d8` compares the same values. The
+instruction at `0x40019e` is `0f 84 d6 00 00 00`, a jump on equality.
+Adding its signed displacement of 214 to the following address, `0x4001a4`,
+gives `0x40027a`. Both destinations start the call after the input loop.
+The loop's backward jump encodes `e9 c4 fe ff ff` at `0x400275`.
+Its displacement of −316 returns to the read at `0x40013e`, corresponding
+to Alpha tape offset `0x3c`.
+See the [Alpha assembler](alpha_backend.gamma) and [native assembler](../independent/native.gamma).
+
+At `a59d45e8bd77`, field layout still emitted absolute native jumps. Its
+source-built native compiler was 1,543,898 bytes,
+SHA-256 `04c864bd27c5ae5fb5870b2fb1339c63d7caf29541d53af3fbb8dc0f2e3eea89`.
+Two native self-rebuilds produced those same bytes. It compiled the
+35,123-byte Alpha-targeting compiler source into a native executable. That
+executable built the 456,334-byte Alpha compiler tape, and the tape rebuilt
+itself byte for byte (SHA-256 `d9620222d49ba7b5604bfd516751fe93b5ddfb78521fc5aff0538c88518e5629`).
+
+Both assemblers reproduced the existing Delta compiler and Epsilon evaluator
+images from the Gamma sources constructed at `b95769558667`. The table gives
+each output size and the peak resident memory Linux reported for its compiler
+process. Each run used an already constructed native compiler executable.
+Both versions compiled the same input bytes on the same host.
+
+| Gamma source | Alpha tape bytes | Peak KiB, old → new | Linux ELF bytes | Peak KiB, old → new |
+| --- | ---: | ---: | ---: | ---: |
+| Delta compiler (151,525 bytes) | 1,219,139 | 101,248 → 66,560 | 3,984,546 | 104,064 → 120,320 |
+| Epsilon evaluator (729,060 bytes) | 7,876,070 | 645,504 → 417,408 | 26,119,826 | 663,552 → 771,584 |
+
+The native assembler often records several fields for one operation. Its
+higher compiler memory use on both sources is a cost of this representation.
+Both Delta images produced the same 3,082-byte receipt. Both Epsilon images
+ran the frozen bootstrap compiler on the Omega fixture, produced the same
+50-byte Alpha program, and that program exited 42. The full product request
+exceeded the evaluator's 4 MiB input limit and returned 253 with empty output.
+
+
+### Direct Linux branches
+
+The native assembler can jump on the condition the Gamma lowering requested.
+A conditional transfer uses one six-byte x86 instruction after the register
+comparison. A direct call or unconditional jump takes five bytes. The
+earlier encoding used an inverse condition followed by a twelve-byte
+absolute jump. The field writer now computes signed distances for x86 and
+continues to compute absolute offsets for Alpha.
+
+The following paired measurements used already constructed Linux compiler
+executables. Delta had identical source at `b95769558667` and `124129cd2d6`.
+The two Epsilon versions had different source. Every Alpha output matched
+the earlier assembler byte for byte.
+
+| Gamma source | Absolute ELF bytes | Relative ELF bytes | Peak compiler KiB, absolute → relative | Branch and call destinations checked |
+| --- | ---: | ---: | ---: | ---: |
+| Delta | 3,984,546 | 3,856,065 | 120,320 → 116,396 | 16,387 |
+| Epsilon at `b95769558667` | 26,119,826 | 25,322,912 | 771,584 → 746,924 | 100,900 |
+| Epsilon at `124129cd2d6` | 26,075,468 | 25,280,528 | 770,176 → 745,516 | 100,648 |
+
+Across these executables the largest backward and forward displacements
+were −25,319,803 and +25,312,592 bytes. The direct native compiler reproduced its own
+1,484,898-byte ELF from 40,323 source bytes. The extra target-width and
+target-value functions brought the Alpha compiler source to 35,337 bytes
+and its own tape to 457,463 bytes, an increase of 1,129 tape bytes.
+Both native Epsilon versions ran their corresponding bootstrap compiler
+fixture under each encoding and produced the same 50-byte program. It
+exited 42 in all four runs.
 
 ## Earlier nominal-case construction interruption
 

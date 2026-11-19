@@ -1,4 +1,4 @@
-/* Build the native Gamma compiler with its predecessors. Only those
+/* Build a Gamma compiler with its predecessors. Only those
    programs read source syntax. This driver moves bytes and checks exits. */
 #include <asm/unistd.h>
 #include <linux/errno.h>
@@ -10,6 +10,7 @@ extern long kernel(long number, ...);
 extern const unsigned char alpha_prefix[], alpha_suffix[], beta_root[], beta_end[];
 
 static int repository;
+static int target_alpha;
 static const char *operation;
 static const char partial[] = "stage.partial";
 static unsigned char chunk[16384];
@@ -182,7 +183,8 @@ static void prepare_source(void) {
     write_all(fd, "\n", 1);
     copy_file(repository, "bootstrap/compiled_vm/frontend.gamma", fd);
     write_all(fd, "\n", 1);
-    copy_file(repository, "bootstrap/independent/native.gamma", fd);
+    copy_file(repository, target_alpha ? "bootstrap/compiled_vm/alpha_backend.gamma"
+                                       : "bootstrap/independent/native.gamma", fd);
     close_file(fd);
 
     int src = open_input(AT_FDCWD, "compiler.gamma");
@@ -199,13 +201,49 @@ static void prepare_source(void) {
     close_file(fd);
 }
 
+static void snapshot_input(int input, const char *name) {
+    int output = create(name);
+    copy(input, output);
+    close_file(input);
+    close_file(output);
+}
+
+/* The native backend emits an executable image. The Alpha backend emits a
+   tape, which runs only after the same audited seed has been stamped. */
+static void compile_stage(const char *producer, const char *input,
+                          const char *image, const char *tape) {
+    int source = open_input(AT_FDCWD, input);
+    run(producer, source, target_alpha ? tape : image, !target_alpha);
+    if (target_alpha) stamp(tape, image);
+}
+
+static int is_alpha_option(const char *argument) {
+    const char *option = "--alpha";
+    while (*option && *option == *argument) {
+        ++option;
+        ++argument;
+    }
+    return *option == *argument;
+}
+
 int construct(long argc, const char *argv[]) {
     operation = "startup";
-    if (argc != 3) fail("usage: bootstrap SOURCE_ROOT NEW_OUTPUT_DIRECTORY");
+    if (argc > 1 && is_alpha_option(argv[1])) {
+        target_alpha = 1;
+        ++argv;
+        --argc;
+    }
+    if (argc < 3 || argc > 5)
+        fail("usage: bootstrap [--alpha] SOURCE_ROOT NEW_OUTPUT_DIRECTORY [GAMMA_SOURCE [PRODUCER_INPUT]]");
+    int customer = argc >= 4 ? open_input(AT_FDCWD, argv[3]) : -1;
+    int request = argc == 5 ? open_input(AT_FDCWD, argv[4]) : -1;
     repository = checked(kernel(__NR_openat, AT_FDCWD, argv[1],
                                 O_RDONLY | O_DIRECTORY | O_CLOEXEC), "cannot open source root");
     checked(kernel(__NR_mkdir, argv[2], 0700), "cannot create new output directory");
     checked(kernel(__NR_chdir, argv[2]), "cannot enter output directory");
+
+    if (customer >= 0) snapshot_input(customer, "program.gamma");
+    if (request >= 0) snapshot_input(request, "program.input");
 
     int fd = create("admitted-beta.tape");
     write_all(fd, beta_root, (uintptr_t)beta_end - (uintptr_t)beta_root);
@@ -220,11 +258,17 @@ int construct(long argc, const char *argv[]) {
         "gamma.tape", 0);
     stamp("gamma.tape", "gamma-evaluator");
     prepare_source();
-    run("./gamma-evaluator", open_input(AT_FDCWD, "compiler.request"), "gamma0", 1);
-    run("./gamma0", open_input(AT_FDCWD, "compiler.gamma"), "gamma1", 1);
+    compile_stage("./gamma-evaluator", "compiler.request", "gamma0", "gamma0.tape");
+    compile_stage("./gamma0", "compiler.gamma", "gamma1", "gamma1.tape");
     require_equal("gamma0", "gamma1");
-    run("./gamma1", open_input(AT_FDCWD, "compiler.gamma"), "gamma2", 1);
+    compile_stage("./gamma1", "compiler.gamma", "gamma2", "gamma2.tape");
     require_equal("gamma1", "gamma2");
     checked(kernel(__NR_rename, "gamma2", "gamma-compiler"), "cannot publish compiler");
+    if (argc >= 4)
+        compile_stage("./gamma-compiler", "program.gamma", "program", "program.tape");
+    if (argc == 5) {
+        run("./program", open_input(AT_FDCWD, "program.input"), "producer.output", 0);
+        compile_stage("./gamma-compiler", "producer.output", "successor", "successor.tape");
+    }
     return 0;
 }

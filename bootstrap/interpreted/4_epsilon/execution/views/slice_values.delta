@@ -6,7 +6,7 @@
   (output Bytes)) EpsilonEvaluatorOutcome
   (match value
     ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorInternal 0))
-    ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
+    ((EpsilonRuntimeSumValue caseValue payloads) (EpsilonEvaluatorInternal 0))
     ((EpsilonRuntimeViewValue view)
       (EpsilonEvaluatorValue value NoEpsilonRuntimePlace store output))
     ((EpsilonRuntimeAggregate typeValue children)

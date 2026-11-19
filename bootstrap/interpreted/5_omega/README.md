@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,134 lines / 818,946 bytes with SHA-256
-`30f8b6de9e15312b4445c2194cbdb857bf5b2e27f08caa59281c5b0170fc088f`.
+manifest materializes 22,772 lines / 845,569 bytes with SHA-256
+`8738a77cfab9544646f2ddaee35c94df3efb67dbda3f4f0b7648883452b10d7b`.
 The manifest itself is 1,674 bytes, SHA-256
-`65039f0df7cca55124ed7781ba57a49ed01913071914a9961ac0acb1e580c6ec`;
+`f301e3918a1479aa68f0b058f5a3086aa957d290dc2d6a770c09b11dadaa7128`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -119,7 +119,8 @@ through the ordinary result path. The actual `NumericBase` declaration and
 A signature census runs before bodies resolve calls or transfers. Unsupported
 overload families refuse; identical admitted signatures reject as duplicates
 regardless of binder spelling. Every body and arm is checked, including those
-unreachable from the selected entry. Machine clauses, receivers,
+unreachable from the selected entry. Machine clauses beyond the requirements
+and the crash and blocking ceilings described below, receivers,
 other runtime carriers/policies, arithmetic beyond the checked unsigned families below, other dynamic
 subjects, and ordinary calls to nested declarations remain explicit coverage
 boundaries. Nested declarations use canonical `machine`; the retired `state`
@@ -179,10 +180,38 @@ operator-declaration or package/core admission. Imports, custom operators and
 user domains remain unsupported. The core Trapping comparison family publishes
 `crashes Trap`, even though its emitted value computation is total. The compiler
 retains that conservative summary across all ordinary calls and nested states.
-Under [effect admission](../../../wiki/spec/language/effects.md), private checked
-bodies infer it; public bodies that would need a crash clause
-refuse until those clauses are supported. No `NoTrap` claim or complete selected
-product effect admission follows from this internal source-to-tape customer.
+An unguarded `crashes Trap` permits that route and publishes it to callers.
+Private checked bodies infer an omitted ceiling. Public bodies with an omitted
+ceiling and bodies declaring `crashes none` must discharge it. An explicit
+`crash Trap;` terminates the current activation abnormally, using Alpha's
+division-by-zero trap. The compiler checks unused declarations as well as
+the selected entry. A forbidden unconditional first crash in an unconstrained
+entry rejects. Possible routes needing a path proof still return Incomplete,
+as do guarded clauses and Abort. Full product effect admission remains open.
+[Effect admission](../../../wiki/spec/language/effects.md)
+A bare `blocks` or `blocks true` publishes a possible block on the machine
+that declares it. A public machine with an omitted bound and any machine
+declaring `blocks false` promise that their bodies cannot block. Private
+machines, including nested helpers, infer an omitted bound. The compiler
+propagates published ceilings back through ordinary calls and same-owner
+terminal transfers until it reaches every caller, including transfer cycles.
+An unentered nested helper contributes nothing to its owner's bound. Its own
+body must still satisfy its contract.
+
+The incoming-edge table reserves 49,152 rows with four 32-bit integers
+apiece, or 786,432 logical payload bytes. Three 4,096-entry integer arrays
+hold the incoming list heads, blocking states and work queue, totaling
+49,152 more logical bytes. Evaluator memory measurements include its
+representation of these tables and the rest of the compiler.
+
+Every call to a possibly blocking callee needs its own `block` acknowledgement,
+including a call in an argument or a transfer in an unselected arm.
+Redundant acknowledgements preserve the caller's bound. The existing Alpha
+calls and jumps implement both forms. Global terminal calls, suspension and
+host service admission remain outside this executable slice.
+[Call-site acknowledgements](../../../wiki/spec/language/effects.md#call-site-acknowledgements)
+and [terminal calls](../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
+
 Visibility uses canonical `public`; retired `pub` is an ordinary identifier,
 not a declaration modifier.
 
@@ -370,7 +399,8 @@ the retained statement slice. An optional leading target selector is
 retained as an exact span on the same machine row; selection and activation
 remain later phases. A source-ordered machine-clause ledger retains exact
 non-generic `satisfies Trait::requirement` bindings and nonempty `reaches`
-ceilings over comma- or plus-separated service identifiers. A satisfying clause
+ceilings over comma- or plus-separated service identifiers. It also retains
+the cause or empty spelling of each unguarded crash clause. A satisfying clause
 may additionally own the exact `via`, `Binding`, and `CompilerIntrinsic` spans
 for the payload-free closed external binding. That form terminates one bodyless
 external-leaf machine with its canonical empty implicit entry. The ledger also
@@ -510,7 +540,7 @@ a machine snapshots its
 path extent before parameter types can append domain members. A trailing
 parameter comma rejects as malformed. Constrained slice elements and the
 `Slice<T>` spelling, return types placed after clauses, generics, remaining
-machine-clause forms beyond the explicit `requires` profile, and `boundary` forms; target
+machine-clause forms beyond the supported contracts, and `boundary` forms; target
 declarations and public target-scoped combinations, other public roots,
 other bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
@@ -667,7 +697,7 @@ whole view at every token would be quadratic; neither belongs in the compiler.
 
 ### Executed nominal values and source-set construction
 
-The current 818,946-byte compiler closure above compiles the unchanged source
+The earlier 818,946-byte compiler closure compiled the unchanged source
 `NumericBase` declaration and `lexer_digit_in_base` machine. A 2,143-byte Omega
 customer checks all 256 bytes against four independently written base predicates.
 The source-constructed native Epsilon evaluator `b1cc4441…fe2e0` compiled it to
@@ -706,3 +736,34 @@ and returned `Incomplete` at packed-source coordinate 841, unit zero relative
 This is a measured whole-input frontier, not an Omega compiler artifact or a
 self-rebuild. The existing missing effects, broader source constructs and full
 public request admission remain separate compiler work.
+
+On the Omega sources at `b95769558667`, the independent Epsilon model ran the
+bootstrap compiler on 284 units / 3,822,481 source bytes, request
+`aa8891b09b5edbff0cb48bddb21eb20061b5e9ee1552e19a70339799211263dc`.
+Before crash support it returned `Incomplete` at the first `crashes Trap`
+clause in `application/construction/main.omg`. The compiler at `0b29148fc65e` parsed
+that declaration and its `crash Trap;` terminal, then returned `Incomplete`
+at the `blocks` clause of `read_byte()` on line 30, packed source offset
+1,034 / unit offset 904. Both runs emitted only the refusal coordinate.
+
+With ordinary blocking-call checks, the independent model ran both that frozen
+input and the 284-unit source graph at `0b29148fc65e`. The latter contains
+3,822,250 source bytes, request
+`94895e169fd2f36b6a2b0c93f5db3a3911432d5de63d6210bd8bd9a762387d38`.
+Both runs passed the `read_byte()` header and ordinary call syntax, then
+returned `Incomplete` at packed byte 2,571 / unit byte 2,441. On line 71,
+`read_input()` uses `true -> block rows(...)` to enter a nested machine.
+That transfer needs its own checked envelope. Both observations ended at the
+refusal coordinate. The source graph has yet to reach checking of the
+`ByteRead` payload and the Console and ProcessExit services.
+
+With per-state blocking checks, the independent model ran the frozen
+`b95769558667` graph above and the 284-unit graph at `2486977ecd06`
+(3,822,983 source bytes, request
+`8f3357f02c77d9c2700ba3343d65d62ed24cf7424a4a23e9e65615b5e1714506`).
+Both runs parsed the marked `rows` target and returned `Incomplete` at
+the multiplication in its third argument, `input.package_count as u64 * 3`.
+The refusal is at line 71, column 65, packed byte 2,613 / unit byte 2,483.
+The production entry emitted the nine-byte observation
+`0002000000350a0000` on each input. Full-graph semantic checking and
+production of the Omega compiler binary remain open.

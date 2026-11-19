@@ -5,7 +5,7 @@
   (identifier Int)) Int
   (match value
     ((EpsilonRuntimeInteger integer) 0)
-    ((EpsilonRuntimeSumValue owner caseValue payloads) 0)
+    ((EpsilonRuntimeSumValue caseValue payloads) 0)
     ((EpsilonRuntimeAggregate typeValue children) 0)
     ((EpsilonRuntimeViewValue view)
       (match view

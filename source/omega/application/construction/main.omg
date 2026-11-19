@@ -60,6 +60,10 @@ reaches ProcessExit + Console crashes Trap blocks
     input.entry_name_start = block read_word();
     input.entry_name_end = block read_word();
     input.buffer_length = block read_word();
+    let packages: u64 = input.package_count as u64;
+    let edges: u64 = input.edge_count as u64;
+    let units: u64 = input.unit_count as u64;
+    let row_count: u64 = packages * 3 + edges * 4 + units * 3;
     transition input.package_count > 0 && input.package_count <= 64
         && input.edge_count <= 256
         && input.unit_count > 0 && input.unit_count <= 512
@@ -68,8 +72,7 @@ reaches ProcessExit + Console crashes Trap blocks
         && input.entry_name_start < input.entry_name_end
         && input.entry_name_end <= input.buffer_length
         && input.entry_name_end - input.entry_name_start <= 256 {
-        true -> block rows(input, 0, input.package_count as u64 * 3
-            + input.edge_count as u64 * 4 + input.unit_count as u64 * 3)
+        true -> block rows(input, 0, row_count)
         _ -> malformed()
     }
     machine rows(input: &mut ConstructionInput, index: u64, count: u64) {

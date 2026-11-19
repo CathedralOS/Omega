@@ -72,45 +72,45 @@
                 0))))))))
 
 ; Bound evaluator-closure identity this artifact was composed from: SHA-256
-; 4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e of the
+; e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9 of the
 ; packed epsilon_compiler.delta.sources closure. Changing the closure changes
 ; this identity and must update every bound record together.
 (def epsilon_edge_closure_byte ((index Int)) Int
   (if (lt index 16)
     (if (lt index 8)
-      (if (eq index 0) 74
-        (if (eq index 1) 140
-          (if (eq index 2) 151
-            (if (eq index 3) 249
-              (if (eq index 4) 173
-                (if (eq index 5) 143
-                  (if (eq index 6) 62
-                    245)))))))
-      (if (eq index 8) 186
-        (if (eq index 9) 230
-          (if (eq index 10) 194
-            (if (eq index 11) 249
-              (if (eq index 12) 161
-                (if (eq index 13) 199
-                  (if (eq index 14) 47
-                    52))))))))
+      (if (eq index 0) 225
+        (if (eq index 1) 47
+          (if (eq index 2) 147
+            (if (eq index 3) 12
+              (if (eq index 4) 79
+                (if (eq index 5) 63
+                  (if (eq index 6) 204
+                    227)))))))
+      (if (eq index 8) 221
+        (if (eq index 9) 156
+          (if (eq index 10) 160
+            (if (eq index 11) 252
+              (if (eq index 12) 131
+                (if (eq index 13) 127
+                  (if (eq index 14) 34
+                    236))))))))
     (if (lt index 24)
-      (if (eq index 16) 51
-        (if (eq index 17) 64
-          (if (eq index 18) 94
-            (if (eq index 19) 110
-              (if (eq index 20) 121
-                (if (eq index 21) 97
-                  (if (eq index 22) 1
-                    105)))))))
-      (if (eq index 24) 176
-        (if (eq index 25) 59
-          (if (eq index 26) 3
-            (if (eq index 27) 167
-              (if (eq index 28) 66
-                (if (eq index 29) 23
-                  (if (eq index 30) 253
-                    142))))))))))
+      (if (eq index 16) 219
+        (if (eq index 17) 88
+          (if (eq index 18) 74
+            (if (eq index 19) 147
+              (if (eq index 20) 214
+                (if (eq index 21) 231
+                  (if (eq index 22) 244
+                    36)))))))
+      (if (eq index 24) 190
+        (if (eq index 25) 246
+          (if (eq index 26) 190
+            (if (eq index 27) 212
+              (if (eq index 28) 210
+                (if (eq index 29) 134
+                  (if (eq index 30) 201
+                    217))))))))))
 
 ; Fixed-width encoders: the boundary's publications are exact little-endian
 ; bytes, matching the diagnostic edge's observation byte order.
@@ -167,18 +167,6 @@
 (def epsilon_edge_extent_refusal ((coordinate Int) (limit Int) (requested Int)) Bytes
   (epsilon_edge_refusal 1 1 6 coordinate limit requested))
 
-; Sealed stdin is an exact declared section; the evaluator consumes it as a
-; balanced byte tree so indexing stays cheap for repeated reads.
-(def epsilon_edge_take_bytes ((input Bytes) (start Int) (end Int)) Bytes
-  (if (eq start end)
-    (bytes_empty)
-    (if (eq (+ start 1) end)
-      (bytes_single (bytes_get input start))
-      (let middle Int (+ start (/ (- end start) 2))
-        (bytes_concat
-          (epsilon_edge_take_bytes input start middle)
-          (epsilon_edge_take_bytes input middle end))))))
-
 ; Admission stages: each returns the final publication (a canonical
 ; observation or an EEOUT frame); a failed stage never reaches evaluation.
 (def epsilon_edge_check_identity ((request Bytes) (index Int) (extent Int)) Bytes
@@ -216,19 +204,21 @@
           (epsilon_edge_extent_refusal 16
             (- (- extent 52) sourceLength) stdinLength)
           (if (eq extent (+ (+ 52 sourceLength) stdinLength))
-            (epsilon_edge_run request sourceLength extent)
+            (epsilon_edge_run request sourceLength)
             (epsilon_edge_request_refusal 7
               (+ (+ 52 sourceLength) stdinLength))))))))
 
 ; The evaluator itself: checking plus execution through the entry evaluator,
 ; serialized into the canonical observation or an internal EEOUT frame.
-(def epsilon_edge_run ((request Bytes) (sourceLength Int) (extent Int)) Bytes
+; Exact-end admission makes stdin the final suffix. Its cursor can only
+; advance toward EOF, so the header and source stay outside Console input.
+(def epsilon_edge_run ((request Bytes) (sourceLength Int)) Bytes
   (match (epsilon_source_view request 52 sourceLength)
     (InvalidEpsilonSourceView
       (epsilon_edge_request_refusal 6 12))
     ((ValidEpsilonSourceView source)
       (match (epsilon_evaluate_entry_view source
-               (epsilon_edge_take_bytes request (+ 52 sourceLength) extent))
+               (EpsilonRuntimeConsoleInputAt request (+ 52 sourceLength)))
         ((EpsilonEvaluatorSliceExit code output)
           (bytes_concat (bytes_single 0)
             (bytes_concat

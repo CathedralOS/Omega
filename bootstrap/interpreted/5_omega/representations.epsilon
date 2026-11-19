@@ -447,6 +447,10 @@ data OmegaMachineParameterSyntax {
 data OmegaMachineClauseKind {
     case Satisfies;
     case Reaches;
+    case CrashesTrap;
+    case CrashesNone;
+    case Blocks;
+    case BlocksFalse;
     case Terminates;
 }
 
@@ -457,10 +461,11 @@ data OmegaExternalBindingKind {
 // Satisfies owns exactly Trait::requirement and may own one closed external
 // binding. This slice admits the payload-free Binding::CompilerIntrinsic case
 // and retains each authored component separately. Reaches owns one or more
-// source-ordered service identifiers. Terminates owns one path-shaped
+// source-ordered service identifiers. An unguarded crash clause owns its
+// single cause or none spelling. Terminates owns one path-shaped
 // subject in first_member/member_count and one qualified ranking-view path in
 // first_view_member/view_member_count; it is a private witness, not the bare
-// public termination guarantee. All three reuse the path-member arena and
+// public termination guarantee. All forms reuse the path-member arena and
 // preserve one source-ordered machine-clause ledger.
 data OmegaMachineClauseSyntax {
     kind: OmegaMachineClauseKind;
@@ -485,16 +490,19 @@ data OmegaStatementKind {
     case Transition;
     case Expression;
     case LocalData;
+    case CrashTrap;
 }
 
 // Call, Assignment, Transition, and LocalData select their dedicated row with
 // item_index. Expression selects the shared expression arena directly.
+// A payload-free CrashTrap records the crash keyword coordinate there.
 data OmegaStatementSyntax {
     kind: OmegaStatementKind;
     item_index: i32;
 }
 
 data OmegaCallStatementSyntax {
+    acknowledgements: i32;
     name_member_count: i32;
     first_receiver_member: i32;
     receiver_member_count: i32;
@@ -509,6 +517,7 @@ data OmegaCallStatementSyntax {
 }
 
 data OmegaCallExpressionSyntax {
+    acknowledgements: i32;
     has_receiver: i32;
     receiver: i32;
     // Named `::` members precede any value projections. This distinguishes
@@ -620,6 +629,7 @@ data OmegaTransitionStatementSyntax {
     target_kind: OmegaTransitionTargetKind;
     result_expression: i32;
     target: OmegaRelativeSpan;
+    acknowledgements: i32;
     first_argument: i32;
     argument_count: i32;
     start: i32;
@@ -793,6 +803,8 @@ data OmegaExpressionSyntax {
 }
 
 data OmegaMachineStateSyntax {
+    // An explicit nested ceiling is independent of the enclosing machine.
+    block_bound: i32;
     name_kind: OmegaMachineStateNameKind;
     name: OmegaRelativeSpan;
     first_parameter: i32;
@@ -863,6 +875,9 @@ data OmegaParseDiagnosticCode {
     case ExpectedMachineReturnEnd;
     case ExpectedReferenceLifetime;
     case ExpectedUnitTypeEnd;
+    case ExpectedCrashCause;
+    case ExpectedCrashSemicolon;
+    case ExpectedAcknowledgedCall;
     case ExpectedMachineBody;
     case ExpectedMachineBodyEnd;
     case ExpectedExpressionPathMember;
@@ -930,6 +945,7 @@ data OmegaParserResource {
 // Parsing a call argument may enter another ordinary call. Save the enclosing
 // call's own header and pending-argument list, without retaining a host stack.
 data OmegaCallParseFrame {
+    acknowledgements: i32;
     first_machine_argument: i32;
     is_expression: i32;
     result_consumer: OmegaExpressionConsumer;
@@ -1132,6 +1148,7 @@ data OmegaParser {
     machine_first_clause: i32;
     state_first_parameter: i32;
     state_first_requirement: i32;
+    state_block_bound: i32;
     machine_parameter_has_more: i32;
     machine_path_member_count: i32;
     machine_is_public: i32;
@@ -1179,6 +1196,13 @@ data OmegaParser {
     call_path_member_count: i32;
     call_starts_at_self: i32;
     call_name_member_count: i32;
+    // Call-site acknowledgements: bit 0 block, bit 1 suspend. A prefix
+    // belongs only to the call whose callee begins at pending_callee.
+    pending_callee: i32;
+    pending_acknowledgements: i32;
+    acknowledgement_start: i32;
+    acknowledgement_path_kind: i32;
+    call_acknowledgements: i32;
     call_start: i32;
     call_has_receiver: i32;
     call_receiver_expression: i32;
@@ -1264,6 +1288,7 @@ data OmegaParser {
     transition_target_kind: OmegaTransitionTargetKind;
     transition_result_expression: i32;
     transition_target_start: i32;
+    transition_acknowledgements: i32;
     transition_target_end: i32;
     transition_first_argument: i32;
     expression_frame_value_count: i32;

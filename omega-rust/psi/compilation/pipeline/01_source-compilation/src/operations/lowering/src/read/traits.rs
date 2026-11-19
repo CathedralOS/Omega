@@ -439,6 +439,60 @@ impl<'program> Program<'program> {
         Ok(())
     }
 
+    pub(super) fn prepare_inherited_boundary_contracts(
+        &mut self,
+        context: MachineId,
+        root: &AppliedTraitScope<'_>,
+        selected_calling: Option<SymbolHandle>,
+        calling_vocabulary: &[(&TraitDefinition, &TraitDefinition)],
+    ) -> Checked<()> {
+        use crate::source_state::data::TypeParameterKind;
+        let typed = self.typed;
+        let unavailable = |reason| services::unavailable(context, reason);
+        let scopes = crate::source_state::service_declarations::projection::inherited_scopes(
+            typed,
+            root.clone(),
+        )
+        .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+        for parent in scopes.iter().skip(1) {
+            let declaration = parent.declaration;
+            // The calling-policy check covers these inherited boundary methods.
+            if declaration.is_boundary && selected_calling.is_some() {
+                continue;
+            }
+            if !declaration.machines.is_empty() {
+                return Err(unavailable(
+                    "inherited boundary calls need an admitted contract owner",
+                ));
+            }
+            if declaration.is_boundary || Some(declaration.symbol) == selected_calling {
+                continue;
+            }
+            if calling_vocabulary
+                .iter()
+                .any(|(calling, _)| calling.symbol == declaration.symbol)
+            {
+                return Err(unavailable("inherited Calling has no prepared policy"));
+            }
+            self.read_trait_schema(context, declaration)?;
+            // The service schema retains this exact parent application. Its
+            // selected implementations still owe their own conformance proofs.
+            for parameter in typed.trait_type_parameters(declaration) {
+                if parameter.kind == TypeParameterKind::Implementation {
+                    let selected = parent
+                        .named_implementation_argument(typed, parameter.symbol)
+                        .map_err(unavailable)?;
+                    if !self.conformance_declaration(context, selected.symbol)? {
+                        return Err(unavailable(
+                            "boundary parent argument lost its implementation declaration",
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Whether a subject implementation is generic: it declares its own
     /// parameters, or one of its rows selects a machine that is checked as a
     /// generic template (`is_generic_template`). Such an implementation has no
@@ -729,7 +783,8 @@ impl<'program> Program<'program> {
                 SourceImplementation::Native(supplied.symbol)
             } else {
                 let machine = self.subject_machine(supplied.symbol)?;
-                self.fixed_inputs.push(machine);
+                self.fixed_contracts
+                    .push(super::FixedContract::Interface(machine));
                 SourceImplementation::Machine(machine)
             };
             let scope = self.applied_scope(context, &application, required)?;
@@ -1072,7 +1127,7 @@ mod parent_contract_tests {
     use symbols::{SymbolKind, SymbolNameRef};
 
     #[test]
-    fn ordinary_boundary_parents_require_a_contract_owner_without_service_reach() {
+    fn an_ordinary_parent_with_a_method_requires_a_contract_owner() {
         let mut sources = SourceMap::default();
         let source = sources
             .add_with_metadata(
@@ -1100,6 +1155,12 @@ mod parent_contract_tests {
         );
         let boundary = declarations.handle_at(0);
         let ordinary = declarations.handle_at(1);
+        let method = symbols
+            .insert_children(
+                ordinary,
+                [(SymbolKind::State, SymbolNameRef::Static("read"))],
+            )
+            .handle_at(0);
         let mut typed = crate::source_state::TypedTrees {
             symbols: symbols.finish(),
             ..Default::default()
@@ -1111,9 +1172,19 @@ mod parent_contract_tests {
             arguments: Default::default(),
             source_span: SourceSpan::new(source, Span::new(5, 11)),
         }]);
+        let unit = typed
+            .type_reference_table
+            .insert(crate::source_state::types::TypeReferenceNode::Unit);
+        let machines = typed.trait_machine_signatures.insert_many([StateSignature {
+            symbol: method,
+            name: crate::source_state::name::Identifier::generated("read"),
+            return_type: unit,
+            ..Default::default()
+        }]);
         typed.push_trait_definition(TraitDefinition {
             symbol: ordinary,
             name: crate::source_state::name::Identifier::generated("Marker"),
+            machines,
             ..Default::default()
         });
         typed.push_trait_definition(TraitDefinition {

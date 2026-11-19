@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Invocation inference loses the parameter behind a callable alias
+
+- Category: One idea, several implementations.
+- Where: [Source inference](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/services.rs#L471) and [callable origin checking](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/ceilings.rs#L479).
+- Saw: Source inference adds a callable parameter to the invocation ceiling when the call targets the parameter slot directly. The checker follows the callable through a local copy and recovers the parameter even when the call targets another slot.
+- Cost: The inferred ceiling is empty for `let alias = selected; alias(...)`, so checking rejects a valid call. Inference and checking need the same callable origin information.
+- Reported: 2026-11-18, Codex, while migrating the local runtime selection sample.
+
 ### Package review recovery cannot verify structural parameter indices
 
 - Category: A verdict with nothing behind it.
