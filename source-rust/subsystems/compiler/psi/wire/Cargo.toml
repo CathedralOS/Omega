@@ -27,7 +27,7 @@ proof-admission = { path = "../../../source-to-psi/proof-admission" }
 terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }
 
-access-admission = { path = "../../../source-to-psi/access-admission" }
+access-admission = { path = "../access/admission" }
 layout-plans = { path = "../layout" }
 
 [features]

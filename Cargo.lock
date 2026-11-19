@@ -75,16 +75,11 @@ dependencies = [
 name = "access-admission"
 version = "0.1.0"
 dependencies = [
- "access-admission",
  "access-vocabulary",
  "record-storage",
  "extent-contracts",
- "language-core",
  "layout-plans",
- "optimization",
  "schema-reflection",
- "semantic-vocabulary",
- "storage-access",
  "wire",
 ]
 
@@ -2846,7 +2841,6 @@ dependencies = [
 name = "source-compiler"
 version = "0.1.0"
 dependencies = [
- "access-admission",
  "application-identity",
  "arena",
  "artifact-evaluation",
@@ -3431,7 +3425,6 @@ dependencies = [
 name = "terminal-runtime"
 version = "0.1.0"
 dependencies = [
- "access-admission",
  "access-vocabulary",
  "application-identity",
  "backend-plan",

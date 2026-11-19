@@ -7,10 +7,10 @@ version.workspace = true
 [dependencies]
 language-core = { path = "../../../compiler/foundation/language-core" }
 access-vocabulary = { path = "../../../compiler/psi/access" }
-access-admission = { path = "../../compilation/access-admission" }
+access-admission = { path = "../../../compiler/psi/access/admission" }
 extent-contracts = { path = "../../../compiler/psi/extent-contracts" }
 extents = { path = "../extents" }
 
 [dev-dependencies]
-access-admission = { path = "../../compilation/access-admission", features = ["test-support"] }
+access-admission = { path = "../../../compiler/psi/access/admission", features = ["test-support"] }
 layout-plans = { path = "../../../compiler/psi/layout", features = ["test-support"] }
