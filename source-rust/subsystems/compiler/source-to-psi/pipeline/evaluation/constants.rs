@@ -1,4 +1,11 @@
 //! Check named constants against their actual source invocations and canonical values.
+#[path = "constants/arguments.rs"]
+mod arguments;
+#[path = "constants/initializers.rs"]
+mod initializers;
+pub use arguments::evaluate as evaluate_const_arguments;
+pub use initializers::evaluate_with_source_consent as evaluate_constant_initializers_with_source_consent;
+
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataField;
 use crate::source_state::expression::ExpressionHandle;
@@ -545,3 +552,7 @@ fn named_uses(program: &TypedTrees, constants: &[SymbolHandle]) -> Vec<Vec<Expre
     }
     named
 }
+
+#[cfg(test)]
+#[path = "constants/tests.rs"]
+mod tests;

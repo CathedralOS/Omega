@@ -111,7 +111,7 @@ impl PreparedBuildMachineEntry {
             .map_err(|errors| diagnostics::join_messages(&errors))
     }
 }
-fn invocation_error(reason: impl Into<String>) -> Vec<Diagnostic> {
+pub(crate) fn invocation_error(reason: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(reason)]
 }
 

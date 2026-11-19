@@ -2,23 +2,11 @@
 //! the way a constant's initializer is evaluated, then give each argument
 //! the canonical value typing gives a literal.
 //!
-//! generics.md, "Transparent type aliases": "Closed argument expressions may
-//! execute ordinary admitted compile-time code. A computed const value
-//! retains its declared carrier and canonical value". So `Buffer<capacity()>`
-//! is the application `Buffer<4>` once `capacity()` evaluates to 4. Typing
-//! leaves such an argument as written (it folds only literals); this pass is
-//! the evaluator it leaves the argument for.
-//!
-//! Each argument is one job, run through the same bridge as a constant
-//! (`constant_jobs`): the expression becomes the body of a zero-argument
-//! machine returning the parameter's declared carrier, that machine is
-//! judged by the lowered-form checker as its own invocation, and only an
-//! accepted invocation runs. Nothing here decides whether a call may be
-//! evaluated; the checker's verdict on the invocation does.
-//!
-//! The entry machine lives in a copy of the program made for the one job.
-//! The program itself changes only where the value lands
-//! (`TypedTrees::settle_const_argument`).
+//! The declared carrier and canonical value identify the closed application.
+//! Each expression becomes a zero-argument source machine. Ordinary checking
+//! judges that machine with the parameter's carrier before execution. The
+//! materialized value updates the original type argument through
+//! `TypedTrees::settle_const_argument`.
 
 use std::collections::VecDeque;
 
@@ -37,7 +25,7 @@ use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeRefe
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-use super::constant_jobs::{decoded, insert, key};
+use super::{decoded, insert, key};
 use crate::evaluation::{InvocationTarget, SourceCompletionAccounting};
 
 /// One value required by a type and still written as an expression.
@@ -299,7 +287,7 @@ pub fn evaluate(
         return Ok(());
     }
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
-    let demanded = super::constant_jobs::demanded_declarations(program, request).map_err(refuse)?;
+    let demanded = crate::evaluation::demanded_declarations(program, request).map_err(refuse)?;
     let owners = crate::source_state::references::collect_program_operand_owners(program);
     let jobs = found
         .into_iter()
@@ -349,7 +337,7 @@ pub fn evaluate(
         let result = (|| -> Result<(), String> {
             let mut probe = program.clone();
             let entry = entry(&mut probe, job);
-            let prepared = super::PreparedBuildMachineProgram::prepare_for(
+            let prepared = crate::evaluation::PreparedBuildMachineProgram::prepare_for(
                 &probe,
                 authority.clone(),
                 request.purpose,
@@ -454,7 +442,7 @@ pub fn evaluate(
 
 /// Drops the type-expression and array-extent rows of declarations that no
 /// longer hold such a request. Those two kinds are recorded only from the
-/// program's declared requests (`source_frontier::declared_jobs`), so a row
+/// program's declared requests (`frontier::declared_jobs`), so a row
 /// is current exactly when that inventory still lists it.
 fn withdraw_served_requests(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let evaluated = |request| {
@@ -463,7 +451,7 @@ fn withdraw_served_requests(program: &mut TypedTrees) -> Result<(), Vec<Diagnost
             DeferredRequest::TypeExpressionEvaluation | DeferredRequest::ArrayExtentEvaluation
         )
     };
-    let current = crate::evaluation::source_frontier::declared_jobs(program)?
+    let current = crate::evaluation::frontier::declared_jobs(program)?
         .into_iter()
         .filter(|(_, request)| evaluated(*request))
         .map(|(declaration, request)| (program.refusal_declaration(declaration), request))
