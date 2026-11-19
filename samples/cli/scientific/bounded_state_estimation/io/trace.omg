@@ -58,7 +58,7 @@ machine print_number(value: f64) reaches Console {
     Console::write(" ");
     print_integer(integer as i64);
 }
-public machine emit(filter: &Filter, step: u64) reaches Console requires step <= 8 {
+public machine emit(filter: @Filter, step: u64) reaches Console requires step <= 8 {
     Console::write("TRACE ");
     print_integer(step as i64);
     print_number(filter.estimate.position);

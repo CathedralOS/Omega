@@ -7,7 +7,7 @@ requires observed == current && observed == MARK
     observed
 }
 
-machine expose(slot: &mut u64) -> u64 {
+machine expose(slot: @mut u64) -> u64 {
     slot = 8;
     slot
 }
@@ -15,7 +15,7 @@ machine expose(slot: &mut u64) -> u64 {
 machine main() crashes Trap {
     let mut items: [u64; 2] = [MARK, 1];
     let saved: u64 = items[0];
-    let held: u64 = expose(&mut items[0]);
+    let held: u64 = expose(@mut items[0]);
     transition agree(saved, items[0]) == MARK { true -> done(held) _ -> bad() }
     machine done(held: u64) {}
     machine bad() { crash Trap; }

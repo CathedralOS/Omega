@@ -25,7 +25,7 @@ DefaultRead satisfies ReadValue {
         let mut storage: LayoutStorage<Payload, Policy<Value>>;
         storage.first = 9u64;
         storage.value = Value;
-        let bytes: &[u8; 24] = &storage as &[u8; 24];
+        let bytes: @[u8; 24] = @storage as @[u8; 24];
         widen_u8_to_u64(bytes[8])
     }
 }

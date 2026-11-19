@@ -21,7 +21,7 @@ public machine nonnegative(value: i32 in Wrapping) -> i32 in Wrapping {
 }
 
 // Return 3 for a wholly missing cell, 4 for unequal replication, 0 for balanced.
-public machine analyze(study: &mut Study) -> i32 {
+public machine analyze(study: @mut Study) -> i32 {
     let a: i32 in Wrapping = study.present[0] + study.present[1];
     let b: i32 in Wrapping = study.present[2] + study.present[3];
     let c: i32 in Wrapping = study.present[4] + study.present[5];
@@ -30,7 +30,7 @@ public machine analyze(study: &mut Study) -> i32 {
         true -> 3
         _ -> replication(study, a, b, c, d)
     }
-    machine replication(study: &mut Study, a: i32 in Wrapping, b: i32 in Wrapping,
+    machine replication(study: @mut Study, a: i32 in Wrapping, b: i32 in Wrapping,
                       c: i32 in Wrapping, d: i32 in Wrapping) -> i32 {
         transition a == 2 && b == 2 && c == 2 && d == 2 {
             true -> calculate(study)
@@ -41,7 +41,7 @@ public machine analyze(study: &mut Study) -> i32 {
                         c: i32 in Wrapping, d: i32 in Wrapping) -> i32 {
         transition a == 1 && b == 1 && c == 1 && d == 1 { true -> 5 _ -> 4 }
     }
-    machine calculate(study: &mut Study) -> i32 {
+    machine calculate(study: @mut Study) -> i32 {
         let a: i32 in Wrapping = study.values[0] + study.values[1];
         let b: i32 in Wrapping = study.values[2] + study.values[3];
         let c: i32 in Wrapping = study.values[4] + study.values[5];

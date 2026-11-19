@@ -9,7 +9,7 @@ public data Web {
     outgoing: [i32 in Saturating; 3];
     loss: i32 in Saturating;
 }
-public machine transfer(web: &mut Web, source: u64, destination: u64, intake: i32 in Saturating, efficiency: i32 in Saturating)
+public machine transfer(web: @mut Web, source: u64, destination: u64, intake: i32 in Saturating, efficiency: i32 in Saturating)
 requires source < 3 requires destination < 3 {
     let raw: i32 in Saturating = intake * 100;
     let converted: i32 in Saturating = intake * efficiency;
@@ -18,7 +18,7 @@ requires source < 3 requires destination < 3 {
     web.assimilated[destination] = web.assimilated[destination] + converted;
     web.loss = web.loss + raw - converted;
 }
-public machine residual(web: &Web, node: u64) -> i32 in Saturating requires node < 3 {
+public machine residual(web: @Web, node: u64) -> i32 in Saturating requires node < 3 {
     web.external[node] * 100 + web.assimilated[node] - web.maintenance[node] * 100 - web.outgoing[node]
 }
 public machine deficit(balance: i32 in Saturating) -> i32 in Saturating {

@@ -425,9 +425,9 @@ impl ReferenceAccess {
 
     pub const fn borrow_prefix(self) -> &'static str {
         match self {
-            Self::Mutable => "&mut ",
-            Self::WriteOnly => "&write ",
-            Self::Shared => "&",
+            Self::Mutable => "@mut ",
+            Self::WriteOnly => "@write ",
+            Self::Shared => "@",
         }
     }
 

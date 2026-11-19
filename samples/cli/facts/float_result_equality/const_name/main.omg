@@ -3,7 +3,7 @@
 const KEPT: f64 = 7.0;
 data Ends { kept: f64; other: f64; }
 
-machine read_kept(item: &Ends) -> f64
+machine read_kept(item: @Ends) -> f64
 requires item.kept == KEPT
 ensures result == item.kept && result == KEPT
 {
@@ -18,7 +18,7 @@ requires observed == current && observed == KEPT
 
 machine main() crashes Trap {
     let item: Ends = Ends { kept: KEPT, other: 1.0 };
-    let saved: f64 = read_kept(&item);
+    let saved: f64 = read_kept(@item);
     transition agree(saved, item.kept) == KEPT { true -> done() _ -> bad() }
 
     machine done() {}

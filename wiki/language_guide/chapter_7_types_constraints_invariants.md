@@ -12,7 +12,7 @@ data Body {
     mass: i32;
 }
 
-machine set_mass(body: &mut Body, mass: i32)
+machine set_mass(body: @mut Body, mass: i32)
     requires mass in 1..=100
     ensures body.mass in 1..=100
 {
@@ -43,7 +43,7 @@ Code that receives a `Player` may rely on it, and code that changes
 Each branch knows what its condition established:
 
 ```omega
-machine take_damage(player: &mut Player, amount: i32)
+machine take_damage(player: @mut Player, amount: i32)
     requires amount in 0..=100
     ensures player.health in 0..=100
 {
@@ -53,11 +53,11 @@ machine take_damage(player: &mut Player, amount: i32)
         false -> settle(player, next)
     }
 
-    machine floored(player: &mut Player) {
+    machine floored(player: @mut Player) {
         player.health = 0;
     }
 
-    machine settle(player: &mut Player, next: i32)
+    machine settle(player: @mut Player, next: i32)
     requires next in 0..=100
     {
         player.health = next;

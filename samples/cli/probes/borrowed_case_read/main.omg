@@ -14,7 +14,7 @@ data Duo {
     case Right(b: u64 in Wrapping, c: u64 in Wrapping);
 }
 
-machine Duo::code(duo: &Duo) -> u64 in Wrapping {
+machine Duo::code(duo: @Duo) -> u64 in Wrapping {
     transition duo {
         Duo::Left { a } -> value(a)
         Duo::Right { b, c } -> value(b + c)
@@ -25,7 +25,7 @@ machine Duo::code(duo: &Duo) -> u64 in Wrapping {
     }
 }
 
-machine Duo::code_mutable(duo: &mut Duo) -> u64 in Wrapping {
+machine Duo::code_mutable(duo: @mut Duo) -> u64 in Wrapping {
     transition duo {
         Duo::Left { a } -> value(a)
         Duo::Right { b, c } -> value(b + c)
@@ -40,22 +40,22 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let left: Duo = Duo::Left { a: 30 };
     let mut right: Duo = Duo::Right { b: 10, c: 4 };
-    let a: u64 in Wrapping = Duo::code(&left);
-    let bc: u64 in Wrapping = Duo::code_mutable(&mut right);
+    let a: u64 in Wrapping = Duo::code(@left);
+    let bc: u64 in Wrapping = Duo::code_mutable(@mut right);
     transition (a + bc) as u64 == 44 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

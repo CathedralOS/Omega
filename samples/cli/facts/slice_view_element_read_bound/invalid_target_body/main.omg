@@ -24,12 +24,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedReadGuarded {
-    machine read_guarded(view: &[u64]) -> i32
+    machine read_guarded(view: @[u64]) -> i32
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires view.len >= 3;
 }
 
 X86ReadGuarded satisfies SelectedReadGuarded {
-    machine read_guarded(view: &[u64]) -> i32
+    machine read_guarded(view: @[u64]) -> i32
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires view.len >= 3
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -45,7 +45,7 @@ X86ReadGuarded satisfies SelectedReadGuarded {
 }
 
 ArmReadGuarded satisfies SelectedReadGuarded {
-    machine read_guarded(view: &[u64]) -> i32
+    machine read_guarded(view: @[u64]) -> i32
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires view.len >= 3
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -62,7 +62,7 @@ ArmReadGuarded satisfies SelectedReadGuarded {
 
 machine main() crashes Trap {
     let items: [u64; 4] = [10u64, 20u64, 30u64, 40u64];
-    let view: &[u64] = &items[..];
+    let view: @[u64] = @items[..];
     let res: i32 = SelectedReadGuarded::read_guarded(view);
     transition res == 0 {
         true -> pass()

@@ -4,11 +4,11 @@
 // Place: const_name.
 // Expected exit: 0
 boundary trait Mark {
-    machine record<T>(value: &T, label: u64, hits: &mut u64) reaches crashes none;
+    machine record<T>(value: @T, label: u64, hits: @mut u64) reaches crashes none;
 }
 
 Counting satisfies Mark {
-    machine record<T>(value: &T, label: u64, hits: &mut u64) { hits = label; }
+    machine record<T>(value: @T, label: u64, hits: @mut u64) { hits = label; }
 }
 
 const MARK: u64 = 9;
@@ -16,8 +16,8 @@ const OTHER_MARK: u64 = 5;
 const SUBJECT: i32 = 7;
 const OTHER: u8 = 3;
 
-machine notify<T>(value: &T, label: u64, hits: &mut u64) {
-    Mark::record<T>(&label, label, hits);
+machine notify<T>(value: @T, label: u64, hits: @mut u64) {
+    Mark::record<T>(@label, label, hits);
 }
 
 machine main() crashes Trap {
@@ -25,8 +25,8 @@ machine main() crashes Trap {
     let other: u8 = OTHER;
     let mut first: u64 = 0;
     let mut second: u64 = 0;
-    notify<i32>(&subject, MARK, &mut first);
-    notify<u8>(&other, OTHER_MARK, &mut second);
+    notify<i32>(@subject, MARK, @mut first);
+    notify<u8>(@other, OTHER_MARK, @mut second);
     transition first == MARK && second == OTHER_MARK { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

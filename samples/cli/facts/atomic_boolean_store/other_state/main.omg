@@ -4,16 +4,16 @@ use omega::language::core::Atomic;
 use omega::language::core::Atomic::fence;
 use omega::language::core::FenceOrdering;
 data Cell { value: AtomicBool; }
-machine publish(cell: &Cell, value: bool) { cell.value.store(value, Publish); }
-machine observe(cell: &Cell) -> bool {
+machine publish(cell: @Cell, value: bool) { cell.value.store(value, Publish); }
+machine observe(cell: @Cell) -> bool {
     transition { _ -> read(cell) }
-    machine read(cell: &Cell) -> bool { cell.value.load(Receive) }
+    machine read(cell: @Cell) -> bool { cell.value.load(Receive) }
 }
 machine main() crashes Trap {
     let cell: Cell;
-    publish(&cell, true);
+    publish(@cell, true);
     Atomic::fence(FenceOrdering::Receive);
-    let observed: bool = observe(&cell);
+    let observed: bool = observe(@cell);
     transition observed { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

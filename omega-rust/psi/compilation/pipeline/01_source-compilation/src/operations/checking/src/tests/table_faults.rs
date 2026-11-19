@@ -927,8 +927,8 @@ fn a_borrowed_zero_read_uses_its_actual_backing_and_keeps_later_writes() {
         let text = format!(
             r#"
             data Pair {{ x: u32; y: u32; }}
-            machine check(pair: &Pair) -> u32 requires pair.{field} == 0u32 {{ pair.{field} }}
-            machine entry() -> u32 {{ let mut pair: Pair; pair.x = 3u32; check(&pair) }}
+            machine check(pair: @Pair) -> u32 requires pair.{field} == 0u32 {{ pair.{field} }}
+            machine entry() -> u32 {{ let mut pair: Pair; pair.x = 3u32; check(@pair) }}
         "#
         );
         let compilation = calling_policies::prepared(

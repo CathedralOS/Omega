@@ -12,7 +12,7 @@ use omega_language_std::Console;
 use omega::language::core::is_finite;
 
 // The scanner borrows the parsed fields through a shared descriptor.
-data RadiometryInput<'fields> [copy] { values: &'fields [f64]; }
+data RadiometryInput<'fields> [copy] { values: @'fields [f64]; }
 machine finite_input<'fields>(input: RadiometryInput<'fields>, index: u64) -> bool
 requires index < input.values.len { is_finite(input.values[index]) }
 
@@ -20,18 +20,18 @@ data Main {
     protocol: Protocol;
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
-    let parsed: bool = block read(&mut main.protocol);
+machine main(main: @mut Main) reaches ProcessExit + Console {
+    let parsed: bool = block read(@mut main.protocol);
     transition parsed { true -> finite(main, 0) false -> invalid(main) }
-    machine finite(main: &mut Main, index: u64) {
+    machine finite(main: @mut Main, index: u64) {
         transition index < 7 { true -> field(main, index) false -> validate(main) }
     }
-    machine field(main: &mut Main, index: u64) requires index < 7 {
-        let input: RadiometryInput = RadiometryInput { values: &main.protocol.fields };
+    machine field(main: @mut Main, index: u64) requires index < 7 {
+        let input: RadiometryInput = RadiometryInput { values: @main.protocol.fields };
         let valid: bool = finite_input(input, index);
         transition valid { true -> finite(main, index + 1) false -> invalid(main) }
     }
-    machine validate(main: &mut Main) {
+    machine validate(main: @mut Main) {
         transition main.protocol.fields[0] >= 100.0 && main.protocol.fields[0] <= 3000.0
             && (main.protocol.fields[1] == 0.0 || (main.protocol.fields[1] >= 100.0 && main.protocol.fields[1] <= 3000.0))
             && main.protocol.fields[2] >= 0.0 && main.protocol.fields[2] <= 1.0
@@ -43,7 +43,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             false -> invalid(main)
         }
     }
-    machine compute(main: &mut Main) {
+    machine compute(main: @mut Main) {
         let emitter: f64 = main.protocol.fields[0];
         let ambient: f64 = main.protocol.fields[1];
         let fraction_integral: f64 = band(emitter, main.protocol.fields[5], main.protocol.fields[6], 0.0, false);
@@ -57,17 +57,17 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         let background: f64 = 0.000000056703744191844294 * ambient * ambient * ambient * ambient * background_fraction * scale;
         let net: f64 = net_exitance(emitter, ambient, main.protocol.fields[5], main.protocol.fields[6]);
         Console::write_line("emitted_W,ambient_W,net_W,emission_fraction");
-        number(&mut main.protocol, emitted);
+        number(@mut main.protocol, emitted);
         Console::write(",");
-        number(&mut main.protocol, background);
+        number(@mut main.protocol, background);
         Console::write(",");
-        number(&mut main.protocol, net * scale);
+        number(@mut main.protocol, net * scale);
         Console::write(",");
-        number(&mut main.protocol, fraction);
+        number(@mut main.protocol, fraction);
         Console::write_line("");
         ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) {
+    machine invalid(main: @mut Main) {
         Console::write_line("ERROR invalid input");
         ProcessExit::exit_process(64);
     }
@@ -76,5 +76,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

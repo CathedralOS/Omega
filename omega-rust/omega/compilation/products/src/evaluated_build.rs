@@ -20,8 +20,16 @@ pub struct EvaluatedBuild {
     pub base_source_consumption_commitment:
         Option<package_compilation::PackageSourceConsumptionCommitment>,
     pub constants: BuildConstants,
+    pub subject_validation: BuildSubjectValidation,
     /// Costs of this Build context, not materialization evidence for Product.
     pub source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuildSubjectValidation {
+    EntryOnly,
+    Checked,
+    AwaitingOwner,
 }
 
 /// What the Build admission's constants owe a Product frontier typed after

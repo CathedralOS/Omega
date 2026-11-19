@@ -3,7 +3,7 @@ proposition first_ready() evidence Evidence;
 proposition second_ready() evidence Evidence;
 proposition third_ready() evidence Evidence;
 trait Producer<T> {
-    machine produce(subject: &T)
+    machine produce(subject: @T)
     requires first: first_ready()
     requires second: second_ready()
     requires third: third_ready()
@@ -13,7 +13,7 @@ trait Producer<T> {
 }
 data Token { }
 TokenProducer satisfies Producer<Token> {
-    machine produce(subject: &Token)
+    machine produce(subject: @Token)
     requires local_first: first_ready()
     requires local_second: second_ready()
     requires local_third: third_ready()
@@ -26,7 +26,7 @@ TokenProducer satisfies Producer<Token> {
         third_out = local_third;
     }
 }
-machine invoke<Element, Order satisfies Producer<Element>>(value: &Element)
+machine invoke<Element, Order satisfies Producer<Element>>(value: @Element)
 requires incoming_first: first_ready()
 requires incoming_second: second_ready()
 requires incoming_third: third_ready()
@@ -38,7 +38,7 @@ requires incoming_third: third_ready()
         incoming_third
     );
 }
-machine caller(value: &Token)
+machine caller(value: @Token)
 requires incoming_first: first_ready()
 requires incoming_second: second_ready()
 requires incoming_third: third_ready()
@@ -51,12 +51,12 @@ requires incoming_third: third_ready()
     );
 }
 data Main { hits: i32 in Wrapping; }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = main.hits + 1;
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

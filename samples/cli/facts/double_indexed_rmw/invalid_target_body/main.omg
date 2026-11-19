@@ -24,13 +24,13 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedRmw {
-    machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3],
+    machine rmw(grid: @mut [[i32 in Wrapping; 4]; 3], rows: @mut [Row; 3],
     i: u64, j: u64, ri: u64, rj: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires i <= 2 requires j <= 3 requires ri <= 2 requires rj <= 1;
 }
 
 X86Rmw satisfies SelectedRmw {
-    machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3],
+    machine rmw(grid: @mut [[i32 in Wrapping; 4]; 3], rows: @mut [Row; 3],
     i: u64, j: u64, ri: u64, rj: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires i <= 2 requires j <= 3 requires ri <= 2 requires rj <= 1
     {
@@ -50,7 +50,7 @@ X86Rmw satisfies SelectedRmw {
 }
 
 ArmRmw satisfies SelectedRmw {
-    machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3],
+    machine rmw(grid: @mut [[i32 in Wrapping; 4]; 3], rows: @mut [Row; 3],
     i: u64, j: u64, ri: u64, rj: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires i <= 2 requires j <= 3 requires ri <= 2 requires rj <= 1
     {
@@ -72,7 +72,7 @@ ArmRmw satisfies SelectedRmw {
 machine main() crashes Trap {
     let mut grid: [[i32 in Wrapping; 4]; 3];
     let mut rows: [Row; 3];
-    SelectedRmw::rmw(&mut grid, &mut rows, 1, 4, 2, 1)
+    SelectedRmw::rmw(@mut grid, @mut rows, 1, 4, 2, 1)
 }
 machine x86_entry() crashes Trap {
     SelectedBodyCheck::require_tag(17u64);

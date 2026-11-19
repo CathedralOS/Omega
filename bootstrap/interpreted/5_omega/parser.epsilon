@@ -1501,7 +1501,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state machine_parameter_or_end_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::RightParen -> finish_machine_parameters()
-            OmegaPunctuationKind::Ampersand -> begin_machine_parameter_form()
+            OmegaPunctuationKind::At -> begin_machine_parameter_form()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameterOrEnd,
                 self.scan.token_start,
@@ -1525,7 +1525,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state machine_parameter_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Ampersand -> begin_machine_parameter_form()
+            OmegaPunctuationKind::At -> begin_machine_parameter_form()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameter,
                 self.scan.token_start,
@@ -1642,7 +1642,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state machine_parameter_core_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Ampersand -> begin_machine_binding_reference()
+            OmegaPunctuationKind::At -> begin_machine_binding_reference()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameter,
                 self.scan.token_start,
@@ -1711,7 +1711,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
 
     state machine_binding_access_punctuation() {
         transition self.scan.punctuation {
-            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::At -> incomplete_root()
             OmegaPunctuationKind::Apostrophe -> incomplete_root()
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineParameter,
@@ -2809,7 +2809,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPunctuationKind::Exclamation -> begin_punctuated_expression_statement()
             OmegaPunctuationKind::Tilde -> begin_punctuated_expression_statement()
             OmegaPunctuationKind::Minus -> begin_punctuated_expression_statement()
-            OmegaPunctuationKind::Ampersand -> begin_punctuated_expression_statement()
+            OmegaPunctuationKind::At -> begin_punctuated_expression_statement()
             _ -> incomplete_root()
         }
     }
@@ -3147,7 +3147,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBrace -> begin_subjectless_transition()
             OmegaPunctuationKind::LeftParen -> begin_expression_group()
-            OmegaPunctuationKind::Ampersand -> begin_borrow_expression()
+            OmegaPunctuationKind::At -> begin_borrow_expression()
             OmegaPunctuationKind::Exclamation ->
                 begin_unary_expression(OmegaUnaryOperatorKind::LogicalNot)
             OmegaPunctuationKind::Tilde ->
@@ -5837,7 +5837,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state call_argument_or_end_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::RightParen -> finish_call_arguments()
-            OmegaPunctuationKind::Ampersand ->
+            OmegaPunctuationKind::At ->
                 begin_first_unary_call_argument(OmegaUnaryOperatorKind::SharedBorrow)
             OmegaPunctuationKind::LeftParen -> begin_first_grouped_call_argument()
             OmegaPunctuationKind::Exclamation ->
@@ -7282,7 +7282,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state assignment_value_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftParen -> begin_expression_group()
-            OmegaPunctuationKind::Ampersand -> begin_borrow_expression()
+            OmegaPunctuationKind::At -> begin_borrow_expression()
             OmegaPunctuationKind::Exclamation ->
                 begin_unary_expression(OmegaUnaryOperatorKind::LogicalNot)
             OmegaPunctuationKind::Tilde ->
@@ -8596,7 +8596,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPunctuationKind::Plus -> cast_domain_marker(OmegaCastKind::AddDomain)
             OmegaPunctuationKind::Minus -> cast_domain_marker(OmegaCastKind::RemoveDomain)
             OmegaPunctuationKind::LeftBracket -> begin_type_array()
-            OmegaPunctuationKind::Ampersand -> type_reference_or_recast()
+            OmegaPunctuationKind::At -> type_reference_or_recast()
             OmegaPunctuationKind::LeftParen -> begin_unit_type()
             OmegaPunctuationKind::Hash -> incomplete_root()
             _ -> type_missing_failure(
@@ -8753,7 +8753,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state type_reference_prefix_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Apostrophe -> type_reference_lifetime_allowed()
-            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::At -> incomplete_root()
             _ -> type_token()
         }
     }
@@ -8874,7 +8874,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
     state array_element_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::LeftBracket -> begin_type_array()
-            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::At -> incomplete_root()
             OmegaPunctuationKind::LeftParen -> begin_array_unit_type()
             OmegaPunctuationKind::Hash -> incomplete_root()
             _ -> syntax_failure(
@@ -8952,7 +8952,7 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaPunctuationKind::ColonColon -> begin_qualified_type_member()
             OmegaPunctuationKind::Less -> incomplete_root()
             OmegaPunctuationKind::LeftBracket -> incomplete_root()
-            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::At -> incomplete_root()
             OmegaPunctuationKind::RightBracket -> retain_type_slice_layer()
             OmegaPunctuationKind::Comma -> incomplete_root()
             _ -> syntax_failure(

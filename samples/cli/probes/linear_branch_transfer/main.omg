@@ -38,7 +38,7 @@ machine verify(correct: bool) crashes Trap {
     machine bad() { crash Trap; }
 }
 
-machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
+machine Main::main(main: @mut Main) reaches Acknowledgement crashes Trap {
     main.hits = 0;
     main.choose_first = true;
     let receipt: Receipt = Receipt { code: 7 };
@@ -47,13 +47,13 @@ machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
         _ -> consume_second(main, receipt)
     }
 
-    machine consume_first(main: &mut Main, receipt: Receipt) {
+    machine consume_first(main: @mut Main, receipt: Receipt) {
         let code: i32 = Acknowledgement::ack(receipt);
         main.hits = 1;
         verify(code == 7);
     }
 
-    machine consume_second(main: &mut Main, receipt: Receipt) {
+    machine consume_second(main: @mut Main, receipt: Receipt) {
         let code: i32 = Acknowledgement::ack(receipt);
         main.hits = 2;
         verify(false);
@@ -63,5 +63,5 @@ machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Acknowledgement crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

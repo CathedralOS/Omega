@@ -1,0 +1,171 @@
+File
+  Machine
+    'machine'
+    Path 'names'
+    Params
+      '('
+      Param
+        'machine'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'data'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'match'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'transition'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'let'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'block'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'move'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Let
+        'let'
+        BindingPattern 'result'
+        '='
+        Binary
+          PathExpression 'machine'
+          '+'
+          PathExpression 'data'
+        ';'
+      Let
+        'let'
+        BindingPattern 'use'
+        '='
+        Binary
+          PathExpression 'match'
+          '+'
+          PathExpression 'transition'
+        ';'
+      Let
+        'let'
+        BindingPattern 'if'
+        '='
+        Binary
+          PathExpression 'let'
+          '+'
+          PathExpression 'block'
+        ';'
+      Let
+        'let'
+        BindingPattern 'mut'
+        '='
+        PathExpression 'move'
+        ';'
+      Let
+        'let'
+        'mut'
+        BindingPattern 'mut'
+        '='
+        PathExpression 'mut'
+        ';'
+      Assign
+        PathExpression 'data'
+        '='
+        Literal '3'
+        ';'
+      ExpressionStatement
+        Call
+          FieldAccess
+            PathExpression 'machine'
+            '.'
+            'run'
+          Args '(' ')'
+        ';'
+      ExpressionStatement
+        Call
+          PathExpression 'block'
+          Args
+            '('
+            PathExpression 'use'
+            ')'
+        ';'
+      ExpressionStatement
+        Call
+          PathExpression 'if'
+          Args
+            '('
+            PathExpression 'result'
+            ')'
+        ';'
+      Let
+        'let'
+        BindingPattern 'total'
+        '='
+        Binary
+          PathExpression 'if'
+          '+'
+          PathExpression 'mut'
+        ';'
+      Assign
+        PathExpression 'match'
+        '='
+        FieldAccess
+          PathExpression 'match'
+          '.'
+          'field'
+        ';'
+      Assign
+        PathExpression 'asm'
+        '='
+        PathExpression 'public'
+        ';'
+      ExpressionStatement
+        Call
+          PathExpression 'use'
+          Args
+            '('
+            FieldAccess
+              PathExpression 'e'
+              '.'
+              'owner'
+            ')'
+        ';'
+      Tail
+        PathExpression 'suspend'
+      '}'
+  Data
+    'data'
+    'machine'
+    '{'
+    Field
+      'use'
+      ':'
+      PathType 'u8'
+      ';'
+    Field
+      'public'
+      ':'
+      PathType 'u8'
+      ';'
+    Field
+      'machine'
+      ':'
+      PathType 'u8'
+      ';'
+    '}'

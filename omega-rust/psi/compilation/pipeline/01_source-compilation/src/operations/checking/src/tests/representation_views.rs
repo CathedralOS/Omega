@@ -1,4 +1,4 @@
-//! `view as &[T]` re-views the complete window of an existing shared view as
+//! `view as @[T]` re-views the complete window of an existing shared view as
 //! another element representation.
 //!
 //! byte_views.md, "Collection view establishment", `WholeRepresentation`:
@@ -39,19 +39,19 @@ fn scalar_reference_recasts_keep_their_backing_and_presented_fields() {
 data Envelope [copy] { before: u64; bits: u64; after: u64; }
 data SignedWord [copy] { value: i64; }
 machine signed(mut bits: u64) -> i64 {
-    let value: &i64 = &bits as &i64;
+    let value: @i64 = @bits as @i64;
     value
 }
 machine unsigned(bits: i64) -> u64 {
-    let value: &u64 = &bits as &u64;
+    let value: @u64 = @bits as @u64;
     value
 }
-machine overwrite(bits: &mut u64) { bits = 0u64; }
+machine overwrite(bits: @mut u64) { bits = 0u64; }
 machine entry() crashes Trap {
     let bits: u64 = 18446744073709551615u64;
     let envelope: Envelope = Envelope { before: 11u64, bits: bits, after: 37u64 };
-    let scalar: &i64 = &envelope.bits as &i64;
-    let word: &SignedWord = &envelope.bits as &SignedWord;
+    let scalar: @i64 = @envelope.bits as @i64;
+    let word: @SignedWord = @envelope.bits as @SignedWord;
     transition signed(bits) == -1i64 && unsigned(-1i64) == bits
         && scalar == -1i64 && word.value == -1i64
         && envelope.before == 11u64 && envelope.after == 37u64 {
@@ -94,8 +94,8 @@ machine entry() crashes Trap {
     // A shared representation still freezes the original storage. Changing
     // the spelling of its scalar carrier cannot permit an overlapping write.
     let competing = source.replace(
-        "let value: &i64 = &bits as &i64;",
-        "let value: &i64 = &bits as &i64; overwrite(&mut bits);",
+        "let value: @i64 = @bits as @i64;",
+        "let value: @i64 = @bits as @i64; overwrite(@mut bits);",
     );
     let refused = judge_source(&competing);
     assert!(
@@ -109,19 +109,19 @@ fn a_shared_view_is_read_as_the_elements_that_tile_it() {
     // An `i32` holds four bytes, so sixteen words are sixty-four bytes.
     let bytes = |bound: u64| {
         format!(
-            "machine bytes_of(words: &[i32]) requires words.len <= 16 {{
-    let bytes: &[u8] = words as &[u8];
+            "machine bytes_of(words: @[i32]) requires words.len <= 16 {{
+    let bytes: @[u8] = words as @[u8];
     take(bytes);
 }}
-machine take(bytes: &[u8]) requires bytes.len <= {bound} {{ }}"
+machine take(bytes: @[u8]) requires bytes.len <= {bound} {{ }}"
         )
     };
     assert_eq!(verdict(&bytes(64)), "accepted");
     // The re-view passes straight to a slice parameter as well.
     assert_eq!(
         verdict(
-            "machine bytes_of(words: &[i32]) requires words.len <= 16 { take(words as &[u8]); }
-machine take(bytes: &[u8]) requires bytes.len <= 64 { }"
+            "machine bytes_of(words: @[i32]) requires words.len <= 16 { take(words as @[u8]); }
+machine take(bytes: @[u8]) requires bytes.len <= 64 { }"
         ),
         "accepted"
     );
@@ -131,11 +131,11 @@ machine take(bytes: &[u8]) requires bytes.len <= 64 { }"
     assert_eq!(
         verdict(
             "data Pair { low: u16; high: u16; }
-machine halves(pairs: &[Pair]) requires pairs.len <= 8 {
-    let halves: &[u16] = pairs as &[u16];
+machine halves(pairs: @[Pair]) requires pairs.len <= 8 {
+    let halves: @[u16] = pairs as @[u16];
     take(halves);
 }
-machine take(halves: &[u16]) requires halves.len <= 16 { }"
+machine take(halves: @[u16]) requires halves.len <= 16 { }"
         ),
         "accepted"
     );
@@ -145,8 +145,8 @@ machine take(halves: &[u16]) requires halves.len <= 16 { }"
 fn the_converted_count_must_fit_u64() {
     let program = |requires: &str| {
         format!(
-            "machine bytes_of(words: &[i32]) -> u64 {requires} {{
-    let bytes: &[u8] = words as &[u8];
+            "machine bytes_of(words: @[i32]) -> u64 {requires} {{
+    let bytes: @[u8] = words as @[u8];
     bytes.len
 }}"
         )
@@ -163,16 +163,16 @@ fn a_re_view_that_does_not_tile_or_writes_is_refused() {
         "a whole-representation view whose target elements do not exactly tile its source elements";
     // One `u16` cannot hold a whole `u32`.
     refused(
-        "machine widen(halves: &[u16]) requires halves.len <= 8 {
-    let words: &[u32] = halves as &[u32];
+        "machine widen(halves: @[u16]) requires halves.len <= 8 {
+    let words: @[u32] = halves as @[u32];
 }",
         UNTILED,
     );
     // Padding bytes have no valid byte value to read.
     refused(
         "data Padded { tag: u8; value: u32; }
-machine bytes_of(rows: &[Padded]) requires rows.len <= 8 {
-    let bytes: &[u8] = rows as &[u8];
+machine bytes_of(rows: @[Padded]) requires rows.len <= 8 {
+    let bytes: @[u8] = rows as @[u8];
 }",
         UNTILED,
     );
@@ -180,8 +180,8 @@ machine bytes_of(rows: &[Padded]) requires rows.len <= 8 {
     // the source valid; nothing establishes that, so even bytes re-viewed
     // as bytes are refused when the view writes.
     refused(
-        "machine scribble(bytes: &mut [u8]) {
-    let same: &mut [u8] = bytes as &mut [u8];
+        "machine scribble(bytes: @mut [u8]) {
+    let same: @mut [u8] = bytes as @mut [u8];
 }",
         "expression exclusive storage view without establishment and handback evidence",
     );
@@ -194,8 +194,8 @@ machine bytes_of(rows: &[Padded]) requires rows.len <= 8 {
 fn a_window_of_a_mutable_byte_parameter_is_lent_for_reading() {
     let program = |requires: &str| {
         format!(
-            "machine send(bytes: &[u8]) -> u64 {{ bytes.len }}
-machine write(buffer: &mut [u8], count: u64) -> u64 {requires} {{
+            "machine send(bytes: @[u8]) -> u64 {{ bytes.len }}
+machine write(buffer: @mut [u8], count: u64) -> u64 {requires} {{
     send(buffer[0..count])
 }}"
         )
@@ -217,14 +217,14 @@ data Receiver [copy] {
     stat_buf: [u8; 8];
 }
 
-machine read_word(receiver: &Receiver) -> u64 {
-    let word: &Word = &receiver.stat_buf as &Word;
+machine read_word(receiver: @Receiver) -> u64 {
+    let word: @Word = @receiver.stat_buf as @Word;
     word.value
 }
 
 machine entry() crashes Trap {
     let receiver: Receiver = Receiver { prefix: 0, stat_buf: [42, 0, 0, 0, 0, 0, 0, 0] };
-    let value: u64 = read_word(&receiver);
+    let value: u64 = read_word(@receiver);
     transition value == 42 { true -> done() false -> fail() }
     machine done() {}
     machine fail() { crash Trap; }
@@ -252,7 +252,7 @@ machine entry() crashes Trap {
     accepted.publish_invocation().unwrap();
 
     // One borrowed byte does not grant access to its siblings.
-    let single_byte = source.replace("&receiver.stat_buf as", "&receiver.stat_buf[0] as");
+    let single_byte = source.replace("@receiver.stat_buf as", "@receiver.stat_buf[0] as");
     // The root is still aligned to eight, but the buffer now begins at byte nine.
     let unaligned = source
         .replace("    prefix: u64;", "    prefix: u64;\n    tag: u8;")
@@ -280,11 +280,11 @@ fn representation_target_constraints_must_be_established() {
     let source = |predicate: &str| {
         format!(
             "data Target {predicate} {{ value: i32; }}
-machine reinterpret(words: &[i32]) requires words.len <= 8 {{
-    let values: &[Target] = words as &[Target];
+machine reinterpret(words: @[i32]) requires words.len <= 8 {{
+    let values: @[Target] = words as @[Target];
     take(values);
 }}
-machine take(values: &[Target]) {{ }}"
+machine take(values: @[Target]) {{ }}"
         )
     };
     assert_eq!(verdict(&source("")), "accepted");
@@ -301,11 +301,11 @@ machine take(values: &[Target]) {{ }}"
 fn representation_byte_target_keeps_canonical_element_identity() {
     let source = "data ByteBox { value: u8; }
 machine retain(value: ByteBox) -> u8 { value.value }
-machine bytes_of(words: &[i32]) requires words.len <= 8 {
-    let bytes: &[u8] = words as &[u8];
+machine bytes_of(words: @[i32]) requires words.len <= 8 {
+    let bytes: @[u8] = words as @[u8];
     take(bytes);
 }
-machine take(bytes: &[u8]) { }";
+machine take(bytes: @[u8]) { }";
     let typed = super::boundary_calls::typed(source);
     let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
         crate::lowering::prepare_compilation(

@@ -1,6 +1,6 @@
 // Expected exit: 0
 data Counter { value: u64; }
-data Loan<'lender> [linear] { counter: &'lender mut Counter; }
+data Loan<'lender> [linear] { counter: @'lender mut Counter; }
 
 machine forward<T>(value: T) -> T { move value }
 machine finish(value: Loan) {
@@ -10,7 +10,7 @@ machine finish(value: Loan) {
 machine main() crashes Trap {
     let mut target: Counter = Counter { value: 17 };
     let mut neighbor: Counter = Counter { value: 23 };
-    let loan = forward<Loan>(Loan { counter: &mut target });
+    let loan = forward<Loan>(Loan { counter: @mut target });
     neighbor.value = 29;
     finish(move loan);
     transition target.value == 41 && neighbor.value == 29 {

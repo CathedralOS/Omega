@@ -58,14 +58,14 @@ invokes Console
  machine invalid() {Console::write_line("FAIL output bound");ProcessExit::exit_process(4);}
  machine done() {}
 }
-public machine contact_row(lab:&Lab) reaches ProcessExit + Console
+public machine contact_row(lab:@Lab) reaches ProcessExit + Console
 invokes Console
 {
  Console::write("contact ");integer(lab.first);Console::write(" ");integer(lab.second);
  Console::write(" time=");number(lab.time);Console::write(" impulse=");number(lab.impulse);
  Console::write(" error=");number(lab.contact_error);Console::write_line("");
 }
-public machine totals_row(lab:&Lab) reaches ProcessExit + Console
+public machine totals_row(lab:@Lab) reaches ProcessExit + Console
 invokes Console
 {
  Console::write("ledger time=");number(lab.time);
@@ -73,14 +73,14 @@ invokes Console
  Console::write(" energy=");number(lab.energy);Console::write(" loss=");number(lab.loss);
  Console::write_line("");
 }
-public machine disk_rows(lab:&Lab) reaches ProcessExit + Console
+public machine disk_rows(lab:@Lab) reaches ProcessExit + Console
 invokes Console
 {
  transition { _ -> scan(lab,0) }
- machine scan(lab:&Lab,index:u64) {
+ machine scan(lab:@Lab,index:u64) {
   transition index < lab.count && index < 4 {true -> row(lab,index) _ -> done()}
  }
- machine row(lab:&Lab,index:u64) requires index < 4 {
+ machine row(lab:@Lab,index:u64) requires index < 4 {
   let disk:Disk=lab.disks[index];Console::write("disk ");integer(index);
   Console::write(" x=");number(disk.x);Console::write(" y=");number(disk.y);
   Console::write(" vx=");number(disk.vx);Console::write(" vy=");number(disk.vy);Console::write_line("");

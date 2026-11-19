@@ -13,34 +13,34 @@
 
 public boundary trait Character {
     machine echo(value: i32) -> i32 reaches crashes none;
-    machine store(output: &mut i32, value: i32) reaches crashes none;
+    machine store(output: @mut i32, value: i32) reaches crashes none;
 }
 CharacterImplementation satisfies Character {
     machine echo(value: i32) -> i32 { echo_realization(value) }
-    machine store(output: &mut i32, value: i32) { store_realization(output, value) }
+    machine store(output: @mut i32, value: i32) { store_realization(output, value) }
 }
 machine echo_realization(value: i32) -> i32 { value }
-machine store_realization(output: &mut i32, value: i32) { output = value; }
+machine store_realization(output: @mut i32, value: i32) { output = value; }
 
 data Main { value: i32; phase: i32; }
 
 machine letter() -> i32 { 65 }
-machine write(output: &mut i32) reaches Character {
+machine write(output: @mut i32) reaches Character {
     Character::store(output, letter());
 }
-machine authority<'loan>(phase: &'loan mut i32) -> &'loan mut i32 {
+machine authority<'loan>(phase: @'loan mut i32) -> @'loan mut i32 {
     phase = 1;
     phase
 }
-machine ordinary_argument(phase: &mut i32) -> i32 {
+machine ordinary_argument(phase: @mut i32) -> i32 {
     let previous: i32 = phase;
     phase = 2;
     transition previous == 1 { true -> 65 _ -> 0 }
 }
-machine Main::main(context: &mut Main) reaches Character crashes Trap {
-    write(&mut context.value);
-    let established: &mut i32 = authority(&mut context.phase);
-    let value: i32 = Character::echo(ordinary_argument(&mut context.phase));
+machine Main::main(context: @mut Main) reaches Character crashes Trap {
+    write(@mut context.value);
+    let established: @mut i32 = authority(@mut context.phase);
+    let value: i32 = Character::echo(ordinary_argument(@mut context.phase));
     let nested: i32 = Character::echo(Character::echo(context.value));
     _ = Character::echo(value);
     transition value == 65 && nested == 65 && context.phase == 2 { true -> done() _ -> bad() }
@@ -51,5 +51,5 @@ machine Main::main(context: &mut Main) reaches Character crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Character crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

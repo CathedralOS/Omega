@@ -6,9 +6,9 @@ use omega::language::core::CountedQuantity;
 data Units {}
 domain u64::StoredValue requires self >= 100 && self <= 1000;
 data Token [linear] dropped by drop_token { value: u64 in StoredValue; }
-machine drop_token(token: &mut Token) {}
+machine drop_token(token: @mut Token) {}
 domain Token::Owned;
-machine Owned::content(token: &Token) -> CountedQuantity<Units>
+machine Owned::content(token: @Token) -> CountedQuantity<Units>
 satisfies Content<Token, CountedQuantity<Units>>::project {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }

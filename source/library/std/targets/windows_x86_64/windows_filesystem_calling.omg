@@ -7,7 +7,7 @@
 
 public WindowsFilesystemTransferCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let accepted: bool = windows_filesystem_transfer_signature(&signature);
+        let accepted: bool = windows_filesystem_transfer_signature(@signature);
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: windows_filesystem_transfer_entry() }
             _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
@@ -17,29 +17,29 @@ public WindowsFilesystemTransferCalling satisfies CallingPolicy {
     }
 }
 
-machine windows_filesystem_transfer_signature(signature: &BoundarySignature) -> bool {
+machine windows_filesystem_transfer_signature(signature: @BoundarySignature) -> bool {
     transition signature.parameter_count == 4 && signature.native_parameter_count == 4
         && signature.has_result && signature.callback_binder_count == 0
         && signature.callback_demand_count == 0 {
         true -> indices(signature)
         _ -> false
     }
-    machine indices(signature: &BoundarySignature) -> bool {
+    machine indices(signature: @BoundarySignature) -> bool {
         transition signature.parameters[0] < 256 && signature.parameters[0] < signature.shape_count
             && signature.parameters[1] < 256 && signature.parameters[1] < signature.shape_count
             && signature.parameters[2] < 256 && signature.parameters[2] < signature.shape_count
             && signature.parameters[3] < 256 && signature.parameters[3] < signature.shape_count
             && signature.result < 256 && signature.result < signature.shape_count {
-            true -> shapes(&signature.shapes[signature.parameters[0]],
-                &signature.shapes[signature.parameters[1]],
-                &signature.shapes[signature.parameters[2]],
-                &signature.shapes[signature.parameters[3]],
-                &signature.shapes[signature.result])
+            true -> shapes(@signature.shapes[signature.parameters[0]],
+                @signature.shapes[signature.parameters[1]],
+                @signature.shapes[signature.parameters[2]],
+                @signature.shapes[signature.parameters[3]],
+                @signature.shapes[signature.result])
             _ -> false
         }
     }
-    machine shapes(handle: &ValueShape, bytes: &ValueShape, transferred: &ValueShape,
-        overlapped: &ValueShape, result: &ValueShape) -> bool {
+    machine shapes(handle: @ValueShape, bytes: @ValueShape, transferred: @ValueShape,
+        overlapped: @ValueShape, result: @ValueShape) -> bool {
         transition windows_transfer_integer_shape(handle, 8)
             && windows_transfer_reference_shape(bytes, 16)
             && windows_transfer_reference_shape(transferred, 8)
@@ -78,13 +78,13 @@ machine windows_filesystem_transfer_entry() -> BoundaryEntryPlan {
     plan
 }
 
-machine windows_transfer_integer_shape(shape: &ValueShape, bytes: u64) -> bool {
+machine windows_transfer_integer_shape(shape: @ValueShape, bytes: u64) -> bool {
     transition shape.class {
         ValueClass::Integer -> (shape.byte_size == bytes && shape.alignment == bytes)
         _ -> false
     }
 }
-machine windows_transfer_reference_shape(shape: &ValueShape, bytes: u64) -> bool {
+machine windows_transfer_reference_shape(shape: @ValueShape, bytes: u64) -> bool {
     transition shape.class {
         ValueClass::Reference -> (shape.byte_size == bytes && shape.alignment == 8)
         _ -> false

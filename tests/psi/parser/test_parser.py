@@ -1205,7 +1205,7 @@ def root_declaration_cases(program: str) -> None:
 
     # Named conformances: every member is a checked machine.
     source = (
-        b'public Saturating<T> satisfies Increment<Counter<T>> { machine increment(counter: &mut Counter<T>) {} }'
+        b'public Saturating<T> satisfies Increment<Counter<T>> { machine increment(counter: @mut Counter<T>) {} }'
     )
     declaration_accepted(
         program, "conformance", source,
@@ -1904,7 +1904,7 @@ def expression_form_cases(program: str) -> None:
     # when `first` is 1, its end in `right` when `count` is 1, `flag` for
     # `..=`; it spans its endpoints, or its dots without a start.
     RANGE, INDEX = 17, 7
-    source = b"machine f(a: &[u8], i: u64, j: u64) { g(a[1..], a[..2], a[0..=1], a[..], a[i..j]); }"
+    source = b"machine f(a: @[u8], i: u64, j: u64) { g(a[1..], a[..2], a[0..=1], a[..], a[i..j]); }"
     status, payload = run(program, source)
     assert status == 0, f"range-slices: status {status}"
     rows = decode(payload).expressions
@@ -1914,8 +1914,8 @@ def expression_form_cases(program: str) -> None:
         span(source, b"1.."), span(source, b"..2"), span(source, b"0..=1"), span(source, b"..", 4), span(source, b"i..j"),
     ], ranges
     assert all(rows[row[3]][0] == RANGE for row in rows if row[0] == INDEX), rows
-    rejected(program, "inclusive-range-without-end", b"machine f(a: &[u8]) { g(a[1..=]); }", 191,
-             (len(b"machine f(a: &[u8]) { g(a[1..="), len(b"machine f(a: &[u8]) { g(a[1..=]")),
+    rejected(program, "inclusive-range-without-end", b"machine f(a: @[u8]) { g(a[1..=]); }", 191,
+             (len(b"machine f(a: @[u8]) { g(a[1..="), len(b"machine f(a: @[u8]) { g(a[1..=]")),
              type_reference_count=3, parameter_count=1, expression_count=3)
 
     # Braces retain their drift-check mode; rest never creates a binder.
@@ -2868,31 +2868,31 @@ def main() -> None:
         ((3, 0, 1, 0, 17),), (), (),
         machines=(machine_row(source, b"main", 0, 0, 0, (0, 17)),),
     )
-    source = b'public machine Counter::clear(counter: &mut Counter) {}'
+    source = b'public machine Counter::clear(counter: @mut Counter) {}'
     accepted(
         program, "machine-owned-public-mutable-reference", source,
         ((3, 0, 1, 0, len(source)),), (), (),
         type_references=(
             named(source, b"Counter", 2),
-            reference(source, b"&mut", b"&mut Counter", 2, 0),
+            reference(source, b"@mut", b"@mut Counter", 2, 0),
         ),
         machines=(machine_row(source, b"clear", 0, 1, 0, (0, len(source)), owner=b"Counter", public=True),),
-        parameters=(parameter_row(source, b"counter", 1, b"&mut Counter"),),
+        parameters=(parameter_row(source, b"counter", 1, b"@mut Counter"),),
     )
-    source = b"machine add(left: u64, right: &u64) -> u64 {}"
+    source = b"machine add(left: u64, right: @u64) -> u64 {}"
     accepted(
         program, "machine-signature", source,
         ((3, 0, 1, 0, len(source)),), (), (),
         type_references=(
             named(source, b"u64", 1),
             named(source, b"u64", 2),
-            reference(source, b"&u64", b"&u64", 1, 1),
+            reference(source, b"@u64", b"@u64", 1, 1),
             named(source, b"u64", 3),
         ),
         machines=(machine_row(source, b"add", 0, 2, 0, (0, len(source)), return_type=3),),
         parameters=(
             parameter_row(source, b"left", 0, b"left: u64"),
-            parameter_row(source, b"right", 2, b"&u64"),
+            parameter_row(source, b"right", 2, b"@u64"),
         ),
     )
     source = b"machine tick {}"
@@ -2933,14 +2933,14 @@ def main() -> None:
         type_references=(named(source, b"u8"),),
         machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 25, 39),),
     )
-    source = b"data View { target: &Record; }"
+    source = b"data View { target: @Record; }"
     accepted(
         program, "data-field-reference-type", source,
         ((2, 0, 1, 0, len(source)),), (), (),
         ((1, 5, 9, 0, 1, 0, 1, 0, 0, 0, False, 1, 0, len(source), 0, 0),),
         ((1, 0, 1, 12, 28),),
         ((1, 12, 18, 1, 1, 12, 28),),
-        type_references=(named(source, b"Record"), reference(source, b"&Record", b"&Record", 1, 0)),
+        type_references=(named(source, b"Record"), reference(source, b"@Record", b"@Record", 1, 0)),
     )
 
     rejected(program, "machine-name-at-end", b"machine", 40, (7, 7))
@@ -2950,7 +2950,7 @@ def main() -> None:
     rejected(program, "machine-parameter-or-end", b"machine f(1) {}", 41, (10, 11))
     rejected(program, "machine-parameter-colon", b"machine f(a) {}", 43, (11, 12))
     rejected(program, "machine-parameter-type", b"machine f(a:) {}", 44, (12, 13))
-    rejected(program, "machine-reference-referee", b"machine f(a: &) {}", 44, (14, 15))
+    rejected(program, "machine-reference-referee", b"machine f(a: @) {}", 44, (14, 15))
     rejected(program, "machine-parameter-trailing-comma", b"machine f(a: u8,) {}", 42, (16, 17),
         parameter_count=1, type_reference_count=1)
     rejected(program, "machine-parameter-end", b"machine f(a: u8 b: u8) {}", 45, (16, 17),
@@ -3084,7 +3084,7 @@ def main() -> None:
     )
     body(
         "field-index-assignment-and-path-call",
-        b"machine f(p: &mut P) { p.x = q[i].y; Q::make(p, 1); }",
+        b"machine f(p: @mut P) { p.x = q[i].y; Q::make(p, 1); }",
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 23, 24, 0, 1, 23, 24),
             (6, 0, 0, 0, 0, 0, 0, 1, 25, 26, 0, 1, 23, 26),
@@ -3161,7 +3161,7 @@ def main() -> None:
     )
     body(
         "borrow-arguments",
-        b"machine f() { g(&mut a, &b); }",
+        b"machine f() { g(@mut a, @b); }",
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 14, 15, 0, 1, 14, 15),
             (1, 0, 0, 0, 0, 0, 0, 1, 21, 22, 0, 1, 21, 22),
@@ -3175,7 +3175,7 @@ def main() -> None:
     )
     body(
         "write-only-borrow-argument",
-        b"machine f() { g(&write a); }",
+        b"machine f() { g(@write a); }",
         (
             (1, 0, 0, 0, 0, 0, 0, 1, 14, 15, 0, 1, 14, 15),
             (1, 0, 0, 0, 0, 0, 0, 1, 23, 24, 0, 1, 23, 24),
@@ -3631,19 +3631,19 @@ def main() -> None:
     # A reference carries an optional lifetime tag before its access, and an
     # applied name supplies lifetime arguments before its type arguments
     # (wiki/spec/language/lifetimes.md#binders-and-source-applications).
-    source = b"data D<'a> { v: &'a u8; w: &'a mut u16; }"
+    source = b"data D<'a> { v: @'a u8; w: @'a mut u16; }"
     types("reference-lifetime-tags", source, (
         leaf(NAMED, source, b"u8", 0),
-        type_row(REFERENCE, span_of(source, b"&'a u8"), 0, access=1, inner=0, lifetime=(18, 19)),
+        type_row(REFERENCE, span_of(source, b"@'a u8"), 0, access=1, inner=0, lifetime=(18, 19)),
         leaf(NAMED, source, b"u16", 2),
-        type_row(REFERENCE, span_of(source, b"&'a mut u16"), 2, access=2, inner=2, lifetime=(29, 30)),
+        type_row(REFERENCE, span_of(source, b"@'a mut u16"), 2, access=2, inner=2, lifetime=(29, 30)),
     ))
     source = b"data C<'a, T> { v: Carrier<'a, T>; }"
     types("applied-lifetime-arguments", source, (
         leaf(NAMED, source, b"T", 0, 2),
         type_row(NAMED, span_of(source, b"Carrier<'a, T>"), 0, name=span_of(source, b"Carrier"), first_argument=0, argument_count=1, first_lifetime=0, lifetime_count=1),
     ), type_arguments=(0,))
-    rejected(program, "lifetime-tag-needs-a-name", b"data D<'a> { v: &'5 u8; }", 194, (18, 19), generic_parameter_count=1)
+    rejected(program, "lifetime-tag-needs-a-name", b"data D<'a> { v: @'5 u8; }", 194, (18, 19), generic_parameter_count=1)
     rejected(program, "lifetime-arguments-precede-types", b"data C<'a, T> { v: Carrier<T, 'a>; }", 38, (32, 33), generic_parameter_count=2, type_reference_count=1)
 
     source = b"data D { a: [u8; 4]; }"
@@ -3659,24 +3659,24 @@ def main() -> None:
         type_row(ARRAY, span_of(source, b"[u64; 1024] in Trapping"), 0,
                  domain=span_of(source, b"Trapping"), inner=0, length=1),
     ))
-    source = b"machine f(bytes: &[u8]) {}"
+    source = b"machine f(bytes: @[u8]) {}"
     types("slice-reference", source, (
         leaf(NAMED, source, b"u8", 0),
         type_row(SLICE, span_of(source, b"[u8]"), 0, inner=0),
-        type_row(REFERENCE, span_of(source, b"&[u8]"), 0, access=1, inner=1),
+        type_row(REFERENCE, span_of(source, b"@[u8]"), 0, access=1, inner=1),
     ))
-    source = b"machine f(cells: &mut [u8; 2]) {}"
+    source = b"machine f(cells: @mut [u8; 2]) {}"
     types("mutable-array-reference", source, (
         leaf(NAMED, source, b"u8", 0),
         leaf(LITERAL, source, b"2", 1),
         type_row(ARRAY, span_of(source, b"[u8; 2]"), 0, inner=0, length=1),
-        type_row(REFERENCE, span_of(source, b"&mut [u8; 2]"), 0, access=2, inner=2),
+        type_row(REFERENCE, span_of(source, b"@mut [u8; 2]"), 0, access=2, inner=2),
     ))
     # `&write T` is the third access (wiki/spec/language/ownership.md#borrows-and-aliases).
-    source = b"data D { a: &write u8; }"
+    source = b"data D { a: @write u8; }"
     types("write-only-reference", source, (
         leaf(NAMED, source, b"u8", 0),
-        type_row(REFERENCE, span_of(source, b"&write u8"), 0, access=3, inner=0),
+        type_row(REFERENCE, span_of(source, b"@write u8"), 0, access=3, inner=0),
     ))
     source = b"data D<const N: u64> { a: [u8; N]; }"
     types("named-length", source, (
@@ -3700,14 +3700,14 @@ def main() -> None:
         type_row(NAMED, span_of(source, b"A<B<C>>"), 0, name=span_of(source, b"A"),
                  first_argument=1, argument_count=1),
     ), (0, 1))
-    source = b"machine f(x: A<&B<C>>) {}"
+    source = b"machine f(x: A<@B<C>>) {}"
     split = span_of(source, b">>")[0]
     types("reference-argument-split-close", source, (
         leaf(NAMED, source, b"C", 0),
         type_row(NAMED, (span_of(source, b"B<C")[0], split + 1), 0, name=span_of(source, b"B"),
                  first_argument=0, argument_count=1),
-        type_row(REFERENCE, (span_of(source, b"&B")[0], split + 1), 0, access=1, inner=1),
-        type_row(NAMED, span_of(source, b"A<&B<C>>"), 0, name=span_of(source, b"A"),
+        type_row(REFERENCE, (span_of(source, b"@B")[0], split + 1), 0, access=1, inner=1),
+        type_row(NAMED, span_of(source, b"A<@B<C>>"), 0, name=span_of(source, b"A"),
                  first_argument=1, argument_count=1),
     ), (0, 2))
     source = b"data D { a: AtMost<8> in Bounds; }"
@@ -3886,7 +3886,7 @@ def main() -> None:
 
     # Machine generic parameters share the data declarations' grammar and
     # table; each machine row keeps its range.
-    source = b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] {}"
+    source = b"machine Vec::as_slice<T>(items: @Vec<T>) -> @[T] {}"
     accepted(
         program, "owned-generic-machine", source,
         ((3, 0, 1, 0, len(source)),), (), (),
@@ -3894,16 +3894,16 @@ def main() -> None:
             leaf(NAMED, source, b"T", 0, occurrence=2),
             type_row(NAMED, span_of(source, b"Vec<T>"), 0, name=span_of(source, b"Vec", 2),
                      first_argument=0, argument_count=1),
-            type_row(REFERENCE, span_of(source, b"&Vec<T>"), 0, access=1, inner=1),
+            type_row(REFERENCE, span_of(source, b"@Vec<T>"), 0, access=1, inner=1),
             leaf(NAMED, source, b"T", 3, occurrence=3),
             type_row(SLICE, span_of(source, b"[T]"), 3, inner=3),
-            type_row(REFERENCE, span_of(source, b"&[T]"), 3, access=1, inner=4),
+            type_row(REFERENCE, span_of(source, b"@[T]"), 3, access=1, inner=4),
         ),
         type_arguments=(0,),
         generic_parameters=((2, *at(source, b"T"), 0, 0, 0, *at(source, b"T")),),
         machines=(machine_row(source, b"as_slice", 0, 1, 0, (0, len(source)), owner=b"Vec",
                               return_type=5, generic_range=(0, 1)),),
-        parameters=(parameter_row(source, b"items", 2, b"&Vec<T>"),),
+        parameters=(parameter_row(source, b"items", 2, b"@Vec<T>"),),
     )
     source = b"public machine drop<T>(value: T) {} machine pair<'a, machine Step, const N: u64>(x: u8) {}"
     status, payload = run(program, source)

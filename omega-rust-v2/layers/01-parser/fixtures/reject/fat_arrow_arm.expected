@@ -1,0 +1,4 @@
+error UnexpectedToken at 3:17 bytes 75..76
+  found: =
+  expected: `->`
+  expected `->`

@@ -8,14 +8,14 @@ machine issue(value: u32) -> Storage in Issued {
     Storage { left_canary: 17, value: value, right_canary: 23 }
 }
 
-machine write(storage: &write Storage in Issued) {
-    let view: &write Storage = storage as &write Storage;
+machine write(storage: @write Storage in Issued) {
+    let view: @write Storage = storage as @write Storage;
     view.value = 73;
 }
 
 machine observed_exit() -> u32 {
     let mut storage: Storage in Issued = issue(0);
-    write(&write storage);
+    write(@write storage);
     transition storage.value == 73 && storage.left_canary == 17 && storage.right_canary == 23 { true -> 0 _ -> 1 }
 }
 

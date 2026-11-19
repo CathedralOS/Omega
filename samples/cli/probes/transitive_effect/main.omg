@@ -13,7 +13,7 @@ requires
     valid_utf8(self);
 
 public boundary trait Console {
-    machine write_line(text: &[u8] in Utf8)
+    machine write_line(text: @[u8] in Utf8)
     reaches
         Console crashes none;
 }
@@ -22,11 +22,11 @@ data App {
     marker: u32;
 }
 
-machine App::greet(app: &mut App) {
+machine App::greet(app: @mut App) {
     App::helper(app);
 }
 
-machine App::helper(app: &mut App) reaches Console {
+machine App::helper(app: @mut App) reaches Console {
     app.marker = 1;
 }
 
@@ -35,19 +35,19 @@ data Main {
     app: App;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
-    App::greet(&mut main.app);
+    App::greet(@mut main.app);
     transition main.app.marker == 1 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

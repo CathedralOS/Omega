@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Omega-V2 architecture</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1c2024; --muted: #5b6470; --rule: #d5dae0; --box: #f4f6f8;
+    --wip: #b45309; --wip-bg: #fff3dc;
+    --done: #1a7f4b; --done-bg: #e4f5ea;
+    --bad: #b42318; --bad-bg: #fdecea;
+    --accent: #2456c8; --accent-bg: #e8effd;
+    --trivia-bg: #eceff3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171a; --fg: #e6e8eb; --muted: #9aa4b1; --rule: #333a42; --box: #1e2328;
+      --wip: #f0a54a; --wip-bg: #3a2a10;
+      --done: #4fc584; --done-bg: #12301f;
+      --bad: #f0766a; --bad-bg: #3a1614;
+      --accent: #7aa2ff; --accent-bg: #162544;
+      --trivia-bg: #262c33;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a; --fg: #e6e8eb; --muted: #9aa4b1; --rule: #333a42; --box: #1e2328;
+    --wip: #f0a54a; --wip-bg: #3a2a10;
+    --done: #4fc584; --done-bg: #12301f;
+    --bad: #f0766a; --bad-bg: #3a1614;
+    --accent: #7aa2ff; --accent-bg: #162544;
+    --trivia-bg: #262c33;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px 64px; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.45;
+  }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); margin: 0 0 8px; padding: 0; list-style: none; }
+  .legend li { display: flex; align-items: center; gap: 7px; }
+  .chip { width: 26px; height: 15px; border-radius: 4px; border: 1.4px solid var(--fg); background: var(--box); display: inline-block; }
+  .chip.wip { border-color: var(--wip); background: var(--wip-bg); }
+  .chip.done { border-color: var(--done); background: var(--done-bg); }
+  .chip.todo { border-style: dashed; border-color: var(--muted); background: transparent; }
+  .chip.accent { border-color: var(--accent); background: var(--accent-bg); }
+  .chip.bad { border-color: var(--bad); background: var(--bad-bg); }
+  section { margin-top: 44px; border-top: 1px solid var(--rule); padding-top: 22px; }
+  h2 { font-size: 18px; margin: 0 0 12px; }
+  h2 span { color: var(--muted); font-weight: 500; margin-right: 8px; }
+  h2 .tag { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--wip); border: 1.3px dashed var(--wip); border-radius: 999px; padding: 2px 9px; margin: 0 0 0 10px; vertical-align: 2px; }
+  figure { margin: 0; }
+  figure svg { display: block; width: 100%; height: auto; color: var(--fg); }
+  figcaption { color: var(--muted); font-size: 13.5px; margin-top: 10px; max-width: 760px; }
+  .scroll { overflow-x: auto; }
+  .scroll svg { min-width: 720px; }
+
+  /* Shared drawing vocabulary for every figure. */
+  svg text { fill: currentColor; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+  svg .th { font-weight: 650; font-size: 13.5px; }
+  svg .ts { fill: var(--muted); font-size: 11.5px; }
+  svg .tl { fill: var(--muted); font-size: 11.5px; }
+  svg .tp { font-weight: 650; font-size: 13px; fill: var(--muted); }
+  svg .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; font-size: 13.5px; }
+  svg .mono-s { font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; font-size: 11.5px; }
+  svg .b { fill: var(--box); stroke: currentColor; stroke-width: 1.3; }
+  svg .b-wip { fill: var(--wip-bg); stroke: var(--wip); stroke-width: 1.6; }
+  svg .b-done { fill: var(--done-bg); stroke: var(--done); stroke-width: 1.6; }
+  svg .b-todo { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 5 4; }
+  svg .b-accent { fill: var(--accent-bg); stroke: var(--accent); stroke-width: 1.6; }
+  svg .b-bad { fill: var(--bad-bg); stroke: var(--bad); stroke-width: 1.6; }
+  svg .b-trivia { fill: var(--trivia-bg); stroke: currentColor; stroke-width: 1; stroke-dasharray: 2 3; }
+  svg .panel { fill: none; stroke: var(--rule); stroke-width: 1.5; }
+  svg .a { fill: none; stroke: currentColor; stroke-width: 1.3; marker-end: url(#ah); }
+  svg .a-bad { fill: none; stroke: var(--bad); stroke-width: 1.4; marker-end: url(#ah-bad); }
+  svg .a-accent { fill: none; stroke: var(--accent); stroke-width: 1.6; marker-end: url(#ah-accent); }
+  svg .a-blocked { fill: none; stroke: var(--bad); stroke-width: 1.4; stroke-dasharray: 5 4; }
+  svg .tick { stroke: var(--muted); stroke-width: 1; }
+  svg .x { stroke: var(--bad); stroke-width: 2.2; }
+  #ah path { fill: var(--fg); } #ah-bad path { fill: var(--bad); } #ah-accent path { fill: var(--accent); }
+  svg .t-bad { fill: var(--bad); } svg .t-accent { fill: var(--accent); } svg .t-wip { fill: var(--wip); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="ah-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="ah-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+</svg>
+<main>
+  <h1>Omega-V2 architecture</h1>
+  <p class="lede">Diagrams only. The reasoning and settled decisions are in PLAN.md. Open spec questions go in Omega’s root OWNER_QUESTIONS.md. Drawn from the plan as of 2026-11-18.</p>
+  <ul class="legend">
+    <li><span class="chip done"></span>built and signed off</li>
+    <li><span class="chip wip"></span>in progress</li>
+    <li><span class="chip todo"></span>not started</li>
+    <li><span class="chip"></span>exists or decided</li>
+    <li><span class="chip accent"></span>the part the figure is about</li>
+    <li><span class="chip bad"></span>refusal</li>
+  </ul>
+
+  <!-- ============================== 1. LAYERS ============================== -->
+  <section>
+    <h2><span>1</span>The layers</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. The lexer and parser are signed off. Source bytes enter the lexer, tokens go to the parser, and a syntax tree goes to the resolver. The resolver is implemented and awaits sign-off. It sends visible overloads to typing. Later layers take the resolved tree through typing, preparation, lowering, checking and publication.">
+        <text x="120" y="30" text-anchor="middle" class="mono">source bytes</text>
+        <path class="a" d="M120,40 V70"/>
+
+        <rect class="b-done" x="45" y="70" width="150" height="60" rx="7"/>
+        <text x="120" y="95" text-anchor="middle" class="th">L0 Lexer</text>
+        <text x="120" y="114" text-anchor="middle" class="ts">cuts bytes into tokens</text>
+        <path class="a" d="M195,100 H285"/><text x="240" y="92" text-anchor="middle" class="tl">tokens</text>
+
+        <rect class="b-done" x="285" y="70" width="150" height="60" rx="7"/>
+        <text x="360" y="95" text-anchor="middle" class="th">L1 Parser</text>
+        <text x="360" y="114" text-anchor="middle" class="ts">builds the tree</text>
+        <path class="a" d="M435,100 H525"/><text x="480" y="92" text-anchor="middle" class="tl">syntax tree</text>
+
+        <rect class="b-wip" x="525" y="70" width="150" height="60" rx="7"/>
+        <text x="600" y="95" text-anchor="middle" class="th">L2 Resolver</text>
+        <text x="600" y="114" text-anchor="middle" class="ts">binds every name</text>
+        <path class="a" d="M675,100 H765"/><text x="720" y="92" text-anchor="middle" class="tl">resolved tree</text>
+
+        <rect class="b-todo" x="765" y="70" width="150" height="60" rx="7"/>
+        <text x="840" y="95" text-anchor="middle" class="th">L3 Typer</text>
+        <text x="840" y="114" text-anchor="middle" class="ts">gives every part a type</text>
+
+        <path class="a" d="M840,130 V165 H120 V200"/><text x="480" y="158" text-anchor="middle" class="tl">typed tree</text>
+
+        <rect class="b-todo" x="45" y="200" width="150" height="60" rx="7"/>
+        <text x="120" y="225" text-anchor="middle" class="th">L4 Preparation</text>
+        <text x="120" y="244" text-anchor="middle" class="ts">evaluates, then freezes</text>
+        <path class="a" d="M195,230 H285"/><text x="240" y="222" text-anchor="middle" class="tl">prepared tree</text>
+
+        <rect class="b-todo" x="285" y="200" width="150" height="60" rx="7"/>
+        <text x="360" y="225" text-anchor="middle" class="th">L5 Lowering</text>
+        <text x="360" y="244" text-anchor="middle" class="ts">rewrites as Terminal Psi</text>
+        <path class="a" d="M435,230 H525"/><text x="480" y="222" text-anchor="middle" class="tl">Terminal Psi</text>
+
+        <rect class="b-todo" x="525" y="200" width="150" height="60" rx="7"/>
+        <text x="600" y="225" text-anchor="middle" class="th">L6 Checker</text>
+        <text x="600" y="244" text-anchor="middle" class="ts">proves the obligations</text>
+        <path class="a" d="M675,230 H765"/><text x="720" y="222" text-anchor="middle" class="tl">checked Psi</text>
+
+        <rect class="b-todo" x="765" y="200" width="150" height="60" rx="7"/>
+        <text x="840" y="225" text-anchor="middle" class="th">L7 Publication</text>
+        <text x="840" y="244" text-anchor="middle" class="ts">seals the artifact</text>
+        <path class="a" d="M840,260 V288"/>
+        <text x="840" y="306" text-anchor="middle" class="mono">published Psi artifact</text>
+      </svg>
+      </div>
+      <figcaption>One straight line. Each layer is a plain function from one representation to the next, depends only on the layers before it, and refuses what it cannot accept. No layer is ever re-entered.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================== 2. INSIDE L0 ============================== -->
+  <section>
+    <h2><span>2</span>Inside the lexer</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 262" role="img" aria-label="Source bytes are first checked to be valid UTF-8, then scanned; the first byte of each token picks the rule. Either step can refuse the file with one error. The result for the line 'let mask: u16 = 0xFFFFu16; // all ones' is thirteen tokens that cover every byte, including four whitespace tokens and a comment token.">
+        <text x="70" y="85" text-anchor="middle" class="mono">source bytes</text>
+        <path class="a" d="M122,80 H160"/>
+
+        <rect class="b" x="160" y="55" width="150" height="50" rx="7"/>
+        <text x="235" y="85" text-anchor="middle" class="th">valid UTF-8?</text>
+        <path class="a" d="M310,80 H370"/><text x="340" y="72" text-anchor="middle" class="tl">yes</text>
+
+        <rect class="b" x="370" y="55" width="220" height="50" rx="7"/>
+        <text x="480" y="77" text-anchor="middle" class="th">scanner</text>
+        <text x="480" y="95" text-anchor="middle" class="ts">the first byte picks the rule</text>
+
+        <rect class="b-bad" x="700" y="55" width="220" height="50" rx="7"/>
+        <text x="810" y="77" text-anchor="middle" class="th">one error</text>
+        <text x="810" y="95" text-anchor="middle" class="ts">the rule broken and its byte range</text>
+
+        <path class="a-bad" d="M590,80 H700"/><text x="645" y="72" text-anchor="middle" class="tl t-bad">first broken rule</text>
+        <path class="a-bad" d="M235,55 V30 H810 V55"/><text x="522" y="23" text-anchor="middle" class="tl t-bad">not UTF-8</text>
+
+        <path class="a" d="M480,105 V168"/><text x="490" y="142" class="tl">tokens</text>
+
+        <rect class="b" x="100" y="170" width="60" height="36"/><text x="130" y="193" text-anchor="middle" class="mono">let</text>
+        <rect class="b-trivia" x="160" y="170" width="20" height="36"/>
+        <rect class="b" x="180" y="170" width="80" height="36"/><text x="220" y="193" text-anchor="middle" class="mono">mask</text>
+        <rect class="b" x="260" y="170" width="20" height="36"/><text x="270" y="193" text-anchor="middle" class="mono">:</text>
+        <rect class="b-trivia" x="280" y="170" width="20" height="36"/>
+        <rect class="b" x="300" y="170" width="60" height="36"/><text x="330" y="193" text-anchor="middle" class="mono">u16</text>
+        <rect class="b-trivia" x="360" y="170" width="20" height="36"/>
+        <rect class="b" x="380" y="170" width="20" height="36"/><text x="390" y="193" text-anchor="middle" class="mono">=</text>
+        <rect class="b-trivia" x="400" y="170" width="20" height="36"/>
+        <rect class="b" x="420" y="170" width="180" height="36"/><text x="510" y="193" text-anchor="middle" class="mono">0xFFFFu16</text>
+        <rect class="b" x="600" y="170" width="20" height="36"/><text x="610" y="193" text-anchor="middle" class="mono">;</text>
+        <rect class="b-trivia" x="620" y="170" width="20" height="36"/>
+        <rect class="b-trivia" x="640" y="170" width="220" height="36"/><text x="750" y="193" text-anchor="middle" class="mono">// all ones</text>
+
+        <text x="130" y="226" text-anchor="middle" class="ts">Word</text>
+        <text x="220" y="226" text-anchor="middle" class="ts">Word</text>
+        <text x="330" y="226" text-anchor="middle" class="ts">Word</text>
+        <text x="510" y="226" text-anchor="middle" class="ts">Integer · radix 16 · suffix u16</text>
+        <text x="750" y="226" text-anchor="middle" class="ts">LineComment</text>
+        <line class="tick" x1="270" y1="206" x2="270" y2="236"/><text x="270" y="250" text-anchor="middle" class="ts">Punctuation</text>
+        <line class="tick" x1="390" y1="206" x2="390" y2="236"/><text x="390" y="250" text-anchor="middle" class="ts">Punctuation</text>
+        <line class="tick" x1="610" y1="206" x2="610" y2="236"/><text x="610" y="250" text-anchor="middle" class="ts">Punctuation</text>
+      </svg>
+      </div>
+      <figcaption>Every byte lands in exactly one token; the dotted cells are whitespace and comments, which are tokens too. Laid end to end the tokens are the file, which is the check the tests run. <code>let</code> and <code>mask</code> are the same kind: the lexer has no keyword list.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================== 3. INSIDE L1 ============================== -->
+  <section>
+    <h2><span>3</span>Inside the parser</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 290" role="img" aria-label="Tokens go through a cursor that skips whitespace and comments, then through the grammar, which has one function per rule, looks ahead and commits, and never rewinds. The grammar can refuse the file with one error saying what was expected and where. Its output for 'a + b * c' is fifteen events in a row: open Binary, open Path, a, close, plus, open Binary, open Path, b, close, times, open Path, c, close, close, close. Brackets under the row show the five nodes those events describe: three paths, the inner product b times c, and the outer sum.">
+        <text x="70" y="60" text-anchor="middle" class="mono">tokens</text>
+        <path class="a" d="M105,55 H150"/>
+
+        <rect class="b" x="150" y="30" width="200" height="50" rx="7"/>
+        <text x="250" y="52" text-anchor="middle" class="th">token cursor</text>
+        <text x="250" y="70" text-anchor="middle" class="ts">skips whitespace and comments</text>
+        <path class="a" d="M350,55 H400"/>
+
+        <rect class="b" x="400" y="30" width="250" height="50" rx="7"/>
+        <text x="525" y="52" text-anchor="middle" class="th">grammar: one function per rule</text>
+        <text x="525" y="70" text-anchor="middle" class="ts">looks ahead, then commits; never rewinds</text>
+
+        <rect class="b-bad" x="730" y="30" width="200" height="50" rx="7"/>
+        <text x="830" y="52" text-anchor="middle" class="th">one error</text>
+        <text x="830" y="70" text-anchor="middle" class="ts">what was expected, and where</text>
+        <path class="a-bad" d="M650,55 H730"/><text x="690" y="47" text-anchor="middle" class="tl t-bad">no rule fits</text>
+
+        <path class="a" d="M525,80 V128"/><text x="535" y="109" class="tl">events, here for</text><text x="628" y="109" class="mono-s">a + b * c</text>
+
+        <rect class="b" x="45" y="130" width="58" height="36"/><text x="74" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b" x="103" y="130" width="58" height="36"/><text x="132" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b-accent" x="161" y="130" width="58" height="36"/><text x="190" y="153" text-anchor="middle" class="mono">a</text>
+        <rect class="b-trivia" x="219" y="130" width="58" height="36"/><text x="248" y="153" text-anchor="middle" class="ts">Close</text>
+        <rect class="b-accent" x="277" y="130" width="58" height="36"/><text x="306" y="153" text-anchor="middle" class="mono">+</text>
+        <rect class="b" x="335" y="130" width="58" height="36"/><text x="364" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b" x="393" y="130" width="58" height="36"/><text x="422" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b-accent" x="451" y="130" width="58" height="36"/><text x="480" y="153" text-anchor="middle" class="mono">b</text>
+        <rect class="b-trivia" x="509" y="130" width="58" height="36"/><text x="538" y="153" text-anchor="middle" class="ts">Close</text>
+        <rect class="b-accent" x="567" y="130" width="58" height="36"/><text x="596" y="153" text-anchor="middle" class="mono">*</text>
+        <rect class="b" x="625" y="130" width="58" height="36"/><text x="654" y="153" text-anchor="middle" class="ts">Open</text>
+        <rect class="b-accent" x="683" y="130" width="58" height="36"/><text x="712" y="153" text-anchor="middle" class="mono">c</text>
+        <rect class="b-trivia" x="741" y="130" width="58" height="36"/><text x="770" y="153" text-anchor="middle" class="ts">Close</text>
+        <rect class="b-trivia" x="799" y="130" width="58" height="36"/><text x="828" y="153" text-anchor="middle" class="ts">Close</text>
+        <rect class="b-trivia" x="857" y="130" width="58" height="36"/><text x="886" y="153" text-anchor="middle" class="ts">Close</text>
+
+        <path class="tick" fill="none" d="M107,172 V182 H273 V172"/><text x="190" y="197" text-anchor="middle" class="ts">Path</text>
+        <path class="tick" fill="none" d="M397,172 V182 H563 V172"/><text x="480" y="197" text-anchor="middle" class="ts">Path</text>
+        <path class="tick" fill="none" d="M629,172 V182 H795 V172"/><text x="712" y="197" text-anchor="middle" class="ts">Path</text>
+        <path class="tick" fill="none" d="M339,172 V212 H853 V172"/><text x="596" y="227" text-anchor="middle" class="ts">Binary: b * c</text>
+        <path class="tick" fill="none" d="M49,172 V242 H911 V172"/><text x="480" y="257" text-anchor="middle" class="ts">Binary: a + (b * c)</text>
+
+        <text x="480" y="281" text-anchor="middle" class="tl">no allocation per node; the five shaded cells are the next five meaningful tokens from the lexer, in order</text>
+      </svg>
+      </div>
+      <figcaption>The tree is not a set of allocated nodes. It is the list of events a walk of the tree would visit: an <code>Open</code> starts a node, its <code>Close</code> ends it, and each shaded cell is the next token from the lexer. The brackets show the five nodes these fifteen events describe; <code>*</code> binds tighter than <code>+</code>, so <code>b * c</code> is the inner one. Every meaningful token appears exactly once, which is the check the tests run on every tree.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================== 3. TESTING ============================== -->
+  <section>
+    <h2><span>4</span>How a layer is tested</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 320" role="img" aria-label="Four kinds of input go through the layer under test, each with its own check. Accept fixtures must produce exactly their expected dump. Reject fixtures must be refused with the expected rule and byte range. The 132 examples read from the spec must be accepted and satisfy the invariants. Byte cases must match results predicted by hand.">
+        <rect class="b-accent" x="390" y="30" width="150" height="260" rx="9"/>
+        <text x="465" y="150" text-anchor="middle" class="th">layer under test</text>
+        <text x="465" y="170" text-anchor="middle" class="mono-s">lex(bytes)</text>
+
+        <rect class="b" x="30" y="30" width="270" height="50" rx="7"/>
+        <text x="165" y="52" text-anchor="middle" class="th">accept fixtures</text>
+        <text x="165" y="70" text-anchor="middle" class="ts">7 files, each an input and an expected dump</text>
+        <path class="a" d="M300,55 H390"/>
+        <path class="a" d="M540,55 H630"/><text x="585" y="47" text-anchor="middle" class="tl">tokens</text>
+        <rect class="b" x="630" y="30" width="300" height="50" rx="7"/>
+        <text x="780" y="52" text-anchor="middle" class="th">equals the expected dump</text>
+        <text x="780" y="70" text-anchor="middle" class="ts">byte for byte</text>
+
+        <rect class="b" x="30" y="100" width="270" height="50" rx="7"/>
+        <text x="165" y="122" text-anchor="middle" class="th">reject fixtures</text>
+        <text x="165" y="140" text-anchor="middle" class="ts">28 files, one broken rule each</text>
+        <path class="a" d="M300,125 H390"/>
+        <path class="a-bad" d="M540,125 H630"/><text x="585" y="117" text-anchor="middle" class="tl t-bad">error</text>
+        <rect class="b" x="630" y="100" width="300" height="50" rx="7"/>
+        <text x="780" y="122" text-anchor="middle" class="th">refused as expected</text>
+        <text x="780" y="140" text-anchor="middle" class="ts">the same rule and the same byte range</text>
+
+        <rect class="b" x="30" y="170" width="270" height="50" rx="7"/>
+        <text x="165" y="192" text-anchor="middle" class="th">spec corpus</text>
+        <text x="165" y="210" text-anchor="middle" class="ts">132 examples read from wiki/spec each run</text>
+        <path class="a" d="M300,195 H390"/>
+        <path class="a" d="M540,195 H630"/><text x="585" y="187" text-anchor="middle" class="tl">tokens</text>
+        <rect class="b" x="630" y="170" width="300" height="50" rx="7"/>
+        <text x="780" y="192" text-anchor="middle" class="th">invariants hold</text>
+        <text x="780" y="210" text-anchor="middle" class="ts">tokens tile the source; each relexes to itself</text>
+
+        <rect class="b" x="30" y="240" width="270" height="50" rx="7"/>
+        <text x="165" y="262" text-anchor="middle" class="th">byte cases</text>
+        <text x="165" y="280" text-anchor="middle" class="ts">28 tests: bad UTF-8, CRLF, control bytes</text>
+        <path class="a" d="M300,265 H390"/>
+        <path class="a" d="M540,265 H630"/><text x="585" y="257" text-anchor="middle" class="tl">either</text>
+        <rect class="b" x="630" y="240" width="300" height="50" rx="7"/>
+        <text x="780" y="262" text-anchor="middle" class="th">matches the prediction</text>
+        <text x="780" y="280" text-anchor="middle" class="ts">kinds and spans written by hand first</text>
+      </svg>
+      </div>
+      <figcaption>The layer is called in-process as a library function, so the lexer's whole suite runs in under 0.2 seconds. The counts are the lexer's; every later layer plugs into the same four lanes. Outside the suite, the lexer also accepts all 19,442 Omega files in V1, and 60,000 random inputs never make it panic.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================== 4. LAYER LOOP ============================== -->
+  <section>
+    <h2><span>5</span>How a layer gets built</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 240" role="img" aria-label="A layer goes from contract to fixtures to implementation to the gate to sign-off. A failed gate returns to implementation. A contract rule with no source in the spec becomes a spec gap, which needs an owner decision before the rule is settled.">
+        <rect class="b" x="20" y="40" width="150" height="60" rx="7"/>
+        <text x="95" y="65" text-anchor="middle" class="th">Contract</text>
+        <text x="95" y="84" text-anchor="middle" class="ts">rules, each with its source</text>
+        <path class="a" d="M170,70 H210"/>
+
+        <rect class="b" x="210" y="40" width="150" height="60" rx="7"/>
+        <text x="285" y="65" text-anchor="middle" class="th">Fixtures</text>
+        <text x="285" y="84" text-anchor="middle" class="ts">accept and reject per rule</text>
+        <path class="a" d="M360,70 H400"/>
+
+        <rect class="b" x="400" y="40" width="150" height="60" rx="7"/>
+        <text x="475" y="65" text-anchor="middle" class="th">Implement</text>
+        <text x="475" y="84" text-anchor="middle" class="ts">one library</text>
+        <path class="a" d="M550,70 H590"/>
+
+        <rect class="b" x="590" y="40" width="150" height="60" rx="7"/>
+        <text x="665" y="65" text-anchor="middle" class="th">Gate</text>
+        <text x="665" y="84" text-anchor="middle" class="ts">tests, corpus, invariant</text>
+        <path class="a" d="M740,70 H780"/>
+
+        <rect class="b-accent" x="780" y="40" width="150" height="60" rx="7"/>
+        <text x="855" y="65" text-anchor="middle" class="th">Sign-off</text>
+        <text x="855" y="84" text-anchor="middle" class="ts">then the next layer starts</text>
+
+        <path class="a-bad" d="M665,100 V132 H475 V100"/><text x="570" y="148" text-anchor="middle" class="tl t-bad">fails</text>
+
+        <path class="a" d="M95,100 V160"/><text x="105" y="135" class="tl">a rule with no source</text>
+        <rect class="b" x="20" y="160" width="150" height="60" rx="7"/>
+        <text x="95" y="185" text-anchor="middle" class="th">Spec gap</text>
+        <text x="95" y="204" text-anchor="middle" class="ts">filed in the root queue</text>
+        <path class="a" d="M170,190 H210"/>
+        <rect class="b" x="210" y="160" width="150" height="60" rx="7"/>
+        <text x="285" y="185" text-anchor="middle" class="th">Owner decision</text>
+        <text x="285" y="204" text-anchor="middle" class="ts">recorded in the spec</text>
+        <path class="a" d="M285,160 V100"/><text x="295" y="135" class="tl">rule settled</text>
+      </svg>
+      </div>
+      <figcaption>The lexer and parser have completed the loop. The resolver suite checks binding across files and packages and all 132 spec fragments. L2 awaits sign-off. When a call has several visible overloads, L3 will select one using the operand types.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================== 5. V1 vs V2 ============================== -->
+  <section>
+    <h2><span>6</span>The Build: what changes from V1</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 380" role="img" aria-label="Left: in V1 and the spec, one Build program is checked a prefix at a time, run, suspended when a dependency or provider arrives, checked further and resumed, in a loop. The product's hand-written source is checked and frozen first so the Build can query it, and generated source is added afterwards as a later stratum that hand-written code cannot call. Right: in V2 a chain of whole programs each runs to completion and hands a plan to the next: a core first stage, the project's build.omg, then the product, which is compiled once.">
+        <rect class="panel" x="15" y="15" width="455" height="350" rx="10"/>
+        <text x="32" y="42" class="tp">V1 and the spec: one Build that suspends</text>
+
+        <rect class="b" x="35" y="65" width="205" height="50" rx="7"/>
+        <text x="137" y="87" text-anchor="middle" class="th">check a prefix</text>
+        <text x="137" y="105" text-anchor="middle" class="ts">of build.omg</text>
+        <path class="a" d="M137,115 V140"/>
+        <rect class="b" x="35" y="140" width="205" height="50" rx="7"/>
+        <text x="137" y="170" text-anchor="middle" class="th">run that prefix</text>
+        <path class="a" d="M137,190 V215"/>
+        <rect class="b" x="35" y="215" width="205" height="50" rx="7"/>
+        <text x="137" y="237" text-anchor="middle" class="th">something arrives</text>
+        <text x="137" y="255" text-anchor="middle" class="ts">a dependency or a provider</text>
+        <path class="a" d="M137,265 V300"/>
+        <rect class="b" x="35" y="300" width="205" height="50" rx="7"/>
+        <text x="137" y="330" text-anchor="middle" class="th">Build returns</text>
+
+        <path class="a-accent" d="M240,240 H258 V102 H240"/>
+        <text x="268" y="160" class="tl t-accent">suspend,</text>
+        <text x="268" y="176" class="tl t-accent">check more,</text>
+        <text x="268" y="192" class="tl t-accent">resume</text>
+
+        <rect class="b" x="280" y="65" width="180" height="50" rx="7"/>
+        <text x="370" y="87" text-anchor="middle" class="th">product source</text>
+        <text x="370" y="105" text-anchor="middle" class="ts">frozen first; the Build queries it</text>
+        <path class="a" d="M280,78 H240"/>
+
+        <rect class="b" x="280" y="300" width="180" height="50" rx="7"/>
+        <text x="370" y="322" text-anchor="middle" class="th">generated source</text>
+        <text x="370" y="340" text-anchor="middle" class="ts">a later stratum</text>
+        <path class="a" d="M240,325 H280"/>
+
+        <path class="a-blocked" d="M420,115 V300"/>
+        <line class="x" x1="413" y1="213" x2="427" y2="227"/><line class="x" x1="427" y1="213" x2="413" y2="227"/>
+        <text x="408" y="252" text-anchor="end" class="tl t-bad">cannot call</text>
+
+        <rect class="panel" x="490" y="15" width="455" height="350" rx="10"/>
+        <text x="507" y="42" class="tp">V2: a chain of whole programs</text>
+
+        <rect class="b" x="540" y="65" width="355" height="60" rx="7"/>
+        <text x="717" y="90" text-anchor="middle" class="th">core first stage</text>
+        <text x="717" y="109" text-anchor="middle" class="ts">given no services; computes and returns a plan</text>
+        <path class="a-accent" d="M717,125 V175"/><text x="728" y="155" class="tl t-accent">plan</text>
+
+        <rect class="b" x="540" y="175" width="355" height="60" rx="7"/>
+        <text x="717" y="200" text-anchor="middle" class="th">the project's build.omg</text>
+        <text x="717" y="219" text-anchor="middle" class="ts">runs to completion with the backings it was given</text>
+        <path class="a-accent" d="M717,235 V285"/><text x="728" y="265" class="tl t-accent">plan</text>
+
+        <rect class="b" x="540" y="285" width="355" height="60" rx="7"/>
+        <text x="717" y="310" text-anchor="middle" class="th">the product</text>
+        <text x="717" y="329" text-anchor="middle" class="ts">compiled once; generated files are ordinary inputs</text>
+      </svg>
+      </div>
+      <figcaption>The loop on the left is what disappears. In V2 a stage starts with its inputs and service backings settled, and anything it discovers or selects goes into the plan for a later compile. Hand-written code may call generated code, because both are inputs to the same compile.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================== 6. INVOCATION ============================== -->
+  <section>
+    <h2><span>7</span>What the command decides<span class="tag">leaning, not decided</span></h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 310" role="img" aria-label="Three chains, each started by the driver reading the command and handing the first stage its input. With omega build, the first stage plans for a build program, which plans for the product. With omega run, the first plan goes straight to the given program with default settings. A single file with two entries is a build program whose plan names the same file again with a different entry.">
+        <text x="20" y="58" class="mono">omega build build.omg</text>
+        <text x="20" y="76" class="ts">a build program, then its product</text>
+        <rect class="b" x="250" y="40" width="140" height="46" rx="7"/>
+        <text x="320" y="60" text-anchor="middle" class="th">driver</text>
+        <text x="320" y="77" text-anchor="middle" class="ts">reads the command</text>
+        <path class="a" d="M390,63 H430"/>
+        <rect class="b" x="430" y="40" width="140" height="46" rx="7"/>
+        <text x="500" y="60" text-anchor="middle" class="th">first stage</text>
+        <text x="500" y="77" text-anchor="middle" class="ts">returns the first plan</text>
+        <path class="a-accent" d="M570,63 H610"/><text x="590" y="55" text-anchor="middle" class="tl t-accent">plan</text>
+        <rect class="b" x="610" y="40" width="140" height="46" rx="7"/>
+        <text x="680" y="60" text-anchor="middle" class="mono">build.omg</text>
+        <text x="680" y="77" text-anchor="middle" class="ts">entry: build</text>
+        <path class="a-accent" d="M750,63 H790"/><text x="770" y="55" text-anchor="middle" class="tl t-accent">plan</text>
+        <rect class="b" x="790" y="40" width="140" height="46" rx="7"/>
+        <text x="860" y="60" text-anchor="middle" class="th">the product</text>
+        <text x="860" y="77" text-anchor="middle" class="ts">entry the build names</text>
+
+        <text x="20" y="148" class="mono">omega run main.omg</text>
+        <text x="20" y="166" class="ts">no build program needed</text>
+        <rect class="b" x="250" y="130" width="140" height="46" rx="7"/>
+        <text x="320" y="150" text-anchor="middle" class="th">driver</text>
+        <text x="320" y="167" text-anchor="middle" class="ts">reads the command</text>
+        <path class="a" d="M390,153 H430"/>
+        <rect class="b" x="430" y="130" width="140" height="46" rx="7"/>
+        <text x="500" y="150" text-anchor="middle" class="th">first stage</text>
+        <text x="500" y="167" text-anchor="middle" class="ts">does the default build</text>
+        <path class="a-accent" d="M570,153 H610"/><text x="590" y="145" text-anchor="middle" class="tl t-accent">plan</text>
+        <rect class="b" x="610" y="130" width="140" height="46" rx="7"/>
+        <text x="680" y="150" text-anchor="middle" class="mono">main.omg</text>
+        <text x="680" y="167" text-anchor="middle" class="ts">entry: main</text>
+        <text x="766" y="150" class="ts">given the default backings,</text>
+        <text x="766" y="166" class="ts">such as a default Console</text>
+
+        <text x="20" y="238" class="mono">omega build tool.omg</text>
+        <text x="20" y="256" class="ts">one file with two entries</text>
+        <rect class="b" x="250" y="220" width="140" height="46" rx="7"/>
+        <text x="320" y="240" text-anchor="middle" class="th">driver</text>
+        <text x="320" y="257" text-anchor="middle" class="ts">reads the command</text>
+        <path class="a" d="M390,243 H430"/>
+        <rect class="b" x="430" y="220" width="140" height="46" rx="7"/>
+        <text x="500" y="240" text-anchor="middle" class="th">first stage</text>
+        <text x="500" y="257" text-anchor="middle" class="ts">returns the first plan</text>
+        <path class="a-accent" d="M570,243 H610"/><text x="590" y="235" text-anchor="middle" class="tl t-accent">plan</text>
+        <rect class="b" x="610" y="220" width="140" height="46" rx="7"/>
+        <text x="680" y="240" text-anchor="middle" class="mono">tool.omg</text>
+        <text x="680" y="257" text-anchor="middle" class="ts">entry: build</text>
+        <path class="a-accent" d="M750,243 H790"/><text x="770" y="235" text-anchor="middle" class="tl t-accent">plan</text>
+        <rect class="b" x="790" y="220" width="140" height="46" rx="7"/>
+        <text x="860" y="240" text-anchor="middle" class="mono">tool.omg</text>
+        <text x="860" y="257" text-anchor="middle" class="ts">entry: main</text>
+        <text x="930" y="292" text-anchor="end" class="ts">same file, compiled once per stage; entry named by identity</text>
+      </svg>
+      </div>
+      <figcaption>The command picks the mode, not the file's name; no file names are blessed and the ones shown are examples. Two entry names are: <code>build</code> and <code>main</code>, because the first stage has to name an entry in a file it cannot import. Every later entry is named by the stage before it and can be called anything. In the last row, <code>main</code> cannot use a package the build discovers or code the build generates, because the whole file is checked in both stages.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================== 7. DRIVER LOOP ============================== -->
+  <section>
+    <h2><span>8</span>One turn of the driver</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 336" role="img" aria-label="The driver takes the plan from the previous stage, compiles the stage in one straight pass through the layers, and runs it in the Terminal Psi interpreter. The plan selects which backings the stage gets, by identity; the invocation separately grants the resources. The stage returns its own plan, which either asks for another stage, looping back, or asks for an artifact, which ends the chain.">
+        <rect class="b" x="490" y="24" width="170" height="50" rx="7"/>
+        <text x="575" y="46" text-anchor="middle" class="th">the invocation</text>
+        <text x="575" y="64" text-anchor="middle" class="ts">command and arguments</text>
+        <path class="a-accent" d="M620,74 V150"/><text x="629" y="120" class="tl t-accent">grants resources</text>
+
+        <rect class="b" x="30" y="150" width="170" height="70" rx="7"/>
+        <text x="115" y="180" text-anchor="middle" class="th">plan</text>
+        <text x="115" y="199" text-anchor="middle" class="ts">from the previous stage</text>
+        <path class="a" d="M200,185 H260"/><text x="230" y="177" text-anchor="middle" class="tl">files</text>
+
+        <rect class="b" x="260" y="150" width="170" height="70" rx="7"/>
+        <text x="345" y="180" text-anchor="middle" class="th">compile the stage</text>
+        <text x="345" y="199" text-anchor="middle" class="ts">L0 to L7, one straight pass</text>
+        <path class="a" d="M430,185 H490"/><text x="460" y="177" text-anchor="middle" class="tl">program</text>
+
+        <rect class="b" x="490" y="150" width="170" height="70" rx="7"/>
+        <text x="575" y="180" text-anchor="middle" class="th">run it</text>
+        <text x="575" y="199" text-anchor="middle" class="ts">Terminal Psi interpreter</text>
+        <path class="a" d="M660,185 H720"/><text x="690" y="177" text-anchor="middle" class="tl">returns</text>
+
+        <rect class="b" x="720" y="150" width="200" height="70" rx="7"/>
+        <text x="820" y="180" text-anchor="middle" class="th">its plan</text>
+        <text x="820" y="199" text-anchor="middle" class="ts">inert data, never code</text>
+
+        <path class="a-accent" d="M115,150 V112 H530 V150"/><text x="322" y="104" text-anchor="middle" class="tl t-accent">selects backings for this stage only, by identity</text>
+
+        <path class="a" d="M770,220 V306 H115 V220"/><text x="442" y="298" text-anchor="middle" class="tl">asks for another stage, with the same grant or less</text>
+
+        <path class="a" d="M880,220 V258"/><text x="872" y="244" text-anchor="end" class="tl">or an artifact</text>
+        <rect class="b" x="800" y="258" width="150" height="44" rx="7"/>
+        <text x="875" y="285" text-anchor="middle" class="th">artifact returned</text>
+      </svg>
+      </div>
+      <figcaption>Two arrows reach "run it", and they are deliberately separate. The plan says which <code>Console</code>; only the invocation says which stream it may write to. A stage with no services therefore cannot hand its successor host access just by naming it. Backings never carry over to a later stage, and a selection the stage never reaches is simply unused. Grants only narrow along the chain: a virtual filesystem is never upgraded to a real one. The very first plan comes from the driver, which reads the command line and is handed the file to start from; no Omega code has to find anything.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================== 7. REFLECTION CHANNEL ============================== -->
+  <section>
+    <h2><span>9</span>How two stages refer to the same declaration</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 290" role="img" aria-label="Stage N imports the Console requirement and the TestConsole implementation into its own universe only to name them. Reflection turns each into an identity, and the plan carries the pair. Stage N plus one has its own copies of both declarations; its compile binds the identities to those copies and checks they match, and a mismatch is an error.">
+        <rect class="panel" x="20" y="20" width="280" height="250" rx="10"/>
+        <text x="36" y="46" class="tp">stage N's universe</text>
+        <rect class="b" x="40" y="70" width="240" height="50" rx="7"/>
+        <text x="160" y="92" text-anchor="middle" class="mono">Console</text>
+        <text x="160" y="110" text-anchor="middle" class="ts">requirement, imported to name it</text>
+        <rect class="b" x="40" y="150" width="240" height="50" rx="7"/>
+        <text x="160" y="172" text-anchor="middle" class="mono">TestConsole</text>
+        <text x="160" y="190" text-anchor="middle" class="ts">implementation, imported to name it</text>
+        <text x="160" y="246" text-anchor="middle" class="ts">naming is not calling</text>
+
+        <path class="a-accent" d="M280,95 L400,128"/>
+        <path class="a-accent" d="M280,175 L400,162"/>
+        <text x="342" y="84" text-anchor="middle" class="tl t-accent">reflect</text>
+
+        <rect class="b-accent" x="400" y="90" width="160" height="110" rx="9"/>
+        <text x="480" y="116" text-anchor="middle" class="th">the plan</text>
+        <text x="480" y="143" text-anchor="middle" class="mono-s">id(Console)</text>
+        <text x="480" y="162" text-anchor="middle" class="mono-s">↔ id(TestConsole)</text>
+        <text x="480" y="187" text-anchor="middle" class="ts">identities, not strings</text>
+
+        <path class="a-accent" d="M560,128 L680,95"/>
+        <path class="a-accent" d="M560,162 L680,175"/>
+        <text x="620" y="84" text-anchor="middle" class="tl t-accent">bind and check</text>
+
+        <rect class="panel" x="660" y="20" width="280" height="250" rx="10"/>
+        <text x="676" y="46" class="tp">stage N+1's universe</text>
+        <rect class="b" x="680" y="70" width="240" height="50" rx="7"/>
+        <text x="800" y="92" text-anchor="middle" class="mono">Console</text>
+        <text x="800" y="110" text-anchor="middle" class="ts">its own copy</text>
+        <rect class="b" x="680" y="150" width="240" height="50" rx="7"/>
+        <text x="800" y="172" text-anchor="middle" class="mono">TestConsole</text>
+        <text x="800" y="190" text-anchor="middle" class="ts">its own copy, now the backing</text>
+        <text x="800" y="246" text-anchor="middle" class="ts t-bad">a mismatch is an error</text>
+      </svg>
+      </div>
+      <figcaption>Each stage checks its own copy of a file. L2 identifies the owning declaration and preserves argument expressions. After typing and evaluation, a stage can save the closed identity. Buffer&lt;8&gt; and Buffer&lt;4 + 4&gt; then identify the same application.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================== 8. REPOSITORY ============================== -->
+  <section>
+    <h2><span>10</span>What is in the repository</h2>
+    <figure>
+      <div class="scroll">
+      <svg viewBox="0 0 960 310" role="img" aria-label="The repository holds the spec under wiki/spec, two test tools, the lexer layer and PLAN.md. The lexer's contract cites the spec. Its tests call the lexer, use the golden tool to compare output with expected files, and use the spec-corpus tool, which reads the spec's examples at test time. PLAN.md lists six departures from the spec.">
+        <path class="a" d="M610,88 H545 V35 H120 V60"/><text x="332" y="28" text-anchor="middle" class="tl">cites</text>
+
+        <rect class="b" x="30" y="60" width="180" height="60" rx="7"/>
+        <text x="120" y="85" text-anchor="middle" class="mono">wiki/spec</text>
+        <text x="120" y="104" text-anchor="middle" class="ts">the reference: 104 files</text>
+
+        <rect class="b" x="300" y="60" width="200" height="60" rx="7"/>
+        <text x="400" y="85" text-anchor="middle" class="mono">tools/spec-corpus</text>
+        <text x="400" y="104" text-anchor="middle" class="ts">pulls the examples out</text>
+        <path class="a" d="M300,90 H210"/><text x="255" y="82" text-anchor="middle" class="tl">reads</text>
+
+        <rect class="b" x="300" y="220" width="200" height="60" rx="7"/>
+        <text x="400" y="245" text-anchor="middle" class="mono">tools/golden</text>
+        <text x="400" y="264" text-anchor="middle" class="ts">compares output to expected files</text>
+
+        <rect class="b" x="30" y="220" width="180" height="60" rx="7"/>
+        <text x="120" y="245" text-anchor="middle" class="mono">PLAN.md</text>
+        <text x="120" y="264" text-anchor="middle" class="ts">decisions, gaps, status</text>
+        <path class="a" d="M120,220 V120"/><text x="130" y="175" class="tl">lists 9 departures</text>
+
+        <rect class="panel" x="590" y="40" width="350" height="250" rx="10"/>
+        <text x="606" y="64" class="tp">layers/00-lexer</text>
+
+        <rect class="b" x="610" y="75" width="310" height="50" rx="7"/>
+        <text x="765" y="97" text-anchor="middle" class="mono">CONTRACT.md</text>
+        <text x="765" y="115" text-anchor="middle" class="ts">17 rules, each with its source</text>
+
+        <rect class="b" x="610" y="145" width="310" height="50" rx="7"/>
+        <text x="765" y="167" text-anchor="middle" class="mono">tests + fixtures</text>
+        <text x="765" y="185" text-anchor="middle" class="ts">35 fixtures, 28 byte cases, corpus, random</text>
+        <path class="a" d="M765,195 V220"/><text x="775" y="212" class="tl">calls</text>
+
+        <rect class="b-done" x="610" y="220" width="310" height="50" rx="7"/>
+        <text x="765" y="242" text-anchor="middle" class="mono">src</text>
+        <text x="765" y="260" text-anchor="middle" class="ts">lex(bytes): tokens, or one error</text>
+
+        <path class="a" d="M610,160 H570 V105 H500"/><text x="535" y="121" text-anchor="middle" class="tl">uses</text>
+        <path class="a" d="M610,180 H570 V250 H500"/><text x="535" y="243" text-anchor="middle" class="tl">uses</text>
+      </svg>
+      </div>
+      <figcaption>Every later layer gets a folder shaped like <code>layers/00-lexer</code> and reuses the two tools. <code>layers/01-parser</code> checks its grammar against 125 whole-file fixtures.</figcaption>
+    </figure>
+  </section>
+</main>
+</body>
+</html>

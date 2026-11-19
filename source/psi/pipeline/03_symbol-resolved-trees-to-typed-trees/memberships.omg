@@ -3,35 +3,35 @@
 // membership names a case of the value's data, through references, and a
 // declared domain's carrier is the value's carrier. Joined domains (`&`,
 // `|`) bind no domain at resolution yet.
-public machine type_membership(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression)
+public machine type_membership(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
-    let value_type: u64 in Trapping = typing_expression_type(&typer.output, expression.left);
+    let value_type: u64 in Trapping = typing_expression_type(@typer.output, expression.left);
     let base: u64 in Trapping = typer_referent(typer, value_type);
-    let row: TypeRow = type_table_row(&typer.output.types, base);
+    let row: TypeRow = type_table_row(@typer.output.types, base);
     let boolean: u64 in Trapping = typer.output.boolean;
-    set_expression_type(&mut typer.output, index, boolean);
+    set_expression_type(@mut typer.output, index, boolean);
     let binding: ValueBinding = value_binding(resolution, index);
     transition value_type > 0 {
         true -> classified(typer, syntax, resolution, expression, row, binding)
         _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::NotAValue)
     }
 
-    machine classified(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, row: TypeRow, binding: ValueBinding) {
+    machine classified(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, expression: Expression, row: TypeRow, binding: ValueBinding) {
         transition binding {
             ValueBinding::DataCase { item, data_case } -> case(typer, syntax, expression, row, item)
             _ -> domain(typer, syntax, resolution, expression, row)
         }
     }
 
-    machine case(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
+    machine case(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
         transition row.kind == TypeKind::Data && row.item == item {
             true -> done()
             _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::CaseOfOtherData)
         }
     }
 
-    machine domain(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, expression: Expression, row: TypeRow) {
+    machine domain(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, expression: Expression, row: TypeRow) {
         let path: PathBinding = path_binding_at(resolution, expression.first);
         transition path {
             PathBinding::Domain { item } -> declared(typer, syntax, expression, row, item)
@@ -39,20 +39,20 @@ crashes Trap
         }
     }
 
-    machine declared(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
+    machine declared(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
         let declaration: DomainItem = syntax_trees_domain_item(syntax, item);
-        let carrier: u64 in Trapping = reference_type(&typer.output, declaration.carrier);
-        let carrier_row: TypeRow = type_table_row(&typer.output.types, carrier);
-        let same: bool = same_carrier(&typer.output.types, carrier_row, row);
+        let carrier: u64 in Trapping = reference_type(@typer.output, declaration.carrier);
+        let carrier_row: TypeRow = type_table_row(@typer.output.types, carrier);
+        let same: bool = same_carrier(@typer.output.types, carrier_row, row);
         transition same {
             true -> done()
             _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::MismatchedTypes)
         }
     }
 
-    machine rejected(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, code: TypeDiagnosticCode) {
+    machine rejected(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, code: TypeDiagnosticCode) {
         let value: Expression = syntax_trees_expression(syntax, expression.left);
-        typing_reject(&mut typer.output, code, value.source_span);
+        typing_reject(@mut typer.output, code, value.source_span);
     }
 
     machine done() {}

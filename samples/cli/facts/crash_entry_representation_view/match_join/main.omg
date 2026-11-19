@@ -9,7 +9,7 @@ crashes Trap value == 0
 public machine read_bits(value: u64, flag: bool) -> i64
 requires value == 7
 {
-    let view: &i64 = &value as &i64;
+    let view: @i64 = @value as @i64;
     let viewed: i64 = view;
     let observed: i64 = match flag { true -> viewed, false -> viewed };
     maybe_zero(observed)

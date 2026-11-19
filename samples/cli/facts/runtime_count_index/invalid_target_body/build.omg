@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "runtime_count_index_target_body_out_of_bounds");
     Build::bind(builder, macos_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);

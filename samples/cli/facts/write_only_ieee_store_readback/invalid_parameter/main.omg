@@ -2,12 +2,12 @@
 // Invalid: the store observes the write-only referent. Place: parameter.
 // Expected diagnostic: reads write-only parameter
 
-machine store(r: &write f64) { r = 6.0 / 8.0; let _x: f64 = r; }
+machine store(r: @write f64) { r = 6.0 / 8.0; let _x: f64 = r; }
 machine compare(v: f64) -> bool { v == 0.75 }
 
 machine main() crashes Trap {
     let mut slot: f64;
-    store(&write slot);
+    store(@write slot);
     transition compare(slot) { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

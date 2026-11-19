@@ -161,6 +161,7 @@ data OmegaPunctuationKind {
     case Semicolon;
     case Slash;
     case Tilde;
+    case At;
 }
 
 data OmegaTokenKind {

@@ -19031,9 +19031,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
       "item": "impl:AcceptedDeclarations < 'module >::implementation#1",
       "kind": "definition",
-      "meaning": "Implement package review provider contracts operations on AcceptedDeclarations < 'module >.",
+      "meaning": "Find the original accepted declarations for the boundaries and services used by selected providers.",
       "producer": "package review provider contracts",
-      "signature": "d775ee15acdc41d810134f61efed6aea643c32d5214578f2bce5e9967b14126d"
+      "signature": "263f5c86a5968ef027746f1ca5aa273d855bafda4aca05da019c2b307bf7af84"
     },
     {
       "consumers": [
@@ -19065,11 +19065,23 @@
         "permission admission"
       ],
       "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
+      "item": "impl:AcceptedDeclarations < 'module >::method:source_service#1",
+      "kind": "definition",
+      "meaning": "Find the original accepted trait declaration for an exact service ID.",
+      "producer": "package review provider contracts",
+      "signature": "ccc2c4ba336db5cf6207ba67dd9d83957e96c394af322a628f71ed8e26711d38"
+    },
+    {
+      "consumers": [
+        "package policy assembly",
+        "permission admission"
+      ],
+      "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
       "item": "impl:AcceptedDeclarations < 'module >::method:source_service_names#1",
       "kind": "definition",
-      "meaning": "Map service IDs to sorted names through original checked service declarations.",
+      "meaning": "Resolve original service declarations and sort the requested names for comparison with the provider contract.",
       "producer": "package review provider contracts",
-      "signature": "94c022715c39149ab9533ced211f6ce5805bdc480b3368ec10ba1dc2d5d88f55"
+      "signature": "808c9bc95a4fae706f9c87cb45816e17e4262b041c644da80481cd2a14afda97"
     },
     {
       "consumers": [
@@ -19094,6 +19106,30 @@
       "meaning": "Read the implementing package, qualified provider identity, declaring service package and original service path from an authored Build choice.",
       "producer": "package review provider contracts",
       "signature": "f474620cb977fd3e3927c6c3a81480e7102771d01c485d2204de85960df4e595"
+    },
+    {
+      "consumers": [
+        "package policy assembly",
+        "permission admission"
+      ],
+      "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
+      "item": "impl:PolicySource < '_ >::checked_method::use:declaration_contracts :: service_surface :: ServiceSynchronousInvocation#1",
+      "kind": "definition",
+      "meaning": "Use the declaration contract's invocation targets when comparing the provider method with its checked boundary.",
+      "producer": "package review provider contracts",
+      "signature": "4f15a9a03a69fbc89c5a4acdef8c5fe4c79092e33cf2aca3a774155fe0ccad30"
+    },
+    {
+      "consumers": [
+        "package policy assembly",
+        "permission admission"
+      ],
+      "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
+      "item": "impl:PolicySource < '_ >::checked_method::use:terminal_psi :: TerminalCallableInvocation#1",
+      "kind": "definition",
+      "meaning": "Read the checked boundary's exact service IDs and callable parameter positions.",
+      "producer": "package review provider contracts",
+      "signature": "ba3fdc88e70c5b24c2be6c252b0a024a9b3b1bae7db5addcda96e60747304d57"
     },
     {
       "consumers": [
@@ -19127,9 +19163,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
       "item": "impl:PolicySource < '_ >::implementation#1",
       "kind": "definition",
-      "meaning": "Implement package review provider contracts operations on PolicySource < '_ >.",
+      "meaning": "Recover selected provider contracts from checked Build choices, their source declarations and their Terminal Psi boundaries.",
       "producer": "package review provider contracts",
-      "signature": "07436e0438ab3b074390bfc35cff4406d7590751a9852085caf9e4edbdd84cc4"
+      "signature": "3766e7a65e06ca03f9ccb8da28dcdb986804c8fc3e3a72f582a001d12e7a7398"
     },
     {
       "consumers": [
@@ -19151,9 +19187,9 @@
       "file": "omega-rust/omega/packages/review-evidence/src/capture/providers.rs",
       "item": "impl:PolicySource < '_ >::method:checked_method#1",
       "kind": "checker",
-      "meaning": "Verify the source service method\u2019s exact owning service, published effects, completion and callable signature.",
+      "meaning": "Verify the provider method against its checked boundary, including which callable parameters or named services it may invoke.",
       "producer": "package review provider contracts",
-      "signature": "46dcd573728a4ed5ba9fb063686ee0cbda7dda696e770f79e195c2d7512414a5"
+      "signature": "5786f7c1cbf58877e7f68436c9bab33cb94cf3684b5dcd94468e5d692e6161b2"
     },
     {
       "consumers": [

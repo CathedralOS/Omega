@@ -19,7 +19,7 @@ public data RepresentationRequest<Value, Resources> {
     resources: Resources;
 }
 public data RepresentationDecodeRequest<'frame, Frame, Resources> {
-    frame: &'frame Frame;
+    frame: @'frame Frame;
     resources: Resources;
 }
 public data RepresentationError<EncodingError, DecodingError> {
@@ -30,11 +30,11 @@ public data RepresentationError<EncodingError, DecodingError> {
 // The model observes a borrowed frame and value without cloning either owner.
 // Its uniqueness law gives semantic identity, not resource or storage authority.
 public trait RepresentationModel<Value, Frame> {
-    machine valid<'view>(frame: &'view Frame) -> bool
+    machine valid<'view>(frame: @'view Frame) -> bool
     reaches none terminates;
-    machine represents<'view, 'value>(frame: &'view Frame, value: &'value Value) -> bool
+    machine represents<'view, 'value>(frame: @'view Frame, value: @'value Value) -> bool
     reaches none terminates;
-    machine unique<'view, 'left, 'right>(frame: &'view Frame, left: &'left Value, right: &'right Value)
+    machine unique<'view, 'left, 'right>(frame: @'view Frame, left: @'left Value, right: @'right Value)
     reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
@@ -45,13 +45,13 @@ public trait RepresentationModel<Value, Frame> {
 // successful echo cannot establish encoding coverage or frame validity.
 public trait RepresentationEncoding<'value, Value, Resources, Frame, Error,
     Model satisfies RepresentationModel<Value, Frame>> =
-    TryFrom<RepresentationRequest<&'value Value, Resources>, Frame, Error>
+    TryFrom<RepresentationRequest<@'value Value, Resources>, Frame, Error>
 {
     machine TryFrom::try_from
     terminates
     ensures result in Result::Ok
-    ensures Model::valid(&result.value)
-    ensures Model::represents(&result.value, source.value);
+    ensures Model::valid(@result.value)
+    ensures Model::represents(@result.value, source.value);
 }
 
 // Decoding borrows its frame and receives any materialization resources
@@ -64,7 +64,7 @@ public trait RepresentationDecoding<'frame, Value, Resources, Frame, Error,
     machine TryFrom::try_from
     terminates
     ensures Model::valid(source.frame) == (result in Result::Ok)
-    ensures (result in Result::Err) || Model::represents(source.frame, &result.value.value);
+    ensures (result in Result::Err) || Model::represents(source.frame, @result.value.value);
 }
 
 // This trait groups the checked encoder, decoder and their shared model.

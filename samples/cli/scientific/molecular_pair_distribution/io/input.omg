@@ -13,7 +13,7 @@ public data Token {
     case Number(value: i32);
 }
 // The caller sets a 32768-byte budget; exhaustion is distinct from real EOF.
-machine next_byte(reader: &mut InputReader) -> ByteRead reaches Console
+machine next_byte(reader: @mut InputReader) -> ByteRead reaches Console
 invokes Console
 blocks
 crashes Trap
@@ -23,7 +23,7 @@ crashes Trap
         ByteRead::Eof -> ByteRead::Eof
         ByteRead::Byte { value } -> capacity(reader, value)
     }
-    machine capacity(reader: &mut InputReader, value: i32) -> ByteRead
+    machine capacity(reader: @mut InputReader, value: i32) -> ByteRead
     requires value >= 0 && value <= 255
     {
         transition reader.remaining > 0 {
@@ -31,50 +31,50 @@ crashes Trap
             _ -> limit(reader)
         }
     }
-    machine consume(reader: &mut InputReader, value: i32) -> ByteRead
+    machine consume(reader: @mut InputReader, value: i32) -> ByteRead
     requires value >= 0 && value <= 255
     {
         reader.remaining = reader.remaining - 1;
         ByteRead::Byte { value: value }
     }
-    machine limit(reader: &mut InputReader) -> ByteRead {
+    machine limit(reader: @mut InputReader) -> ByteRead {
         reader.exhausted = true;
         ByteRead::Eof
     }
 }
-public machine token(reader: &mut InputReader) -> Token reaches Console
+public machine token(reader: @mut InputReader) -> Token reaches Console
 invokes Console
 blocks
 crashes Trap
 {
     transition { _ -> block skip(reader) }
-    machine skip(reader: &mut InputReader) -> Token {
+    machine skip(reader: @mut InputReader) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
             ByteRead::Eof -> Token::End
             ByteRead::Byte { value } -> block first(reader, value)
         }
     }
-    machine first(reader: &mut InputReader, byte: i32) -> Token {
+    machine first(reader: @mut InputReader, byte: i32) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> block skip(reader)
             _ -> block sign(reader, byte)
         }
     }
-    machine sign(reader: &mut InputReader, byte: i32) -> Token {
+    machine sign(reader: @mut InputReader, byte: i32) -> Token {
         transition byte == 45 {
             true -> block next(reader, 0, 0, true)
             _ -> block digit(reader, byte, 0, 0, false)
         }
     }
-    machine digit(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine digit(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                 digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 7 {
             true -> block accumulate(reader, byte, magnitude, digits, negative)
             _ -> Token::Invalid
         }
     }
-    machine accumulate(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine accumulate(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                      digits: i32 in Wrapping, negative: bool) -> Token {
         let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
         transition updated <= 1000000 {
@@ -82,7 +82,7 @@ crashes Trap
             _ -> Token::Invalid
         }
     }
-    machine next(reader: &mut InputReader, magnitude: i32 in Wrapping,
+    machine next(reader: @mut InputReader, magnitude: i32 in Wrapping,
                digits: i32 in Wrapping, negative: bool) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
@@ -90,7 +90,7 @@ crashes Trap
             ByteRead::Byte { value } -> block delimiter(reader, value, magnitude, digits, negative)
         }
     }
-    machine delimiter(reader: &mut InputReader, byte: i32, magnitude: i32 in Wrapping,
+    machine delimiter(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                     digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
             true -> finish(magnitude, digits, negative)

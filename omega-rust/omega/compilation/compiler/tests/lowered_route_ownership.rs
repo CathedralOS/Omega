@@ -601,12 +601,12 @@ fn constructor_assignments_keep_the_referent_type_and_reference_access() {
 data Item { value: u32; }
 data Choice [copy] { case First; case Second(value: u32); }
 domain [u8]::Tagged requires valid_utf8(self);
-data Text<'text> { bytes: &'text [u8] in Tagged; }
-machine replace(item: &mut Item, choice: &mut Choice) {
+data Text<'text> { bytes: @'text [u8] in Tagged; }
+machine replace(item: @mut Item, choice: @mut Choice) {
     item = Item { value: 7 };
     choice = Choice::Second { value: 11 };
 }
-machine replace_text<'text>(text: &mut Text<'text>) {
+machine replace_text<'text>(text: @mut Text<'text>) {
     text.bytes = "later" as +Tagged;
 }
 machine chosen(choice: Choice) -> bool {
@@ -619,8 +619,8 @@ machine main() crashes Trap {
     let mut item: Item = Item { value: 1 };
     let mut choice: Choice = Choice::First {};
     let mut text: Text = Text { bytes: "before" as +Tagged };
-    replace(&mut item, &mut choice);
-    replace_text(&mut text);
+    replace(@mut item, @mut choice);
+    replace_text(@mut text);
     transition item.value == 7 && chosen(choice) && text.bytes.len == 5 {
         true -> done()
         false -> bad()
@@ -631,7 +631,7 @@ machine main() crashes Trap {
 "#;
     for shared in [false, true] {
         let source = if shared {
-            source.replace("item: &mut Item", "item: &Item")
+            source.replace("item: @mut Item", "item: @Item")
         } else {
             source.to_owned()
         };

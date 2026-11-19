@@ -3,7 +3,7 @@
 public boundary trait Scheduler { machine park() reaches suspends crashes none; }
 public Immediate satisfies Scheduler { machine park() {} }
 data Cell { value: i32; }
-data Message<'view> { left: i32; body: &'view Cell; right: i32; }
+data Message<'view> { left: i32; body: @'view Cell; right: i32; }
 // The canaries beside the transported descriptor must survive with it.
 machine read(message: Message) -> i32 {
     transition message.left == 5 && message.right == 9 { true -> message.body.value _ -> 0 }
@@ -15,7 +15,7 @@ boundary trait SelectedTransport {
 X86Transport satisfies SelectedTransport {
     machine transport(tag: u64) -> i32 reaches Scheduler suspends {
         let cell: Cell = Cell { value: 73 };
-        let reference: &Cell = &cell;
+        let reference: @Cell = @cell;
         let message: Message = Message { left: 5, body: reference, right: 9 };
         suspend Scheduler::park();
         transition tag == 17u64 { true -> read(message) _ -> 0 }
@@ -24,7 +24,7 @@ X86Transport satisfies SelectedTransport {
 ArmTransport satisfies SelectedTransport {
     machine transport(tag: u64) -> i32 reaches Scheduler suspends {
         let cell: Cell = Cell { value: 73 };
-        let reference: &Cell = &cell;
+        let reference: @Cell = @cell;
         let message: Message = Message { left: 5, body: reference, right: 9 };
         suspend Scheduler::park();
         transition tag == 29u64 { true -> read(message) _ -> 0 }

@@ -5,6 +5,7 @@ pub enum PunctuationKind {
     Ampersand,
     AndAnd,
     Apostrophe,
+    At,
     Arrow,
     Asterisk,
     Caret,
@@ -168,6 +169,7 @@ define_punctuation! {
         (">=", GreaterEqual),
         (">", Greater),
     ],
+    b'@' => [("@", At)],
     b'&' => [
         ("&&", AndAnd),
         ("&", Ampersand),

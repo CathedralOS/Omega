@@ -143,7 +143,7 @@ fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
 
     let ordinary = r#"
         data Join { value: i32; }
-        machine Join::join(join: &Join) -> i32 {
+        machine Join::join(join: @Join) -> i32 {
             transition { _ -> join.value }
         }
     "#;
@@ -267,7 +267,7 @@ fn boundary_data_parses_as_an_opaque_carrier_without_a_shape() {
 fn parses_plain_and_boundary_traits() {
     let source = r#"
         trait Drawable<Shape> {
-            machine draw(value: &Shape, canvas: &mut Canvas);
+            machine draw(value: @Shape, canvas: @mut Canvas);
         }
 
         boundary trait Console {
@@ -444,7 +444,7 @@ fn parses_machine_requires_before_reaches_on_one_line() {
     let source = r#"
         data App { a: u32; b: u32; }
 
-        machine App::main(app: &mut App) requires app.a <= app.b reaches Console {
+        machine App::main(app: @mut App) requires app.a <= app.b reaches Console {
         }
         "#;
 
@@ -469,25 +469,25 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
     let source = r#"
         data App { a: u32; b: u32; }
 
-        machine App::reaches_then_requires(app: &mut App) reaches Console requires app.a <= app.b {
+        machine App::reaches_then_requires(app: @mut App) reaches Console requires app.a <= app.b {
         }
-        machine App::requires_semicolon_reaches(app: &mut App) requires app.a <= app.b reaches Console {
+        machine App::requires_semicolon_reaches(app: @mut App) requires app.a <= app.b reaches Console {
         }
-        machine App::requires_newline_reaches(app: &mut App)
+        machine App::requires_newline_reaches(app: @mut App)
             requires app.a <= app.b
             reaches Console {
         }
-        machine App::requires_only(app: &mut App) requires app.a <= app.b {
+        machine App::requires_only(app: @mut App) requires app.a <= app.b {
         }
-        machine App::reaches_only(app: &mut App) reaches Console {
+        machine App::reaches_only(app: @mut App) reaches Console {
         }
-        machine App::bare(app: &mut App) {
+        machine App::bare(app: @mut App) {
         }
-        machine App::predicate_then_reaches(app: &mut App) ensures app.a settled reaches Console {
+        machine App::predicate_then_reaches(app: @mut App) ensures app.a settled reaches Console {
         }
 
         trait Visitor<Visited> {
-            machine visit(value: &mut Visited) requires value.a <= value.b reaches Console;
+            machine visit(value: @mut Visited) requires value.a <= value.b reaches Console;
         }
         "#;
 
@@ -657,8 +657,8 @@ fn parses_guarded_crash_bucket_on_operator_contract() {
 fn parses_fixed_operator_tokens_in_declaration_heads() {
     let source = r#"
         public operator + add(left: i32, right: i32) -> i32;
-        boundary operator [] Slice::index(items: &[u8], index: u64) -> u8;
-        boundary operator [..] Slice::range(items: &[u8], start: u64, end: u64) -> &[u8];
+        boundary operator [] Slice::index(items: @[u8], index: u64) -> u8;
+        boundary operator [..] Slice::range(items: @[u8], start: u64, end: u64) -> @[u8];
         operator named(left: i32, right: i32) -> i32;
     "#;
     let parsed = crate::tests::parse_source(source, "fixed-token heads should parse");
@@ -793,7 +793,7 @@ fn rejects_retired_provider_item_and_operator_clause() {
     crate::tests::expect_error(&error, "expected one of");
 
     let tokens = Lexer::new(
-        "boundary operator [] Slice::index(items: &[u8], index: u64) -> u8 provider Slice;",
+        "boundary operator [] Slice::index(items: @[u8], index: u64) -> u8 provider Slice;",
     )
     .tokenize()
     .expect("tokenize should succeed");

@@ -22,27 +22,27 @@
 // the target; changing signedness can narrow a range despite increasing width.
 
 machine numeric_conversion_signed_bits(value: i64) -> u64 {
-    let bits: &u64 = &value as &u64;
+    let bits: @u64 = @value as @u64;
     bits
 }
 
 machine numeric_conversion_signed_8(bits: u8) -> i8 {
-    let value: &i8 = &bits as &i8;
+    let value: @i8 = @bits as @i8;
     value
 }
 
 machine numeric_conversion_signed_16(bits: u16) -> i16 {
-    let value: &i16 = &bits as &i16;
+    let value: @i16 = @bits as @i16;
     value
 }
 
 machine numeric_conversion_signed_32(bits: u32) -> i32 {
-    let value: &i32 = &bits as &i32;
+    let value: @i32 = @bits as @i32;
     value
 }
 
 machine numeric_conversion_signed_64(bits: u64) -> i64 {
-    let value: &i64 = &bits as &i64;
+    let value: @i64 = @bits as @i64;
     value
 }
 

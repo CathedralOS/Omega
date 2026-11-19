@@ -38,7 +38,7 @@ data Main {
 
 // Recursive value-returning machine: sum all elements in slice s.
 // The guard `s.len > 0` proves bounds for both s[0] and s[1..].
-machine sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+machine sum(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
@@ -48,7 +48,7 @@ terminates by s -> Slice::Length
 }
 
 // Recursive value-returning machine: count elements in slice s.
-machine count(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+machine count(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
@@ -57,7 +57,7 @@ terminates by s -> Slice::Length
     }
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("recursive_sum: recursive slice sum + count via value-returning machines");
     // Initialize the array elements.
     main.arr[0] = 5 as +Wrapping;
@@ -66,7 +66,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     main.arr[3] = 20 as +Wrapping;
 
     // Compute sum via recursive value-returning call.
-    let s: &[i32 in Wrapping] = &main.arr[..];
+    let s: @[i32 in Wrapping] = @main.arr[..];
     let sum_result: i32 = sum(s, 0 as +Wrapping);
 
     // Check sum == 50 directly on the local.
@@ -75,16 +75,16 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block bad_sum(main)
     }
 
-    machine bad_sum(main: &mut Main) {
+    machine bad_sum(main: @mut Main) {
         Console::write_line("FAIL: recursive sum did not equal 50 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
-    machine check_count(main: &mut Main) {
+    machine check_count(main: @mut Main) {
         // Compute count via recursive value-returning call.
-        let s2: &[i32 in Wrapping] = &main.arr[..];
+        let s2: @[i32 in Wrapping] = @main.arr[..];
         let cnt: i32 = count(s2, 0 as +Wrapping);
 
         // Check element count == 4.
@@ -94,17 +94,17 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine bad_count(main: &mut Main) {
+    machine bad_count(main: @mut Main) {
         Console::write_line("FAIL: recursive count did not equal 4 (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: sum=50 and count=4 both verified (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 }
@@ -112,5 +112,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

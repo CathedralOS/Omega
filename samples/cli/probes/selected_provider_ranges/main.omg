@@ -2,21 +2,21 @@
 // Target-scoped implementations retain a requirement signature at selection.
 // Range operands still evaluate into the same access-preserving view values.
 boundary trait ByteObserver {
-    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 reaches crashes none;
-    machine observe(bytes: &[u8], destination: &mut Observation) reaches crashes none;
+    machine count(prefix: u64, bytes: @[u8], suffix: u64) -> u64 reaches crashes none;
+    machine observe(bytes: @[u8], destination: @mut Observation) reaches crashes none;
 }
 data Observation [copy] { count: u64; }
 Selected satisfies ByteObserver {
-    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 { validated_count(prefix, bytes, suffix) }
-    machine observe(bytes: &[u8], destination: &mut Observation) { destination.count = validated_count(17, bytes, 23); }
+    machine count(prefix: u64, bytes: @[u8], suffix: u64) -> u64 { validated_count(prefix, bytes, suffix) }
+    machine observe(bytes: @[u8], destination: @mut Observation) { destination.count = validated_count(17, bytes, 23); }
 }
 
-machine validated_count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
+machine validated_count(prefix: u64, bytes: @[u8], suffix: u64) -> u64 {
     transition prefix == 17 && suffix == 23 { true -> window(bytes) false -> (255) }
-    machine window(bytes: &[u8]) -> u64 {
+    machine window(bytes: @[u8]) -> u64 {
         transition bytes.len > 0 { true -> first(bytes) false -> (0) }
     }
-    machine first(bytes: &[u8]) -> u64 requires bytes.len > 0 {
+    machine first(bytes: @[u8]) -> u64 requires bytes.len > 0 {
         transition bytes[0] == 41 { true -> (bytes.len) false -> (255) }
     }
 }
@@ -24,19 +24,19 @@ machine validated_count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
 data Payload [copy] { bytes: [u8; 8]; length: u64; }
 data CountResult { case Error; case Ok(count: u64); }
 data Sequence [copy] { digits: u64 in Wrapping; }
-machine ordered_prefix(sequence: &mut Sequence) -> u64 {
+machine ordered_prefix(sequence: @mut Sequence) -> u64 {
     sequence.digits = sequence.digits * 10 + 1;
     17
 }
-machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0 {
+machine range_start(sequence: @mut Sequence) -> u64 ensures result == 0 {
     sequence.digits = sequence.digits * 10 + 2;
     0
 }
-machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3 {
+machine range_end(sequence: @mut Sequence) -> u64 ensures result == 3 {
     sequence.digits = sequence.digits * 10 + 3;
     3
 }
-machine ordered_suffix(sequence: &mut Sequence) -> u64 {
+machine ordered_suffix(sequence: @mut Sequence) -> u64 {
     sequence.digits = sequence.digits * 10 + 4;
     23
 }
@@ -44,9 +44,9 @@ machine from_ordered(payload: Payload) -> CountResult {
     let mut sequence: Sequence;
     sequence.digits = 0;
     let count: u64 = Selected::count(
-        ordered_prefix(&mut sequence),
-        payload.bytes[range_start(&mut sequence)..range_end(&mut sequence)],
-        ordered_suffix(&mut sequence)
+        ordered_prefix(@mut sequence),
+        payload.bytes[range_start(@mut sequence)..range_end(@mut sequence)],
+        ordered_suffix(@mut sequence)
     );
     transition count == 3 && sequence.digits == 1234 {
         true -> CountResult::Ok { count: count }
@@ -59,24 +59,24 @@ requires payload.length <= payload.bytes.len
 {
     let count: u64 = Selected::count(17, payload.bytes[0..payload.length], 23);
     let mut observed: Observation;
-    Selected::observe(payload.bytes[0..payload.length], &mut observed);
+    Selected::observe(payload.bytes[0..payload.length], @mut observed);
     transition count == observed.count {
         true -> CountResult::Ok { count: count }
         false -> CountResult::Error
     }
 }
-machine from_borrowed(payload: &Payload) -> CountResult
+machine from_borrowed(payload: @Payload) -> CountResult
 requires payload.length <= payload.bytes.len
 {
     transition { _ -> inspect(payload) }
-    machine inspect(payload: &Payload) -> CountResult
+    machine inspect(payload: @Payload) -> CountResult
     requires payload.length <= payload.bytes.len
     {
         let count: u64 = ByteObserver::count<Selected>(17, payload.bytes[0..payload.length], 23);
         CountResult::Ok { count: count }
     }
 }
-machine from_view(bytes: &[u8]) -> CountResult {
+machine from_view(bytes: @[u8]) -> CountResult {
     let count: u64 = Selected::count(17, bytes[0..bytes.len], 23);
     CountResult::Ok { count: count }
 }
@@ -92,7 +92,7 @@ machine main() crashes Trap {
     machine borrowed(payload: Payload, previous: u64)
     requires payload.length == 3
     {
-        let result: CountResult = from_borrowed(&payload);
+        let result: CountResult = from_borrowed(@payload);
         transition result {
             CountResult::Error -> wrong()
             CountResult::Ok { count } -> view(payload, previous, count)

@@ -372,8 +372,8 @@ use omega::language::core::reflect;
 use omega::language::core::reflect::TypeSchema;
 ScalarAccess satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        let mut plan: AccessPlan = access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(issue)] });
-        access::allow_readers(&mut plan, AccessRegion::Subject { schema: schema }, [reflect::callable(issue)]);
+        let mut plan: AccessPlan = access::new_plan(@schema, Issuance::Only { routes: [reflect::callable(issue)] });
+        access::allow_readers(@mut plan, AccessRegion::Subject { schema: schema }, [reflect::callable(issue)]);
         plan
     }
 }

@@ -12,7 +12,7 @@ use omega::language::core::narrow_u64_to_i32_exact;
 use omega::language::core::narrow_i32_to_u64_exact;
 use omega::language::core::narrow_i64_to_u64_wrapping;
 
-machine windows_filesystem_native_directory_nth(path: &[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
+machine windows_filesystem_native_directory_nth(path: @[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
     transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block query(handle, ordinal) false -> (windows_directory_entry_error()) }
@@ -42,9 +42,9 @@ machine windows_directory_select(handle: i64 in WindowsPrivateNonalertFileOrAbse
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
     let mut output: WindowsNativeDirectoryEntryInfo;
-    transition { _ -> block next(handle, ordinal, &mut output, 0) }
+    transition { _ -> block next(handle, ordinal, @mut output, 0) }
     machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
-        output: &mut WindowsNativeDirectoryEntryInfo, position: u64) -> WindowsDirectoryEntryResult
+        output: @mut WindowsNativeDirectoryEntryInfo, position: u64) -> WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         let step: WindowsDirectoryStep = block windows_directory_next_entry(handle, output, 0);
         transition step {
@@ -54,7 +54,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
         }
     }
     machine name(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
-        output: &mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
+        output: @mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         transition windows_directory_entry_dot(output, length) {
             true -> block next(handle, ordinal, output, position)
@@ -62,7 +62,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
         }
     }
     machine selected(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
-        output: &mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
+        output: @mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         transition position < ordinal {
             true -> block next(handle, ordinal, output, position + 1)
@@ -72,11 +72,11 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
 }
 
 machine windows_directory_next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
-    output: &mut WindowsNativeDirectoryEntryInfo, restart: u8) -> WindowsDirectoryStep
+    output: @mut WindowsNativeDirectoryEntryInfo, restart: u8) -> WindowsDirectoryStep
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && restart <= 1
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
     let mut completion: WindowsFilesystemIoStatus;
-    let status: i32 = block WindowsFilesystemDirectoryIo::next_entry(handle, 0, 0, 0, &mut completion, output, 8256, 1, 1, 0, restart);
+    let status: i32 = block WindowsFilesystemDirectoryIo::next_entry(handle, 0, 0, 0, @mut completion, output, 8256, 1, 1, 0, restart);
     transition status == 0 {
         true -> (windows_directory_decode_entry(output, completion.information))
         false -> other(status)
@@ -92,12 +92,12 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
     }
 }
 
-machine windows_directory_decode_entry(output: &WindowsNativeDirectoryEntryInfo, returned: u64) -> WindowsDirectoryStep {
+machine windows_directory_decode_entry(output: @WindowsNativeDirectoryEntryInfo, returned: u64) -> WindowsDirectoryStep {
     transition returned >= 64 && returned <= 8256 {
         true -> record(output, returned)
         false -> (WindowsDirectoryStep::Error { code: 122 })
     }
-    machine record(output: &WindowsNativeDirectoryEntryInfo, returned: u64) -> WindowsDirectoryStep
+    machine record(output: @WindowsNativeDirectoryEntryInfo, returned: u64) -> WindowsDirectoryStep
     requires returned >= 64 && returned <= 8256 {
         let bytes: u64 = widen_u32_to_u64(output.name_bytes);
         transition (output.control & 4294967295) == 0 && bytes > 0 && bytes <= 8192
@@ -108,33 +108,33 @@ machine windows_directory_decode_entry(output: &WindowsNativeDirectoryEntryInfo,
     }
 }
 
-machine windows_directory_entry_dot(output: &WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
+machine windows_directory_entry_dot(output: @WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
     transition length == 1 || length == 2 { true -> first(output, length) false -> false }
-    machine first(output: &WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
+    machine first(output: @WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
         transition output.characters[0] == 46 { true -> second(output, length) false -> false }
     }
-    machine second(output: &WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
+    machine second(output: @WindowsNativeDirectoryEntryInfo, length: u64) -> bool {
         length == 1 || output.characters[1] == 46
     }
 }
 
-machine windows_directory_encode_entry(source: &WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult {
+machine windows_directory_encode_entry(source: @WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult {
     transition characters > 0 && characters <= 4096 {
         true -> encode(source, characters)
         false -> (WindowsDirectoryEntryResult::Error { code: 31 })
     }
-    machine encode(source: &WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult
+    machine encode(source: @WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult
     requires characters > 0 && characters <= 4096 {
         let mut encoded: [u8; 12288];
         let native_count: i32 = narrow_u64_to_i32_exact(characters);
-        let written: i32 = WindowsFilesystemUtf8Io::utf8<4096, 12288>(65001, 128, &source.characters,
-            native_count, &mut encoded, 12288, 0, 0);
+        let written: i32 = WindowsFilesystemUtf8Io::utf8<4096, 12288>(65001, 128, @source.characters,
+            native_count, @mut encoded, 12288, 0, 0);
         transition written > 0 {
-            true -> extent(&encoded, written, source.attributes)
+            true -> extent(@encoded, written, source.attributes)
             false -> (windows_directory_entry_error())
         }
     }
-    machine extent(encoded: &[u8; 12288], written: i32, attributes: u32) -> WindowsDirectoryEntryResult
+    machine extent(encoded: @[u8; 12288], written: i32, attributes: u32) -> WindowsDirectoryEntryResult
     requires written > 0 {
         let count: u64 = narrow_i32_to_u64_exact(written);
         transition count <= 256 {
@@ -144,23 +144,23 @@ machine windows_directory_encode_entry(source: &WindowsNativeDirectoryEntryInfo,
     }
 }
 
-machine windows_directory_copy_entry(source: &[u8; 12288], count: u64, attributes: u32) -> WindowsDirectoryEntryResult
+machine windows_directory_copy_entry(source: @[u8; 12288], count: u64, attributes: u32) -> WindowsDirectoryEntryResult
 requires count <= 256 {
     let mut selected: WindowsDirectoryEntry;
     selected.name_len = count;
     selected.attributes = attributes;
-    windows_directory_copy_name(source, count, &mut selected.name);
+    windows_directory_copy_name(source, count, @mut selected.name);
     WindowsDirectoryEntryResult::Entry { entry: selected }
 }
 
-machine windows_directory_copy_name(source: &[u8; 12288], count: u64, name: &mut [u8; 256])
+machine windows_directory_copy_name(source: @[u8; 12288], count: u64, name: @mut [u8; 256])
 requires count <= 256 {
     transition { _ -> copy(source, count, name, 0) }
-    machine copy(source: &[u8; 12288], count: u64, name: &mut [u8; 256], position: u64)
+    machine copy(source: @[u8; 12288], count: u64, name: @mut [u8; 256], position: u64)
     requires count <= 256 {
         transition position < count { true -> store(source, count, name, position) false -> complete() }
     }
-    machine store(source: &[u8; 12288], count: u64, name: &mut [u8; 256], position: u64)
+    machine store(source: @[u8; 12288], count: u64, name: @mut [u8; 256], position: u64)
     requires count <= 256 && position < count {
         name[position] = source[position];
         transition { _ -> copy(source, count, name, position + 1) }

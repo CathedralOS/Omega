@@ -12,7 +12,7 @@ TestRoots satisfies ExtentRootProvider {
 }
 
 FirmwareBootstrap satisfies UefiPhysicalEntry {
-    machine enter(image_handle: EfiImageHandle, system_table: &EfiSystemTable) -> EfiStatus
+    machine enter(image_handle: EfiImageHandle, system_table: @EfiSystemTable) -> EfiStatus
     reaches ExtentRootProvider + ProgramStorageEntry
     invokes ExtentRootProvider
     invokes ProgramStorageEntry
@@ -42,11 +42,11 @@ QuietAudit satisfies CleanupAudit {
     machine finish() {}
 }
 
-machine drop_kernel_state(context: &mut KernelState) reaches CleanupAudit {
+machine drop_kernel_state(context: @mut KernelState) reaches CleanupAudit {
     CleanupAudit::finish();
 }
 
-machine selected_continuation(image: Extent in Granted, context: &mut KernelState, storage: Extent in Granted) {
+machine selected_continuation(image: Extent in Granted, context: @mut KernelState, storage: Extent in Granted) {
     context.phase = 17;
     transition { _ -> retain(image, storage) }
     machine retain(image: Extent in Granted, storage: Extent in Granted) {
@@ -57,5 +57,5 @@ machine selected_continuation(image: Extent in Granted, context: &mut KernelStat
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start(image: Extent in Granted, storage: Extent in Granted) {
     let mut entry_storage: KernelState;
-    selected_continuation(image, &mut entry_storage, storage);
+    selected_continuation(image, @mut entry_storage, storage);
 }

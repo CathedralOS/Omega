@@ -2,7 +2,7 @@
 // Place: another target body. Target-scoped machine bodies evaluate the slice literal on each hosted target.
 // Expected exit: 0
 
-machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap
+machine inspect_bytes(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {
@@ -50,7 +50,7 @@ X86EvaluateBytes satisfies SelectedEvaluateBytes {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 0u64
     {
         SelectedBodyCheck::require_tag(17u64);
-        let bytes: &[u8] = "omega";
+        let bytes: @[u8] = "omega";
         inspect_bytes(bytes)
     }
 }
@@ -60,7 +60,7 @@ ArmEvaluateBytes satisfies SelectedEvaluateBytes {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result == 0u64
     {
         SelectedBodyCheck::require_tag(29u64);
-        let bytes: &[u8] = "omega";
+        let bytes: @[u8] = "omega";
         inspect_bytes(bytes)
     }
 }

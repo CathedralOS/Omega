@@ -17,7 +17,7 @@ data Command {
     case CountUsers;
 }
 
-machine inspect(command: &Command) -> bool {
+machine inspect(command: @Command) -> bool {
     let Command { command_id as _, case as operation } = command;
     targets_one_user(operation)                     // takes &Command::case
 }
@@ -32,8 +32,8 @@ data Command {
     };
 }
 
-machine inspect(command: &Command) -> bool {
-    targets_one_user(&command.op)                   // takes &Command::Operation
+machine inspect(command: @Command) -> bool {
+    targets_one_user(@command.op)                   // takes &Command::Operation
 }
 ```
 

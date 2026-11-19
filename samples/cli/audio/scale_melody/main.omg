@@ -34,7 +34,7 @@ data Main {
     byte: u8;
 }
 
-machine render(main: &mut Main) reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + ProcessExit {
+machine render(main: @mut Main) reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + ProcessExit {
     Console::write_line("scale_melody: C-major scale, square wave, 8-bit unsigned mono PCM at 8000 Hz, 2 s");
 
     // Canonical 44-byte WAV header, little-endian fields.
@@ -86,10 +86,10 @@ machine render(main: &mut Main) reaches Console + WavOutput + AudioPlayback + Fi
     main.note = 0;
     transition { _ -> block notes(main) }
 
-    machine notes(main: &mut Main) {
+    machine notes(main: @mut Main) {
         transition main.note >= 0 && main.note < 8 { true -> block pick(main) _ -> block write_file(main) }
     }
-    machine pick(main: &mut Main) {
+    machine pick(main: @mut Main) {
         // Samples per cycle for C4..C5 at 8000 Hz.
         main.period = match main.note {
             0 -> 31
@@ -105,69 +105,69 @@ machine render(main: &mut Main) reaches Console + WavOutput + AudioPlayback + Fi
         main.i = main.note * 2000;
         transition { _ -> block within(main) }
     }
-    machine within(main: &mut Main) {
+    machine within(main: @mut Main) {
         // Note index 0..7 narrows i to 0..15999 one product step at a time.
         transition main.i >= 0 && main.i < 16000 { true -> block position(main) _ -> block next_note(main) }
     }
-    machine position(main: &mut Main) {
+    machine position(main: @mut Main) {
         // End of the current 2000-sample block for this note.
         main.phase = main.i - main.note * 2000;
         transition main.phase < 2000 && main.period > 0 { true -> block sample(main) _ -> block next_note(main) }
     }
-    machine sample(main: &mut Main) {
+    machine sample(main: @mut Main) {
         main.phase = main.phase % main.period;
         main.byte = match main.phase < main.half { true -> 192 _ -> 64 };
         main.buffer[main.i + 44] = main.byte;
         main.i = main.i + 1;
         transition { _ -> block within(main) }
     }
-    machine next_note(main: &mut Main) {
+    machine next_note(main: @mut Main) {
         main.note = main.note + 1;
         transition { _ -> block notes(main) }
     }
 
-    machine write_file(main: &mut Main) {
-        main.n = block WavOutput::write_wav("scale_melody.wav", &main.buffer);
+    machine write_file(main: @mut Main) {
+        main.n = block WavOutput::write_wav("scale_melody.wav", @main.buffer);
         transition main.n == 16044 { true -> block play_it(main) _ -> bad(main) }
     }
-    machine play_it(main: &mut Main) {
-        main.rc = block AudioPlayback::play(&main.buffer[0], 16044, &main.buffer[44], 16000);
+    machine play_it(main: @mut Main) {
+        main.rc = block AudioPlayback::play(@main.buffer[0], 16044, @main.buffer[44], 16000);
         transition main.rc == 0 { true -> good(main) _ -> play_failed(main) }
     }
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("scale_melody: wrote scale_melody.wav (16000 frames)");
         Console::write_line("scale_melody: played scale_melody.wav");
         ProcessExit::exit_process(0);
     }
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("scale_melody: write failed");
         ProcessExit::exit_process(1);
     }
-    machine play_failed(main: &mut Main) {
+    machine play_failed(main: @mut Main) {
         Console::write("scale_melody: playback failed (-");
         main.magnitude = 0 - widen_i32_to_i64(main.rc);
         transition main.magnitude >= 100 { true -> hundreds(main) _ -> tens(main) }
     }
-    machine hundreds(main: &mut Main) {
+    machine hundreds(main: @mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 100);
         Console::write_byte(main.digit);
         main.magnitude = main.magnitude % 100;
         transition { _ -> tens_after_hundreds(main) }
     }
-    machine tens_after_hundreds(main: &mut Main) {
+    machine tens_after_hundreds(main: @mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
         Console::write_byte(main.digit);
         transition { _ -> ones(main) }
     }
-    machine tens(main: &mut Main) {
+    machine tens(main: @mut Main) {
         transition main.magnitude >= 10 { true -> tens_print(main) _ -> ones(main) }
     }
-    machine tens_print(main: &mut Main) {
+    machine tens_print(main: @mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);
         Console::write_byte(main.digit);
         transition { _ -> ones(main) }
     }
-    machine ones(main: &mut Main) {
+    machine ones(main: @mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude % 10);
         Console::write_byte(main.digit);
         Console::write_line(")");
@@ -178,5 +178,5 @@ machine render(main: &mut Main) reaches Console + WavOutput + AudioPlayback + Fi
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console + WavOutput + AudioPlayback + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + ProcessExit {
     let mut entry_storage: Main;
-    block render(&mut entry_storage);
+    block render(@mut entry_storage);
 }

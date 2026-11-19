@@ -9,8 +9,8 @@ machine evaluate(seed: u64) -> u64
 requires seed <= 91
 {
     let window: Window = Window { used: seed };
-    let view: &Window = &window;
-    let child_view: &Window = view;
+    let view: @Window = @window;
+    let child_view: @Window = view;
     let used: u64 = child_view.used;
     let diff: u64 = 90u64 - used;
     diff

@@ -1,5 +1,5 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "invalid_dup_enable");
-    Optimizations::enable(&mut builder.optimizations, Optimization::CopyPropagation);
-    Optimizations::enable(&mut builder.optimizations, Optimization::CopyPropagation);
+    Optimizations::enable(@mut builder.optimizations, Optimization::CopyPropagation);
+    Optimizations::enable(@mut builder.optimizations, Optimization::CopyPropagation);
 }

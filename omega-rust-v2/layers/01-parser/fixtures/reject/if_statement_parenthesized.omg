@@ -1,0 +1,6 @@
+// Decision 1: `if(ready)` alone would be a call, but a block after it is the retired statement.
+machine f(ready: bool) {
+    if (ready) {
+        go();
+    }
+}

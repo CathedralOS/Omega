@@ -1,16 +1,16 @@
 // Expected exit: 0. The original calculation returns 31: (3+5+7+9)+7.
 
-machine cells_valid(cells: &[i32]) -> bool {
+machine cells_valid(cells: @[i32]) -> bool {
     check_cells(cells, cells.len)
 }
 
-machine check_cells(cells: &[i32], remaining: u64) -> bool
+machine check_cells(cells: @[i32], remaining: u64) -> bool
 requires remaining <= cells.len
 terminates
 terminates by remaining in 0..=cells.len
 {
     transition remaining > 0 { true -> inspect(cells, remaining) false -> (true) }
-    machine inspect(cells: &[i32], remaining: u64) -> bool
+    machine inspect(cells: @[i32], remaining: u64) -> bool
     requires remaining > 0 && remaining <= cells.len
     {
         let index: u64 = remaining - 1;
@@ -21,13 +21,13 @@ terminates by remaining in 0..=cells.len
     }
 }
 
-machine cell_is_byte(cells: &[i32], index: u64)
+machine cell_is_byte(cells: @[i32], index: u64)
 requires cells_valid(cells) == true
 requires index < cells.len
 ensures cells[index] >= 0 && cells[index] <= 255
 {}
 
-data Bag requires cells_valid(&cells) == true {
+data Bag requires cells_valid(@cells) == true {
     cells: [i32; 4];
 }
 
@@ -35,7 +35,7 @@ data Main {
     bag: Bag;
 }
 
-machine fill(cells: &mut [i32], at: u64, value: i32)
+machine fill(cells: @mut [i32], at: u64, value: i32)
 requires at < cells.len
 requires cells_valid(cells) == true
 requires value >= 0 && value <= 255
@@ -44,7 +44,7 @@ ensures cells_valid(cells) == true
     cells[at] = value;
 }
 
-machine tally(cells: &[i32]) -> i32
+machine tally(cells: @[i32]) -> i32
 requires cells.len == 4
 requires cells_valid(cells) == true
 ensures result >= 0 && result <= 1020
@@ -57,15 +57,15 @@ ensures result >= 0 && result <= 1020
     transition { _ -> total }
 }
 
-machine Main::main(main: &mut Main) -> i32 {
-    let cells: &mut [i32] = &mut main.bag.cells[..];
+machine Main::main(main: @mut Main) -> i32 {
+    let cells: @mut [i32] = @mut main.bag.cells[..];
     cells[0] = 3;
     cells[1] = 5;
-    fill(&mut main.bag.cells[..], 2, 7);
-    fill(&mut main.bag.cells[..], 3, 9);
+    fill(@mut main.bag.cells[..], 2, 7);
+    fill(@mut main.bag.cells[..], 3, 9);
 
-    let total: i32 = tally(&main.bag.cells[..]);
-    cell_is_byte(&main.bag.cells[..], 2);
+    let total: i32 = tally(@main.bag.cells[..]);
+    cell_is_byte(@main.bag.cells[..], 2);
     let observed: i32 = total + main.bag.cells[2];
 
     transition { _ -> observed }
@@ -73,7 +73,7 @@ machine Main::main(main: &mut Main) -> i32 {
 
 machine main() crashes Trap {
     let mut context: Main;
-    let observed: i32 = Main::main(&mut context);
+    let observed: i32 = Main::main(@mut context);
     transition observed == 31 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

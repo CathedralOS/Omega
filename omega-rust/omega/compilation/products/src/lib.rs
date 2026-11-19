@@ -81,9 +81,9 @@ pub use compile_request::{
     NativeImageDemand, NativeProductRequest, RequestedCompileProduct,
 };
 pub use evaluated_build::{
-    BuildAdmission, BuildConfig, BuildConstants, ComputedBuildConfig, EvaluatedBuild,
-    IndependentComponentDiscovery, IndependentComponentSelection, ProviderDeployment,
-    ServiceAuditRegistration,
+    BuildAdmission, BuildConfig, BuildConstants, BuildSubjectValidation, ComputedBuildConfig,
+    EvaluatedBuild, IndependentComponentDiscovery, IndependentComponentSelection,
+    ProviderDeployment, ServiceAuditRegistration,
 };
 pub use independent_component::{IndependentComponentProduct, SelectedIndependentComponent};
 pub use optimization_requests::OptimizationRollbackReceipt;

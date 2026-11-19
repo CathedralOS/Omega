@@ -31,12 +31,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedReadTarget {
-    machine read_target(main: &Main) -> i32 in Wrapping
+    machine read_target(main: @Main) -> i32 in Wrapping
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86ReadTarget satisfies SelectedReadTarget {
-    machine read_target(main: &Main) -> i32 in Wrapping
+    machine read_target(main: @Main) -> i32 in Wrapping
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -45,7 +45,7 @@ X86ReadTarget satisfies SelectedReadTarget {
 }
 
 ArmReadTarget satisfies SelectedReadTarget {
-    machine read_target(main: &Main) -> i32 in Wrapping
+    machine read_target(main: @Main) -> i32 in Wrapping
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -53,12 +53,12 @@ ArmReadTarget satisfies SelectedReadTarget {
     }
 }
 
-machine Main::main(main: &mut Main) crashes Trap {
+machine Main::main(main: @mut Main) crashes Trap {
     main.arr = [10, 20, 30, 40, 50];
     main.k = 2;
     let first: i32 in Wrapping = SelectedReadTarget::read_target(main);
     transition { _ -> successor(main, first) }
-    machine successor(main: &mut Main, first: i32 in Wrapping) {
+    machine successor(main: @mut Main, first: i32 in Wrapping) {
         main.k = 3;
         let second: i32 in Wrapping = SelectedReadTarget::read_target(main);
         transition first == 40 && second == 50 {
@@ -75,7 +75,7 @@ machine Main::main(main: &mut Main) crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }
 machine x86_entry() crashes Trap {
     SelectedBodyCheck::require_tag(17u64);

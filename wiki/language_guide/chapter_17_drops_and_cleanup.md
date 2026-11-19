@@ -7,7 +7,7 @@ nothing. A resource names the machine that releases it.
 
 ```omega
 data MutexGuard<T> dropped by cleanup_mutex_guard<T> {
-    mutex: &Mutex<T>;
+    mutex: @Mutex<T>;
 }
 
 machine cleanup_mutex_guard<T>(guard: MutexGuard<T>) {

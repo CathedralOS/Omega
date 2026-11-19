@@ -8,15 +8,15 @@ use crate::source_state::{TypedTrees, expression::ExpressionNode};
 
 const SOURCE: &str = r#"
 use omega::language::core::access;
-machine relay<'owner>(source: &'owner mut i64) -> &'owner mut i64 crashes none {
+machine relay<'owner>(source: @'owner mut i64) -> @'owner mut i64 crashes none {
     access::view_mut<i64, i64>(source)
 }
-machine other(source: &mut u64) -> &mut u64 crashes none {
+machine other(source: @mut u64) -> @mut u64 crashes none {
     access::view_mut<u64, u64>(source)
 }
 machine run() -> i64 crashes none {
     let mut backing: i64 = 17;
-    let child: &mut i64 = relay(&mut backing);
+    let child: @mut i64 = relay(@mut backing);
     child = 41;
     let observed: i64 = child;
     observed
@@ -25,16 +25,16 @@ machine run() -> i64 crashes none {
 
 const SELECTED_SOURCE: &str = r#"
 trait Reborrow {
-    machine take<'owner>(source: &'owner mut i64) -> &'owner mut i64
+    machine take<'owner>(source: @'owner mut i64) -> @'owner mut i64
         reaches none crashes none terminates;
 }
 public Identity satisfies Reborrow {
-    machine take<'owner>(source: &'owner mut i64) -> &'owner mut i64
+    machine take<'owner>(source: @'owner mut i64) -> @'owner mut i64
         reaches none crashes none { source }
 }
 machine run() -> i64 crashes none {
     let mut backing: i64 = 17;
-    let child: &mut i64 = Identity::take(&mut backing);
+    let child: @mut i64 = Identity::take(@mut backing);
     child = 41;
     let observed: i64 = child;
     observed
@@ -121,15 +121,15 @@ fn a_selected_reference_keeps_its_public_input_and_the_original_loan() {
 fn a_selected_reference_keeps_every_public_input_even_when_the_body_returns_left() {
     let source = r#"
 trait Choose {
-    machine take<'owner>(left: &'owner mut i64, right: &'owner mut i64) -> &'owner mut i64
+    machine take<'owner>(left: @'owner mut i64, right: @'owner mut i64) -> @'owner mut i64
         reaches none crashes none terminates;
 }
 public First satisfies Choose {
-    machine take<'owner>(left: &'owner mut i64, right: &'owner mut i64) -> &'owner mut i64
+    machine take<'owner>(left: @'owner mut i64, right: @'owner mut i64) -> @'owner mut i64
         reaches none crashes none { left }
 }
-machine use_both<'owner>(left: &'owner mut i64, right: &'owner mut i64) -> i64 crashes none {
-    let child: &mut i64 = First::take(&mut left, &mut right);
+machine use_both<'owner>(left: @'owner mut i64, right: @'owner mut i64) -> i64 crashes none {
+    let child: @mut i64 = First::take(@mut left, @mut right);
     child = 41;
     let observed: i64 = child;
     right = 7;
@@ -138,7 +138,7 @@ machine use_both<'owner>(left: &'owner mut i64, right: &'owner mut i64) -> i64 c
 machine run() -> i64 crashes none {
     let mut left: i64 = 17;
     let mut right: i64 = 23;
-    use_both(&mut left, &mut right)
+    use_both(@mut left, @mut right)
 }
 "#;
     let (value, accounting) = run_recorded(source)
@@ -333,11 +333,11 @@ machine run() -> i64 crashes none {
     // The same two real sources remain, with a result relation that neither
     // input supplies; no alias or whole-record parent can mask that refusal.
     let different_result = source.replace(
-        "let child: &mut i64 = First::take(&mut left, &mut right);",
-        "let child: &mut i64 = leak(&mut left, &mut right);",
+        "let child: @mut i64 = First::take(@mut left, @mut right);",
+        "let child: @mut i64 = leak(@mut left, @mut right);",
     ).replace(
         "machine use_both<'owner>",
-        "machine leak<'input, 'chosen>(left: &'input mut i64, right: &'input mut i64) -> &'chosen mut i64 crashes none {\n    First::take(&mut left, &mut right)\n}\nmachine use_both<'owner>",
+        "machine leak<'input, 'chosen>(left: @'input mut i64, right: @'input mut i64) -> @'chosen mut i64 crashes none {\n    First::take(@mut left, @mut right)\n}\nmachine use_both<'owner>",
     );
     assert_ne!(different_result, source);
     let refusal = run(&different_result)
@@ -352,11 +352,11 @@ machine run() -> i64 crashes none {
 fn a_named_requirement_instantiates_its_borrowed_inputs_by_owned_lifetime() {
     let source = r#"
 trait Write {
-    machine write<'left, 'right>(left: &'left mut i64, right: &'right mut i64)
+    machine write<'left, 'right>(left: @'left mut i64, right: @'right mut i64)
         reaches none crashes none terminates;
 }
 public Writer satisfies Write {
-    machine write<'first, 'second>(left: &'first mut i64, right: &'second mut i64)
+    machine write<'first, 'second>(left: @'first mut i64, right: @'second mut i64)
         reaches none crashes none {
         left = 41;
         right = 43;
@@ -365,7 +365,7 @@ public Writer satisfies Write {
 machine run() -> i64 crashes none {
     let mut left: i64 = 17;
     let mut right: i64 = 23;
-    Writer::write(&mut left, &mut right);
+    Writer::write(@mut left, @mut right);
     left
 }
 "#;
@@ -403,8 +403,8 @@ machine run() -> i64 crashes none {
         Err("conformance schema telescope differs from its original definition"),
     );
     let aliased = source.replace(
-        "Writer::write(&mut left, &mut right)",
-        "Writer::write(&mut left, &mut left)",
+        "Writer::write(@mut left, @mut right)",
+        "Writer::write(@mut left, @mut left)",
     );
     assert_ne!(aliased, source);
     let refusal = run(&aliased).expect_err("fresh lifetime instantiation cannot hide an alias");
@@ -412,7 +412,7 @@ machine run() -> i64 crashes none {
         refusal,
         "state `Writer::write` receives `&mut left` as mutable more than once (conflicting loans)",
     );
-    let tied = source.replace("right: &'second mut i64", "right: &'first mut i64");
+    let tied = source.replace("right: @'second mut i64", "right: @'first mut i64");
     assert_ne!(tied, source);
     let refusal = run(&tied).expect_err("the body cannot tie independent public lifetimes");
     assert!(
@@ -424,10 +424,10 @@ machine run() -> i64 crashes none {
 #[test]
 fn a_closed_core_borrow_cannot_invent_a_different_view_interpretation() {
     let source = SOURCE
-        .replace("-> &'owner mut i64", "-> &'owner mut u64")
+        .replace("-> @'owner mut i64", "-> @'owner mut u64")
         .replace("access::view_mut<i64, i64>", "access::view_mut<i64, u64>")
         .replace("machine run() -> i64", "machine run() -> u64")
-        .replace("let child: &mut i64", "let child: &mut u64")
+        .replace("let child: @mut i64", "let child: @mut u64")
         .replace("let observed: i64", "let observed: u64");
     let refusal = run(&source).expect_err("different content needs its actual admission");
     assert!(
@@ -565,11 +565,11 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
 // views"). The write and the move between the call and the view's last use
 // must be refused just as they are for a returned reference.
 const RETURNED_VIEW_SOURCE: &str = r#"
-machine inner(output: &[u8; 4]) -> &[u8] crashes none { &output[..] }
-machine see(view: &[u8]) crashes none { }
+machine inner(output: @[u8; 4]) -> @[u8] crashes none { @output[..] }
+machine see(view: @[u8]) crashes none { }
 machine run() -> i64 crashes none {
     let mut name: [u8; 4] = [1, 2, 3, 4];
-    let view: &[u8] = inner(&name);
+    let view: @[u8] = inner(@name);
     see(view);
     name[0] = 9;
     7
@@ -597,9 +597,9 @@ fn a_view_returned_by_a_call_keeps_the_loan_of_its_input() {
     let forwarded = RETURNED_VIEW_SOURCE
         .replace(
             "machine see(",
-            "machine outer(output: &[u8; 4]) -> &[u8] crashes none { inner(output) }\nmachine see(",
+            "machine outer(output: @[u8; 4]) -> @[u8] crashes none { inner(output) }\nmachine see(",
         )
-        .replace("inner(&name);", "outer(&name);");
+        .replace("inner(@name);", "outer(@name);");
     assert_ne!(forwarded, RETURNED_VIEW_SOURCE);
     assert_eq!(
         run(&forwarded).expect("a forwarded view ends before the array is written"),
@@ -621,7 +621,7 @@ fn a_view_returned_by_a_call_keeps_the_loan_of_its_input() {
 fn ending_one_returned_view_preserves_the_other_caller_loan() {
     let source = RETURNED_VIEW_SOURCE.replace(
         "    see(view);\n    name[0] = 9;",
-        "    let other: &[u8] = inner(&name);\n    see(view);\n    see(other);\n    name[0] = 9;",
+        "    let other: @[u8] = inner(@name);\n    see(view);\n    see(other);\n    name[0] = 9;",
     );
     assert_ne!(source, RETURNED_VIEW_SOURCE);
     assert_eq!(
@@ -643,11 +643,11 @@ fn ending_one_returned_view_preserves_the_other_caller_loan() {
 // The same relation for a mutable view: writing through the view is its own
 // use, but reading the array while the view is still live is refused.
 const RETURNED_MUTABLE_VIEW_SOURCE: &str = r#"
-machine inner(output: &mut [u8; 4]) -> &mut [u8] crashes none { &mut output[..] }
-machine fill(view: &mut [u8]) crashes none { }
+machine inner(output: @mut [u8; 4]) -> @mut [u8] crashes none { @mut output[..] }
+machine fill(view: @mut [u8]) crashes none { }
 machine run() -> i64 crashes none {
     let mut name: [u8; 4] = [1, 2, 3, 4];
-    let view: &mut [u8] = inner(&mut name);
+    let view: @mut [u8] = inner(@mut name);
     fill(view);
     let first: u8 = name[0];
     7

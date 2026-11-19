@@ -14,10 +14,10 @@ use omega::language::core::narrow_i32_to_u8_trapping;
 
 domain [u8]::Utf8
 requires
-    byte_observation::valid_utf8(&self[..]);
+    byte_observation::valid_utf8(@self[..]);
 domain [u8; 28]::Utf8
 requires
-    byte_observation::valid_utf8(&self[..]);
+    byte_observation::valid_utf8(@self[..]);
 data Main {
     line: [u8; 28] in Utf8;
     i: i32 in Wrapping;   // row factor 1..9
@@ -33,51 +33,51 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("multiplication_table: the 9x9 times table, space-padded numeric text");
     main.line = "                            " as +Utf8;
     main.i = 1 as +Wrapping;
     transition { _ -> block row_loop(main) }
 
-    machine row_loop(main: &mut Main) {
+    machine row_loop(main: @mut Main) {
         transition main.i >= 1 && main.i <= 9 { true -> block clear_init(main) _ -> block finish(main) }
     }
     // clear the row buffer to spaces
-    machine clear_init(main: &mut Main) {
+    machine clear_init(main: @mut Main) {
         main.k = 0 as +Wrapping;
         transition { _ -> block clear(main) }
     }
-    machine clear(main: &mut Main) {
+    machine clear(main: @mut Main) {
         transition main.k >= 0 && main.k < 28 { true -> block clear_cell(main) _ -> block col_init(main) }
     }
-    machine clear_cell(main: &mut Main) {
-        (&mut main.line as -Utf8)[main.k as -Wrapping] = 32; // ' '
+    machine clear_cell(main: @mut Main) {
+        (@mut main.line as -Utf8)[main.k as -Wrapping] = 32; // ' '
         main.k = main.k + 1;
         transition { _ -> block clear(main) }
     }
-    machine col_init(main: &mut Main) {
+    machine col_init(main: @mut Main) {
         main.j = 1 as +Wrapping;
         transition { _ -> block col_loop(main) }
     }
-    machine col_loop(main: &mut Main) {
+    machine col_loop(main: @mut Main) {
         transition main.j >= 1 && main.j <= 9 { true -> block cell(main) _ -> block emit_row(main) }
     }
-    machine cell(main: &mut Main) {
+    machine cell(main: @mut Main) {
         main.p = main.i * main.j;
         main.tens = main.p / 10;
         main.ones = main.p % 10;
         main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as -Wrapping);
         transition main.tens > 0 { true -> block cell_tens(main) _ -> block cell_space(main) }
     }
-    machine cell_tens(main: &mut Main) {
+    machine cell_tens(main: @mut Main) {
         main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as -Wrapping);
         transition { _ -> block cell_write(main) }
     }
-    machine cell_space(main: &mut Main) {
+    machine cell_space(main: @mut Main) {
         main.tc = 32; // leading space for single-digit products
         transition { _ -> block cell_write(main) }
     }
-    machine cell_write(main: &mut Main) {
+    machine cell_write(main: @mut Main) {
         main.o0 = (main.j - 1) * 3;
         main.o1 = main.o0 + 1;
         transition main.o0 >= 0 && main.o0 < 28 && main.o1 >= 0 && main.o1 < 28 {
@@ -85,28 +85,28 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             _ -> block bad(main)
         }
     }
-    machine cell_store(main: &mut Main) {
-        (&mut main.line as -Utf8)[main.o0 as -Wrapping] = main.tc;
-        (&mut main.line as -Utf8)[main.o1 as -Wrapping] = main.oc;
+    machine cell_store(main: @mut Main) {
+        (@mut main.line as -Utf8)[main.o0 as -Wrapping] = main.tc;
+        (@mut main.line as -Utf8)[main.o1 as -Wrapping] = main.oc;
         main.j = main.j + 1;
         transition { _ -> block col_loop(main) }
     }
-    machine emit_row(main: &mut Main) {
-        Console::write_line((&main.line as -Utf8)[..]);
+    machine emit_row(main: @mut Main) {
+        Console::write_line((@main.line as -Utf8)[..]);
         main.i = main.i + 1;
         transition { _ -> block row_loop(main) }
     }
 
-    machine finish(main: &mut Main) {
+    machine finish(main: @mut Main) {
         Console::write_line("PASS: 9 rows rendered (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("FAIL: internal bounds check failed (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -114,5 +114,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

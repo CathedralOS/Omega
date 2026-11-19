@@ -7,14 +7,14 @@ use omega::language::core::Nat;
 public data ByteUnit {}
 public data Region [linear] dropped by drop_region { length: u64; }
 public domain Region::Owned established by issue;
-public machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+public machine Owned::content(region: @Region) -> CountedQuantity<ByteUnit>
 satisfies Content<Region, CountedQuantity<ByteUnit>>::project {
     CountedQuantity { magnitude: embed(region.length) as Nat }
 }
 public machine issue() -> Region in Owned ensures result.length == 48 {
     Region { length: 48 }
 }
-public machine drop_region(region: &mut Region) {}
+public machine drop_region(region: @mut Region) {}
 public data Parts { taken: Region in Owned; rest: Region in Owned; }
 public data Strategy requires remaining == tail.length {
     tail: Region in Owned;
@@ -24,12 +24,12 @@ public machine partition(whole: Region in Owned, requested: u64) -> Parts
 requires requested <= whole.length
 ensures result.taken.length == requested,
     result.rest.length == whole.length - requested,
-    core::Identity<CountedQuantity<ByteUnit>>(Owned::content(old(&whole)), separate(Owned::content(&result.taken), Owned::content(&result.rest)))
+    core::Identity<CountedQuantity<ByteUnit>>(Owned::content(old(@whole)), separate(Owned::content(@result.taken), Owned::content(@result.rest)))
 {
     let { length } = whole;
     Parts { taken: Region { length: requested }, rest: Region { length: length - requested } }
 }
-public machine carve(strategy: &mut Strategy, remaining: u64, requested: u64) -> Region in Owned
+public machine carve(strategy: @mut Strategy, remaining: u64, requested: u64) -> Region in Owned
 requires remaining == strategy.tail.length && requested <= remaining
 ensures result.length == requested,
     strategy.tail.length == remaining - requested,

@@ -14,7 +14,7 @@ public data Settings {
     rounding: i64 in Wrapping;
     count: i64 in Wrapping;
 }
-public machine settings(configuration: &mut Settings) -> bool reaches Console
+public machine settings(configuration: @mut Settings) -> bool reaches Console
 invokes Console
 blocks
 crashes Trap

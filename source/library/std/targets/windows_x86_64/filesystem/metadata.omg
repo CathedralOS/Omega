@@ -66,21 +66,21 @@ reaches FilesystemMetadataQuery
     }
 }
 
-machine windows_filesystem_metadata_path(path: &[u8] in Path, no_follow: bool) -> MetadataResult
+machine windows_filesystem_metadata_path(path: @[u8] in Path, no_follow: bool) -> MetadataResult
 reaches FilesystemMetadataQuery
 {
     let outcome: WindowsMetadataResult = block WindowsFilesystemHost::read_metadata(path, no_follow);
     windows_filesystem_metadata_result(outcome)
 }
 
-machine windows_filesystem_exists(path: &[u8] in Path) -> bool
+machine windows_filesystem_exists(path: @[u8] in Path) -> bool
 reaches FilesystemMetadataQuery
 {
     let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
     transition outcome { MetadataResult::Ok { meta } -> true _ -> false }
 }
 
-machine windows_filesystem_try_exists(path: &[u8] in Path) -> ExistsResult
+machine windows_filesystem_try_exists(path: @[u8] in Path) -> ExistsResult
 reaches FilesystemMetadataQuery
 {
     let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
@@ -153,7 +153,7 @@ reaches FilesystemMetadataMutation
 
 // A numeric POSIX mode does not encode a Windows ACL. Only the portable
 // read-only request is translated; Default restores the ordinary writable bit.
-machine windows_filesystem_set_permissions(path: &[u8] in Path, permissions: Permissions) -> UnitResult
+machine windows_filesystem_set_permissions(path: @[u8] in Path, permissions: Permissions) -> UnitResult
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 {
     transition permissions {
@@ -161,7 +161,7 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation
         Permissions::Readonly { value } -> block update(path, value)
         Permissions::Posix { mode } -> (UnitResult::Error { kind: ErrorKind::Unsupported })
     }
-    machine update(path: &[u8] in Path, readonly: bool) -> UnitResult {
+    machine update(path: @[u8] in Path, readonly: bool) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::set_path_readonly(path, readonly);
         windows_filesystem_unit(status)
     }

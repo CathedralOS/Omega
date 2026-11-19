@@ -9,21 +9,21 @@ requires self.units[4095] == 0
     after: u64;
 }
 
-machine inspect(units: &[u16; 4096]) -> u16
+machine inspect(units: @[u16; 4096]) -> u16
 requires units[4095] == 0
 ensures result == 0
 {
     units[4095]
 }
 
-machine forward(buffer: &PathBuffer) -> u16
+machine forward(buffer: @PathBuffer) -> u16
 requires buffer.units[4095] == 0
 ensures result == 0
 {
-    inspect(&buffer.units)
+    inspect(@buffer.units)
 }
 
-machine repair(buffer: &mut PathBuffer) {
+machine repair(buffer: @mut PathBuffer) {
     buffer.units[4095] = 9;
     buffer.units[4095] = 0;
 }
@@ -34,8 +34,8 @@ machine main() crashes Trap {
     buffer.units[0] = 19;
     buffer.units[4094] = 37;
     buffer.after = 53;
-    repair(&mut buffer);
-    let terminal: u16 = forward(&buffer);
+    repair(@mut buffer);
+    let terminal: u16 = forward(@buffer);
     transition terminal == 0
         && buffer.before == 17
         && buffer.units[0] == 19

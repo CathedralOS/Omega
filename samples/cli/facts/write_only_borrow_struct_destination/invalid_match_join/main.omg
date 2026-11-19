@@ -8,7 +8,7 @@ data DestinationSlot {
     written: u64 in WrittenBound;
 }
 
-machine initialize_destination(destination: &write DestinationSlot) {
+machine initialize_destination(destination: @write DestinationSlot) {
     destination.written = 35u64;
 }
 
@@ -24,8 +24,8 @@ ensures
     result <= 95u64 {
     let mut left_slot: DestinationSlot = DestinationSlot { written: 0u64 };
     let mut right_slot: DestinationSlot = DestinationSlot { written: 0u64 };
-    initialize_destination(&write left_slot);
-    initialize_destination(&write right_slot);
+    initialize_destination(@write left_slot);
+    initialize_destination(@write right_slot);
     let joined: u64 in WrittenBound = choose(flag, left_slot.written, right_slot.written);
     95u64 - joined
 }

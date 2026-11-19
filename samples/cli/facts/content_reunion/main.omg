@@ -4,7 +4,7 @@ use omega::language::core::IntervalSet;
 use omega::language::core::Nat;
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 domain Region::Owned established by issue;
-machine Owned::content(region: &Region) -> IntervalSet<Nat>
+machine Owned::content(region: @Region) -> IntervalSet<Nat>
 satisfies Content<Region, IntervalSet<Nat>>::project {
     IntervalSet { start: embed(region.base) as Nat,
         end: (embed(region.base) + embed(region.length)) as Nat }
@@ -12,13 +12,13 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 machine issue() -> Region in Owned
 ensures result.base == 10, result.length == 48
 { Region { base: 10, length: 48 } }
-machine drop_region(region: &mut Region) {}
+machine drop_region(region: @mut Region) {}
 data Holder { parts: Parts; }
 data Parts { left: Region in Owned; right: Region in Owned; }
 machine rebuild_region(region: Region in Owned) -> Region in Owned
 requires region.base <= 58 && region.length <= 58 - region.base
 ensures result.base == region.base, result.length == region.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(&region)), Owned::content(&result))
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(@region)), Owned::content(@result))
 {
     let { base, length } = region;
     Region { base: base, length: length }
@@ -29,8 +29,8 @@ requires left.base <= 58 && left.length <= 58 - left.base
     && right.base == left.base + left.length && right.length == 0
 ensures result.base == left.base, result.length == left.length,
     core::Identity<IntervalSet<Nat>>(
-        separate(Owned::content(old(&left)), Owned::content(old(&right))),
-        Owned::content(&result)
+        separate(Owned::content(old(@left)), Owned::content(old(@right))),
+        Owned::content(@result)
     )
 {
     drop(right);
@@ -41,7 +41,7 @@ ensures result.base == left.base, result.length == left.length,
 machine finish_reunion(whole: Region in Owned) -> Region in Owned
 requires whole.base == 10 && whole.length == 48
 ensures result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let parts: Parts = partition(whole, 48);
     let joined: Region in Owned = retire_empty_tail(parts.left, parts.right);
@@ -54,8 +54,8 @@ requires left.base <= 58 && left.length <= 58 - left.base
     && right.base == left.base + left.length && right.length <= 58 - right.base
 ensures result.base == left.base, result.length == left.length + right.length,
     core::Identity<IntervalSet<Nat>>(
-        separate(Owned::content(old(&left)), Owned::content(old(&right))),
-        Owned::content(&result)
+        separate(Owned::content(old(@left)), Owned::content(old(@right))),
+        Owned::content(@result)
     )
 {
     let { base as left_base, length as left_length } = left;
@@ -71,8 +71,8 @@ ensures
     result.right.length == whole.length - requested,
     result.right.base == whole.base + requested,
     core::Identity<IntervalSet<Nat>>(
-        Owned::content(old(&whole)),
-        separate(Owned::content(&result.left), Owned::content(&result.right))
+        Owned::content(old(@whole)),
+        separate(Owned::content(@result.left), Owned::content(@result.right))
     )
 {
     let { base, length } = whole;
@@ -83,7 +83,7 @@ machine rejoin_local(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let parts: Parts = partition(whole, requested);
     let joined: Region in Owned = merge(parts.left, parts.right);
@@ -96,7 +96,7 @@ machine rejoin_field(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let holder: Holder = Holder { parts: partition(whole, requested) };
     let joined: Region in Owned = merge(holder.parts.left, holder.parts.right);
@@ -109,7 +109,7 @@ machine rejoin_state(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     transition { _ -> complete(whole, requested) }
     machine complete(whole: Region in Owned, requested: u64) -> Region
@@ -127,7 +127,7 @@ machine rejoin_nested(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let parts: Parts = partition(whole, requested);
     let tail: Parts = partition(parts.right, 0);
@@ -142,7 +142,7 @@ machine rejoin_call_result(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let returned: Region in Owned = rejoin_state(whole, requested);
     let parts: Parts = partition(returned, requested);
@@ -156,7 +156,7 @@ machine rejoin_return_local(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let parts: Parts = partition(whole, requested);
     let joined: Region in Owned = merge(parts.left, parts.right);
@@ -169,7 +169,7 @@ machine rejoin_anonymous(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(&whole)), Owned::content(&result))
+    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let parts: Parts = (Holder { parts: partition(whole, requested) }).parts;
     let left: Region in Owned = parts.left;

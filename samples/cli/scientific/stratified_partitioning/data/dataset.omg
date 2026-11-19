@@ -15,7 +15,7 @@ public data Dataset {
     denominator: i32 in Saturating;
     valid: bool;
 }
-public machine load(data: &mut Dataset, tokens: &Tokens) {
+public machine load(data: @mut Dataset, tokens: @Tokens) {
     data.numerator = at(tokens, 0);
     data.denominator = at(tokens, 1);
     data.count = at(tokens, 2);
@@ -24,13 +24,13 @@ public machine load(data: &mut Dataset, tokens: &Tokens) {
         true -> row(data, tokens, 0)
         _ -> done(data)
     }
-    machine row(data: &mut Dataset, tokens: &Tokens, index: i32 in Saturating) {
+    machine row(data: @mut Dataset, tokens: @Tokens, index: i32 in Saturating) {
         transition index < data.count && index >= 0 && index < 16 {
             true -> read_row(data, tokens, index)
             _ -> valid(data)
         }
     }
-    machine read_row(data: &mut Dataset, tokens: &Tokens, index: i32 in Saturating)
+    machine read_row(data: @mut Dataset, tokens: @Tokens, index: i32 in Saturating)
     requires index >= 0 && index < 16
     {
         let id: i32 in Saturating = at(tokens, 3 + 3 * index);
@@ -41,13 +41,13 @@ public machine load(data: &mut Dataset, tokens: &Tokens) {
             _ -> done(data)
         }
     }
-    machine unique(data: &mut Dataset, tokens: &Tokens, index: i32 in Saturating, id: i32 in Saturating, group: i32 in Saturating, stratum: i32 in Saturating, previous: i32 in Saturating) {
+    machine unique(data: @mut Dataset, tokens: @Tokens, index: i32 in Saturating, id: i32 in Saturating, group: i32 in Saturating, stratum: i32 in Saturating, previous: i32 in Saturating) {
         transition previous < index && previous >= 0 && previous < 16 {
             true -> compare(data, tokens, index, id, group, stratum, previous)
             _ -> put_guard(data, tokens, index, id, group, stratum)
         }
     }
-    machine compare(data: &mut Dataset, tokens: &Tokens, index: i32 in Saturating, id: i32 in Saturating, group: i32 in Saturating, stratum: i32 in Saturating, previous: i32 in Saturating)
+    machine compare(data: @mut Dataset, tokens: @Tokens, index: i32 in Saturating, id: i32 in Saturating, group: i32 in Saturating, stratum: i32 in Saturating, previous: i32 in Saturating)
     requires previous >= 0 && previous < 16
     {
         transition data.records[previous].id == id {
@@ -55,13 +55,13 @@ public machine load(data: &mut Dataset, tokens: &Tokens) {
             _ -> unique(data, tokens, index, id, group, stratum, previous + 1)
         }
     }
-    machine put_guard(data: &mut Dataset, tokens: &Tokens, index: i32 in Saturating, id: i32 in Saturating, group: i32 in Saturating, stratum: i32 in Saturating) {
+    machine put_guard(data: @mut Dataset, tokens: @Tokens, index: i32 in Saturating, id: i32 in Saturating, group: i32 in Saturating, stratum: i32 in Saturating) {
         transition index >= 0 && index < 16 {
             true -> put(data, tokens, index, id, group, stratum)
             _ -> done(data)
         }
     }
-    machine put(data: &mut Dataset, tokens: &Tokens, index: i32 in Saturating, id: i32 in Saturating, group: i32 in Saturating, stratum: i32 in Saturating)
+    machine put(data: @mut Dataset, tokens: @Tokens, index: i32 in Saturating, id: i32 in Saturating, group: i32 in Saturating, stratum: i32 in Saturating)
     requires index >= 0 && index < 16
     {
         data.records[index].id = id;
@@ -73,18 +73,18 @@ public machine load(data: &mut Dataset, tokens: &Tokens) {
             _ -> third(data, tokens, index)
         }
     }
-    machine first(data: &mut Dataset, tokens: &Tokens, index: i32 in Saturating) {
+    machine first(data: @mut Dataset, tokens: @Tokens, index: i32 in Saturating) {
         data.totals[0] = data.totals[0] + 1;
         transition { _ -> row(data, tokens, index + 1) }
     }
-    machine second(data: &mut Dataset, tokens: &Tokens, index: i32 in Saturating) {
+    machine second(data: @mut Dataset, tokens: @Tokens, index: i32 in Saturating) {
         data.totals[1] = data.totals[1] + 1;
         transition { _ -> row(data, tokens, index + 1) }
     }
-    machine third(data: &mut Dataset, tokens: &Tokens, index: i32 in Saturating) {
+    machine third(data: @mut Dataset, tokens: @Tokens, index: i32 in Saturating) {
         data.totals[2] = data.totals[2] + 1;
         transition { _ -> row(data, tokens, index + 1) }
     }
-    machine valid(data: &mut Dataset) { data.valid = true; }
-    machine done(data: &mut Dataset) { }
+    machine valid(data: @mut Dataset) { data.valid = true; }
+    machine done(data: @mut Dataset) { }
 }

@@ -12,7 +12,7 @@ data Outer {
 }
 
 data Carrier<'view> {
-    view: &'view Outer;
+    view: @'view Outer;
 }
 
 machine evaluate() -> u64 {
@@ -20,7 +20,7 @@ machine evaluate() -> u64 {
         inner: Inner { quota: 30, tag: 7 },
         header: 10,
     };
-    let carrier: Carrier = Carrier { view: &outer };
+    let carrier: Carrier = Carrier { view: @outer };
     let quota: u64 = carrier.view.inner.quota;
     let diff: u64 = 72u64 - quota;
     diff

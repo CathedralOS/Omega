@@ -1,0 +1,4 @@
+error UnexpectedToken at 2:6 bytes 18..23
+  found: first
+  expected: a stable number
+  expected a stable number

@@ -613,9 +613,9 @@ machine main() crashes Trap {
     let borrowed = text
         .replace(
             "take_value(outcome: Outcome",
-            "take_value(outcome: &Outcome",
+            "take_value(outcome: @Outcome",
         )
-        .replace("take_value(outcome)", "take_value(&outcome)");
+        .replace("take_value(outcome)", "take_value(@outcome)");
     for text in [text, &borrowed] {
         accepted(text)
             .publish_invocation()

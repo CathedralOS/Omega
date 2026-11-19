@@ -171,12 +171,12 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
 #[test]
 fn view_extent_facts_follow_only_the_guarded_input_across_private_arrivals() {
     let source = r#"
-machine entry(bytes: &[u8], other: &[u8], index: u64) -> u8 {
+machine entry(bytes: @[u8], other: @[u8], index: u64) -> u8 {
     transition index < bytes.len { true -> next(INPUT, index) false -> 255u8 }
-    machine next(bytes: &[u8], index: u64) -> u8 {
+    machine next(bytes: @[u8], index: u64) -> u8 {
         transition { _ -> fetch(bytes, index) }
     }
-    machine fetch(bytes: &[u8], index: u64) -> u8 {
+    machine fetch(bytes: @[u8], index: u64) -> u8 {
         bytes[index]
     }
 OTHER_BODY
@@ -194,7 +194,7 @@ OTHER_BODY
     };
     accepted.publish_invocation().unwrap();
 
-    for input in ["other", "&bytes[0..index]"] {
+    for input in ["other", "@bytes[0..index]"] {
         let verdict = judge_input(input, "", 2);
         let RouteVerdict::Rejected { unproved, .. } = verdict else {
             panic!("the guard cannot justify indexing {input}: {verdict:?}");
@@ -206,7 +206,7 @@ OTHER_BODY
         );
     }
 
-    let outside = "    machine unchecked(bytes: &[u8], index: u64) -> u8 { fetch(bytes, index) }";
+    let outside = "    machine unchecked(bytes: @[u8], index: u64) -> u8 { fetch(bytes, index) }";
     let verdict = judge_input("bytes", outside, 1);
     let RouteVerdict::Rejected { unproved, .. } = verdict else {
         panic!("the unread sibling also calls fetch: {verdict:?}");
@@ -221,23 +221,23 @@ OTHER_BODY
 #[test]
 fn private_arrival_retains_a_guard_on_the_computed_argument() {
     let source = r#"
-machine entry(bytes: &[u8], index: u64) -> u8 {
+machine entry(bytes: @[u8], index: u64) -> u8 {
     transition index < bytes.len { true -> lead(bytes, index) false -> 255u8 }
-    machine lead(bytes: &[u8], index: u64) -> u8 {
+    machine lead(bytes: @[u8], index: u64) -> u8 {
         let first: u8 = bytes[index];
         transition first > 0 && first < 128 {
             true -> first
             false -> following(bytes, index, first)
         }
     }
-    machine following(bytes: &[u8], index: u64, first: u8) -> u8 {
+    machine following(bytes: @[u8], index: u64, first: u8) -> u8 {
         let next: u64 = index + 1;
         transition first >= 194 && first <= 244 && next < bytes.len {
             true -> fetch(bytes, first, INPUT)
             false -> 255u8
         }
     }
-    machine fetch(bytes: &[u8], first: u8, index: u64) -> u8 {
+    machine fetch(bytes: @[u8], first: u8, index: u64) -> u8 {
         bytes[index]
     }
 }
@@ -602,12 +602,12 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
     ] {
         let source = format!(
             "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
-            public machine entry(input: &mut Input) -> u32 requires true {{
+            public machine entry(input: @mut Input) -> u32 requires true {{
                 transition {{ _ -> block test(input) }}
-                machine test(input: &mut Input) -> u32 {{
+                machine test(input: @mut Input) -> u32 {{
                     transition input.index < 3u32 {{ true -> block fetch(input) _ -> {alternative} }}
                 }}
-                machine fetch(input: &mut Input) -> u32 {contract} {{
+                machine fetch(input: @mut Input) -> u32 {contract} {{
                     {write}
                     let found: u32 = input.values[input.index as -Wrapping];
                     input.index = input.index + 1;
@@ -656,17 +656,17 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
 fn a_caller_proves_the_inferred_disjunct_it_can_state() {
     let source = r#"
 data Board { cells: [u32; 2]; }
-machine entry(board: &mut Board) -> u32 {
+machine entry(board: @mut Board) -> u32 {
     fill(board, 1);
     transition board.cells[0] == 1 { true -> second_step(board) false -> report(board) }
-    machine second_step(board: &mut Board) -> u32 {
+    machine second_step(board: @mut Board) -> u32 {
         transition board.cells[1] == 1 { true -> 0u32 false -> report(board) }
     }
-    machine report(board: &mut Board) -> u32 {
+    machine report(board: @mut Board) -> u32 {
         7u32
     }
 }
-machine fill(board: &mut Board, value: u32) {
+machine fill(board: @mut Board, value: u32) {
     board.cells[0] = value;
     board.cells[1] = value;
 }
@@ -685,10 +685,10 @@ machine fill(board: &mut Board, value: u32) {
 fn an_unstated_disjunct_is_proved_false_not_assumed() {
     let source = r#"
 data Pair { first: u32; second: u32; }
-machine entry(pair: &mut Pair) -> u32 {
+machine entry(pair: @mut Pair) -> u32 {
     transition pair.first < BOUND { true -> check(pair) false -> 0u32 }
 }
-machine check(pair: &mut Pair) -> u32 requires pair.first < 10 || pair.second < 3 {
+machine check(pair: @mut Pair) -> u32 requires pair.first < 10 || pair.second < 3 {
     7u32
 }
 "#;
@@ -738,10 +738,10 @@ fn a_guard_on_a_field_written_before_the_call_reaches_the_helper() {
     ] {
         let source = format!(
             "data Main {{ stack: [i32; 8]; sp: i32; k: i32; }}
-            machine entry(main: &mut Main) {{
+            machine entry(main: @mut Main) {{
                 {writes}
                 transition {guarded} >= 0 && {guarded} < 8 {{ true -> push(main) false -> done() }}
-                machine push(main: &mut Main) {{
+                machine push(main: @mut Main) {{
                     main.stack[main.sp] = 3;
                 }}
                 machine done() {{}}

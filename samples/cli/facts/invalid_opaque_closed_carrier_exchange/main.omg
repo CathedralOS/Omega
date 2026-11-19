@@ -6,7 +6,7 @@ use omega_language_std::Console;
 use omega::language::core::OpaqueRepresentation;
 public boundary data InternetAddress;
 public data AddressWord dropped by drop_address_word { address: u32; }
-machine drop_address_word(word: &mut AddressWord) {}
+machine drop_address_word(word: @mut AddressWord) {}
 public data AddressCarrier<T> { payload: T; }
 public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
 
@@ -48,17 +48,17 @@ machine observe_replacement() -> bool reaches AddressParts {
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027
 }
 
-machine run_main(main: &mut Main) reaches ProcessExit + AddressParts + Console {
+machine run_main(main: @mut Main) reaches ProcessExit + AddressParts + Console {
     transition observe() && observe_replacement() {
         true -> passed(main)
         _ -> failed(main)
     }
-    machine passed(main: &mut Main) { ProcessExit::exit_process(0); }
-    machine failed(main: &mut Main) { ProcessExit::exit_process(71); }
+    machine passed(main: @mut Main) { ProcessExit::exit_process(0); }
+    machine failed(main: @mut Main) { ProcessExit::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + AddressParts + Console {
     let mut entry_storage: Main;
-    run_main(&mut entry_storage);
+    run_main(@mut entry_storage);
 }

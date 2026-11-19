@@ -365,15 +365,26 @@ fn retired_corpus_and_frozen_facts_accept_no_new_files() {
     assert!(
         diff_hygiene_violations(&[('D', "tests/omega/pass/a/x/main.omg".to_owned())]).is_empty()
     );
-    // A move counts as nothing added: the cap is on the net count.
-    let mut moved = Vec::new();
-    for index in 0..10 {
-        moved.push(('D', format!("tests/omega/pass/a/x{index}/main.omg")));
-        moved.push(('A', format!("samples/cli/a/x{index}/main.omg")));
-    }
+    let additions: Vec<_> = (0..10)
+        .map(|index| ('A', format!("samples/cli/a/x{index}/main.omg")))
+        .collect();
+    assert!(diff_hygiene_violations(&additions).is_empty());
+}
+
+#[test]
+fn moving_scripts_under_tools_only_admits_the_removed_paths() {
+    let moved = [
+        ('A', "tools/atlas/build_pages.py".to_owned()),
+        ('D', "atlas/build_pages.py".to_owned()),
+    ];
     assert!(diff_hygiene_violations(&moved).is_empty());
-    moved.retain(|(status, _)| *status == 'A');
-    assert_eq!(diff_hygiene_violations(&moved).len(), 1);
+    assert_eq!(diff_hygiene_violations(&moved[..1]).len(), 1);
+
+    let mut changes = moved.to_vec();
+    changes.push(('A', "tools/atlas/new_tool.py".to_owned()));
+    let violations = diff_hygiene_violations(&changes);
+    assert_eq!(violations.len(), 1);
+    assert!(violations[0].contains("tools/atlas/new_tool.py"));
 }
 
 #[test]

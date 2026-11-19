@@ -17,26 +17,26 @@ public machine number(value: i32 in Wrapping) reaches Console {
     }
 }
 
-public machine grid(values: &[i32 in Wrapping; 25]) reaches Console {
+public machine grid(values: @[i32 in Wrapping; 25]) reaches Console {
     transition { _ -> cell(values, 0) }
-    machine cell(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+    machine cell(values: @[i32 in Wrapping; 25], index: i32 in Wrapping) {
         transition index >= 0 && index < 25 {
             true -> emit(values, index)
             _ -> done()
         }
     }
-    machine emit(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+    machine emit(values: @[i32 in Wrapping; 25], index: i32 in Wrapping) {
         number(values[index]);
         transition index % 5 == 4 {
             true -> newline(values, index)
             _ -> space(values, index)
         }
     }
-    machine newline(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+    machine newline(values: @[i32 in Wrapping; 25], index: i32 in Wrapping) {
         Console::write_byte(10);
         transition { _ -> cell(values, index + 1) }
     }
-    machine space(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
+    machine space(values: @[i32 in Wrapping; 25], index: i32 in Wrapping) {
         Console::write_byte(32);
         transition { _ -> cell(values, index + 1) }
     }

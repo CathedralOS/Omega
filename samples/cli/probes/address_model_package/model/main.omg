@@ -14,14 +14,14 @@ public machine authored_bound() -> u64
 ensures result == Limits::Bound
 { Limits::Bound }
 
-public machine read_word(buffer: &[u8; 16], offset: u64 in Trapping) -> u64
+public machine read_word(buffer: @[u8; 16], offset: u64 in Trapping) -> u64
 requires addr::Bound == 18446744073709551616 && offset <= 8
 {
     transition { _ -> inspect(buffer, offset) }
-    machine inspect(buffer: &[u8; 16], offset: u64 in Trapping) -> u64
+    machine inspect(buffer: @[u8; 16], offset: u64 in Trapping) -> u64
     requires addr::Bound == 18446744073709551616 && offset <= 8
     {
-        let word: &u64 = &buffer[offset] as &u64;
+        let word: @u64 = @buffer[offset] as @u64;
         word
     }
 }

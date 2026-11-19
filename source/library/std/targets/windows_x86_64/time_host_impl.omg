@@ -39,13 +39,13 @@ use omega::language::core::narrow_i64_to_u64_saturating;
 // 64-bit count, and x86-64 Windows is always little-endian, so one `u64`
 // cell receives that non-tearing read. Each requirement reaches `TimeHost`.
 boundary trait WindowsTimeRead {
-    machine query_performance_counter(counter: &mut i64) -> i32
+    machine query_performance_counter(counter: @mut i64) -> i32
     reaches TimeHost
     crashes none;
-    machine query_performance_frequency(frequency: &mut i64) -> i32
+    machine query_performance_frequency(frequency: @mut i64) -> i32
     reaches TimeHost
     crashes none;
-    machine system_time_as_file_time(file_time: &mut u64)
+    machine system_time_as_file_time(file_time: @mut u64)
     reaches TimeHost
     crashes none;
     machine sleep(milliseconds: u32)
@@ -61,7 +61,7 @@ public WindowsTimeHost satisfies TimeHost {
     invokes WindowsTimeRead
     {
         let mut counter: i64 = 0;
-        let status: i32 = WindowsTimeRead::query_performance_counter(&mut counter);
+        let status: i32 = WindowsTimeRead::query_performance_counter(@mut counter);
         transition status == 0 {
             true -> degraded()
             _ -> measured(counter)
@@ -77,7 +77,7 @@ public WindowsTimeHost satisfies TimeHost {
     invokes WindowsTimeRead
     {
         let mut frequency: i64 = 0;
-        let status: i32 = WindowsTimeRead::query_performance_frequency(&mut frequency);
+        let status: i32 = WindowsTimeRead::query_performance_frequency(@mut frequency);
         transition status == 0 {
             true -> degraded()
             _ -> measured(frequency)
@@ -93,7 +93,7 @@ public WindowsTimeHost satisfies TimeHost {
     invokes WindowsTimeRead
     {
         let mut file_time: u64 = 0;
-        WindowsTimeRead::system_time_as_file_time(&mut file_time);
+        WindowsTimeRead::system_time_as_file_time(@mut file_time);
         transition { _ -> measured(file_time) }
 
         machine measured(file_time: u64) -> u64 { file_time }

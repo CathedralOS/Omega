@@ -41,7 +41,7 @@ A body can only do with a `T` what its header says is possible. Copying
 needs `[copy]`:
 
 ```omega
-machine Buffer::first<T [copy], const N: u64>(buffer: &FixedBuffer<T, N>) -> T
+machine Buffer::first<T [copy], const N: u64>(buffer: @FixedBuffer<T, N>) -> T
 requires N > 0
 {
     buffer.items[0]
@@ -56,9 +56,9 @@ To compare, order or otherwise operate on a `T`, take an implementation of a
 [trait](chapter_14_traits.md) as a parameter:
 
 ```omega
-machine sort<Element, const Order: Ranked<Element>>(values: &mut [Element]) { ... }
+machine sort<Element, const Order: Ranked<Element>>(values: @mut [Element]) { ... }
 
-sort<Card, PowerOrder>(&mut cards);
+sort<Card, PowerOrder>(@mut cards);
 ```
 
 Inside `sort`, `Order::before(a, b)` calls whatever implementation the caller
@@ -71,11 +71,11 @@ and nothing changes meaning when a new one is imported.
 A parameter can be a single machine. Its type is the signature it must have:
 
 ```omega
-machine Deck::score<const Key: machine(card: &Card) -> u64>(card: &Card) -> u64 {
+machine Deck::score<const Key: machine(card: @Card) -> u64>(card: @Card) -> u64 {
     Key(card)
 }
 
-Deck::score<Card::power_key>(&card);
+Deck::score<Card::power_key>(@card);
 ```
 
 This is not a function pointer. `Deck::score<Card::power_key>` compiles to a
@@ -97,16 +97,16 @@ inferred:
 
 ```omega
 public trait ElementStep<T> {
-    machine apply(item: &mut T) terminates;
+    machine apply(item: @mut T) terminates;
 }
 
-public machine apply_one<T, const F: ElementStep<T>::apply>(item: &mut T)
+public machine apply_one<T, const F: ElementStep<T>::apply>(item: @mut T)
 terminates
 {
     F(item);
 }
 
-public machine visit_one<T, const F: machine>(item: &mut T)
+public machine visit_one<T, const F: machine>(item: @mut T)
 terminates
 {
     apply_one<T, F>(item);
@@ -142,7 +142,7 @@ requires value < Limit
     value: u32;
 }
 
-machine prefix_count<Count: u32>(items: &[u8]) -> u32
+machine prefix_count<Count: u32>(items: @[u8]) -> u32
 requires embed(Count) <= embed(items.len)
 {
     Count
@@ -158,7 +158,7 @@ widths:
 
 ```omega
 trait ByteScanner<Scanner> {
-    machine scan<Width: u32>(scanner: &Scanner, bytes: &[u8]) -> u64
+    machine scan<Width: u32>(scanner: @Scanner, bytes: @[u8]) -> u64
     requires Width == 16 || Width == 32 || Width == 64;
 }
 ```

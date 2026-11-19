@@ -19,7 +19,7 @@ data Cell {
 }
 
 data Message<'view> {
-    body: &'view Cell;
+    body: @'view Cell;
 }
 
 public boundary trait Scheduler {
@@ -34,27 +34,27 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine read(cell: &Cell) -> i32 {
+machine read(cell: @Cell) -> i32 {
     transition { _ -> cell.value }
 }
 
-machine Main::main(main: &mut Main) suspends reaches Scheduler {
+machine Main::main(main: @mut Main) suspends reaches Scheduler {
     main.hits = 0;
     main.cell.value = 5;
-    let message: Message = Message { body: &main.cell };
+    let message: Message = Message { body: @main.cell };
     let value: i32 = read(message.body);
     transition value == 5 {
         true -> park_last(main)
         _ -> fail(main)
     }
-    machine park_last(main: &mut Main) {
+    machine park_last(main: @mut Main) {
         suspend Scheduler::park();
     }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() suspends reaches Scheduler {
     let mut entry_storage: Main;
-    suspend Main::main(&mut entry_storage);
+    suspend Main::main(@mut entry_storage);
 }

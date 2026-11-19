@@ -10,42 +10,42 @@ use omega::language::core::DirectoryEnumeration;
 use omega::language::core::FilesystemNamespaceMutation;
 
 FilesystemWindowsProvider satisfies FilesystemService {
-    machine create(path: &[u8] in Path) -> OpenResult
+    machine create(path: @[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     {
         block windows_filesystem_create(path)
     }
 
-    machine create_new(path: &[u8] in Path) -> OpenResult
+    machine create_new(path: @[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     {
         block windows_filesystem_create_new(path)
     }
 
-    machine open(path: &[u8] in Path) -> OpenResult
+    machine open(path: @[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     {
         block windows_filesystem_open(path)
     }
 
-    machine append(path: &[u8] in Path) -> OpenResult
+    machine append(path: @[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     {
         block windows_filesystem_append(path)
     }
 
-    machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+    machine read(file: File, buffer: @mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead
     {
         block windows_filesystem_read(file, buffer, count)
     }
 
-    machine write(file: File, bytes: &[u8]) -> IoResult
+    machine write(file: File, bytes: @[u8]) -> IoResult
     blocks
     reaches FilesystemContentWrite
     {
@@ -59,91 +59,91 @@ FilesystemWindowsProvider satisfies FilesystemService {
         block windows_filesystem_close(file)
     }
 
-    machine write_all(path: &[u8] in Path, bytes: &[u8]) -> UnitResult
+    machine write_all(path: @[u8] in Path, bytes: @[u8]) -> UnitResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     {
         block windows_filesystem_write_all(path, bytes)
     }
 
-    machine read_all(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+    machine read_all(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     {
         block windows_filesystem_read_all(path, buffer, count)
     }
 
-    machine copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+    machine copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     {
         block windows_filesystem_copy(from, to, buffer, cap)
     }
 
-    machine exists(path: &[u8] in Path) -> bool
+    machine exists(path: @[u8] in Path) -> bool
     blocks
     reaches FilesystemMetadataQuery
     {
         block windows_filesystem_exists(path)
     }
 
-    machine try_exists(path: &[u8] in Path) -> ExistsResult
+    machine try_exists(path: @[u8] in Path) -> ExistsResult
     blocks
     reaches FilesystemMetadataQuery
     {
         block windows_filesystem_try_exists(path)
     }
 
-    machine metadata_path(path: &[u8] in Path) -> MetadataResult
+    machine metadata_path(path: @[u8] in Path) -> MetadataResult
     blocks
     reaches FilesystemMetadataQuery
     {
         block windows_filesystem_metadata_path(path, false)
     }
 
-    machine symlink_metadata(path: &[u8] in Path) -> MetadataResult
+    machine symlink_metadata(path: @[u8] in Path) -> MetadataResult
     blocks
     reaches FilesystemMetadataQuery
     {
         block windows_filesystem_metadata_path(path, true)
     }
 
-    machine remove(path: &[u8] in Path) -> UnitResult
+    machine remove(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     {
         block windows_filesystem_remove(path)
     }
 
-    machine create_dir(path: &[u8] in Path) -> UnitResult
+    machine create_dir(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     {
         block windows_filesystem_create_dir(path)
     }
 
-    machine remove_dir(path: &[u8] in Path) -> UnitResult
+    machine remove_dir(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     {
         block windows_filesystem_remove_dir(path)
     }
 
-    machine create_dir_all(path: &[u8] in Path) -> UnitResult
+    machine create_dir_all(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     {
         block windows_filesystem_create_dir_all(path)
     }
 
-    machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
+    machine read_dir_is_empty(path: @[u8] in Path) -> EmptyResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     {
         block windows_filesystem_read_dir_is_empty(path)
     }
 
-    machine set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
+    machine set_permissions(path: @[u8] in Path, perms: Permissions) -> UnitResult
     blocks
         reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     {
@@ -152,14 +152,14 @@ FilesystemWindowsProvider satisfies FilesystemService {
 
     // Windows creation needs file/directory intent; this portable contract
     // does not carry it, including for dangling targets. Do not guess it.
-    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+    machine symlink(target: @[u8] in Path, link: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     {
         UnitResult::Error { kind: ErrorKind::Unsupported }
     }
 
-    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+    machine read_link(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemMetadataQuery
     {
@@ -173,7 +173,7 @@ FilesystemWindowsProvider satisfies FilesystemService {
         block windows_filesystem_set_file_permissions(file, perms)
     }
 
-    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
+    machine rename(from: @[u8] in Path, to: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     {
@@ -210,14 +210,14 @@ FilesystemWindowsProvider satisfies FilesystemService {
     }
 
     // POSIX numeric uid/gid values do not identify Windows security principals.
-    machine set_owner(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    machine set_owner(path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation
     {
         UnitResult::Error { kind: ErrorKind::Unsupported }
     }
 
-    machine set_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    machine set_owner_no_follow(path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation
     {
@@ -238,49 +238,49 @@ FilesystemWindowsProvider satisfies FilesystemService {
         block windows_filesystem_metadata(file)
     }
 
-    machine open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
+    machine open_with(path: @[u8] in Path, options: OpenOptions) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     {
         block windows_filesystem_open_with(path, options)
     }
 
-    machine read_dir_count(path: &[u8] in Path) -> IoResult
+    machine read_dir_count(path: @[u8] in Path) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
     {
         block windows_filesystem_read_dir_count(path)
     }
 
-    machine read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
+    machine read_dir_nth(path: @[u8] in Path, n: u64) -> DirEntryResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     {
         block windows_filesystem_read_dir_nth(path, n)
     }
 
-    machine remove_dir_all(path: &[u8] in Path) -> UnitResult
+    machine remove_dir_all(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     {
         block windows_filesystem_remove_dir_all(path)
     }
 
-    machine read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+    machine read_at(file: File, buffer: @mut [u8], count: u64, offset: i64) -> IoResult
     blocks
     reaches FilesystemContentRead
     {
         block windows_filesystem_read_at(file, buffer, count, offset)
     }
 
-    machine write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
+    machine write_at(file: File, bytes: @[u8], offset: i64) -> IoResult
     blocks
     reaches FilesystemContentWrite
     {
         block windows_filesystem_write_at(file, bytes, offset)
     }
 
-    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+    machine hard_link(original: @[u8] in Path, link: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     {
@@ -294,7 +294,7 @@ FilesystemWindowsProvider satisfies FilesystemService {
         block windows_filesystem_set_times(file, accessed, modified)
     }
 
-    machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+    machine canonicalize(path: @[u8] in Path, buffer: @mut [u8]) -> UnitResult
     blocks
     reaches FilesystemMetadataQuery
     {

@@ -1,0 +1,369 @@
+# Build declarations and package identity
+
+`build.omg` is ordinary Omega orchestration in an explicit build-host context.
+It is distinct from the hermetic semantic evaluator for constants, proofs,
+plans, and generators. Host effects need admitted build authority; there is no
+second configuration grammar or ambient runtime service.
+
+The default build environment supplies confined filesystem backing through
+ordinary service contracts. Snapshot/staging is a supported library profile.
+Checked declarations and transitive build contracts expose restricted host
+requests for [project acceptance](../packages/acceptance.md#restricted-build-acceptance)
+in `omega.lock`; they cannot approve those requests themselves. Build selections
+also cannot choose an external ecosystem's receiving policy. Producing a binary
+requires no such policy declaration.
+
+Named decision: `staged-build-capability-attenuation`, settled 2026-10-28.
+Project description is one logical interpreted Omega activation, not a
+privileged syntax subset or replayed discovery program. Psi checks and admits
+the initial prefix against core, local Build declarations and available exact
+dependencies, then resumes subsequent checked continuations as dependencies
+are explicitly prepared. The Psi interpreter preserves the same mutable
+Build and live storage without rerunning earlier statements. The compiler owns
+stage checking, dependency/source identity and publication; ordinary libraries
+own filesystem and attenuation algorithms. No source-text call scanner decides
+the meaning of arbitrary same-spelled user code.
+
+`Build::dependency` and `Build::build_dependency` atomically register configured
+product and interpreted-build dependencies respectively. A description's source,
+alias, purpose and delegated context are fixed before it may be scheduled.
+Ordinary description helpers may set an alias before registration; an alias
+cannot be renamed, reused ambiguously or retargeted afterward. Product
+dependencies supply no callable Build authority. `use dependency;` is inert
+logical name selection and can remain deferred until a dependent checked stage;
+it never acquires source or executes an imported package.
+
+`suspend Build::prepare_dependency(builder, registered)` prepares an exact
+registration under its supplied execution context. The dependent continuation
+resolves names, types and contracts and is admitted before executing them.
+Initial Build checking need not already know a newly admitted package's shared
+non-core interfaces. Exact provider-slot installation still checks the selected
+requirement and implementation under
+[Build provider readiness](provider_selection.md#build-provider-readiness).
+Neither preparation nor an ordinary import chooses a default implementation,
+grants host access or fabricates declaration identity.
+
+The returned `DependencyRegistration` retains the exact activation-scoped
+registration and purpose, as a reusable immutable handle. Preparation and
+[validation](validation_subjects.md#buildvalidate) use that same identity;
+copying it does not mint another dependency or confer authority. Build/Product
+registrations remain distinct even when their aliases match.
+
+When `build` returns, package coordination joins every outstanding dependency
+request, rejects failed, cyclic, unresolved, or unadmitted dependency edges, and
+freezes the normalized Build intent. Product selections may retain inert exact
+designated references; product discovery and checking must resolve and validate
+them before a completed product or executable plan is admitted. Product bodies
+never execute during Build; product compilation starts only after the join.
+
+## Native binding intent
+
+The owning package records a direct native binding with
+`Build::bind<Requirement>(builder, target, locator)` under
+[foreign bindings](foreign_bindings.md#build-owned-native-binding). The exact
+requirement is an inert designated product-selection reference until product
+discovery and checking resolve its complete owned declaration/application.
+The target is an ordinary exact toolchain profile reference. The locator is
+ordinary closed data; fixed-byte literal lengths are inferred without explicit
+`ForeignBinding<...>` counts or mandatory helper machines.
+
+The operation borrows this activation's original Build, records target-keyed
+intent, and never invokes the product operation or installs its backing into
+the running Build. It grants no ordinary import of unresolved product code and
+does not replace explicit Build-host readiness. Package bindings compose beneath
+the chosen portable provider, so roots do not repeat dependency DLL symbols or
+name private raw requirements. Existing ownership, defaults/override precedence,
+and complete-coverage checks remain; ambiguous same-precedence rows reject.
+
+The compiler derives the native candidate and executable plan from that intent.
+Exact contract, lifetime, memory-access, calling-policy, native applicability,
+foreign admission, provenance, and runtime-authority obligations remain.
+There is no source `via` clause or per-symbol forwarding realization, and no
+author API for manufacturing trusted plan rows.
+The entry-binding overload of `Build::bind` is a separate operation.
+
+## Project role
+
+A selected `build.omg` has exactly one free build entry with the explicit mutable
+Build parameter and any declared execution-backing parameters selected and
+admitted by its invocation. A simple entry remains
+`machine build(builder: @mut Build)`; a filesystem-using entry may additionally
+take `filesystem: @mut FilesystemBacking` under an ordinary selected
+`const Files: Filesystem<FilesystemBacking>` binder. These are explicit
+source arguments, not a synthesized receiver or ambient provider. Its kind is explicit:
+
+| Build result | Role |
+| --- | --- |
+| `Build::package(builder, "name")` | Package |
+| `Build::application(builder, "name")` | Application |
+| One or more `Build::member(builder, "path")` calls | Workspace |
+
+The one interpreted activation must produce exactly one package/application
+declaration or the workspace member set. Mixed, missing, duplicate, and
+noncanonical results reject.
+`Owner::build` is not a project root and cannot acquire a synthesized receiver.
+An ordinary same-spelled machine remains ordinary source.
+
+With no selected `build.omg`, the compiler supplies ordinary default Build
+source and runs it through the same one-entry checking, interpretation, join,
+and freeze route. No file need be written. A standalone loose root defaults to
+application role; an already resolved package retains its supplied role and
+owner. Checking source does not require an executable entry. Executable output
+still needs ordinary target-slot selections and provider checks; the default
+does not discover a machine named `main` or bypass
+[entry admission](entry_roots.md).
+
+`package`, `application`, `member`, `dependency` and `build_dependency` are
+compiler-owned operations on the activation's Build value. Product and build
+dependency sets remain separate; aliases are unique
+within each scope, with no cross-scope fallback. The interpreted result, not
+source spelling, determines the requested graph. Default configuration does not
+discover undeclared dependency edges from imports. Package tooling edits
+ordinary Build source when persisting dependency changes to a loose project.
+
+Product registrations authorize product imports; Build registrations authorize
+checked interpreted dependency preparation. Unprepared external uses cannot
+execute, and a later registration cannot justify earlier code. The host library
+uses its own ordinary
+dependencies in that host context. Using a package in both contexts requires
+both edges, including std. Legacy locks cannot imply a missing edge.
+[Scoped execution](scoped_execution.md#two-checked-contexts) defines
+purpose-specific scheduling, acquisition reuse, provenance, and migration.
+
+Applications default to executable output. The Build activation may
+request `artifact_only` once for an application, never a package/workspace. It
+requires at least one completed required artifact and rejects executable
+root/provider selections. It is not a new role or target profile.
+[Staged products](scoped_execution.md#staged-products-and-failure) defines
+completion and whole-result publication.
+
+## Names, lineage, and resolution
+
+Names begin with an ASCII lowercase letter, followed by lowercase letters,
+digits, and single underscore-separated segments. Leading, trailing and repeated
+underscores reject. Default import aliases preserve the declared name exactly;
+the dependency description provides explicit renaming before atomic registration.
+Directory/repository
+names are advisory; the fetched package declares its own name.
+
+| Identity | Binds |
+| --- | --- |
+| Package name | Human-facing name; not globally unique or security identity. |
+| `PackageKey` | Declared name and canonical source lineage for a named project; tagged content identity for an anonymous root as defined below. |
+| `PackageInstance` | Key at an exact immutable source resolution, including workspace member selection. |
+| Root role | Separate package/application contract, retained alongside the key. |
+
+For Git, lineage is the canonical repository namespace, excluding requested
+revision, resolved commit, tree, and content. Those belong to resolution.
+Same-named packages from different lineages remain distinct even with equal
+content or policy. Authored and derived compiler symbols preserve exact package
+or toolchain provenance; a short spelling cannot replace the selected owner.
+
+Packages and applications share key derivation. A selected closure root may be
+either; every dependency edge must resolve to a package. Workspace role is not
+a compilation root role. Do not infer application kind from ProgramEntry.
+After dependency admission, non-root package role need not be redundantly stored.
+
+Root role survives closure evidence, lock, review, compiler handoff, diagnostics,
+and audit. It does not enter the nominal key but does enter root-consuming
+commitments. Package-to-application loses dependency compatibility;
+application-to-package loses executable-activation compatibility. Report the
+directional broken contract, not a new package identity or a symmetric change.
+
+## Library responsibilities and names
+
+Named decision: `operating-system-library-name`, settled 2026-11-12. Rename
+the current `std` library to `system` and `alloc` to `allocation`. The names
+describe responsibilities that guide library organization:
+
+| Name | Responsibility |
+| --- | --- |
+| `core` | Foundational language-facing types, contracts and mechanisms. Compiler privilege remains confined to exact primitives, not the entire package. |
+| `system` | Interfaces and adapters to the execution environment: operating systems, firmware, platform entry and related services. |
+| `allocation` | Strategies for obtaining, partitioning, reusing and returning storage under their contracts. |
+| `collections` | Containers and operations on their elements, using the storage arrangements their contracts permit. |
+
+Firmware includes UEFI and its Boot Services handoff; `system` therefore
+does not mean only operating-system calls. OS independence is not an admission
+criterion for `core`: parsers, collections and compression can remain ordinary
+packages. Allocation need not use a heap or ambient allocator; a strategy can
+work over explicitly supplied storage without creating backing authority.
+
+These are library responsibilities, not compiler categories or a requirement
+to create four separately versioned packages. Modules can express the logical
+separation; independent use, dependencies or replacement can justify later
+package boundaries. The existing allocation library's container customer does
+not make all containers allocation strategies or fix their permanent home.
+No container rename, generalization of element support or collections extraction
+is required by this decision. Storage growth remains explicit where the
+container contract requires it; a name does not authorize hidden allocation,
+release or loss of resident-value cleanup obligations.
+
+Names should help readers predict the abstraction; conventional vocabulary is
+useful when it does so, and spelling out an abbreviation alone proves nothing
+about the contract. `std` can describe a standard distribution offering, but
+`system` describes the responsibility chosen for this package. Neither name,
+nor matching paths, grants compiler custody, platform authority or privileged
+provider selection. Those remain governed by exact primitives, admitted
+contracts and resolved dependencies.
+
+The physical rename remains implementation work under
+[LIBRARY-RESPONSIBILITY-NAMES](../../../TASKS.md#pipeline-route).
+Existing `std` and `alloc` spellings in source and contracts identify the
+libraries pending that migration, not additional package kinds. Rename their
+declarations, registrations, imports and exact compiler binding references
+coherently, preserving owner checks rather than trusting the new short names.
+The rename is separate from removing compiler coupling and does not demonstrate
+replaceability by itself.
+
+## Ordinary library packages
+
+Named decision: `ordinary-library-packages`, settled 2026-11-12. `std` and
+`alloc`, wherever no compiler privilege is required, use ordinary package
+ownership, dependencies, validation and immutable version selection. They may
+be distributed beside the compiler, fetched from Git or supplied by another
+accepted source without acquiring a new semantic package kind. Bundling is
+optional distribution convenience, not a source of compiler custody.
+
+Keep four identities and obligations distinct: the distribution digest verifies
+the release contents; the package owner identifies declarations; exact sealed
+bindings identify compiler-supplied behavior; and dependency resolution chooses
+the package instance used by a program. A whole-bundle digest alone does not
+merge nominal owners or prove that packages share primitive authority. Making
+`std` optional must preserve integrity verification for the components the
+distribution declares, not disable it to tolerate missing files.
+
+A request requiring only its selected core and target support must not require
+an installed `std` merely to make library discovery succeed. Default runtime
+and entry support follows the target's declared dependencies and contracts
+through normal selection. Do not silently import pieces of bundled `std` with
+toolchain-contract custody or mix them into an independently selected compatible
+`std` revision. Distribution defaults may select ordinary package revisions;
+they do not override the resolved dependency graph by filename or short name.
+
+Genuinely compiler-supplied primitives and unavoidable entry/ABI bridges retain
+explicit, tightly identified support under the existing sealed catalog and
+admission rules. Separate those minimal declarations from ordinary wrappers;
+do not make an entire surrounding library compiler-special or move all of
+`std` into core. A toolchain-owned core declaration is not automatically a
+compiler intrinsic merely because of its package owner. A package named `std`,
+matching paths or copied signatures/source bytes cannot confer compiler custody.
+Console formatting, collections, filesystem adapters and other ordinary library
+behavior retain normal checked implementations and package identities.
+
+The [validation delivery plan](../../drafts/designs/validation_subjects.md#ordinary-library-migration)
+tracks removal of mandatory/pinned `std` coupling independently of the
+registration-validation API and narrow core-check-root repair. This settlement
+does not itself deliver the library rename above or the
+[runtime providers](task_runtime.md#runtime-providers-and-call-authority).
+
+## Default builds and anonymous owner identity
+
+A missing build file is not missing provenance. Preserve any exact owner already
+supplied by the resolved source graph or an imported artifact. Core retains its
+toolchain owner; ordinary std retains its resolved package owner. Neither shares
+an absent-owner key with the root, and repeated imports never mint fresh owners.
+
+A genuinely anonymous root uses an invocation-private activation identity while
+its Build runs. That identity scopes mutable state, continuations, diagnostics,
+and dependency requests but never becomes a declaration owner or portable
+artifact identity. After Build returns and every dependency request joins, the
+root receives a content-derived owner before product source compilation. Its key
+is a domain-separated strong digest of a versioned canonical record containing:
+
+- The complete captured source snapshot, with root-relative paths and exact
+  bytes under [source capture](../packages/sources.md#local-source-capture).
+- Its resolved dependency edges, including purpose, local aliases, exact owner
+  identities and immutable resolutions; include the applicable core identity.
+- The language/default-build semantics identity and captured semantic inputs
+  that affect source meaning. Output paths, debug information and backend
+  optimization selections are not such inputs.
+
+The anonymous variant is distinct from named and toolchain owners. Use canonical
+ordering and unambiguous field framing, not discovery order or private object
+serialization. Host locations used to capture or load those inputs, timestamps,
+random IDs, cache state, unrelated consumers and previous compilations are not
+added to the record. Dependency identities remain exact; changing a dependency's
+lineage is a changed input, not merely relocating its retained snapshot. Root role
+and host/target build-instance selection remain separate from declaration owner.
+Generated outputs retain their generating owner and exact derivation identity;
+do not hash a root's own future compiled output to establish its input owner.
+
+Equal anonymous records have equal owner identity, including after relocation
+or cache deletion. Changing the snapshot, dependency resolution or semantic
+inputs changes that identity. This is not inferred project continuity across
+edits: named source lineage supplies that when required. Distinct named lineages
+remain distinct even with equal content. An artifact digest identifies an exact
+product, not the evolving project that produced it.
+
+Declarations retain their owner plus owner-local declaration identity through
+checking, specialization and publication. Artifact consumers preserve these
+identities rather than rebasing them onto the importing root. Importable products
+must carry the necessary identities and provenance; a cache may locate them but
+is never their authority. Existing products without that information cannot
+acquire portable nominal provenance from a guessed path or registry entry.
+Identity alone authenticates no producer and grants neither package acceptance
+nor execution authority.
+
+## Evaluated build work
+
+Local and package-owned helpers may borrow the root Build value for dependency
+requests, provider selection, root binding, staging, and other evaluated work.
+Build-dependency helpers call ordinary prepared declarations or an exact static
+requirement after its admitted implementation is installed for that activation.
+Authority follows ordinary operation arguments and the checked call
+graph, not provider-slot selection. Transitive reach,
+invocation, blocking/suspension, termination, observations, and authority
+demands compose into the root's published ceiling.
+
+`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)` is an
+evaluated root-authorized product selection under the
+[assumed-binding contract](assumed_binding_contracts.md), not a statically
+projected project/dependency declaration. Its exact product references do not
+execute either requirement or grant any assumption to the build-host context.
+Ordinary applications should not use this selection. Build helpers and libraries
+must not insert it as a workaround for a failed provider contract or checker
+diagnostic; the exceptional-use rationale belongs to the consuming root.
+
+Filesystem operations use ordinary explicitly supplied backing and selected
+implementations. The old BuildSource/BuildOutput filesystem facets are retired
+under `STAGED-BUILD-CAPABILITIES`, not the public dependency-helper interface.
+The sponsor enforces authorized roots, containment, limits and custody under
+[inputs and default filesystem](scoped_execution.md#inputs-and-default-filesystem),
+not a constructor name or a fabricated handle. Compiler publication and
+diagnostic records remain activation-scoped and do not become filesystem
+authority. Logging is explicit and captured. Selecting a runtime provider does
+not route it into build execution. Additional host effects require explicit
+protocol operations and policy; package code gets no resolver credentials.
+
+[Build execution](execution.md) specifies admission, generated-source visibility,
+and dependency handoff.
+
+## Exact-target evaluation
+
+[Configuration and target selection](configuration.md) defines exact-target
+admissibility, activation-local state, and identity-preserving staged fan-out.
+
+## Workspaces
+
+A workspace is a path-declared catalog of locatable members, not a combined
+dependency graph or a node with its own package key. Each application/package
+remains an independently selected closure root; building one does not include
+unrelated members. A check that names no member takes every declared member as
+a [validation subject](validation_subjects.md); a product may add registered
+dependencies to its own subjects with `Build::validate`. Shared pins and
+ceilings may be passed into member Build
+values, and members may only narrow them. Source code never searches parent
+directories for imports; only tooling discovers the enclosing build/workspace.
+
+Remote selection uses the member's declared name, not its path. Paths remain
+navigation and the base for relative requests; relocation does not rename the
+package. Reject undeclared/escaping members, absent/duplicate names, and recursive
+search for undeclared build files. Source kinds are extensible; Git is not the
+semantic definition of a source. There is no independent package version field:
+the exact resolved source supplies instance identity.
+
+The workspace owns its lock; dependency locks do not pin the consumer's graph.
+Membership does not merge acceptance across roots. A multi-root workspace lock
+must retain each root's source closure, target sections and acceptance separately;
+neither catalog membership nor another root's acceptance can fill missing state.

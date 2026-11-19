@@ -9,28 +9,28 @@ use io::report;
 use model::stages;
 
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut raw: io::input::Raw;
     let mut input: io::input::Input;
     let mut solution: model::stages::Solution;
-    let parsed: bool = block io::input::parse(&mut raw);
+    let parsed: bool = block io::input::parse(@mut raw);
     transition parsed {
-        true -> validate_input(&raw, &mut input, &mut solution)
+        true -> validate_input(@raw, @mut input, @mut solution)
         false -> invalid()
     }
-    machine validate_input(raw: &io::input::Raw, input: &mut io::input::Input, solution: &mut model::stages::Solution) {
+    machine validate_input(raw: @io::input::Raw, input: @mut io::input::Input, solution: @mut model::stages::Solution) {
         transition io::input::validate(raw, input) {
             true -> calculate(input, solution)
             false -> invalid()
         }
     }
-    machine calculate(input: &io::input::Input, solution: &mut model::stages::Solution) {
+    machine calculate(input: @io::input::Input, solution: @mut model::stages::Solution) {
         transition model::stages::solve(input, solution) {
             true -> output(input, solution)
             false -> failed()
         }
     }
-    machine output(input: &io::input::Input, solution: &model::stages::Solution) {
+    machine output(input: @io::input::Input, solution: @model::stages::Solution) {
         io::report::emit(input, solution);
         ProcessExit::exit_process(0);
     }
@@ -47,5 +47,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

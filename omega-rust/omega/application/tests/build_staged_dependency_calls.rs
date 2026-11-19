@@ -68,21 +68,21 @@ fn check(name: &str, before: &str, after: &str, value: i32) -> (bool, String) {
         format!(
             "use kit;
 
-machine build(builder: &mut Build)
+machine build(builder: @mut Build)
 suspends
 {{
     Build::application(builder, \"staged\");
     builder.tests.disabled = true;
     let mut kit_request: DependencyDescription = dependency::from_source(Source::Path {{ location: \"dep\" }});
-    dependency::with_alias(&mut kit_request, \"kit\");
+    dependency::with_alias(@mut kit_request, \"kit\");
     let kit_registered: DependencyRegistration = Build::build_dependency(builder, kit_request);
 {before}
     suspend Build::prepare_dependency(builder, kit_registered);
 {after}
-    machine carried(builder: &mut Build) {{
+    machine carried(builder: @mut Build) {{
         Build::bind(builder, linux_x86_64::ProgramEntry, main);
     }}
-    machine wrong(builder: &mut Build) {{
+    machine wrong(builder: @mut Build) {{
         Build::application(builder, \"second_role\");
     }}
 }}
@@ -92,7 +92,7 @@ suspends
     .expect("staged Build");
     std::fs::write(
         root.join("dep/build.omg"),
-        "machine build(builder: &mut Build) {
+        "machine build(builder: @mut Build) {
     Build::package(builder, \"kit_package\");
 }
 ",
@@ -202,7 +202,7 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
     let (compiled, stderr) = check(
         "product-dependency",
         "    let mut lib_request: DependencyDescription = dependency::from_source(Source::Path { location: \"dep\" });
-    dependency::with_alias(&mut lib_request, \"lib\");
+    dependency::with_alias(@mut lib_request, \"lib\");
     let lib_registered: DependencyRegistration = Build::dependency(builder, lib_request);",
         &after("lib::v"),
         7,

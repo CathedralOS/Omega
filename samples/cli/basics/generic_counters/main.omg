@@ -14,26 +14,26 @@ data Counter<T> {
     value: T;
     times: i32 in Wrapping;
 }
-machine record_counter<T>(counter: &mut Counter<T>, value: T) {
+machine record_counter<T>(counter: @mut Counter<T>, value: T) {
     counter.value = value;
     counter.times = counter.times + 1;
 }
-machine current_counter<T [copy]>(counter: &Counter<T>) -> T {
+machine current_counter<T [copy]>(counter: @Counter<T>) -> T {
     transition { _ -> (counter.value) }
 }
-machine counter_count<T>(counter: &Counter<T>) -> i32 in Wrapping {
+machine counter_count<T>(counter: @Counter<T>) -> i32 in Wrapping {
     transition { _ -> (counter.times) }
 }
 machine entry_start() reaches ProcessExit + Console {
     let mut score: Counter<i32>;
     let mut flag: Counter<bool>;
-    record_counter(&mut score, 30);
-    record_counter(&mut score, 12);
-    record_counter(&mut flag, true);
-    let total: i32 = current_counter(&score);
-    let times_score: i32 in Wrapping = counter_count(&score);
-    let times_flag: i32 in Wrapping = counter_count(&flag);
-    let latched: bool = current_counter(&flag);
+    record_counter(@mut score, 30);
+    record_counter(@mut score, 12);
+    record_counter(@mut flag, true);
+    let total: i32 = current_counter(@score);
+    let times_score: i32 in Wrapping = counter_count(@score);
+    let times_flag: i32 in Wrapping = counter_count(@flag);
+    let latched: bool = current_counter(@flag);
     transition latched {
         true -> tally(total, times_score, times_flag)
         false -> wrong()

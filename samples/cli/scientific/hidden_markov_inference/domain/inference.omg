@@ -19,18 +19,18 @@ machine logarithm(value: f64) -> f64 {
         transition index < 47 { true -> term(power * square, square, index + 2, next, adjustment) false -> (2.0 * next + adjustment) }
     }
 }
-public machine infer(model: &Model, result: &mut Inference) -> bool
+public machine infer(model: @Model, result: @mut Inference) -> bool
 requires model.count >= 1 requires model.count <= 16 {
     let symbol: u64 = model.observations[0];
     transition symbol <= 1 { true -> first(model, result, symbol) false -> false }
-    machine first(model: &Model, result: &mut Inference, symbol: u64) -> bool
+    machine first(model: @Model, result: @mut Inference, symbol: u64) -> bool
     requires model.count >= 1 requires model.count <= 16 requires symbol <= 1 {
         let zero: f64 = model.probabilities[0] * model.probabilities[6 + symbol];
         let one: f64 = model.probabilities[1] * model.probabilities[8 + symbol];
         let scale: f64 = zero + one;
         transition scale > 0.0 { true -> first_scaled(model, result, zero, one, scale) false -> false }
     }
-    machine first_scaled(model: &Model, result: &mut Inference, zero: f64, one: f64, scale: f64) -> bool
+    machine first_scaled(model: @Model, result: @mut Inference, zero: f64, one: f64, scale: f64) -> bool
     requires model.count >= 1 requires model.count <= 16 {
         result.forward[0] = zero / scale;
         result.forward[1] = one / scale;
@@ -38,23 +38,23 @@ requires model.count >= 1 requires model.count <= 16 {
         result.log_likelihood = logarithm(scale);
         transition { _ -> forward(model, result, 1) }
     }
-    machine forward(model: &Model, result: &mut Inference, step: u64) -> bool
+    machine forward(model: @Model, result: @mut Inference, step: u64) -> bool
     requires model.count >= 1 requires model.count <= 16 requires step >= 1 requires step <= 16 {
         transition step < model.count { true -> next(model, result, step) false -> backward_start(model, result) }
     }
-    machine next(model: &Model, result: &mut Inference, step: u64) -> bool
+    machine next(model: @Model, result: @mut Inference, step: u64) -> bool
     requires model.count >= 1 requires model.count <= 16 requires step >= 1 requires step < 16 {
         let symbol: u64 = model.observations[step];
         transition symbol <= 1 { true -> recurrence(model, result, step, symbol) false -> false }
     }
-    machine recurrence(model: &Model, result: &mut Inference, step: u64, symbol: u64) -> bool
+    machine recurrence(model: @Model, result: @mut Inference, step: u64, symbol: u64) -> bool
     requires model.count >= 1 requires model.count <= 16 requires step >= 1 requires step < 16 requires symbol <= 1 {
         let zero: f64 = (result.forward[2 * step - 2] * model.probabilities[2] + result.forward[2 * step - 1] * model.probabilities[4]) * model.probabilities[6 + symbol];
         let one: f64 = (result.forward[2 * step - 2] * model.probabilities[3] + result.forward[2 * step - 1] * model.probabilities[5]) * model.probabilities[8 + symbol];
         let scale: f64 = zero + one;
         transition scale > 0.0 { true -> scaled(model, result, step, zero, one, scale) false -> false }
     }
-    machine scaled(model: &Model, result: &mut Inference, step: u64, zero: f64, one: f64, scale: f64) -> bool
+    machine scaled(model: @Model, result: @mut Inference, step: u64, zero: f64, one: f64, scale: f64) -> bool
     requires model.count >= 1 requires model.count <= 16 requires step >= 1 requires step < 16 {
         result.forward[2 * step] = zero / scale;
         result.forward[2 * step + 1] = one / scale;
@@ -62,20 +62,20 @@ requires model.count >= 1 requires model.count <= 16 {
         result.log_likelihood = result.log_likelihood + logarithm(scale);
         transition { _ -> forward(model, result, step + 1) }
     }
-    machine backward_start(model: &Model, result: &mut Inference) -> bool
+    machine backward_start(model: @Model, result: @mut Inference) -> bool
     requires model.count >= 1 requires model.count <= 16 {
         result.backward[2 * model.count - 2] = 1.0;
         result.backward[2 * model.count - 1] = 1.0;
         transition { _ -> backward(model, result, model.count - 1) }
     }
-    machine backward(model: &Model, result: &mut Inference, step: u64) -> bool requires step < 16 {
+    machine backward(model: @Model, result: @mut Inference, step: u64) -> bool requires step < 16 {
         transition step > 0 { true -> backward_row(model, result, step) false -> true }
     }
-    machine backward_row(model: &Model, result: &mut Inference, step: u64) -> bool requires step > 0 requires step < 16 {
+    machine backward_row(model: @Model, result: @mut Inference, step: u64) -> bool requires step > 0 requires step < 16 {
         let symbol: u64 = model.observations[step];
         transition symbol <= 1 { true -> backward_symbol(model, result, step, symbol) false -> false }
     }
-    machine backward_symbol(model: &Model, result: &mut Inference, step: u64, symbol: u64) -> bool requires step > 0 requires step < 16 requires symbol <= 1 {
+    machine backward_symbol(model: @Model, result: @mut Inference, step: u64, symbol: u64) -> bool requires step > 0 requires step < 16 requires symbol <= 1 {
         let zero: f64 = model.probabilities[6 + symbol] * result.backward[2 * step];
         let one: f64 = model.probabilities[8 + symbol] * result.backward[2 * step + 1];
         result.backward[2 * step - 2] = (model.probabilities[2] * zero + model.probabilities[3] * one) / result.scales[step];

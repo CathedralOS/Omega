@@ -132,7 +132,7 @@ pub(super) fn discover_build_layout(
         .checked_sub(1)
         .and_then(|position| semantic.get(position))
         .is_some_and(|index| tokens.spelling(&tokens[*index]) == "machine");
-    let expected_after = ["(", "builder", ":", "&", "mut", "Build", ")", "{"];
+    let expected_after = ["(", "builder", ":", "@", "mut", "Build", ")", "{"];
     if !expected_before
         || expected_after.iter().enumerate().any(|(offset, expected)| {
             semantic
@@ -369,7 +369,7 @@ mod tests {
     #[test]
     fn quoted_delimiters_leave_the_build_body_and_dependency_row_intact() {
         let source = r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "}");
     _ = Build::dependency(builder, dependency::from_source(Source::Path { location: "(" }));
 }

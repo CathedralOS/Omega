@@ -8,18 +8,18 @@ public data Pedigree {
     observed: [i32; 6];
 }
 
-public machine valid(pedigree: &Pedigree) -> bool {
+public machine valid(pedigree: @Pedigree) -> bool {
     transition pedigree.count >= 1 && pedigree.count <= 6 {
         true -> person(pedigree, 0)
         _ -> false
     }
-    machine person(pedigree: &Pedigree, index: i32 in Wrapping) -> bool {
+    machine person(pedigree: @Pedigree, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < pedigree.count && index < 6 {
             true -> inspect(pedigree, index)
             _ -> true
         }
     }
-    machine inspect(pedigree: &Pedigree, index: i32 in Wrapping) -> bool {
+    machine inspect(pedigree: @Pedigree, index: i32 in Wrapping) -> bool {
         let father: i32 = pedigree.father[index];
         let mother: i32 = pedigree.mother[index];
         let observed: i32 = pedigree.observed[index];

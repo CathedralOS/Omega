@@ -44,7 +44,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("random_walk: a pseudo-random walker wanders a 24x12 grid leaving a trail");
     main.px = 12;
     main.py = 6;
@@ -58,77 +58,77 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     main.k = 0;
     transition { _ -> block clear(main) }
 
-    machine clear(main: &mut Main) {
+    machine clear(main: @mut Main) {
         transition main.k >= 0 && main.k < 288 { true -> block clear_cell(main) _ -> block begin(main) }
     }
-    machine clear_cell(main: &mut Main) {
+    machine clear_cell(main: @mut Main) {
         main.grid[main.k] = 0;
         main.k = main.k + 1;
         transition { _ -> block clear(main) }
     }
-    machine begin(main: &mut Main) {
+    machine begin(main: @mut Main) {
         main.flat = main.py * 24 + main.px;
         main.gen = 0;
         transition main.flat >= 0 && main.flat < 288 { true -> block begin_mark(main) _ -> block bad(main) }
     }
-    machine begin_mark(main: &mut Main) {
+    machine begin_mark(main: @mut Main) {
         main.grid[main.flat] = 1;
         transition { _ -> block show(main) }
     }
 
     // --- render trail + walker in place ---
-    machine show(main: &mut Main) {
+    machine show(main: @mut Main) {
         Console::write(main.home);
         main.ry = 0;
         transition { _ -> block show_row(main) }
     }
-    machine show_row(main: &mut Main) {
+    machine show_row(main: @mut Main) {
         transition main.ry >= 0 && main.ry < 12 { true -> block show_col_init(main) _ -> block show_done(main) }
     }
-    machine show_col_init(main: &mut Main) {
+    machine show_col_init(main: @mut Main) {
         main.cx = 0;
         transition { _ -> block show_col(main) }
     }
-    machine show_col(main: &mut Main) {
+    machine show_col(main: @mut Main) {
         transition main.cx >= 0 && main.cx < 24 { true -> block show_cell(main) _ -> block emit_row(main) }
     }
-    machine show_cell(main: &mut Main) {
+    machine show_cell(main: @mut Main) {
         transition main.ry == main.py && main.cx == main.px { true -> block put_at(main) _ -> block put_trail(main) }
     }
-    machine put_at(main: &mut Main) {
+    machine put_at(main: @mut Main) {
         main.line[main.cx] = 64; // '@'
         main.cx = main.cx + 1;
         transition { _ -> block show_col(main) }
     }
-    machine put_trail(main: &mut Main) {
+    machine put_trail(main: @mut Main) {
         main.flat = main.ry * 24 + main.cx;
         transition main.flat >= 0 && main.flat < 288 { true -> put_trail_w(main) _ -> block bad(main) }
     }
-    machine put_trail_w(main: &mut Main) {
+    machine put_trail_w(main: @mut Main) {
         main.v = main.grid[main.flat];
         transition main.v >= 0 && main.v < 2 { true -> put_trail_g(main) _ -> block bad(main) }
     }
-    machine put_trail_g(main: &mut Main) {
+    machine put_trail_g(main: @mut Main) {
         main.glyph = main.chars[main.v];
         main.line[main.cx] = main.glyph;
         main.cx = main.cx + 1;
         transition { _ -> block show_col(main) }
     }
-    machine emit_row(main: &mut Main) {
+    machine emit_row(main: @mut Main) {
         Console::write_line(main.line);
         main.ry = main.ry + 1;
         transition { _ -> block show_row(main) }
     }
-    machine show_done(main: &mut Main) {
+    machine show_done(main: @mut Main) {
         block Clock::sleep(90);
         transition { _ -> step(main) }
     }
 
     // --- advance the walk one random step ---
-    machine step(main: &mut Main) {
+    machine step(main: @mut Main) {
         transition main.gen < 70 { true -> advance(main) _ -> finish(main) }
     }
-    machine advance(main: &mut Main) {
+    machine advance(main: @mut Main) {
         main.sc = main.st << 13;
         main.st = main.st ^ main.sc;
         main.sc = main.st >> 17;
@@ -138,63 +138,63 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         main.dir = main.st % 4;
         transition { _ -> move(main) }
     }
-    machine move(main: &mut Main) {
+    machine move(main: @mut Main) {
         transition main.dir == 0 { true -> go_up(main) _ -> move1(main) }
     }
-    machine move1(main: &mut Main) {
+    machine move1(main: @mut Main) {
         transition main.dir == 1 { true -> go_down(main) _ -> move2(main) }
     }
-    machine move2(main: &mut Main) {
+    machine move2(main: @mut Main) {
         transition main.dir == 2 { true -> go_left(main) _ -> go_right(main) }
     }
-    machine go_up(main: &mut Main) {
+    machine go_up(main: @mut Main) {
         transition main.py > 0 { true -> up_w(main) _ -> mark(main) }
     }
-    machine up_w(main: &mut Main) {
+    machine up_w(main: @mut Main) {
         main.py = main.py - 1;
         transition { _ -> mark(main) }
     }
-    machine go_down(main: &mut Main) {
+    machine go_down(main: @mut Main) {
         transition main.py < 11 { true -> down_w(main) _ -> mark(main) }
     }
-    machine down_w(main: &mut Main) {
+    machine down_w(main: @mut Main) {
         main.py = main.py + 1;
         transition { _ -> mark(main) }
     }
-    machine go_left(main: &mut Main) {
+    machine go_left(main: @mut Main) {
         transition main.px > 0 { true -> left_w(main) _ -> mark(main) }
     }
-    machine left_w(main: &mut Main) {
+    machine left_w(main: @mut Main) {
         main.px = main.px - 1;
         transition { _ -> mark(main) }
     }
-    machine go_right(main: &mut Main) {
+    machine go_right(main: @mut Main) {
         transition main.px < 23 { true -> right_w(main) _ -> mark(main) }
     }
-    machine right_w(main: &mut Main) {
+    machine right_w(main: @mut Main) {
         main.px = main.px + 1;
         transition { _ -> mark(main) }
     }
-    machine mark(main: &mut Main) {
+    machine mark(main: @mut Main) {
         main.flat = main.py * 24 + main.px;
         main.gen = main.gen + 1;
         transition main.flat >= 0 && main.flat < 288 { true -> mark_w(main) _ -> block bad(main) }
     }
-    machine mark_w(main: &mut Main) {
+    machine mark_w(main: @mut Main) {
         main.grid[main.flat] = 1;
         transition { _ -> block show(main) }
     }
 
-    machine finish(main: &mut Main) {
+    machine finish(main: @mut Main) {
         Console::write_line("PASS: 70 random steps walked and rendered (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("FAIL: grid index out of bounds guard tripped (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -202,5 +202,5 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

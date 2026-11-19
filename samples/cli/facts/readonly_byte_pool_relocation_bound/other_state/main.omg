@@ -2,7 +2,7 @@
 // Place: another state. A state transition forwards the slice literal to a successor state.
 // Expected exit: 0
 
-machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap
+machine inspect_bytes(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {
@@ -21,11 +21,11 @@ ensures result == 0u64
 }
 
 machine main() crashes Trap {
-    let bytes: &[u8] = "omega";
+    let bytes: @[u8] = "omega";
     transition {
         _ -> step(bytes)
     }
-    machine step(forwarded: &[u8])
+    machine step(forwarded: @[u8])
     requires forwarded.len >= 5u64 && forwarded.len <= 5u64
     {
         transition inspect_bytes(forwarded) == 0 {

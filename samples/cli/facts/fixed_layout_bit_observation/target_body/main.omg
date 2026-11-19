@@ -85,7 +85,7 @@ SecondDelivery satisfies Delivery {
 machine verify(expected_marker: u64) reaches Delivery crashes Trap {
     let value: LayoutStorage<PackedFlags, CompactBits> = Delivery::value();
     let difference: u64 = value.mode - 5u64;
-    let bytes: &[u8; 1] = &value as &[u8; 1];
+    let bytes: @[u8; 1] = @value as @[u8; 1];
     let marker: u64 = Delivery::marker();
     transition marker == expected_marker && difference == 0u64 && value.code == 10u64 && bytes[0] == 171u8 {
         true -> done()

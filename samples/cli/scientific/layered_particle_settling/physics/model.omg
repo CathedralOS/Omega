@@ -73,7 +73,7 @@ public machine terminal_velocity(density: f64, fluid: Layer) -> f64 {
     machine positive(value: f64) -> f64 { value }
 }
 
-public machine advance(particle: &mut Particle, fluid: Layer, timestep: f64) -> Step {
+public machine advance(particle: @mut Particle, fluid: Layer, timestep: f64) -> Step {
     let old_velocity: f64 = particle.velocity;
     let net: f64 = force(particle.density, fluid, old_velocity);
     particle.velocity = old_velocity + timestep * net / particle.density;

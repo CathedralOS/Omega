@@ -11,7 +11,7 @@ crashes Trap value == value
 public machine read_nan(value: i32) -> f32
 requires value == ONE_BITS
 {
-    let view: &f32 = &value as &f32;
+    let view: @f32 = @value as @f32;
     let observed: f32 = view;
     maybe_ordered(observed)
 }

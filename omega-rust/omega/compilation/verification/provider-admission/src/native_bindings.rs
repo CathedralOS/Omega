@@ -1050,7 +1050,11 @@ mod tests {
             let method = &mut Arc::make_mut(&mut changed.declaration).methods[0];
             match change {
                 0 => method.service_reach.push("ProcessExit".into()),
-                1 => method.synchronous_invocations.push("Raw::callback".into()),
+                1 => method.synchronous_invocations.push(
+                    declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+                        "Raw::callback".into(),
+                    ),
+                ),
                 2 => method.result_claims.push(ServiceResultClaim {
                     domain: "Granted".into(),
                     effective_carry: Default::default(),

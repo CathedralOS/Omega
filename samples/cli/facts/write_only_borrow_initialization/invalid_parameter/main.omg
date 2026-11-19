@@ -10,7 +10,7 @@ data BoxedSlot {
     value: u64 in SlotDomain;
 }
 
-machine initialize_slot(destination: &write BoxedSlot) {
+machine initialize_slot(destination: @write BoxedSlot) {
     destination.value = 99u64;
 }
 
@@ -20,7 +20,7 @@ machine subtract_parameter(observed: u64 in SlotDomain) -> u64 {
 
 machine probe() -> u64 {
     let mut slot: BoxedSlot = BoxedSlot { value: 99u64 };
-    initialize_slot(&write slot);
+    initialize_slot(@write slot);
     subtract_parameter(slot.value)
 }
 

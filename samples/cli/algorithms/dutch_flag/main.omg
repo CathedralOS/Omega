@@ -50,12 +50,12 @@ requires
 }
 
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut context: Partition;
-    block sort(&mut context);
+    block sort(@mut context);
 }
 
-machine sort(context: &mut Partition) reaches ProcessExit + Console {
+machine sort(context: @mut Partition) reaches ProcessExit + Console {
     Console::write_line("dutch_flag: partitioning [White, Blue, Red] into [Red, White, Blue]");
     context.items[0] = Color::White;
     context.items[1] = Color::Blue;
@@ -68,7 +68,7 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
     }
 
     // Loop head: partition until the white cursor meets the blue fence.
-    machine head(context: &mut Partition) {
+    machine head(context: @mut Partition) {
         transition context.w < context.b {
             true -> block w_guard(context)
             _ -> block check0(context)
@@ -77,14 +77,14 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
 
     // Literal re-guard: dominates every items[context.w] access downstream
     // (classify and both swaps -- no state between rewrites w).
-    machine w_guard(context: &mut Partition) {
+    machine w_guard(context: @mut Partition) {
         transition context.w < 3 {
             true -> block classify(context)
             _ -> block confused(96)
         }
     }
 
-    machine classify(context: &mut Partition) {
+    machine classify(context: @mut Partition) {
         transition context.items[context.w] {
             Color::Red -> block r_guard(context)
             Color::White -> block w_bump_guard(context)
@@ -92,7 +92,7 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
         }
     }
 
-    machine r_guard(context: &mut Partition) {
+    machine r_guard(context: @mut Partition) {
         transition context.r < 3 {
             true -> block red_swap(context)
             _ -> block confused(97)
@@ -102,7 +102,7 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
     // Red at the cursor: swap it into the red prefix, grow the prefix
     // (`r + 1` proves on the DIRECT edge from r_guard), then join the
     // white path to bump the cursor.
-    machine red_swap(context: &mut Partition) {
+    machine red_swap(context: @mut Partition) {
         context.t = context.items[context.r];
         context.items[context.r] = context.items[context.w];
         context.items[context.w] = context.t;
@@ -115,21 +115,21 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
     // Re-guard before the increment: the bound must sit on the DIRECT edge
     // for the `+ 1` to prove (the bubble_sort `advance` idiom). The red and
     // white arms both join here.
-    machine w_bump_guard(context: &mut Partition) {
+    machine w_bump_guard(context: @mut Partition) {
         transition context.w < 3 {
             true -> block w_bump(context)
             _ -> block confused(95)
         }
     }
 
-    machine w_bump(context: &mut Partition) {
+    machine w_bump(context: @mut Partition) {
         context.w = context.w + 1;
         transition {
             _ -> block head(context)
         }
     }
 
-    machine b_guard(context: &mut Partition) {
+    machine b_guard(context: @mut Partition) {
         transition context.b > 0 {
             true -> block blue_swap(context)
             _ -> block confused(98)
@@ -140,7 +140,7 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
     // The declared b <= 3 and the b > 0 guard establish bp <= 2 before
     // its store. The existing bp < 3 re-guard carries the index proof
     // into blue_put; its else arm never fires.
-    machine blue_swap(context: &mut Partition) {
+    machine blue_swap(context: @mut Partition) {
         context.bp = context.b - 1;
         transition context.bp < 3 {
             true -> block blue_put(context)
@@ -148,7 +148,7 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
         }
     }
 
-    machine blue_put(context: &mut Partition) {
+    machine blue_put(context: @mut Partition) {
         context.t = context.items[context.w];
         context.items[context.w] = context.items[context.bp];
         context.items[context.bp] = context.t;
@@ -159,19 +159,19 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
     }
 
     // Verify [Red, White, Blue] element by element via case dispatch.
-    machine check0(context: &mut Partition) {
+    machine check0(context: @mut Partition) {
         transition context.items[0] {
             Color::Red -> block check1(context)
             _ -> block bad(71)
         }
     }
-    machine check1(context: &mut Partition) {
+    machine check1(context: @mut Partition) {
         transition context.items[1] {
             Color::White -> block check2(context)
             _ -> block bad(72)
         }
     }
-    machine check2(context: &mut Partition) {
+    machine check2(context: @mut Partition) {
         transition context.items[2] {
             Color::Blue -> block good()
             _ -> block bad(73)
@@ -198,13 +198,13 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
     machine report(code: i32) {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause[..]);
+        _ = block Console::read_line(@mut pause[..]);
         ProcessExit::exit_process(code);
     }
     machine report_bad(code: i32) {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause[..]);
+        _ = block Console::read_line(@mut pause[..]);
         ProcessExit::exit_process(code);
     }
 }
@@ -212,5 +212,5 @@ machine sort(context: &mut Partition) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

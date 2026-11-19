@@ -549,11 +549,11 @@ fn an_exclusive_view_requires_authority_to_restore_an_issued_domain() {
         format!(
             r#"
 domain [u16; 2]::Claimed established by authorized;
-machine authorized(path: &mut [u16; 2] in Claimed) -> [u16; 2] in Claimed {{
+machine authorized(path: @mut [u16; 2] in Claimed) -> [u16; 2] in Claimed {{
     (path as -Claimed)[0] = 0;
     [0, 0] as +Claimed
 }}
-machine entry(path: &mut [u16; 2] in Claimed) {{ {body} }}
+machine entry(path: @mut [u16; 2] in Claimed) {{ {body} }}
 "#
         )
     };
@@ -577,11 +577,11 @@ fn mutable_scalar_domain_removal_keeps_its_reference_type() {
     let text = format!(
         r#"
 {DOMAIN}
-machine clear(value: &mut i64) {{ value = 0; }}
-machine borrow_remove(value: &mut i64 in Classified) {{ clear(value as -Classified); }}
+machine clear(value: @mut i64) {{ value = 0; }}
+machine borrow_remove(value: @mut i64 in Classified) {{ clear(value as -Classified); }}
 machine entry() {{
     let mut handle: i64 in Classified = issue(7);
-    borrow_remove(&mut handle);
+    borrow_remove(@mut handle);
 }}
 "#
     );
@@ -669,7 +669,7 @@ fn a_data_formal_in_a_predicated_domain_assumes_its_predicates() {
         format!(
             r#"
 domain [u16; 8]::Terminated requires self[{element}] == 0;
-machine entry(path: &[u16; 8] in Terminated) -> u16
+machine entry(path: @[u16; 8] in Terminated) -> u16
 ensures result == 0
 {{
     path[7]
@@ -710,7 +710,7 @@ ensures result <= span.high
 fn a_mutably_borrowed_data_formal_keeps_its_domain_at_handback() {
     let source = r#"
 domain [u16; 8]::Terminated requires self[7] == 0;
-machine entry(path: &mut [u16; 8] in Terminated) -> u16 { (path as -Terminated)[7] }
+machine entry(path: @mut [u16; 8] in Terminated) -> u16 { (path as -Terminated)[7] }
 "#;
     let verdict = judge(invocation(source)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
@@ -756,11 +756,11 @@ data Packet {
     bytes: [u16; 8] in Terminated;
     after: u16;
 }
-machine entry(packet: &mut Packet)
+machine entry(packet: @mut Packet)
 requires packet.before == 11 && packet.after == 37
 ensures packet.before == 11 && packet.after == 37
 {
-    (&mut packet.bytes as -Terminated)[7] = 0;
+    (@mut packet.bytes as -Terminated)[7] = 0;
 }
 "#;
     let verdict = judge(invocation(source)).unwrap();
@@ -789,11 +789,11 @@ fn a_plain_mutable_view_can_read_temporary_contents_before_restoration() {
     let source = r#"
 domain [u16; 8]::Terminated requires self[7] == 0;
 data Packet { before: u16; bytes: [u16; 8] in Terminated; after: u16; }
-machine entry(packet: &mut Packet) -> u16
+machine entry(packet: @mut Packet) -> u16
 requires packet.before == 11 && packet.after == 37
 ensures result == 1 && packet.before == 11 && packet.after == 37
 {
-    let view: &mut [u16; 8] = &mut packet.bytes as -Terminated;
+    let view: @mut [u16; 8] = @mut packet.bytes as -Terminated;
     view[7] = 1;
     let seen: u16 = view[7];
     view[7] = 0;
@@ -814,11 +814,11 @@ fn a_whole_replacement_through_a_plain_view_restores_the_lenders_domain() {
             r#"
 domain [u16; 8]::Terminated requires self[7] == 0;
 data Packet {{ before: u16; bytes: [u16; 8] in Terminated; after: u16; }}
-machine entry(packet: &mut Packet)
+machine entry(packet: @mut Packet)
 requires packet.before == 11 && packet.after == 37
 ensures packet.before == 11 && packet.after == 37
 {{
-    let view: &mut [u16; 8] = &mut packet.bytes as -Terminated;
+    let view: @mut [u16; 8] = @mut packet.bytes as -Terminated;
     view = [0, 0, 0, 0, 0, 0, 0, {last}];
 }}
 "#
@@ -889,8 +889,8 @@ fn a_record_clause_reads_through_a_stored_shared_reference() {
         format!(
             r#"
 domain [u16; 4]::Terminated requires self[{element}] == 0;
-data Named<'s> {{ buffer: &'s [u16; 4] in Terminated; }}
-machine entry(named: &Named) -> u16
+data Named<'s> {{ buffer: @'s [u16; 4] in Terminated; }}
+machine entry(named: @Named) -> u16
 ensures result == 0
 {{
     named.buffer[3]
@@ -922,12 +922,12 @@ fn a_stored_referents_domain_is_established_by_its_proved_cast() {
         format!(
             r#"
 domain [u16; 4]::Terminated requires self[3] == 0;
-data Named<'s> {{ buffer: &'s [u16; 4] in Terminated; }}
-machine last(named: &Named) -> u16 ensures result == 0 {{ (named.buffer as -Terminated)[3] }}
+data Named<'s> {{ buffer: @'s [u16; 4] in Terminated; }}
+machine last(named: @Named) -> u16 ensures result == 0 {{ (named.buffer as -Terminated)[3] }}
 machine entry() -> u16 {{
     let text: [u16; 4] = [7, 8, 9, {last}];
-    let named: Named = Named {{ buffer: &text as +Terminated }};
-    last(&named)
+    let named: Named = Named {{ buffer: @text as +Terminated }};
+    last(@named)
 }}
 "#
         )
@@ -983,11 +983,11 @@ fn a_variable_byte_index_keeps_its_type_and_restoration_obligation() {
     let source = r#"
 domain [u8; 8]::Terminated requires self[7] == 0;
 data Packet { before: u8; bytes: [u8; 8] in Terminated; index: i32 in Wrapping; after: u8; }
-machine entry(packet: &mut Packet)
+machine entry(packet: @mut Packet)
 requires packet.before == 11 && packet.after == 37 && (packet.index as -Wrapping) == 7i32
 ensures packet.before == 11 && packet.after == 37
 {
-    (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
+    (@mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
 }
 "#;
     let verdict = judge(invocation(source)).unwrap();
@@ -1011,9 +1011,9 @@ fn a_bare_byte_range_borrows_its_array_reference() {
     let source = r#"
 domain [u8; 8]::Terminated requires self[7] == 0;
 data Packet { bytes: [u8; 8] in Terminated; }
-machine observe(bytes: &[u8]) requires bytes.len == 8u64 {}
-machine entry(packet: &Packet) {
-    observe((&packet.bytes as -Terminated)[..]);
+machine observe(bytes: @[u8]) requires bytes.len == 8u64 {}
+machine entry(packet: @Packet) {
+    observe((@packet.bytes as -Terminated)[..]);
 }
 "#;
     let verdict = judge(invocation(source)).unwrap();
@@ -1032,18 +1032,18 @@ fn fresh_buffer_views_end_before_the_next_loop_iteration() {
     let source = r#"
 domain [u8; 8]::Terminated requires self[7] == 0;
 data Packet { bytes: [u8; 8] in Terminated; }
-machine observe(bytes: &[u8]) requires bytes.len == 8u64 {}
-machine entry(packet: &mut Packet, again: bool) {
+machine observe(bytes: @[u8]) requires bytes.len == 8u64 {}
+machine entry(packet: @mut Packet, again: bool) {
     transition { _ -> block cycle(packet, again) }
-    machine cycle(packet: &mut Packet, again: bool) {
-        (&mut packet.bytes as -Terminated)[7] = 0;
-        observe((&packet.bytes as -Terminated)[..]);
+    machine cycle(packet: @mut Packet, again: bool) {
+        (@mut packet.bytes as -Terminated)[7] = 0;
+        observe((@packet.bytes as -Terminated)[..]);
         transition again {
             true -> block cycle(packet, false)
             _ -> block done(packet)
         }
     }
-    machine done(packet: &mut Packet) {}
+    machine done(packet: @mut Packet) {}
 }
 "#;
     let verdict = judge(invocation(source)).unwrap();
@@ -1053,24 +1053,24 @@ machine entry(packet: &mut Packet, again: bool) {
 const CYCLIC_BYTE_WRITE: &str = r#"
 domain [u8; 8]::Terminated requires self[7] == 0;
 data Packet { bytes: [u8; 8] in Terminated; index: i32 in Wrapping; }
-machine observe(bytes: &[u8]) requires bytes.len == 8u64 {}
-machine entry(packet: &mut Packet, again: bool) {
+machine observe(bytes: @[u8]) requires bytes.len == 8u64 {}
+machine entry(packet: @mut Packet, again: bool) {
     transition { _ -> block cycle(packet, again) }
-    machine cycle(packet: &mut Packet, again: bool) {
+    machine cycle(packet: @mut Packet, again: bool) {
         transition (packet.index as -Wrapping) == 7i32 {
             true -> block write(packet, again)
             _ -> block done(packet)
         }
     }
-    machine write(packet: &mut Packet, again: bool) {
-        (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
-        observe((&packet.bytes as -Terminated)[..]);
+    machine write(packet: @mut Packet, again: bool) {
+        (@mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
+        observe((@packet.bytes as -Terminated)[..]);
         transition again {
             true -> block cycle(packet, false)
             _ -> block done(packet)
         }
     }
-    machine done(packet: &mut Packet) {}
+    machine done(packet: @mut Packet) {}
 }
 "#;
 
@@ -1078,9 +1078,9 @@ machine entry(packet: &mut Packet, again: bool) {
 fn a_view_used_after_a_cyclic_byte_write_keeps_its_loan() {
     let source = CYCLIC_BYTE_WRITE;
     let retained = source.replace(
-        "        (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;",
-        "        let held: &[u8] = (&packet.bytes as -Terminated)[..];\n        (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;",
-    ).replace("observe((&packet.bytes as -Terminated)[..]);", "observe(held);");
+        "        (@mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;",
+        "        let held: @[u8] = (@packet.bytes as -Terminated)[..];\n        (@mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;",
+    ).replace("observe((@packet.bytes as -Terminated)[..]);", "observe(held);");
     let verdict = judge(invocation(&retained)).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::Rejected { ref conflicts, .. }

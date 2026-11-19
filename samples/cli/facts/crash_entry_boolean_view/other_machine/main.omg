@@ -12,16 +12,16 @@ crashes Trap value == false
 {
     maybe_clear(value)
 }
-public machine read_flag(byte: &Byte) -> bool
+public machine read_flag(byte: @Byte) -> bool
 requires byte.value == 1
 {
-    let view: &bool = &byte.value as &bool;
+    let view: @bool = @byte.value as @bool;
     let observed: bool = view;
     forward(observed)
 }
 machine main() crashes Trap {
     let byte: Byte = Byte { value: 1 };
-    let observed: bool = read_flag(&byte);
+    let observed: bool = read_flag(@byte);
     transition observed == true { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

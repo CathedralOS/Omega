@@ -26,7 +26,7 @@ ensures result in Choice::Cell
     Choice::Cell { counter: 3 }
 }
 
-machine observe(choice: &Choice, amount: u32) -> u32
+machine observe(choice: @Choice, amount: u32) -> u32
 requires choice in Choice::Cell
 {
     amount
@@ -43,8 +43,8 @@ requires choice in Choice::Cell
 
 machine main() {
     let choice: Choice = make();
-    let first: u32 = observe(&choice, 3);
-    let second: u32 = observe(&choice, 4);
+    let first: u32 = observe(@choice, 3);
+    let second: u32 = observe(@choice, 4);
     let third: u32 = take(choice, 5);
     transition first == 3 && second == 4 && third == 8 {
         true -> done()

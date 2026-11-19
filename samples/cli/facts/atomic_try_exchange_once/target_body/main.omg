@@ -5,17 +5,17 @@ use omega::language::core::AtomicTryExchangeOnceOutcome;
 data Cells { selected: AtomicU32; untouched: AtomicU32; }
 
 boundary trait SelectedAttempt {
-    machine attempt(cells: &Cells, expected: u32) -> AtomicTryExchangeOnceOutcome<u32> reaches crashes none;
+    machine attempt(cells: @Cells, expected: u32) -> AtomicTryExchangeOnceOutcome<u32> reaches crashes none;
 }
 
 SingleAttempt satisfies SelectedAttempt {
-    machine attempt(cells: &Cells, expected: u32) -> AtomicTryExchangeOnceOutcome<u32> reaches {
+    machine attempt(cells: @Cells, expected: u32) -> AtomicTryExchangeOnceOutcome<u32> reaches {
         let outcome: AtomicTryExchangeOnceOutcome<u32> = cells.selected.try_exchange_once(expected, 99, ReceivePublish, Receive);
         outcome
     }
 }
 
-machine probe(cells: &Cells) -> bool {
+machine probe(cells: @Cells) -> bool {
     cells.selected.store(10, NoOrdering);
     cells.untouched.store(17, NoOrdering);
     let outcome: AtomicTryExchangeOnceOutcome<u32> = SelectedAttempt::attempt(cells, 10);
@@ -26,7 +26,7 @@ machine probe(cells: &Cells) -> bool {
     }
 }
 
-machine mismatch(cells: &Cells) -> bool {
+machine mismatch(cells: @Cells) -> bool {
     cells.selected.store(10, NoOrdering);
     cells.untouched.store(17, NoOrdering);
     let outcome: AtomicTryExchangeOnceOutcome<u32> = SelectedAttempt::attempt(cells, 9);
@@ -39,7 +39,7 @@ machine mismatch(cells: &Cells) -> bool {
 
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(&cells) && mismatch(&cells) { true -> done() _ -> bad() }
+    transition probe(@cells) && mismatch(@cells) { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

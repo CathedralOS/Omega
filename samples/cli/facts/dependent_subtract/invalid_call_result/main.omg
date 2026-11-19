@@ -3,10 +3,10 @@
 // Compile-checked only: no Main::exit.
 data Main requires count <= 11 { count: u32; j: u32; out: i32; }
 
-machine used_amount(main: &Main) -> u32
+machine used_amount(main: @Main) -> u32
 requires main.j <= main.count
 { main.j }
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
     requires main.j <= main.count
 {
     let remaining: u32 = main.count - used_amount(main);

@@ -324,13 +324,13 @@ requires field_count <= 32, reader_count <= 32, writer_count <= 32
 
 public IssuedBy<const R: CallableInfo> satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access::new_plan(&schema, Issuance::Only { routes: [R] })
+        access::new_plan(@schema, Issuance::Only { routes: [R] })
     }
 }
 
 public IssuedByAny<const N: u64, const Routes: [CallableInfo; N]> satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access::new_plan(&schema, Issuance::Only { routes: Routes })
+        access::new_plan(@schema, Issuance::Only { routes: Routes })
     }
 }
 
@@ -413,7 +413,7 @@ public data ResourceProfile requires region_count <= 32 {
 // distinguishes independently selected backing policies in one artifact. It is
 // a static selector, not evidence of that backing or permission to access it.
 public boundary trait ResourceProfileSupply<Role> {
-    machine profile(storage: &Extent in Granted) -> ResourceProfile reaches none crashes none;
+    machine profile(storage: @Extent in Granted) -> ResourceProfile reaches none crashes none;
 }
 
 public data AccessOutcome<View, Returned, Reason> {
@@ -491,9 +491,9 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
     reaches ResourceProfileSupply
     {
         let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
-            &storage as &Extent in Granted
+            @storage as @Extent in Granted
         );
-        access::initialize_from_profile<P, T, Storage, Role>(storage, value, &profile)
+        access::initialize_from_profile<P, T, Storage, Role>(storage, value, @profile)
     }
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
@@ -503,9 +503,9 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
         // Resident preserves the value and backing, not permission to read
         // every byte. Reobserve the same grant's admitted supply before decode.
         let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
-            &storage as &Extent in Granted
+            @storage as @Extent in Granted
         );
-        access::extract_resident<P, T, Storage, Role>(storage, &profile)
+        access::extract_resident<P, T, Storage, Role>(storage, @profile)
     }
 }
 
@@ -521,15 +521,15 @@ public trait AccessCustody<C, P, T> {
 // The compiler derives conforming accessor types from a normalized access plan;
 // source cannot construct the opaque template or use it as access evidence.
 public trait Readable<Field, T> {
-    machine read(accessor: &Field) -> T;
+    machine read(accessor: @Field) -> T;
 }
 
 public trait DestructiveRead<Field, T> {
-    machine take(accessor: &mut Field) -> T;
+    machine take(accessor: @mut Field) -> T;
 }
 
 public trait Writable<Field, T> {
-    machine write(accessor: &mut Field, value: T);
+    machine write(accessor: @mut Field, value: T);
 }
 
 // Exact compiler-supplied primitives, not blanket conformance evidence. The
@@ -537,20 +537,20 @@ public trait Writable<Field, T> {
 // selected access plan, with its exact value type and operation permission.
 // Ordinary generic helpers must declare an explicit operation requirement;
 // an unconstrained type parameter cannot acquire field access by forwarding.
-public boundary machine read<Accessor, Value>(field: &Accessor) -> Value
+public boundary machine read<Accessor, Value>(field: @Accessor) -> Value
 satisfies Readable<Accessor, Value>::read;
-public boundary machine write<Accessor, Value>(field: &mut Accessor, value: Value)
+public boundary machine write<Accessor, Value>(field: @mut Accessor, value: Value)
 satisfies Writable<Accessor, Value>::write;
 
 public boundary data Accessor<T>;
 
-boundary machine Accessor::read<T>(accessor: &Accessor<T>) -> T
+boundary machine Accessor::read<T>(accessor: @Accessor<T>) -> T
 satisfies Readable<Accessor<T>, T>::read;
 
-boundary machine Accessor::take<T>(accessor: &mut Accessor<T>) -> T
+boundary machine Accessor::take<T>(accessor: @mut Accessor<T>) -> T
 satisfies DestructiveRead<Accessor<T>, T>::take;
 
-boundary machine Accessor::write<T>(accessor: &mut Accessor<T>, value: T)
+boundary machine Accessor::write<T>(accessor: @mut Accessor<T>, value: T)
 satisfies Writable<Accessor<T>, T>::write;
 
 // The policy interface. plan() declares no effects, so implementations HAVE
@@ -563,7 +563,7 @@ public boundary data LayoutTarget;
 // An immutable borrowed snapshot of the compiler-issued policy context.
 // The context has no authored constructor or executable storage representation.
 public data LayoutTargetFacts<'target> [copy] {
-    profile: &'target [u8];
+    profile: @'target [u8];
     pointer_size: u64;
     pointer_alignment: u64;
     little_endian: bool;
@@ -572,7 +572,7 @@ public data LayoutTargetFacts<'target> [copy] {
 // Semantic evaluation supplies the exact issuer's snapshot. This ordinary
 // primitive declaration exposes its checked result shape; it grants no target,
 // storage or Build authority to an authored value.
-public boundary machine layout_target_facts<'target>(target: &'target LayoutTarget)
+public boundary machine layout_target_facts<'target>(target: @'target LayoutTarget)
     -> LayoutTargetFacts<'target>
 reaches none
 terminates;

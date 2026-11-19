@@ -1,7 +1,7 @@
 // A left operand proved false skips the right-hand bump call: the conjunction is false and the counter stays 0.
 // Place: local. The left operand is a local bound to the Boolean.
 // Expected exit: 0
-machine bump(counter: &mut u64) -> bool
+machine bump(counter: @mut u64) -> bool
 requires counter <= 1000u64
 {
     counter = counter + 1u64;
@@ -19,7 +19,7 @@ ensures result == 0u64
 machine main() crashes Trap {
     let mut counter: u64 = 0u64;
     let ready: bool = false;
-    let first: bool = ready && bump(&mut counter);
+    let first: bool = ready && bump(@mut counter);
     let kept: u64 = untouched(counter);
     transition first {
         true -> bad()

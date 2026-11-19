@@ -13,7 +13,7 @@ public data Balance {
     y_residual: i64 in Wrapping;
     status: i32;
 }
-public machine reconcile(frame: &Frame) -> Balance {
+public machine reconcile(frame: @Frame) -> Balance {
     let mut result: Balance;
     let a: i64 in Wrapping = frame.values[0] as i64 in Wrapping;
     let b: i64 in Wrapping = frame.values[1] as i64 in Wrapping;

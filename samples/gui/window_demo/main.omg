@@ -38,28 +38,28 @@ public boundary trait Gui {
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
         invokes CoreGraphics invokes ObjectiveC invokes WindowsGuiHost crashes none;
-    machine get_dc(window_state: &Window, window: u64) -> u64 reaches
+    machine get_dc(window_state: @Window, window: u64) -> u64 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit invokes WindowsGuiHost crashes none;
-    machine pump_message(window_state: &mut Window, message: &mut WindowsMessage, close_requested: &mut bool) -> u32 reaches
+    machine pump_message(window_state: @mut Window, message: @mut WindowsMessage, close_requested: @mut bool) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost crashes none;
-    machine is_window(window_state: &Window, window: u64) -> u32 reaches
+    machine is_window(window_state: @Window, window: u64) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit invokes ObjectiveC invokes WindowsGuiHost crashes none;
-    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+    machine blit(window_state: @Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
             SurfacePresentation + WindowEventObservation + WindowEventDispatch +
@@ -99,7 +99,7 @@ requires
     c: i32;
     px: i32;
 }
-machine Main::main(main: &mut Main) reaches
+machine Main::main(main: @mut Main) reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
@@ -142,23 +142,23 @@ machine Main::main(main: &mut Main) reaches
     let mut window: Window = Gui::window_create(main.cls, main.title, 0x10CF0000, 200, 200, 256, 256);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
-    machine dc(main: &mut Main, window: Window) {
-        main.hdc = Gui::get_dc(&window, main.hwnd);
+    machine dc(main: @mut Main, window: Window) {
+        main.hdc = Gui::get_dc(@window, main.hwnd);
         main.frame = 0;
         transition main.hdc > 0 { true -> frame_loop(main, window) _ -> bad(main, window) }
     }
-    machine frame_loop(main: &mut Main, window: Window) {
+    machine frame_loop(main: @mut Main, window: Window) {
         transition main.frame < 60 { true -> fill_init(main, window) _ -> finish(main, window) }
     }
     // --- fill the framebuffer: one linear pass, an animated diagonal wash ---
-    machine fill_init(main: &mut Main, window: Window) {
+    machine fill_init(main: @mut Main, window: Window) {
         main.i = 0;
         transition { _ -> fill_loop(main, window) }
     }
-    machine fill_loop(main: &mut Main, window: Window) {
+    machine fill_loop(main: @mut Main, window: Window) {
         transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window) _ -> present(main, window) }
     }
-    machine fill_cell(main: &mut Main, window: Window) {
+    machine fill_cell(main: @mut Main, window: Window) {
         // row + col + phase, folded through % 256: i/64 <= 64, i%64 <= 63,
         // frame*4 <= 240 -- every step provably bounded, no domain needed.
         main.c = (main.i / 64) + (main.i % 64);
@@ -170,67 +170,67 @@ machine Main::main(main: &mut Main) reaches
         main.px = main.px + 64;
         transition main.i >= 0 && main.i < 4096 { true -> fill_put(main, window) _ -> bad(main, window) }
     }
-    machine fill_put(main: &mut Main, window: Window) {
+    machine fill_put(main: @mut Main, window: Window) {
         main.pixels[main.i] = main.px;
         main.i = main.i + 1;
         transition { _ -> fill_loop(main, window) }
     }
     // --- present: stretch the 64x64 buffer into the 256x256 client area ---
-    machine present(main: &mut Main, window: Window) {
-        main.copied = Gui::blit(&window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
+    machine present(main: @mut Main, window: Window) {
+        main.copied = Gui::blit(@window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
         transition main.copied == 64 { true -> pace(main, window) _ -> bad(main, window) }
     }
-    machine pace(main: &mut Main, window: Window) {
+    machine pace(main: @mut Main, window: Window) {
         block Clock::sleep(25);
         transition { _ -> pump_init(main, window) }
     }
     // --- pump: drain queued messages so the titlebar responds (drag, X) ---
-    machine pump_init(main: &mut Main, window: Window) {
+    machine pump_init(main: @mut Main, window: Window) {
         main.pumped = 0;
         transition { _ -> pump_loop(main, window) }
     }
-    machine pump_loop(main: &mut Main, mut window: Window) {
-        main.have = Gui::pump_message(&mut window, &mut main.message, &mut main.close_requested);
+    machine pump_loop(main: @mut Main, mut window: Window) {
+        main.have = Gui::pump_message(@mut window, @mut main.message, @mut main.close_requested);
         transition main.have > 0 { true -> pump_handle(main, window) _ -> liveness(main, window) }
     }
-    machine pump_handle(main: &mut Main, window: Window) {
+    machine pump_handle(main: @mut Main, window: Window) {
         transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
-    machine pump_next(main: &mut Main, window: Window) {
+    machine pump_next(main: @mut Main, window: Window) {
         main.pumped = main.pumped + 1;
         transition { _ -> pump_loop(main, window) }
     }
     // --- liveness: if the window is destroyed, stop blitting into it ---
-    machine liveness(main: &mut Main, window: Window) {
-        main.alive = Gui::is_window(&window, main.hwnd);
+    machine liveness(main: @mut Main, window: Window) {
+        main.alive = Gui::is_window(@window, main.hwnd);
         transition main.alive > 0 && !main.close_requested { true -> next_frame(main, window) _ -> bad(main, window) }
     }
-    machine next_frame(main: &mut Main, window: Window) {
+    machine next_frame(main: @mut Main, window: Window) {
         // re-guard so the increment's edge carries the frame bound (the
         // keystone reads the DIRECT incoming edge; frame_loop's guard is
         // several states upstream by now).
         transition main.frame < 60 { true -> advance(main, window) _ -> finish(main, window) }
     }
-    machine advance(main: &mut Main, window: Window) {
+    machine advance(main: @mut Main, window: Window) {
         main.frame = main.frame + 1;
         transition { _ -> frame_loop(main, window) }
     }
-    machine finish(main: &mut Main, window: Window) {
+    machine finish(main: @mut Main, window: Window) {
         transition main.frame == 60 { true -> complete(main, window) _ -> bad(main, window) }
     }
-    machine complete(main: &mut Main, window: Window) {
+    machine complete(main: @mut Main, window: Window) {
         let cleaned: bool = Gui::window_destroy(window, main.hdc);
         transition cleaned { true -> passed(main) _ -> failed(main) }
     }
-    machine passed(main: &mut Main) {
+    machine passed(main: @mut Main) {
         Console::write_line("PASS: 60 frames blitted (exit 0)");
         ProcessExit::exit_process(0);
     }
-    machine bad(main: &mut Main, window: Window) {
+    machine bad(main: @mut Main, window: Window) {
         let cleaned: bool = Gui::window_destroy(window, main.hdc);
         transition { _ -> failed(main) }
     }
-    machine failed(main: &mut Main) {
+    machine failed(main: @mut Main) {
         Console::write_line("FAIL: creation, rendering, or window closure before 60 frames (exit 1)");
         ProcessExit::exit_process(1);
     }
@@ -246,5 +246,5 @@ machine entry_start() reaches
     ProcessOutput + ProcessExit + Clock +
     Console + Gui {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

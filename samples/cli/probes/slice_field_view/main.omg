@@ -15,47 +15,47 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-data Sample<'view> { readings: &'view [i32]; }
+data Sample<'view> { readings: @'view [i32]; }
 data Counts { tally: u64; }
 
-machine Counts::clone(source: &Counts) -> Counts {
+machine Counts::clone(source: @Counts) -> Counts {
     Counts { tally: source.tally }
 }
 
-machine inspect_values(values: &[i32]) -> bool {
+machine inspect_values(values: @[i32]) -> bool {
     transition 1 < values.len {
         true -> read(values)
         false -> (false)
     }
-    machine read(values: &[i32]) -> bool
+    machine read(values: @[i32]) -> bool
         requires 1 < values.len
     {
         values.len == 2 && values[0] == 11 && values[1] == 13
     }
 }
 
-machine collect(merged: &mut Counts) -> u64 {
-    let copy: Counts = Counts::clone(&mut merged);
+machine collect(merged: @mut Counts) -> u64 {
+    let copy: Counts = Counts::clone(@mut merged);
     copy.tally
 }
 
 data Main { counts: Counts; hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.counts.tally = 9;
     let backing: [i32; 4] = [7, 11, 13, 17];
     let sample: Sample = Sample { readings: backing[1..3] };
-    transition inspect_values(sample.readings) && collect(&mut main.counts) == 9 {
+    transition inspect_values(sample.readings) && collect(@mut main.counts) == 9 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -18,7 +18,7 @@ fn assert_psi_runs(name: &str, source: &str) {
     let project = stage_project(
         name,
         source,
-        r#"machine build(builder: &mut Build) {
+        r#"machine build(builder: @mut Build) {
     Build::application(builder, "structural_domain_issuer");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
@@ -63,7 +63,7 @@ machine main() reaches ProcessExit + Console {
 "#,
         &format!(
             r#"
-machine build(builder: &mut Build) {{
+machine build(builder: @mut Build) {{
     Build::application(builder, "console_descriptor_eof");
     let registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {{ location: "{}" }}));
     Build::bind(builder, macos_arm64::ProgramEntry, main);
@@ -190,7 +190,7 @@ fn compile(project: &Path, destination: NativeDestination) -> Result<BuildReport
 
 #[test]
 fn psi_admission_retains_the_native_borrowed_storage_layouts() {
-    let build = r#"machine build(builder: &mut Build) {
+    let build = r#"machine build(builder: @mut Build) {
     Build::application(builder, "checked_read_geometry");
     Build::select_provider<ReadCell, Reader>(builder, macos_arm64);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
@@ -200,14 +200,14 @@ fn psi_admission_retains_the_native_borrowed_storage_layouts() {
         "borrowed-layout",
         "data Cell [copy] { prefix: u32; word: u32; suffix: u32; }
 public boundary trait ReadCell {
-    machine word(cell: &Cell) -> u32 reaches crashes none;
+    machine word(cell: @Cell) -> u32 reaches crashes none;
 }
 Reader satisfies ReadCell {
-    machine word(cell: &Cell) -> u32 { cell.word }
+    machine word(cell: @Cell) -> u32 { cell.word }
 }
 machine main() crashes Trap {
     let cell: Cell = Cell { prefix: 7, word: 11, suffix: 13 };
-    let value: u32 = ReadCell::word(&cell);
+    let value: u32 = ReadCell::word(@cell);
     transition value == 11 {
         true -> done()
         false -> bad()

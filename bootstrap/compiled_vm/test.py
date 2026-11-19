@@ -204,10 +204,10 @@ def epsilon_customer(work, producer=Compiler, realize=stamp):
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
   machine read_byte() -> i32;
-  machine write_line(text: &[u8]);
+  machine write_line(text: @[u8]);
 }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
 """
     cases = [
         (b"", b"", b"\x02\x08\x00\x00\x00\x00"),

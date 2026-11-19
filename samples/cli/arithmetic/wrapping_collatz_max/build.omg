@@ -3,7 +3,7 @@
 // tools/benchmark can measure compile-time, peak-memory, code-size, and
 // runtime rows on any hosted target without settling a dependency graph.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "wrapping_collatz_max");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

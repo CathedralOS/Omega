@@ -369,7 +369,7 @@ boundary trait Console {
     machine exit_process(return_code: i32) -> never;
     machine write_byte(value: i32);
     machine read_byte() -> i32;
-    machine write_line(text: &[u8]);
+    machine write_line(text: @[u8]);
 }
 ```
 
@@ -378,7 +378,7 @@ exactly one `console: Console` field and any finite program-owned fields. The
 entry is exactly:
 
 ```text
-machine Main::main(&mut self)
+machine Main::main(@mut self)
 ```
 
 `Console` is a sealed entry capability, not an ordinary named value type. Its

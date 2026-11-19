@@ -12,23 +12,23 @@
 
 data Filter { threshold: u64; }
 
-machine probe(buf: &mut [u64], filter: &Filter, index: u64)
+machine probe(buf: @mut [u64], filter: @Filter, index: u64)
 requires index < buf.len
 {
     transition buf[index] > filter.threshold {
         true -> bump(buf, index)
         _ -> done()
     }
-    machine bump(buf: &mut [u64], index: u64)
+    machine bump(buf: @mut [u64], index: u64)
     requires index < buf.len
     { buf[index] = 99; }
     machine done() { }
 }
 
-machine drain(buf: &mut [u64], filter: &Filter, index: u64)
+machine drain(buf: @mut [u64], filter: @Filter, index: u64)
 requires index < buf.len
 {
-    transition { _ -> probe(&mut buf, filter, index) }
+    transition { _ -> probe(@mut buf, filter, index) }
 }
 
 data Main {
@@ -37,21 +37,21 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.items = [10, 50, 80];
     main.filter.threshold = 40;
-    drain(&mut main.items[..], &main.filter, 1);
+    drain(@mut main.items[..], @main.filter, 1);
     transition main.items[1] == 99 && main.items[0] == 10 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

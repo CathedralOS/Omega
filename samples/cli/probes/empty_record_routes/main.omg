@@ -16,33 +16,33 @@
 data Empty {}
 data Holder { marker: Empty; value: i32; }
 
-machine replace(holder: &mut Holder, marker: Empty) {
+machine replace(holder: @mut Holder, marker: Empty) {
     holder.marker = marker;
     holder.value = 70;
 }
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let kept: Empty = Empty {};
     let dropped: Empty = Empty {};
     let mut holder: Holder = Holder { marker: Empty {}, value: 1 };
-    replace(&mut holder, Empty {});
+    replace(@mut holder, Empty {});
     transition { _ -> forward(main, kept, holder.value) }
 
-    machine forward(main: &mut Main, kept: Empty, value: i32) {
+    machine forward(main: @mut Main, kept: Empty, value: i32) {
         transition value == 70 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

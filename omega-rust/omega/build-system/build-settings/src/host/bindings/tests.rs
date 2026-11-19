@@ -8,23 +8,23 @@ use terminal_interpreter::{TerminalEffectWait, TerminalScalarValue};
 const PRELUDE: &str = r#"
 public data Build { marker: u64; }
 public boundary trait BuildBindingOperations {
-    machine prepare(builder: &Build) -> u64 reaches none crashes none;
+    machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine bind(activation: u64) reaches none crashes none;
 }
-public machine build_selection_receiver<'activation>(builder: &'activation mut Build) -> &'activation mut Build {
+public machine build_selection_receiver<'activation>(builder: @'activation mut Build) -> @'activation mut Build {
     builder
 }
 "#;
 
 const BUILD: &str = r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     first(builder);
     second(builder);
 }
-machine first(builder: &mut Build) {
+machine first(builder: @mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, one);
 }
-machine second(builder: &mut Build) {
+machine second(builder: @mut Build) {
     Build::bind(builder, windows_x86_64::ProgramEntry, two);
 }
 "#;

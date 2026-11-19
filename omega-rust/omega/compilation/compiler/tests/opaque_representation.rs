@@ -13,7 +13,7 @@ fn build_checks_each_carrier_and_only_emits_it_for_a_value_demand() {
     let main = package.join("main.omg");
     for (field, valid, use_by_value) in [
         ("u64", true, false),
-        ("&u64", false, false),
+        ("@u64", false, false),
         ("u64", true, true),
     ] {
         let binding = if use_by_value {
@@ -25,7 +25,7 @@ fn build_checks_each_carrier_and_only_emits_it_for_a_value_demand() {
             package.join("build.omg"),
             format!(
                 r#"
-machine build(builder: &mut Build) {{
+machine build(builder: @mut Build) {{
     Build::application(builder, "opaque_choice");
     Build::select_representation<Token, TokenRepresentation>(builder);
     {binding}

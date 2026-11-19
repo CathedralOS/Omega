@@ -41,7 +41,7 @@ public data Attempt {
 
 // The exclusive strategy loan ends on return, so issued allocations coexist.
 // Exhaustion leaves both the tail and the original reset obligation unchanged.
-public machine try_allocate(strategy: &mut Bump, length: u64) -> Attempt {
+public machine try_allocate(strategy: @mut Bump, length: u64) -> Attempt {
     let available: u64 = strategy.remaining;
     transition length <= available {
         true -> Attempt::Allocated { allocation: allocate(strategy, length, available) }
@@ -51,7 +51,7 @@ public machine try_allocate(strategy: &mut Bump, length: u64) -> Attempt {
 
 // Publish the position needed to rejoin issued neighbors at release. An empty
 // tail has no one-past address obligation, so its base supplies no such equation.
-public machine allocate(strategy: &mut Bump, length: u64, available: u64) -> Extent in Granted & Vacant
+public machine allocate(strategy: @mut Bump, length: u64, available: u64) -> Extent in Granted & Vacant
 requires
     available == strategy.remaining,
     length <= available
@@ -72,7 +72,7 @@ public machine check_remaining(remaining: u64, previous: u64, length: u64)
 requires length <= previous, remaining == previous - length
 {}
 
-public machine check_extent_length(extent: &Extent in Granted & Vacant, expected: u64)
+public machine check_extent_length(extent: @Extent in Granted & Vacant, expected: u64)
 requires extent.length == expected
 {}
 

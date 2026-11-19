@@ -267,7 +267,7 @@ passing a restricted field to a bare mutable byte view is rejected.
 
 ## Write-only authority
 
-`&write T` borrows an existing valid `T`; it is not uninitialized output storage.
+`@write T` borrows an existing valid `T`; it is not uninitialized output storage.
 Loan compatibility and permitted operations are separate. Content-independent
 place projection and metadata observation are permitted. Reading stored content,
 readable reborrowing, taking, swapping, and read-modify-write are not.
@@ -346,7 +346,7 @@ selector), reconstructed against the array its prefix resolves to. It reads
 `Case` step or leaf copy that needs one must still find a membership of a
 canonical place. The Boolean result still selects exactly one dispatch arm.
 Symbol resolution hoists such a dispatch subject into one shared
-`let __hoist = &context.items[context.w];` so the arms stay one exhaustive
+`let __hoist = @context.items[context.w];` so the arms stay one exhaustive
 dispatch; the Unit plan erases that borrow while nothing but the dispatch's
 transitions follows it, and each arm observes the element itself. Omega
 rebuilds the tag's address from declarations: the carrier's static offset

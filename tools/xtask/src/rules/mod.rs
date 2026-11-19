@@ -3,7 +3,7 @@
 //!   `dense_id_maps.txt`, `cache_state.txt`, `place_transport.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
 //! - Discrete `TASKS.md` board shape
-//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze on growth, no new
+//! - Diff hygiene (the `samples/cli/facts/` freeze on growth, no new
 //!   files under the retired `tests/omega/`, raw measurements limit)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
 //! - Compiler-lane PR `Gate:`, `Proof:` and `Spec:` lines

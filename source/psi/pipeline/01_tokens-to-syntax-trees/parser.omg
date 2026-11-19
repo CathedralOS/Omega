@@ -225,13 +225,13 @@ requires
 // Empty syntax tables for a compilation's source units, which `parse` then
 // appends one at a time. Every row keeps its unit in its source span, so the
 // tables are shared and handles stay dense across units.
-public machine parser_initialize(parser: &mut Parser) {
-    syntax_trees_clear(&mut parser.output, SourceId { value: 0 });
+public machine parser_initialize(parser: @mut Parser) {
+    syntax_trees_clear(@mut parser.output, SourceId { value: 0 });
 }
 
 // The unit `parse` appends next: its spans anchor to `source`, and its token
 // cursor starts over.
-machine begin_unit(parser: &mut Parser, source: SourceId, source_length: u64 in Trapping) {
+machine begin_unit(parser: @mut Parser, source: SourceId, source_length: u64 in Trapping) {
     parser.source = source;
     parser.source_length = source_length;
     initialize_cursor(parser);
@@ -240,7 +240,7 @@ machine begin_unit(parser: &mut Parser, source: SourceId, source_length: u64 in 
 // Every stored span anchors to the parser's own source; the two constructors
 // keep the three-level SourceSpan/IdentifierSpan literals out of grammar states.
 machine parser_source_span(
-    parser: &Parser,
+    parser: @Parser,
     start: u64 in Trapping,
     end: u64 in Trapping
 ) -> SourceSpan {
@@ -251,7 +251,7 @@ machine parser_source_span(
 }
 
 machine identifier_span(
-    parser: &Parser,
+    parser: @Parser,
     start: u64 in Trapping,
     end: u64 in Trapping
 ) -> IdentifierSpan {
@@ -273,24 +273,24 @@ machine identifier_span(
 // collection's Trapping policy, so parsing publishes the same crash route
 // its callees do.
 public machine parse(
-    parser: &mut Parser,
+    parser: @mut Parser,
     source: SourceId,
     source_length: u64 in Trapping,
-    input: &TokenStream
+    input: @TokenStream
 )
 crashes Trap
 {
     begin_unit(parser, source, source_length);
     transition { _ -> next_root(parser, input) }
 
-    machine next_root(parser: &mut Parser, input: &TokenStream) {
+    machine next_root(parser: @mut Parser, input: @TokenStream) {
         transition parser.cursor < input.token_count {
             true -> classify_root(parser, input)
             _ -> done()
         }
     }
 
-    machine classify_root(parser: &mut Parser, input: &TokenStream) {
+    machine classify_root(parser: @mut Parser, input: @TokenStream) {
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         parser.item_start = token.start;
@@ -308,7 +308,7 @@ crashes Trap
     }
 
 
-    machine classify_root_keyword(parser: &mut Parser, input: &TokenStream,
+    machine classify_root_keyword(parser: @mut Parser, input: @TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
@@ -324,7 +324,7 @@ crashes Trap
         }
     }
 
-    machine public_item_root(parser: &mut Parser, input: &TokenStream) {
+    machine public_item_root(parser: @mut Parser, input: @TokenStream) {
                 parser_advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> public_item_keyword(parser, input)
@@ -332,7 +332,7 @@ crashes Trap
         }
     }
 
-    machine public_item_keyword(parser: &mut Parser, input: &TokenStream) {
+    machine public_item_keyword(parser: @mut Parser, input: @TokenStream) {
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         let head: MachineHead = root_machine_head(parser.item_start, true);
@@ -349,7 +349,7 @@ crashes Trap
 
     // A root led by a name: a contextual introducer, a target name before
     // `machine` or `boundary machine`, or a conformance's name.
-    machine named_root(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine named_root(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let crossing: bool = at_word(parser, input, "boundary");
         transition crossing {
             true -> boundary_root(parser, input, is_public)
@@ -357,7 +357,7 @@ crashes Trap
         }
     }
 
-    machine trait_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine trait_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let requirements: bool = at_word(parser, input, "trait");
         transition requirements {
             true -> dispatch_trait(parser, input, is_public, false)
@@ -365,7 +365,7 @@ crashes Trap
         }
     }
 
-    machine domain_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine domain_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let classification: bool = at_word(parser, input, "domain");
         transition classification {
             true -> dispatch_domain(parser, input, is_public)
@@ -373,7 +373,7 @@ crashes Trap
         }
     }
 
-    machine constant_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine constant_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let constant: bool = at_word(parser, input, "const");
         transition constant {
             true -> dispatch_constant(parser, input, is_public)
@@ -381,7 +381,7 @@ crashes Trap
         }
     }
 
-    machine proposition_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine proposition_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let proposition: bool = at_word(parser, input, "proposition");
         transition proposition {
             true -> dispatch_proposition(parser, input, is_public)
@@ -392,7 +392,7 @@ crashes Trap
     // `measure Owner::Name ...` declares a ranking view, parsed as a root
     // machine in the `Measure` container; `public measure` rejects, as declared
     // measures are package-private (wiki/spec/language/termination.md).
-    machine measure_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine measure_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let ranking: bool = at_word(parser, input, "measure");
         transition ranking {
             true -> dispatch_measure(parser, input, is_public)
@@ -400,7 +400,7 @@ crashes Trap
         }
     }
 
-    machine dispatch_measure(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine dispatch_measure(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let head: MachineHead = measure_head(parser.item_start);
         transition is_public {
             true -> reject_here(parser, input, ParseDiagnosticCode::MeasureNotPublic)
@@ -410,7 +410,7 @@ crashes Trap
 
     // A token binds to an ordinary `machine + Name(...)` declaration; there
     // is no separate `operator` introducer.
-    machine operator_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine operator_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let retired: bool = at_word(parser, input, "operator");
         transition retired {
             true -> reject_here(parser, input, ParseDiagnosticCode::RetiredOperatorDeclaration)
@@ -418,7 +418,7 @@ crashes Trap
         }
     }
 
-    machine target_machine_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine target_machine_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let scoped: bool = next_is_keyword(parser, input, KeywordKind::Machine);
         transition scoped {
             true -> target_machine(parser, input, is_public)
@@ -426,7 +426,7 @@ crashes Trap
         }
     }
 
-    machine target_boundary_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine target_boundary_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let scoped: bool = next_is_word(parser, input, "boundary");
         transition scoped {
             true -> target_boundary(parser, input, is_public)
@@ -434,7 +434,7 @@ crashes Trap
         }
     }
 
-    machine conformance_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine conformance_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let satisfies: bool = next_is_word(parser, input, "satisfies");
         let generic: bool = next_is_punctuation(parser, input, PunctuationKind::Less);
         transition satisfies || generic {
@@ -443,7 +443,7 @@ crashes Trap
         }
     }
 
-    machine unnamed_root(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine unnamed_root(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         transition is_public {
             true -> reject_here(parser, input, ParseDiagnosticCode::ExpectedItemAfterPub)
             _ -> reject_here(parser, input, ParseDiagnosticCode::UnsupportedRootItem)
@@ -454,7 +454,7 @@ crashes Trap
     // assumption `boundary let`. The carrier-owned `boundary requirement` and
     // the `boundary operator` introducer are retired; a boundary operation is
     // a requirement of a boundary trait.
-    machine boundary_root(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine boundary_root(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         take_current(parser, input);
         let opaque: bool = at_keyword(parser, input, KeywordKind::Data);
         let assumed: bool = at_keyword(parser, input, KeywordKind::Let);
@@ -464,14 +464,14 @@ crashes Trap
         }
     }
 
-    machine boundary_let(parser: &mut Parser, input: &TokenStream, is_public: bool, assumed: bool) {
+    machine boundary_let(parser: @mut Parser, input: @TokenStream, is_public: bool, assumed: bool) {
         transition assumed {
             true -> dispatch_definition(parser, input, is_public, true)
             _ -> boundary_machine_word(parser, input, is_public)
         }
     }
 
-    machine boundary_machine_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine boundary_machine_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let crossing: bool = at_keyword(parser, input, KeywordKind::Machine);
         let root_head: MachineHead = root_machine_head(parser.item_start, is_public);
         let head: MachineHead = boundary_machine_head(root_head);
@@ -481,7 +481,7 @@ crashes Trap
         }
     }
 
-    machine boundary_trait_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine boundary_trait_word(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let requirements: bool = at_word(parser, input, "trait");
         transition requirements {
             true -> dispatch_trait(parser, input, is_public, true)
@@ -489,7 +489,7 @@ crashes Trap
         }
     }
 
-    machine boundary_requirement_word(parser: &mut Parser, input: &TokenStream) {
+    machine boundary_requirement_word(parser: @mut Parser, input: @TokenStream) {
         let retired: bool = at_word(parser, input, "requirement");
         transition retired {
             true -> reject_here(parser, input, ParseDiagnosticCode::RetiredBoundaryRequirement)
@@ -497,7 +497,7 @@ crashes Trap
         }
     }
 
-    machine boundary_operator_word(parser: &mut Parser, input: &TokenStream) {
+    machine boundary_operator_word(parser: @mut Parser, input: @TokenStream) {
         let retired: bool = at_word(parser, input, "operator");
         transition retired {
             true -> reject_here(parser, input, ParseDiagnosticCode::RetiredOperatorDeclaration)
@@ -506,14 +506,14 @@ crashes Trap
     }
 
     // `target machine ...`: the leading name is the family's target.
-    machine target_machine(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine target_machine(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         take_current(parser, input);
         let root_head: MachineHead = root_machine_head(parser.item_start, is_public);
         let head: MachineHead = target_machine_head(root_head, parser.token_start, parser.token_end);
         transition { _ -> dispatch_machine(parser, input, head) }
     }
 
-    machine target_boundary(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine target_boundary(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         take_current(parser, input);
         let root_head: MachineHead = root_machine_head(parser.item_start, is_public);
         let target_head: MachineHead = target_machine_head(root_head, parser.token_start, parser.token_end);
@@ -526,105 +526,105 @@ crashes Trap
         }
     }
 
-    machine dispatch_data(parser: &mut Parser, input: &TokenStream, is_public: bool, is_boundary: bool) {
+    machine dispatch_data(parser: @mut Parser, input: @TokenStream, is_public: bool, is_boundary: bool) {
         let item_start: u64 in Trapping = parser.item_start;
         parse_data(parser, input, item_start, is_public, is_boundary);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_machine(parser: &mut Parser, input: &TokenStream, head: MachineHead) {
+    machine dispatch_machine(parser: @mut Parser, input: @TokenStream, head: MachineHead) {
         parse_machine(parser, input, head);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_trait(parser: &mut Parser, input: &TokenStream, is_public: bool, is_boundary: bool) {
+    machine dispatch_trait(parser: @mut Parser, input: @TokenStream, is_public: bool, is_boundary: bool) {
         let item_start: u64 in Trapping = parser.item_start;
         parse_trait(parser, input, item_start, is_public, is_boundary);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_conformance(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine dispatch_conformance(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
         parse_conformance(parser, input, item_start, is_public);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_domain(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine dispatch_domain(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
         parse_domain(parser, input, item_start, is_public);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_constant(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine dispatch_constant(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
         parse_constant(parser, input, item_start, is_public);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_definition(parser: &mut Parser, input: &TokenStream, is_public: bool, is_boundary: bool) {
+    machine dispatch_definition(parser: @mut Parser, input: @TokenStream, is_public: bool, is_boundary: bool) {
         let item_start: u64 in Trapping = parser.item_start;
         parse_definition(parser, input, item_start, is_public, is_boundary);
         transition { _ -> declared(parser, input) }
     }
 
-    machine dispatch_proposition(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    machine dispatch_proposition(parser: @mut Parser, input: @TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
         parse_proposition(parser, input, item_start, is_public);
         transition { _ -> declared(parser, input) }
     }
 
-    machine declared(parser: &mut Parser, input: &TokenStream) {
+    machine declared(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.accepted {
             true -> next_root(parser, input)
             _ -> done()
         }
     }
 
-    machine reject_here(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine reject_here(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         reject_current(parser, input, code);
     }
 
     machine unsupported_root(
-        parser: &mut Parser,
+        parser: @mut Parser,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::UnsupportedRootItem, parser.source, start, end);
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::UnsupportedRootItem, parser.source, start, end);
     }
 
-    machine prepare_use(parser: &mut Parser, input: &TokenStream) {
+    machine prepare_use(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.root_count < 4096 {
             true -> use_capacity(parser, input)
             _ -> root_full(parser, input)
         }
     }
 
-    machine root_full(parser: &mut Parser, input: &TokenStream) {
+    machine root_full(parser: @mut Parser, input: @TokenStream) {
         let token: Token = input.tokens[parser.current_index];
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::RootCapacityExceeded,
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::RootCapacityExceeded,
             parser.source,
             token.start,
             token.end
         );
     }
 
-    machine use_capacity(parser: &mut Parser, input: &TokenStream) {
+    machine use_capacity(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.use_count < 1024 {
             true -> use_start(parser, input)
             _ -> use_full(parser, input)
         }
     }
 
-    machine use_full(parser: &mut Parser, input: &TokenStream) {
+    machine use_full(parser: @mut Parser, input: @TokenStream) {
         let token: Token = input.tokens[parser.current_index];
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::UseCapacityExceeded,
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::UseCapacityExceeded,
             parser.source,
             token.start,
             token.end
         );
     }
 
-    machine use_start(parser: &mut Parser, input: &TokenStream) {
+    machine use_start(parser: @mut Parser, input: @TokenStream) {
         parser.use_first_member = parser.output.member_count as u64 in Trapping;
                 parser_advance(parser, input);
         transition parser.cursor < input.token_count {
@@ -633,7 +633,7 @@ crashes Trap
         }
     }
 
-    machine first_member(parser: &mut Parser, input: &TokenStream) {
+    machine first_member(parser: @mut Parser, input: @TokenStream) {
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         transition token.kind {
@@ -651,7 +651,7 @@ crashes Trap
     }
 
 
-    machine member_keyword(parser: &mut Parser, input: &TokenStream,
+    machine member_keyword(parser: @mut Parser, input: @TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
@@ -663,8 +663,8 @@ crashes Trap
     }
 
     machine retain_member(
-        parser: &mut Parser,
-        input: &TokenStream,
+        parser: @mut Parser,
+        input: @TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
@@ -675,8 +675,8 @@ crashes Trap
     }
 
     machine retain_member_bounded(
-        parser: &mut Parser,
-        input: &TokenStream,
+        parser: @mut Parser,
+        input: @TokenStream,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
@@ -689,7 +689,7 @@ crashes Trap
         }
     }
 
-    machine path_tail(parser: &mut Parser, input: &TokenStream) {
+    machine path_tail(parser: @mut Parser, input: @TokenStream) {
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         transition token.kind {
@@ -704,7 +704,7 @@ crashes Trap
     }
 
 
-    machine separator(parser: &mut Parser, input: &TokenStream) {
+    machine separator(parser: @mut Parser, input: @TokenStream) {
                 parser_advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> next_member(parser, input)
@@ -712,7 +712,7 @@ crashes Trap
         }
     }
 
-    machine next_member(parser: &mut Parser, input: &TokenStream) {
+    machine next_member(parser: @mut Parser, input: @TokenStream) {
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         transition token.kind {
@@ -730,14 +730,14 @@ crashes Trap
     }
 
 
-    machine retain_use(parser: &mut Parser, input: &TokenStream, item_end: u64 in Trapping) {
+    machine retain_use(parser: @mut Parser, input: @TokenStream, item_end: u64 in Trapping) {
         transition parser.output.use_count < 1024 {
             true -> retain_use_bounded(parser, input, item_end)
             _ -> retained_capacity_lost(parser)
         }
     }
 
-    machine retain_use_bounded(parser: &mut Parser, input: &TokenStream, item_end: u64 in Trapping) {
+    machine retain_use_bounded(parser: @mut Parser, input: @TokenStream, item_end: u64 in Trapping) {
         let use_index: u64 in Trapping = parser.output.use_count as u64 in Trapping;
         parser.output.uses[parser.output.use_count] = UseItem {
             first_member: parser.use_first_member,
@@ -749,8 +749,8 @@ crashes Trap
     }
 
     machine retain_root(
-        parser: &mut Parser,
-        input: &TokenStream,
+        parser: @mut Parser,
+        input: @TokenStream,
         item_end: u64 in Trapping,
         use_index: u64 in Trapping
     ) {
@@ -761,8 +761,8 @@ crashes Trap
     }
 
     machine retain_root_bounded(
-        parser: &mut Parser,
-        input: &TokenStream,
+        parser: @mut Parser,
+        input: @TokenStream,
         item_end: u64 in Trapping,
         use_index: u64 in Trapping
     ) {
@@ -776,36 +776,36 @@ crashes Trap
         transition { _ -> next_root(parser, input) }
     }
 
-    machine expected_item_after_public_at_end(parser: &mut Parser) {
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, parser.source_length, parser.source_length);
+    machine expected_item_after_public_at_end(parser: @mut Parser) {
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, parser.source_length, parser.source_length);
     }
 
-    machine expected_item_after_public(parser: &mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, start, end);
+    machine expected_item_after_public(parser: @mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::ExpectedItemAfterPub, parser.source, start, end);
     }
 
-    machine retained_capacity_lost(parser: &mut Parser) {
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::RootCapacityExceeded, parser.source, parser.item_start, parser.item_start);
+    machine retained_capacity_lost(parser: @mut Parser) {
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::RootCapacityExceeded, parser.source, parser.item_start, parser.item_start);
     }
 
-    machine expected_member_at_end(parser: &mut Parser) {
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::ExpectedPathMember, parser.source, parser.source_length, parser.source_length);
+    machine expected_member_at_end(parser: @mut Parser) {
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::ExpectedPathMember, parser.source, parser.source_length, parser.source_length);
     }
 
-    machine expected_member(parser: &mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::ExpectedPathMember, parser.source, start, end);
+    machine expected_member(parser: @mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::ExpectedPathMember, parser.source, start, end);
     }
 
-    machine expected_separator_at_end(parser: &mut Parser) {
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, parser.source_length, parser.source_length);
+    machine expected_separator_at_end(parser: @mut Parser) {
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, parser.source_length, parser.source_length);
     }
 
-    machine expected_separator(parser: &mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, start, end);
+    machine expected_separator(parser: @mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, parser.source, start, end);
     }
 
-    machine member_full(parser: &mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
-        syntax_trees_reject(&mut parser.output, ParseDiagnosticCode::PathMemberCapacityExceeded, parser.source, start, end);
+    machine member_full(parser: @mut Parser, start: u64 in Trapping, end: u64 in Trapping) {
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::PathMemberCapacityExceeded, parser.source, start, end);
     }
 
     machine done() { }

@@ -46,7 +46,7 @@ data Main {
 
 // Execute one token on the interpreter state.
 // Mixes: case-payload dispatch, equality guard (acc == max), range guard (acc > 0).
-machine exec(main: &mut Main, tok: Token) {
+machine exec(main: @mut Main, tok: Token) {
     transition tok {
         Token::Literal { value } -> do_literal(main, value)
         Token::Add -> do_add(main)
@@ -55,52 +55,52 @@ machine exec(main: &mut Main, tok: Token) {
     }
 
     // Literal: add value to accumulator.
-    machine do_literal(main: &mut Main, value: i32 in Saturating) {
+    machine do_literal(main: @mut Main, value: i32 in Saturating) {
         main.interp.acc = main.interp.acc + value;
     }
 
     // Add: double the accumulator.
     // Uses a range guard: if acc > 0, we do a "real" double; otherwise no-op.
-    machine do_add(main: &mut Main) {
+    machine do_add(main: @mut Main) {
         transition main.interp.acc > 0 {
             true -> real_double(main)
             _ -> done()
         }
     }
 
-    machine real_double(main: &mut Main) {
+    machine real_double(main: @mut Main) {
         main.interp.acc = main.interp.acc * 2;
     }
 
     // Clamp: cap accumulator at max.
     // Uses an equality guard (exact match path) AND a range guard (over path).
-    machine do_clamp(main: &mut Main, max: i32 in Saturating) {
+    machine do_clamp(main: @mut Main, max: i32 in Saturating) {
         transition main.interp.acc == max {
             true -> clamp_exact(main, max)
             _ -> check_over(main, max)
         }
     }
 
-    machine clamp_exact(main: &mut Main, max: i32 in Saturating) {
+    machine clamp_exact(main: @mut Main, max: i32 in Saturating) {
         // Already at the max; no change needed.
         main.interp.acc = max;
     }
 
-    machine check_over(main: &mut Main, max: i32 in Saturating) {
+    machine check_over(main: @mut Main, max: i32 in Saturating) {
         transition main.interp.acc > max {
             true -> apply_clamp(main, max)
             _ -> done()
         }
     }
 
-    machine apply_clamp(main: &mut Main, max: i32 in Saturating) {
+    machine apply_clamp(main: @mut Main, max: i32 in Saturating) {
         main.interp.acc = max;
     }
 
     machine done() {}
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("token_interpreter: mixed guard shapes run a literal/add/clamp token script");
     // Scripted token sequence:
     // Literal(10) -> acc=10; Add -> acc=20; Literal(5) -> acc=25;
@@ -117,17 +117,17 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block bad(main)
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: the token script left the accumulator at 70 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("FAIL: the final accumulator was not 70 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -135,5 +135,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

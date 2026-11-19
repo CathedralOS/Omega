@@ -15,7 +15,7 @@ public data Network [copy] {
     demand: i64 in Wrapping;
 }
 
-public machine valid(network: &Network) -> bool {
+public machine valid(network: @Network) -> bool {
     network.a >= 0 && network.a <= 64
     && network.b >= -16 && network.b <= 16
     && network.c >= 0 && network.c <= 16
@@ -29,7 +29,7 @@ public machine valid(network: &Network) -> bool {
         && network.b * (network.r1 + network.r2) == network.d * network.r1 * network.r2)
 }
 
-public machine residual(network: &Network, ticks: i64 in Wrapping) -> i64 in Wrapping {
+public machine residual(network: @Network, ticks: i64 in Wrapping) -> i64 in Wrapping {
     ((network.a - network.elevation * network.d) * 1048576
         + network.b * ticks * 1024 - network.c * ticks * ticks)
         * (network.r1 + network.r2)

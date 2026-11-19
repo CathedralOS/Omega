@@ -23,28 +23,28 @@ Spread satisfies FixedLayout<Payload> {
         LayoutPlan { entries: entries, entry_count: 3, size_fixed: 40, size_is_dynamic: false, align: 8 }
     }
 }
-data Decoded<'backing> { value: &'backing LayoutStorage<Payload, Spread>; }
+data Decoded<'backing> { value: @'backing LayoutStorage<Payload, Spread>; }
 data Saved<'backing> { value: Optional<Decoded<'backing>>; }
 
-machine initialize(backing: &mut [u64; 7], payload: u64) {
-    let view: &mut LayoutStorage<Payload, Spread> = &mut backing[1..6] as &mut LayoutStorage<Payload, Spread>;
+machine initialize(backing: @mut [u64; 7], payload: u64) {
+    let view: @mut LayoutStorage<Payload, Spread> = @mut backing[1..6] as @mut LayoutStorage<Payload, Spread>;
     view.first = 23u8;
     view.second = payload;
     view.last = 9u16;
 }
-machine copy_bytes(source: &[u8; 40], destination: &mut [u8; 40]) {
+machine copy_bytes(source: @[u8; 40], destination: @mut [u8; 40]) {
     destination = source;
 }
-machine decode<'backing>(backing: &'backing mut [u64; 7]) -> Optional<Decoded<'backing>> {
-    let view: &'backing mut LayoutStorage<Payload, Spread> = &mut backing[1..6] as &mut LayoutStorage<Payload, Spread>;
+machine decode<'backing>(backing: @'backing mut [u64; 7]) -> Optional<Decoded<'backing>> {
+    let view: @'backing mut LayoutStorage<Payload, Spread> = @mut backing[1..6] as @mut LayoutStorage<Payload, Spread>;
     // The scalar field itself admits every bit pattern. Its comparison must
     // establish the whole payload predicate before a valid view can escape.
     transition true {
-        true -> Optional::Some { value: Decoded { value: &view } }
+        true -> Optional::Some { value: Decoded { value: @view } }
         false -> Optional::None
     }
 }
-machine consume(value: &LayoutStorage<Payload, Spread>) -> u64 {
+machine consume(value: @LayoutStorage<Payload, Spread>) -> u64 {
     let difference: u64 = value.second - 42u64;
     transition value.first == 23u8 && value.last == 9u16 && difference == 0u64 {
         true -> 1u64
@@ -56,11 +56,11 @@ machine roundtrip(payload: u64) -> u64 crashes Trap {
     // five interior words belong to the representation footprint.
     let mut source: [u64; 7] = [17u64, 0u64, 0u64, 0u64, 0u64, 0u64, 53u64];
     let mut destination: [u64; 7] = [29u64, 0u64, 0u64, 0u64, 0u64, 0u64, 71u64];
-    initialize(&mut source, payload);
-    let bytes: &[u8; 40] = &source[1..6] as &[u8; 40];
-    let output: &mut [u8; 40] = &mut destination[1..6] as &mut [u8; 40];
+    initialize(@mut source, payload);
+    let bytes: @[u8; 40] = @source[1..6] as @[u8; 40];
+    let output: @mut [u8; 40] = @mut destination[1..6] as @mut [u8; 40];
     copy_bytes(bytes, output);
-    let saved: Optional<Decoded> = decode(&mut destination);
+    let saved: Optional<Decoded> = decode(@mut destination);
     let holder: Saved = Saved { value: saved };
     transition { _ -> inspect(holder, source[0], source[6], destination[0], destination[6]) }
     machine inspect<'backing>(holder: Saved<'backing>, source_first: u64, source_last: u64, destination_first: u64, destination_last: u64) -> u64 crashes Trap {

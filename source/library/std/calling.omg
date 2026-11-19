@@ -14,7 +14,7 @@ use omega::language::core::byte_observation;
 
 public domain [u8]::Utf8
 requires
-    byte_observation::valid_utf8(&self[..]);
+    byte_observation::valid_utf8(@self[..]);
 
 public data SystemVEightbyteClass {
     case Integer;
@@ -280,7 +280,7 @@ public data BoundaryEntryPlan {
 
 public data CallingPolicyRejection<'reason> {
     // Rejections borrow their diagnostic literal; qualification adds no storage.
-    reason: &'reason [u8] in Utf8;
+    reason: @'reason [u8] in Utf8;
 }
 
 public data BoundaryPlanResult<'reason> {

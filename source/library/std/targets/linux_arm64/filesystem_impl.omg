@@ -57,16 +57,16 @@ LinuxArm64StatLayout satisfies FixedLayout<LinuxArm64StatRecord> {
 }
 }
 
-machine linux_arm64_posix_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult
+machine linux_arm64_posix_decode_metadata(filesystem: @mut PosixFilesystem) -> MetadataResult
     satisfies PosixFilesystemTarget::decode_metadata {
-    let stat: &LinuxArm64StatView = &filesystem.stat_buf as &LinuxArm64StatView;
+    let stat: @LinuxArm64StatView = @filesystem.stat_buf as @LinuxArm64StatView;
     let blocks: i64 = stat.value.blocks;
     let blksize: i64 = stat.value.blksize as i64;
     transition blocks >= 0 && blksize >= 0 {
         true -> decode(stat, blocks, blksize)
         _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
     }
-    machine decode(stat: &LinuxArm64StatView, blocks: i64, blksize: i64) -> MetadataResult
+    machine decode(stat: @LinuxArm64StatView, blocks: i64, blksize: i64) -> MetadataResult
     requires blocks >= 0 && blksize >= 0
     {
         let mode: u32 = stat.value.mode;
@@ -95,13 +95,13 @@ machine linux_arm64_posix_decode_metadata(filesystem: &mut PosixFilesystem) -> M
     }
 }
 
-machine linux_arm64_posix_permission_bits(filesystem: &PosixFilesystem) -> u32
+machine linux_arm64_posix_permission_bits(filesystem: @PosixFilesystem) -> u32
     satisfies PosixFilesystemTarget::permission_bits {
-    let stat: &LinuxArm64StatView = &filesystem.stat_buf as &LinuxArm64StatView;
+    let stat: @LinuxArm64StatView = @filesystem.stat_buf as @LinuxArm64StatView;
     stat.value.mode & 4095
 }
 
-machine linux_arm64_posix_encode_open_options(filesystem: &mut PosixFilesystem)
+machine linux_arm64_posix_encode_open_options(filesystem: @mut PosixFilesystem)
     satisfies PosixFilesystemTarget::encode_open_options {
     filesystem.open_writable = posix_flag_bit(filesystem.open_options.write) | posix_flag_bit(filesystem.open_options.append);
     filesystem.open_readable = posix_flag_bit(filesystem.open_options.read);
@@ -116,9 +116,9 @@ machine linux_arm64_posix_encode_open_options(filesystem: &mut PosixFilesystem)
 
 // Resolve an absent directory hint from the native mode without decoding
 // unrelated size/timestamp fields or following a final symlink.
-machine linux_arm64_posix_decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind
+machine linux_arm64_posix_decode_directory_kind(filesystem: @mut PosixFilesystem) -> PosixDirectoryKind
     satisfies PosixFilesystemTarget::decode_directory_kind {
-    let stat: &LinuxArm64StatView = &filesystem.stat_buf as &LinuxArm64StatView;
+    let stat: @LinuxArm64StatView = @filesystem.stat_buf as @LinuxArm64StatView;
     let kind: u32 = stat.value.mode & 61440;
     transition kind {
         16384 -> PosixDirectoryKind::Directory
@@ -146,7 +146,7 @@ machine linux_arm64_posix_would_block_error() -> i32
 
 // The PosixCanonicalLibc requirements are bound in std's Build machine.
 
-machine linux_arm64_posix_kind_of_stored_error_code(filesystem: &mut PosixFilesystem) -> ErrorKind
+machine linux_arm64_posix_kind_of_stored_error_code(filesystem: @mut PosixFilesystem) -> ErrorKind
     satisfies PosixFilesystemTarget::kind_of_stored_error_code {
     filesystem.err_kind = match filesystem.err_code {
         2 -> ErrorKind::NotFound,
@@ -163,7 +163,7 @@ machine linux_arm64_posix_kind_of_stored_error_code(filesystem: &mut PosixFilesy
         95 -> ErrorKind::Unsupported,
         _ -> ErrorKind::Other
     };
-    error_kind_reconstruct(&filesystem.err_kind)
+    error_kind_reconstruct(@filesystem.err_kind)
 }
 
 // The linux_arm64 record layouts and constants. std's Build selects them for linux_arm64.

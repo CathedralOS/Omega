@@ -14,34 +14,34 @@ use output::report;
 use output::report::report;
 
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("force_plate_balance positions_mm=(-200,-100),(200,-100),(200,100),(-200,100) support_mm=150,75");
     transition { _ -> block next() }
     machine next() {
         let mut buffer: [u8; 256];
-        let observed: LineReadResult = block Console::read_line(&mut buffer[..]);
+        let observed: LineReadResult = block Console::read_line(@mut buffer[..]);
         transition observed {
-            LineReadResult::LineComplete { count } -> block line(&buffer, count, false)
-            LineReadResult::EndOfInput { count } -> block line(&buffer, count, true)
+            LineReadResult::LineComplete { count } -> block line(@buffer, count, false)
+            LineReadResult::EndOfInput { count } -> block line(@buffer, count, true)
             LineReadResult::Full { count } -> block oversized()
             _ -> failed()
         }
     }
-    machine line(buffer: &[u8; 256], count: u64, final: bool) {
+    machine line(buffer: @[u8; 256], count: u64, final: bool) {
         transition count <= buffer.len {
             true -> block bounded_line(buffer, count, final)
             _ -> failed()
         }
     }
-    machine bounded_line(buffer: &[u8; 256], count: u64, final: bool)
+    machine bounded_line(buffer: @[u8; 256], count: u64, final: bool)
     requires count <= buffer.len
     {
         transition final {
-            true -> end(&buffer[..count], count)
-            _ -> block parse(&buffer[..count])
+            true -> end(@buffer[..count], count)
+            _ -> block parse(@buffer[..count])
         }
     }
-    machine parse(text: &[u8]) {
+    machine parse(text: @[u8]) {
         let parsed: Parsed = parse_frame(text);
         transition parsed {
             Parsed::Valid { frame } -> block balance(frame)
@@ -49,8 +49,8 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine balance(frame: Frame) {
-        let result: Balance = reconcile(&frame);
-        report(&frame, &result);
+        let result: Balance = reconcile(@frame);
+        report(@frame, @result);
         transition { _ -> block next() }
     }
     machine malformed() {
@@ -71,16 +71,16 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine drain_byte(value: i32) {
         transition value == 10 { true -> block next() _ -> block drain() }
     }
-    machine end(text: &[u8], count: u64) {
+    machine end(text: @[u8], count: u64) {
         transition count == 0 { true -> done() _ -> final_frame(text) }
     }
-    machine final_frame(text: &[u8]) {
+    machine final_frame(text: @[u8]) {
         let parsed: Parsed = parse_frame(text);
         transition parsed { Parsed::Valid { frame } -> final_balance(frame) _ -> final_invalid() }
     }
     machine final_balance(frame: Frame) {
-        let result: Balance = reconcile(&frame);
-        report(&frame, &result);
+        let result: Balance = reconcile(@frame);
+        report(@frame, @result);
         transition { _ -> done() }
     }
     machine final_invalid() { Console::write_line("INVALID_SYNTAX expected seven signed integers <=1000000"); ProcessExit::exit_process(0); }
@@ -91,5 +91,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

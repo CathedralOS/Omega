@@ -146,12 +146,12 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
 #[test]
 fn byte_predicate_contracts_reject_nonbyte_inputs_under_a_false_precondition() {
     const SOURCE: &str = r#"
-machine observes<'input>(value: &'input u32) -> bool
+machine observes<'input>(value: @'input u32) -> bool
 ensures result == true
 { true }
 machine build_entry() {
     let number: u32 = 37;
-    let verdict: bool = observes(&number);
+    let verdict: bool = observes(@number);
 }
 "#;
     let accepted = accepted_source(SOURCE);
@@ -523,10 +523,10 @@ machine build_entry() {}
 fn a_bound_on_one_field_does_not_form_its_neighbors_subtraction() {
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }
-machine consume(value: &Pair)
+machine consume(value: @Pair)
 requires value.first >= 1, value.first - 1 <= 4294967295u32
 { }
-machine build_entry() { let value: Pair = Pair { first: 7, second: 0 }; consume(&value); }
+machine build_entry() { let value: Pair = Pair { first: 7, second: 0 }; consume(@value); }
 "#;
     executed_source(SOURCE);
     rejected_source(&SOURCE.replace("value.first - 1", "value.second - 1"));
@@ -536,11 +536,11 @@ machine build_entry() { let value: Pair = Pair { first: 7, second: 0 }; consume(
 fn completion_storage_does_not_inherit_the_inputs_nonzero_bound() {
     const SOURCE: &str = r#"
 data Cell { value: u32; }
-machine retain(value: &mut Cell)
+machine retain(value: @mut Cell)
 requires value.value >= 1
 ensures old(value.value) - 1 <= 4294967295u32
 { value.value = 0; }
-machine build_entry() { let mut value: Cell = Cell { value: 7 }; retain(&mut value); }
+machine build_entry() { let mut value: Cell = Cell { value: 7 }; retain(@mut value); }
 "#;
     executed_source(SOURCE);
     rejected_source(&SOURCE.replace("old(value.value) - 1", "value.value - 1"));
@@ -701,7 +701,7 @@ data Reading [copy] requires embed(value) <= 8 { value: u32; }
 domain Reading::Small requires embed(self.value) <= 4;
 domain u32::Small requires embed(self) <= 4;
 data Envelope { reading: Reading in Small; scalar: u32 in Small; neighbor: u32; }
-machine observe(value: &Envelope)
+machine observe(value: @Envelope)
 requires embed(value.reading.value) <= 4, embed(value.scalar) <= 4, embed(value.neighbor) == 7
 { }
 machine build_entry() {
@@ -709,7 +709,7 @@ machine build_entry() {
     let checked: Reading in Small = reading as +Small;
     let scalar: u32 in Small = 4 as +Small;
     let value: Envelope = Envelope { reading: checked, scalar: scalar, neighbor: 7 };
-    observe(&value);
+    observe(@value);
 }
 "#;
     let accepted = accepted_source(SOURCE);

@@ -31,8 +31,8 @@ impl HistoricalSource {
         std::fs::create_dir(&live).unwrap();
         std::fs::write(
             live.join("build.omg"),
-            "machine build(builder: &mut Build) { configure(builder, \"recorded\"); }\n\
-             machine configure(builder: &mut Build, name: &[u8]) {\n\
+            "machine build(builder: @mut Build) { configure(builder, \"recorded\"); }\n\
+             machine configure(builder: @mut Build, name: @[u8]) {\n\
                  Build::application(builder, name);\n\
              }\n",
         )
@@ -49,7 +49,7 @@ impl HistoricalSource {
         let content = SourceContentDigest::derive(source.normalized().content_identity.as_bytes());
         std::fs::write(
             live.join("build.omg"),
-            "machine build(builder: &mut Build) { Build::package(builder, \"recorded\"); }\n",
+            "machine build(builder: @mut Build) { Build::package(builder, \"recorded\"); }\n",
         )
         .unwrap();
         let current_source =

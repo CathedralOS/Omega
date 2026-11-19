@@ -8,7 +8,7 @@ ensures result == true
     true
 }
 
-machine read_through(place: &i64) -> i64
+machine read_through(place: @i64) -> i64
 requires place == 17
 {
     place
@@ -17,9 +17,9 @@ requires place == 17
 machine main() crashes Trap {
     let chosen: i64 = 17;
     let spare: i64 = 5;
-    let chosen_ref: &i64 = &chosen;
-    let spare_ref: &i64 = &spare;
-    let joined: &i64 = match choose() {
+    let chosen_ref: @i64 = @chosen;
+    let spare_ref: @i64 = @spare;
+    let joined: @i64 = match choose() {
         true -> spare_ref
         false -> chosen_ref
     };

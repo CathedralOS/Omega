@@ -74,7 +74,7 @@ machine main() crashes Trap {
     transition { _ -> inspect(make()) }
     machine inspect(value: LayoutStorage<PackedFlags, CompactBits>) crashes Trap {
     let difference: u64 = value.mode - 5u64;
-    let bytes: &[u8; 1] = &value as &[u8; 1];
+    let bytes: @[u8; 1] = @value as @[u8; 1];
     transition difference == 0u64 && value.code == 10u64 && bytes[0] == 171u8 {
         true -> done()
         _ -> bad()

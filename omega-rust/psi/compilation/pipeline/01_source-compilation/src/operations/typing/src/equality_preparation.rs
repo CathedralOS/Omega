@@ -852,7 +852,7 @@ mod tests {
         use crate::source_state::expression::ExpressionNode;
         let source = "data Point [copy] { x: i32; } PointEquality satisfies Equatable<Point> {}\n\
             data Custom [copy] { x: i32; } CustomEquality satisfies Equatable<Custom> {\n\
-                machine equals(left: &Custom, right: &Custom) -> bool { false } }\n\
+                machine equals(left: @Custom, right: @Custom) -> bool { false } }\n\
             machine point_equal(left: Point, right: Point) -> bool { left == right }\n\
             machine point_different(left: Point, right: Point) -> bool { left != right }\n\
             machine custom_equal(left: Custom, right: Custom) -> bool { left == right }\n\
@@ -907,14 +907,14 @@ mod tests {
 
     #[test]
     fn borrowed_enum_comparison_observes_the_exact_referent() {
-        let source = "data Kind [copy] { case First; case Last; } machine shared(kind: &Kind) -> bool { kind == Kind::First } machine exclusive(kind: &mut Kind) -> bool { kind != Kind::Last }";
+        let source = "data Kind [copy] { case First; case Last; } machine shared(kind: @Kind) -> bool { kind == Kind::First } machine exclusive(kind: @mut Kind) -> bool { kind != Kind::Last }";
         let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", source,
         )]);
         assert!(checked.is_ok(), "{checked:?}");
 
         let different = format!(
-            "{source} data Other [copy] {{ case First; }} machine different(kind: &Kind) -> bool {{ kind == Other::First }}"
+            "{source} data Other [copy] {{ case First; }} machine different(kind: @Kind) -> bool {{ kind == Other::First }}"
         );
         let error = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", &different,
@@ -928,7 +928,7 @@ mod tests {
 
     #[test]
     fn an_authored_row_cannot_replace_missing_quotient_observer_evidence() {
-        let source = "data Point [copy] { x: i32; } Equality satisfies Equatable<Point> { machine equals(left: &Point, right: &Point) -> bool { false } }";
+        let source = "data Point [copy] { x: i32; } Equality satisfies Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { false } }";
         let mut program = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", source,
         )])
@@ -978,7 +978,7 @@ mod tests {
         rival: Option<&str>,
     ) -> Result<crate::source_state::TypedTrees, String> {
         let geo = format!(
-            "module geo; public data Point [copy] {{ x: i32; }} {comparison} satisfies Equatable<Point> {{ machine equals(left: &Point, right: &Point) -> bool {{ left.x == right.x }} }}"
+            "module geo; public data Point [copy] {{ x: i32; }} {comparison} satisfies Equatable<Point> {{ machine equals(left: @Point, right: @Point) -> bool {{ left.x == right.x }} }}"
         );
         let app = "use dep::geo; machine same(left: geo::Point, right: geo::Point) -> bool { left == right }";
         let mut units = vec![(31, "geo.omg", geo.as_str()), (32, "app.omg", app)];
@@ -1031,14 +1031,14 @@ mod tests {
 
     #[test]
     fn an_unimported_packages_comparison_is_no_rival() {
-        let rival = "use dep::geo; public RivalEq satisfies Equatable<geo::Point> { machine equals(left: &geo::Point, right: &geo::Point) -> bool { false } }";
+        let rival = "use dep::geo; public RivalEq satisfies Equatable<geo::Point> { machine equals(left: @geo::Point, right: @geo::Point) -> bool { false } }";
         let program = compare_points_across_packages("public PointEq", Some(rival)).unwrap();
         assert_eq!(selected_comparison(&program), Some("PointEq"));
     }
 
     #[test]
     fn preparing_the_family_keeps_reference_arguments_distinct() {
-        let source = "data Point [copy] { x: i32; } ValueEquality satisfies Equatable<Point> { machine equals(left: &Point, right: &Point) -> bool { false } } ReferenceEquality satisfies Equatable<Point> { machine equals(left: &Point, right: &Point) -> bool { true } }";
+        let source = "data Point [copy] { x: i32; } ValueEquality satisfies Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { false } } ReferenceEquality satisfies Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { true } }";
         let mut program = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", source,
         )])
@@ -1079,7 +1079,7 @@ mod tests {
 
     #[test]
     fn substituted_type_fields_and_explicit_rows_keep_one_comparison_owner() {
-        let source = "data Holder<T [copy]> [copy] { value: T; } HolderEquality satisfies Equatable<Holder<i32>> { } data Coin [copy] { value: i32; } CoinStructural satisfies Equatable<Coin> { } CoinFalse satisfies Equatable<Coin> { machine equals(left: &Coin, right: &Coin) -> bool { false } } machine compare(left: Holder<i32>, right: Holder<i32>) -> bool { left == right } machine invoke(left: Coin, right: Coin) -> bool { CoinStructural::equals(&left, &right) }";
+        let source = "data Holder<T [copy]> [copy] { value: T; } HolderEquality satisfies Equatable<Holder<i32>> { } data Coin [copy] { value: i32; } CoinStructural satisfies Equatable<Coin> { } CoinFalse satisfies Equatable<Coin> { machine equals(left: @Coin, right: @Coin) -> bool { false } } machine compare(left: Holder<i32>, right: Holder<i32>) -> bool { left == right } machine invoke(left: Coin, right: Coin) -> bool { CoinStructural::equals(@left, @right) }";
         let checked = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", source,
         )]);
@@ -1099,7 +1099,7 @@ mod tests {
 
     #[test]
     fn qualified_rows_do_not_share_a_comparison_with_each_other_or_the_plain_record() {
-        let source = "data Point [copy] { x: i32; } domain Point::A; domain Point::B; AEquality satisfies Equatable<Point in A> { machine equals(left: &Point in A, right: &Point in A) -> bool { false } } BEquality satisfies Equatable<Point in B> { machine equals(left: &Point in B, right: &Point in B) -> bool { true } }";
+        let source = "data Point [copy] { x: i32; } domain Point::A; domain Point::B; AEquality satisfies Equatable<Point in A> { machine equals(left: @Point in A, right: @Point in A) -> bool { false } } BEquality satisfies Equatable<Point in B> { machine equals(left: @Point in B, right: @Point in B) -> bool { true } }";
         let mut program = crate::typing::qualified_operator_home_tests::checked_with_equality(&[(
             "main.omg", source,
         )])

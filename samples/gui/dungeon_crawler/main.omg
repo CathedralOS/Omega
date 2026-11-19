@@ -32,14 +32,14 @@ requires cursor <= FRAME_PIXELS, pumped <= EVENT_BUDGET, direction >= -1 && dire
     swing: bool;
 }
 
-machine Main::main(main: &mut Main) reaches
+machine Main::main(main: @mut Main) reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit + Console {
-    let verified: bool = Game::verify(&mut main.game);
+    let verified: bool = Game::verify(@mut main.game);
     transition verified { true -> start(main) _ -> failed() }
 
     machine failed() {
@@ -47,64 +47,64 @@ machine Main::main(main: &mut Main) reaches
         ProcessExit::exit_process(1);
     }
 
-    machine start(main: &mut Main) {
-        Game::reset(&mut main.game);
+    machine start(main: @mut Main) {
+        Game::reset(@mut main.game);
         let class_name: [u8; 7] = "#32770\0";
         let title: [u8; 16] = "HOLLOW / OMEGA\0\0";
-        let mut window: Window = macos_window_create<16>(class_name, &title, 0, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        let mut window: Window = macos_window_create<16>(class_name, @title, 0, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         transition window.window != 0 { true -> frame(main, window) _ -> close(main, window) }
     }
 
-    machine render(main: &mut Main, window: Window) {
-        main.frame = Game::capture(&main.game);
+    machine render(main: @mut Main, window: Window) {
+        main.frame = Game::capture(@main.game);
         main.cursor = 0;
         transition { _ -> fill(main, window) }
     }
-    machine fill(main: &mut Main, window: Window) {
+    machine fill(main: @mut Main, window: Window) {
         transition main.cursor < FRAME_PIXELS { true -> pixel(main, window) _ -> draw(main, window) }
     }
-    machine pixel(main: &mut Main, window: Window) requires main.cursor < FRAME_PIXELS {
+    machine pixel(main: @mut Main, window: Window) requires main.cursor < FRAME_PIXELS {
         let x: i32 = (main.cursor % (FRAME_WIDTH as u64)) as i32;
         let y: i32 = (main.cursor / (FRAME_WIDTH as u64)) as i32;
-        main.pixels[main.cursor] = Art::pixel(&main.frame, x, y);
+        main.pixels[main.cursor] = Art::pixel(@main.frame, x, y);
         main.cursor = main.cursor + 1;
         transition { _ -> fill(main, window) }
     }
-    machine frame(main: &mut Main, window: Window) {
+    machine frame(main: @mut Main, window: Window) {
         main.pumped = 0;
         transition { _ -> pump(main, window) }
     }
-    machine pump(main: &mut Main, mut window: Window) {
-        let available: u32 = macos_window_msg_peek(&mut window, [0, 0, 0, 0, 0, 0]);
+    machine pump(main: @mut Main, mut window: Window) {
+        let available: u32 = macos_window_msg_peek(@mut window, [0, 0, 0, 0, 0, 0]);
         transition available > 0 && main.pumped < EVENT_BUDGET { true -> dispatch(main, window) _ -> visible(main, window) }
     }
-    machine dispatch(main: &mut Main, window: Window)
+    machine dispatch(main: @mut Main, window: Window)
     requires main.pumped < EVENT_BUDGET {
-        let dispatched: u64 = macos_window_msg_dispatch(&window, [0, 0, 0, 0, 0, 0]);
+        let dispatched: u64 = macos_window_msg_dispatch(@window, [0, 0, 0, 0, 0, 0]);
         main.pumped = main.pumped + 1;
         transition { _ -> pump(main, window) }
     }
-    machine visible(main: &mut Main, window: Window) {
-        let alive: u32 = macos_window_is_window(&window, window.window);
+    machine visible(main: @mut Main, window: Window) {
+        let alive: u32 = macos_window_is_window(@window, window.window);
         transition alive > 0 { true -> focus(main, window) _ -> close(main, window) }
     }
-    machine focus(main: &mut Main, window: Window) {
-        let focused: u64 = macos_window_foreground_window(&window);
+    machine focus(main: @mut Main, window: Window) {
+        let focused: u64 = macos_window_foreground_window(@window);
         transition focused == window.window { true -> escape(main, window) _ -> render(main, window) }
     }
-    machine escape(main: &mut Main, window: Window) {
+    machine escape(main: @mut Main, window: Window) {
         let escape: u64 = macos_key_state(27);
         transition escape > 0 { true -> close(main, window) _ -> restart(main, window) }
     }
-    machine restart(main: &mut Main, window: Window) {
+    machine restart(main: @mut Main, window: Window) {
         let restart: u64 = macos_key_state(82);
         transition restart > 0 { true -> reset(main, window) _ -> input(main, window) }
     }
-    machine reset(main: &mut Main, window: Window) {
-        Game::reset(&mut main.game);
+    machine reset(main: @mut Main, window: Window) {
+        Game::reset(@mut main.game);
         transition { _ -> input(main, window) }
     }
-    machine input(main: &mut Main, window: Window) {
+    machine input(main: @mut Main, window: Window) {
         main.direction = -1;
         let attack: u64 = macos_key_state(32);
         main.swing = attack > 0;
@@ -112,47 +112,47 @@ machine Main::main(main: &mut Main) reaches
         let north: u64 = macos_key_state(87);
         transition up > 0 || north > 0 { true -> north(main, window) _ -> east_input(main, window) }
     }
-    machine north(main: &mut Main, window: Window) {
+    machine north(main: @mut Main, window: Window) {
         main.direction = 0;
         transition { _ -> update(main, window) }
     }
-    machine east_input(main: &mut Main, window: Window) {
+    machine east_input(main: @mut Main, window: Window) {
         let right: u64 = macos_key_state(39);
         let east: u64 = macos_key_state(68);
         transition right > 0 || east > 0 { true -> east(main, window) _ -> south_input(main, window) }
     }
-    machine east(main: &mut Main, window: Window) {
+    machine east(main: @mut Main, window: Window) {
         main.direction = 1;
         transition { _ -> update(main, window) }
     }
-    machine south_input(main: &mut Main, window: Window) {
+    machine south_input(main: @mut Main, window: Window) {
         let down: u64 = macos_key_state(40);
         let south: u64 = macos_key_state(83);
         transition down > 0 || south > 0 { true -> south(main, window) _ -> west_input(main, window) }
     }
-    machine south(main: &mut Main, window: Window) {
+    machine south(main: @mut Main, window: Window) {
         main.direction = 2;
         transition { _ -> update(main, window) }
     }
-    machine west_input(main: &mut Main, window: Window) {
+    machine west_input(main: @mut Main, window: Window) {
         let left: u64 = macos_key_state(37);
         let west: u64 = macos_key_state(65);
         transition left > 0 || west > 0 { true -> west(main, window) _ -> update(main, window) }
     }
-    machine west(main: &mut Main, window: Window) {
+    machine west(main: @mut Main, window: Window) {
         main.direction = 3;
         transition { _ -> update(main, window) }
     }
-    machine update(main: &mut Main, window: Window) {
-        Game::tick(&mut main.game, main.direction, main.swing);
+    machine update(main: @mut Main, window: Window) {
+        Game::tick(@mut main.game, main.direction, main.swing);
         transition { _ -> render(main, window) }
     }
-    machine draw(main: &mut Main, window: Window) {
-        let copied: u32 = macos_window_present(&window, FRAME_WIDTH, FRAME_HEIGHT, &main.pixels[..FRAME_PIXELS]);
+    machine draw(main: @mut Main, window: Window) {
+        let copied: u32 = macos_window_present(@window, FRAME_WIDTH, FRAME_HEIGHT, @main.pixels[..FRAME_PIXELS]);
         macos_sleep(FRAME_DELAY_MILLISECONDS);
         transition copied == FRAME_HEIGHT { true -> frame(main, window) _ -> close(main, window) }
     }
-    machine close(main: &mut Main, window: Window) {
+    machine close(main: @mut Main, window: Window) {
         macos_window_destroy(window);
     }
 }
@@ -165,5 +165,5 @@ machine entry_start() reaches
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -129,6 +129,36 @@ fn identity_sequence_eq(
             .all(|(left, right)| left_table.text(*left) == right_table.text(*right))
 }
 
+/// An entry a method may reach synchronously, named directly or through a
+/// callable parameter. Two parameters remain distinct even if their types match.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ServiceSynchronousInvocation {
+    Parameter(u32),
+    Service(String),
+}
+
+impl ServiceSynchronousInvocation {
+    pub fn validate_entries(entries: &[Self], parameter_count: usize) -> Result<(), &'static str> {
+        if entries.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err("synchronous invocations are unordered or repeated");
+        }
+        for entry in entries {
+            match entry {
+                Self::Parameter(position) if *position as usize >= parameter_count => {
+                    return Err(
+                        "synchronous invocation refers to a parameter outside the signature",
+                    );
+                }
+                Self::Service(name) if name.is_empty() => {
+                    return Err("synchronous invocation has an empty service identity");
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ServiceMethod {
     pub completion: semantic_vocabulary::BoundaryCompletion,
@@ -147,7 +177,7 @@ pub struct ServiceMethod {
     pub result_claims: Vec<ServiceResultClaim>,
     pub normal_result_memberships: Vec<ServiceNormalResultMembership>,
     pub service_reach: Vec<String>,
-    pub synchronous_invocations: Vec<String>,
+    pub synchronous_invocations: Vec<ServiceSynchronousInvocation>,
     pub may_suspend: bool,
     pub may_block: bool,
     pub terminates_guarantee: bool,

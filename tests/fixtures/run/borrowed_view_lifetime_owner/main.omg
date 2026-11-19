@@ -1,15 +1,15 @@
 // A view read through a record retains its declared lifetime after a byte write.
 // Expected exit: 0
 
-data Reading<'bytes> { bytes: &'bytes [u8]; }
+data Reading<'bytes> { bytes: @'bytes [u8]; }
 
-machine store(bytes: &mut [u8])
+machine store(bytes: @mut [u8])
 requires bytes.len > 0u64
 {
     bytes[0u64] = 7u8;
 }
 
-machine observed(reading: &Reading) -> bool
+machine observed(reading: @Reading) -> bool
 requires reading.bytes.len == 2u64
 {
     reading.bytes[0u64] == 7u8 && reading.bytes[1u64] == 23u8
@@ -17,9 +17,9 @@ requires reading.bytes.len == 2u64
 
 machine entry() -> bool {
     let mut bytes: [u8; 2] = [19u8, 23u8];
-    store(&mut bytes[..]);
-    let reading: Reading = Reading { bytes: &bytes[..] };
-    observed(&reading)
+    store(@mut bytes[..]);
+    let reading: Reading = Reading { bytes: @bytes[..] };
+    observed(@reading)
 }
 
 machine main() crashes Trap {

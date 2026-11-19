@@ -883,7 +883,7 @@ mod tests {
 
     #[test]
     fn facts_read_refusals_limits_constants_and_clamps() {
-        let body = "machine f(path: &[u8], count: u64) -> R\n\
+        let body = "machine f(path: @[u8], count: u64) -> R\n\
             requires count <= buffer.len\n{\n\
             transition count > 4294967295 && count != 0 {\n\
             true -> R::Err { kind: ErrorKind::InvalidInput }\n\

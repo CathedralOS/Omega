@@ -383,7 +383,7 @@ fn scalar_transition_patterns_use_ordinary_selected_equality() {
         ),
         (
             "indexed_pattern",
-            "machine choose(value:u64 in Trapping,values:&[u64;1])->u8 { transition value { values[0]->(7) _->(0) } }",
+            "machine choose(value:u64 in Trapping,values:@[u64;1])->u8 { transition value { values[0]->(7) _->(0) } }",
         ),
         (
             "policy_match",

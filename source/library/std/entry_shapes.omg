@@ -2,23 +2,23 @@
 // their ABI choices, arrival contracts, rejecting diagnostics and state plans.
 
 
-machine hosted_entry_integer_shape(shape: &ValueShape, bytes: u64) -> bool {
+machine hosted_entry_integer_shape(shape: @ValueShape, bytes: u64) -> bool {
     transition shape.class {
         ValueClass::Integer -> integer(shape, bytes)
         _ -> no()
     }
-    machine integer(shape: &ValueShape, bytes: u64) -> bool {
+    machine integer(shape: @ValueShape, bytes: u64) -> bool {
         shape.byte_size == bytes && shape.alignment == bytes
     }
     machine no() -> bool { false }
 }
 
-machine hosted_entry_extent_shape(shape: ValueShape, signature: &BoundarySignature) -> bool {
+machine hosted_entry_extent_shape(shape: ValueShape, signature: @BoundarySignature) -> bool {
     transition shape.class {
         ValueClass::Record { first_field, field_count } -> record(shape, first_field, field_count, signature)
         _ -> no()
     }
-    machine record(shape: ValueShape, first_field: u64, field_count: u64, signature: &BoundarySignature) -> bool {
+    machine record(shape: ValueShape, first_field: u64, field_count: u64, signature: @BoundarySignature) -> bool {
         transition shape.byte_size == 16 && shape.alignment == 8
             && field_count == 2
         {
@@ -26,31 +26,31 @@ machine hosted_entry_extent_shape(shape: ValueShape, signature: &BoundarySignatu
             _ -> no()
         }
     }
-    machine record_bounded(signature: &BoundarySignature, first_field: u64) -> bool {
+    machine record_bounded(signature: @BoundarySignature, first_field: u64) -> bool {
         transition first_field < 255 {
             true -> field_range(signature, first_field)
             _ -> no()
         }
     }
-    machine field_range(signature: &BoundarySignature, first_field: u64) -> bool
+    machine field_range(signature: @BoundarySignature, first_field: u64) -> bool
     requires first_field <= 254
     {
         let second_field: u64 = first_field + 1;
         transition second_field < signature.field_count {
-            true -> fields(signature, &signature.fields[first_field], &signature.fields[second_field])
+            true -> fields(signature, @signature.fields[first_field], @signature.fields[second_field])
             _ -> no()
         }
     }
-    machine fields(signature: &BoundarySignature, base: &ValueField, length: &ValueField) -> bool {
+    machine fields(signature: @BoundarySignature, base: @ValueField, length: @ValueField) -> bool {
         transition base.byte_offset == 0 && length.byte_offset == 8
             && base.shape < 256 && length.shape < 256
             && base.shape < signature.shape_count && length.shape < signature.shape_count
         {
-            true -> words(&signature.shapes[base.shape], &signature.shapes[length.shape])
+            true -> words(@signature.shapes[base.shape], @signature.shapes[length.shape])
             _ -> no()
         }
     }
-    machine words(base: &ValueShape, length: &ValueShape) -> bool {
+    machine words(base: @ValueShape, length: @ValueShape) -> bool {
         hosted_entry_integer_shape(base, 8) && hosted_entry_integer_shape(length, 8)
     }
     machine no() -> bool { false }

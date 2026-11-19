@@ -3,7 +3,7 @@ machine consume(first: Item, second: Item) { }
 machine main() crashes Trap {
     let mut owner: Item = Item { value: 3u32 };
     let next: Item = Item { value: 7u32 };
-    let local: &mut Item = &mut owner;
+    let local: @mut Item = @mut owner;
     let old: Item = move local;
     local = next;
     transition old.value == 3u32 && owner.value == 7u32 {

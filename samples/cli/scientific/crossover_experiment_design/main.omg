@@ -18,20 +18,20 @@ use design::output;
 use design::output::emit;
 
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 16];
-    let observed: LineReadResult = block Console::read_line(&mut input[..]);
+    let observed: LineReadResult = block Console::read_line(@mut input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> length(&input, count)
+        LineReadResult::LineComplete { count } -> length(@input, count)
         _ -> invalid()
     }
-    machine length(input: &[u8; 16], count: u64) {
+    machine length(input: @[u8; 16], count: u64) {
         transition count == 8 {
             true -> syntax(input)
             false -> invalid()
         }
     }
-    machine syntax(input: &[u8; 16]) {
+    machine syntax(input: @[u8; 16]) {
         transition input[1] == 44 && input[3] == 44 && input[5] == 44 && input[7] == 10
             && input[0] >= 48 && input[0] <= 57 && input[2] >= 48 && input[2] <= 57
             && input[4] >= 48 && input[4] <= 57 && input[6] >= 48 && input[6] <= 57 {
@@ -39,7 +39,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             false -> invalid()
         }
     }
-    machine parse(input: &[u8; 16]) {
+    machine parse(input: @[u8; 16]) {
         let mut request: Request;
         request.treatments = (widen_u8_to_i32(input[0]) as i32 in Wrapping) - 48;
         request.subjects = (widen_u8_to_i32(input[2]) as i32 in Wrapping) - 48;
@@ -49,26 +49,26 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             && request.subjects >= 1 && request.subjects <= 6 && request.cap <= 6
             && request.forbidden <= 6
             && (request.treatments == 3 || request.forbidden == 0 || request.forbidden == 1 || request.forbidden == 3) {
-            true -> search(&request)
+            true -> search(@request)
             false -> invalid()
         }
     }
-    machine search(request: &Request) {
+    machine search(request: @Request) {
         let mut allocation: Allocation;
-        let found: bool = solve(request, &mut allocation);
+        let found: bool = solve(request, @mut allocation);
         transition found {
-            true -> verify(request, &mut allocation)
+            true -> verify(request, @mut allocation)
             false -> infeasible()
         }
     }
-    machine verify(request: &Request, allocation: &mut Allocation) {
+    machine verify(request: @Request, allocation: @mut Allocation) {
         let verified: bool = certify(request, allocation);
         transition verified {
             true -> report(request, allocation)
             false -> defect()
         }
     }
-    machine report(request: &Request, allocation: &Allocation) {
+    machine report(request: @Request, allocation: @Allocation) {
         emit(request, allocation);
         ProcessExit::exit_process(0);
     }
@@ -89,5 +89,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

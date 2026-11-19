@@ -38,14 +38,14 @@ machine exponential(value: f64) -> f64 {
     }
 }
 
-public machine diode_current(circuit: &Circuit, voltage: f64) -> f64 {
+public machine diode_current(circuit: @Circuit, voltage: f64) -> f64 {
     let argument: f64 = voltage / circuit.thermal;
     let factor: f64 = exponential(argument);
     let excess: f64 = factor - 1.0;
     circuit.saturation * excess
 }
 
-public machine circuit_residual(circuit: &Circuit, voltage: f64, source: f64) -> f64 {
+public machine circuit_residual(circuit: @Circuit, voltage: f64, source: f64) -> f64 {
     let current: f64 = diode_current(circuit, voltage);
     let drop: f64 = circuit.resistance * current;
     let total: f64 = voltage + drop;

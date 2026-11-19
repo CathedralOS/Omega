@@ -26,21 +26,21 @@
 data Ticket { value: i32 in Wrapping; }
 data Wrap { inner: Ticket; }
 
-data Note<'view> dropped by drop_note { log: &'view mut i32; value: i32 in Wrapping; }
-machine drop_note(note: &mut Note) { advance(note.log); }
+data Note<'view> dropped by drop_note { log: @'view mut i32; value: i32 in Wrapping; }
+machine drop_note(note: @mut Note) { advance(note.log); }
 
-machine enter(log: &mut i32) { log = 1; }
-machine advance(log: &mut i32) {
+machine enter(log: @mut i32) { log = 1; }
+machine advance(log: @mut i32) {
     transition log == 1 {
         true -> second(log)
         false -> wrong(log)
     }
-    machine second(log: &mut i32) { log = 2; }
-    machine wrong(log: &mut i32) { log = 9; }
+    machine second(log: @mut i32) { log = 2; }
+    machine wrong(log: @mut i32) { log = 9; }
 }
 
 data Receipt [linear] dropped by drop_receipt { code: i32 in Wrapping; }
-machine drop_receipt(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: @mut Receipt) {}
 
 data Shape {
     case Dot;
@@ -51,9 +51,9 @@ machine make(value: i32 in Wrapping) -> Ticket { Ticket { value: value } }
 machine wrap(ticket: Ticket) -> Wrap { Wrap { inner: ticket } }
 machine unwrap(wrap: Wrap) -> Ticket { wrap.inner }
 machine take(ticket: Ticket) -> i32 in Wrapping { ticket.value }
-machine pair(left: &Ticket, right: Ticket) -> i32 in Wrapping { left.value + right.value }
+machine pair(left: @Ticket, right: Ticket) -> i32 in Wrapping { left.value + right.value }
 
-machine note(log: &mut i32, value: i32 in Wrapping) -> Note {
+machine note(log: @mut i32, value: i32 in Wrapping) -> Note {
     Note { log: log, value: value }
 }
 machine absorb(note: Note) -> i32 in Wrapping {
@@ -84,13 +84,13 @@ machine measure(shape: Shape) -> i32 in Wrapping {
 machine main() crashes Trap {
     let affine: i32 in Wrapping = take(make(3));
     let mut log: i32 = 0;
-    let hooked: i32 in Wrapping = absorb(note(&mut log, 5));
+    let hooked: i32 in Wrapping = absorb(note(@mut log, 5));
     let observed: i32 = log;
     let linear: i32 in Wrapping = settle(issue(7));
     let sum: i32 in Wrapping = measure(box(11));
     let nested: i32 in Wrapping = take(unwrap(wrap(make(13))));
     let base: Ticket = make(17);
-    let mixed: i32 in Wrapping = pair(&base, make(19));
+    let mixed: i32 in Wrapping = pair(@base, make(19));
     let named: bool = labelled(label("Owned"));
     let total: i32 in Wrapping = affine + hooked + linear + sum + nested + mixed;
     transition total == 75 && observed == 2 && named {

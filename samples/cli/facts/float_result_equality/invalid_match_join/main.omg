@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Ends { kept: f64; other: f64; }
 
-machine read_kept(item: &Ends, flag: bool) -> f64
+machine read_kept(item: @Ends, flag: bool) -> f64
 requires item.kept == 7.0
 ensures result == item.kept && result == 7.0
 {
@@ -16,7 +16,7 @@ requires observed == current && observed == 7.0
 }
 
 data Observed [copy] { saved: f64; route: u64; }
-machine marked_read(item: &Ends, flag: bool) -> Observed
+machine marked_read(item: @Ends, flag: bool) -> Observed
 requires item.kept == 7.0
 ensures result.saved == item.kept && result.saved == 7.0
 {
@@ -28,8 +28,8 @@ ensures result.saved == item.kept && result.saved == 7.0
 
 machine main() crashes Trap {
     let item: Ends = Ends { kept: 7.0, other: 1.0 };
-    let left: Observed = marked_read(&item, true);
-    let right: Observed = marked_read(&item, false);
+    let left: Observed = marked_read(@item, true);
+    let right: Observed = marked_read(@item, false);
     let first: f64 = agree(left.saved, item.kept);
     let second: f64 = agree(right.saved, item.kept);
     transition first == 7.0 && second == 7.0 && left.route == 17 && right.route == 23 && item.other == 1.0 {

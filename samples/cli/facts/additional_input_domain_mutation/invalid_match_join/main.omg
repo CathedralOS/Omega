@@ -2,7 +2,7 @@
 // An additional Before input qualification permits writing 73 without promising Before on return.
 data Cell { value: u32; neighbor: u32; }
 domain Cell::Before requires self.value == 0;
-machine overwrite(cell: &write Cell in Before)
+machine overwrite(cell: @write Cell in Before)
 ensures cell in Before {
     cell.value = 73;
 }
@@ -11,7 +11,7 @@ machine observed_neighbor(first: bool) -> u32 {
         true -> Cell { value: 0, neighbor: 41 },
         false -> Cell { value: 0, neighbor: 43 }
     };
-    overwrite(&write cell);
+    overwrite(@write cell);
     transition cell.value == 73 { true -> cell.neighbor _ -> 0 }
 }
 machine main() crashes Trap {

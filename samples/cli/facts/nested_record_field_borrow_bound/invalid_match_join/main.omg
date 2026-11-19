@@ -18,9 +18,9 @@ requires seed <= 73
         inner: Inner { quota: seed, tag: 7 },
         header: 10,
     };
-    let view: &Outer = match flag {
-        true -> &outer
-        false -> &outer
+    let view: @Outer = match flag {
+        true -> @outer
+        false -> @outer
     };
     let quota: u64 = view.inner.quota;
     let diff: u64 = 72u64 - quota;

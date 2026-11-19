@@ -6,11 +6,11 @@ use omega::language::core::compose;
 use omega::language::core::convert;
 
 data Pair [copy] { first: u8; last: u8; }
-data Request<'buffer, Value> { value: Value; output: &'buffer mut [u8]; }
-data FirstFrame<'buffer> { output: &'buffer mut [u8]; }
-data SecondFrame<'buffer> { output: &'buffer mut [u8]; }
+data Request<'buffer, Value> { value: Value; output: @'buffer mut [u8]; }
+data FirstFrame<'buffer> { output: @'buffer mut [u8]; }
+data SecondFrame<'buffer> { output: @'buffer mut [u8]; }
 data Reason [copy] { case Exhausted; case InvalidTag; }
-data Failure<'buffer> { output: &'buffer mut [u8]; reason: Reason; }
+data Failure<'buffer> { output: @'buffer mut [u8]; reason: Reason; }
 
 // The ordinary fallible map remains callable with short output. Its stronger
 // public contract covers every semantic value when the supplied resource fits.
@@ -111,7 +111,7 @@ ensures result in Result::Ok
     Selected::encode_sufficient(request)
 }
 
-machine observe<'buffer>(output: &'buffer mut [u8], value: Pair) -> bool
+machine observe<'buffer>(output: @'buffer mut [u8], value: Pair) -> bool
 requires output.len >= 3u64
 {
     let encoded: Result<FirstFrame<'buffer>, Failure<'buffer>> =
@@ -139,7 +139,7 @@ machine inspect_second<'buffer>(frame: SecondFrame<'buffer>, value: Pair) -> boo
     }
 }
 
-machine short_output<'buffer>(output: &'buffer mut [u8]) -> bool {
+machine short_output<'buffer>(output: @'buffer mut [u8]) -> bool {
     let encoded: Result<FirstFrame<'buffer>, Failure<'buffer>> =
         convert<Request<'buffer, Pair>, FirstFrame<'buffer>, Failure<'buffer>, WriteFirst<'buffer>>(
             Request { value: Pair { first: 17u8, last: 42u8 }, output: output });
@@ -155,7 +155,7 @@ machine inspect_short<'buffer>(failure: Failure<'buffer>) -> bool {
     }
 }
 
-machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
+machine malformed<'buffer>(output: @'buffer mut [u8]) -> bool {
     let converted: Result<SecondFrame<'buffer>, Failure<'buffer>> =
         compose<FirstFrame<'buffer>, Request<'buffer, Pair>, SecondFrame<'buffer>, Failure<'buffer>,
             ReadFirst<'buffer>, WriteSecond<'buffer>>(FirstFrame { output: output });
@@ -174,18 +174,18 @@ machine inspect_malformed<'buffer>(failure: Failure<'buffer>) -> bool {
 
 machine exercise(saved: Pair, edge: Pair) crashes Trap {
     let mut storage: [u8; 5] = [81u8, 1u8, 2u8, 3u8, 82u8];
-    let ordinary: bool = observe(&mut storage[1u64..4u64], saved);
+    let ordinary: bool = observe(@mut storage[1u64..4u64], saved);
     let first_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 90u8
         && storage[2u64] == 42u8 && storage[3u64] == 17u8 && storage[4u64] == 82u8;
-    let endpoints: bool = observe(&mut storage[1u64..4u64], edge);
+    let endpoints: bool = observe(@mut storage[1u64..4u64], edge);
     let edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 90u8
         && storage[2u64] == 255u8 && storage[3u64] == 0u8 && storage[4u64] == 82u8;
     let mut short: [u8; 4] = [91u8, 61u8, 62u8, 92u8];
-    let exhausted: bool = short_output(&mut short[1u64..3u64]);
+    let exhausted: bool = short_output(@mut short[1u64..3u64]);
     let unchanged: bool = short[0u64] == 91u8 && short[1u64] == 61u8
         && short[2u64] == 62u8 && short[3u64] == 92u8;
     let mut invalid: [u8; 5] = [71u8, 0u8, 17u8, 42u8, 72u8];
-    let rejected: bool = malformed(&mut invalid[1u64..4u64]);
+    let rejected: bool = malformed(@mut invalid[1u64..4u64]);
     let retained: bool = invalid[0u64] == 71u8 && invalid[1u64] == 0u8
         && invalid[2u64] == 17u8 && invalid[3u64] == 42u8 && invalid[4u64] == 72u8;
     transition ordinary && first_bytes && endpoints && edge_bytes && exhausted && unchanged && rejected && retained {

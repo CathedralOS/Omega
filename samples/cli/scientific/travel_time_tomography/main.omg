@@ -15,16 +15,16 @@ use io::report::Output;
 use io::report::report;
 
 data Main { input: Input; output: Output; }
-machine main(main: &mut Main) reaches ProcessExit + Console {
-    block read_input(&mut main.input);
+machine main(main: @mut Main) reaches ProcessExit + Console {
+    block read_input(@mut main.input);
     transition main.input.valid { true -> compute(main) false -> invalid(main) }
-    machine compute(main: &mut Main) {
-        let problem: Problem = problem_from_input(&main.input);
-        let fit: Fit = solve(&problem);
-        report(&mut main.output, &problem, &fit);
+    machine compute(main: @mut Main) {
+        let problem: Problem = problem_from_input(@main.input);
+        let fit: Fit = solve(@problem);
+        report(@mut main.output, @problem, @fit);
         ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) {
+    machine invalid(main: @mut Main) {
         Console::write_line("INVALID: expected 13 integers 0..99, ordered bounds, at most 255 input bytes");
         ProcessExit::exit_process(64);
     }
@@ -33,5 +33,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

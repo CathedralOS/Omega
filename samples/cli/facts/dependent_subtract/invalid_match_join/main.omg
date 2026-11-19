@@ -3,7 +3,7 @@
 // Compile-checked only: no Main::exit.
 data Main requires count <= 11 { count: u32; j: u32; out: i32; }
 
-machine Main::main(main: &mut Main, flag: bool)
+machine Main::main(main: @mut Main, flag: bool)
 {
     let used: u32 = match flag { true -> main.j, false -> main.count };
     let remaining: u32 = main.count - used;

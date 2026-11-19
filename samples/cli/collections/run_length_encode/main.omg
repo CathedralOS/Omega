@@ -31,7 +31,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("run_length_encode: 20 bytes -> one line per run, exit = number of runs");
     main.data = "AAAABBBCCDDDDDEEEEEE" as +Utf8;
     main.prev = main.data[0];
@@ -42,14 +42,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block step(main)
     }
 
-    machine step(main: &mut Main) {
+    machine step(main: @mut Main) {
         transition main.i < 20 {
             true -> block read(main)
             _ -> block done(main)
         }
     }
 
-    machine read(main: &mut Main) {
+    machine read(main: @mut Main) {
         main.b = main.data[main.i];
         transition main.b == main.prev {
             true -> block bump(main)
@@ -57,7 +57,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine bump(main: &mut Main) {
+    machine bump(main: @mut Main) {
         main.count = main.count + 1;
         main.i = main.i + 1;
         transition {
@@ -65,7 +65,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine emit_mid(main: &mut Main) {
+    machine emit_mid(main: @mut Main) {
         Console::write("run: ");
         Console::write_byte(main.prev as i32);
         Console::write(" x");
@@ -81,7 +81,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
         Console::write("run: ");
         Console::write_byte(main.prev as i32);
         Console::write(" x");
@@ -94,9 +94,9 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine finish(main: &mut Main) {
+    machine finish(main: @mut Main) {
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(main.runs as i32);
     }
 }
@@ -104,5 +104,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

@@ -1,0 +1,267 @@
+# Modules, imports, and visibility
+
+[Build declarations](../build/declarations.md) establish each package and its
+dependencies. Directories within that package name its modules. These names
+participate in declaration and artifact identity.
+
+<a id="module-header-position"></a>
+
+## Directory namespaces
+
+A source file's namespace is its parent directory relative to its owning
+package root. Read each directory component as one Omega identifier and join
+the components with `::`. A file directly under the root contributes to the
+package's root namespace. For example, a machine named `score` in
+`combat/ai/targeting.omg` has the package-local name `combat::ai::score`.
+If a directory component cannot name a namespace, diagnose the offending
+component when admitting the source. The filename contributes no component.
+
+The directory is the sole source of the namespace. Omega has no `module`
+keyword or namespace declaration. A legacy `module combat::ai;` header is
+invalid in every position. Moving declarations between files in one directory
+preserves their qualified names. Moving a declaration to another directory
+changes its qualified name, including the name of a public type or trait.
+A public machine can keep its name and call an implementation in another
+directory under the ordinary visibility rules.
+
+Use the logical path recorded for the source in its owning package. The same
+package in a different checkout has the same names. For generated source,
+use the logical name admitted by [`Build::include_source`](../build/execution.md#generated-source-boundary).
+Package identity, dependency admission and visibility still govern which
+declarations a caller can select.
+
+## Names and imports
+
+```text
+name_path   := IDENT ("::" IDENT)*
+import_decl := "use" name_path ";"
+```
+
+`::` selects a static name; `.` selects a field through a value. A field
+projection does not select a machine or insert a receiver argument.
+Imports select logical names, never filesystem paths, and do not execute code.
+External selection requires a requester-local direct dependency and the target
+declaration's visibility. Fully qualified spelling and explicit arguments obey
+the same rule. Tooling may discover an enclosing package; source cannot walk
+parent directories to gain undeclared reach.
+
+Build source supports [checked staged imports](../build/scoped_execution.md#checked-build-stages).
+A logical `use dependency;` may remain deferred until explicit dependency
+registration and preparation make its exact declaration scope available to a
+subsequent checked continuation. Unused deferred imports normally warn without
+acquisition or execution; references in types and contracts still require
+resolution before their checked use. A later request cannot justify earlier
+code. Alias/source/purpose/context registration is atomic and immutable, with
+no post-registration retarget or implicit compiler-filesystem fallback.
+`use name from Source::Path { ... };` is not an acquisition/import surface.
+Ordinary product source retains complete name resolution before type/proof
+checking its consumers; this Build staging rule is not lazy unchecked product
+execution or declaration identity invented from matching signatures.
+
+Dependency authority is context-specific. Build entry/local-helper imports use
+build dependencies; product and generated-product imports use ordinary product
+dependencies. The same alias can have distinct meanings in those scopes, with
+no fallback. A host library uses its own ordinary edges for implementation code.
+[Scoped build execution](../build/scoped_execution.md#two-checked-contexts) defines
+these checked occurrences; source acquisition alone grants neither scope.
+Only designated toolchain
+[product-reference operands](../build/scoped_execution.md#selecting-product-declarations-without-executing-them)
+resolve product declarations during build execution. Host imports, ordinary
+calls, and generic helpers do not acquire that exception.
+
+The [package boundary](../packages/boundaries.md) distinguishes authored
+selection from carrying a foreign nominal type through a declared dependency's
+API. Carrying does not add a direct dependency or grant selection authority.
+
+### Import scope and exposure
+
+Files in the same package directory share their module's declarations. Each
+file sees its siblings' declarations without an import and keeps its own
+`use` imports. Importing a module does not import that module's imports.
+A file's own declarations and imports take precedence over a sibling's
+same-spelled declaration. Each subdirectory forms a distinct namespace.
+
+| Authored selection | Foreign domains exposed for carrier-qualified lookup |
+| --- | --- |
+| Import a declaring module | Its directly declared public domains. |
+| Import one domain declaration | That exact domain. |
+| Import one ordinary machine | No sibling domains. |
+| Import a carrier type | No foreign domains merely because they attach to it. |
+| Load a dependency or another source file | None merely because it was loaded. |
+
+A module import does not recursively expose domains from descendant modules or
+modules it imports. Repeated selection of one exact declaration adds no competing
+candidate. Dependencies resolve their bodies under their own source imports;
+consumer imports cannot reinterpret already selected declarations.
+
+### Foreign attached declaration paths
+
+An exact foreign-domain address begins with its declaring package/module, not
+the carrier owner's namespace:
+
+```omega
+use ui_policy::screen::Point::OnScreen;
+```
+
+Here `ui_policy::screen` declares `Point::OnScreen`. The attachment is resolved
+in that declaration's context to the exact carrier, for example geometry's
+`Point`; a caller's same-spelled type cannot redirect it. The domain and carrier
+retain independent owners. A module import such as `use ui_policy::screen;`
+exposes the module's directly declared public domains instead of just this one.
+Short carrier-qualified selection must match both the resolved carrier and an
+exposed domain. Direct qualified selection names only the exact declaration and
+does not expose siblings. All selections retain ordinary dependency and visibility
+requirements; a declaration path is not a grant to select a private carrier.
+
+Importing a domain permits name selection, not membership, minting authority,
+access to private representation, or an implicit change of operators. A value
+may carry an exact foreign qualification and its evidence through an API without
+importing that domain for authored lookup. Carrying neither erases that evidence
+nor exposes other declarations of the domain's package.
+
+## Resolution
+
+Name resolution considers, in order:
+
+1. Local bindings.
+2. State parameters.
+3. Machine parameters.
+4. Imported names.
+5. Fully qualified package/module paths within the occurrence's declared dependency scope.
+
+Ambiguous imported declarations reject. Compiler traversal order cannot select
+between them. A field is selected through an explicit value such as
+`context.field`; neither a machine's qualified name nor a parameter's type
+introduces bare aliases for its fields.
+
+Case members are not an additional bare-name resolution step. Value position
+requires the carrier-qualified `Type::Case` path even when an expected type or
+visible carrier would make one case appear likely. Lexical bindings keep their
+ordinary meaning; the compiler does not reinterpret an unresolved single-segment
+name as a case.
+
+Distinct visible declarations competing for the same carrier-qualified domain
+or case, or for one module/trait/implementation machine path, reject. Neither
+carrier ownership nor import order selects a winner. Module growth can therefore
+introduce a collision in a broad import.
+Narrow imports avoid exposure to unrelated additions. Diagnostics retain both
+declaration owners, the exact carrier, and the imports exposing the conflict.
+
+### Builtin type names
+
+Named decision: `role-separated-builtin-type-names`, ratified 2026-11-13.
+
+Compiler-defined type names, such as `bool`, `f32`, `f64`, `addr` and the
+integer family, exist only in the type role. The integer family is open-ended:
+`i`, `u`, and every `i` or `u` followed by decimal digits, whether or not the
+digits form a valid width. `u0` is a family spelling and an invalid type. A
+value binding with the same spelling never hides one, and no declaration may
+redefine one. What is decided is the role of the name being introduced, not its
+letters. A declaration introducing a type or namespace name may not use a
+builtin type spelling; a declaration introducing a value may:
+
+| Introduced name | May use a builtin type spelling |
+| --- | --- |
+| A value: local, machine or state parameter, field, pattern binding, value constant, generic value binder, machine, named implementation, value import alias | Yes. It does not affect type lookup. |
+| A type: data declaration, trait schema, type alias, generic type binder, type import alias | No. It would compete with the builtin type, and rejects where it is introduced. |
+| A namespace: directory component, namespace import alias | No, for the same reason. |
+
+Each use resolves by its role, determined before any operation is chosen:
+
+- A type annotation, cast target or type-qualified path reads the builtin
+  type. A literal suffix such as `7u32` is lexical and unaffected by bindings.
+- An expression operand reads a value binding. A builtin type never stands in
+  for a missing value.
+- A generic argument takes its role from the selected declaration's binder: a
+  type binder reads a type and `const N: u64` reads a value. Lookup never tries
+  both roles to find one that checks.
+- Where an operand could be either, as in a type equality, a value binding
+  takes the value role and a type/value mixture rejects. With a parameter
+  named `i32` in scope, `requires T == i32` rejects; the diagnostic names both
+  meanings and suggests renaming the parameter or using a type alias.
+- Where syntax already requires a type or domain qualifier, as in
+  `domain u32::NonZero`, the prefix resolves in that role. Otherwise a `::`
+  prefix is ambiguous only when several visible roots are eligible for that
+  form of static qualification, such as a builtin type and a same-spelled
+  operation-record value. Constness alone does not make a scalar value
+  eligible, so `const u32: u64 = 3;` leaves `u32::NonZero` unaffected. When
+  several eligible roots remain, the prefix rejects without searching their
+  members to choose one.
+
+```omega
+machine scaled(i: u32, u8: u16) -> u32 {
+    let i1: u64 = 1;          // A value named i1; the type i1 is unaffected.
+    let wide: u32 = u8 as u32; // The value u8, cast to the type u32.
+    i + wide
+}
+
+data u7 { value: u32; }        // Rejected: redefines a builtin type.
+trait u32 { }                  // Rejected: introduces a competing type name.
+machine i(value: u32) -> u32 { value } // Accepted: a callable value.
+```
+
+## Visibility
+
+Named decision: `public-visibility-spelling`, settled 2026-10-19.
+
+Independently nameable data, domains, traits, machines,
+wire schemas, operators, constants, and complete named conformances are private
+unless marked `public`. Carrier qualification does not inherit visibility.
+Fields, cases, [nested data declarations](data_and_literals.md#records-sums-and-nested-declarations),
+and trait requirements instead inherit their exact
+semantic owner's visibility. A data-attached domain head independently selects
+its carrier and therefore needs authority to name that carrier. A machine head
+cannot attach to a data carrier; its argument types and code-owning namespace
+retain their ordinary independent declaration selections.
+
+Nested machines are lexical helpers, not independently package-exportable
+declarations. An enclosing machine's export does not export its descendants,
+and qualification cannot bypass their lexical scope. Source nesting affects
+visibility, not data ownership or implicit runtime arguments. See
+[nested machines](machines.md#nested-machines-and-identity).
+
+Ranking measures are private proof machinery; `public measure` rejects. A public
+termination guarantee does not publish its implementation's ranking witness.
+Requirement-local `as Name` labels have no standalone package visibility.
+Public interfaces cannot select private declarations as consumer-nameable API.
+An authorized public conformance may retain private implementation identities
+without granting consumers direct selection of them. A public domain's
+[issuer catalog](../resources/authority.md#private-issuer-routes) may likewise
+retain private trait requirements or exact machines accessible to its author.
+The same limited exception applies to exact reader/writer descriptors in its access policy.
+That authorization metadata grants no consumer call, conformance, or private-type
+selection permission. Other public signatures and predicates retain their
+ordinary exposure rules; this is not general public access to private names.
+
+There is no `export` item relabeling dependency-owned declarations. `export` is
+not reserved. Ordinary public wrappers expose behavior under the wrapper owner's
+API. Public lookalikes cannot create compiler intrinsics or acquire their
+availability. Publishing proof vocabulary/contracts does not establish every
+application or accept the assumptions of a bodyless claim.
+
+## Public structural data
+
+Publishing structural data publishes its field names and shape. Authorized
+consumers may read, construct, and update values subject to field types,
+invariants, borrowing, and qualification requirements, including
+[domain-owned read/write policy](domains.md#domain-owned-read-and-write-authority).
+Knowing a field name grants no access that its qualified type withholds. Those
+restrictions are opt-in domain clauses, not field visibility or privileges for
+every machine in a file, namespace, or package. Omitting them adds no access
+restriction beyond ordinary validity, ownership, and other authority rules.
+Visibility is not confidentiality, unforgeable authority, or an ABI policy.
+There are no private fields, by design: access plans already authorize exact
+operations on governed values, so field visibility would duplicate that
+machinery to enforce nothing, and the shape of data is part of its API. A
+consumer that uses only a type's operations rebuilds without edits when the
+shape changes; a consumer that selects a field has taken that dependency on
+purpose. Denying selection itself is a package-boundary property: selecting a
+type's fields, cases or conformances requires a direct dependency on the owning
+package, while carrying its values does not
+([declaration selection](../packages/boundaries.md#exposure-and-declaration-selection)).
+
+Constructing geometry or handle bits does not construct its routed authority or
+provider provenance. Confidential state remains in custody outside the
+observer's access. Changes to public shape change source/API identity;
+independent binary compatibility and replacement follow explicit
+[component contracts](../build/component_publication.md).

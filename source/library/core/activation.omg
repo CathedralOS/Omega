@@ -24,8 +24,8 @@ public boundary machine Activation::try_claim<const Bound: u64>(committed: u64)
 
 // The returned ordinary exclusive loan has the established committed length.
 // It cannot survive release of the exact claim that supplied its backing.
-public boundary machine ActivationClaim::bytes(claim: &mut ActivationClaim)
-    -> &mut [u8];
+public boundary machine ActivationClaim::bytes(claim: @mut ActivationClaim)
+    -> @mut [u8];
 
 // Only the newest live claim in this activation may release, and every loan
 // over its backing must have ended. No provider receives freed backing.

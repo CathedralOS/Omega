@@ -10,19 +10,19 @@
 // both are target-scoped bodies for different targets, which form one family
 // keyed by target (wiki/spec/language/machines.md#target-scoped-families). An
 // untargeted body beside a targeted one of the same signature is a duplicate.
-machine check_machines(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+machine check_machines(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next_machine(resolver, sources, syntax, 0) }
 
-    machine next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> machine_parameters(resolver, sources, syntax, index)
             _ -> done()
         }
     }
 
-    machine machine_parameters(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine machine_parameters(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         check_generic_names(resolver, sources, syntax, scope);
@@ -32,7 +32,7 @@ crashes Trap
         }
     }
 
-    machine machine_parameter_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
+    machine machine_parameter_names(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
         check_parameter_names(resolver, sources, syntax, item.first_parameter, item.parameter_count);
         transition resolver.output.accepted {
             true -> overloads(resolver, sources, syntax, index, item, 0)
@@ -41,9 +41,9 @@ crashes Trap
     }
 
     machine overloads(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         index: u64 in Trapping,
         item: MachineItem,
         prior: u64 in Trapping
@@ -55,9 +55,9 @@ crashes Trap
     }
 
     machine overload_compare(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         index: u64 in Trapping,
         item: MachineItem,
         prior: u64 in Trapping
@@ -72,8 +72,8 @@ crashes Trap
         }
     }
 
-    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
-        name_resolution_reject(&mut resolver.output, code, name.source_span);
+    machine reject(resolver: @mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+        name_resolution_reject(@mut resolver.output, code, name.source_span);
     }
 
     machine done() {}
@@ -81,9 +81,9 @@ crashes Trap
 
 // Each parameter name of one signature differs from every earlier one.
 public machine check_parameter_names(
-    resolver: &mut Resolver,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolver: @mut Resolver,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     first_parameter: u64 in Trapping,
     parameter_count: u64 in Trapping
 )
@@ -92,9 +92,9 @@ crashes Trap
     transition { _ -> next(resolver, sources, syntax, first_parameter, parameter_count, 0) }
 
     machine next(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         offset: u64 in Trapping
@@ -106,9 +106,9 @@ crashes Trap
     }
 
     machine named(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         offset: u64 in Trapping
@@ -118,9 +118,9 @@ crashes Trap
     }
 
     machine prior(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         offset: u64 in Trapping,
@@ -134,9 +134,9 @@ crashes Trap
     }
 
     machine compare(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
         offset: u64 in Trapping,
@@ -153,8 +153,8 @@ crashes Trap
         }
     }
 
-    machine duplicate(resolver: &mut Resolver, name: IdentifierSpan) {
-        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::DuplicateParameter, name.source_span);
+    machine duplicate(resolver: @mut Resolver, name: IdentifierSpan) {
+        name_resolution_reject(@mut resolver.output, ResolveDiagnosticCode::DuplicateParameter, name.source_span);
     }
 
     machine done() {}
@@ -164,9 +164,9 @@ crashes Trap
 // or none, and name), the same parameters (same_parameters) and no two
 // distinct targets.
 machine same_machine_signature(
-    resolver: &Resolver,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolver: @Resolver,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     left_handle: u64 in Trapping,
     right_handle: u64 in Trapping
 ) -> bool
@@ -174,8 +174,8 @@ crashes Trap
 {
     let left: MachineItem = machine_item(syntax, left_handle);
     let right: MachineItem = machine_item(syntax, right_handle);
-    let left_owner: MachineOwner = machine_owner(&resolver.output, left_handle);
-    let right_owner: MachineOwner = machine_owner(&resolver.output, right_handle);
+    let left_owner: MachineOwner = machine_owner(@resolver.output, left_handle);
+    let right_owner: MachineOwner = machine_owner(@resolver.output, right_handle);
     let same_name: bool = spans_equal(sources, left.name.source_span,
         right.name.source_span
     );
@@ -188,9 +188,9 @@ crashes Trap
     }
 
     machine parameters(
-        resolver: &Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
         left: MachineItem,
@@ -204,7 +204,7 @@ crashes Trap
     }
 
     // Bodies for two different targets are members of one family.
-    machine targets(sources: &SourceSet, left: MachineItem, right: MachineItem) -> bool {
+    machine targets(sources: @SourceSet, left: MachineItem, right: MachineItem) -> bool {
         let same_target: bool = spans_equal(sources, left.target.source_span, right.target.source_span);
         transition left.has_target && right.has_target && !same_target {
             true -> different()
@@ -226,9 +226,9 @@ crashes Trap
 // parameter in a parameter type matches the one at the same position of the
 // other machine's scope, so `f<T>(value: T)` and `f<U>(other: U)` match.
 public machine same_parameters(
-    resolver: &Resolver,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolver: @Resolver,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     left_handle: u64 in Trapping,
     right_handle: u64 in Trapping
 ) -> bool
@@ -242,9 +242,9 @@ crashes Trap
     }
 
     machine generic(
-        resolver: &Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
         left: MachineItem,
@@ -258,9 +258,9 @@ crashes Trap
     }
 
     machine generic_kind(
-        resolver: &Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
         left: MachineItem,
@@ -276,9 +276,9 @@ crashes Trap
     }
 
     machine parameter(
-        resolver: &Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
         left: MachineItem,
@@ -292,9 +292,9 @@ crashes Trap
     }
 
     machine compare(
-        resolver: &Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         left_handle: u64 in Trapping,
         right_handle: u64 in Trapping,
         left: MachineItem,
@@ -303,8 +303,8 @@ crashes Trap
     ) -> bool {
         let left_parameter: Parameter = syntax_trees_parameter(syntax, left.first_parameter + offset);
         let right_parameter: Parameter = syntax_trees_parameter(syntax, right.first_parameter + offset);
-        let left_scope: TypeScope = resolver_machine_scope(&resolver.output, syntax, left_handle);
-        let right_scope: TypeScope = resolver_machine_scope(&resolver.output, syntax, right_handle);
+        let left_scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, left_handle);
+        let right_scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, right_handle);
         let equal: bool = same_type(resolver, sources, syntax, left_scope, left_parameter.type_reference,
             right_scope, right_parameter.type_reference
         );
@@ -330,9 +330,9 @@ crashes Trap
 // and domain. Generic parameters agree by position in their scopes. Integer
 // rows compare by spelling until static evaluation lands.
 public machine same_type(
-    resolver: &Resolver,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolver: @Resolver,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     left_scope: TypeScope,
     left: u64 in Trapping,
     right_scope: TypeScope,
@@ -348,9 +348,9 @@ crashes Trap
     }
 
     machine rows(
-        resolver: &Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         left_scope: TypeScope,
         left_row: u64 in Trapping,
         right_scope: TypeScope,
@@ -364,9 +364,9 @@ crashes Trap
     }
 
     machine row(
-        resolver: &Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         left_scope: TypeScope,
         left_row: u64 in Trapping,
         right_scope: TypeScope,
@@ -390,9 +390,9 @@ crashes Trap
 }
 
 machine same_type_row(
-    resolver: &Resolver,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolver: @Resolver,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     left_scope: TypeScope,
     left: u64 in Trapping,
     right_scope: TypeScope,
@@ -409,8 +409,8 @@ crashes Trap
     }
 
     machine spelling(
-        resolver: &Resolver,
-        sources: &SourceSet,
+        resolver: @Resolver,
+        sources: @SourceSet,
         left_scope: TypeScope,
         left: u64 in Trapping,
         right_scope: TypeScope,
@@ -425,8 +425,8 @@ crashes Trap
     }
 
     machine literal(
-        resolver: &Resolver,
-        sources: &SourceSet,
+        resolver: @Resolver,
+        sources: @SourceSet,
         left_scope: TypeScope,
         left: u64 in Trapping,
         right_scope: TypeScope,
@@ -443,14 +443,14 @@ crashes Trap
         }
     }
 
-    machine bounded(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
+    machine bounded(resolver: @Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
         transition left < 65536 && right < 65536 {
             true -> compare(resolver, left_scope, left, right_scope, right)
             _ -> different()
         }
     }
 
-    machine compare(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
+    machine compare(resolver: @Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
         let left_domain: DomainBinding = resolver.output.domain_bindings[left];
         let right_domain: DomainBinding = resolver.output.domain_bindings[right];
         let left_item: u64 = resolver.output.domain_items[left];

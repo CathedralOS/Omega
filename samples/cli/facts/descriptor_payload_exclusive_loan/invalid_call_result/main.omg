@@ -3,7 +3,7 @@
 // The source is used while the result loan is live.
 data Slot { case Absent; case Present(value: [i64; 2]); }
 
-machine choose(counter: &mut u64) -> bool
+machine choose(counter: @mut u64) -> bool
 requires counter == 0
 {
     counter = 1;
@@ -18,9 +18,9 @@ machine main() crashes Trap {
     let mut chosen: Slot = present([17, 0]);
     let mut other: Slot = present([0, 0]);
     let mut visits: u64 = 0;
-    let selected: &mut [i64] = match choose(&mut visits) {
-        true -> &mut chosen.value[..]
-        false -> &mut other.value[..]
+    let selected: @mut [i64] = match choose(@mut visits) {
+        true -> @mut chosen.value[..]
+        false -> @mut other.value[..]
     };
     selected[0] = 41;
     chosen = Slot::Present { value: [7, 0] };

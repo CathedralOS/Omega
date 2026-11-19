@@ -24,21 +24,21 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.divisor = Divisor::By { amount: 7 };
     transition main.divisor {
         Divisor::By { amount } -> Main::quotient(main, 490 / amount)
         Divisor::Unset -> Main::wrong(main)
     }
-    machine quotient(main: &mut Main, value: i32) {
+    machine quotient(main: @mut Main, value: i32) {
         main.hits = (value == 70) as i32 in Wrapping;
     }
-    machine wrong(main: &mut Main) { main.hits = -1; }
+    machine wrong(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

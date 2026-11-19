@@ -2,7 +2,7 @@ module fixtures::catalog;
 use landcover::geometry;
 use landcover::geometry::Grid;
 public data Configuration [copy] { grid: Grid; a: i32 in Wrapping; b: i32 in Wrapping; c: i32 in Wrapping; d: i32 in Wrapping; }
-public machine configure(config: &mut Configuration, mode: u8) {
+public machine configure(config: @mut Configuration, mode: u8) {
     config.grid.x = 0; config.grid.y = 0;
     config.grid.width = 2; config.grid.height = 2;
     config.grid.columns = 2; config.grid.rows = 2;
@@ -18,13 +18,13 @@ public machine configure(config: &mut Configuration, mode: u8) {
         57 -> invalid_extent(config)
         _ -> done()
     }
-    machine shifted(config: &mut Configuration) { config.grid.x = 1; config.grid.y = 1; }
-    machine coarse(config: &mut Configuration) { config.grid.width = 4; config.grid.height = 4; config.grid.columns = 1; config.grid.rows = 1; }
-    machine outside(config: &mut Configuration) { config.grid.x = 6; }
-    machine unequal(config: &mut Configuration) { config.grid.width = 3; config.grid.height = 3; }
-    machine nodata(config: &mut Configuration) { config.a = 0; config.b = 0; config.c = 0; config.d = 0; }
-    machine invalid_width(config: &mut Configuration) { config.grid.width = 0; }
-    machine invalid_class(config: &mut Configuration) { config.b = 4; }
-    machine invalid_extent(config: &mut Configuration) { config.grid.rows = 5; }
+    machine shifted(config: @mut Configuration) { config.grid.x = 1; config.grid.y = 1; }
+    machine coarse(config: @mut Configuration) { config.grid.width = 4; config.grid.height = 4; config.grid.columns = 1; config.grid.rows = 1; }
+    machine outside(config: @mut Configuration) { config.grid.x = 6; }
+    machine unequal(config: @mut Configuration) { config.grid.width = 3; config.grid.height = 3; }
+    machine nodata(config: @mut Configuration) { config.a = 0; config.b = 0; config.c = 0; config.d = 0; }
+    machine invalid_width(config: @mut Configuration) { config.grid.width = 0; }
+    machine invalid_class(config: @mut Configuration) { config.b = 4; }
+    machine invalid_extent(config: @mut Configuration) { config.grid.rows = 5; }
     machine done() { }
 }

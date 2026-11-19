@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "opaque_representation");
     Build::select_representation<Token, TokenRepresentation>(builder);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);

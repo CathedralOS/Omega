@@ -32,7 +32,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
     Console::write("0000: ");
     main.data = "Omega Psi tape!!";
@@ -43,14 +43,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block hex_loop(main)
     }
 
-    machine hex_loop(main: &mut Main) {
+    machine hex_loop(main: @mut Main) {
         transition main.i < 16 {
             true -> block read_byte(main)
             _ -> block gutter_start(main)
         }
     }
 
-    machine read_byte(main: &mut Main) {
+    machine read_byte(main: @mut Main) {
         main.b = main.data[main.i];
         main.bw = widen_u8_to_u32(main.b) as u32 in Wrapping;
         main.hi = main.bw / 16;
@@ -60,56 +60,56 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine hi_digit(main: &mut Main) {
+    machine hi_digit(main: @mut Main) {
         transition main.hi < 10 {
             true -> block hi_num(main)
             _ -> block hi_alpha(main)
         }
     }
 
-    machine hi_num(main: &mut Main) {
+    machine hi_num(main: @mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.hi + 48) as u32);
         transition {
             _ -> block write_hi(main)
         }
     }
 
-    machine hi_alpha(main: &mut Main) {
+    machine hi_alpha(main: @mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.hi + 87) as u32);
         transition {
             _ -> block write_hi(main)
         }
     }
 
-    machine write_hi(main: &mut Main) {
+    machine write_hi(main: @mut Main) {
         Console::write_byte(main.chi);
         transition {
             _ -> block lo_digit(main)
         }
     }
 
-    machine lo_digit(main: &mut Main) {
+    machine lo_digit(main: @mut Main) {
         transition main.lo < 10 {
             true -> block lo_num(main)
             _ -> block lo_alpha(main)
         }
     }
 
-    machine lo_num(main: &mut Main) {
+    machine lo_num(main: @mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.lo + 48) as u32);
         transition {
             _ -> block write_lo(main)
         }
     }
 
-    machine lo_alpha(main: &mut Main) {
+    machine lo_alpha(main: @mut Main) {
         main.chi = narrow_u32_to_i32_trapping((main.lo + 87) as u32);
         transition {
             _ -> block write_lo(main)
         }
     }
 
-    machine write_lo(main: &mut Main) {
+    machine write_lo(main: @mut Main) {
         Console::write_byte(main.chi);
         Console::write_byte(32);
         main.i = main.i + 1;
@@ -118,7 +118,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine gutter_start(main: &mut Main) {
+    machine gutter_start(main: @mut Main) {
         Console::write(" ");
         main.i = 0;
         transition {
@@ -126,14 +126,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine gutter_loop(main: &mut Main) {
+    machine gutter_loop(main: @mut Main) {
         transition main.i < 16 {
             true -> block read_glyph(main)
             _ -> finish(main)
         }
     }
 
-    machine read_glyph(main: &mut Main) {
+    machine read_glyph(main: @mut Main) {
         main.b = main.data[main.i];
         main.bw = widen_u8_to_u32(main.b) as u32 in Wrapping;
         transition main.bw >= 32 && main.bw < 127 {
@@ -142,7 +142,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine keep_glyph(main: &mut Main) {
+    machine keep_glyph(main: @mut Main) {
         Console::write_byte(main.b as i32);
         main.i = main.i + 1;
         transition {
@@ -150,7 +150,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine dot_glyph(main: &mut Main) {
+    machine dot_glyph(main: @mut Main) {
         Console::write_byte(46);
         main.i = main.i + 1;
         transition {
@@ -158,10 +158,10 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine finish(main: &mut Main) {
+    machine finish(main: @mut Main) {
         Console::write_line("");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }
@@ -169,5 +169,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

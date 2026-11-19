@@ -2,7 +2,7 @@
 // Place: call result. A function returns the read-only byte-pool slice literal with guaranteed length bound.
 // Expected exit: 0
 
-machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap
+machine inspect_bytes(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {
@@ -20,7 +20,7 @@ ensures result == 0u64
     }
 }
 
-machine get_bytes() -> &[u8]
+machine get_bytes() -> @[u8]
 ensures result.len >= 5u64 && result.len <= 5u64
 {
     "omega"
@@ -29,7 +29,7 @@ ensures result.len >= 5u64 && result.len <= 5u64
 machine probe() -> u64 crashes Trap
 ensures result == 0u64
 {
-    let bytes: &[u8] = get_bytes();
+    let bytes: @[u8] = get_bytes();
     inspect_bytes(bytes)
 }
 

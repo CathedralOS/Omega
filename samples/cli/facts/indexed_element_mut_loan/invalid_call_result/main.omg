@@ -2,7 +2,7 @@
 // Place: call_result.
 // Invalid: the selected element already has a live exclusive loan at bump.
 data Room { exit_count: u32 in Wrapping; }
-machine bump(room: &mut Room) {
+machine bump(room: @mut Room) {
     room.exit_count = room.exit_count + 1;
 }
 machine select_index(index: u64) -> u64
@@ -13,8 +13,8 @@ requires from_index < 2
 {
     let mut rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
     let selected: u64 = select_index(from_index);
-    let held: &mut Room = &mut rooms[selected];
-    bump(&mut rooms[selected]);
+    let held: @mut Room = @mut rooms[selected];
+    bump(@mut rooms[selected]);
     held.exit_count = held.exit_count + 1;
     (from_index == 0 && rooms[0].exit_count == 1 && rooms[1].exit_count == 10)
         || (from_index == 1 && rooms[0].exit_count == 0 && rooms[1].exit_count == 11)

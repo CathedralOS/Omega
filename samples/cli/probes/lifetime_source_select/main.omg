@@ -14,12 +14,12 @@
 // ProcessExit provider.
 
 data View<'buf> {
-    body: &'buf mut i32;
+    body: @'buf mut i32;
 }
 
 machine select<'left, 'right>(
-    first: &'left mut i32,
-    second: &'right i32
+    first: @'left mut i32,
+    second: @'right i32
 ) -> View<'left> {
     let selected: View<'left> = View { body: first };
     transition {
@@ -29,23 +29,23 @@ machine select<'left, 'right>(
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let mut first: i32 = 0;
     let second: i32 = 9;
-    let mut selected: View = select(&mut first, &second);
+    let mut selected: View = select(@mut first, @second);
     selected.body = 7;
     let kept: i32 = second;
     transition first == 7 && kept == 9 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

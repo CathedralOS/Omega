@@ -1,8 +1,8 @@
 use omega::language::core::byte_observation;
 // Expected exit: 0
 
-domain [u8; 4]::Ascii requires byte_observation::ascii_only(&self[..]);
-domain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);
+domain [u8; 4]::Ascii requires byte_observation::ascii_only(@self[..]);
+domain [u8]::Ascii requires byte_observation::ascii_only(@self[..]);
 
 data Label requires used <= 4 {
     storage: [u8; 4] in Ascii;
@@ -10,14 +10,14 @@ data Label requires used <= 4 {
     used: u64;
 }
 
-machine label_live(label: &Label) -> bool {
-    let raw: &[u8] = &(&label.storage as -Ascii)[..label.used];
+machine label_live(label: @Label) -> bool {
+    let raw: @[u8] = @(@label.storage as -Ascii)[..label.used];
     matches_a1(raw as +Ascii)
 }
 
-machine matches_a1(prefix: &[u8] in Ascii) -> bool {
+machine matches_a1(prefix: @[u8] in Ascii) -> bool {
     let len: u64 = prefix.len;
-    let raw: &[u8] = prefix as -Ascii;
+    let raw: @[u8] = prefix as -Ascii;
     raw == "A1" && len == 2
 }
 
@@ -32,7 +32,7 @@ machine entry_start() crashes Trap {
         other: [255u8, 49u8, 0u8, 0u8],
         used: 2
     };
-    transition label_live(&label) && !label_live(&other) {
+    transition label_live(@label) && !label_live(@other) {
         true -> {}
         false -> fail()
     }

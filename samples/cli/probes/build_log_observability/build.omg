@@ -3,10 +3,10 @@
 // output in evaluation order — the requesting activation first, then the
 // dep's own activation.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "build_log_observability");
     let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
-    dependency::with_alias(&mut kit_dependency, "kit");
+    dependency::with_alias(@mut kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
-    BuildLog::write_line(&mut builder.log, "requester: activation observed");
+    BuildLog::write_line(@mut builder.log, "requester: activation observed");
 }

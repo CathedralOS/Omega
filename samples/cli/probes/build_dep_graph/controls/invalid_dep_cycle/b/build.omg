@@ -1,6 +1,6 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::package(builder, "pkgb");
     let mut a2_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../a" });
-    dependency::with_alias(&mut a2_dependency, "a2");
+    dependency::with_alias(@mut a2_dependency, "a2");
     let a2_registration: DependencyRegistration = Build::dependency(builder, a2_dependency);
 }

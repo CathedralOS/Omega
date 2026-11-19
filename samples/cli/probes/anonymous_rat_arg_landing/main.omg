@@ -21,23 +21,23 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.expected = 1.00000011920928955078125;
     main.hits = 0;
     transition { _ -> check(main, 1.0 + 0.0000000596046483281043038005) }
-    machine check(main: &mut Main, got: f32) {
+    machine check(main: @mut Main, got: f32) {
         let cast: f32 = (1.0 + 0.00000011920928955078125) as f32;
         transition got == main.expected && cast == main.expected {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

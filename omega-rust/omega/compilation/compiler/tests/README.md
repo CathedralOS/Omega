@@ -19,8 +19,7 @@ The directory sits at the depth `tests/omega/` had, because a fixture's
 `build.omg` reaches the bundled library by a relative path
 (`../../../../../source/library/std`); moving a fixture deeper breaks it.
 Tests in other crates read the same directory. Keep only the programs a test
-names, never a matrix: `cargo xtask check-rules` allows at most six new `.omg`
-files per pull request. Name a fixture for the compiler behavior it pins. A
+names. Name a fixture for the compiler behavior it pins. A
 fixture that imports `omega_language_std` needs a `build.omg` that depends on
 `source/library/std` and binds the program entry roots.
 

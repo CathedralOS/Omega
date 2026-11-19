@@ -15,7 +15,7 @@ public data Orbit {
 public machine coordinate(value: f64) -> f64
 requires value == value && value >= -1000000.0 && value <= 1000000.0 { value }
 
-public machine diagnostics(orbit: &mut Orbit) {
+public machine diagnostics(orbit: @mut Orbit) {
     let radius: f64 = F64::square_root(orbit.x * orbit.x + orbit.y * orbit.y);
     let speed_squared: f64 = orbit.vx * orbit.vx + orbit.vy * orbit.vy;
     orbit.energy = 0.5 * speed_squared - orbit.parameter / radius;
@@ -23,7 +23,7 @@ public machine diagnostics(orbit: &mut Orbit) {
     orbit.radial = orbit.x * orbit.vx + orbit.y * orbit.vy;
 }
 
-public machine step(orbit: &mut Orbit) {
+public machine step(orbit: @mut Orbit) {
     orbit.periapsis = false;
     orbit.previous_radial = orbit.radial;
     let radius_squared: f64 = orbit.x * orbit.x + orbit.y * orbit.y;
@@ -39,14 +39,14 @@ public machine step(orbit: &mut Orbit) {
         true -> segment(orbit, half_vx, half_vy, dx, dy, length_squared)
         false -> finish(orbit, half_vx, half_vy, dx, dy)
     }
-    machine segment(orbit: &mut Orbit, half_vx: f64, half_vy: f64, dx: f64, dy: f64, length_squared: f64) {
+    machine segment(orbit: @mut Orbit, half_vx: f64, half_vy: f64, dx: f64, dy: f64, length_squared: f64) {
         let fraction: f64 = (0.0 - orbit.x * dx - orbit.y * dy) / length_squared;
         transition fraction > 0.0 && fraction < 1.0 {
             true -> closest(orbit, half_vx, half_vy, dx, dy, fraction)
             false -> finish(orbit, half_vx, half_vy, dx, dy)
         }
     }
-    machine closest(orbit: &mut Orbit, half_vx: f64, half_vy: f64, dx: f64, dy: f64, fraction: f64) {
+    machine closest(orbit: @mut Orbit, half_vx: f64, half_vy: f64, dx: f64, dy: f64, fraction: f64) {
         let x: f64 = orbit.x + fraction * dx;
         let y: f64 = orbit.y + fraction * dy;
         transition x * x + y * y <= 0.000000000001 {
@@ -54,7 +54,7 @@ public machine step(orbit: &mut Orbit) {
             false -> finish(orbit, half_vx, half_vy, dx, dy)
         }
     }
-    machine finish(orbit: &mut Orbit, half_vx: f64, half_vy: f64, dx: f64, dy: f64) {
+    machine finish(orbit: @mut Orbit, half_vx: f64, half_vy: f64, dx: f64, dy: f64) {
         let x: f64 = orbit.x + dx;
         let y: f64 = orbit.y + dy;
         let radius_squared: f64 = x * x + y * y;
@@ -63,7 +63,7 @@ public machine step(orbit: &mut Orbit) {
             false -> collision(orbit)
         }
     }
-    machine kick(orbit: &mut Orbit, half_vx: f64, half_vy: f64, x: f64, y: f64, radius_squared: f64) {
+    machine kick(orbit: @mut Orbit, half_vx: f64, half_vy: f64, x: f64, y: f64, radius_squared: f64) {
         let radius: f64 = F64::square_root(radius_squared);
         let factor: f64 = (0.0 - orbit.parameter) / (radius_squared * radius);
         orbit.x = x; orbit.y = y;
@@ -74,10 +74,10 @@ public machine step(orbit: &mut Orbit) {
             true -> event(orbit) false -> done()
         }
     }
-    machine event(orbit: &mut Orbit) {
+    machine event(orbit: @mut Orbit) {
         orbit.periapsis = true;
         orbit.event_fraction = (0.0 - orbit.previous_radial) / (orbit.radial - orbit.previous_radial);
     }
-    machine collision(orbit: &mut Orbit) { orbit.collision = true; }
+    machine collision(orbit: @mut Orbit) { orbit.collision = true; }
     machine done() { }
 }

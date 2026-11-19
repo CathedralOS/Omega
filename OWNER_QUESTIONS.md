@@ -64,4 +64,8 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-There are currently no open product questions.
+### 1. Does a V2 direct run select a neighboring build file?
+
+A developer runs `omega run main.omg` in a project that also contains a build file selecting dependencies and providers. Should V2 run the named source with its default Build, or automatically use the neighboring project's Build? This determines whether placing the same script in a project changes which providers it runs with.
+
+The [command vocabulary](wiki/spec/build/command_line.md#command-vocabulary) names the root operand. The [project-role contract](wiki/spec/build/declarations.md#project-role) defines both a selected Build and the default when none is selected. Neither specifies when a neighboring file is selected by this invocation. The [V2 driver plan](omega-rust-v2/PLAN.md#the-omega-application) records direct execution as the tentative design. The [default execution engine](wiki/spec/build/embedding.md#standalone-execution-selection) is already settled.

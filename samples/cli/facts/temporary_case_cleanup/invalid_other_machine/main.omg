@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Bonus [copy] { value: u64; }
 data Event requires omitted == 0, { omitted: u64; details: Bonus; case Treasure(gold: u64); }
-machine observe(event: &Event) -> bool { event.omitted == 0 && event.details.value == 2 }
+machine observe(event: @Event) -> bool { event.omitted == 0 && event.details.value == 2 }
 machine consume(value: Bonus) -> bool
 requires value.value == 2 {
     observe(Event::Treasure { gold: 1, details: value })

@@ -11,7 +11,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: &u8; d: u32 in Domain; }");
+    self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: @u8; d: u32 in Domain; }");
     self.check_data_rows();
 
     self.parser.parse_view("machine p() { x = 7; y = Packet { tag: 1 }; z = value as +Trapping; transition 1 { 1 -> done() } machine done() {} }");
@@ -68,7 +68,7 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p() { x = self { tag: 1 }; }");
     self.check_incomplete(23, 24);
 
-    self.parser.parse_view("machine p() { x = value as &u8; }");
+    self.parser.parse_view("machine p() { x = value as @u8; }");
     self.check_incomplete(27, 28);
 
     self.parser.parse_view("data Bound [copy] requires self.b > 0 requires self.b in Positive requires b <= (3 + 6) || false { b: u32; } data Plain { value: u32; } data Flag requires ready { ready: bool; }");
@@ -144,11 +144,11 @@ machine Main::main(&mut self) {
     self.check_incomplete(27, 28);
     self.parser.parse_view("machine p() { x = value as +");
     self.check_refused();
-    self.parser.parse_view("machine p() { let x: bool = scalar < @; }");
+    self.parser.parse_view("machine p() { let x: bool = scalar < $; }");
     self.check_lexical_failure();
 
     // Reusing the same receiver after failures must rebuild the same live rows.
-    self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: &u8; d: u32 in Domain; }");
+    self.parser.parse_view("data R requires b <= 9 { a: [u8; 2]; b: u32; c: @u8; d: u32 in Domain; }");
     self.check_data_rows();
     self.parser.parse_view("machine logical() -> bool { !false } machine negative() -> u8 { -1 } machine inverted() -> u8 { ~1 }");
     self.check_complete();
@@ -163,10 +163,10 @@ machine Main::main(&mut self) {
 
     // These declarations and clear body are exact canonical source bytes;
     // the ordinary caller adds no parser-specific recognition or lowering.
-    self.parser.parse_view("public data SourceId [copy] {\n    value: u32 in Trapping;\n}\n\n\npublic data SourceUnit\nrequires\n    length <= 131072,\n{\n    id: SourceId;\n    bytes: [u8; 131072] in Trapping;\n    length: u64;\n    last_retained: bool;\n}\n\n\nmachine source_unit_clear(source_unit: &mut SourceUnit, id: SourceId) {\n    source_unit.id = id;\n    source_unit.length = 0;\n    source_unit.last_retained = true;\n}\n\nmachine caller() { let mut unit: SourceUnit; let id: SourceId = SourceId { value: 42 as +Trapping }; source_unit_clear(&mut unit, id); }");
+    self.parser.parse_view("public data SourceId [copy] {\n    value: u32 in Trapping;\n}\n\n\npublic data SourceUnit\nrequires\n    length <= 131072,\n{\n    id: SourceId;\n    bytes: [u8; 131072] in Trapping;\n    length: u64;\n    last_retained: bool;\n}\n\n\nmachine source_unit_clear(source_unit: @mut SourceUnit, id: SourceId) {\n    source_unit.id = id;\n    source_unit.length = 0;\n    source_unit.last_retained = true;\n}\n\nmachine caller() { let mut unit: SourceUnit; let id: SourceId = SourceId { value: 42 as +Trapping }; source_unit_clear(@mut unit, id); }");
     self.check_source_unit_clear_rows();
 
-    self.parser.parse_view("machine p() { take(&value, &mut value, &write value); }");
+    self.parser.parse_view("machine p() { take(@value, @mut value, @write value); }");
     self.check_complete();
     assert self.parser.call_statement_count == 1;
     assert self.parser.unary_expression_count == 0;
@@ -174,27 +174,27 @@ machine Main::main(&mut self) {
     self.check_borrow_argument(1, 1);
     self.check_borrow_argument(2, 2);
 
-    self.parser.parse_view("machine p() { take(&mut value as -Trapping); }");
+    self.parser.parse_view("machine p() { take(@mut value as -Trapping); }");
     self.check_borrow_cast(0);
 
-    self.parser.parse_view("machine p() { take(&mut items[0] as -Trapping); }");
+    self.parser.parse_view("machine p() { take(@mut items[0] as -Trapping); }");
     self.check_borrow_cast(1);
 
-    self.parser.parse_view("machine p() { take(&mut (value as -Trapping)); }");
+    self.parser.parse_view("machine p() { take(@mut (value as -Trapping)); }");
     self.check_cast_inside_borrow();
 
-    self.parser.parse_view("machine p() { take(!&value as -Trapping); }");
+    self.parser.parse_view("machine p() { take(!@value as -Trapping); }");
     self.check_outer_unary_borrow_cast();
 
-    self.parser.parse_view("machine p() -> &u8 { &value }");
+    self.parser.parse_view("machine p() -> @u8 { @value }");
     self.check_complete();
     assert self.parser.statement_count == 1;
     self.check_borrow_node(self.parser.statements[0].item_index, 0);
 
-    self.parser.parse_view("machine p() { take(&");
+    self.parser.parse_view("machine p() { take(@");
     self.check_syntax_refused(20, 20);
 
-    self.parser.parse_view("machine p() { take(&mut ; }");
+    self.parser.parse_view("machine p() { take(@mut ; }");
     self.check_refused();
 
     self.parser.parse_view("machine p() { take(value); }");
@@ -245,7 +245,7 @@ machine Main::main(&mut self) {
     self.check_record_expression(self.parser.struct_literal_fields[0].value, 0);
     self.check_record_expression(self.parser.struct_literal_fields[1].value, 1);
 
-    self.parser.parse_view("machine p() { take(&mut Packet {left:(7 + read()), right:!false}); }");
+    self.parser.parse_view("machine p() { take(@mut Packet {left:(7 + read()), right:!false}); }");
     self.check_record_field_frames();
 
     self.parser.parse_view("machine p() { take(Packet {left: Leaf {word:}, right: Leaf {word:9}}); }");
@@ -267,13 +267,13 @@ machine Main::main(&mut self) {
 
     // A domain-removal view keeps its borrow and cast below the indexed
     // place; the selector owns a fresh expression frame.
-    self.parser.parse_view("machine append(source_unit:&mut SourceUnit, byte:u8) { (&mut source_unit.bytes as -Trapping)[source_unit.length] = byte; } machine read(source_unit:&SourceUnit, index:u64 in Trapping)->u8 { (&source_unit.bytes as -Trapping)[index as -Trapping] }");
+    self.parser.parse_view("machine append(source_unit:@mut SourceUnit, byte:u8) { (@mut source_unit.bytes as -Trapping)[source_unit.length] = byte; } machine read(source_unit:@SourceUnit, index:u64 in Trapping)->u8 { (@source_unit.bytes as -Trapping)[index as -Trapping] }");
     self.check_domain_view_indices();
 
-    self.parser.parse_view("machine p(){ before(); ((&mut matrix as -D)[rows[next((offset() + 1))]])[column()] = value(); }");
+    self.parser.parse_view("machine p(){ before(); ((@mut matrix as -D)[rows[next((offset() + 1))]])[column()] = value(); }");
     self.check_nested_index_custody();
 
-    self.parser.parse_view("machine p(){ consume(7, Packet { value: (&array as -D)[(next() as -D)] }, 9); }");
+    self.parser.parse_view("machine p(){ consume(7, Packet { value: (@array as -D)[(next() as -D)] }, 9); }");
     self.check_record_index_context();
 
     self.parser.parse_view("machine p(){ make()[index()] = value(); } machine read()->u8 { make()[index()] }");
@@ -315,10 +315,10 @@ machine Main::main(&mut self) {
 
     // Data and machine entry contracts share syntax, but each owner retains
     // an exact disjoint range even when its body is empty or has nested states.
-    self.parser.parse_view("data A requires true {} machine outer(x:u32)->() requires x < 16, x <= 9 requires true { machine inner(view:&SourceUnit,index:u64 in Trapping)->u8 requires view.length < 131072, index < 131072 { 7 } machine empty() {} } data B requires false {} machine last() {}");
+    self.parser.parse_view("data A requires true {} machine outer(x:u32)->() requires x < 16, x <= 9 requires true { machine inner(view:@SourceUnit,index:u64 in Trapping)->u8 requires view.length < 131072, index < 131072 { 7 } machine empty() {} } data B requires false {} machine last() {}");
     self.check_machine_requirement_owners();
 
-    self.parser.parse_view("machine p(values:&Values,index:u32) requires permitted(values[slot(1)], (index + 1)) && index < 8 { }");
+    self.parser.parse_view("machine p(values:@Values,index:u32) requires permitted(values[slot(1)], (index + 1)) && index < 8 { }");
     self.check_complete();
     self.check_call_stacks_empty();
     assert self.parser.requirement_count == 1;

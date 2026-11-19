@@ -8,16 +8,16 @@ use omega::language::core::narrow_i64_to_u64_exact;
 
 // Borrow the complete aligned stat buffer, including the record's padding.
 // A borrowed byte element cannot supply the rest of that storage.
-machine macos_arm64_posix_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult
+machine macos_arm64_posix_decode_metadata(filesystem: @mut PosixFilesystem) -> MetadataResult
     satisfies PosixFilesystemTarget::decode_metadata {
-    let stat: &DarwinStat = &filesystem.stat_buf as &DarwinStat;
+    let stat: @DarwinStat = @filesystem.stat_buf as @DarwinStat;
     let blocks: i64 = stat.blocks;
     let blksize: i64 = stat.blksize as i64;
     transition blocks >= 0 && blksize >= 0 {
         true -> decode(stat, blocks, blksize)
         _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
     }
-    machine decode(stat: &DarwinStat, block_count: i64, block_size: i64) -> MetadataResult
+    machine decode(stat: @DarwinStat, block_count: i64, block_size: i64) -> MetadataResult
     requires block_count >= 0 && block_size >= 0
     {
         let mode: u32 = stat.mode as u32;
@@ -40,13 +40,13 @@ machine macos_arm64_posix_decode_metadata(filesystem: &mut PosixFilesystem) -> M
     }
 }
 
-machine macos_arm64_posix_permission_bits(filesystem: &PosixFilesystem) -> u32
+machine macos_arm64_posix_permission_bits(filesystem: @PosixFilesystem) -> u32
     satisfies PosixFilesystemTarget::permission_bits {
-    let stat: &DarwinStat = &filesystem.stat_buf as &DarwinStat;
+    let stat: @DarwinStat = @filesystem.stat_buf as @DarwinStat;
     (stat.mode as u32) & 4095
 }
 
-machine macos_arm64_posix_encode_open_options(filesystem: &mut PosixFilesystem)
+machine macos_arm64_posix_encode_open_options(filesystem: @mut PosixFilesystem)
     satisfies PosixFilesystemTarget::encode_open_options {
     filesystem.open_writable = posix_flag_bit(filesystem.open_options.write) | posix_flag_bit(filesystem.open_options.append);
     filesystem.open_readable = posix_flag_bit(filesystem.open_options.read);
@@ -61,9 +61,9 @@ machine macos_arm64_posix_encode_open_options(filesystem: &mut PosixFilesystem)
 
 // Resolve an absent directory hint from the native mode without decoding
 // unrelated size/timestamp fields or following a final symlink.
-machine macos_arm64_posix_decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind
+machine macos_arm64_posix_decode_directory_kind(filesystem: @mut PosixFilesystem) -> PosixDirectoryKind
     satisfies PosixFilesystemTarget::decode_directory_kind {
-    let stat: &DarwinStat = &filesystem.stat_buf as &DarwinStat;
+    let stat: @DarwinStat = @filesystem.stat_buf as @DarwinStat;
     let kind: u32 = (stat.mode as u32) & 61440;
     transition kind {
         16384 -> PosixDirectoryKind::Directory
@@ -90,7 +90,7 @@ machine macos_arm64_posix_directory_descent_flags() -> i32
 // The PosixCanonicalLibc requirements are bound in std's Build machine.
 
 // Error numbers belong to this OS, not to a synthetic shared POSIX catalog.
-machine macos_arm64_posix_kind_of_stored_error_code(filesystem: &mut PosixFilesystem) -> ErrorKind
+machine macos_arm64_posix_kind_of_stored_error_code(filesystem: @mut PosixFilesystem) -> ErrorKind
     satisfies PosixFilesystemTarget::kind_of_stored_error_code {
     filesystem.err_kind = match filesystem.err_code {
         2 -> ErrorKind::NotFound,
@@ -108,7 +108,7 @@ machine macos_arm64_posix_kind_of_stored_error_code(filesystem: &mut PosixFilesy
         102 -> ErrorKind::Unsupported,
         _ -> ErrorKind::Other
     };
-    error_kind_reconstruct(&filesystem.err_kind)
+    error_kind_reconstruct(@filesystem.err_kind)
 }
 
 machine macos_arm64_posix_would_block_error() -> i32

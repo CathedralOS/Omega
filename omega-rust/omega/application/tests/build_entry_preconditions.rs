@@ -30,7 +30,7 @@ fn check(name: &str, clause: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) requires {clause} {{
+            "machine build(builder: @mut Build) requires {clause} {{
     Build::application(builder, \"conditioned\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }}

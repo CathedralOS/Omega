@@ -4,10 +4,10 @@
 
 data Cell [copy] { padding: i64; value: i64; }
 data Storage { cells: [Cell; 2]; position: u64; }
-machine replace(cell: &write Cell, value: i64) { cell.value = value; }
+machine replace(cell: @write Cell, value: i64) { cell.value = value; }
 machine success() {}
 machine failure() crashes Trap { crash Trap; }
-machine verify(storage: &Storage) crashes Trap {
+machine verify(storage: @Storage) crashes Trap {
     transition storage.cells[0].value == -43 && storage.cells[1].value == 9
         && storage.cells[0].padding == 11 && storage.cells[1].padding == 23
         && storage.position == 0 {
@@ -15,7 +15,7 @@ machine verify(storage: &Storage) crashes Trap {
         _ -> failure()
     }
 }
-machine relay(cells: &write [Cell; 2]) -> &write [Cell; 2] { &write cells }
+machine relay(cells: @write [Cell; 2]) -> @write [Cell; 2] { @write cells }
 machine main() crashes Trap {
     let mut storage: Storage;
     storage.cells[0].padding = 11;
@@ -23,11 +23,11 @@ machine main() crashes Trap {
     storage.cells[1].padding = 23;
     storage.cells[1].value = 29;
     storage.position = 1;
-    let parent: &write [Cell; 2] = &write storage.cells;
-    let child: &write [Cell; 2] = relay(&write parent);
-    replace(&write child[storage.position], 7);
-    replace(&write child[storage.position], 9);
+    let parent: @write [Cell; 2] = @write storage.cells;
+    let child: @write [Cell; 2] = relay(@write parent);
+    replace(@write child[storage.position], 7);
+    replace(@write child[storage.position], 9);
     storage.position = 0;
-    replace(&write child[storage.position], -43);
-    verify(&storage);
+    replace(@write child[storage.position], -43);
+    verify(@storage);
 }

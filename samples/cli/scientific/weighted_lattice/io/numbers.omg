@@ -15,7 +15,7 @@ public machine decimal(value: u64) reaches Console {
         Console::write_byte(narrow_u64_to_i32_trapping(value % 10 + 48));
     }
 }
-public machine number_line(label: &[u8], value: u64) reaches Console {
+public machine number_line(label: @[u8], value: u64) reaches Console {
     Console::write(label);
     decimal(value);
     Console::write_line("");

@@ -20,7 +20,7 @@ machine unmentioned() -> u64 {
         let mut storage: LayoutStorage<Payload, Policy>;
         storage.first = 9u64;
         storage.value = 7u64;
-        let bytes: &[u8; 16] = &storage as &[u8; 16];
+        let bytes: @[u8; 16] = @storage as @[u8; 16];
         widen_u8_to_u64(bytes[8])
 }
 machine main() {}

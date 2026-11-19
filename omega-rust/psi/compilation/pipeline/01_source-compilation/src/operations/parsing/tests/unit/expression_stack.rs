@@ -252,7 +252,7 @@ fn membership_remains_a_separate_operand_grammar() {
 
 #[test]
 fn iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements() {
-    let (parsed, root) = parse_expression("&write -7");
+    let (parsed, root) = parse_expression("@write -7");
     let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(root) else {
         panic!("borrow");
     };
@@ -261,7 +261,7 @@ fn iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements
         panic!("negated integer literal");
     };
     assert_eq!(*literal, numeric_literals::IntegerLiteral::from_value(-7));
-    let (parsed, root) = parse_expression("&write move value");
+    let (parsed, root) = parse_expression("@write move value");
     let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(root) else {
         panic!("borrow");
     };

@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,610 lines / 839,302 bytes with SHA-256
-`e30d71de073d6933f0e4a9ac3b6b530284443e50f06098ad7f4e4d29d4cfb601`.
+manifest materializes 22,612 lines / 839,299 bytes with SHA-256
+`49316cde32e52b6277b29fa11434eb96ed8c0e3bbfddc7bf5e2d8a126e44beb2`.
 The manifest itself is 1,674 bytes, SHA-256
-`e9b4ccc60317a1845d59232c053bad32ff8b63eaac23f298de574120b45b7d41`;
+`8d587950e39ea9c2b0caab5b3e336c244d0bf419c6ee485f24b9e5b076a39cfc`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -823,6 +823,31 @@ result, and its nested machine name parser accepts an identifier. The
 [terminal-call rule](../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
 resolves a called target as a machine and applies ordinary argument and
 completion rules.
+
+### Restored V1 borrow spelling
+
+The V1 product at `d8a8825e3c23` uses `@mut` for Omega borrows. Its
+284-unit request contains 3,823,380 source bytes, wire SHA-256
+`636c924b64ae1d2a1c827466dfdcf868a89e935847e0c0f4a15b7235ba2f6405`.
+The Epsilon code that implements the Omega compiler still uses Epsilon
+receivers and byte views spelled `&mut self` and `&[u8]`.
+
+At that revision, `tests/epsilon/refinement/model.py` expects `@` in an
+Epsilon receiver. It rejected both the unmodified and integrated Epsilon
+compiler sources at packed byte 39,463, the receiver in
+`request_and_utf8.epsilon` line 27. Both observations were
+`0207279a0000`. The full-product comparison below uses the independent
+model from `8092cfd9c0a5`, SHA-256
+`036633fe351bd0da5e4bf8426b2ccdb87287fe423868fe686750d5135fa24490`,
+on the supplied source bytes.
+
+On that product, the unmodified compiler returned `0002000000df460000`
+at the `+Trapping` in `alpha_new_mark`, packed byte 18,143. The integrated
+compiler returned `0002000000d3910000` at the ordinary nested `copy`
+call, packed byte 37,331 / unit byte 23,577, line 577, column 38. The
+compiler and production entry together were 845,417 Epsilon bytes, SHA-256
+`95ea6b8b9cd7d2e1d186c70bcda1ba1cf9821b0451f751779ea3978df196ffdd`.
+Both full-product observations end with the refusal coordinate.
 
 ### Same-carrier cast comparison
 

@@ -79,7 +79,7 @@ Calls inside operators and groups retain their surrounding expression stacks
 while each argument parses. A nested-call fixture checks the final outer
 argument extent and the binary/call expression indices it owns. Both context
 stacks must be empty after completion, and a subsequent static-argument call
-must keep its authored static argument. A lexical error after `<` stays a lexical
+must keep its authored static argument. The invalid byte `$` after `<` stays a lexical
 failure, rather than becoming an internal lookahead failure.
 
 The cast fixture distinguishes `as u32`, `as +Trapping` and `as -Trapping`.

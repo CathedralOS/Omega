@@ -49,16 +49,16 @@ def require_identity(label, data, size, digest):
 # The bound D member identities from omega_compiler.epsilon.sources, in
 # manifest order — the packed closure is their plain concatenation.
 MEMBER_RECORDS = [
-    ("representations.epsilon", 38360,
-     "1342b8282ebb7c5c452593efd64fd1635fa2e514c1037c2d206ae9cd321b5c78"),
+    ("representations.epsilon", 38373,
+     "8adfe00709b6662b5c98fe3f31ca4993f0f14261043a0f14d0b26fac2a2f5fa2"),
     ("request_and_utf8.epsilon", 23678,
      "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5"),
     ("lexical_classification.epsilon", 2520,
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
-    ("lexer.epsilon", 44432,
-     "2a9c30ce9e66959bb33070937aba53e955461686bb221b128ec54801813f4c89"),
-    ("parser.epsilon", 403766,
-     "68c8deb5685e491f1db79e544d0d7d80ed0aa958f5c1f752314861fd544ca6d7"),
+    ("lexer.epsilon", 44500,
+     "1c8e22d9df9eda5368db6807a805087e3b22957285e01318d05c7acbaaf587dc"),
+    ("parser.epsilon", 403682,
+     "22192f0ab2a5dfff11ee5d0c203c262b6f3b7f68e93bc328fcb27228f3a691d9"),
     ("alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
     ("scalar_compilation.epsilon", 249725,
@@ -71,8 +71,8 @@ MEMBER_RECORDS = [
      "d5327eeb7bb744f40653f17b37ef25505c92b782148070745d554ccb3a6f4329"),
 ]
 
-PACKED_RECORD = (839302,
-                 "e30d71de073d6933f0e4a9ac3b6b530284443e50f06098ad7f4e4d29d4cfb601")
+PACKED_RECORD = (839299,
+                 "49316cde32e52b6277b29fa11434eb96ed8c0e3bbfddc7bf5e2d8a126e44beb2")
 
 CUSTOMER_RECORDS = {
     "omega_lexical": (1486,
@@ -173,23 +173,23 @@ def member_customers():
         + load_customer(customers_dir, "omega_alpha_tape"),
         b"", b"\x00\x00\x00\x00\x00ABCDEFGH"
         b"\x0c\x09\x00\x00\x00\x00\x00\x00\x00\x14" + ALPHA_PROGRAM,
-        [("alpha_tape: invalid byte at packed 38361", byte_at(38361, 0x01))]))
+        [("alpha_tape: invalid byte at packed 38374", byte_at(38374, 0x01))]))
     cases.append(Customer(
         "Omega D request and UTF-8",
         ("representations.epsilon", "request_and_utf8.epsilon"),
         representations + request_utf8
         + load_customer(customers_dir, "omega_request"),
         b"", b"\x00\x00\x00\x00\x00A\n",
-        [("request_and_utf8: invalid byte at packed 38505",
-          byte_at(38505, 0x01))]))
+        [("request_and_utf8: invalid byte at packed 38518",
+          byte_at(38518, 0x01))]))
     cases.append(Customer(
         "Omega D request invocation fields",
         ("representations.epsilon", "request_and_utf8.epsilon"),
         representations + request_utf8
         + load_customer(customers_dir, "omega_request_invocation"),
         b"", b"\x00\x00\x00\x00\x00A\n",
-        [("request_and_utf8: invalid byte at packed 38506",
-          byte_at(38506, 0x01))]))
+        [("request_and_utf8: invalid byte at packed 38519",
+          byte_at(38519, 0x01))]))
     cases.append(Customer(
         "Omega D numeric-base sums",
         ("representations.epsilon", "lexical_classification.epsilon"),
@@ -205,16 +205,16 @@ def member_customers():
         representations + request_utf8 + lexical + lexer
         + load_customer(customers_dir, "omega_lexer"),
         b"", b"\x00\x00\x00\x00\x00A",
-        [("lexer: invalid byte at packed 64559", byte_at(64559, 0x01))]))
+        [("lexer: invalid byte at packed 64572", byte_at(64572, 0x01))]))
 
     # Preserve the six original composition subjects as well as their members.
     packed_records = (
-        (42366, "1ddf4642056064e1473a4b49724bc39151acd13c6dae03a50e96e622de92afdd"),
-        (76466, "6984f87cab26ca0ec04dc747c106938fe08427e47797ab522081296b0d4fe5c1"),
-        (71548, "0043788a83be32f8e9efa7ab2a1ad54ee4bae992c83eeb030761006d571aba75"),
-        (67968, "d39cb6b72fe644586f53d97340d1c6808bd4ec36390c40106cca2ea31b184fce"),
-        (42359, "eca4fd0479da6119bff14459a8776e64d1b04bcbbbc6fc44933c0c2768357751"),
-        (115761, "0fc2673d8405c7d13f24c78f4e58a2693757a6249d0c65d641b59887d8b9cc1f"),
+        (42379, "58a3ed4fcbf9c33263385d0bb3b30b5b0347e58dcba92fdacb1ed42a9c74454f"),
+        (76479, "3c1b85d521a31c271483f2a60acbb708f769cce8864d6c7be1aa06722ed6d07a"),
+        (71561, "ca50d727b89ea43c9e66e64e78bec2c84e9104246708d0fc9a59c7674a465e61"),
+        (67981, "ff6df3ca67f479842a8630e00129033741fc74c932b5db3aad173f1996ff9cde"),
+        (42372, "a6a187e97635e8b70e41a5130107572f57cddcf5470549592b348d61c7947bfa"),
+        (115842, "f4529825e442ef218f9a6e9c6e7f7521e90c48d44a94a4f0a14df6361a2d636d"),
     )
     if len(cases) != len(packed_records):
         raise SystemExit("D member customer inventory differs from its packed records")
@@ -249,8 +249,8 @@ def customers():
         packed + composition_main,
         omega_source,
         bytes.fromhex((dcomp / "expected.hex").read_text(encoding="ascii")),
-        [("scalar_compilation: invalid byte at packed 543794",
-          byte_at(543794, 0x01)),
+        [("scalar_compilation: invalid byte at packed 543791",
+          byte_at(543791, 0x01)),
          ("representations: invalid byte at packed 754",
           byte_at(754, 0x01))]))
     cases.append(Customer(
@@ -258,6 +258,6 @@ def customers():
         all_members,
         packed + check_only_main,
         b"", b"\x00\x00\x00\x00\x00",
-        [("parser: invalid byte at packed 110215", byte_at(110215, 0x01)),
-         ("outcome: invalid byte at packed 794710", byte_at(794710, 0x01))]))
+        [("parser: invalid byte at packed 110296", byte_at(110296, 0x01)),
+         ("outcome: invalid byte at packed 794707", byte_at(794707, 0x01))]))
     return cases

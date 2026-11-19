@@ -10,15 +10,15 @@
 
 use kit;
 
-machine build(builder: &mut Build)
+machine build(builder: @mut Build)
 suspends
 {
     Build::application(builder, "build_package_custody");
     let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
-    dependency::with_alias(&mut kit_dependency, "kit");
+    dependency::with_alias(@mut kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
     let mut product_kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
-    dependency::with_alias(&mut product_kit_dependency, "product_kit");
+    dependency::with_alias(@mut product_kit_dependency, "product_kit");
     let product_kit_registration: DependencyRegistration = Build::dependency(builder, product_kit_dependency);
     suspend Build::prepare_dependency(builder, kit_registration);
     let observed: i32 = kit::value();

@@ -745,7 +745,7 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
     let installed = root.join("installed");
     std::fs::create_dir(&installed).unwrap();
     std::fs::copy(project.join("main.omg"), installed.join("main.omg")).unwrap();
-    std::fs::write(installed.join("build.omg"), "machine build(builder: &mut Build) {\n    Build::application(builder, \"installed\");\n    Build::bind(builder, linux_x86_64::ProgramEntry, main);\n    Build::bind(builder, macos_arm64::ProgramEntry, main);\n}\n").unwrap();
+    std::fs::write(installed.join("build.omg"), "machine build(builder: @mut Build) {\n    Build::application(builder, \"installed\");\n    Build::bind(builder, linux_x86_64::ProgramEntry, main);\n    Build::bind(builder, macos_arm64::ProgramEntry, main);\n}\n").unwrap();
     command_and_accept(
         &installed,
         PackageCommand::Install {

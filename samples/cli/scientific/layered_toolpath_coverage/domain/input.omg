@@ -44,7 +44,7 @@ machine input_end() -> bool reaches Console {
     }
     machine again() -> bool { transition { _ -> read() } }
 }
-public machine load(job: &mut Job) -> bool reaches Console {
+public machine load(job: @mut Job) -> bool reaches Console {
     job.width = block digit();
     job.height = block digit();
     job.layers = block digit();
@@ -56,18 +56,18 @@ public machine load(job: &mut Job) -> bool reaches Console {
         true -> clear(job, 0)
         _ -> false
     }
-    machine clear(job: &mut Job, index: i32 in Wrapping) -> bool {
+    machine clear(job: @mut Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
             true -> zero(job, index)
             _ -> cell(job, 0)
         }
     }
-    machine zero(job: &mut Job, index: i32 in Wrapping) -> bool {
+    machine zero(job: @mut Job, index: i32 in Wrapping) -> bool {
         job.mask[index] = 0;
         job.covered[index] = 0;
         transition { _ -> clear(job, index + 1) }
     }
-    machine cell(job: &mut Job, index: i32 in Wrapping) -> bool {
+    machine cell(job: @mut Job, index: i32 in Wrapping) -> bool {
         transition index < job.width * job.height * job.layers {
             true -> bounds(job, index)
             _ -> finish()
@@ -77,20 +77,20 @@ public machine load(job: &mut Job) -> bool reaches Console {
         let complete: bool = block input_end();
         complete
     }
-    machine bounds(job: &mut Job, index: i32 in Wrapping) -> bool {
+    machine bounds(job: @mut Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
             true -> read(job, index)
             _ -> false
         }
     }
-    machine read(job: &mut Job, index: i32 in Wrapping) -> bool {
+    machine read(job: @mut Job, index: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = block digit();
         transition value == 0 || value == 1 {
             true -> store(job, index, value)
             _ -> false
         }
     }
-    machine store(job: &mut Job, index: i32 in Wrapping, value: i32 in Wrapping) -> bool {
+    machine store(job: @mut Job, index: i32 in Wrapping, value: i32 in Wrapping) -> bool {
         job.mask[index] = value as i32;
         transition { _ -> cell(job, index + 1) }
     }

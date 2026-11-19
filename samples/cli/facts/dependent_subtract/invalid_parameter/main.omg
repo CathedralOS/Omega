@@ -9,7 +9,7 @@ requires count <= 11
     let remaining: u32 = count - used;
     remaining as i32
 }
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
     requires main.j <= main.count
 {
     main.out = gap(main.count, main.j);

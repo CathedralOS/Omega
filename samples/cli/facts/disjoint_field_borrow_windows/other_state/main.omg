@@ -6,19 +6,19 @@ data Pair {
     right: u64;
 }
 
-machine touch_left(left: &mut u64) {
+machine touch_left(left: @mut u64) {
     left = 999u64;
 }
 
-machine exercise(pair: &mut Pair) -> u64
+machine exercise(pair: @mut Pair) -> u64
 requires pair.right <= 75u64
 ensures result <= 75u64
 {
     transition { _ -> step(pair) }
-    machine step(p: &mut Pair) -> u64
+    machine step(p: @mut Pair) -> u64
     requires p.right <= 75u64
     {
-        touch_left(&mut p.left);
+        touch_left(@mut p.left);
         let diff: u64 = 75u64 - p.right;
         diff
     }
@@ -26,7 +26,7 @@ ensures result <= 75u64
 
 machine main() crashes Trap {
     let mut pair: Pair = Pair { left: 10u64, right: 25u64 };
-    let diff: u64 = exercise(&mut pair);
+    let diff: u64 = exercise(@mut pair);
     transition diff == 50u64 && pair.left == 999u64 {
         true -> done()
         _ -> bad()

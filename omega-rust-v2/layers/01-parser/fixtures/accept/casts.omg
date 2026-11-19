@@ -1,0 +1,15 @@
+// GRAMMAR.md: casts. After `as`, an optional type and then every `+D`, `-D`, `=D` entry.
+machine casts(a: u32, both: i32) {
+    _ = a as u64;
+    _ = a as u64 as u8;
+    _ = -a as i64;
+    _ = 5 as +Km +Positive;
+    _ = both as =Km -Positive;
+    _ = both as i64 =Km;
+    _ = both as -Km -Positive;
+    _ = (a as u64) + 1;
+    _ = a as Wide<u64> * 2;
+    _ = (a as u32) < b;
+    _ = a as u64 == b as u64;
+    _ = match a { b as u8 -> 1, _ -> 0 };
+}

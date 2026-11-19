@@ -5,8 +5,8 @@
 machine probe() -> u64
 ensures result == 0u64
 {
-    let bytes: &[u8] = "0123456789ABCD";
-    let window: &[u8] = bytes[2u64..12u64];
+    let bytes: @[u8] = "0123456789ABCD";
+    let window: @[u8] = bytes[2u64..12u64];
     transition {
         _ -> step(window.len)
     }

@@ -9,12 +9,12 @@ use psi::SlotReview;
 
 public data OmegaSlotReview {}
 
-public machine prepare(review: &mut OmegaSlotReview) {}
+public machine prepare(review: @mut OmegaSlotReview) {}
 
-public machine admits(review: &OmegaSlotReview, checks: &Checks) -> bool
+public machine admits(review: @OmegaSlotReview, checks: @Checks) -> bool
 crashes Trap
 {
     let mut admission: SlotReview;
-    psi::prepare(&mut admission);
-    psi::admits(&admission, checks)
+    psi::prepare(@mut admission);
+    psi::admits(@admission, checks)
 }

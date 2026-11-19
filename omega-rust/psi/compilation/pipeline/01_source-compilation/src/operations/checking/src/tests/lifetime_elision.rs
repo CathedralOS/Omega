@@ -1,6 +1,6 @@
 //! Data that declares lifetime parameters, named in a machine's signature
 //! without them. Read from source, as a Build program: every project's
-//! `build.omg` takes `builder: &mut Build`, and the toolchain declares
+//! `build.omg` takes `builder: @mut Build`, and the toolchain declares
 //! `data Build<'storage>`.
 
 use super::build_purpose::judge_build;
@@ -31,7 +31,7 @@ fn a_formal_names_lifetime_parameterised_data_without_its_lifetimes() {
     let verdict = judge_build(
         r#"
 data Session<'storage> { ready: bool; count: u32; }
-machine build_entry(session: &mut Session) { session.ready = true; }
+machine build_entry(session: @mut Session) { session.ready = true; }
 "#,
     )
     .unwrap();
@@ -47,7 +47,7 @@ fn a_formal_that_names_a_lifetime_nothing_declares_is_rejected() {
         violation(
             r#"
 data Session<'storage> { ready: bool; count: u32; }
-machine build_entry(session: &mut Session<'missing>) { session.ready = true; }
+machine build_entry(session: @mut Session<'missing>) { session.ready = true; }
 "#
         ),
         "this type names the lifetime `'missing`, which its declaration does not declare: \
@@ -61,8 +61,8 @@ machine build_entry(session: &mut Session<'missing>) { session.ready = true; }
 fn a_field_stores_a_view_for_a_lifetime_its_declaration_binds() {
     let verdict = judge_build(
         r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &mut Session) { session.ready = true; }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(session: @mut Session) { session.ready = true; }
 "#,
     )
     .unwrap();
@@ -73,8 +73,8 @@ machine build_entry(session: &mut Session) { session.ready = true; }
     assert_eq!(
         violation(
             r#"
-data Session<'storage> { ready: bool; name: &'other [u8]; }
-machine build_entry(session: &mut Session) { session.ready = true; }
+data Session<'storage> { ready: bool; name: @'other [u8]; }
+machine build_entry(session: @mut Session) { session.ready = true; }
 "#
         ),
         "this type names the lifetime `'other`, which its declaration does not declare: \
@@ -96,17 +96,17 @@ machine build_entry(session: &mut Session) { session.ready = true; }
 fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
     let holder = |field: &str, binders: &str| {
         format!(
-            "data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}\n\
+            "data Session<'storage> {{ ready: bool; name: @'storage [u8]; }}\n\
              data Holder<{binders}> {{ session: {field}; }}\n\
              machine hold<{binders}>(session: {field}) -> Holder<{binders}> {{ Holder {{ session: session }} }}\n\
-             machine mark(session: &mut Session) {{ session.ready = true; }}\n\
-             machine build_entry(session: &mut Session) {{\n    \
+             machine mark(session: @mut Session) {{ session.ready = true; }}\n\
+             machine build_entry(session: @mut Session) {{\n    \
              let held: Holder = hold(session);\n    \
              mark(held.session);\n}}\n"
         )
     };
     for (field, binders) in [
-        ("&'activation mut Session", "'activation"),
+        ("@'activation mut Session", "'activation"),
         ("Session", "'activation"),
     ] {
         assert_eq!(
@@ -118,7 +118,7 @@ fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
         );
     }
     let verdict = judge_build(&holder(
-        "&'activation mut Session<'storage>",
+        "@'activation mut Session<'storage>",
         "'activation, 'storage",
     ))
     .unwrap();
@@ -137,21 +137,21 @@ fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
 fn a_field_that_elides_its_views_lifetime_is_refused_by_name() {
     let label = |binders: &str, view: &str, result: &str| {
         format!(
-            "data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}\n\
+            "data Session<'storage> {{ ready: bool; name: @'storage [u8]; }}\n\
              data Label{binders} {{ name: {view}; }}\n\
-             machine label<'storage>(session: &Session<'storage>) -> {result} {{ Label {{ name: session.name }} }}\n\
-             machine build_entry(session: &mut Session) {{\n    \
+             machine label<'storage>(session: @Session<'storage>) -> {result} {{ Label {{ name: session.name }} }}\n\
+             machine build_entry(session: @mut Session) {{\n    \
              let made: Label = label(session);\n    \
              session.ready = true;\n}}\n"
         )
     };
     assert_eq!(
-        refusal(&label("", "&[u8]", "Label")),
+        refusal(&label("", "@[u8]", "Label")),
         "typing data field that elides a view's lifetime while reading the record application \
          `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Label\\)\\)))` \
          while reading the signature of `label`"
     );
-    let verdict = judge_build(&label("<'name>", "&'name [u8]", "Label<'storage>")).unwrap();
+    let verdict = judge_build(&label("<'name>", "@'name [u8]", "Label<'storage>")).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("{verdict:?}")
     };
@@ -169,8 +169,8 @@ fn an_elided_lifetime_does_not_relate_a_view_to_another_region() {
     assert_eq!(
         refusal(
             r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &mut Session, name: &[u8]) { session.name = name; }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(session: @mut Session, name: @[u8]) { session.name = name; }
 "#
         ),
         "typing assigned value type while reading the body of `build_entry`"
@@ -178,9 +178,9 @@ machine build_entry(session: &mut Session, name: &[u8]) { session.name = name; }
     assert_eq!(
         refusal(
             r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &mut Session) { let kept: &[u8] = helper(session); }
-machine helper(session: &Session) -> &[u8] { session.name }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(session: @mut Session) { let kept: @[u8] = helper(session); }
+machine helper(session: @Session) -> @[u8] { session.name }
 "#
         ),
         "typing result without a lifetime of a signature with several input lifetimes while reading \
@@ -189,9 +189,9 @@ machine helper(session: &Session) -> &[u8] { session.name }
     assert_eq!(
         refusal(
             r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(name: &[u8], other: &[u8]) { let made: Session = helper(name, other); }
-machine helper(name: &[u8], other: &[u8]) -> Session { Session { ready: true, name: name } }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(name: @[u8], other: @[u8]) { let made: Session = helper(name, other); }
+machine helper(name: @[u8], other: @[u8]) -> Session { Session { ready: true, name: name } }
 "#
         ),
         "typing result without a lifetime of a signature with several input lifetimes while reading \
@@ -206,9 +206,9 @@ machine helper(name: &[u8], other: &[u8]) -> Session { Session { ready: true, na
 fn an_elided_result_is_at_the_region_of_the_one_input() {
     let verdict = judge_build(
         r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(name: &[u8]) { let made: Session = helper(name); }
-machine helper(name: &[u8]) -> Session { Session { ready: true, name: name } }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(name: @[u8]) { let made: Session = helper(name); }
+machine helper(name: @[u8]) -> Session { Session { ready: true, name: name } }
 "#,
     )
     .unwrap();
@@ -260,9 +260,9 @@ fn data_named_only_at_a_lifetime_keeps_that_occurrence() {
     assert_eq!(
         record_rows(
             r#"
-data Inner<'held> { count: u32; name: &'held [u8]; }
+data Inner<'held> { count: u32; name: @'held [u8]; }
 data Session<'storage> { ready: bool; inner: Inner<'storage>; }
-machine build_entry(session: &mut Session) { session.ready = true; }
+machine build_entry(session: @mut Session) { session.ready = true; }
 "#
         ),
         [("Inner".to_owned(), true), ("Session".to_owned(), true)]
@@ -272,7 +272,7 @@ machine build_entry(session: &mut Session) { session.ready = true; }
             r#"
 data Inner<'held> { count: u32; }
 data Session<'storage> { ready: bool; inner: Inner<'missing>; }
-machine build_entry(session: &mut Session) { session.ready = true; }
+machine build_entry(session: @mut Session) { session.ready = true; }
 "#
         ),
         "this type names the lifetime `'missing`, which its declaration does not declare: \
@@ -292,7 +292,7 @@ fn a_declaration_nothing_names_is_a_record_without_an_occurrence() {
     assert_eq!(
         record_rows(
             r#"
-data Unused<'held> { count: u32; name: &'held [u8]; }
+data Unused<'held> { count: u32; name: @'held [u8]; }
 machine build_entry() { }
 "#
         ),
@@ -310,7 +310,7 @@ machine build_entry() { }
     assert_eq!(
         refusal(
             r#"
-data Unused<'held, Payload> { count: u32; payload: &'held Payload; }
+data Unused<'held, Payload> { count: u32; payload: @'held Payload; }
 machine build_entry() { }
 "#
         ),
@@ -324,13 +324,13 @@ machine build_entry() { }
 fn every_spelling_of_lifetime_parameterised_data_is_one_record() {
     let verdict = judge_build(
         r#"
-data Inner<'held> { count: u32; name: &'held [u8]; }
+data Inner<'held> { count: u32; name: @'held [u8]; }
 data Session<'storage> { ready: bool; inner: Inner<'storage>; }
 data Other<'kept> { inner: Inner<'kept>; }
-machine build_entry(session: &mut Session, other: &Other, bare: &Inner) {
-    session.ready = count(&session.inner) == count(&other.inner) && count(bare) == 0;
+machine build_entry(session: @mut Session, other: @Other, bare: @Inner) {
+    session.ready = count(@session.inner) == count(@other.inner) && count(bare) == 0;
 }
-machine count(inner: &Inner) -> u32 { inner.count }
+machine count(inner: @Inner) -> u32 { inner.count }
 "#,
     )
     .unwrap();

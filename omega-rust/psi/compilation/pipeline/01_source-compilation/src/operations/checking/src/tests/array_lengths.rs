@@ -34,9 +34,9 @@ fn the_length_of_a_fixed_array_is_the_extent_its_type_states() {
         verdict(
             "data Holder { slots: [u8; 4]; }
 data Outer { holder: Holder; }
-machine held(holder: &Holder) -> u64 ensures result == 4 { holder.slots.len }
-machine nested(outer: &Outer) -> u64 ensures result == 4 { outer.holder.slots.len }
-machine build_entry() { let outer: Outer; let seen: u64 = held(&outer.holder) + nested(&outer); }"
+machine held(holder: @Holder) -> u64 ensures result == 4 { holder.slots.len }
+machine nested(outer: @Outer) -> u64 ensures result == 4 { outer.holder.slots.len }
+machine build_entry() { let outer: Outer; let seen: u64 = held(@outer.holder) + nested(@outer); }"
         ),
         "accepted"
     );
@@ -54,8 +54,8 @@ fn a_guarantee_of_another_length_is_rejected() {
     // The same machine as above, promising one row more than the type has.
     let rejected = verdict(
         "data Holder { slots: [u8; 4]; }
-machine held(holder: &Holder) -> u64 ensures result == 5 { holder.slots.len }
-machine build_entry() { let holder: Holder; let seen: u64 = held(&holder); }",
+machine held(holder: @Holder) -> u64 ensures result == 5 { holder.slots.len }
+machine build_entry() { let holder: Holder; let seen: u64 = held(@holder); }",
     );
     assert!(rejected.starts_with("rejected"), "{rejected}");
 }
@@ -88,7 +88,7 @@ fn rigid_array_form(text: &str) -> crate::lowering::Elaboration {
 fn a_rigid_array_extent_names_its_const_input_without_requiring_positivity() {
     for carrier in ["u64", "u32"] {
         let mut form = rigid_array_form(&format!(
-            "machine entry<const N: {carrier}>(items: &[u8; N]) -> {carrier} ensures result == N {{ N }}"
+            "machine entry<const N: {carrier}>(items: @[u8; N]) -> {carrier} ensures result == N {{ N }}"
         ));
         let parameters =
             terminal_check_tables::obligations::array_extent_parameters(&form.module).unwrap();
@@ -114,7 +114,7 @@ fn a_rigid_array_extent_names_its_const_input_without_requiring_positivity() {
 fn a_rigid_array_extent_cannot_name_another_machine_or_an_undeclared_input() {
     for foreign_owner in [false, true] {
         let mut form =
-            rigid_array_form("machine entry<const N: u64>(items: &[u8; N]) -> u64 { N }");
+            rigid_array_form("machine entry<const N: u64>(items: @[u8; N]) -> u64 { N }");
         let extent = form
             .module
             .structural_types
@@ -163,7 +163,7 @@ fn array_subject(text: &str) -> Vec<Result<RouteVerdict, crate::checking::Compil
 fn a_whole_subject_checks_the_original_nested_const_array_body() {
     for length in [0, 3] {
         let source = format!(
-            "machine extent<const N: u64>(items: &[u8; N]) -> u64 {{ finish(items) machine finish(items: &[u8; N]) -> u64 {{ N }} }}\nmachine entry() -> u64 {{ let values: [u8; {length}]; extent(&values) }}"
+            "machine extent<const N: u64>(items: @[u8; N]) -> u64 {{ finish(items) machine finish(items: @[u8; N]) -> u64 {{ N }} }}\nmachine entry() -> u64 {{ let values: [u8; {length}]; extent(@values) }}"
         );
         let verdicts = array_subject(&source);
         assert!(
@@ -200,7 +200,7 @@ fn assert_array_invocation_value(
 
 #[test]
 fn one_array_instance_cannot_authorize_a_generic_constant_extent_guarantee() {
-    let source = "machine extent<const N: u64>(items: &[u8; N]) -> u64 ensures result == 3 { finish(items) machine finish(items: &[u8; N]) -> u64 { N } }\nmachine entry() -> u64 { let values: [u8; 3]; extent(&values) }";
+    let source = "machine extent<const N: u64>(items: @[u8; N]) -> u64 ensures result == 3 { finish(items) machine finish(items: @[u8; N]) -> u64 { N } }\nmachine entry() -> u64 { let values: [u8; 3]; extent(@values) }";
     let verdicts = array_subject(source);
     assert!(verdicts.iter().any(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { unproved, .. }) if !unproved.is_empty())), "{verdicts:?}");
 }
@@ -209,7 +209,7 @@ fn one_array_instance_cannot_authorize_a_generic_constant_extent_guarantee() {
 fn a_rigid_array_index_needs_its_own_bound_including_a_literal_selector() {
     for (requirement, admitted) in [("requires N > 0u64", true), ("", false)] {
         let form = rigid_array_form(&format!(
-            "machine entry<const N: u64>(items: &[u8; N]) -> u8 {requirement} {{ items[0] }}"
+            "machine entry<const N: u64>(items: @[u8; N]) -> u8 {requirement} {{ items[0] }}"
         ));
         let verdict = judge(Ok(form)).unwrap();
         if admitted {
@@ -246,7 +246,7 @@ fn concrete_array_form(text: &str) -> crate::lowering::Elaboration {
 #[test]
 fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization() {
     let mut generic = rigid_array_form(
-        "machine entry<const N: u64>(first: &[u8; N], second: &[u8; N], value: u64) -> u64 requires value <= N ensures result <= N { value }",
+        "machine entry<const N: u64>(first: @[u8; N], second: @[u8; N], value: u64) -> u64 requires value <= N ensures result <= N { value }",
     );
     let found = discharge(&mut generic, &mut Default::default()).unwrap();
     let generic_scope =
@@ -258,7 +258,7 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
         (3, 3, "u16", false),
     ] {
         let mut actual = concrete_array_form(&format!(
-            "machine entry(first: &[u8; {first}], second: &[{element}; {second}], value: u64) -> u64 requires value <= {first}u64 ensures result <= {first}u64 {{ value }}"
+            "machine entry(first: @[u8; {first}], second: @[{element}; {second}], value: u64) -> u64 requires value <= {first}u64 ensures result <= {first}u64 {{ value }}"
         ));
         let mut actual_scope =
             crate::checking::prepare_replay(&mut actual, &mut Default::default()).unwrap();
@@ -288,7 +288,7 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
 fn a_parameter_array_view_keeps_the_actual_extent_and_its_guard() {
     for (requirement, admitted) in [("requires N > 0u64", true), ("", false)] {
         let form = rigid_array_form(&format!(
-            "machine entry<const N: u64>(items: &[u8; N]) -> u64 {requirement} ensures result > 0u64 {{ let view: &[u8] = &items[..]; view.len }}"
+            "machine entry<const N: u64>(items: @[u8; N]) -> u64 {requirement} ensures result > 0u64 {{ let view: @[u8] = @items[..]; view.len }}"
         ));
         let verdict = judge(Ok(form)).unwrap();
         if admitted {
@@ -304,7 +304,7 @@ fn a_parameter_array_view_keeps_the_actual_extent_and_its_guard() {
 #[test]
 fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
     let mut form = rigid_array_form(
-        "machine entry<const N: u64>() -> u64 ensures result == N { let mut scratch: [u8; N]; let view: &mut [u8] = &mut scratch[..]; view.len }",
+        "machine entry<const N: u64>() -> u64 ensures result == N { let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.len }",
     );
     let discharged = discharge(&mut form, &mut Default::default()).unwrap();
     assert!(
@@ -316,7 +316,7 @@ fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
     );
     for length in [0, 3] {
         let source = format!(
-            "machine scratch<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u8; N]; let view: &mut [u8] = &mut scratch[..]; view.len }} machine entry() -> u64 {{ scratch<{length}u64>() }}"
+            "machine scratch<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.len }} machine entry() -> u64 {{ scratch<{length}u64>() }}"
         );
         let verdicts = array_subject(&source);
         assert!(
@@ -332,7 +332,7 @@ fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
 #[test]
 fn a_parameter_array_lends_a_typed_view_without_changing_its_element() {
     let mut form = rigid_array_form(
-        "machine entry<const N: u64>(items: &[u32; N]) -> u64 ensures result == N { let view: &[u32] = &items[..]; view.len }",
+        "machine entry<const N: u64>(items: @[u32; N]) -> u64 ensures result == N { let view: @[u32] = @items[..]; view.len }",
     );
     let found = discharge(&mut form, &mut Default::default()).unwrap();
     assert!(
@@ -344,7 +344,7 @@ fn a_parameter_array_lends_a_typed_view_without_changing_its_element() {
     );
     for length in [0, 3] {
         let source = format!(
-            "machine typed<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u32; N]; let view: &mut [u32] = &mut scratch[..]; view.len }} machine entry() -> u64 {{ typed<{length}u64>() }}"
+            "machine typed<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u32; N]; let view: @mut [u32] = @mut scratch[..]; view.len }} machine entry() -> u64 {{ typed<{length}u64>() }}"
         );
         let verdicts = array_subject(&source);
         assert!(
@@ -361,7 +361,7 @@ fn a_parameter_array_lends_a_typed_view_without_changing_its_element() {
 fn a_const_call_cannot_bind_an_array_extent_to_another_static_input() {
     for array in ["[u8; N]", "[[u8; N]; 2]"] {
         let mut form = rigid_array_form(&format!(
-            "machine entry<const N: u64, const M: u64>(items: &{array}) -> u64 {{ child(items) machine child(items: &{array}) -> u64 {{ N }} }}"
+            "machine entry<const N: u64, const M: u64>(items: @{array}) -> u64 {{ child(items) machine child(items: @{array}) -> u64 {{ N }} }}"
         ));
         let caller = &mut form.module.machines[0];
         let call = caller
@@ -383,9 +383,9 @@ fn a_const_call_cannot_bind_an_array_extent_to_another_static_input() {
 fn a_call_preserves_a_const_argument_that_the_record_does_not_store() {
     let source = "
 data Token<const Key: u64> { payload: u16; }
-machine entry<const N: u64, const M: u64>(token: &Token<N>) -> u64 {
+machine entry<const N: u64, const M: u64>(token: @Token<N>) -> u64 {
     child(token)
-    machine child(token: &Token<N>) -> u64 { N }
+    machine child(token: @Token<N>) -> u64 { N }
 }";
     let baseline = rigid_array_form(source);
     let mut valid = baseline.clone();
@@ -459,8 +459,8 @@ machine entry<const N: u64, const M: u64>(token: &Token<N>) -> u64 {
 fn a_literal_const_call_keeps_the_supplied_element_permissions() {
     let source = "
 data Buffer<Element, const N: u64> { items: [Element; N]; }
-machine measure<Element, const N: u64>(value: &Buffer<Element, N>) -> u64 { value.items.len }
-machine entry<Kind>(value: &Kind) -> u64
+machine measure<Element, const N: u64>(value: @Buffer<Element, N>) -> u64 { value.items.len }
+machine entry<Kind>(value: @Kind) -> u64
 requires Kind == Buffer<u8, 4> || Kind == Buffer<u16, 4>
 {
     transition {
@@ -482,7 +482,7 @@ requires Kind == Buffer<u8, 4> || Kind == Buffer<u16, 4>
 fn a_recursive_const_call_checks_its_extent_even_when_the_local_types_are_equal() {
     for array in ["[u8; N]", "[[u8; N]; 2]"] {
         let mut form = rigid_array_form(&format!(
-            "machine entry<const N: u64, const M: u64>(items: &{array}) -> u64 {{ N }}"
+            "machine entry<const N: u64, const M: u64>(items: @{array}) -> u64 {{ N }}"
         ));
         let checked = discharge(&mut form, &mut Default::default())
             .expect("the generic body supplying the invocation types must check");
@@ -518,7 +518,7 @@ fn a_recursive_const_call_checks_its_extent_even_when_the_local_types_are_equal(
 #[test]
 fn const_extent_correspondence_only_treats_explicit_abstract_referents_as_leaves() {
     let mut form =
-        rigid_array_form("machine entry<const N: u64, const M: u64>(items: &[u8; N]) -> u64 { N }");
+        rigid_array_form("machine entry<const N: u64, const M: u64>(items: @[u8; N]) -> u64 { N }");
     let unknown = semantic_vocabulary::StructuralTypeId::new(99).unwrap();
     let agrees = |module: &terminal_psi::TerminalModule, first| {
         let owner = &module.machines[0];
@@ -584,10 +584,10 @@ fn const_extent_correspondence_only_treats_explicit_abstract_referents_as_leaves
 fn fixed_array_contract_lengths_keep_the_exact_field_carrier() {
     let source = r#"
 data Holder { short: [u8; 2]; long: [u8; 4]; }
-machine bounded(holder: &Holder, index: u64)
+machine bounded(holder: @Holder, index: u64)
 requires index < holder.long.len
 {}
-machine build_entry(holder: &Holder, index: u64)
+machine build_entry(holder: @Holder, index: u64)
 requires index < 4u64
 { bounded(holder, index); }
 "#;
@@ -597,7 +597,7 @@ requires index < 4u64
     let unestablished = verdict(
         r#"
 data Choice { case Empty; case Filled(slots: [u8; 4]); }
-machine build_entry(choice: &Choice, index: u64)
+machine build_entry(choice: @Choice, index: u64)
 requires index < choice.slots.len
 {}
 "#,
@@ -619,7 +619,7 @@ fn sized_boundary_program(
     let (typed, _) = crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(&format!(
             "boundary trait Sink {{
-    machine take<const Count: u64>(items: &[u8; Count], used: i32) -> u32
+    machine take<const Count: u64>(items: @[u8; Count], used: i32) -> u32
     reaches none
     {contract}
     crashes none;
@@ -655,13 +655,13 @@ fn a_size_generic_requirement_is_checked_once_for_every_size() {
     // contract first requires `Count > 0`.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && used <= Count - 1",
-        "Sink::take<4>(&buffer, 0)",
+        "Sink::take<4>(@buffer, 0)",
     );
     assert_eq!(verdicts.len(), 2, "{verdicts:?}");
     assert!(verdicts.iter().all(accepted), "{verdicts:?}");
 
     let verdicts =
-        sized_boundary_program("requires used <= Count - 1", "Sink::take<4>(&buffer, 0)");
+        sized_boundary_program("requires used <= Count - 1", "Sink::take<4>(@buffer, 0)");
     assert_eq!(verdicts.len(), 2, "{verdicts:?}");
     assert!(accepted(&verdicts[0]), "{verdicts:?}");
     assert!(
@@ -676,7 +676,7 @@ fn a_program_checks_a_size_generic_requirement_at_its_concrete_size() {
     // holds 1; `items[Count]` is index 4, outside it.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[0] == 1",
-        "Sink::take<4>(&buffer, 0)",
+        "Sink::take<4>(@buffer, 0)",
     );
     let Ok(RouteVerdict::Accepted(closure)) = &verdicts[0] else {
         panic!("the closed application is formed and established: {verdicts:?}")
@@ -698,7 +698,7 @@ fn a_program_checks_a_size_generic_requirement_at_its_concrete_size() {
 
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[Count] == 1",
-        "Sink::take<4>(&buffer, 0)",
+        "Sink::take<4>(@buffer, 0)",
     );
     assert!(!accepted(&verdicts[0]), "{verdicts:?}");
 }
@@ -707,7 +707,7 @@ fn a_program_checks_a_size_generic_requirement_at_its_concrete_size() {
 fn a_symbolic_array_length_uses_its_owned_extent_input() {
     for carrier in ["u32", "u64"] {
         let form = rigid_array_form(&format!(
-            "machine entry<const N: {carrier}>(items: &[u8; N]) -> u64 ensures result == (N as u64) {{ items.len }}"
+            "machine entry<const N: {carrier}>(items: @[u8; N]) -> u64 ensures result == (N as u64) {{ items.len }}"
         ));
         let verdict = judge(Ok(form)).unwrap();
         assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
@@ -721,7 +721,7 @@ fn a_closed_call_checks_an_index_computed_from_its_size() {
     // byte is 0.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[Count - 1] == 0",
-        "Sink::take<4>(&buffer, 0)",
+        "Sink::take<4>(@buffer, 0)",
     );
     let Ok(RouteVerdict::Accepted(closure)) = &verdicts[0] else {
         panic!("the closed index is formed and established: {verdicts:?}")
@@ -731,7 +731,7 @@ fn a_closed_call_checks_an_index_computed_from_its_size() {
     // The same index, a byte the buffer does not hold there.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[Count - 1] == 1",
-        "Sink::take<4>(&buffer, 0)",
+        "Sink::take<4>(@buffer, 0)",
     );
     assert!(
         matches!(verdicts[0], Ok(RouteVerdict::Rejected { .. })),
@@ -741,7 +741,7 @@ fn a_closed_call_checks_an_index_computed_from_its_size() {
     // `4 + 1` is outside the four-byte array.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[Count + 1] == 0",
-        "Sink::take<4>(&buffer, 0)",
+        "Sink::take<4>(@buffer, 0)",
     );
     assert!(!accepted(&verdicts[0]), "{verdicts:?}");
 }

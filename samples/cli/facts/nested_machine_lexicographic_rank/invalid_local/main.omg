@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Progress [copy] { outer: u64; inner: u64; canary: u64; }
 measure Progress::Steps lexicographic { outer, inner }
-machine count(counter: &mut u64, progress: Progress) crashes Trap
+machine count(counter: @mut u64, progress: Progress) crashes Trap
 terminates
 terminates by progress -> Progress::Steps
 requires progress.outer <= 1 && progress.inner <= 2
@@ -11,7 +11,7 @@ requires progress.outer <= 1 && progress.inner <= 2
         true -> step(counter, progress)
         false -> next_row(counter, progress)
     }
-    machine step(counter: &mut u64, progress: Progress) crashes Trap
+    machine step(counter: @mut u64, progress: Progress) crashes Trap
     terminates
     terminates by progress -> Progress::Steps
     requires progress.outer <= 1 && progress.inner > 0 && progress.inner <= 2
@@ -20,7 +20,7 @@ requires progress.outer <= 1 && progress.inner <= 2
         let next: Progress = Progress { outer: progress.outer, inner: progress.inner - 0, canary: progress.canary };
         transition { _ -> count(counter, next) }
     }
-    machine next_row(counter: &mut u64, progress: Progress) crashes Trap
+    machine next_row(counter: @mut u64, progress: Progress) crashes Trap
     terminates
     terminates by progress -> Progress::Steps
     requires progress.outer <= 1 && progress.inner == 0
@@ -36,12 +36,12 @@ requires progress.outer <= 1 && progress.inner <= 2
     machine finish() {}
     machine bad() crashes Trap { crash Trap; }
 }
-machine perform(counter: &mut u64, active: bool) crashes Trap { let outer: u64 = match active { true -> 1 false -> 0 }; let inner: u64 = match active { true -> 2 false -> 0 }; let progress: Progress = Progress { outer: outer, inner: inner, canary: 641 }; count(counter, progress); }
+machine perform(counter: @mut u64, active: bool) crashes Trap { let outer: u64 = match active { true -> 1 false -> 0 }; let inner: u64 = match active { true -> 2 false -> 0 }; let progress: Progress = Progress { outer: outer, inner: inner, canary: 641 }; count(counter, progress); }
 machine main() crashes Trap {
     let mut counter: u64 = 3;
-    perform(&mut counter, true);
+    perform(@mut counter, true);
     let traversed: bool = counter == 7;
-    perform(&mut counter, false);
+    perform(@mut counter, false);
     transition traversed && counter == 7 { true -> done() false -> bad() }
     machine done() {} machine bad() crashes Trap { crash Trap; }
 }

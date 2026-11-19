@@ -1,7 +1,7 @@
 data Cell { value: u32; }
 data Pair [copy] { left: u32; right: u32; }
 data Outer { inner: Cell; tag: u32; }
-machine observe(view: &Cell) -> u32 { view.value }
+machine observe(view: @Cell) -> u32 { view.value }
 machine take(cell: Cell) -> u32 { cell.value }
 machine advance(cell: Cell) -> Cell { Cell { value: cell.value / 2u32 } }
 machine again(mut cell: Cell) -> u32 {
@@ -10,7 +10,7 @@ machine again(mut cell: Cell) -> u32 {
 }
 machine main() crashes Trap {
     let mut cell: Cell = Cell { value: 7 };
-    let view: &Cell = &cell;
+    let view: @Cell = @cell;
     let seen: u32 = observe(view);
     cell = Cell { value: 9 };
     let moved: Cell = cell;

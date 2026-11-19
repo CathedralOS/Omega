@@ -15,59 +15,59 @@ use reporting::report::report;
 
 // One bounded record: level, policy, nine row-major elevations, optional LF.
 // Examples: 10000020000 is a closed hill; 10000000000 is flat.
-machine main(context: &mut Main) reaches ProcessExit + Console {
-    let observed: LineReadResult = block Console::read_line(&mut context.input[..]);
+machine main(context: @mut Main) reaches ProcessExit + Console {
+    let observed: LineReadResult = block Console::read_line(@mut context.input[..]);
     transition observed {
         LineReadResult::LineComplete { count } -> line(context, count)
         LineReadResult::EndOfInput { count } -> eof(context, count)
         _ -> invalid(context)
     }
-    machine line(context: &mut Main, count: u64) {
+    machine line(context: @mut Main, count: u64) {
         transition count == 12 && context.input[11] == 10 { true -> header(context) false -> invalid(context) }
     }
-    machine eof(context: &mut Main, count: u64) {
+    machine eof(context: @mut Main, count: u64) {
         transition count == 11 { true -> header(context) false -> invalid(context) }
     }
-    machine header(context: &mut Main) {
+    machine header(context: @mut Main) {
         transition context.input[0] >= 48 && context.input[0] <= 57 && context.input[1] >= 48 && context.input[1] <= 49 {
             true -> decode_header(context)
             false -> invalid(context)
         }
     }
-    machine decode_header(context: &mut Main) {
+    machine decode_header(context: @mut Main) {
         context.terrain.level = (widen_u8_to_i32(context.input[0]) as i32 in Wrapping) - 48;
         context.terrain.policy = (widen_u8_to_i32(context.input[1]) as i32 in Wrapping) - 48;
         transition { _ -> digit(context, 0) }
     }
-    machine digit(context: &mut Main, index: u64) {
+    machine digit(context: @mut Main, index: u64) {
         transition index < 9 { true -> check_digit(context, index) false -> compute(context) }
     }
-    machine check_digit(context: &mut Main, index: u64) requires index < 9 {
+    machine check_digit(context: @mut Main, index: u64) requires index < 9 {
         transition context.input[index + 2] >= 48 && context.input[index + 2] <= 57 { true -> decode(context, index) false -> invalid(context) }
     }
-    machine decode(context: &mut Main, index: u64) requires index < 9 {
+    machine decode(context: @mut Main, index: u64) requires index < 9 {
         let height: i32 in Wrapping = (widen_u8_to_i32(context.input[index + 2]) as i32 in Wrapping) - 48;
         transition height != context.terrain.level { true -> store(context, index, height) false -> invalid(context) }
     }
-    machine store(context: &mut Main, index: u64, height: i32 in Wrapping) requires index < 9 {
+    machine store(context: @mut Main, index: u64, height: i32 in Wrapping) requires index < 9 {
         context.terrain.heights[index] = height;
         transition { _ -> digit(context, index + 1) }
     }
-    machine compute(context: &mut Main) {
-        extract(&context.terrain, &mut context.graph);
-        crossings(&context.terrain, &mut context.graph);
-        stitch(&mut context.graph, &mut context.paths);
+    machine compute(context: @mut Main) {
+        extract(@context.terrain, @mut context.graph);
+        crossings(@context.terrain, @mut context.graph);
+        stitch(@mut context.graph, @mut context.paths);
         transition context.graph.valid && context.paths.valid { true -> output(context) false -> failed(context) }
     }
-    machine output(context: &mut Main) {
+    machine output(context: @mut Main) {
         report(context);
         ProcessExit::exit_process(0);
     }
-    machine invalid(context: &mut Main) {
+    machine invalid(context: @mut Main) {
         Console::write_line("INVALID terrain record");
         ProcessExit::exit_process(64);
     }
-    machine failed(context: &mut Main) {
+    machine failed(context: @mut Main) {
         Console::write_line("INVARIANT contour graph");
         ProcessExit::exit_process(70);
     }
@@ -76,5 +76,5 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

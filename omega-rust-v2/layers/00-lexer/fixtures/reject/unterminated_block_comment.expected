@@ -1,0 +1,3 @@
+error UnterminatedBlockComment at 1:3 bytes 2..18
+  text: /* never closed\x{0a}
+  block comment is never closed

@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "sibling_module_service_exclusion_exit");
     Build::select_provider<left::Sink, left::QuietSink>(builder, linux_arm64);
     Build::select_provider<left::Sink, left::QuietSink>(builder, linux_x86_64);
@@ -25,6 +25,6 @@ machine build(builder: &mut Build) {
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
 }
 
-machine configure(builder: &mut Build) {
+machine configure(builder: @mut Build) {
     Build::exclude_service<left::Sink>(builder);
 }

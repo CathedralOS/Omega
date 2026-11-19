@@ -23,13 +23,13 @@ requires count <= limit
     limit: u32;
 }
 
-machine bump(counter: &mut Counter) -> bool {
+machine bump(counter: @mut Counter) -> bool {
     transition counter.count < counter.limit {
         true -> advance(counter)
         false -> false
     }
 
-    machine advance(counter: &mut Counter) -> bool
+    machine advance(counter: @mut Counter) -> bool
     requires counter.count < counter.limit
     {
         counter.count = counter.count + 1;

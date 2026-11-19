@@ -29,7 +29,7 @@ public data TimerRootWakeClaim {
 // marker, and return. Clock capture remains a distinct provider leaf. This
 // machine allocates nothing, loops nowhere, and invokes no scheduler service.
 public machine record_and_publish(
-    wake: &TimerRootWakeState,
+    wake: @TimerRootWakeState,
     observed_time: u64
 ) {
     wake.observed_time.store(observed_time, NoOrdering);
@@ -42,19 +42,19 @@ public machine record_and_publish(
 // recorded time. A concurrent later publication may make the same latest
 // observation visible twice, but it cannot be lost by this clear-first shape.
 // This leaf allocates nothing, loops nowhere, and invokes no scheduler service.
-public machine claim_pending(wake: &TimerRootWakeState) -> TimerRootWakeClaim {
+public machine claim_pending(wake: @TimerRootWakeState) -> TimerRootWakeClaim {
     let prior_pending: u32 = wake.wake_pending.fetch_and(0, Receive);
     transition (prior_pending & 1) == 1 {
         true -> claimed(wake)
         _ -> idle(wake)
     }
 
-    machine claimed(wake: &TimerRootWakeState) -> TimerRootWakeClaim {
+    machine claimed(wake: @TimerRootWakeState) -> TimerRootWakeClaim {
         let claimed_time: u64 = wake.observed_time.load(NoOrdering);
         TimerRootWakeClaim::Claimed { observed_time: claimed_time }
     }
 
-    machine idle(wake: &TimerRootWakeState) -> TimerRootWakeClaim {
+    machine idle(wake: @TimerRootWakeState) -> TimerRootWakeClaim {
         TimerRootWakeClaim::Idle
     }
 }
@@ -69,14 +69,14 @@ data WakeStorage {
     after: u64;
 }
 
-machine is_idle(wake: &TimerRootWakeState) -> bool {
+machine is_idle(wake: @TimerRootWakeState) -> bool {
     match claim_pending(wake) {
         TimerRootWakeClaim::Idle -> true,
         TimerRootWakeClaim::Claimed { observed_time } -> false,
     }
 }
 
-machine has_observation(wake: &TimerRootWakeState, expected: u64) -> bool {
+machine has_observation(wake: @TimerRootWakeState, expected: u64) -> bool {
     match claim_pending(wake) {
         TimerRootWakeClaim::Claimed { observed_time } -> observed_time == expected,
         TimerRootWakeClaim::Idle -> false,
@@ -87,17 +87,17 @@ machine build_entry() crashes Trap {
     let mut storage: WakeStorage;
     storage.before = 101;
     storage.after = 103;
-    let initially_idle: bool = is_idle(&storage.wake);
-    record_and_publish(&storage.wake, 41);
-    let first: bool = has_observation(&storage.wake, 41);
-    let first_cleared: bool = is_idle(&storage.wake);
-    record_and_publish(&storage.wake, 73);
-    record_and_publish(&storage.wake, 97);
-    let latest: bool = has_observation(&storage.wake, 97);
-    let latest_cleared: bool = is_idle(&storage.wake);
-    record_and_publish(&storage.wake, 113);
-    let next_round: bool = has_observation(&storage.wake, 113);
-    let next_cleared: bool = is_idle(&storage.wake);
+    let initially_idle: bool = is_idle(@storage.wake);
+    record_and_publish(@storage.wake, 41);
+    let first: bool = has_observation(@storage.wake, 41);
+    let first_cleared: bool = is_idle(@storage.wake);
+    record_and_publish(@storage.wake, 73);
+    record_and_publish(@storage.wake, 97);
+    let latest: bool = has_observation(@storage.wake, 97);
+    let latest_cleared: bool = is_idle(@storage.wake);
+    record_and_publish(@storage.wake, 113);
+    let next_round: bool = has_observation(@storage.wake, 113);
+    let next_cleared: bool = is_idle(@storage.wake);
     transition initially_idle && first && first_cleared && latest && latest_cleared
         && next_round && next_cleared && storage.before == 101 && storage.after == 103 {
         true -> done()
@@ -137,11 +137,11 @@ fn projected_atomic_events_return_prior_bits_and_keep_neighbor_storage() {
     execute(
         r#"
     data Cell { before: u64; value: AtomicU64; pending: AtomicU32; after: u64; }
-    machine publish(cell: &Cell, value: u64) {
+    machine publish(cell: @Cell, value: u64) {
         cell.value.store(value, NoOrdering);
         let prior: u32 = cell.pending.fetch_or(1, Publish);
     }
-    machine take(cell: &Cell) -> u32 {
+    machine take(cell: @Cell) -> u32 {
         let prior: u32 = cell.pending.fetch_and(0, Receive);
         prior
     }
@@ -149,14 +149,14 @@ fn projected_atomic_events_return_prior_bits_and_keep_neighbor_storage() {
         let mut cell: Cell;
         cell.before = 101;
         cell.after = 103;
-        let idle: u32 = take(&cell);
-        publish(&cell, 73);
-        publish(&cell, 97);
-        let pending: u32 = take(&cell);
+        let idle: u32 = take(@cell);
+        publish(@cell, 73);
+        publish(@cell, 97);
+        let pending: u32 = take(@cell);
         let observed: u64 = cell.value.load(NoOrdering);
-        let cleared: u32 = take(&cell);
-        publish(&cell, 113);
-        let later: u32 = take(&cell);
+        let cleared: u32 = take(@cell);
+        publish(@cell, 113);
+        let later: u32 = take(@cell);
         let next: u64 = cell.value.load(NoOrdering);
         transition idle == 0 && pending == 1 && observed == 97 && cleared == 0
             && later == 1 && next == 113 && cell.before == 101 && cell.after == 103 {
@@ -207,15 +207,15 @@ fn atomic_events_reject_plain_cells_illegal_orderings_and_mismatched_widths() {
 #[test]
 fn atomic_load_is_not_a_plain_value_equation_or_permission_upgrade() {
     refused(
-        "data Cell { value: AtomicU32; } machine read(cell: &Cell) -> u32 ensures result == 37 { cell.value.load(NoOrdering) } machine build_entry() { let cell: Cell; let value: u32 = read(&cell); }",
+        "data Cell { value: AtomicU32; } machine read(cell: @Cell) -> u32 ensures result == 37 { cell.value.load(NoOrdering) } machine build_entry() { let cell: Cell; let value: u32 = read(@cell); }",
         "cannot prove ensures contract",
     );
     refused(
-        "data Cell { value: AtomicU32; } machine write(cell: &write Cell) { cell.value.store(1, Publish); } machine build_entry() { let mut cell: Cell; write(&write cell); }",
+        "data Cell { value: AtomicU32; } machine write(cell: @write Cell) { cell.value.store(1, Publish); } machine build_entry() { let mut cell: Cell; write(@write cell); }",
         "write-only reference parameter",
     );
     refused(
-        "data Cell { value: u32; } machine write(cell: &Cell) { cell.value = 1; } machine build_entry() { let cell: Cell; write(&cell); }",
+        "data Cell { value: u32; } machine write(cell: @Cell) { cell.value = 1; } machine build_entry() { let cell: Cell; write(@cell); }",
         "mutable",
     );
 }
@@ -238,10 +238,10 @@ fn atomic_access_still_conflicts_with_an_outstanding_exclusive_loan() {
     refused(
         r#"
         data Cell { value: AtomicU32; }
-        machine read(cell: &mut Cell) -> u32 { cell.value.load(NoOrdering) }
+        machine read(cell: @mut Cell) -> u32 { cell.value.load(NoOrdering) }
         machine build_entry() -> u32 {
             let mut cell: Cell;
-            let loan: &mut Cell = &mut cell;
+            let loan: @mut Cell = @mut cell;
             cell.value.store(1, Publish);
             read(loan)
         }
@@ -257,16 +257,16 @@ fn computed_subject_is_evaluated_once_and_transfers_its_owned_payload() {
         data Counter { value: u32; }
         data Owner { value: u64; }
         data Reply { case Ready(owner: Owner); }
-        machine make(counter: &mut Counter) -> Reply requires counter.value < 2 {
+        machine make(counter: @mut Counter) -> Reply requires counter.value < 2 {
             counter.value = counter.value + 1;
             Reply::Ready { owner: Owner { value: 97 } }
         }
-        machine take(counter: &mut Counter) -> Owner requires counter.value < 2 {
+        machine take(counter: @mut Counter) -> Owner requires counter.value < 2 {
             match make(counter) { Reply::Ready { owner } -> owner }
         }
         machine build_entry() crashes Trap {
             let mut counter: Counter;
-            let result: Owner = take(&mut counter);
+            let result: Owner = take(@mut counter);
             transition counter.value == 1 && result.value == 97 {
                 true -> done()
                 _ -> wrong()
@@ -344,9 +344,9 @@ fn a_computed_payload_borrow_requires_a_rooted_source() {
         data Owner { value: u64; }
         data Reply { case Ready(owner: Owner); }
         machine make() -> Reply { Reply::Ready { owner: Owner { value: 97 } } }
-        data Loan<'storage> { owner: &'storage Owner; }
+        data Loan<'storage> { owner: @'storage Owner; }
         machine build_entry() -> u64 {
-            let loan: Loan = match make() { Reply::Ready { owner } -> Loan { owner: &owner } };
+            let loan: Loan = match make() { Reply::Ready { owner } -> Loan { owner: @owner } };
             loan.owner.value
         }
     "#,

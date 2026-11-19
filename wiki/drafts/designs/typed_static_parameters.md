@@ -16,29 +16,29 @@ machine apply<machine F>(x: u32) -> u32
 requires machine F(value: u32) -> u32;
 { F(x) }
 
-machine sort<T, Order satisfies Ranked<T>>(items: &mut [T]) { ... }
+machine sort<T, Order satisfies Ranked<T>>(items: @mut [T]) { ... }
 
-machine install<machine Handler>(slot: &mut HookSlot)
+machine install<machine Handler>(slot: @mut HookSlot)
 requires machine Handler satisfies HookProcedure::call;
 { ... }
 
 // after
 machine apply<const F: machine(value: u32) -> u32>(x: u32) -> u32 { F(x) }
 
-machine sort<T, const Order: Ranked<T>>(items: &mut [T]) { ... }
+machine sort<T, const Order: Ranked<T>>(items: @mut [T]) { ... }
 
-machine install<const Handler: HookProcedure::call>(slot: &mut HookSlot) { ... }
+machine install<const Handler: HookProcedure::call>(slot: @mut HookSlot) { ... }
 ```
 
 ```omega
-machine clear(item: &mut u32) { item = 0; }
+machine clear(item: @mut u32) { item = 0; }
 
 const clear_a = (clear satisfies A::clear);
 
-machine run<const F: A::clear>(item: &mut u32) { F(item); }
+machine run<const F: A::clear>(item: @mut u32) { F(item); }
 
-run<clear_a>(&mut x);    // accepted
-run<clear>(&mut x);      // rejected: `clear` is not bound to A::clear
+run<clear_a>(@mut x);    // accepted
+run<clear>(@mut x);      // rejected: `clear` is not bound to A::clear
 ```
 
 The normative owners are

@@ -35,10 +35,10 @@ fn a_build_that_aliases_a_path_dependency_compiles() {
     .expect("staged program");
     std::fs::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) {
+        "machine build(builder: @mut Build) {
     Build::application(builder, \"consumer\");
     let mut description: DependencyDescription = dependency::from_source(Source::Path { location: \"dep\" });
-    dependency::with_alias(&mut description, \"kit\");
+    dependency::with_alias(@mut description, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ",
@@ -51,7 +51,7 @@ fn a_build_that_aliases_a_path_dependency_compiles() {
     .expect("staged dependency");
     std::fs::write(
         root.join("dep").join("build.omg"),
-        "machine build(builder: &mut Build) {\n    Build::package(builder, \"kernel\");\n}\n",
+        "machine build(builder: @mut Build) {\n    Build::package(builder, \"kernel\");\n}\n",
     )
     .expect("dependency Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))

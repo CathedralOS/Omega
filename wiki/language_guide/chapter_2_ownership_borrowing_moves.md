@@ -7,7 +7,7 @@ main additions are write-only borrows and values that must be finished.
 ## Moving
 
 ```omega
-machine repair_inventory(system: &mut InventorySystem, replacement: Inventory) {
+machine repair_inventory(system: @mut InventorySystem, replacement: Inventory) {
     system.inventory = move replacement;
 }
 ```
@@ -38,7 +38,7 @@ and [Chapter 18](chapter_18_concurrency.md) shows task handles.
 ## Shared borrows
 
 ```omega
-machine render_room(formatter: &RoomFormatter, room: &Room, out: &write [u8]) { ... }
+machine render_room(formatter: @RoomFormatter, room: @Room, out: @write [u8]) { ... }
 ```
 
 `&T` lets the callee read. Any number of shared borrows can exist together,
@@ -63,7 +63,7 @@ also preserves domain access restrictions and the separate rules for atomics.
 ## Mutable borrows
 
 ```omega
-machine heal(player: &mut Player, amount: i32)
+machine heal(player: @mut Player, amount: i32)
 requires player.health in 0..=100
 requires amount in 0..=100
 {
@@ -78,13 +78,13 @@ that place. Exclusive access is not a proof that the arithmetic fits; the
 ## Write-only borrows
 
 ```omega
-machine fill(destination: &write [u8])
+machine fill(destination: @write [u8])
 requires destination.len > 0
 {
     destination[0] = 42;
 }
 
-fill(&write buffer[..]);
+fill(@write buffer[..]);
 ```
 
 `&write T` lets the callee overwrite without reading. It can read the length
@@ -94,10 +94,10 @@ narrowed to write-only; the reverse is not available.
 ## Lending part of what you borrowed
 
 ```omega
-machine clear_first(items: &mut [u8])
+machine clear_first(items: @mut [u8])
 requires items.len > 0
 {
-    let first: &mut u8 = &mut items[0];
+    let first: @mut u8 = @mut items[0];
     first = 0;
     // The loan on items[0] ends after its last use.
     items[0] = 1;
@@ -110,11 +110,11 @@ parent waits.
 Two borrows of the same collection need to be provably separate:
 
 ```omega
-let left: &mut [i32] = &mut items[start..mid];
-let right: &mut [i32] = &mut items[mid..end];
+let left: @mut [i32] = @mut items[start..mid];
+let right: @mut [i32] = @mut items[mid..end];
 
-let a: &mut i32 = &mut items[i];
-let b: &mut i32 = &mut items[j];      // needs i != j
+let a: @mut i32 = @mut items[i];
+let b: @mut i32 = @mut items[j];      // needs i != j
 ```
 
 The two halves are separate because they share the boundary `mid`. The two
@@ -124,7 +124,7 @@ formed: changing `i` afterwards does not move `a`.
 ## Taking a field out for a moment
 
 ```omega
-machine rearrange_inventory(system: &mut InventorySystem) {
+machine rearrange_inventory(system: @mut InventorySystem) {
     let inventory: Inventory = system.inventory;
     // system.inventory is empty here and cannot be read or passed on.
     system.inventory = move inventory;
@@ -138,7 +138,7 @@ back. Every path that returns must restore the field first.
 ## Views keep their source alive
 
 ```omega
-let view: &[Entry] = &entries[..];
+let view: @[Entry] = @entries[..];
 entries[0].value = 7;        // Rejected: view is used below.
 let first: Entry = view[0];
 ```
@@ -153,8 +153,8 @@ which input the result borrows from:
 
 ```omega
 machine header<'buffer>(
-    buffer: &'buffer [u8], scratch: &mut [u8]
-) -> &'buffer [u8] {
+    buffer: @'buffer [u8], scratch: @mut [u8]
+) -> @'buffer [u8] {
     buffer
 }
 ```
@@ -166,7 +166,7 @@ because the literal's bytes belong to the program image rather than to any
 call. The caller decides how long it keeps the result:
 
 ```omega
-machine status_text(code: u32) -> &[u8] {
+machine status_text(code: u32) -> @[u8] {
     match code == 0 {
         true -> "ok",
         false -> "unknown",
@@ -187,7 +187,7 @@ zero-copy results:
 ```omega
 data ChatMessage<'buffer> {
     sender_id: i64;
-    body: &'buffer [u8];
+    body: @'buffer [u8];
 }
 ```
 

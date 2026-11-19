@@ -19,7 +19,7 @@ data Ordered [copy] requires embed(lower) <= embed(upper) {
     upper: u64;
 }
 
-machine read(value: &Bounded in Small) -> u64 { value.amount }
+machine read(value: @Bounded in Small) -> u64 { value.amount }
 data Wrapped [copy] requires embed(left + right) == 0 {
     left: u8 in Wrapping;
     right: u8 in Wrapping;
@@ -41,33 +41,33 @@ domain<T> T::Accepted requires core::Identity<T>(self, self);
 data Counter { value: u64; }
 data CounterResult [copy] { value: u64; }
 domain CounterResult::One requires self.value == 1;
-machine initialize_counter(value: &mut Counter) -> u64 ensures value.value == 1 {
+machine initialize_counter(value: @mut Counter) -> u64 ensures value.value == 1 {
     value.value = 1;
     0
 }
-machine read_counter(value: &Counter) -> u64
+machine read_counter(value: @Counter) -> u64
 requires value.value == 1
 ensures result == 1
 { value.value }
 machine counter_result() -> CounterResult in One {
     let mut value: Counter = Counter { value: 0 };
-    let changed: u64 = initialize_counter(&mut value);
-    CounterResult { value: read_counter(&value) }
+    let changed: u64 = initialize_counter(@mut value);
+    CounterResult { value: read_counter(@value) }
 }
 machine make(value: u64) -> Bounded in Small & NamedSmall
 requires value <= 100
 { Bounded { amount: value } }
 machine changed_bytes_are_ascii() -> bool {
     let mut text: Text = Text { bytes: "go!", tag: 1 };
-    transition { _ -> observe(&mut text, 0) }
-    machine observe(text: &mut Text, phase: u8) -> bool {
+    transition { _ -> observe(@mut text, 0) }
+    machine observe(text: @mut Text, phase: u8) -> bool {
         let ascii: bool = ascii_only(text.bytes);
         transition phase == 0 {
             true -> overwrite(text, ascii)
             _ -> ascii
         }
     }
-    machine overwrite(text: &mut Text, before: bool) -> bool {
+    machine overwrite(text: @mut Text, before: bool) -> bool {
         text.bytes = [103, 255, 33];
         transition before {
             true -> observe(text, 1)
@@ -80,7 +80,7 @@ machine main() crashes Trap {
     let bounded: Bounded in Small & NamedSmall = Bounded { amount: 73 };
     let counter: CounterResult = counter_result();
     let ordered: Ordered = Ordered { lower: 17, upper: 29 };
-    let observed: u64 = read(&bounded);
+    let observed: u64 = read(@bounded);
     let made: Bounded = make(43);
     let wrapped: Wrapped = Wrapped { left: 255, right: 1 };
     let saturated: Saturated = Saturated { left: 255, right: 1 };

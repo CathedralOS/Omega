@@ -52,7 +52,7 @@ machine main() reaches ProcessExit + Console {
         lattice.activity = narrow_i32_to_u64_trapping(activity - 48) as u64 in Trapping;
         lattice.bond = narrow_i32_to_u64_trapping(bond - 48) as u64 in Trapping;
         lattice.periodic = topology == 114;
-        enumerate(&mut lattice);
+        enumerate(@mut lattice);
         Console::write_line("weighted_lattice v1");
         number_line("sites=", lattice.sites);
         number_line("configurations=", lattice.configurations as u64);
@@ -61,9 +61,9 @@ machine main() reaches ProcessExit + Console {
         number_line("K2 numerator=", lattice.second as u64);
         number_line("moment denominator=", lattice.partition as u64);
         Console::write_line("histogram: occupied weighted_count");
-        transition { _ -> row(&lattice, 0) }
+        transition { _ -> row(@lattice, 0) }
     }
-    machine row(lattice: &Lattice, occupied: u64) requires occupied < 9 {
+    machine row(lattice: @Lattice, occupied: u64) requires occupied < 9 {
         decimal(occupied);
         Console::write(" ");
         decimal(lattice.histogram[occupied] as u64);

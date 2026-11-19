@@ -11,7 +11,7 @@ machine forward(c: Counter) -> u64 {
 
 machine main() crashes Trap {
     let mut c: Counter = Counter { used: 0u64, limit: 80u64 };
-    let r: &mut Counter = &mut c;
+    let r: @mut Counter = @mut c;
     r.used = 81u64;
     let diff: u64 = forward(c);
     transition diff == 0u64 && c.limit == 80u64 {

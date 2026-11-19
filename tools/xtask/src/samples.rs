@@ -1282,7 +1282,7 @@ mod tests {
         )
         .unwrap();
         fs::write(directory.join("build.omg"), format!(
-            "machine build(builder: &mut Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}::ProgramEntry, main); }}\n", host_target())).unwrap();
+            "machine build(builder: @mut Build) {{ Build::application(builder, \"sample\"); Build::bind(builder, {}::ProgramEntry, main); }}\n", host_target())).unwrap();
         fs::write(
             directory.join("sample.json"),
             r#"{"source_inputs":["main.omg","build.omg"]}"#,

@@ -389,7 +389,11 @@ machine entry() invokes Handler {}
     .unwrap();
     assert_eq!(
         surface.declaration.methods[0].synchronous_invocations,
-        [handler_path]
+        [
+            declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+                handler_path
+            )
+        ]
     );
     let frozen: crate::source_state::FrozenTypedTrees = program.into();
     let signature = frozen
@@ -870,13 +874,13 @@ machine helper() -> u32 { 7u32 }
 fn copied_loop_bodies_keep_the_original_callback_parameter() {
     const SOURCE: &str = r#"
 data Counter { value: u64; }
-trait Operations { machine apply(counter: &mut Counter) reaches none; }
-machine entry<const Left: Operations, const Right: Operations>(counter: &mut Counter) reaches none {
+trait Operations { machine apply(counter: @mut Counter) reaches none; }
+machine entry<const Left: Operations, const Right: Operations>(counter: @mut Counter) reaches none {
     first(counter, true)
-    machine first(counter: &mut Counter, again: bool) reaches none {
+    machine first(counter: @mut Counter, again: bool) reaches none {
         transition again { true -> second(counter, false) false -> done() }
     }
-    machine second(counter: &mut Counter, again: bool) reaches none {
+    machine second(counter: @mut Counter, again: bool) reaches none {
         Left::apply(counter);
         first(counter, again)
     }

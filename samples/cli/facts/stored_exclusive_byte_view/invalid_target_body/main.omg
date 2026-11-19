@@ -22,12 +22,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedObserve {
-    machine observe(windows: [&mut [u8]; 1]) -> bool
+    machine observe(windows: [@mut [u8]; 1]) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires windows[0].len == 1;
 }
 
 X86Observe satisfies SelectedObserve {
-    machine observe(windows: [&mut [u8]; 1]) -> bool
+    machine observe(windows: [@mut [u8]; 1]) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires windows[0].len == 1
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -38,7 +38,7 @@ X86Observe satisfies SelectedObserve {
 }
 
 ArmObserve satisfies SelectedObserve {
-    machine observe(windows: [&mut [u8]; 1]) -> bool
+    machine observe(windows: [@mut [u8]; 1]) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires windows[0].len == 1
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -51,7 +51,7 @@ ArmObserve satisfies SelectedObserve {
 
 machine main() crashes Trap {
     let mut backing: [u8; 1] = [19];
-    let windows: [&mut [u8]; 1] = [&mut backing[0..0]];
+    let windows: [@mut [u8]; 1] = [@mut backing[0..0]];
     let observed: bool = SelectedObserve::observe(windows);
     transition observed {
         true -> done()

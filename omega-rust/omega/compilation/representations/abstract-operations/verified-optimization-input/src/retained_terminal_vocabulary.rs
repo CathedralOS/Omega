@@ -548,6 +548,11 @@ mod providers {
         authority_flow
     });
 
+    record_variants!(declaration_contracts::service_surface::ServiceSynchronousInvocation {
+        0 => Parameter(index),
+        1 => Service(name),
+    });
+
     record_fields!(effects::provider_plan::ServiceMethod {
         completion,
         name,

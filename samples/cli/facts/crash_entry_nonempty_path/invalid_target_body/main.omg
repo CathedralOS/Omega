@@ -42,7 +42,7 @@ ArmForward satisfies SelectedForward {
         maybe_zero(value)
     }
 }
-public machine read_bits(packet: &Packet) -> u64
+public machine read_bits(packet: @Packet) -> u64
 reaches SelectedForward invokes SelectedForward
 {
     let observed: u64 = packet.leaf.bits;
@@ -50,7 +50,7 @@ reaches SelectedForward invokes SelectedForward
 }
 machine main() crashes Trap {
     let packet: Packet = Packet { leaf: Leaf { bits: 7, marker: 3 }, tag: 11 };
-    let observed: u64 = read_bits(&packet);
+    let observed: u64 = read_bits(@packet);
     transition observed == 7 { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

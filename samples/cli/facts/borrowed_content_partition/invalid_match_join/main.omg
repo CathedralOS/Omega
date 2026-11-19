@@ -6,10 +6,10 @@ use borrowed_partition_support::main;
 machine exercise(select: bool) -> bool {
     let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
     let first: Region in Owned = match select {
-        true -> carve(&mut strategy, 48, 17),
-        false -> carve(&mut strategy, 48, 16),
+        true -> carve(@mut strategy, 48, 17),
+        false -> carve(@mut strategy, 48, 16),
     };
-    let second: Region in Owned = carve(&mut strategy, 32, 8);
+    let second: Region in Owned = carve(@mut strategy, 32, 8);
     finish(strategy, first, second)
 }
 

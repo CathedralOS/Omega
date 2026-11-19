@@ -122,7 +122,7 @@ The standard library is an ordinary pinned package, not an ambient global import
 `build.omg`:
 
 ```omega
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "first_program");
     let omega_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Git {
         repository: "https://github.com/CathedralOS/Omega.git",
@@ -143,7 +143,7 @@ use omega::language::core::ProcessExit;
 
 data Main { }
 
-machine Main::main(context: &mut Main)
+machine Main::main(context: @mut Main)
 reaches ProcessExit
 {
     ProcessExit::exit_process(42);

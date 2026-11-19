@@ -64,8 +64,8 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
         (false, input)
     };
 
-    let (receiver_access, input) = if input.at_punctuation(PunctuationKind::Ampersand) {
-        let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
+    let (receiver_access, input) = if input.at_punctuation(PunctuationKind::At) {
+        let input = input.take_punctuation(PunctuationKind::At, "@")?;
         let (access, input) = input.take_reference_access()?;
         (Some(access), input)
     } else {
@@ -103,7 +103,7 @@ fn parse_parameter_type_reference<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<(TypeReferenceHandle, bool, Input<'tokens, 'source>), ParseError> {
-    if !input.at_punctuation(PunctuationKind::Ampersand) {
+    if !input.at_punctuation(PunctuationKind::At) {
         let (type_reference, input) =
             parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
         return Ok((type_reference, false, input));

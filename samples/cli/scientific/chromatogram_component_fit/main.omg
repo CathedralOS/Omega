@@ -18,7 +18,7 @@ use domain::baseline_window::window;
 use domain::baseline_window::baseline_ready;
 
 data Main { reader: InputReader; }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     main.reader.remaining = 512;
     main.reader.exhausted = false;
     let ready: bool = baseline_ready();
@@ -26,35 +26,35 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         true -> block parse(main)
         _ -> window_failed(main)
     }
-    machine parse(main: &mut Main) {
+    machine parse(main: @mut Main) {
         let mut chromatogram: Chromatogram;
-        let valid: bool = block read_input(&mut main.reader, &mut chromatogram);
+        let valid: bool = block read_input(@mut main.reader, @mut chromatogram);
         transition valid {
-            true -> fit(main, &chromatogram)
+            true -> fit(main, @chromatogram)
             _ -> invalid(main)
         }
     }
-    machine fit(main: &mut Main, chromatogram: &Chromatogram) {
+    machine fit(main: @mut Main, chromatogram: @Chromatogram) {
         let mut result: Fit;
-        let valid: bool = fit_components(chromatogram, &mut result);
+        let valid: bool = fit_components(chromatogram, @mut result);
         transition valid {
-            true -> output(main, &result)
+            true -> output(main, @result)
             _ -> invalid_profile(main)
         }
     }
-    machine output(main: &mut Main, result: &Fit) {
+    machine output(main: @mut Main, result: @Fit) {
         report(result);
         ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) {
+    machine invalid(main: @mut Main) {
         Console::write_line("error=input: require exactly 15 signed integer tokens, magnitude <=1000, nonnegative profiles, <=512 bytes");
         ProcessExit::exit_process(2);
     }
-    machine invalid_profile(main: &mut Main) {
+    machine invalid_profile(main: @mut Main) {
         Console::write_line("error=profile: each supplied component must have nonzero norm");
         ProcessExit::exit_process(3);
     }
-    machine window_failed(main: &mut Main) {
+    machine window_failed(main: @mut Main) {
         Console::write_line("error=window: baseline and peak windows must both have length 2");
         ProcessExit::exit_process(5);
     }
@@ -63,5 +63,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

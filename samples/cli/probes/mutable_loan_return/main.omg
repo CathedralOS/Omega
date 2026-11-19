@@ -15,16 +15,16 @@
 data Room [copy] { value: u64; flag: bool; }
 data Level [copy] { rooms: [Room; 3]; start: u64; counter: u64; }
 
-machine choose(level: &mut Level, first: bool) -> &mut Room {
+machine choose(level: @mut Level, first: bool) -> @mut Room {
     transition first {
-        true -> &mut level.rooms[0]
-        false -> &mut level.rooms[1]
+        true -> @mut level.rooms[0]
+        false -> @mut level.rooms[1]
     }
 }
 
-machine update(level: &mut Level, first: bool) {
+machine update(level: @mut Level, first: bool) {
     let counter: u64 = level.counter;
-    let room: &mut Room = choose(level, first);
+    let room: @mut Room = choose(level, first);
     room.flag = first;
     room.value = counter;
 }
@@ -34,11 +34,11 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.level.counter = 37;
-    update(&mut main.level, true);
-    update(&mut main.level, false);
+    update(@mut main.level, true);
+    update(@mut main.level, false);
     transition main.level.rooms[0].value == 37
         && main.level.rooms[1].value == 37
         && main.level.rooms[0].flag
@@ -46,12 +46,12 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

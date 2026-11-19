@@ -56,7 +56,7 @@ pub(crate) struct MissingDependencyEdge {
 impl MissingDependencyEdge {
     fn diagnostic(&self, requesting_source: &Path) -> Diagnostic {
         Diagnostic::error(format!(
-            "{}: import `{}` names package {} as `{}`, but package {} declares no {} dependency under that alias -- register it with `Build::{}(builder, description)` in its build.omg, configuring the description with `dependency::with_alias(&mut description, \"{}\")` when the package's own name differs, to add that dependency edge for the {} scope",
+            "{}: import `{}` names package {} as `{}`, but package {} declares no {} dependency under that alias -- register it with `Build::{}(builder, description)` in its build.omg, configuring the description with `dependency::with_alias(@mut description, \"{}\")` when the package's own name differs, to add that dependency edge for the {} scope",
             requesting_source.display(),
             self.authored_path,
             self.package,

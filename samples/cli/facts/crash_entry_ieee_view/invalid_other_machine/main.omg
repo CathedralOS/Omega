@@ -14,7 +14,7 @@ crashes Trap value == 0.0
 machine fresh() -> i32 { 1065353216 }
 public machine read_bits(value: i32) -> f32
 {
-    let view: &f32 = &value as &f32;
+    let view: @f32 = @value as @f32;
     let observed: f32 = view;
     forward(observed)
 }

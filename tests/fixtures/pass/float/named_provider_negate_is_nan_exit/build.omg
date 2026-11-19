@@ -1,6 +1,6 @@
 // Deployable named negate/is-NaN probe: every hosted target selects its exact entry.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "named_provider_negate_is_nan_exit");
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);

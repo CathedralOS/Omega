@@ -1,6 +1,6 @@
 
 data Token [linear] dropped by drop_token { value: u64; }
-machine drop_token(token: &mut Token) {}
+machine drop_token(token: @mut Token) {}
 data Choice { case Success(token: Token); case Failure(token: Token); }
 data Holder { marker: u64; choice: Choice; }
 
@@ -23,7 +23,7 @@ machine transform(choice: Choice, increment: bool) -> Choice {
     }
 }
 
-machine repair(choice: &mut Choice, increment: bool) {
+machine repair(choice: @mut Choice, increment: bool) {
     let detached: Choice = choice;
     choice = transform(detached, increment);
 }
@@ -46,8 +46,8 @@ machine main() crashes Trap {
         marker: 19,
         choice: Choice::Failure { token: Token { value: 41 } },
     };
-    repair(&mut holder.choice, false);
-    repair(&mut holder.choice, true);
+    repair(@mut holder.choice, false);
+    repair(@mut holder.choice, true);
     let marker: u64 = holder.marker;
     let result: u64 = consume(holder.choice);
     transition marker == 19 && result == 42 {

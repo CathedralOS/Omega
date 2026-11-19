@@ -3,7 +3,7 @@
 use omega::language::core::AtomicTryExchangeOnceOutcome;
 data Cells { selected: AtomicU32; untouched: AtomicU32; }
 data Held { outcome: AtomicTryExchangeOnceOutcome<u32>; }
-machine probe(cells: &Cells) -> bool {
+machine probe(cells: @Cells) -> bool {
     cells.selected.store(10, NoOrdering);
     cells.untouched.store(17, NoOrdering);
     let raw: AtomicTryExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(10, 99, ReceivePublish, Receive);
@@ -14,7 +14,7 @@ machine probe(cells: &Cells) -> bool {
         AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
     }
 }
-machine mismatch(cells: &Cells) -> bool {
+machine mismatch(cells: @Cells) -> bool {
     cells.selected.store(10, NoOrdering);
     cells.untouched.store(17, NoOrdering);
     let raw: AtomicTryExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(9, 99, ReceivePublish, Receive);
@@ -27,7 +27,7 @@ machine mismatch(cells: &Cells) -> bool {
 }
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(&cells) && mismatch(&cells) { true -> done() _ -> bad() }
+    transition probe(@cells) && mismatch(@cells) { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -2,7 +2,7 @@
 // compiler-issued product-entry description returned by a build helper,
 // never a declaration path re-resolved at the bind site.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "described_runner_entry_left_exit");
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
     Build::select_provider<left::Reader, left::ProviderReaderImplementation>(builder, linux_arm64);
@@ -23,6 +23,6 @@ machine build(builder: &mut Build) {
 // The helper selects under this package's own product frontier and hands the
 // opaque description back; `roots.bind` rejoins it to the exact machine the
 // query chose.
-machine choose(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
-    BuildProduct::entry(&builder.product, "left::run", slot)
+machine choose(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
+    BuildProduct::entry(@builder.product, "left::run", slot)
 }

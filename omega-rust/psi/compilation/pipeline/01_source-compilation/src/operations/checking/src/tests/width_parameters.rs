@@ -94,11 +94,11 @@ fn an_input_in_the_carrier_does_not_prove_its_width_positive() {
 #[test]
 fn unread_borrowed_widths_have_the_same_formation_obligation() {
     positive(generic(
-        "machine entry<const N: u64>(value: &u<N>) requires N > 0u64 crashes none {}",
+        "machine entry<const N: u64>(value: @u<N>) requires N > 0u64 crashes none {}",
     ));
     for requirement in ["", "requires N == 0u64"] {
         missing_positive(&format!(
-            "machine entry<const N: u64>(value: &u<N>) {requirement} crashes none {{}}"
+            "machine entry<const N: u64>(value: @u<N>) {requirement} crashes none {{}}"
         ));
     }
 }
@@ -120,7 +120,7 @@ fn an_empty_array_still_requires_a_well_formed_element_carrier() {
 #[test]
 fn borrowed_erased_and_affine_predecessors_do_not_renumber_the_width() {
     let form = generic(
-        "data Token {} machine entry<const N: u64>(marker: &u32, prior [erased]: u32, token: Token, value: u<N>) -> u<N> requires N > 0u64 ensures result == value crashes none { value }",
+        "data Token {} machine entry<const N: u64>(marker: @u32, prior [erased]: u32, token: Token, value: u<N>) -> u<N> requires N > 0u64 ensures result == value crashes none { value }",
     );
     assert_eq!(
         form.module.machines[0].erased_scalar_formals[0].id,

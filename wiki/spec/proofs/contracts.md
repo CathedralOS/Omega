@@ -53,7 +53,7 @@ For example, a generic algebra's commutativity requirement is:
 
 ```omega
 machine add_comm(a: T, b: T)
-ensures core::Identity<T>(add(a, b), add(b, a));
+ensures core::Identity::<T>(add(a, b), add(b, a));
 ```
 
 This law states identity of results, independently of any selected comparison.
@@ -824,7 +824,7 @@ cited lemma and no hint. A checker may discharge more; it may not discharge
 less.
 
 ```omega
-machine get(items: &[u8], i: u64, n: u64) -> u8
+machine get(items: @[u8], i: u64, n: u64) -> u8
 requires i < n
 requires n <= items.len
 {

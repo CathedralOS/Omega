@@ -8,15 +8,15 @@ data Pair {
 
 data Relay {}
 
-machine touch_left(left: &mut u64) {
+machine touch_left(left: @mut u64) {
     left = 999u64;
 }
 
-machine Relay::forward(pair: &mut Pair) -> u64
+machine Relay::forward(pair: @mut Pair) -> u64
 requires pair.right <= 75u64
 ensures result <= 75u64
 {
-    touch_left(&mut pair.left);
+    touch_left(@mut pair.left);
     let diff: u64 = 75u64 - pair.right;
     diff
 }
@@ -25,7 +25,7 @@ machine exercise() -> u64
 ensures result <= 75u64
 {
     let mut pair: Pair = Pair { left: 10u64, right: 25u64 };
-    Relay::forward(&mut pair)
+    Relay::forward(@mut pair)
 }
 
 machine main() crashes Trap {

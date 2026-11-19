@@ -1,6 +1,6 @@
 module slice_views;
 
-machine element<T [copy]>(items: &[T], index: u64) -> T
+machine element<T [copy]>(items: @[T], index: u64) -> T
 requires index < items.len {
     items[index]
 }
@@ -8,10 +8,10 @@ requires index < items.len {
 // Build the descriptor with the builtin range operation. Its checked bounds
 // and the input backing loan survive in the returned view; the public helper
 // delegates here without introducing another provider requirement.
-machine subslice<T>(items: &[T], start: u64, end: u64) -> &[T]
+machine subslice<T>(items: @[T], start: u64, end: u64) -> @[T]
 requires
     start <= end && end <= items.len
 ensures
     result.len == end - start {
-    &items[start..end]
+    @items[start..end]
 }

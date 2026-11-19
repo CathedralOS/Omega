@@ -28,7 +28,7 @@ public data ErrorKind [copy] {
     case WriteZero;
 }
 
-machine error_kind_reconstruct(error_kind: &ErrorKind) -> ErrorKind {
+machine error_kind_reconstruct(error_kind: @ErrorKind) -> ErrorKind {
     transition error_kind {
         ErrorKind::Other -> ErrorKind::Other
         ErrorKind::NotFound -> ErrorKind::NotFound
@@ -128,7 +128,7 @@ public data Permissions [copy] {
     case Posix(mode: u32);
 }
 
-public machine permissions_readonly(permissions: &Permissions) -> bool {
+public machine permissions_readonly(permissions: @Permissions) -> bool {
     transition permissions {
         Permissions::Default -> false
         Permissions::Readonly { value } -> (value)
@@ -136,16 +136,16 @@ public machine permissions_readonly(permissions: &Permissions) -> bool {
     }
 }
 
-public machine permissions_set_readonly(permissions: &mut Permissions, readonly: bool) {
+public machine permissions_set_readonly(permissions: @mut Permissions, readonly: bool) {
     transition permissions {
         Permissions::Posix { mode } -> posix(permissions, mode, readonly)
         _ -> portable(permissions, readonly)
     }
-    machine posix(permissions: &mut Permissions, mode: u32, readonly: bool) {
+    machine posix(permissions: @mut Permissions, mode: u32, readonly: bool) {
         let updated: u32 = posix_mode_with_readonly(mode, readonly);
         permissions = Permissions::Posix { mode: updated };
     }
-    machine portable(permissions: &mut Permissions, readonly: bool) {
+    machine portable(permissions: @mut Permissions, readonly: bool) {
         permissions = Permissions::Readonly { value: readonly };
     }
 }
@@ -205,58 +205,58 @@ public data Metadata [copy] {
     changed_secs: i64;
 }
 
-public machine metadata_is_file(metadata: &Metadata) -> bool {
+public machine metadata_is_file(metadata: @Metadata) -> bool {
     transition metadata.kind { FileKind::File -> true _ -> false }
 }
-public machine metadata_is_dir(metadata: &Metadata) -> bool {
+public machine metadata_is_dir(metadata: @Metadata) -> bool {
     transition metadata.kind { FileKind::Directory -> true _ -> false }
 }
-public machine metadata_is_symlink(metadata: &Metadata) -> bool {
+public machine metadata_is_symlink(metadata: @Metadata) -> bool {
     transition metadata.kind { FileKind::Symlink -> true _ -> false }
 }
 
-public machine metadata_is_char_device(metadata: &Metadata) -> bool {
+public machine metadata_is_char_device(metadata: @Metadata) -> bool {
     transition metadata.kind { FileKind::CharacterDevice -> true _ -> false }
 }
-public machine metadata_is_block_device(metadata: &Metadata) -> bool {
+public machine metadata_is_block_device(metadata: @Metadata) -> bool {
     transition metadata.kind { FileKind::BlockDevice -> true _ -> false }
 }
-public machine metadata_is_fifo(metadata: &Metadata) -> bool {
+public machine metadata_is_fifo(metadata: @Metadata) -> bool {
     transition metadata.kind { FileKind::Fifo -> true _ -> false }
 }
-public machine metadata_is_socket(metadata: &Metadata) -> bool {
+public machine metadata_is_socket(metadata: @Metadata) -> bool {
     transition metadata.kind { FileKind::Socket -> true _ -> false }
 }
 
-public machine metadata_readonly(metadata: &Metadata) -> bool {
-    permissions_readonly(&metadata.permissions)
+public machine metadata_readonly(metadata: @Metadata) -> bool {
+    permissions_readonly(@metadata.permissions)
 }
 
-public machine metadata_permissions(metadata: &Metadata) -> Permissions {
+public machine metadata_permissions(metadata: @Metadata) -> Permissions {
     metadata.permissions
 }
 
-public machine metadata_nlink(metadata: &Metadata) -> u64 {
+public machine metadata_nlink(metadata: @Metadata) -> u64 {
     metadata.nlink
 }
 
-public machine metadata_posix(metadata: &Metadata) -> PosixMetadataResult {
+public machine metadata_posix(metadata: @Metadata) -> PosixMetadataResult {
     metadata.posix
 }
 
-public machine metadata_changed(metadata: &Metadata) -> i64 {
+public machine metadata_changed(metadata: @Metadata) -> i64 {
     metadata.changed_secs
 }
 
-public machine metadata_modified(metadata: &Metadata) -> i64 {
+public machine metadata_modified(metadata: @Metadata) -> i64 {
     metadata.modified_secs
 }
 
-public machine metadata_accessed(metadata: &Metadata) -> i64 {
+public machine metadata_accessed(metadata: @Metadata) -> i64 {
     metadata.accessed_secs
 }
 
-public machine metadata_created(metadata: &Metadata) -> TimestampResult {
+public machine metadata_created(metadata: @Metadata) -> TimestampResult {
     metadata.creation_time
 }
 public data MetadataResult {
@@ -271,27 +271,27 @@ public data MetadataResult {
 // stays identical on every target; a nonblocking implementation may fit it but
 // cannot remove the caller's acknowledgement of the portable requirement.
 public boundary trait FilesystemService {
-    machine create(path: &[u8] in Path) -> OpenResult
+    machine create(path: @[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine create_new(path: &[u8] in Path) -> OpenResult
+    machine create_new(path: @[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine open(path: &[u8] in Path) -> OpenResult
+    machine open(path: @[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine append(path: &[u8] in Path) -> OpenResult
+    machine append(path: @[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+    machine read(file: File, buffer: @mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead
     crashes none;
-    machine write(file: File, bytes: &[u8]) -> IoResult
+    machine write(file: File, bytes: @[u8]) -> IoResult
     blocks
     reaches FilesystemContentWrite
     crashes none;
@@ -299,63 +299,63 @@ public boundary trait FilesystemService {
     reaches none
     blocks
     crashes none;
-    machine write_all(path: &[u8] in Path, bytes: &[u8]) -> UnitResult
+    machine write_all(path: @[u8] in Path, bytes: @[u8]) -> UnitResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine read_all(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+    machine read_all(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+    machine copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     crashes none;
-    machine exists(path: &[u8] in Path) -> bool
+    machine exists(path: @[u8] in Path) -> bool
     blocks
     reaches FilesystemMetadataQuery
     crashes none;
-    machine try_exists(path: &[u8] in Path) -> ExistsResult
+    machine try_exists(path: @[u8] in Path) -> ExistsResult
     blocks
     reaches FilesystemMetadataQuery
     crashes none;
-    machine metadata_path(path: &[u8] in Path) -> MetadataResult
+    machine metadata_path(path: @[u8] in Path) -> MetadataResult
     blocks
     reaches FilesystemMetadataQuery
     crashes none;
-    machine symlink_metadata(path: &[u8] in Path) -> MetadataResult
+    machine symlink_metadata(path: @[u8] in Path) -> MetadataResult
     blocks
     reaches FilesystemMetadataQuery
     crashes none;
-    machine remove(path: &[u8] in Path) -> UnitResult
+    machine remove(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     crashes none;
-    machine create_dir(path: &[u8] in Path) -> UnitResult
+    machine create_dir(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine remove_dir(path: &[u8] in Path) -> UnitResult
+    machine remove_dir(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     crashes none;
-    machine create_dir_all(path: &[u8] in Path) -> UnitResult
+    machine create_dir_all(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
     crashes none;
-    machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
+    machine read_dir_is_empty(path: @[u8] in Path) -> EmptyResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     crashes none;
-    machine set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
+    machine set_permissions(path: @[u8] in Path, perms: Permissions) -> UnitResult
     blocks
         reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     crashes none;
-    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+    machine symlink(target: @[u8] in Path, link: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     crashes none;
-    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+    machine read_link(path: @[u8] in Path, buffer: @mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemMetadataQuery
     crashes none;
@@ -363,7 +363,7 @@ public boundary trait FilesystemService {
     blocks
         reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     crashes none;
-    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
+    machine rename(from: @[u8] in Path, to: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     crashes none;
@@ -383,11 +383,11 @@ public boundary trait FilesystemService {
     reaches none
     blocks
     crashes none;
-    machine set_owner(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    machine set_owner(path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation
     crashes none;
-    machine set_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    machine set_owner_no_follow(path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation
     crashes none;
@@ -399,31 +399,31 @@ public boundary trait FilesystemService {
     blocks
     reaches FilesystemMetadataQuery
     crashes none;
-    machine open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
+    machine open_with(path: @[u8] in Path, options: OpenOptions) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     crashes none;
-    machine read_dir_count(path: &[u8] in Path) -> IoResult
+    machine read_dir_count(path: @[u8] in Path) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
     crashes none;
-    machine read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
+    machine read_dir_nth(path: @[u8] in Path, n: u64) -> DirEntryResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     crashes none;
-    machine remove_dir_all(path: &[u8] in Path) -> UnitResult
+    machine remove_dir_all(path: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
     crashes none;
-    machine read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+    machine read_at(file: File, buffer: @mut [u8], count: u64, offset: i64) -> IoResult
     blocks
     reaches FilesystemContentRead
     crashes none;
-    machine write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
+    machine write_at(file: File, bytes: @[u8], offset: i64) -> IoResult
     blocks
     reaches FilesystemContentWrite
     crashes none;
-    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+    machine hard_link(original: @[u8] in Path, link: @[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
     crashes none;
@@ -431,7 +431,7 @@ public boundary trait FilesystemService {
     blocks
     reaches FilesystemMetadataMutation
     crashes none;
-    machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+    machine canonicalize(path: @[u8] in Path, buffer: @mut [u8]) -> UnitResult
     blocks
     reaches FilesystemMetadataQuery
     crashes none;

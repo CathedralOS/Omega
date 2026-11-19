@@ -4,8 +4,8 @@
 // a transparent one. The generic parameters and parameters share the data
 // and machine grammars; lifetime binders are a checking question.
 public machine parse_proposition(
-    parser: &mut Parser,
-    input: &TokenStream,
+    parser: @mut Parser,
+    input: @TokenStream,
     item_start: u64 in Trapping,
     is_public: bool
 )
@@ -18,7 +18,7 @@ crashes Trap
         _ -> reject(parser, input, ParseDiagnosticCode::PropositionCapacityExceeded)
     }
 
-    machine keyword(parser: &mut Parser, input: &TokenStream) {
+    machine keyword(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedPropositionName);
@@ -28,7 +28,7 @@ crashes Trap
         }
     }
 
-    machine named(parser: &mut Parser, input: &TokenStream) {
+    machine named(parser: @mut Parser, input: @TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
         let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
@@ -38,7 +38,7 @@ crashes Trap
         }
     }
 
-    machine generics(parser: &mut Parser, input: &TokenStream) {
+    machine generics(parser: @mut Parser, input: @TokenStream) {
         parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> parameters(parser, input)
@@ -46,7 +46,7 @@ crashes Trap
         }
     }
 
-    machine parameters(parser: &mut Parser, input: &TokenStream) {
+    machine parameters(parser: @mut Parser, input: @TokenStream) {
         parse_parameters(parser, input);
         parser.declaration_first_parameter = parser.signature_first_parameter;
         parser.declaration_parameter_count = parser.signature_parameter_count;
@@ -56,7 +56,7 @@ crashes Trap
         }
     }
 
-    machine declared_body(parser: &mut Parser, input: &TokenStream) {
+    machine declared_body(parser: @mut Parser, input: @TokenStream) {
         let ends: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition ends {
             true -> primitive_body(parser, input)
@@ -64,7 +64,7 @@ crashes Trap
         }
     }
 
-    machine evidence_word(parser: &mut Parser, input: &TokenStream) {
+    machine evidence_word(parser: @mut Parser, input: @TokenStream) {
         let witnessed: bool = at_word(parser, input, "evidence");
         transition witnessed {
             true -> evidence_body(parser, input)
@@ -72,7 +72,7 @@ crashes Trap
         }
     }
 
-    machine transparent_word(parser: &mut Parser, input: &TokenStream) {
+    machine transparent_word(parser: @mut Parser, input: @TokenStream) {
         let transparent: bool = at_punctuation(parser, input, PunctuationKind::Equal);
         transition transparent {
             true -> fact_body(parser, input)
@@ -80,12 +80,12 @@ crashes Trap
         }
     }
 
-    machine primitive_body(parser: &mut Parser, input: &TokenStream) {
+    machine primitive_body(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         transition { _ -> retain_capacity(parser, input, PropositionBody::Primitive, 0, 0) }
     }
 
-    machine evidence_body(parser: &mut Parser, input: &TokenStream) {
+    machine evidence_body(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedPropositionEvidence);
         transition parser.output.accepted {
@@ -94,7 +94,7 @@ crashes Trap
         }
     }
 
-    machine fact_body(parser: &mut Parser, input: &TokenStream) {
+    machine fact_body(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedPropositionFact, false, true);
         transition parser.output.accepted {
@@ -104,8 +104,8 @@ crashes Trap
     }
 
     machine end(
-        parser: &mut Parser,
-        input: &TokenStream,
+        parser: @mut Parser,
+        input: @TokenStream,
         body: PropositionBody,
         evidence: u64 in Trapping,
         fact: u64 in Trapping
@@ -118,8 +118,8 @@ crashes Trap
     }
 
     machine retain_capacity(
-        parser: &mut Parser,
-        input: &TokenStream,
+        parser: @mut Parser,
+        input: @TokenStream,
         body: PropositionBody,
         evidence: u64 in Trapping,
         fact: u64 in Trapping
@@ -131,8 +131,8 @@ crashes Trap
     }
 
     machine root_capacity(
-        parser: &mut Parser,
-        input: &TokenStream,
+        parser: @mut Parser,
+        input: @TokenStream,
         body: PropositionBody,
         evidence: u64 in Trapping,
         fact: u64 in Trapping
@@ -143,7 +143,7 @@ crashes Trap
         }
     }
 
-    machine retain(parser: &mut Parser, body: PropositionBody, evidence: u64 in Trapping, fact: u64 in Trapping) {
+    machine retain(parser: @mut Parser, body: PropositionBody, evidence: u64 in Trapping, fact: u64 in Trapping) {
         let proposition: u64 in Trapping = parser.output.proposition_count as u64 in Trapping;
         let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
         parser.output.propositions[parser.output.proposition_count] = PropositionItem {
@@ -167,7 +167,7 @@ crashes Trap
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine reject(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         reject_current(parser, input, code);
     }
 

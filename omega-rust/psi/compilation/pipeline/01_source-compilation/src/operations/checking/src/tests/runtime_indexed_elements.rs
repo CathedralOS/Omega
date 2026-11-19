@@ -49,11 +49,11 @@ fn counting(last: u64, entry: &str) -> String {
 machine slot_of(kind: Kind) -> u64 ensures result <= {last}u64 {{
     match kind {{ Kind::First -> 1u64 Kind::Second -> {last}u64 }}
 }}
-machine count(table: &mut Table, kind: Kind) {{
+machine count(table: @mut Table, kind: Kind) {{
     let slot: u64 = slot_of(kind);
     table.selected[slot] = table.selected[slot] + 1;
 }}
-machine read(table: &Table, kind: Kind) -> u8 in Saturating {{
+machine read(table: @Table, kind: Kind) -> u8 in Saturating {{
     let slot: u64 = slot_of(kind);
     table.selected[slot]
 }}
@@ -69,7 +69,7 @@ fn an_element_chosen_at_run_time_is_read_and_written_through_a_lent_record() {
     assert_eq!(
         verdict(&counting(
             3,
-            "machine build_entry(kind: Kind) { let mut table: Table; count(&mut table, kind); }"
+            "machine build_entry(kind: Kind) { let mut table: Table; count(@mut table, kind); }"
         )),
         "accepted"
     );
@@ -78,7 +78,7 @@ fn an_element_chosen_at_run_time_is_read_and_written_through_a_lent_record() {
             3,
             "machine build_entry(kind: Kind) {
     let table: Table;
-    let seen: u8 in Saturating = read(&table, kind);
+    let seen: u8 in Saturating = read(@table, kind);
 }"
         )),
         "accepted"
@@ -91,7 +91,7 @@ fn an_element_chosen_at_run_time_is_read_and_written_through_a_lent_record() {
 fn a_slot_that_may_lie_outside_the_array_is_rejected() {
     let verdict = verdict(&counting(
         4,
-        "machine build_entry(kind: Kind) { let mut table: Table; count(&mut table, kind); }",
+        "machine build_entry(kind: Kind) { let mut table: Table; count(@mut table, kind); }",
     ));
     assert!(verdict.starts_with("rejected"), "{verdict}");
 }
@@ -131,12 +131,12 @@ fn a_dispatch_on_an_element_chosen_at_run_time_owns_its_bound_at_the_terminator(
             r#"
 data Choice {{ case Stay; case Leave; }}
 data Table {{ choices: [Choice; 2]; }}
-machine pick(table: &Table, index: u64) -> u8 requires index < {bound}u64 {{
+machine pick(table: @Table, index: u64) -> u8 requires index < {bound}u64 {{
     match table.choices[index] {{ Choice::Stay -> 0u8 Choice::Leave -> 1u8 }}
 }}
 machine build_entry() {{
     let table: Table;
-    let seen: u8 = pick(&table, 1u64);
+    let seen: u8 = pick(@table, 1u64);
 }}
 "#
         )

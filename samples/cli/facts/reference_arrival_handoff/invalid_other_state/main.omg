@@ -3,15 +3,15 @@
 // Invalid: the moved-from binding is written while the receiving state loan is live.
 machine main() crashes Trap {
     let mut backing: i64 = 17;
-    let original: &mut i64 = &mut backing;
-    let held: &mut i64 = original;
+    let original: @mut i64 = @mut backing;
+    let held: @mut i64 = original;
     transition { _ -> write(original, held) }
-    machine write(child: &mut i64, kept: &mut i64) {
+    machine write(child: @mut i64, kept: @mut i64) {
         child = 41;
         kept = 7;
         transition { _ -> check(child) }
     }
-    machine check(received: &mut i64) {
+    machine check(received: @mut i64) {
         let observed: i64 = received;
         transition observed == 41 {
             true -> done()

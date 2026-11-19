@@ -104,6 +104,7 @@ public data PunctuationKind [copy] {
     case Semicolon;
     case Slash;
     case Tilde;
+    case At;
 }
 
 // A token keeps its source/decoded ranges independently of its vocabulary
@@ -177,7 +178,7 @@ requires
     last_retained: bool;
 }
 
-machine token_stream_clear(token_stream: &mut TokenStream, source: SourceId) {
+machine token_stream_clear(token_stream: @mut TokenStream, source: SourceId) {
     token_stream.token_count = 0;
     token_stream.decoded_length = 0;
     token_stream.accepted = true;
@@ -189,7 +190,7 @@ machine token_stream_clear(token_stream: &mut TokenStream, source: SourceId) {
 }
 
 machine token_stream_reject(
-    token_stream: &mut TokenStream,
+    token_stream: @mut TokenStream,
     source: SourceId,
     code: LexDiagnosticCode,
     start: u64 in Trapping,
@@ -203,7 +204,7 @@ machine token_stream_reject(
 }
 
 machine token_stream_push(
-    token_stream: &mut TokenStream,
+    token_stream: @mut TokenStream,
     token: Token
 ) {
     token_stream.last_retained = false;
@@ -212,31 +213,31 @@ machine token_stream_push(
         _ -> full(token_stream)
     }
 
-    machine retain(token_stream: &mut TokenStream, token: Token) {
+    machine retain(token_stream: @mut TokenStream, token: Token) {
         token_stream.tokens[token_stream.token_count] = token;
         token_stream.token_count = token_stream.token_count + 1;
         token_stream.last_retained = true;
     }
 
-    machine full(token_stream: &mut TokenStream) {
+    machine full(token_stream: @mut TokenStream) {
         token_stream.last_retained = false;
     }
 }
 
-machine token_stream_push_decoded(token_stream: &mut TokenStream, byte: u8) {
+machine token_stream_push_decoded(token_stream: @mut TokenStream, byte: u8) {
     token_stream.last_retained = false;
     transition token_stream.decoded_length < 131072 {
         true -> retain(token_stream, byte)
         _ -> full(token_stream)
     }
 
-    machine retain(token_stream: &mut TokenStream, byte: u8) {
+    machine retain(token_stream: @mut TokenStream, byte: u8) {
         token_stream.decoded[token_stream.decoded_length] = byte as u8 in Trapping;
         token_stream.decoded_length = token_stream.decoded_length + 1;
         token_stream.last_retained = true;
     }
 
-    machine full(token_stream: &mut TokenStream) {
+    machine full(token_stream: @mut TokenStream) {
         token_stream.last_retained = false;
     }
 }

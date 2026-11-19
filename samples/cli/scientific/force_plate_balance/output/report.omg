@@ -48,7 +48,7 @@ invokes Console
     machine done() { }
     machine failed() { ProcessExit::exit_process(1); }
 }
-public machine report(frame: &Frame, result: &Balance) reaches ProcessExit + Console
+public machine report(frame: @Frame, result: @Balance) reaches ProcessExit + Console
 invokes Console
 {
     Console::write("loads=");
@@ -63,12 +63,12 @@ invokes Console
         true -> position(result)
         _ -> decision(result)
     }
-    machine position(result: &Balance) {
+    machine position(result: @Balance) {
         Console::write(" cop_mm="); number(result.moment_x); Console::write("/"); number(result.force);
         Console::write(","); number(result.moment_y); Console::write("/"); number(result.force);
         transition { _ -> decision(result) }
     }
-    machine decision(result: &Balance) {
+    machine decision(result: @Balance) {
         transition result.status {
             0 -> label(" SUPPORTED")
             1 -> label(" INVALID_NEGATIVE_LOAD")
@@ -78,5 +78,5 @@ invokes Console
             _ -> label(" OUTSIDE_SUPPORT")
         }
     }
-    machine label(text: &[u8]) { Console::write_line(text); }
+    machine label(text: @[u8]) { Console::write_line(text); }
 }

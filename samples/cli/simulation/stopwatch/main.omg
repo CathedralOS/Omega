@@ -43,7 +43,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
     send(main, Command::Tick { n: 10 as +Saturating });
     send(main, Command::Split);
@@ -59,61 +59,61 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block bad_total(main)
     }
 
-    machine check_split(main: &mut Main) {
+    machine check_split(main: @mut Main) {
         transition main.watch.last_split == 40 {
             true -> block check_lap(main)
             _ -> block bad_split(main)
         }
     }
 
-    machine check_lap(main: &mut Main) {
+    machine check_lap(main: @mut Main) {
         transition main.watch.last_lap == 30 {
             true -> block check_elapsed(main)
             _ -> block bad_lap(main)
         }
     }
 
-    machine check_elapsed(main: &mut Main) {
+    machine check_elapsed(main: @mut Main) {
         transition main.watch.elapsed == 40 {
             true -> block good(main)
             _ -> block bad_elapsed(main)
         }
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: total=70, split=40, lap=30, elapsed=40 all verified (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
-    machine bad_total(main: &mut Main) {
+    machine bad_total(main: @mut Main) {
         Console::write_line("FAIL: total was not 70 after the command script (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
-    machine bad_split(main: &mut Main) {
+    machine bad_split(main: @mut Main) {
         Console::write_line("FAIL: last split was not 40 (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
-    machine bad_lap(main: &mut Main) {
+    machine bad_lap(main: @mut Main) {
         Console::write_line("FAIL: last lap was not 30 (exit 73)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(73);
     }
-    machine bad_elapsed(main: &mut Main) {
+    machine bad_elapsed(main: @mut Main) {
         Console::write_line("FAIL: elapsed was not 40 (exit 74)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(74);
     }
 }
 
 // Apply a command to the stopwatch.
-machine send(main: &mut Main, cmd: Command) {
+machine send(main: @mut Main, cmd: Command) {
     transition cmd {
         Command::Tick { n } -> do_tick(main, n)
         Command::Lap -> do_lap(main)
@@ -121,17 +121,17 @@ machine send(main: &mut Main, cmd: Command) {
         _ -> done()
     }
 
-    machine do_tick(main: &mut Main, n: i32 in Saturating) {
+    machine do_tick(main: @mut Main, n: i32 in Saturating) {
         main.watch.elapsed = main.watch.elapsed + n;
         main.watch.total = main.watch.total + n;
     }
 
-    machine do_lap(main: &mut Main) {
+    machine do_lap(main: @mut Main) {
         main.watch.last_lap = main.watch.elapsed;
         main.watch.elapsed = 0 as +Saturating;
     }
 
-    machine do_split(main: &mut Main) {
+    machine do_split(main: @mut Main) {
         main.watch.last_split = main.watch.elapsed;
     }
 
@@ -141,5 +141,5 @@ machine send(main: &mut Main, cmd: Command) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

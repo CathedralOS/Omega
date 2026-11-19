@@ -29,24 +29,24 @@ ProcessProvider satisfies ProcessProbe {
 data FunctionTable { direct: addr; virtual_call: addr; }
 data OtherTable { padding: u64; virtual_call: addr; }
 boundary trait TableProbe {
-    machine direct(table: &FunctionTable) -> u64 reaches crashes none;
-    machine virtual_call(table: &OtherTable) -> u64 reaches crashes none;
+    machine direct(table: @FunctionTable) -> u64 reaches crashes none;
+    machine virtual_call(table: @OtherTable) -> u64 reaches crashes none;
 }
-windows_x86_64 machine FunctionTable::direct(table: &FunctionTable) -> u64
+windows_x86_64 machine FunctionTable::direct(table: @FunctionTable) -> u64
     satisfies TableProbe::direct via ForeignBinding::TableFunction(direct);
-windows_x86_64 machine OtherTable::virtual_call(table: &OtherTable) -> u64
+windows_x86_64 machine OtherTable::virtual_call(table: @OtherTable) -> u64
     satisfies TableProbe::virtual_call via ForeignBinding::VtableField(virtual_call);
-linux_x86_64 machine FunctionTable::direct(table: &FunctionTable) -> u64
+linux_x86_64 machine FunctionTable::direct(table: @FunctionTable) -> u64
     satisfies TableProbe::direct via ForeignBinding::TableFunction(direct);
-linux_x86_64 machine OtherTable::virtual_call(table: &OtherTable) -> u64
+linux_x86_64 machine OtherTable::virtual_call(table: @OtherTable) -> u64
     satisfies TableProbe::virtual_call via ForeignBinding::VtableField(virtual_call);
-macos_arm64 machine FunctionTable::direct(table: &FunctionTable) -> u64
+macos_arm64 machine FunctionTable::direct(table: @FunctionTable) -> u64
     satisfies TableProbe::direct via ForeignBinding::TableFunction(direct);
-macos_arm64 machine OtherTable::virtual_call(table: &OtherTable) -> u64
+macos_arm64 machine OtherTable::virtual_call(table: @OtherTable) -> u64
     satisfies TableProbe::virtual_call via ForeignBinding::VtableField(virtual_call);
 TableProvider satisfies TableProbe {
-    machine direct(table: &FunctionTable) -> u64 { FunctionTable::direct(table) }
-    machine virtual_call(table: &OtherTable) -> u64 { OtherTable::virtual_call(table) }
+    machine direct(table: @FunctionTable) -> u64 { FunctionTable::direct(table) }
+    machine virtual_call(table: @OtherTable) -> u64 { OtherTable::virtual_call(table) }
 }
 
 machine main() reaches ProcessProbe crashes Trap {

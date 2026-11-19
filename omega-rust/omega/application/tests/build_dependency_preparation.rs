@@ -38,13 +38,13 @@ fn check(name: &str, after: &str, dep: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build)
+            "machine build(builder: @mut Build)
 suspends
 {{
     Build::application(builder, \"prepares\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     let mut request: DependencyDescription = dependency::from_source(Source::Path {{ location: \"dep\" }});
-    dependency::with_alias(&mut request, \"kit\");
+    dependency::with_alias(@mut request, \"kit\");
     let registered: DependencyRegistration = Build::build_dependency(builder, request);
 {after}}}
 "
@@ -71,7 +71,7 @@ suspends
     )
 }
 
-const PACKAGE: &str = "machine build(builder: &mut Build) {
+const PACKAGE: &str = "machine build(builder: @mut Build) {
     Build::package(builder, \"kit_package\");
 }
 ";
@@ -81,7 +81,7 @@ fn a_build_waits_for_its_registered_dependency_and_goes_on() {
     let (compiled, stderr) = check(
         "prepared",
         "    suspend Build::prepare_dependency(builder, registered);
-    BuildLog::write_line(&mut builder.log, \"after preparation\");
+    BuildLog::write_line(@mut builder.log, \"after preparation\");
 ",
         PACKAGE,
     );
@@ -94,7 +94,7 @@ fn the_wait_runs_the_build_of_the_dependency_it_names() {
         "two-roles",
         "    suspend Build::prepare_dependency(builder, registered);
 ",
-        "machine build(builder: &mut Build) {
+        "machine build(builder: @mut Build) {
     Build::package(builder, \"kit_package\");
     Build::package(builder, \"second_role\");
 }

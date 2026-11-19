@@ -38,23 +38,23 @@ machine integer(value: i64 in Wrapping) reaches Console invokes Console {
     }
     machine done() { }
 }
-public machine emit(problem: &Problem) reaches Console invokes Console {
+public machine emit(problem: @Problem) reaches Console invokes Console {
     Console::write_line("status ordinary-kriging; decimal scientific tokens");
     transition { _ -> queries(problem, 0) }
-    machine queries(problem: &Problem, query: u64) {
+    machine queries(problem: @Problem, query: u64) {
         transition query < problem.queries && query < 8 { true -> row(problem, query) false -> done() }
     }
-    machine row(problem: &Problem, query: u64) requires query < 8 {
+    machine row(problem: @Problem, query: u64) requires query < 8 {
         Console::write("query"); number(problem.predictions[query]); number(problem.variances[query]);
         number(problem.system_residuals[query]); number(problem.mean_residuals[query]); Console::write_line("");
         Console::write("weights"); transition { _ -> weights(problem, query, 0) }
     }
-    machine weights(problem: &Problem, query: u64, index: u64) requires query < 8 {
+    machine weights(problem: @Problem, query: u64, index: u64) requires query < 8 {
         transition index < problem.count && index < 8 { true -> weight(problem, query, index) false -> next(problem, query) }
     }
-    machine weight(problem: &Problem, query: u64, index: u64) requires query < 8, index < 8 {
+    machine weight(problem: @Problem, query: u64, index: u64) requires query < 8, index < 8 {
         number(problem.weights[query * 8 + index]); transition { _ -> weights(problem, query, index + 1) }
     }
-    machine next(problem: &Problem, query: u64) { Console::write_line(""); transition { _ -> queries(problem, query + 1) } }
+    machine next(problem: @Problem, query: u64) { Console::write_line(""); transition { _ -> queries(problem, query + 1) } }
     machine done() { }
 }
