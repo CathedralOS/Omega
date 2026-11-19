@@ -278,6 +278,7 @@ dependencies = [
  "evaluation-receipts",
  "filesystem-authority",
  "interpreter-numeric-imports",
+ "normalized-build-settings",
  "numeric-intrinsic-admission",
  "optimization-requests",
  "package-compilation",
@@ -1959,6 +1960,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "normalized-build-settings"
+version = "0.1.0"
+dependencies = [
+ "build-time-values",
+ "optimization-selections",
+ "target",
+]
+
+[[package]]
 name = "normalized-foreign-call-plan"
 version = "0.1.0"
 dependencies = [
@@ -2044,6 +2054,7 @@ dependencies = [
  "compiler",
  "diagnostics",
  "installation-conditions",
+ "normalized-build-settings",
  "product-publication",
  "psi-entry-memory",
  "worker-budget",
@@ -2219,6 +2230,7 @@ dependencies = [
  "filesystem-authority",
  "host-provider-inputs",
  "language-core",
+ "normalized-build-settings",
  "optimization-requests",
  "optimization-selections",
  "platform-custody",

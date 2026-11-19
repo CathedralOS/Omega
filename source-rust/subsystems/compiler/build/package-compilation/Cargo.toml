@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+normalized-build-settings = { path = "../build-settings/normalized" }
 provider-acceptance = { path = "../providers/acceptance" }
 build-time-values = { path = "../evaluation/values" }
 source-selection = { path = "../../../package-manager/source-acquisition/capture/selection" }
