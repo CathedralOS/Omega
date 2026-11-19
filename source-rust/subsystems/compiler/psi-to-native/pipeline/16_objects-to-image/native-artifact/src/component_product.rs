@@ -94,7 +94,7 @@ impl NativeComponentProduct {
     pub fn artifact(&self) -> &Arc<terminal_codec::CanonicalTerminalArtifact> {
         self.runtime_record.artifact()
     }
-    pub fn selection(&self) -> &terminal_installation::AdmittedComponentProvider {
+    pub fn selection(&self) -> &psi_provider_selections::AdmittedComponentProvider {
         self.runtime_record.selection()
     }
     pub fn application(&self) -> &calling_conventions::BoundaryCallingApplication {

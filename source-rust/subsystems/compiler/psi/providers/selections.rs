@@ -1,7 +1,11 @@
 //! Verify requested providers and assumed bindings against one artifact’s callable
 //! catalog. The admitted selection retains the execution identity, receiving
-//! applications, and concrete supply paths needed by its consumers.
+//! applications, and concrete supply paths needed by its consumers. A component
+//! selection also checks the receiving catalog against the supplying artifact.
 #![forbid(unsafe_code)]
+
+mod component;
+pub use component::{AdmittedComponentProvider, admit_component_provider};
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::collections::{BTreeMap, BTreeSet};

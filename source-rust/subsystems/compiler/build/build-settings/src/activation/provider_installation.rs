@@ -23,7 +23,7 @@ use source_compiler::ProducedBuildProvider;
 use source_compiler::evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
 use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
-use terminal_installation::{AdmittedComponentProvider, admit_component_provider};
+use psi_provider_selections::{AdmittedComponentProvider, admit_component_provider};
 use terminal_interpreter::{
     TerminalComponentBinding, TerminalProgram, TerminalRuntimeSupplyRequest,
 };

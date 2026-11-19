@@ -19,7 +19,7 @@ use component_description::VerifiedComponent;
 use semantic_vocabulary::provider_identity::ProviderPlanDigest;
 use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use terminal_installation::AdmittedComponentProvider;
+use psi_provider_selections::AdmittedComponentProvider;
 use terminal_psi::TerminalModule;
 
 use crate::{

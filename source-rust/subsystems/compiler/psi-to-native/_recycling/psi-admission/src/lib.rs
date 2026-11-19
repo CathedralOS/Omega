@@ -35,7 +35,7 @@ pub use psi_authorization::{
 
 pub(crate) use evaluation_and_synchronous_calls::compiler_evaluation;
 pub(crate) use provider_and_target_installation::{
-    component_memberships, component_provider, provider_installation, target_context,
+    provider_installation, target_context,
 };
 
 pub(crate) mod entry_values {
@@ -63,7 +63,7 @@ pub use compiler_evaluation::{
     AdmittedCompilerEvaluation, InvocationSourceSelection, admit_compiler_evaluation,
     admit_compiler_evaluation_with_source_consent, admit_declaration_selections,
 };
-pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
+pub use psi_provider_selections::{AdmittedComponentProvider, admit_component_provider};
 pub use entry_values::{
     TerminalAccessViewEstablishment, TerminalScalarValue, TerminalStructuralValue,
 };

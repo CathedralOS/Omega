@@ -509,6 +509,7 @@ name = "psi-provider-selections"
 version = "0.1.0"
 dependencies = [
  "record-storage",
+ "schema-reflection",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
@@ -1542,7 +1543,6 @@ dependencies = [
  "target-operations",
  "target-x86_64",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
  "verified-optimization-input",
@@ -2325,7 +2325,6 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",
@@ -2481,7 +2480,6 @@ dependencies = [
  "target",
  "target-vocabulary",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "verified-optimization-input",
 ]
@@ -3880,7 +3878,6 @@ dependencies = [
  "target-operations",
  "target-vocabulary",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]

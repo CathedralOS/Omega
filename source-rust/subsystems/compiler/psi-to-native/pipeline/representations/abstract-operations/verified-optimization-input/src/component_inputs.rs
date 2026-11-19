@@ -23,7 +23,7 @@ pub struct ComponentNativeInputs<'input> {
 
 #[derive(Debug)]
 pub struct AdmittedNativeComponentCall<'input> {
-    selected: terminal_installation::AdmittedComponentProvider,
+    selected: psi_provider_selections::AdmittedComponentProvider,
     component: &'input VerifiedComponent,
     application: &'input BoundaryCallingApplication,
     plan_digest: provider_plans::ProviderPlanDigest,
@@ -39,7 +39,7 @@ impl<'input> AdmittedNativeComponentCall<'input> {
         }
     }
 
-    pub const fn selection(&self) -> &terminal_installation::AdmittedComponentProvider {
+    pub const fn selection(&self) -> &psi_provider_selections::AdmittedComponentProvider {
         &self.selected
     }
     pub const fn component(&self) -> &'input VerifiedComponent {
@@ -122,7 +122,7 @@ impl<'input> ComponentNativeInputs<'input> {
     pub fn admit_receiver(
         &self,
         receiver: terminal_codec::TerminalArtifactView<'_>,
-    ) -> Result<Vec<terminal_installation::AdmittedComponentProvider>, String> {
+    ) -> Result<Vec<psi_provider_selections::AdmittedComponentProvider>, String> {
         let module = self.component.module();
         self.exports
             .iter()
@@ -165,7 +165,7 @@ impl<'input> ComponentNativeInputs<'input> {
                         .to_owned(),
                     candidate: candidate.candidate,
                 };
-                let admitted = terminal_installation::admit_component_provider(
+                let admitted = psi_provider_selections::admit_component_provider(
                     receiver,
                     boundary.id,
                     self.component.artifact().view(),
