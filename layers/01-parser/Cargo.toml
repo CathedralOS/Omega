@@ -11,3 +11,14 @@ omega-lexer = { path = "../00-lexer" }
 [dev-dependencies]
 golden = { path = "../../tools/golden" }
 spec-corpus = { path = "../../tools/spec-corpus" }
+
+# The tools that are not tests. Cargo only finds programs like these by itself in a folder called
+# `examples`, and these are not examples of using the parser, so each folder is named for what is
+# in it and each tool is listed here. They are still run with `cargo run --example <name>`.
+[[example]]
+name = "parse_throughput"
+path = "measurements/parse_throughput.rs"
+
+[[example]]
+name = "parse_spec"
+path = "inspection/parse_spec.rs"

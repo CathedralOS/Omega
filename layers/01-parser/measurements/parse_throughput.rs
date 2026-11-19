@@ -159,7 +159,7 @@ fn main() {
         (event_count * size_of::<Event>() + meaningful_token_count * size_of::<u32>()) as f64 / (source_bytes.len() * parse_count) as f64
     );
     println!(
-        "RESULT parse_min_ms={:.1} parse_median_ms={:.1} floor_min_ms={:.1} lex_min_ms={:.1} parse_ns_per_token={nanoseconds_per_token:.2} fingerprint={fingerprint:016x}",
+        "RESULT parse_min_ms={:.1} parse_median_ms={:.1} floor_min_ms={:.1} lex_min_ms={:.1} parse_per_token_ns={nanoseconds_per_token:.2} fingerprint={fingerprint:016x}",
         to_milliseconds(parse_minimum),
         to_milliseconds(parse_median),
         to_milliseconds(floor_minimum),
