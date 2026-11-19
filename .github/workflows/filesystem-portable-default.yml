@@ -1,0 +1,55 @@
+name: Portable filesystem default workers
+on:
+  push:
+    branches: [work/fs-portable-default-workers]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: portable-filesystem-default-workers
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      RUST_MIN_STACK: '67108864'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 94884808e4a9004bd18bb97a7332e83129266bb8
+          persist-credentials: false
+      - name: Download the exact verified compiler
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 44438657931 --repo CathedralOS/Omega --name fs-cut-qualified-producer --dir build/fs-default-producer
+      - name: Run the unchanged witness with default compiler workers
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,re,shutil,signal,subprocess,tempfile,time
+          from pathlib import Path
+          root=Path.cwd();out=root/'build/fs-default-worker';out.mkdir(parents=True,exist_ok=True)
+          def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+          record=json.loads((root/'build/fs-default-producer/producer.json').read_text())
+          producer=root/'build/fs-default-producer/retained-omega';producer.chmod(0o755)
+          producer_digest='16521868c665384791a172e654bdc2734c58c1ff83d11b7531a9e6bdc9ac88ab'
+          assert sha(producer)==producer_digest==record['binary_sha256']
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==record['revision']
+          inputs=record['inputs'];proof=record['proof_source']
+          assert all(sha(root/p)==expected for p,expected in dict(inputs,**proof).items())
+          os.environ.pop('RAYON_NUM_THREADS',None)
+          source=root/'tests/fixtures/pending/filesystem_portable_rules/main.omg'
+          setup={'producer':record,'cpu_count':os.cpu_count(),'affinity':sorted(os.sched_getaffinity(0)),'RAYON_NUM_THREADS':os.environ.get('RAYON_NUM_THREADS'),'rss_limit_gib':5.5,'program_cap_seconds':600}
+          (out/'setup.json').write_text(json.dumps(setup,indent=2)+'\n')
+          original=(root/'.github/diagnostics/filesystem-range-replay/qualify.py').read_text()
+          replay=original[original.index('def run('):].replace('peak>=4*1024*1024','peak>=int(5.5*1024*1024)').replace("stop='4GiB RSS cap'","stop='5.5GiB RSS cap'")
+          exec(compile(replay,'retained-qualification-runner','exec'))
+          PY
+      - name: Retain exact run records
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fs-default-worker-records
+          path: build/fs-default-worker
+          retention-days: 14
