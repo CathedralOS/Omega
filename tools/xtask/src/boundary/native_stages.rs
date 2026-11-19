@@ -26,17 +26,21 @@ const AARCH64: &str =
 const X86: &str = native!("/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64");
 pub(super) const IMAGE_EMISSION: &str = native!("/pipeline/16_objects-to-image/image-emission");
 pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/16_objects-to-image/native-artifact");
-const OBJECT_REPLAY: &str = native!("/replay/published-objects");
+pub(super) const OBJECT_REPLAY: &str = native!("/replay/published-objects");
 const PSI_PUBLICATION: &str =
     "source-rust/subsystems/compiler/build/package-compilation/psi-publication";
 pub(super) const PRODUCT_PUBLICATION: &str =
     "source-rust/subsystems/compiler/build/build-output/product-publication";
 
-pub(super) fn rules() -> Vec<Rule> {
+fn stages() -> Vec<&'static str> {
     // The shared ordering also contains the source stages and file publication.
-    let stages: Vec<_> = std::iter::once(STAGES[0])
+    std::iter::once(STAGES[0])
         .chain(STAGES[3..19].iter().copied())
-        .collect();
+        .collect()
+}
+
+pub(super) fn scoped_readers() -> Vec<Allowance> {
+    let stages = stages();
     let mut readers = vec![
         ("source-rust/subsystems/package-manager", HOST_PROVIDERS),
         (PSI_PUBLICATION, HOST_PROVIDERS),
@@ -65,13 +69,30 @@ pub(super) fn rules() -> Vec<Rule> {
     ] {
         readers.push((OBJECT_REPLAY, dependency));
     }
-    stages.iter().enumerate().map(|(index, &stage)| Rule {
-        owners: vec![""],
-        forbidden: vec![stage],
-        reason: "native stages are consumed by the native driver, their successor, or an explicitly scoped reader",
-        except_package: Some(DRIVER),
-        except_owners: stages[index..(index + 2).min(stages.len())].to_vec(),
-        allowed: readers.iter().filter(|(_, dependency)| under(dependency, &[stage]))
-            .map(|&(owner, dependency)| Allowance { owner, dependency }).collect(),
-    }).collect()
+    readers
+        .into_iter()
+        .map(|(owner, dependency)| Allowance { owner, dependency })
+        .collect()
+}
+
+pub(super) fn rules() -> Vec<Rule> {
+    let stages = stages();
+    let readers = scoped_readers();
+    let mut rules = Vec::new();
+    for (index, &stage) in stages.iter().enumerate() {
+        let allowed = readers
+            .iter()
+            .copied()
+            .filter(|edge| under(edge.dependency, &[stage]))
+            .collect();
+        rules.push(Rule {
+            owners: vec![""],
+            forbidden: vec![stage],
+            reason: "native stages are consumed by the native driver, their successor, or an explicitly scoped reader",
+            except_package: Some(DRIVER),
+            except_owners: stages[index..(index + 2).min(stages.len())].to_vec(),
+            allowed,
+        });
+    }
+    rules
 }

@@ -1166,7 +1166,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 mod tests {
     use super::*;
 
-    fn pkg(name: &str, rel: &str, deps: &[(&str, &str, Option<&str>)]) -> Package {
+    pub(super) fn pkg(name: &str, rel: &str, deps: &[(&str, &str, Option<&str>)]) -> Package {
         Package {
             name: name.to_owned(),
             manifest_path: format!("/repo/{rel}/Cargo.toml"),
