@@ -20,7 +20,7 @@ bounded-process = { path = "../foundation/bounded-process" }
 compiler = { path = "../compilation/compiler" }
 products = { path = "../compilation/products" }
 artifacts = { path = "../compilation/products/measurements" }
-platform-custody = { path = "../host-support/platform-custody" }
+platform-custody = { path = "../foundation/filesystem" }
 package-manager = { path = "../packages/package-manager" }
 source-acquisition = { path = "../packages/source-acquisition" }
 package-compilation = { path = "../packages/package-compilation" }

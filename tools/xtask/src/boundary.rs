@@ -30,7 +30,7 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "omega-rust/omega/compilation/representations",
     "omega-rust/omega/compilation/target-description",
     "omega-rust/omega/compilation/verification",
-    "omega-rust/omega/host-support/platform-custody",
+    "source-rust/foundation/filesystem",
     "omega-rust/psi/foundation",
     "omega-rust/psi/evaluation",
     "omega-rust/psi/interpreter",
