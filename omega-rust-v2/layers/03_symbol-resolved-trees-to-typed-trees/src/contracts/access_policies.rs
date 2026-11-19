@@ -1,5 +1,6 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{AccessPolicySelection, ObligationKind, Site, TypeError, TypedStage, TypingObligation};
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
@@ -7,6 +8,7 @@ use omega_resolver::Symbol;
 pub(crate) fn check_access_policies(
     units: &[ResolvedSourceFile<'_>],
     catalog: &DeclarationCatalog<'_>,
+    dependencies: &PreparationDependencies<'_>,
     out: &mut TypedStage,
 ) -> Result<(), TypeError> {
     for unit in units {
@@ -22,6 +24,9 @@ pub(crate) fn check_access_policies(
             let Some(Symbol::Declaration(policy)) = unit.symbol(head) else {
                 return Err(TypeError::at(f, head, "access requires an exact policy implementation"));
             };
+            if !dependencies.node_is_ready(f.node_id(n)) {
+                continue;
+            }
             let requirement = catalog
                 .access_plan_requirement
                 .ok_or_else(|| TypeError::at(f, head, "access policy requires the admitted AccessPolicy plan requirement"))?;

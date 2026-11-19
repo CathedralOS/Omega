@@ -32,7 +32,7 @@ impl CheckedLibrary {
     ) -> Result<Self, crate::TypeError> {
         let mut facts = TypedStage::default();
         let mut catalog = DeclarationCatalog::default();
-        let execution = crate::typing::type_stage::check_stage(resolved, &Default::default(), &mut catalog, &mut facts, core, None, false)?;
+        let (execution, _) = crate::typing::type_stage::check_stage(resolved, &Default::default(), &mut catalog, &mut facts, core, None, false)?;
         catalog.publish_declarations(&mut facts);
         Ok(Self {
             trees: TypedTrees::new(resolved.clone(), facts, 0),

@@ -20,7 +20,8 @@ pub enum TypingProgress<'text> {
     Pending(PendingTyping<'text>),
 }
 
-/// The typed facts are provisional until the selected static expressions are evaluated.
+/// The typed facts are provisional. Only the listed demands and their
+/// dependencies have completed typing and can be evaluated.
 #[derive(Debug)]
 pub struct PendingTyping<'text> {
     pub(crate) trees: TypedTrees<'text>,

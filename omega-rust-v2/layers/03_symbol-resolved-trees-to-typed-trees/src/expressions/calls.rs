@@ -1,4 +1,4 @@
-use super::call_arguments::SelectedMachine;
+use super::call_arguments::{PendingComparisons, SelectedMachine};
 use crate::expressions::body_typer::BodyTyper;
 use crate::{TypeError, ValueType};
 use omega_parser::NodeKind;
@@ -122,6 +122,7 @@ impl BodyTyper<'_, '_> {
             self.unit.receiver_arguments(callee, self.catalog)?
         };
         let capture = |t: &ValueType| t.in_enclosing_scopes(&enclosing_arguments);
+        let indices = &self.catalog.types.indices;
         let mut prepared = Vec::new();
         let mut argument_error = None;
         let candidate_count = declarations.len() + requirements.len();
@@ -144,7 +145,7 @@ impl BodyTyper<'_, '_> {
             let wanted = expected.map_or(&[][..], ValueType::domains);
             // An operand can determine the entire return type or an index in a
             // declared result domain. Keep that candidate until its operands bind.
-            let domain_destination = expected.filter(|ty| result.can_infer_result_domains(id, ty));
+            let domain_destination = expected.filter(|ty| result.can_infer_result_domains(id, ty) || indices.can_wait_for_result_domains(&result, ty));
             if domain_destination.is_none() && result.domains() != wanted {
                 continue;
             }
@@ -168,6 +169,7 @@ impl BodyTyper<'_, '_> {
             operands.push(operand);
         }
         let mut matches = Vec::new();
+        let mut waiting = false;
         for (id, signature, formals, domain_destination) in prepared {
             let arity = formals.len();
             let instantiate = |t: &ValueType| {
@@ -179,6 +181,7 @@ impl BodyTyper<'_, '_> {
             for (i, ty) in formals[..explicit.len()].iter().enumerate() {
                 bindings[i] = Some(ty.clone());
             }
+            let mut pending = PendingComparisons::default();
             if signature
                 .parameters
                 .iter()
@@ -186,13 +189,7 @@ impl BodyTyper<'_, '_> {
                 .enumerate()
                 .all(|(i, ((_, p), op))| {
                     let formal = instantiate(p);
-                    self.infer_operand(NodeKind::Call, i, op, &formal, id, &mut bindings)
-                        || (candidate_count == 1
-                            && self
-                                .catalog
-                                .types
-                                .indices
-                                .defer_indexed_landing(&op.value, &formal))
+                    self.infer_operand_with(NodeKind::Call, i, op, &formal, id, &mut bindings, &mut |a, b| pending.compare(indices, a, b))
                 })
             {
                 if let Some(destination) = domain_destination {
@@ -204,11 +201,19 @@ impl BodyTyper<'_, '_> {
                             argument.clone_from(bound);
                         }
                     }
-                    if result.substitute(id, &arguments).domains() != destination.domains() {
-                        continue;
+                    let result = result.substitute(id, &arguments);
+                    if result.domains() != destination.domains() {
+                        if !indices.can_wait_for_result_domains(&result, destination) {
+                            continue;
+                        }
+                        pending.record(&result, destination);
                     }
                 }
-                matches.push((id, signature, bindings));
+                if pending.retain_demands(indices) {
+                    waiting = true;
+                } else {
+                    matches.push((id, signature, bindings));
+                }
             } else if candidate_count == 1 {
                 let mut inferred = vec![None; arity];
                 if signature
@@ -226,6 +231,9 @@ impl BodyTyper<'_, '_> {
                     }
                 }
             }
+        }
+        if waiting {
+            return Err(indices.wait(source, callee));
         }
         let mut matches = matches.into_iter();
         let name = source.nodes[callee].path();

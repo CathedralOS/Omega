@@ -2,6 +2,7 @@ use crate::contracts::effect_clauses;
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_system::type_catalog::TypeCatalog;
+use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{ObligationKind, RequirementSlot, ServiceApplication, Site, TraitRefinement, TypeError, TypedStage, ValueType};
 use omega_parser::{NodeKind, PauseFlag, TerminationClause};
 use omega_resolver::DeclarationId;
@@ -73,12 +74,16 @@ impl DeclarationCatalog<'_> {
 }
 pub(crate) fn check_trait_refinements(
     catalog: &DeclarationCatalog<'_>,
+    dependencies: &PreparationDependencies<'_>,
     out: &mut TypedStage,
 ) -> Result<(), TypeError> {
     let mut all: Vec<_> = catalog.refinements.values().flatten().cloned().collect();
     all.sort_by_cached_key(|r| (r.site.package.clone(), r.site.file.clone(), r.site.span.get_start_offset()));
     out.refinements = all;
     for obligation in &out.obligations {
+        if !dependencies.node_is_ready(obligation.node) {
+            continue;
+        }
         let ObligationKind::RefineEvidence { binder, implementation } = &obligation.kind else {
             continue;
         };

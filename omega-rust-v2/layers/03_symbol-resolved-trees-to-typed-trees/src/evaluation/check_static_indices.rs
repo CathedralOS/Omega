@@ -5,8 +5,11 @@ use crate::expressions::declaration_bodies;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{IntegerIndex, StaticValue, StaticValueDemand, StaticValueRequest, TypeError, TypedStage, TypingEnvironment, ValueType};
 use omega_parser::NodeKind;
-use omega_resolver::Symbol;
-use std::{cell::RefCell, collections::HashMap};
+use omega_resolver::{DeclarationId, IndexedSource, Symbol, TreeNodeId};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+};
 
 #[derive(Clone)]
 pub(crate) enum IndexEvaluation {
@@ -20,6 +23,8 @@ pub(crate) enum IndexEvaluation {
 pub(crate) struct IndexEvaluations<'a> {
     allow_pending: bool,
     demands: RefCell<Vec<StaticValueDemand>>,
+    blocked: RefCell<Vec<TreeNodeId>>,
+    pending_constants: RefCell<HashSet<DeclarationId>>,
     pub(super) specializations: IndexSpecializations,
     supplied: HashMap<&'a StaticValueRequest, &'a StaticValue>,
     pub(super) uses: RefCell<HashMap<StaticValueRequest, IndexEvaluation>>,
@@ -45,6 +50,8 @@ impl<'a> IndexEvaluations<'a> {
             supplied,
             allow_pending,
             demands: RefCell::default(),
+            blocked: RefCell::default(),
+            pending_constants: RefCell::default(),
             uses: RefCell::default(),
         })
     }
@@ -52,44 +59,92 @@ impl<'a> IndexEvaluations<'a> {
         self.demands.take()
     }
 
-    pub(crate) fn retain_demands(
+    pub(crate) fn defer_constant(
         &self,
+        declaration: &DeclarationId,
+    ) {
+        self.pending_constants.borrow_mut().insert(declaration.clone());
+    }
+
+    pub(crate) fn constant_is_pending(
+        &self,
+        declaration: &DeclarationId,
+    ) -> bool {
+        self.pending_constants.borrow().contains(declaration)
+    }
+
+    pub(crate) fn take_blocked_nodes(&self) -> Vec<TreeNodeId> {
+        self.blocked.take()
+    }
+
+    pub(crate) fn wait(
+        &self,
+        file: &IndexedSource<'_>,
+        node: usize,
+    ) -> TypeError {
+        self.blocked.borrow_mut().push(file.node_id(node));
+        TypeError::waiting(file, node)
+    }
+
+    pub(crate) fn retain_demands_at(
+        &self,
+        node: TreeNodeId,
         value: &ValueType,
     ) {
-        if !self.allow_pending {
-            return;
-        }
-        let mut demands = self.demands.borrow_mut();
-        for part in value.components() {
-            match part {
-                ValueType::StaticFormula { term, .. } => {
-                    for demand in term.demands() {
-                        if !demands.contains(demand) {
-                            demands.push(demand.clone());
-                        }
-                    }
-                }
-                ValueType::PendingStatic(demand) if !demands.contains(demand) => {
-                    demands.push(demand.as_ref().clone());
-                }
-                _ => {}
-            }
+        if self.retain_demands(value) && static_demands(value).any(|demand| demand.request().node != node) {
+            self.blocked.borrow_mut().push(node);
         }
     }
 
-    /// Preparation may postpone equality only when the known structure agrees
-    /// and a requested static value can settle the remaining difference.
-    pub(crate) fn defer_indexed_landing(
+    pub(crate) fn retain_demands(
+        &self,
+        value: &ValueType,
+    ) -> bool {
+        if !self.allow_pending {
+            return false;
+        }
+        let mut needs_value = false;
+        let mut demands = self.demands.borrow_mut();
+        for demand in static_demands(value) {
+            needs_value = true;
+            if !demands.contains(demand) {
+                demands.push(demand.clone());
+            }
+        }
+        needs_value
+    }
+
+    /// The known parts must agree, and a missing value must account for
+    /// the difference. The caller retains demands only for viable candidates.
+    pub(crate) fn can_wait_for_equality(
         &self,
         actual: &ValueType,
         expected: &ValueType,
     ) -> bool {
-        if !self.allow_pending || actual == expected || !compatible_pending_indices(actual, expected) {
-            return false;
-        }
-        self.retain_demands(actual);
-        self.retain_demands(expected);
-        true
+        self.allow_pending
+            && actual != expected
+            && compatible_pending_indices(actual, expected)
+            && static_demands(actual)
+                .chain(static_demands(expected))
+                .next()
+                .is_some()
+    }
+
+    pub(crate) fn can_wait_for_result_domains(
+        &self,
+        actual: &ValueType,
+        expected: &ValueType,
+    ) -> bool {
+        self.allow_pending
+            && compatible_pending_domains(actual.domains(), expected.domains())
+            && actual
+                .domains()
+                .iter()
+                .chain(expected.domains())
+                .flat_map(|domain| &domain.arguments)
+                .flat_map(static_demands)
+                .next()
+                .is_some()
     }
 
     pub(crate) fn has_supplied_value(
@@ -100,22 +155,51 @@ impl<'a> IndexEvaluations<'a> {
     }
 }
 
+fn static_demands(value: &ValueType) -> impl Iterator<Item = &StaticValueDemand> {
+    value.components().flat_map(|part| {
+        let term = match part {
+            ValueType::StaticFormula { term, .. } => Some(term),
+            _ => None,
+        };
+        let demand = match part {
+            ValueType::PendingStatic(demand) => Some(demand.as_ref()),
+            _ => None,
+        };
+        term.into_iter().flat_map(IntegerIndex::demands).chain(demand)
+    })
+}
+
 fn compatible_pending_indices(
     actual: &ValueType,
     expected: &ValueType,
 ) -> bool {
-    use ValueType::{Applied, Array, IndexedArray, PendingStatic, StaticFormula, StaticInteger, StaticValue};
+    use ValueType::{
+        Applied, Array, AtLifetime, Function, IndexedArray, IndexedInteger, Integer, PendingStatic, Qualified, Reference, Slice, StaticFormula, StaticInteger,
+        StaticValue, Tuple,
+    };
+    let parts = |left: &[ValueType], right: &[ValueType]| {
+        left.len() == right.len()
+            && left
+                .iter()
+                .zip(right)
+                .all(|(a, b)| compatible_pending_indices(a, b))
+    };
     if actual == expected {
         return true;
     }
     match (actual, expected) {
-        (Applied(a, left), Applied(b, right)) => {
-            a == b
-                && left.len() == right.len()
-                && left
-                    .iter()
-                    .zip(right)
-                    .all(|(a, b)| compatible_pending_indices(a, b))
+        (Applied(a, left), Applied(b, right)) => a == b && parts(left, right),
+        (Tuple(left), Tuple(right)) => parts(left, right),
+        (Reference(a, left), Reference(b, right)) => a == b && compatible_pending_indices(left, right),
+        (Slice(left), Slice(right)) => compatible_pending_indices(left, right),
+        (Function(a, left), Function(b, right)) | (AtLifetime(a, left), AtLifetime(b, right)) => {
+            compatible_pending_indices(a, b) && compatible_pending_indices(left, right)
+        }
+        (Qualified(a, left), Qualified(b, right)) => compatible_pending_indices(a, b) && compatible_pending_domains(left, right),
+        (IndexedInteger { signed: a, width: left }, IndexedInteger { signed: b, width: right }) => a == b && compatible_pending_indices(left, right),
+        (Integer { signed: a, width: Some(width) }, IndexedInteger { signed: b, width: index })
+        | (IndexedInteger { signed: b, width: index }, Integer { signed: a, width: Some(width) }) => {
+            a == b && compatible_pending_indices(index, &ValueType::static_size(*width))
         }
         (Array(a, left), Array(b, right)) => left == right && compatible_pending_indices(a, b),
         (IndexedArray(a, left), IndexedArray(b, right)) => compatible_pending_indices(a, b) && compatible_pending_indices(left, right),
@@ -132,6 +216,28 @@ fn compatible_pending_indices(
         }
         _ => false,
     }
+}
+
+fn compatible_pending_domains(
+    left: &[crate::DomainApplication],
+    right: &[crate::DomainApplication],
+) -> bool {
+    // Evaluation can reorder applications of one domain or merge equal ones.
+    // Each application must have a compatible application on the other side.
+    let covered = |source: &[crate::DomainApplication], destination: &[crate::DomainApplication]| {
+        source.iter().all(|domain| {
+            destination.iter().any(|other| {
+                domain.declaration == other.declaration
+                    && domain.arguments.len() == other.arguments.len()
+                    && domain
+                        .arguments
+                        .iter()
+                        .zip(&other.arguments)
+                        .all(|(a, b)| compatible_pending_indices(a, b))
+            })
+        })
+    };
+    covered(left, right) && covered(right, left)
 }
 
 pub(crate) fn check_static_indices(
@@ -155,7 +261,12 @@ pub(crate) fn check_static_indices(
         uses.sort_by_cached_key(|(request, _)| (request.expression.clone(), request.node, request.carrier.to_string()));
         for (request, evaluation) in uses {
             let node = request.node;
-            declaration_bodies::check_static_argument(&units[node.file], catalog, node.node, &request, &evaluation, output)?;
+            if let Err(error) = declaration_bodies::check_static_argument(&units[node.file], catalog, node.node, &request, &evaluation, output) {
+                if error.waiting_for_static_value {
+                    continue;
+                }
+                return Err(error);
+            }
             if let IndexEvaluation::Closed(value) = evaluation {
                 if !value.matches_carrier(&request.carrier, catalog) {
                     return Err(TypeError::for_site(&request.expression, "evaluation result does not match its carrier"));
