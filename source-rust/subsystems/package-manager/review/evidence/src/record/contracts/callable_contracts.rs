@@ -24,7 +24,7 @@ pub enum PackageReviewContractFact {
     },
     CarryMembership {
         value: PackageReviewContractExpression,
-        permission: declaration_contracts::CarryPermission,
+        permission: language_core::CarryPermission,
     },
     Proposition(PackageReviewPropositionApplication),
     PropositionParameter(PackageReviewPropositionParameterApplication),

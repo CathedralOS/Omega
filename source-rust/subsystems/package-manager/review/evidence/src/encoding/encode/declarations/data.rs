@@ -4,7 +4,7 @@ use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
 use super::super::type_identity_in_scope;
 use crate::record::{PackageReviewDataField, PackageReviewDataMember, PackageReviewDataProperties};
-use declaration_contracts::CarrySuspension;
+use language_core::CarrySuspension;
 
 pub(crate) fn encode_data_properties(
     encoder: &mut Encoder,
@@ -12,9 +12,9 @@ pub(crate) fn encode_data_properties(
 ) {
     let _ = encoder.field("multiplicity", |encoder| {
         match properties.multiplicity {
-            declaration_contracts::Multiplicity::Unrestricted => encoder.tag("unrestricted", 0),
-            declaration_contracts::Multiplicity::Affine => encoder.tag("affine", 1),
-            declaration_contracts::Multiplicity::Linear => encoder.tag("linear", 2),
+            language_core::Multiplicity::Unrestricted => encoder.tag("unrestricted", 0),
+            language_core::Multiplicity::Affine => encoder.tag("affine", 1),
+            language_core::Multiplicity::Linear => encoder.tag("linear", 2),
         };
         Ok(())
     });
@@ -32,22 +32,22 @@ pub(crate) fn encode_data_properties(
                 });
                 let _ = encoder.field("cpu", |encoder| {
                     match carry.cpu {
-                        declaration_contracts::CarryCpu::Origin => encoder.tag("origin", 0),
-                        declaration_contracts::CarryCpu::Any => encoder.tag("any", 1),
+                        language_core::CarryCpu::Origin => encoder.tag("origin", 0),
+                        language_core::CarryCpu::Any => encoder.tag("any", 1),
                     };
                     Ok(())
                 });
                 let _ = encoder.field("host_thread", |encoder| {
                     match carry.host_thread {
-                        declaration_contracts::CarryHostThread::Origin => encoder.tag("origin", 0),
-                        declaration_contracts::CarryHostThread::Any => encoder.tag("any", 1),
+                        language_core::CarryHostThread::Origin => encoder.tag("origin", 0),
+                        language_core::CarryHostThread::Any => encoder.tag("any", 1),
                     };
                     Ok(())
                 });
                 let _ = encoder.field("address", |encoder| {
                     match carry.address {
-                        declaration_contracts::CarryAddress::Stable => encoder.tag("stable", 0),
-                        declaration_contracts::CarryAddress::Movable => encoder.tag("movable", 1),
+                        language_core::CarryAddress::Stable => encoder.tag("stable", 0),
+                        language_core::CarryAddress::Movable => encoder.tag("movable", 1),
                     };
                     Ok(())
                 });

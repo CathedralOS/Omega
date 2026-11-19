@@ -449,9 +449,9 @@ pub(crate) mod callable_identity {
                 kinds.push(kind);
                 bytes.push(kind);
                 bytes.push(match parameter.bounds.multiplicity {
-                    declaration_contracts::Multiplicity::Unrestricted => 1,
-                    declaration_contracts::Multiplicity::Affine => 2,
-                    declaration_contracts::Multiplicity::Linear => 3,
+                    language_core::Multiplicity::Unrestricted => 1,
+                    language_core::Multiplicity::Affine => 2,
+                    language_core::Multiplicity::Linear => 3,
                 });
                 if let Some(carry) = parameter.bounds.carry {
                     bytes.extend(carry.to_string().as_bytes());
@@ -1075,12 +1075,12 @@ pub(crate) mod constraint_identity {
                     atom(
                         Label::Permission,
                         match permission {
-                            declaration_contracts::CarryPermission::AcrossSuspend => {
+                            language_core::CarryPermission::AcrossSuspend => {
                                 "across-suspend"
                             }
-                            declaration_contracts::CarryPermission::AnyCpu => "any-cpu",
-                            declaration_contracts::CarryPermission::AnyThread => "any-thread",
-                            declaration_contracts::CarryPermission::MovableAddress => {
+                            language_core::CarryPermission::AnyCpu => "any-cpu",
+                            language_core::CarryPermission::AnyThread => "any-thread",
+                            language_core::CarryPermission::MovableAddress => {
                                 "movable-address"
                             }
                         },
@@ -1678,14 +1678,14 @@ pub(crate) mod identity_context {
                 .type_reference_table
                 .insert(TypeReferenceNode::Reference {
                     referee: scalar,
-                    access: declaration_contracts::ReferenceAccess::Shared,
+                    access: language_core::ReferenceAccess::Shared,
                     lifetime: Some(Identifier::generated("slot")),
                 });
             let later = program
                 .type_reference_table
                 .insert(TypeReferenceNode::Reference {
                     referee: scalar,
-                    access: declaration_contracts::ReferenceAccess::Shared,
+                    access: language_core::ReferenceAccess::Shared,
                     lifetime: Some(Identifier::generated("later")),
                 });
             let region = |declaration| LifetimeParameterIdentity {
@@ -1997,7 +1997,7 @@ pub(crate) mod identity_context {
                     .type_reference_table
                     .insert(TypeReferenceNode::Reference {
                         referee,
-                        access: declaration_contracts::ReferenceAccess::Shared,
+                        access: language_core::ReferenceAccess::Shared,
                         lifetime: None,
                     })
             };
@@ -5328,7 +5328,7 @@ pub(crate) mod package_policy_reading_tests {
             TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
         };
         use application_identity::const_value::CanonicalConstValue;
-        use declaration_contracts::CarryPermission;
+        use language_core::CarryPermission;
         use declaration_contracts::value_domain::ValueDomain;
         use language_core::atomic::{
             AtomicExpressionResultCustody, AtomicOrderingPlan, MemoryOrdering,
@@ -8080,7 +8080,7 @@ pub(crate) mod storage_identity {
         let Some(data) = program.unique_data_definition_by_symbol(owner) else {
             return false;
         };
-        if data.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
+        if data.supply_mode != language_core::DataSupplyMode::CheckedShape
             || data.quotient.is_some()
         {
             return false;

@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+language-core = { path = "../../foundation/language-core" }
 host-provider-inputs = { path = "../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }

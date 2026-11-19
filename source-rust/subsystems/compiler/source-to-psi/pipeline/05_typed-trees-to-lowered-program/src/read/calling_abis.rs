@@ -628,7 +628,7 @@ mod descriptor_storage_tests {
     use crate::source_state::types::{DomainConstraint, TypeConstraintNode};
     use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
     use arena::IdTable;
-    use declaration_contracts::Multiplicity;
+    use language_core::Multiplicity;
     use semantic_vocabulary::{IntegerType, ScalarType};
     use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef};
 

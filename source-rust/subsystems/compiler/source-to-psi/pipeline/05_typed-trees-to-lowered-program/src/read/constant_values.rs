@@ -190,7 +190,7 @@ impl Program<'_> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
         let carrier = self.value_type(id, constant.declared_type)?;
         if self.typed.stored_value_multiplicity(constant.declared_type)
-            != declaration_contracts::Multiplicity::Unrestricted
+            != language_core::Multiplicity::Unrestricted
         {
             return Err(crate::lowering::reject(
                 id,

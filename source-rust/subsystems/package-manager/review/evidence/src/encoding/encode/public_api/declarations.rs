@@ -132,8 +132,8 @@ pub(in crate::encoding::encode) fn domain_shape(
     })?;
     encoder.field("predicate_presence", |encoder| {
         match shape.predicate_presence {
-            declaration_contracts::DomainPredicatePresence::Absent => encoder.tag("bodyless", 0),
-            declaration_contracts::DomainPredicatePresence::Present => encoder.tag("present", 1),
+            language_core::DomainPredicatePresence::Absent => encoder.tag("bodyless", 0),
+            language_core::DomainPredicatePresence::Present => encoder.tag("present", 1),
         };
         Ok(())
     })?;
@@ -210,8 +210,8 @@ pub(in crate::encoding::encode) fn data_shape(
     })?;
     encoder.field("supply", |encoder| {
         match shape.supply {
-            declaration_contracts::DataSupplyMode::CheckedShape => encoder.tag("checked_shape", 0),
-            declaration_contracts::DataSupplyMode::BoundaryOpaque => {
+            language_core::DataSupplyMode::CheckedShape => encoder.tag("checked_shape", 0),
+            language_core::DataSupplyMode::BoundaryOpaque => {
                 encoder.tag("boundary_opaque", 1)
             }
         };

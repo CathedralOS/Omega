@@ -76,11 +76,11 @@ impl std::ops::Deref for SelectionBase<'_> {
 pub(crate) fn is_core_layout_storage_source(
     symbols: &SymbolTable,
     name: &str,
-    supply_mode: declaration_contracts::DataSupplyMode,
+    supply_mode: language_core::DataSupplyMode,
     reference: source_text::SourceSpan,
 ) -> bool {
     name == language_core::layout_storage::CONSTRUCTOR_NAME
-        && supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque
+        && supply_mode == language_core::DataSupplyMode::BoundaryOpaque
         && symbols.source_file(reference).is_some_and(|file| {
             file.origin == source_admission::SourceOrigin::Toolchain
                 && file.package_identity.is_none()

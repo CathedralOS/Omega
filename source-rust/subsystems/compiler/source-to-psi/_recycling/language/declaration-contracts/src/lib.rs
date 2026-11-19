@@ -602,23 +602,6 @@ pub mod provider_declarations {
     }
 }
 pub mod quotient_correspondence {
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
-    pub struct QuotientRelationIdentity {
-        pub quotient_declaration: String,
-        pub quotient_type: String,
-        pub carrier_type: String,
-        pub relation: String,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
-    pub enum QuotientPositionalRelation {
-        Quotient(QuotientRelationIdentity),
-        ExactEquality {
-            public_type: String,
-            representative_type: String,
-        },
-    }
-
     #[derive(
         Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
     )]

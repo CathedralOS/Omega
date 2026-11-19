@@ -99,7 +99,7 @@ mod contracts {
         interface: &Machine,
         members: &[Machine],
     ) -> Result<HandleSpan<crate::source_resolved::data::TypeParameter>, Diagnostic> {
-        use declaration_contracts::Multiplicity;
+        use language_core::Multiplicity;
 
         let mut parameters = program.machine_type_parameters(interface).to_vec();
         for member in members {

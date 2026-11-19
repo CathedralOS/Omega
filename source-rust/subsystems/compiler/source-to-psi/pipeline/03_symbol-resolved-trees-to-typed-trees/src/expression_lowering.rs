@@ -2363,7 +2363,7 @@ pub(crate) mod expression {
                     let Some(holder) = program.data_definitions.iter().find(|definition| {
                         definition.symbol == literal.type_symbol
                             && definition.supply_mode
-                                == declaration_contracts::DataSupplyMode::CheckedShape
+                                == language_core::DataSupplyMode::CheckedShape
                     }) else {
                         return Vec::new();
                     };
@@ -2396,7 +2396,7 @@ pub(crate) mod expression {
                             let evidence =
                                 resolved_data_definition_for_type(program, &field.type_reference)?;
                             if evidence.supply_mode
-                                != declaration_contracts::DataSupplyMode::CheckedShape
+                                != language_core::DataSupplyMode::CheckedShape
                                 || !evidence.symbol.is_valid()
                                 || !evidence.type_parameters.is_empty()
                                 || evidence.name.as_str().contains('<')
@@ -2540,7 +2540,7 @@ pub(crate) mod expression {
                     if constructor.is_some_and(|constructor| {
                         constructor.name.as_str() == "LayoutStorage"
                             && constructor.supply_mode
-                                == declaration_contracts::DataSupplyMode::BoundaryOpaque
+                                == language_core::DataSupplyMode::BoundaryOpaque
                             && program.symbols.symbol_source_origin(constructor.symbol)
                                 == Some(source_admission::SourceOrigin::Toolchain)
                             && constructor.conformance_bounds.len() == 1

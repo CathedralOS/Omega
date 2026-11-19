@@ -7,7 +7,6 @@ version.workspace = true
 
 [dependencies]
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
-declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
 record-storage = { path = "../../../../foundation/record-storage" }
 optimization-selections = { path = "../../foundation/optimization-selections" }
 source-compiler = { path = "../../source-to-psi" }

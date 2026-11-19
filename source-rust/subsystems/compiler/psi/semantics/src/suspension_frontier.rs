@@ -34,7 +34,7 @@ until it is published.
 
 use std::collections::BTreeSet;
 
-use declaration_contracts::CarryPolicy;
+use language_core::CarryPolicy;
 use semantic_vocabulary::{
     BlockId, OperationId, PlaceId, StructuralTypeId, SuspensionCrossingId, TargetMachineCallable,
     ValueId,

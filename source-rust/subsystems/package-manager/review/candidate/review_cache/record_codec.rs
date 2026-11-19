@@ -11,8 +11,8 @@ use super::{CachedCompiledReview, CachedOccurrenceFacts, DEFAULT_MAX_RECORD_BYTE
 use crate::codec_bytes::{push_count_u64, push_encoded};
 use crate::digest_encoder::content_identity;
 use build_record_codec::{recover_observation_summary, recover_restricted_build_request};
-use declaration_contracts::CarryPolicy;
-use declaration_contracts::DomainPredicatePresence;
+use language_core::CarryPolicy;
+use language_core::DomainPredicatePresence;
 use service_surface::{
     ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
 };
@@ -192,42 +192,42 @@ fn recover_binding(cursor: &mut ObservationCursor<'_>) -> Option<AcceptedSemanti
 
 fn encode_carry(carry: &CarryPolicy, out: &mut Vec<u8>) {
     out.push(match carry.suspension {
-        declaration_contracts::CarrySuspension::Forbidden => 0,
-        declaration_contracts::CarrySuspension::Allowed => 1,
+        language_core::CarrySuspension::Forbidden => 0,
+        language_core::CarrySuspension::Allowed => 1,
     });
     out.push(match carry.cpu {
-        declaration_contracts::CarryCpu::Origin => 0,
-        declaration_contracts::CarryCpu::Any => 1,
+        language_core::CarryCpu::Origin => 0,
+        language_core::CarryCpu::Any => 1,
     });
     out.push(match carry.host_thread {
-        declaration_contracts::CarryHostThread::Origin => 0,
-        declaration_contracts::CarryHostThread::Any => 1,
+        language_core::CarryHostThread::Origin => 0,
+        language_core::CarryHostThread::Any => 1,
     });
     out.push(match carry.address {
-        declaration_contracts::CarryAddress::Stable => 0,
-        declaration_contracts::CarryAddress::Movable => 1,
+        language_core::CarryAddress::Stable => 0,
+        language_core::CarryAddress::Movable => 1,
     });
 }
 
 fn recover_carry(cursor: &mut ObservationCursor<'_>) -> Option<CarryPolicy> {
     let suspension = match cursor.u8()? {
-        0 => declaration_contracts::CarrySuspension::Forbidden,
-        1 => declaration_contracts::CarrySuspension::Allowed,
+        0 => language_core::CarrySuspension::Forbidden,
+        1 => language_core::CarrySuspension::Allowed,
         _ => return None,
     };
     let cpu = match cursor.u8()? {
-        0 => declaration_contracts::CarryCpu::Origin,
-        1 => declaration_contracts::CarryCpu::Any,
+        0 => language_core::CarryCpu::Origin,
+        1 => language_core::CarryCpu::Any,
         _ => return None,
     };
     let host_thread = match cursor.u8()? {
-        0 => declaration_contracts::CarryHostThread::Origin,
-        1 => declaration_contracts::CarryHostThread::Any,
+        0 => language_core::CarryHostThread::Origin,
+        1 => language_core::CarryHostThread::Any,
         _ => return None,
     };
     let address = match cursor.u8()? {
-        0 => declaration_contracts::CarryAddress::Stable,
-        1 => declaration_contracts::CarryAddress::Movable,
+        0 => language_core::CarryAddress::Stable,
+        1 => language_core::CarryAddress::Movable,
         _ => return None,
     };
     Some(CarryPolicy {

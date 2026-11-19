@@ -28,7 +28,7 @@ pub(crate) mod domain_aliases {
         ) -> Result<Vec<ExpandedDomainReference>, Diagnostic> {
             let name = path.joined_path();
             if name == "Carry::Portable" {
-                return Ok(declaration_contracts::CarryPermission::ALL
+                return Ok(language_core::CarryPermission::ALL
                     .into_iter()
                     .map(|permission| {
                         let [namespace, member] = permission
@@ -302,7 +302,7 @@ pub(crate) mod domain_constraints {
                 let subject = if atom.symbol.is_valid() {
                     DomainConstraintSubject::Declared
                 } else {
-                    declaration_contracts::CarryPermission::from_name(name.as_str())
+                    language_core::CarryPermission::from_name(name.as_str())
                         .map(DomainConstraintSubject::Carry)
                         .unwrap_or_default()
                 };
@@ -2152,7 +2152,7 @@ pub(crate) mod constraints {
         use typed::types::{DomainConstraintSubject, OmegaLayoutGrammar};
 
         if argument_count == 0 {
-            if let Some(permission) = declaration_contracts::CarryPermission::from_name(name) {
+            if let Some(permission) = language_core::CarryPermission::from_name(name) {
                 return DomainConstraintSubject::Carry(permission);
             }
             if let Some(domain) = declaration_contracts::value_domain::ValueDomain::from_name(name)

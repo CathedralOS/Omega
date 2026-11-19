@@ -383,7 +383,7 @@ fn require_supported_inventory(
         Ok::<_, Vec<Diagnostic>>(false)
     };
     for declaration in typed.data_definitions() {
-        if declaration.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
+        if declaration.supply_mode != language_core::DataSupplyMode::CheckedShape
             && owned(declaration.symbol)?
         {
             return Err(unavailable(

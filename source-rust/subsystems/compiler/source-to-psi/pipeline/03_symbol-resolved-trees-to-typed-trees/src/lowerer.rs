@@ -358,7 +358,7 @@ pub(crate) mod progress {
                     continue;
                 };
                 if domain.classification
-                    != Some(declaration_contracts::DomainClassification::ProgressProfile)
+                    != Some(language_core::DomainClassification::ProgressProfile)
                 {
                     continue;
                 }

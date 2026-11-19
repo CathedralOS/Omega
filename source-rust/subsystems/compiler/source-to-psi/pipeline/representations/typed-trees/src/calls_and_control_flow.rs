@@ -2543,7 +2543,7 @@ pub mod control_flow {
             pub machine_arguments: Box<[crate::source_state::expression::StaticMachineArgument]>,
             pub arguments: HandleSpan<ExpressionHandle>,
             pub evidence_arguments: Box<[Identifier]>,
-            pub operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+            pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
             pub discards_result: bool,
             pub source_span: SourceSpan,
             pub authored_call_selection:
@@ -2669,7 +2669,7 @@ pub mod control_flow {
         #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
         pub enum TransitionTargetNode {
             Named {
-                operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+                operational_acknowledgement: language_core::CallOperationalAcknowledgement,
                 path: TableNamePath,
                 static_machine_parameter: SymbolHandle,
                 arguments: HandleSpan<ExpressionHandle>,

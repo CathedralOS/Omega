@@ -15,7 +15,6 @@ target-vocabulary = { path = "../../target-operations/target-vocabulary" }
 legalized-operations = { path = "../../target-operations/legalized-operations" }
 optimization-unit = { path = "../optimization-unit" }
 runtime-abi = { path = "../../../../targets/runtime-abi" }
-declaration-contracts = { path = "../../../../../source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../../../psi/application-identity" }
 numeric-literals = { path = "../../../../../foundation/numeric-literals" }
 source-text = { path = "../../../../../../../foundation/source-text" }

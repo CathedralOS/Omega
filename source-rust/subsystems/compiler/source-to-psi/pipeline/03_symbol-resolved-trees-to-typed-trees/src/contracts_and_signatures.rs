@@ -147,7 +147,7 @@ pub(crate) mod contracts {
                                         domain.semantic_id,
                                     ));
                                 }
-                            } else if declaration_contracts::CarryPermission::from_name(
+                            } else if language_core::CarryPermission::from_name(
                                 domain.name.as_str(),
                             )
                             .is_some()

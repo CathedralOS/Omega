@@ -5701,7 +5701,7 @@ pub(crate) mod requirement_instances {
                     .type_reference_table
                     .insert(types::TypeReferenceNode::Reference {
                         referee: scalar,
-                        access: declaration_contracts::ReferenceAccess::Shared,
+                        access: language_core::ReferenceAccess::Shared,
                         lifetime: Some(Identifier::generated("slot")),
                     });
             let mut application = |owner| {
@@ -6670,7 +6670,7 @@ pub(crate) mod selected_operands {
                     .type_reference_table
                     .insert(types::TypeReferenceNode::Reference {
                         referee: unit,
-                        access: declaration_contracts::ReferenceAccess::Shared,
+                        access: language_core::ReferenceAccess::Shared,
                         lifetime: Some(crate::source_state::name::Identifier::generated(
                             "incoming",
                         )),
@@ -6680,7 +6680,7 @@ pub(crate) mod selected_operands {
                     .type_reference_table
                     .insert(types::TypeReferenceNode::Reference {
                         referee: unit,
-                        access: declaration_contracts::ReferenceAccess::Shared,
+                        access: language_core::ReferenceAccess::Shared,
                         lifetime: Some(crate::source_state::name::Identifier::generated(
                             "unrelated",
                         )),

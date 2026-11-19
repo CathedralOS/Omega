@@ -1369,7 +1369,7 @@ impl Program<'_> {
                 return unserved("constrained by a domain declared on another carrier");
             }
             if definition.predicate_presence
-                != declaration_contracts::DomainPredicatePresence::Absent
+                != language_core::DomainPredicatePresence::Absent
                 || !definition.facts.is_empty()
             {
                 return unserved("a predicate domain on laid layout storage");
@@ -1455,7 +1455,7 @@ impl Program<'_> {
                 );
             let copy_bound = crate::source_state::data::DataProperties {
                 carry: None,
-                multiplicity: declaration_contracts::Multiplicity::Unrestricted,
+                multiplicity: language_core::Multiplicity::Unrestricted,
             };
             if !names_carrier || parameter.bounds != copy_bound {
                 return unserved("domain application needs its declared type bounds");

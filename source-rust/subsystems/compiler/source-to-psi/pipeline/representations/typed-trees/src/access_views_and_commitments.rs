@@ -887,7 +887,7 @@ pub(crate) mod access_views {
     pub struct AccessAtomicResidentContract {
         pub field_symbol: symbols::SymbolHandle,
         pub resident_type: TypeReferenceHandle,
-        pub multiplicity: declaration_contracts::Multiplicity,
+        pub multiplicity: language_core::Multiplicity,
         pub transfer_width_bits: u16,
         pub compare_exchange: bool,
         pub compare_exchange_once: bool,

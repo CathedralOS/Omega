@@ -805,7 +805,7 @@ mod tests {
                 cleanup_selection: None,
                 alias: None,
                 classification: None,
-                predicate_presence: declaration_contracts::DomainPredicatePresence::Absent,
+                predicate_presence: language_core::DomainPredicatePresence::Absent,
                 facts: arena::HandleSpan::empty(),
                 operators: arena::HandleSpan::empty(),
                 semantic_clause_token_count: 0,

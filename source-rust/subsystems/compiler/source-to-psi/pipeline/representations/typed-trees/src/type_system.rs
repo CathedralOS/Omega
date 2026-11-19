@@ -3294,7 +3294,7 @@ pub mod types {
     pub enum DomainConstraintSubject {
         #[default]
         Declared,
-        Carry(declaration_contracts::CarryPermission),
+        Carry(language_core::CarryPermission),
         Value(declaration_contracts::value_domain::ValueDomain),
         OmegaLayout {
             grammar: OmegaLayoutGrammar,
@@ -3321,8 +3321,8 @@ pub mod types {
         pub subject: DomainConstraintSubject,
         pub symbol: SymbolHandle,
         pub semantic_id: semantic_vocabulary::SemanticDomainId,
-        pub classification: Option<declaration_contracts::DomainClassification>,
-        pub predicate_presence: declaration_contracts::DomainPredicatePresence,
+        pub classification: Option<language_core::DomainClassification>,
+        pub predicate_presence: language_core::DomainPredicatePresence,
         pub semantic_roles: declaration_contracts::DomainSemanticRoles,
         pub establishment_routes: Vec<declaration_contracts::DomainEstablishmentRoute>,
         pub source_selection: Option<DomainConstraintSource>,
@@ -3675,7 +3675,7 @@ pub mod types {
                     });
                 assert_eq!(
                     program.type_multiplicity(reference),
-                    declaration_contracts::Multiplicity::Affine
+                    language_core::Multiplicity::Affine
                 );
             }
         }

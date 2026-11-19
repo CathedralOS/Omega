@@ -9,7 +9,7 @@ use crate::wire_fields::{
     BoundaryPackage, Custody, Digest, Field, Flag, Id, Index, List, Optional, Text, wire_enum,
     wire_record,
 };
-use declaration_contracts::DomainPredicatePresence;
+use language_core::DomainPredicatePresence;
 use semantic_vocabulary::source_selections::CompositionMode;
 use service_surface::ServiceEntryAuthorityFlow;
 use service_surface::ServiceEntryClaim;
@@ -221,7 +221,7 @@ wire_record! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use declaration_contracts::CarryPolicy;
+    use language_core::CarryPolicy;
     use terminal_psi::{TerminalIdentityTableBuilder, TerminalModule};
 
     #[test]

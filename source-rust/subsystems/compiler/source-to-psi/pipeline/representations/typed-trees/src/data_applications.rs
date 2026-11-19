@@ -652,7 +652,7 @@ mod tests {
             name: "Choice".into(),
             members,
             properties: crate::source_state::data::DataProperties {
-                multiplicity: declaration_contracts::Multiplicity::Unrestricted,
+                multiplicity: language_core::Multiplicity::Unrestricted,
                 ..Default::default()
             },
             ..Default::default()
@@ -670,7 +670,7 @@ mod tests {
             .type_reference_table
             .insert(TypeReferenceNode::Reference {
                 referee: integer,
-                access: declaration_contracts::ReferenceAccess::Shared,
+                access: language_core::ReferenceAccess::Shared,
                 lifetime: None,
             });
         // Even an Empty value cannot make the other case's reference or

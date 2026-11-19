@@ -954,8 +954,23 @@ pub use scalar_conditions::{
     ScalarPredicateNode, ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement,
 };
 pub mod quotients {
-    use declaration_contracts::quotient_correspondence::QuotientPositionalRelation;
-    use declaration_contracts::quotient_correspondence::QuotientRelationIdentity;
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
+    pub struct QuotientRelationIdentity {
+        pub quotient_declaration: String,
+        pub quotient_type: String,
+        pub carrier_type: String,
+        pub relation: String,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
+    pub enum QuotientPositionalRelation {
+        Quotient(QuotientRelationIdentity),
+        ExactEquality {
+            public_type: String,
+            representative_type: String,
+        },
+    }
+
     use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1007,7 +1022,7 @@ pub mod task_activation {
     use crate::{
         LayoutApplicationId, StructuralTypeDeclaration, terminal_module::TerminalIdentityIndex,
     };
-    use declaration_contracts::CarryPolicy;
+    use language_core::CarryPolicy;
     use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

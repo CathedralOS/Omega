@@ -600,7 +600,7 @@ pub mod control_flow {
             pub machine_arguments: Box<[crate::source_resolved::expression::StaticMachineArgument]>,
             pub arguments: HandleSpan<crate::source_resolved::expression::ExpressionHandle>,
             pub evidence_arguments: Box<[DiagnosticName]>,
-            pub operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+            pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
             pub discards_result: bool,
             pub authored_call_selection:
                 Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
@@ -654,7 +654,7 @@ pub mod control_flow {
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
         pub struct NamedTransitionTargetStorage {
             pub unresolved_name: crate::source_symbols::UnresolvedName,
-            pub operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+            pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
             pub path: HandleSpan<DiagnosticName>,
             pub arguments: HandleSpan<crate::source_resolved::expression::ExpressionHandle>,
             pub evidence_arguments: Box<[DiagnosticName]>,
@@ -1333,7 +1333,7 @@ pub mod control_flow {
             pub machine_arguments: Box<[crate::source_resolved::expression::StaticMachineArgument]>,
             pub arguments: HandleSpan<crate::source_resolved::expression::ExpressionHandle>,
             pub evidence_arguments: Box<[DiagnosticName]>,
-            pub operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+            pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
             pub discards_result: bool,
             pub authored_call_selection:
                 Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
@@ -1407,7 +1407,7 @@ pub mod control_flow {
         #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
         pub enum TransitionTargetNode {
             Named {
-                operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+                operational_acknowledgement: language_core::CallOperationalAcknowledgement,
                 path: TableNamePath,
                 arguments: HandleSpan<crate::source_resolved::expression::ExpressionHandle>,
                 evidence_arguments: Box<[DiagnosticName]>,

@@ -1906,18 +1906,18 @@ mod tests {
             (
                 "shared",
                 u32_atom,
-                Some(declaration_contracts::ReferenceAccess::Shared),
+                Some(language_core::ReferenceAccess::Shared),
             ),
             (
                 "exclusive",
                 u32_atom,
-                Some(declaration_contracts::ReferenceAccess::Mutable),
+                Some(language_core::ReferenceAccess::Mutable),
             ),
             ("array_value", BuiltinTypeAtom::U64, None),
             (
                 "slice_view",
                 u32_atom,
-                Some(declaration_contracts::ReferenceAccess::Shared),
+                Some(language_core::ReferenceAccess::Shared),
             ),
         ] {
             let (target, occurrence) = owned_call(&program, owner);

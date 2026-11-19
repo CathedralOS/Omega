@@ -14,7 +14,6 @@ service-surface = { path = "../service-surface" }
 psi-effect-contracts = { path = "../effect-contracts" }
 proof-applications = { path = "../proof-applications" }
 access-vocabulary = { path = "../access" }
-declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 schema-reflection = { path = "../schema" }
 application-identity = { path = "../application-identity" }
 numeric-literals = { path = "../../foundation/numeric-literals" }

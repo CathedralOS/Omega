@@ -9,9 +9,9 @@ use crate::record::PackageReviewDataProperties;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
-use declaration_contracts::CarryAddress;
-use declaration_contracts::CarryHostThread;
-use declaration_contracts::CarrySuspension;
+use language_core::CarryAddress;
+use language_core::CarryHostThread;
+use language_core::CarrySuspension;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewPropositionBinderKind {
@@ -45,14 +45,14 @@ fn package_review_data_properties_key(
     properties: PackageReviewDataProperties,
 ) -> (u8, Option<(u8, u8, u8, u8)>) {
     let multiplicity = match properties.multiplicity {
-        declaration_contracts::Multiplicity::Unrestricted => 0,
-        declaration_contracts::Multiplicity::Affine => 1,
-        declaration_contracts::Multiplicity::Linear => 2,
+        language_core::Multiplicity::Unrestricted => 0,
+        language_core::Multiplicity::Affine => 1,
+        language_core::Multiplicity::Linear => 2,
     };
     let carry = properties.carry.map(|carry| {
         (
             u8::from(matches!(carry.suspension, CarrySuspension::Allowed)),
-            u8::from(matches!(carry.cpu, declaration_contracts::CarryCpu::Any)),
+            u8::from(matches!(carry.cpu, language_core::CarryCpu::Any)),
             u8::from(matches!(carry.host_thread, CarryHostThread::Any)),
             u8::from(matches!(carry.address, CarryAddress::Movable)),
         )

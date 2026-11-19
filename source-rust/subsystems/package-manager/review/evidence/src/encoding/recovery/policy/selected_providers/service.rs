@@ -4,12 +4,12 @@
 use super::{Error, Reader, nominal};
 use crate::encoding::recovery::policy::calling_application;
 use crate::record::PackagePolicyServiceMethod;
-use declaration_contracts::CarryAddress;
-use declaration_contracts::CarryCpu;
-use declaration_contracts::CarryHostThread;
-use declaration_contracts::CarryPolicy;
-use declaration_contracts::CarrySuspension;
-use declaration_contracts::DomainPredicatePresence;
+use language_core::CarryAddress;
+use language_core::CarryCpu;
+use language_core::CarryHostThread;
+use language_core::CarryPolicy;
+use language_core::CarrySuspension;
+use language_core::DomainPredicatePresence;
 use service_surface::{
     ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
 };

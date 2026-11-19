@@ -41,7 +41,7 @@ fn source_receiver(typed: &TypedTrees, machine: &Machine) -> Result<symbols::Sym
     }
     let TypeReferenceNode::Reference {
         referee,
-        access: declaration_contracts::ReferenceAccess::Mutable,
+        access: language_core::ReferenceAccess::Mutable,
         ..
     } = typed
         .type_reference_table

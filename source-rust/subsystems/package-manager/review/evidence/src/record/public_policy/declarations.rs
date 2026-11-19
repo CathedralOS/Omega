@@ -59,7 +59,7 @@ pub struct PackagePolicyDomainShape {
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) target_type: PackageReviewTypeIdentity,
     pub(crate) index_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) predicate_presence: declaration_contracts::DomainPredicatePresence,
+    pub(crate) predicate_presence: language_core::DomainPredicatePresence,
     pub(crate) predicate_facts: Vec<PackageReviewContractFact>,
     pub(crate) alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
     pub(crate) classification: Option<PackageReviewDomainClassification>,
@@ -84,7 +84,7 @@ pub struct PackagePolicyOperatorShape {
 pub struct PackagePolicyDataShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) kind: PackageReviewDataKind,
-    pub(crate) supply: declaration_contracts::DataSupplyMode,
+    pub(crate) supply: language_core::DataSupplyMode,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) properties: PackageReviewDataProperties,

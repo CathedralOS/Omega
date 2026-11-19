@@ -39,8 +39,8 @@ pub enum PackageReviewDataKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewDataProperties {
-    pub(crate) multiplicity: declaration_contracts::Multiplicity,
-    pub(crate) carry: Option<declaration_contracts::CarryPolicy>,
+    pub(crate) multiplicity: language_core::Multiplicity,
+    pub(crate) carry: Option<language_core::CarryPolicy>,
 }
 
 impl PackageReviewDataProperties {}

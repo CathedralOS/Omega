@@ -503,7 +503,7 @@ impl Program<'_> {
             });
         }
         let copyable =
-            data.properties.multiplicity == declaration_contracts::Multiplicity::Unrestricted;
+            data.properties.multiplicity == language_core::Multiplicity::Unrestricted;
         if copyable
             && !declared
                 .iter()
@@ -512,7 +512,7 @@ impl Program<'_> {
         {
             return Err(unserved("copy data with an owned field"));
         }
-        let shape = if data.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque {
+        let shape = if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
             crate::lowering::StorageShape::Opaque
         } else if case_types.is_empty() {
             crate::lowering::StorageShape::Record(declared)
@@ -1748,12 +1748,12 @@ fn record_shape_for<'m>(
     payload: impl Fn(&'m crate::source_state::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
     let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
-    if data.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque
+    if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque
         && !members.is_empty()
     {
         return unserved("opaque data with declared members");
     }
-    if data.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque {
+    if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
         if !data.lifetime_parameters.is_empty() {
             return unserved("opaque data without its retained lifetime obligations");
         }
@@ -2078,7 +2078,7 @@ mod tests {
         let data = DataDefinition {
             properties: DataProperties {
                 carry: None,
-                multiplicity: declaration_contracts::Multiplicity::Unrestricted,
+                multiplicity: language_core::Multiplicity::Unrestricted,
             },
             ..DataDefinition::default()
         };
@@ -2104,7 +2104,7 @@ mod tests {
             Ok(())
         );
         let mut affine = data.clone();
-        affine.properties.multiplicity = declaration_contracts::Multiplicity::Affine;
+        affine.properties.multiplicity = language_core::Multiplicity::Affine;
         assert_eq!(
             record_shape(machine(), &affine, None, &members, |_| &[]),
             Ok(())
@@ -2148,7 +2148,7 @@ mod tests {
                 }));
             }),
             ("type opaque data with declared members", |data, _| {
-                data.supply_mode = declaration_contracts::DataSupplyMode::BoundaryOpaque;
+                data.supply_mode = language_core::DataSupplyMode::BoundaryOpaque;
             }),
         ];
         for (expected, change) in cases {
@@ -2160,7 +2160,7 @@ mod tests {
         let (data, _) = plain();
         assert_eq!(record_shape(machine(), &data, None, &[], |_| &[]), Ok(()));
         let mut opaque = data.clone();
-        opaque.supply_mode = declaration_contracts::DataSupplyMode::BoundaryOpaque;
+        opaque.supply_mode = language_core::DataSupplyMode::BoundaryOpaque;
         assert_eq!(record_shape(machine(), &opaque, None, &[], |_| &[]), Ok(()));
         // A sum alone, with or without payload, is served.
         let sum = vec![

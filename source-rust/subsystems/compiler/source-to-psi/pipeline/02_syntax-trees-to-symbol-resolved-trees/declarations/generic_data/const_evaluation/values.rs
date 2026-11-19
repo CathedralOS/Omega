@@ -1123,7 +1123,7 @@ fn validate_selected_const_type(
                return Err("generic data const carriers require closed template normalization".to_owned());
            }
            visiting.push(declaration);
-           if definition.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque {
+           if definition.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
                return Err(format!(
                    "boundary-opaque data `{name}` is not eligible as a const index"
                , name = name.as_str(syntax)));
@@ -1201,7 +1201,7 @@ fn validate_selected_const_type(
                        .to_owned(),
                );
            }
-           if definition.supply_mode == declaration_contracts::DataSupplyMode::BoundaryOpaque {
+           if definition.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
                return Err(format!(
                    "boundary-opaque data `{base_name}` is not eligible as a const index"
                , base_name = base_name.as_str(syntax)));

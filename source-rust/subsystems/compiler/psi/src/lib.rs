@@ -65,8 +65,8 @@ pub use artifacts::{
     IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker, TerminalDebugMap, TerminalMachineProvenance,
 };
-pub use declaration_contracts::byte_predicates::ByteSequencePredicate;
-pub use declaration_contracts::byte_predicates::ByteSequencePredicateSet;
+pub use semantic_vocabulary::byte_predicates::ByteSequencePredicate;
+pub use semantic_vocabulary::byte_predicates::ByteSequencePredicateSet;
 pub use language_core::inline_assembly::{
     AsmControlRegister as ControlRegister, AsmFenceKind as MemoryFenceKind,
     AsmGlobalDescriptorTableOperation as GlobalDescriptorTableOperation,

@@ -12,7 +12,6 @@ path = "src/lib.rs"
 service-surface = { path = "../service-surface" }
 source-provenance = { path = "../../foundation/source-provenance" }
 access-vocabulary = { path = "../access" }
-declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 schema-reflection = { path = "../schema" }
 application-identity = { path = "../application-identity" }
 layout-planning = { path = "../layout/integer-defaults" }
