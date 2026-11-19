@@ -12,8 +12,8 @@ use omega_parser::{NodeKind, SyntaxTree};
 
 pub use directory_lookup::resolve_machine_calls;
 pub use stage::{
-    Application, ArgumentAlternative, AssemblyVocabulary, DeclarationId, DefinitionSite, Dependency, EnclosingMachine, NameError, NameUse, OperatorDeclaration,
-    OperatorUse, ResolvedStage, StageSource, Symbol, resolve_stage, resolve_stage_for_target,
+    Application, ArgumentAlternative, AssemblyVocabulary, DeclarationId, DefinitionSite, Dependency, EnclosingMachine, InterfaceExport, NameError, NameUse,
+    OperatorDeclaration, OperatorUse, ResolvedStage, StageSource, Symbol, resolve_stage, resolve_stage_for_target, resolve_stage_with_exports,
 };
 pub use syntax::File as IndexedSource;
 

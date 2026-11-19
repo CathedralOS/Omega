@@ -236,3 +236,72 @@ fn an_inbound_slot_counts_as_entry_and_an_outbound_provider_propagates_entries()
             .any(|e| matches!(e,InvocationTarget::Declaration(slot) if slot.declaration.path=="Poll::poll"))
     );
 }
+
+#[test]
+fn core_interfaces_supply_checked_types_without_adding_source_bodies() {
+    use omega_typer::{
+        ContractPredicate::Equal,
+        ContractTerm::{Field, Natural, Result},
+        ObligationKind,
+    };
+    let names = resolve_source_package(&[]).unwrap();
+    assert!(names.uses.is_empty());
+    let stage = type_source_package(&[], &names).unwrap();
+    assert!(stage.expressions.is_empty());
+    let machine = stage
+        .signatures
+        .iter()
+        .find(|s| s.machine.path == "language::core::access::new_plan")
+        .unwrap();
+    let contract = stage
+        .interface_contracts
+        .iter()
+        .find(|row| row.declaration == machine.machine)
+        .unwrap();
+    assert_eq!(
+        contract.ensures,
+        &[
+            Equal(Field(&Result, "field_count"), Natural(0)),
+            Equal(Field(&Result, "reader_count"), Natural(0)),
+            Equal(Field(&Result, "writer_count"), Natural(0)),
+            Equal(Field(&Field(&Result, "reach"), "service_count"), Natural(0))
+        ]
+    );
+    assert!(
+        stage
+            .obligations
+            .iter()
+            .any(|o| matches!(&o.kind,ObligationKind::VerifyLibraryImplementation(id) if *id==machine.machine))
+    );
+}
+
+#[test]
+fn bracket_contracts_publish_exact_bounds_and_range_length() {
+    use omega_typer::ContractPredicate::{Equal, Less, LessEqual};
+    use omega_typer::ContractTerm::{Argument, Length, Result, Subtract};
+    let stage = check("machine read(view:@[u8])->u8{view[0]}").unwrap();
+    let selected = &stage.collection_accesses[0].machine;
+    let row = stage
+        .interface_contracts
+        .iter()
+        .find(|row| row.declaration == *selected)
+        .unwrap();
+    assert_eq!(row.requires, &[Less(Argument(1), Length(&Argument(0)))]);
+    assert_eq!(row.copy_parameters, &[0]);
+    for name in ["indexing::range", "indexing::range_mut"] {
+        let row = stage
+            .interface_contracts
+            .iter()
+            .find(|row| row.declaration.path == name)
+            .unwrap();
+        assert_eq!(
+            row.requires,
+            &[
+                LessEqual(Argument(1), Argument(2)),
+                LessEqual(Argument(2), Length(&Argument(0)))
+            ]
+        );
+        assert_eq!(row.ensures, &[Equal(Length(&Result), Subtract(&Argument(2), &Argument(1)))]);
+        assert!(row.copy_parameters.is_empty());
+    }
+}

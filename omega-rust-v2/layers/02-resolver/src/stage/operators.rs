@@ -44,8 +44,9 @@ impl Catalog<'_> {
                 .and_then(|p| ctx.entries.get(&p))
                 .map(|&i| &self.entries[i])
                 .ok_or_else(|| file.error(file.span(n), "operator requires a machine"))?;
+            let machine_node = node.parent.expect("operator machine");
             let owner = file
-                .enclosing_contexts(machine.node)
+                .enclosing_contexts(machine_node)
                 .find_map(|a| ctx.entries.get(&a))
                 .map(|&i| &self.entries[i].id);
             if owner.is_some_and(|id| id.kind == Conformance) {
@@ -54,7 +55,7 @@ impl Catalog<'_> {
             let mut homes = Vec::new();
             if let Some(trait_id) = owner.filter(|id| id.kind == Trait) {
                 homes.push(trait_id.clone());
-            } else if let Some(params) = file.child(machine.node, Params) {
+            } else if let Some(params) = file.child(machine_node, Params) {
                 let param_span = file.span(params);
                 for usage in uses
                     .iter()
@@ -68,7 +69,7 @@ impl Catalog<'_> {
                     }
                 }
             }
-            if let Some(path) = file.child(machine.node, Path)
+            if let Some(path) = file.child(machine_node, Path)
                 && let Some((qualifier, _)) = file.nodes[path].path().rsplit_once("::")
             {
                 let mut domains = self.lookup(file, file_number, ctx, n, qualifier);

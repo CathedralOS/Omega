@@ -91,7 +91,7 @@ pub struct NameUse {
 #[derive(Debug, Eq, PartialEq)]
 pub struct ResolvedStage {
     pub declarations: Vec<DeclarationId>,
-    /// Original source of each declaration, in the same order as the declaration list.
+    /// Source locations in declaration order. A compiled export uses its qualified name and an empty span.
     pub definition_sites: Vec<DefinitionSite>,
     pub uses: Vec<NameUse>,
     /// Each argument span refers to the original parsed tree, including unevaluated expressions.

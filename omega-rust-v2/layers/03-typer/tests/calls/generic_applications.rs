@@ -1,0 +1,237 @@
+#[test]
+fn runtime_indices_at_calls_bind_the_actual_subject() {
+    let code = "data B<K:u8>{} machine keep(n:u8,b:B<n>)->B<n>{b} machine use_it(x:u8,b:B<x>)->B<x>{keep(x,b)} machine fixed(b:B<8>)->B<8>{keep(8,b)}";
+    check(&[("subjects.omg", code)]).unwrap();
+    assert!(
+        check(&[("subjects.omg", &code.replace("keep(8,b)", "keep(9,b)"))])
+            .unwrap_err()
+            .message
+            .contains("no matching overload")
+    );
+}
+
+#[test]
+fn source_static_calls_keep_the_machine_identity_until_the_arguments_close() {
+    let defs = "const base:u8=3; machine twice(n:u8)->u8 reaches none crashes none terminates {let factor:u8=2; let doubled=n*factor; doubled} machine width(n:u8)->u8{twice(n)+base} ";
+    let prefix = "data B<const K:u8>{} ";
+    let program = format!(
+        "{prefix}{defs} machine buffer<const N:u8>()->B<width(N)>{{B::<width(N)>{{}}}} machine f(x:B<width(4)>)->B<11>{{x}} machine g()->B<11>{{buffer::<4>()}}"
+    );
+    let stage = check(&[("static.omg", &program)]).unwrap();
+    assert!(
+        stage
+            .calls
+            .iter()
+            .any(|c| c.machine.path == "buffer" && c.result.to_string() == "game::B<11>")
+    );
+    let overflow = program.replace("buffer::<4>()", "buffer::<128>()");
+    assert!(
+        check(&[("static.omg", &overflow)])
+            .unwrap_err()
+            .message
+            .contains("exceeds u8")
+    );
+    let wrong = program.replace("f(x:B<width(4)>)->B<11>", "f(x:B<width(4)>)->B<12>");
+    assert!(
+        check(&[("static.omg", &wrong)])
+            .unwrap_err()
+            .message
+            .contains("expected")
+    );
+}
+
+#[test]
+fn specializing_an_index_checks_an_intermediate_even_when_the_final_value_fits() {
+    let bad = "data B<const K:u8>{} machine value<const N:u8>()->B<(N+1)*0>{B::<(N+1)*0>{}} machine f(){_=value::<255>();}";
+    assert!(
+        check(&[("i.omg", bad)])
+            .unwrap_err()
+            .message
+            .contains("256 exceeds u8")
+    );
+    check(&[("i.omg", &bad.replace("255", "254"))]).unwrap();
+}
+
+#[test]
+fn wrapping_and_saturating_indices_keep_their_arithmetic_policy() {
+    let head = "data B<const K:i8>{} ";
+    for (expr, n, expected) in [
+        ("N +% 100", "100", "-56"),
+        ("N +| 100", "100", "127"),
+        ("N - 2", "4", "2"),
+        ("(N +| 100) +| -100", "100", "27"),
+        ("N +| (100i8 +| -100)", "100", "100"),
+    ] {
+        let source = format!("{head} machine value<const N:i8>()->B<{expr}>{{B::<{expr}>{{}}}} machine call()->B<{expected}>{{value::<{n}>()}}");
+        let product = check(&[("index.omg", &source)]).unwrap();
+        assert_eq!(product.calls.last().unwrap().result.to_string(), format!("game::B<{expected}>"));
+    }
+}
+
+#[test]
+fn typed_generics_and_transparent_aliases() {
+    let code = "data Box<T> { value: T; } data Byte = u8; data Bytes = Box<Byte>; machine get<T>(x: Box<T>) -> T { x.value } machine id<T>(x:T) -> T {x} machine f(x:Bytes) -> u8 { id::<Byte>(get(x)) }";
+    let stage = check(&[("a.omg", code)]).unwrap();
+    assert_eq!(
+        stage
+            .calls
+            .iter()
+            .map(|c| c.machine.path.as_str())
+            .collect::<Vec<_>>(),
+        ["get", "id"]
+    );
+    assert!(
+        stage
+            .calls
+            .iter()
+            .all(|c| c.type_arguments == [ValueType::Integer { signed: false, width: Some(8) }])
+    );
+    for (code, message) in [
+        ("machine id<T>(x:T)->T{x} machine f()->u8{id::<bool>(2u8)}", "conflicting type argument"),
+        ("machine id<T>(x:T)->T{x} machine f(){_ = id(1);}", "cannot infer"),
+        ("data Box<T>{} machine f(x:Box){}", "expects 1"),
+        ("data A = B; data B = A;", "cyclic type alias"),
+    ] {
+        assert!(check(&[("a.omg", code)]).unwrap_err().message.contains(message), "{code}");
+    }
+}
+
+#[test]
+fn normalized_static_arguments_and_binder_occurrences() {
+    let code = "data Buffer<const N:u8>{} data Eight=Buffer<4+4>; machine f(x:Eight)->Buffer<8>{x} machine forward<const N:u8>(x:Buffer<N>)->Buffer<N>{x} machine g(x:Buffer<8>)->Eight{forward::<8>(x)}";
+    let stage = check(&[("a.omg", code)]).unwrap();
+    assert_eq!(stage.calls[0].result.to_string(), "game::Buffer<8>");
+    for (s, msg) in [
+        ("data B<const N:u8>{} machine f(x:B<256>){}", "does not land"),
+        ("data B<const N:u8>{} machine f(x:B<8u16>){}", "does not land"),
+        (
+            "data Wrap<T> = T; machine f<T,U>(a:T,b:U){} machine f<A,B>(a:Wrap<B>,b:A){}",
+            "duplicate typed operand signature",
+        ),
+    ] {
+        let e = check(&[("a.omg", s)]).unwrap_err();
+        assert!(e.message.contains(msg), "{e:?}");
+    }
+}
+
+#[test]
+fn a_static_equation_recovers_the_extent_and_refuses_conflicting_indices() {
+    let definition =
+        "domain<const N:u64> u64::AtMost<N> requires self <= N; data Buffer<L,const N:u64> requires L == u64::AtMost::<N> { bytes:[u8;N]; length:L; }";
+    let code = format!("{definition} machine bytes(x:Buffer<u64::AtMost<4>>)->[u8;4]{{x.bytes}}");
+    check(&[("indices.omg", &code)]).unwrap();
+    let code = format!("{definition} machine bad(x:Buffer<u64::AtMost<4>,8>){{}}");
+    assert!(
+        check(&[("indices.omg", &code)])
+            .unwrap_err()
+            .message
+            .contains("conflicting type equation")
+    );
+}
+
+#[test]
+fn symbolic_widths_and_array_extents_infer_and_specialize_to_the_operand() {
+    let source = "machine sum<const N:u64>(x:u<N>,y:u<N>)->u<N> requires N>0{x+%y} machine head<T [copy],const N:u64>(xs:@[T;N])->T{xs[0]} machine f(xs:@[u13;4])->u13{sum(head(xs),17u13)}";
+    let stage = check(&[("width.omg", source)]).unwrap();
+    let sum = stage.calls.iter().find(|c| c.machine.path == "sum").unwrap();
+    assert_eq!(sum.type_arguments[0].to_string(), "13");
+    let head = stage.calls.iter().find(|c| c.machine.path == "head").unwrap();
+    assert_eq!(head.type_arguments[1].to_string(), "4");
+    assert!(
+        stage
+            .obligations
+            .iter()
+            .any(|o| matches!(o.kind, omega_typer::ObligationKind::PositiveWidth(_)))
+    );
+    assert_eq!(sum.result.to_string(), "u13");
+    assert!(
+        check(&[("width.omg", "machine wrong(x:u<13u8>){}")])
+            .unwrap_err()
+            .message
+            .contains("static u64")
+    );
+    let zero = "machine zero<const N:u64>()->u<N>{0} machine f(){ _ = zero::<0>(); }";
+    let e = check(&[("width.omg", zero)]).unwrap_err();
+    assert!(e.message.contains("width must be positive"), "{e:?}");
+}
+
+#[test]
+fn evaluated_indices_check_the_source_type_and_key_only_on_the_value() {
+    use omega_resolver::{ParsedSource, StageSource, resolve_stage};
+    use omega_typer::{StaticIntegerRequest, type_stage_with_evaluator};
+    let run = |code: &str, result: i64| {
+        let tokens = omega_lexer::lex(code.as_bytes()).unwrap();
+        let tree = omega_parser::parse_file(code.as_bytes(), &tokens).unwrap();
+        let sources = [StageSource {
+            package: "game",
+            source: ParsedSource {
+                logical_path: "calc.omg",
+                text: code,
+                tokens: &tokens,
+                tree: &tree,
+            },
+        }];
+        let resolved = resolve_stage(&sources, &[]).unwrap();
+        type_stage_with_evaluator(&sources, &resolved, None, &|q: &StaticIntegerRequest| {
+            assert_eq!(q.carrier.to_string(), "u64");
+            Ok(result.into())
+        })
+    };
+    let head = "data Buf<const N:u64>{array:[u8;N];} ";
+    let source = format!("{head} const size:u64=8; machine f(b:Buf<size>)->Buf<8>{{b}}");
+    assert_eq!(check(&[("calc.omg", &source)]).unwrap().evaluated_indices.len(), 1);
+    let stage = run(&source, 8).unwrap();
+    assert_eq!(stage.evaluated_indices.len(), 1);
+    assert_eq!(stage.signatures[0].parameters[0].1, stage.signatures[0].result);
+    assert!(run(&source, 7).unwrap_err().message.contains("expected"));
+    assert!(run(&source, -1).unwrap_err().message.contains("does not land"));
+    let bad = format!("{head} const flag:bool=true; machine f(b:Buf<flag>)->Buf<8>{{b}}");
+    assert!(
+        run(&bad, 8)
+            .unwrap_err()
+            .message
+            .contains("expected u64, found bool")
+    );
+}
+
+#[test]
+fn long_chains_of_transparent_aliases_do_not_consume_the_host_call_stack() {
+    let mut code = String::from("data A0 = bool;\n");
+    for index in 1..1024 {
+        code.push_str(&format!("data A{index} = A{};\n", index - 1));
+    }
+    code.push_str("machine f(x:A1023)->bool{x}");
+    let stage = check(&[("chain.omg", &code)]).unwrap();
+    assert_eq!(stage.signatures[0].parameters[0].1, ValueType::Bool);
+}
+
+#[test]
+fn open_exact_indices_keep_source_operations_and_normalize_on_specialization() {
+    let head = "data Buffer<const K:u8>{} ";
+    let source = format!(
+        "{head} machine plus<const N:u8>(b:Buffer<N + 1>)->Buffer<1 + N>{{b}} machine neutral<const N:u8>(b:Buffer<N + 0>)->Buffer<N>{{b}} machine f(b:Buffer<8>)->Buffer<8>{{plus::<7>(b)}}"
+    );
+    let stage = check(&[("indices.omg", &source)]).unwrap();
+    assert!(
+        stage
+            .operations
+            .iter()
+            .any(|op| op.token == "+" && op.result.to_string() == "u8")
+    );
+    let call = stage.calls.iter().find(|c| c.machine.path == "plus").unwrap();
+    assert!(call.result.to_string().ends_with("Buffer<8>"));
+    let rejected = format!("{head} machine make<const N:u8>()->Buffer<N + 1>{{Buffer::<N + 1>{{}}}} machine bad(){{ _ = make::<255>(); }}");
+    let err = check(&[("indices.omg", &rejected)]).unwrap_err();
+    assert!(err.message.contains("exceeds u8"), "{err:?}");
+}
+
+#[test]
+fn canonical_open_index_signatures_cannot_redeclare_the_same_overload() {
+    let code = "data B<const N:u64>{} machine select<const X:u64>(b:B<X+1>){} machine select<const Y:u64>(b:B<1+Y>){}";
+    assert!(
+        check(&[("duplicate.omg", code)])
+            .unwrap_err()
+            .message
+            .contains("duplicate typed operand signature")
+    );
+}
