@@ -66,7 +66,10 @@ fn requested_validators_check_the_emitted_linux_program() {
         rows.iter().map(|row| row.validator).collect::<Vec<_>>(),
         StageValidator::ROSTER
     );
-    assert!(rows.iter().all(|row| row.target == "linux_x86_64"));
+    assert!(
+        rows.iter()
+            .all(|row| row.target.as_deref() == Some("linux_x86_64"))
+    );
     assert_eq!(rows[0].result, StageValidationResult::Passed);
     assert_eq!(rows[1].result, StageValidationResult::Passed);
     assert_eq!(

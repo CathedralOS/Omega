@@ -15,7 +15,9 @@ use psi_authorization::{
     AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 
-pub use native_compiler::{SavedProgramTarget as NativeTarget, TargetProviderInstallation};
+pub use native_compiler::{
+    SavedProgramTarget as NativeTarget, TargetProviderInstallation, stage_validators,
+};
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource};
 
@@ -77,6 +79,50 @@ pub fn compile(request: CompileRequest<'_>) -> Result<Artifact, Vec<Diagnostic>>
             ))
         }
     }
+}
+
+/// Compile exactly the requested product, running stage checks only when it
+/// emits a native image. Planning-stage Psi does not receive the final request.
+pub fn compile_with_validators(
+    request: CompileRequest<'_>,
+    validators: &stage_validators::StageValidatorRequest,
+) -> Result<
+    (Artifact, Vec<stage_validators::StageValidationRow>),
+    stage_validators::NativeValidationError,
+> {
+    use stage_validators::NativeValidationError;
+
+    let rows = match request {
+        CompileRequest::Native {
+            program,
+            target,
+            entry_memory,
+        } => {
+            let application = target.application.clone();
+            let authorized = program
+                .into_authorized_psi()
+                .map_err(NativeValidationError::Compilation)?;
+            let (image, rows) = native_compiler::emit_with_validators(
+                authorized,
+                target,
+                entry_memory,
+                validators,
+            )?;
+            let product =
+                product_publication::CompletedProduct::from_native(image, None, application);
+            return Ok((Artifact::Native(product), rows));
+        }
+        CompileRequest::Psi(ref source) => validators.stages_not_produced(
+            source.selections.calling_targets,
+            |_| "this product stops at Terminal Psi before target operations",
+        )?,
+        CompileRequest::Runtime { ref target, .. } => validators.stages_not_produced(
+            &[target.profile.target_name()],
+            |_| "runtime admission stops before target lowering",
+        )?,
+    };
+    let product = compile(request).map_err(NativeValidationError::Compilation)?;
+    Ok((product, rows))
 }
 
 impl Program<'_> {

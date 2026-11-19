@@ -93,7 +93,7 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
             "stage validator roster (omega {} {}): {}\n",
             env!("OMEGA_VERSION"),
             env!("OMEGA_COMMIT"),
-            orchestration::StageValidator::ROSTER
+            compiler::stage_validators::StageValidator::ROSTER
                 .iter()
                 .map(|validator| validator.name())
                 .collect::<Vec<_>>()
