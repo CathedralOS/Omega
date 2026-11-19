@@ -29,8 +29,10 @@
     the package manager's operations boundary (`operations/prepare_project.rs`).
 */
 
-use super::{PackageFileTransaction, PackagePublicationError, PackagePublicationLimits};
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
+use crate::lockfile::publication::{
+    PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,
+};
 use crate::resolution::graph::{
     CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
     ResolvedPackageSourceClosure,

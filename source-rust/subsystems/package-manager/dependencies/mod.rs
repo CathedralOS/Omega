@@ -17,3 +17,21 @@ pub mod graph;
 pub mod source;
 
 pub(crate) use compiler_input::PackageCompilationScope;
+
+mod accepted_compilation;
+pub mod declarations;
+mod prepare_project;
+mod stage_build_edit;
+
+pub(crate) use accepted_compilation::compiler_input_identity;
+pub use accepted_compilation::{
+    AdmittedProjectCompilation, ProjectCompilationAdmissionRequest, ProjectCompilationCompletion,
+    ProjectCompilationError, ProjectCompilationOutcome, ReviewedHostPackages,
+    admit_project_compilation, admit_project_products,
+};
+pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
+pub use prepare_project::{
+    LocalProjectPreparation, PrepareLocalProjectError, PreparedLocalProject,
+    begin_local_project_preparation,
+};
+pub(crate) use stage_build_edit::stage_build_dependency_edit;

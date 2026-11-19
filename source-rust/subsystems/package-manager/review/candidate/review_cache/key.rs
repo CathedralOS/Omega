@@ -32,7 +32,7 @@ pub(crate) fn compiled_review_key(
     inputs: &PackageCompilationInputs,
     snapshot: &build_settings::BuildSnapshotRequest,
 ) -> Option<[u8; 32]> {
-    let compiler_identity = crate::operations::compiler_input_identity().ok()?;
+    let compiler_identity = crate::dependencies::compiler_input_identity().ok()?;
     Some(compiled_review_key_with_identity(
         package,
         purpose,
@@ -139,7 +139,7 @@ mod tests {
                 compiler_identity,
             )
         };
-        let locked_identity = crate::operations::compiler_input_identity()
+        let locked_identity = crate::dependencies::compiler_input_identity()
             .expect("development builds identify their compiler and toolchain library");
         let live = compiled_review_key(
             package,

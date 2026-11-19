@@ -6,7 +6,7 @@ mod old_sources;
 use super::state;
 use super::{PackageCommandError, failure};
 use crate::lock::PackageLock;
-use crate::operations::PackageFileTransaction;
+use crate::lockfile::publication::PackageFileTransaction;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::review::{PackageSourcePatchError, render_package_source_patch};
 use platform_custody::record_file::RecordFileRoot;

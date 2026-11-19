@@ -5,6 +5,8 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[lib]
+path = "package_manager.rs"
 
 [dependencies]
 backend-plan = { path = "../compiler/psi-to-native/installation/provider-plans" }

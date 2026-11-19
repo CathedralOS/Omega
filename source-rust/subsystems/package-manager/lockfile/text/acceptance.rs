@@ -12,7 +12,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 
 use target::TargetProfile;
 
-pub(in crate::lock) fn write(policy: &PackagePolicyAcceptance) -> Result<String, Error> {
+pub(in crate::lockfile) fn write(policy: &PackagePolicyAcceptance) -> Result<String, Error> {
     let mut writer = Writer::new(MAXIMUM_POLICY_TEXT_BYTES);
     writer.row("acceptance_schema", policy.schema_version)?;
     writer.row("rows", policy.rows.len())?;
@@ -25,7 +25,7 @@ pub(in crate::lock) fn write(policy: &PackagePolicyAcceptance) -> Result<String,
     writer.finish()
 }
 
-pub(in crate::lock) fn read(
+pub(in crate::lockfile) fn read(
     text: &str,
     package: PackageKeyIdentity,
     target: TargetProfile,

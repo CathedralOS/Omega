@@ -8,9 +8,9 @@ use crate::declarations::{
     plan_dependency_replacement_from_source,
 };
 use crate::lock::PackageLock;
-use crate::operations::PackageSourceRequest;
-use crate::operations::SourceAdapter;
 use crate::resolution::graph::{CanonicalDependencySourceRequest, CanonicalSourceClosureSubject};
+use crate::review::inspect_source::PackageSourceRequest;
+use crate::review::inspect_source::SourceAdapter;
 use source_acquisition::GitSourceRequest;
 use std::path::Path;
 

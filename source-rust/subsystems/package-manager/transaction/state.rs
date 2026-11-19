@@ -1,7 +1,7 @@
 // Retained-root record helpers for command proposals (`proposal`) and editable review documents (`review-<target>.txt`) inside `build/package-manager`.
 
 use super::{PackageCommandError, PackageCommandOutcome, PackageCommandStatus, failure};
-use crate::operations::{PackageFileTransaction, PackagePublicationError};
+use crate::lockfile::publication::{PackageFileTransaction, PackagePublicationError};
 use platform_custody::record_file::RecordFileError;
 use platform_custody::record_file::{RecordFileLimits, RecordFileRoot, RootRecordRead};
 use std::path::{Path, PathBuf};

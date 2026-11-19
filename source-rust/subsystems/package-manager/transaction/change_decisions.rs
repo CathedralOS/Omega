@@ -2,7 +2,8 @@
 
 use super::state;
 use super::{PackageCommandError, failure};
-use crate::operations::{PackageChangeReview, PackageFileTransaction};
+use crate::lockfile::publication::PackageFileTransaction;
+use crate::review::PackageChangeReview;
 use crate::review::{
     PackagePolicyResolution, PackagePolicyReviewError, recover_package_policy_review,
     render_package_policy_review,

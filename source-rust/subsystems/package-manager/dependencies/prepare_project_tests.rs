@@ -6,10 +6,7 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 fn project(fixture: &str) -> TemporaryDirectory {
     let temporary = TemporaryDirectory::create("project-preparation", false).unwrap();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .unwrap()
-        .join("tests/fixtures/pass")
+        .join("../../../tests/fixtures/pass")
         .join(fixture);
     for name in ["build.omg", "main.omg"] {
         std::fs::copy(fixture.join(name), temporary.path().join(name)).unwrap();
@@ -263,7 +260,7 @@ fn package_candidate_reacquisition_keeps_the_staged_selection_and_live_lineage()
         before.clone(),
     );
     let storage = SourceResolver::for_current_user(PrimaryGitChoices::default()).unwrap();
-    let staged = crate::operations::stage_build_dependency_edit(
+    let staged = crate::dependencies::stage_build_dependency_edit(
         &replacement,
         &storage,
         LocalSourceLimits::default(),
@@ -298,7 +295,7 @@ fn package_candidate_reacquisition_keeps_the_staged_selection_and_live_lineage()
 
 #[test]
 fn selected_project_and_inspection_cannot_omit_the_preflight_observed_build() {
-    use crate::operations::{PackageInspectionOptions, PackageInspectionTransaction};
+    use crate::review::{PackageInspectionOptions, PackageInspectionTransaction};
     use source_acquisition::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
     let temporary = project("calls/machine_self_call_recursion_compile");
     let only_main =
