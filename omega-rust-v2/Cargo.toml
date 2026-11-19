@@ -2,10 +2,10 @@
 resolver = "3"
 members = [
     "application",
-    "layers/00-lexer",
-    "layers/01-parser",
-    "layers/02-resolver",
-    "layers/03-typer",
+    "layers/00_bytes-to-tokens",
+    "layers/01_tokens-to-syntax-trees",
+    "layers/02_syntax-trees-to-symbol-resolved-trees",
+    "layers/03_symbol-resolved-trees-to-typed-trees",
     "tools/compare-builds",
     "tools/golden",
     "tools/measure",

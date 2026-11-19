@@ -95,7 +95,7 @@ pub(crate) fn check_files(
     };
     let resolved = omega_typer::resolve_source_package(&sources).map_err(|e| diagnostic("resolver", &e.file, e.span, e.message))?;
     if matches!(stage, Stage::Type) {
-        omega_typer::type_source_package(&sources, &resolved).map_err(|e| diagnostic("typer", &e.file, e.span, e.message))?;
+        omega_typer::type_source_package(&resolved).map_err(|e| diagnostic("typer", &e.file, e.span, e.message))?;
     }
     Ok(())
 }

@@ -6,7 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-omega-lexer = { path = "../layers/00-lexer" }
-omega-parser = { path = "../layers/01-parser" }
-omega-resolver = { path = "../layers/02-resolver" }
-omega-typer = { path = "../layers/03-typer" }
+omega-lexer = { path = "../layers/00_bytes-to-tokens" }
+omega-parser = { path = "../layers/01_tokens-to-syntax-trees" }
+omega-resolver = { path = "../layers/02_syntax-trees-to-symbol-resolved-trees" }
+omega-typer = { path = "../layers/03_symbol-resolved-trees-to-typed-trees" }
