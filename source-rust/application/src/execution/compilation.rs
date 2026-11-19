@@ -53,8 +53,10 @@ impl RunProduct {
 
     pub(super) fn publish(self, directory: &Path) -> Result<(Self, PathBuf), String> {
         let product = self.product.publish(&self.root, directory)?;
-        let path = product.checked_native_executable_path()
-            .ok_or("native publication did not retain executable custody")?.to_owned();
+        let path = product
+            .checked_native_executable_path()
+            .ok_or("native publication did not retain executable custody")?
+            .to_owned();
         Ok((Self { product, ..self }, path))
     }
 
@@ -135,26 +137,42 @@ pub(super) fn compile(
         let profile = target::TargetProfile::from_omega_target_name(target_name.as_deref())
             .map_err(|error| vec![error])?;
         let planned = crate::project_sources::open_product(
-            &root_path, &[profile], false, false, Some(&build_directory), build_snapshot,
+            &root_path,
+            &[profile],
+            false,
+            false,
+            Some(&build_directory),
+            build_snapshot,
         )?;
         let stage = planned.product_stage(&[profile])?;
         let program = stage.program(profile, Vec::new())?;
         let request = match requested {
             ExecutionProduct::Native => compiler::CompileRequest::Native {
-                program, entry_memory: &private_entry_ram,
+                program,
+                entry_memory: &private_entry_ram,
             },
             ExecutionProduct::Runtime => compiler::CompileRequest::Runtime {
-                program, entry_memory: &private_entry_ram,
+                program,
+                entry_memory: &private_entry_ram,
             },
         };
         let product = match compiler::compile(request)? {
             compiler::Artifact::Native(product) | compiler::Artifact::Runtime(product) => product,
             compiler::Artifact::Psi(_) => {
-                return Err(vec![Diagnostic::error("execution request produced only portable Psi")]);
+                return Err(vec![Diagnostic::error(
+                    "execution request produced only portable Psi",
+                )]);
             }
         };
         let test_roster = stage.execute_registered_tests(profile, &[])?;
-        (RunProduct { root: root_path, product, test_roster }, profile.target_name())
+        (
+            RunProduct {
+                root: root_path,
+                product,
+                test_roster,
+            },
+            profile.target_name(),
+        )
     };
     let interpretations = reference_inputs
         .into_iter()
