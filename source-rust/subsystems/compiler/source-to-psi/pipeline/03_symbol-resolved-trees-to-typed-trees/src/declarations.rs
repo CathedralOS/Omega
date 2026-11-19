@@ -1246,8 +1246,8 @@ pub(crate) mod machine {
                     ))
                     })
                     .and_then(|candidate| {
-                        declaration_contracts::RankingViewId::canonical(candidate.name.as_str())
-                            .and_then(declaration_contracts::RankingViewId::catalog_declaration)
+                        semantic_vocabulary::RankingViewId::canonical(candidate.name.as_str())
+                            .and_then(semantic_vocabulary::RankingViewId::catalog_declaration)
                             .map(|declaration| declaration.view)
                     }),
                 _ => None,
@@ -1264,7 +1264,7 @@ pub(crate) mod machine {
         );
         if machine.ranking_view.is_empty()
             && let Some(witness) = &typed_machine.termination_plan.implementation_witness
-            && witness.ranking_view != declaration_contracts::RankingViewId::NULL
+            && witness.ranking_view != semantic_vocabulary::RankingViewId::NULL
             && let Some(position) = lowerer
                 .typed_trees
                 .ranking_expression_custody
@@ -2343,7 +2343,7 @@ pub(crate) mod trait_definition {
                         machine.service_reach_row
                             == crate::source_tables::ServiceReachRowTable::EMPTY_ROW
                             || machine.service_reach_row
-                                == declaration_contracts::ServiceReachRowId::default()
+                                == semantic_vocabulary::ServiceReachRowId::default()
                     })
                 {
                     return Err(Diagnostic::error(format!(

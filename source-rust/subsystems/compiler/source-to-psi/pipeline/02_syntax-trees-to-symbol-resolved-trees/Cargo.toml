@@ -14,6 +14,7 @@ test-support = ["symbol-resolved-trees/test-support"]
 path = "lib.rs"
 
 [dependencies]
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 bundled-declarations = { path = "bundled-declarations" }
 source-declarations = { path = "../../language/source-declarations" }
 source-symbol-table = { path = "symbol-table" }

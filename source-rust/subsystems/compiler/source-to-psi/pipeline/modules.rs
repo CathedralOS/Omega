@@ -1,6 +1,6 @@
 pub use checked_program_to_psi::provider_choice_inputs;
-pub use source_declarations::{declaration_selection, source_tables};
-pub use source_symbol_table::{source_inputs, source_symbols};
+pub use source_declarations::declaration_selection;
+pub use source_symbol_table::{source_inputs, source_symbols, source_tables};
 #[cfg(any(test, feature = "test-support"))]
 pub use symbol_resolved_trees::source_resolved;
 pub use typed_trees::source_state;

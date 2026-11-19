@@ -4,3 +4,4 @@
 
 pub mod source_inputs;
 pub mod source_symbols;
+pub mod source_tables;

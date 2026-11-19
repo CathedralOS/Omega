@@ -2,8 +2,8 @@
 //! name real selected bodies, independently of runtime callable construction.
 
 use arena::IdTable;
-use declaration_contracts::ServiceReachId;
 use semantic_vocabulary::MachineId;
+use semantic_vocabulary::ServiceReachId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 use terminal_psi::{TerminalCallableInvocation, TerminalCallableTermination, TerminalModule};

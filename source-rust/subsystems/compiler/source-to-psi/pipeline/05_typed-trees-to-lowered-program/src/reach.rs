@@ -6,7 +6,7 @@
 
 use crate::source_state::TypedTrees;
 use arena::IdTable;
-use declaration_contracts::ServiceReachId;
+use semantic_vocabulary::ServiceReachId;
 use semantic_vocabulary::{MachineId, ServiceId};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{

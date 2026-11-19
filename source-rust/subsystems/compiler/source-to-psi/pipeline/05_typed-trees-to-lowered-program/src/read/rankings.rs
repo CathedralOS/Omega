@@ -6,8 +6,8 @@ use super::{Program, Slot};
 use crate::lowering::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
 use crate::lowering::{Unserved, refuse};
 use crate::source_state::machine::Machine;
-use declaration_contracts::RankingViewId;
 use declaration_contracts::RankingViewSelection;
+use semantic_vocabulary::RankingViewId;
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 

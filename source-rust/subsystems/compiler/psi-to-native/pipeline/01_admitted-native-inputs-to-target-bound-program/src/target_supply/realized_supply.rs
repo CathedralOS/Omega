@@ -321,7 +321,7 @@ impl RealizedTargetSupply {
             match &leaf.execution {
                 backend_plan::DirectBoundaryExecution::Intrinsic(retained) => {
                     if source.binding
-                        != declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
+                        != semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
                         || effects::external_providers::canonical_external_execution(
                             source,
                             &input.target,
@@ -338,7 +338,7 @@ impl RealizedTargetSupply {
                     {
                         let number = *number;
                         if source.binding
-                            != (declaration_contracts::ExternalBindingIdentity::Syscall { number })
+                            != (semantic_vocabulary::ExternalBindingIdentity::Syscall { number })
                         {
                             return Err("direct syscall changes its admitted native binding".into());
                         }

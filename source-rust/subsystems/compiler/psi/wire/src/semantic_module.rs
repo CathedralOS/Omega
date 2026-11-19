@@ -1325,7 +1325,7 @@ pub(crate) mod external_provider_wire {
     use super::machine_declaration_wire;
     use super::wire::{Reader, Writer};
     use super::wire_fields::{ExternalPackage, Field, Optional};
-    use declaration_contracts::ExternalBindingIdentity;
+    use semantic_vocabulary::ExternalBindingIdentity;
     use terminal_psi::TerminalIdentityIndex;
     use terminal_psi::{
         ExternalProviderConformance, ExternalProviderOwner, NominalDeclarationIdentity,
@@ -2962,8 +2962,8 @@ mod counted_collection_bound_tests {
 mod external_provider_tests {
     use super::{entry_tests::identity_table, module_wire::encode_raw, numeric_intrinsic_tests};
     use crate::{decode_module, encode_module, semantic_fingerprint};
-    use declaration_contracts::ExternalBindingIdentity;
     use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+    use semantic_vocabulary::ExternalBindingIdentity;
     use semantic_vocabulary::PackageKeyIdentity;
     use terminal_psi::*;
 

@@ -105,7 +105,7 @@ pub(crate) mod source_review {
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct SourceServiceCorrespondence {
         pub service: semantic_vocabulary::ServiceId,
-        pub source: declaration_contracts::ServiceReachId,
+        pub source: semantic_vocabulary::ServiceReachId,
         pub declaration: SymbolHandle,
     }
 
@@ -2114,7 +2114,7 @@ mod continuation_storage_tests {
         assert!(original.applied_domain_applications.insert(
             crate::source_state::domain::AppliedDomainApplication {
                 declaration: owner,
-                identity: declaration_contracts::SemanticDomainId(1),
+                identity: semantic_vocabulary::SemanticDomainId(1),
                 arguments: Vec::new(),
                 is_closed: true,
                 theory: None,

@@ -42,7 +42,7 @@ impl ResolvedAllocationExtension {
             return Err("prepared allocation join truncated retained semantic domains".into());
         }
         for ordinal in 1..=predecessor.semantic_domains.len() {
-            let identity = declaration_contracts::SemanticDomainId(ordinal as u32);
+            let identity = semantic_vocabulary::SemanticDomainId(ordinal as u32);
             if domains.name(identity) != predecessor.semantic_domains.name(identity) {
                 return Err(format!(
                     "prepared allocation join changed retained semantic domain {ordinal}"

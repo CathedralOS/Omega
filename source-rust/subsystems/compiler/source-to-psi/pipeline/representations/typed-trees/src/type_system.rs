@@ -3320,7 +3320,7 @@ pub mod types {
         pub arguments: Vec<TypeReferenceHandle>,
         pub subject: DomainConstraintSubject,
         pub symbol: SymbolHandle,
-        pub semantic_id: declaration_contracts::SemanticDomainId,
+        pub semantic_id: semantic_vocabulary::SemanticDomainId,
         pub classification: Option<declaration_contracts::DomainClassification>,
         pub predicate_presence: declaration_contracts::DomainPredicatePresence,
         pub semantic_roles: declaration_contracts::DomainSemanticRoles,

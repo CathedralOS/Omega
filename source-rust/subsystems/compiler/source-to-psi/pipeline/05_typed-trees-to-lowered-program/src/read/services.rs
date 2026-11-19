@@ -8,10 +8,10 @@ use crate::source_state::signature::{
     AuthoredInvocation, AuthoredInvocationTarget, StateSignature,
 };
 use arena::IdTable;
-use declaration_contracts::ServiceReachId;
-use declaration_contracts::ServiceReachRowId;
 use declaration_contracts::TerminationGuarantee;
 use declaration_contracts::TerminationInterface;
+use semantic_vocabulary::ServiceReachId;
+use semantic_vocabulary::ServiceReachRowId;
 use semantic_vocabulary::{ContractId, MachineId};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::{TerminalCallableTermination, TerminalModule};

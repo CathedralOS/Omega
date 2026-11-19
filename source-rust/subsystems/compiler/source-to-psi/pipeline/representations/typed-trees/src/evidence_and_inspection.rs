@@ -3918,7 +3918,7 @@ pub mod inspection {
 
             fn service_reach_names(
                 program: &TypedTrees,
-                row: declaration_contracts::ServiceReachRowId,
+                row: semantic_vocabulary::ServiceReachRowId,
             ) -> Vec<String> {
                 program
                     .service_reach_rows
@@ -5913,21 +5913,21 @@ pub mod inspection {
                 .map(|(identity, binding)| ExternalBindingSnapshot {
                     identity: identity.0,
                     binding: match binding {
-                        declaration_contracts::ExternalBindingIdentity::Syscall { number } => {
+                        semantic_vocabulary::ExternalBindingIdentity::Syscall { number } => {
                             ExternalBindingValueSnapshot::Syscall { number: *number }
                         }
-                        declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic => {
+                        semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic => {
                             ExternalBindingValueSnapshot::CompilerIntrinsic
                         }
-                        declaration_contracts::ExternalBindingIdentity::VtableSlot { index } => {
+                        semantic_vocabulary::ExternalBindingIdentity::VtableSlot { index } => {
                             ExternalBindingValueSnapshot::VtableSlot { index: *index }
                         }
-                        declaration_contracts::ExternalBindingIdentity::VtableField { field } => {
+                        semantic_vocabulary::ExternalBindingIdentity::VtableField { field } => {
                             ExternalBindingValueSnapshot::VtableField {
                                 field: field.clone(),
                             }
                         }
-                        declaration_contracts::ExternalBindingIdentity::TableFunction { field } => {
+                        semantic_vocabulary::ExternalBindingIdentity::TableFunction { field } => {
                             ExternalBindingValueSnapshot::TableFunction {
                                 field: field.clone(),
                             }
