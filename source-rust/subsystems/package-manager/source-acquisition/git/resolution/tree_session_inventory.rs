@@ -135,7 +135,7 @@ impl GitWorkspaceSession {
                 let (byte_count, content_identity) = identity.finish();
                 Ok(CapturedLocalSource {
                     selection_identity: crate::local::operations::selection_identity(
-                        &filesystem_authority::SourceCaptureRequest::entire_tree(),
+                        &source_selection::SourceCaptureRequest::entire_tree(),
                     ),
                     requested_root: root.clone(),
                     normalized: ResolvedLocalSource {

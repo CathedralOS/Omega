@@ -23,7 +23,7 @@ pub(super) enum SourceEntryKind {
 #[derive(Debug)]
 pub(crate) struct CapturedLocalTree {
     pub(crate) normalized: ResolvedLocalSource,
-    pub(crate) selected: filesystem_authority::SourceCaptureRequest,
+    pub(crate) selected: source_selection::SourceCaptureRequest,
     pub(crate) entries: Vec<CapturedLocalEntry>,
 }
 

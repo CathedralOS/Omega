@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use cap_std::fs::Dir as CapabilityDirectory;
-use filesystem_authority::{SourceCaptureRequest, SourceSelectionError, select_source_members};
+use source_selection::{SourceCaptureRequest, SourceSelectionError, select_source_members};
 
 use super::traversal::{
     CapturedDirectoryObservation, CapturedMemberObservation, CapturedTreeObservations,
@@ -228,7 +228,7 @@ fn native_capture_path_is_canonical(path: &[u8]) -> bool {
                 .any(|component| component.is_empty() || matches!(component, b"." | b".."))
     }
     #[cfg(not(unix))]
-    filesystem_authority::canonical_filesystem_metadata_path_is_canonical(path, false)
+    source_selection::canonical_filesystem_metadata_path_is_canonical(path, false)
 }
 
 #[cfg(unix)]
@@ -254,7 +254,7 @@ mod tests {
     use super::*;
     use crate::tree::capture::traversal::verify_captured_tree;
     use crate::tree::filesystem::open_canonical_source_root;
-    use filesystem_authority::SourceCaptureObligation;
+    use source_selection::SourceCaptureObligation;
 
     fn observed_selection(name: &str) -> (PathBuf, CapabilityDirectory, CapturedTreeObservations) {
         let root = crate::test_support::temp_root(name);

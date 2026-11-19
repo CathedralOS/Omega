@@ -37,7 +37,7 @@ use std::sync::Arc;
 const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
 const CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 
-pub use filesystem_authority::{
+pub use source_selection::{
     SourceCaptureObligation as BuildSourceCaptureObligation,
     SourceCaptureRequest as BuildSourceCaptureRequest,
 };
@@ -78,7 +78,7 @@ pub(crate) fn retained_scoped_source_input(
         .map(|(path, entry)| (path.to_vec(), entry))
         .collect::<BTreeMap<_, _>>();
     available.insert(Vec::new(), &root);
-    let selected = filesystem_authority::select_source_members(
+    let selected = source_selection::select_source_members(
         request,
         (
             CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
@@ -335,7 +335,7 @@ fn capture_scoped_rows<T>(
         &mut u64,
     ) -> Result<(CapturedSourceMetadataRow, T), String>,
 ) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, T)>), String> {
-    let selected = filesystem_authority::select_source_members(
+    let selected = source_selection::select_source_members(
         request,
         (
             CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,

@@ -875,7 +875,7 @@ name = "filesystem-authority"
 version = "0.1.0"
 dependencies = [
  "record-storage",
- "source-capture",
+ "source-selection",
  "wire",
 ]
 
@@ -1955,6 +1955,7 @@ dependencies = [
  "source-admission",
  "source-capture",
  "source-compiler",
+ "source-selection",
  "source-text",
  "symbols",
  "target",
@@ -2877,13 +2878,13 @@ dependencies = [
  "cap-primitives",
  "cap-std",
  "record-storage",
- "filesystem-authority",
  "nix",
  "platform-custody",
  "resolver-execution",
  "sha1-checked",
  "sha2",
  "source-capture",
+ "source-selection",
  "wire",
 ]
 
@@ -2924,7 +2925,6 @@ dependencies = [
  "diagnostics",
  "evaluation-contracts",
  "evaluation-receipts",
- "filesystem-authority",
  "language-core",
  "layout-planning",
  "layout-plans",
@@ -3045,6 +3045,10 @@ dependencies = [
  "record-storage",
  "sha2",
 ]
+
+[[package]]
+name = "source-selection"
+version = "0.1.0"
 
 [[package]]
 name = "source-symbol-table"
