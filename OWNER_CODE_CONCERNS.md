@@ -91,6 +91,12 @@ framework or a list of unimplemented features.
 - Cost: The full check cannot certify the maintained tree until the owners review the differences. Preserve each field’s reason when correcting its location and judge each changed declaration against the current source.
 - Reported: 2026-11-19, Codex, while restoring the compiler ownership check.
 
+### Repository rules still scan the retired Rust checkout paths
+
+- Where: [Rule inputs and scan roots](tools/xtask/src/rules/ratchets.rs), [current semantic IDs](source-rust/subsystems/compiler/foundation/semantic-records/src/identity.rs) and [stored counts](tools/ratchets/).
+- Saw: `mbx xtask check-rules` stops while opening the dense-ID catalog under `omega-rust/`. The code-quality scanners still walk that retired tree and their count files use its paths.
+- Cost: Maintainers cannot check new code against the existing limits for dense-ID maps, caches and source-text reads. Migrate the scan roots and transfer the recorded limits by file history before reviewing changes in counts.
+
 ### Callable analysis loses arguments passed to checked providers
 
 - Category: Re-deriving.
