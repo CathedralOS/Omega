@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use arena::{IdTable, NumericId};
 use language_core::static_interrupts::StaticInterruptOperation;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId, StructuralTypeId};
-use terminal_installation::SynchronousCallGraph;
+use terminal_semantics::synchronous_calls::SynchronousCallGraph;
 use terminal_psi::{
     OperationKind, OperationResult, StructuralAccess, StructuralArgument, StructuralTypeShape,
     TerminalAffineCleanupAction, TerminalInstalledInterruptRegistration, TerminalMachine,
@@ -67,7 +67,7 @@ pub(super) fn validate(
     input: &super::super::NativeRealizationInput<'_>,
     request: &super::super::ProviderAdmissionRequest<'_, '_>,
     entry_custody: &super::super::callback_entries::PreparedEntries<'_>,
-    call_graph: &terminal_installation::SynchronousCallGraph<'_>,
+    call_graph: &terminal_semantics::synchronous_calls::SynchronousCallGraph<'_>,
     reached_operations: &[super::OperationSite],
 ) -> Result<Vec<ArrivalHelperUse>, String> {
     let module = input.module();

@@ -8,6 +8,7 @@ version.workspace = true
 path = "scalar_applications.rs"
 
 [dependencies]
+psi-target-layouts = { path = "../../../../psi/layout/admission" }
 artifact-evaluation = { path = "../../../../../psi/evaluation/artifact-evaluation" }
 backend-plan = { path = "../../../installation/provider-plans" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }

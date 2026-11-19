@@ -7,7 +7,7 @@ use calling_conventions::{
     BoundaryCallingApplication, BoundaryValueClass, BoundaryValueGraph, CallSignature,
 };
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType, StructuralFieldId, StructuralTypeId};
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralFieldType,

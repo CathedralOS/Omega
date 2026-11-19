@@ -2508,7 +2508,7 @@ pub(crate) mod program {
         pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
         pub(crate) catalogs: std::sync::Arc<ProgramStorage<'artifact>>,
         pub(crate) target_layouts:
-            Option<std::sync::Arc<terminal_installation::AdmittedTargetLayouts>>,
+            Option<std::sync::Arc<psi_target_layouts::AdmittedTargetLayouts>>,
         pub(crate) scalar_geometry: Option<std::sync::Arc<[StructuralTypeDeclaration]>>,
     }
 
@@ -2600,14 +2600,14 @@ pub(crate) mod program {
                 .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
             let selected =
                 installation.and_then(|installation| installation.target_machines.as_ref());
-            let machine = terminal_installation::TerminalTargetContext::resolve_entry(
+            let machine = psi_target_layouts::TerminalTargetContext::resolve_entry(
                 selected,
                 self.identity.semantic(),
                 &self.catalogs,
                 root,
             )
             .map_err(|error| match error {
-                terminal_installation::TerminalEntryError::MissingMachine(_) => {
+                psi_target_layouts::TerminalEntryError::MissingMachine(_) => {
                     TerminalInterpretError::VerifiedEntryMachineMissing
                 }
                 other => TerminalInterpretError::TerminalEntry(other),
@@ -2852,7 +2852,7 @@ pub(crate) mod program {
         pub fn execution_requirements_with_private_entry_ram(
             &self,
             installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
-            recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+            recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
         ) -> Result<
             crate::engine::capabilities::TerminalExecutionRequirements,
             TerminalInterpretError,
@@ -3550,11 +3550,11 @@ pub(crate) mod program {
                 .expect("actual direct placed row")
                 .clone();
             let machines =
-                terminal_installation::terminal_target_context(artifact.view(), "linux_x86_64");
-            let layouts = terminal_installation::admit_target_layouts(
+                psi_target_layouts::terminal_target_context(artifact.view(), "linux_x86_64");
+            let layouts = psi_target_layouts::admit_target_layouts(
                 artifact.view(),
                 &machines,
-                &terminal_installation::LayoutTargetFacts {
+                &psi_target_layouts::LayoutTargetFacts {
                     profile: "linux_x86_64".into(),
                     pointer_size: 8,
                     pointer_alignment: 8,
@@ -3564,11 +3564,11 @@ pub(crate) mod program {
                 },
             )
             .unwrap();
-            let recipe = terminal_installation::admit_private_entry_ram(
+            let recipe = psi_entry_memory::admit_private_entry_ram(
                 artifact.view(),
                 &layouts,
                 entry,
-                &terminal_installation::PrivateEntryRamRecipe {
+                &psi_entry_memory::PrivateEntryRamRecipe {
                     input: row,
                     contents: vec![41, 0, 0, 0, 3, 0, 0, 0],
                 },
@@ -3583,11 +3583,11 @@ pub(crate) mod program {
             {
                 let name = "macos_arm64";
                 let other_machines =
-                    terminal_installation::terminal_target_context(artifact.view(), name);
-                let other_layouts = terminal_installation::admit_target_layouts(
+                    psi_target_layouts::terminal_target_context(artifact.view(), name);
+                let other_layouts = psi_target_layouts::admit_target_layouts(
                     artifact.view(),
                     &other_machines,
-                    &terminal_installation::LayoutTargetFacts {
+                    &psi_target_layouts::LayoutTargetFacts {
                         profile: name.into(),
                         pointer_size: 8,
                         pointer_alignment: 8,

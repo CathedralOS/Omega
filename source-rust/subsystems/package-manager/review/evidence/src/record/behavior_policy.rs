@@ -15,12 +15,12 @@ use crate::record::accessors::field_projection_accessors;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyCapabilityFlow {
     pub(crate) capability: PackageReviewNominalIdentity,
-    pub(crate) kind: flow_effects::CapabilityFlowKind,
+    pub(crate) kind: psi_effect_contracts::CapabilityFlowKind,
 }
 
 impl PackagePolicyCapabilityFlow {
     field_projection_accessors!(borrowed capability: &PackageReviewNominalIdentity);
-    field_projection_accessors!(copied kind: flow_effects::CapabilityFlowKind);
+    field_projection_accessors!(copied kind: psi_effect_contracts::CapabilityFlowKind);
     pub(crate) fn compare_canonical(&self, other: &Self) -> std::cmp::Ordering {
         self.capability
             .cmp(&other.capability)
@@ -28,11 +28,11 @@ impl PackagePolicyCapabilityFlow {
     }
     fn kind_tag(&self) -> u8 {
         match self.kind {
-            flow_effects::CapabilityFlowKind::Uses => 0,
-            flow_effects::CapabilityFlowKind::Returns => 1,
-            flow_effects::CapabilityFlowKind::Acquires => 2,
-            flow_effects::CapabilityFlowKind::Stores => 3,
-            flow_effects::CapabilityFlowKind::Derives => 4,
+            psi_effect_contracts::CapabilityFlowKind::Uses => 0,
+            psi_effect_contracts::CapabilityFlowKind::Returns => 1,
+            psi_effect_contracts::CapabilityFlowKind::Acquires => 2,
+            psi_effect_contracts::CapabilityFlowKind::Stores => 3,
+            psi_effect_contracts::CapabilityFlowKind::Derives => 4,
         }
     }
 }

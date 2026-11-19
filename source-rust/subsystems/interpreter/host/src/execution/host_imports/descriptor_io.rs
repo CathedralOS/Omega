@@ -27,7 +27,7 @@ use std::sync::{Arc, Mutex};
 use calling_conventions::{CallSignature, ValueShape};
 use runtime_abi::{DescriptorAbi, DescriptorOperation, NativeBorrowedStorageLayout};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,

@@ -2,8 +2,8 @@
 We own the host and captured filesystem authority granted to an admitted `build.omg` machine (`BuildMachineFilesystemScope`).
 
 Every build activation operates under explicit grant roots:
-1. `BUILD_SOURCE_ROOT_IDENTITY` (`1`) is the read-only `Source` root, backed either by an immutable compiler-captured `CapturedBuildSourceInput` (`SourceSnapshot`) or by an explicitly admitted `LiveBuildSource` directory capability.
-2. `BUILD_OUTPUT_ROOT_IDENTITY` (`2`) is the append-and-seal `Output` staging directory (`build_dir`), governed by a `BuildMachineFilesystemSponsor`.
+1. `BUILD_SOURCE_ROOT_IDENTITY` (`1`) is the read-only `Source` root, backed either by an immutable compiler-captured `CapturedBuildSourceInput` or by an explicitly admitted `LiveBuildSource` directory capability.
+2. `BUILD_OUTPUT_ROOT_IDENTITY` (`2`) is the append-and-seal `Output` staging directory (`build_dir`), governed by a `FilesystemSponsor`.
 3. `NamedBuildInput` slots (`3..`) bind additional read-only `CapturedBuildSourceInput` snapshots under `$OmegaBuildInputSlots`.
 */
 
@@ -34,22 +34,52 @@ use build_output::{
     BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty,
 };
 use diagnostics::Diagnostic;
-use filesystem_authority::FilesystemSponsorEntry;
-use source_compiler::evaluation::{
-    BuildMachineCapturedFilesystemRoot, BuildMachineFilesystemAccess,
-    BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
-    BuildMachineFilesystemGrants, BuildMachineFilesystemSponsor,
+use filesystem_authority::{
+    FilesystemGrantRoot, FilesystemGrantRootIdentity, FilesystemMetadataLayout, FilesystemSponsor,
+    FilesystemSponsorEntry, FsGrants,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-pub const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
-    match BuildMachineFilesystemGrantRootIdentity::new(1) {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BuildMachineCapturedFilesystemRoot {
+    pub identity: FilesystemGrantRootIdentity,
+    pub snapshot: CapturedBuildSourceInput,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum BuildMachineFilesystemAccess {
+    #[default]
+    Virtual,
+    RealUnscoped,
+    RealScoped(FsGrants),
+    RealScopedSponsored {
+        grants: FsGrants,
+        sponsor: FilesystemSponsor,
+    },
+    CapturedScoped {
+        inputs: Vec<BuildMachineCapturedFilesystemRoot>,
+        grants: FsGrants,
+        sponsor: Option<FilesystemSponsor>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BuildMachineExecutionMode {
+    Pure,
+    Granted {
+        filesystem: BuildMachineFilesystemAccess,
+        filesystem_metadata_layout: FilesystemMetadataLayout,
+    },
+}
+
+pub const BUILD_SOURCE_ROOT_IDENTITY: FilesystemGrantRootIdentity =
+    match FilesystemGrantRootIdentity::new(1) {
         Some(identity) => identity,
         None => panic!("build source root identity must be nonzero"),
     };
-pub const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
-    match BuildMachineFilesystemGrantRootIdentity::new(2) {
+pub const BUILD_OUTPUT_ROOT_IDENTITY: FilesystemGrantRootIdentity =
+    match FilesystemGrantRootIdentity::new(2) {
         Some(identity) => identity,
         None => panic!("build output root identity must be nonzero"),
     };
@@ -62,12 +92,11 @@ pub struct BuildMachineFilesystemScope {
     canonical_source_metadata_required: bool, // Whether package/anonymous custody requires canonical metadata.
     build_dir: PathBuf,                       // Physical Output staging root path.
     admitted_build_dir_key: PathBuf,          // Overlap key of `build_dir` recorded at admission.
-    sponsor: Option<BuildMachineFilesystemSponsor>, // Staging directory quota and custody sponsor.
+    sponsor: Option<FilesystemSponsor>, // Staging directory quota and custody sponsor.
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>, // Bound root package identity.
     root_role: Option<crate::BuildDeclarationKind>, // Bound root declaration role (`Library` or `Product`).
     build_execution_profile: Option<target::TargetProfile>, // Admitted execution profile for build-scope evaluation.
     captured_source_input: Option<CapturedBuildSourceInput>, // Immutable captured Source inventory.
-    captured_source_view: Option<source_capture::SourceSnapshot>, // Read-only memory snapshot view of `captured_source_input`.
     required_outputs: BTreeSet<Vec<u8>>, // Declared required sealed output paths in canonical order.
     named_inputs: Vec<NamedBuildInput>,  // Assigned named input roots (`3..`).
 }
@@ -76,8 +105,7 @@ pub struct BuildMachineFilesystemScope {
 struct NamedBuildInput {
     name: Vec<u8>,                                 // Validated UTF-8 slot name.
     input: CapturedBuildSourceInput,               // Immutable captured input inventory.
-    snapshot: source_capture::SourceSnapshot,      // Memory snapshot view for interpreter reads.
-    root: BuildMachineFilesystemGrantRootIdentity, // Activation-local grant root identity (`>= 3`).
+    root: FilesystemGrantRootIdentity, // Activation-local grant root identity (`>= 3`).
 }
 
 const REQUIRED_BUILD_OUTPUT_LIMIT: usize = 4_096;
@@ -134,7 +162,7 @@ impl BuildMachineFilesystemScope {
     ) -> Result<BuildMachineFilesystemAccess, Vec<Diagnostic>> {
         self.ensure_write_roots()?;
         self.ensure_canonical_source_metadata()?;
-        if self.captured_source_view.is_none() && self.live_source.is_none() {
+        if self.captured_source_input.is_none() && self.live_source.is_none() {
             self.live_source = Some(
                 live_source::LiveBuildSource::bind(&self.source_root).map_err(|error| {
                     vec![Diagnostic::error(format!(
@@ -149,7 +177,7 @@ impl BuildMachineFilesystemScope {
     pub(crate) fn for_root(
         root_path: &Path,
         build_dir: PathBuf,
-        sponsor: Option<BuildMachineFilesystemSponsor>,
+        sponsor: Option<FilesystemSponsor>,
     ) -> Self {
         let source_root = root_path
             .parent()
@@ -169,7 +197,6 @@ impl BuildMachineFilesystemScope {
             root_role: None,
             build_execution_profile: None,
             captured_source_input: None,
-            captured_source_view: None,
             required_outputs: BTreeSet::new(),
             named_inputs: Vec::new(),
         }
@@ -179,7 +206,7 @@ impl BuildMachineFilesystemScope {
     pub(crate) fn for_admitted_root(
         source_root: PathBuf,
         build_dir: PathBuf,
-        sponsor: Option<BuildMachineFilesystemSponsor>,
+        sponsor: Option<FilesystemSponsor>,
         metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>,
     ) -> Self {
         let admitted_build_dir_key = overlap_key(&build_dir);
@@ -195,7 +222,6 @@ impl BuildMachineFilesystemScope {
             root_role: None,
             build_execution_profile: None,
             captured_source_input: None,
-            captured_source_view: None,
             required_outputs: BTreeSet::new(),
             named_inputs: Vec::new(),
         }
@@ -251,8 +277,6 @@ impl BuildMachineFilesystemScope {
     }
 
     fn bind_captured_source_input(mut self, input: CapturedBuildSourceInput) -> Self {
-        self.captured_source_view =
-            Some(crate::source::source_snapshot::captured_source_view(&input));
         self.captured_source_input = Some(input);
         self.live_source = None;
         self
@@ -271,8 +295,7 @@ impl BuildMachineFilesystemScope {
             .map(|(index, (name, input))| NamedBuildInput {
                 name: name.clone(),
                 input: input.clone(),
-                snapshot: crate::source::source_snapshot::captured_source_view(input),
-                root: BuildMachineFilesystemGrantRootIdentity::new(index as u32 + 3)
+                root: FilesystemGrantRootIdentity::new(index as u32 + 3)
                     .expect("bounded slot ordinal follows the source and output roots"),
             })
             .collect();
@@ -304,7 +327,7 @@ impl BuildMachineFilesystemScope {
 
     pub(crate) fn named_input_inventory(
         &self,
-        root: BuildMachineFilesystemGrantRootIdentity,
+        root: FilesystemGrantRootIdentity,
     ) -> Option<BuildCapturedSourceInventory> {
         self.named_inputs
             .iter()
@@ -381,13 +404,13 @@ impl BuildMachineFilesystemScope {
     pub(crate) fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
         let mut read_roots = Vec::new();
         let mut captured_roots = Vec::new();
-        if let Some(snapshot) = &self.captured_source_view {
+        if let Some(snapshot) = &self.captured_source_input {
             captured_roots.push(BuildMachineCapturedFilesystemRoot {
                 identity: BUILD_SOURCE_ROOT_IDENTITY,
                 snapshot: snapshot.clone(),
             });
         } else {
-            let mut source_root = BuildMachineFilesystemGrantRoot::new(
+            let mut source_root = FilesystemGrantRoot::new(
                 BUILD_SOURCE_ROOT_IDENTITY,
                 self.source_root.clone(),
             );
@@ -399,12 +422,12 @@ impl BuildMachineFilesystemScope {
         captured_roots.extend(self.named_inputs.iter().map(|input| {
             BuildMachineCapturedFilesystemRoot {
                 identity: input.root,
-                snapshot: input.snapshot.clone(),
+                snapshot: input.input.clone(),
             }
         }));
-        let grants = BuildMachineFilesystemGrants {
+        let grants = FsGrants {
             read_roots,
-            write_roots: vec![BuildMachineFilesystemGrantRoot::new(
+            write_roots: vec![FilesystemGrantRoot::new(
                 BUILD_OUTPUT_ROOT_IDENTITY,
                 self.build_dir.clone(),
             )],

@@ -62,7 +62,7 @@ fn reached_boundaries(
 ) -> Result<Vec<BoundaryMachineId>, Vec<Diagnostic>> {
     selected_calls.sort_unstable();
     selected_calls.dedup();
-    let graph = terminal_installation::SynchronousCallGraph::new(module, None)
+    let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
         .and_then(|graph| graph.with_boundary_calls(selected_calls))
         .map_err(unavailable)?;
     let mut reached = Vec::new();

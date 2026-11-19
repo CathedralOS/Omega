@@ -12,7 +12,7 @@ use pipeline::prepare::published_application::prepare_saved_program;
 use pipeline::request::NativeCompileRequest;
 use provider_admission::provider_admission::current_terminal_authority_policy;
 use psi_authorization::AuthorizedTerminalArtifact;
-use terminal_installation::PrivateEntryRamInitialization;
+use psi_entry_memory::PrivateEntryRamInitialization;
 
 /// Integration tests can supply an already retained input to isolate admission or
 /// observe how often ordinary compilation enters a stage.
@@ -21,6 +21,7 @@ pub mod test_support {
     pub use crate::pipeline::observations::{
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
+    pub use crate::pipeline::realization::compile_runtime_foreign_adapter;
     pub use crate::pipeline::request::NativeCompileRequest;
     pub use crate::pipeline::{admit_runtime, compile};
 }

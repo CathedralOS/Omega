@@ -39,9 +39,11 @@ mod affine_transform;
 mod allocation;
 mod borrowed_storage;
 mod buffered_output;
+#[path = "../../clock/bindings.rs"]
 pub(super) mod clock;
 mod descriptor_io;
 mod descriptor_mode;
+#[path = "../../filesystem/bindings.rs"]
 mod filesystem;
 mod integer_absolute;
 mod integer_division;
@@ -57,7 +59,7 @@ mod standard_input;
 use published_runtime_input::RuntimeHostProvisions as TerminalRuntimeHostProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
 use target::TargetProfile;
-use target_operations::{BoundaryRealization, BoundarySettlementRealization};
+use target_vocabulary::{BoundaryRealization, BoundarySettlementRealization};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectRejection, TerminalImportSignature, TerminalInstance,
     TerminalProgram, TerminalScalarValue, TerminalStructuralValue,
@@ -113,7 +115,7 @@ enum OutputKind {
 pub(super) fn admit_exact_foreign_call(
     signature: &TerminalImportSignature,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
-    binding: &target_operations::NormalizedForeignCallBinding,
+    binding: &target_vocabulary::NormalizedForeignCallBinding,
     native_signature: &calling_conventions::CallSignature,
 ) -> Result<(), TerminalRuntimeError> {
     if !binding.has_valid_entry_mechanism() {
@@ -213,7 +215,7 @@ fn host_supplies_target(target: TargetProfile) -> bool {
 }
 
 pub(super) fn matches_platform_c_symbol(
-    binding: &target_operations::NormalizedForeignCallBinding,
+    binding: &target_vocabulary::NormalizedForeignCallBinding,
     symbol: &[u8],
     darwin_install_names: &[&[u8]],
     windows_library: Option<&[u8]>,
@@ -379,7 +381,7 @@ fn bind_numeric_import<'host>(
     program: &TerminalProgram,
     instance: &mut impl HostBindingTarget<'host>,
     slot: BoundaryMachineId,
-    realization: target_operations::NearestIeeeFloatArithmeticRealization,
+    realization: target_vocabulary::NearestIeeeFloatArithmeticRealization,
 ) -> Result<(), TerminalRuntimeError> {
     let declaration = instance
         .import(slot)

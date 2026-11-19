@@ -36,25 +36,9 @@ impl BodyTyper<'_, '_> {
                         if let Some(ty) = expected {
                             self.check_destination(expr, &value, ty)?;
                         }
-                        if source.nodes[node_index]
-                            .parent
-                            .is_some_and(|p| source.nodes[p].kind == Machine)
-                            && matches!(value, ValueType::Reference(..) | ValueType::AtLifetime(..))
-                        {
-                            if self.local_view(expr) {
-                                return Err(TypeError::at(source, expr, "returned reference borrows invocation-local storage"));
-                            }
-                            self.record_obligation(
-                                expr,
-                                ObligationKind::ReturnBorrow {
-                                    machine: self
-                                        .unit
-                                        .declaration(source.nodes[node_index].parent.unwrap())?
-                                        .clone(),
-                                },
-                            );
-                        }
-                        result = Some(expected.cloned().unwrap_or(value));
+                        let result_type = expected.cloned().unwrap_or(value);
+                        self.check_return_borrow(node_index, expr, &result_type)?;
+                        result = Some(result_type);
                     } else if source.nodes[statement].kind == ExpressionStatement && value != ValueType::NoResult {
                         return Err(TypeError::at(source, expr, "value-producing statement requires an explicit discard"));
                     }
@@ -69,6 +53,32 @@ impl BodyTyper<'_, '_> {
             return Err(TypeError::at(source, node_index, format!("missing result of type {ty}")));
         }
         Ok(result.unwrap_or(ValueType::NoResult))
+    }
+    /// A copy read yields an independent value. Only a machine result that
+    /// keeps the reference carries its origin across the return.
+    pub(super) fn check_return_borrow(
+        &mut self,
+        body: usize,
+        expr: usize,
+        result: &ValueType,
+    ) -> Result<(), TypeError> {
+        let source = &self.unit.file;
+        if matches!(result, ValueType::Reference(..) | ValueType::AtLifetime(..))
+            && let Some(machine) = source.nodes[body]
+                .parent
+                .filter(|&p| source.nodes[p].kind == NodeKind::Machine)
+        {
+            if self.local_view(expr) {
+                return Err(TypeError::at(source, expr, "returned reference borrows invocation-local storage"));
+            }
+            self.record_obligation(
+                expr,
+                ObligationKind::ReturnBorrow {
+                    machine: self.unit.declaration(machine)?.clone(),
+                },
+            );
+        }
+        Ok(())
     }
     pub(super) fn check_binding(
         &mut self,

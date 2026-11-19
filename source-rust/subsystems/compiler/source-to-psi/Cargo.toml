@@ -41,7 +41,6 @@ layout-planning = { path = "../psi/layout/integer-defaults" }
 numeric-literals = { path = "../foundation/numeric-literals" }
 evaluation-contracts = { path = "../build/evaluation/usage" }
 evaluation-receipts = { path = "../build/evaluation/receipts" }
-source-capture = { path = "../../../../host-support/source-capture" }
 source-admission = { path = "pipeline/representations/source-files/custody" }
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }
@@ -56,8 +55,6 @@ build-time-values = { path = "evaluation/build-time-values" }
 record-storage = { path = "../../../foundation/record-storage" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 worker-budget = { path = "../foundation/worker-budget" }
-filesystem-authority = { path = "evaluation/filesystem-authority" }
-flow-effects = { path = "language/source-effects" }
 language-core = { path = "../foundation/language-core" }
 layout-plans = { path = "../psi/layout" }
 numerics = { path = "../psi/semantics/numeric" }

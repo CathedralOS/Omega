@@ -14,8 +14,8 @@ pub struct EstablishedEntry {
     arguments: Vec<TerminalStructuralValue>,
     zero_initialized: Vec<u32>,
     erased_fields: Vec<TerminalEstablishedErasedField>,
-    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
-    establishments: Vec<terminal_installation::TerminalAccessViewEstablishment>,
+    private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
+    establishments: Vec<terminal_semantics::entry_values::TerminalAccessViewEstablishment>,
 }
 
 impl EstablishedEntry {
@@ -84,7 +84,7 @@ pub fn establish(
             ));
         }
         let (original_identity, descriptor_identity) =
-            terminal_installation::private_entry_ram_identity_pair(program.module(), index).ok_or(
+            psi_entry_memory::private_entry_ram_identity_pair(program.module(), index).ok_or(
                 TerminalRuntimeError::InvalidProvision(
                     "private entry RAM identity namespace is exhausted",
                 ),
@@ -96,7 +96,7 @@ pub fn establish(
         ));
         arrival
             .establishments
-            .push(terminal_installation::TerminalAccessViewEstablishment {
+            .push(terminal_semantics::entry_values::TerminalAccessViewEstablishment {
                 input: recipe.input().clone(),
                 referent: TerminalStructuralValue::minted(
                     original_identity,

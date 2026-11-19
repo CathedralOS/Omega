@@ -1094,7 +1094,7 @@ pub(crate) mod constraint_identity {
                     atom(
                         Label::Domain,
                         match value_domain {
-                            declaration_contracts::value_domain::ValueDomain::Finite => "finite",
+                            crate::source_state::types::ValueDomain::Finite => "finite",
                         },
                     ),
                 ],
@@ -5329,7 +5329,7 @@ pub(crate) mod package_policy_reading_tests {
         };
         use application_identity::const_value::CanonicalConstValue;
         use language_core::CarryPermission;
-        use declaration_contracts::value_domain::ValueDomain;
+        use crate::source_state::types::ValueDomain;
         use language_core::atomic::{
             AtomicExpressionResultCustody, AtomicOrderingPlan, MemoryOrdering,
         };

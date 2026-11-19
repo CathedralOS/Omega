@@ -20,46 +20,6 @@ Provenance:
 #[path = "source_snapshot_file_read.rs"]
 mod file_read;
 
-pub(crate) fn captured_source_view(
-    input: &build_output::CapturedBuildSourceInput,
-) -> source_capture::SourceSnapshot {
-    source_capture::SourceSnapshot::new(BuildSourceSnapshotStorage(input.clone()))
-}
-
-struct BuildSourceSnapshotStorage(build_output::CapturedBuildSourceInput);
-
-fn snapshot_entry(
-    entry: &build_output::CapturedSourceEntry,
-) -> source_capture::SourceSnapshotEntry<'_> {
-    match entry {
-        build_output::CapturedSourceEntry::Directory => {
-            source_capture::SourceSnapshotEntry::Directory
-        }
-        build_output::CapturedSourceEntry::File { bytes, .. } => {
-            source_capture::SourceSnapshotEntry::File(bytes)
-        }
-        build_output::CapturedSourceEntry::Symlink { target, .. } => {
-            source_capture::SourceSnapshotEntry::Symlink(target)
-        }
-    }
-}
-
-impl source_capture::SourceSnapshotStorage for BuildSourceSnapshotStorage {
-    fn entry(&self, path: &[u8]) -> Option<source_capture::SourceSnapshotEntry<'_>> {
-        self.0.retained_entry(path).map(snapshot_entry)
-    }
-
-    fn entries(
-        &self,
-    ) -> Box<dyn Iterator<Item = (&[u8], source_capture::SourceSnapshotEntry<'_>)> + '_> {
-        Box::new(
-            self.0
-                .retained_entries()
-                .map(|(path, entry)| (path, snapshot_entry(entry))),
-        )
-    }
-}
-
 #[cfg(unix)]
 use crate::source::canonical_fs::require_canonical_mode;
 use crate::source::canonical_fs::{canonical_file_executable, os_str_bytes};
@@ -77,7 +37,7 @@ use std::sync::Arc;
 const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
 const CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 
-pub use filesystem_authority::{
+pub use source_selection::{
     SourceCaptureObligation as BuildSourceCaptureObligation,
     SourceCaptureRequest as BuildSourceCaptureRequest,
 };
@@ -118,7 +78,7 @@ pub(crate) fn retained_scoped_source_input(
         .map(|(path, entry)| (path.to_vec(), entry))
         .collect::<BTreeMap<_, _>>();
     available.insert(Vec::new(), &root);
-    let selected = filesystem_authority::select_source_members(
+    let selected = source_selection::select_source_members(
         request,
         (
             CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
@@ -375,7 +335,7 @@ fn capture_scoped_rows<T>(
         &mut u64,
     ) -> Result<(CapturedSourceMetadataRow, T), String>,
 ) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, T)>), String> {
-    let selected = filesystem_authority::select_source_members(
+    let selected = source_selection::select_source_members(
         request,
         (
             CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,

@@ -1,7 +1,7 @@
 /*
 Syntax-tree projection for `build.omg`.
 
-We locate the canonical root `machine build(builder: &mut Build)` entry, read
+We locate the canonical root `machine build(builder: @mut Build)` entry, read
 its direct `Build::{package,application,member,artifact_only}` statements, and
 reject every call shape that would require evaluation or hide a role statement
 inside a helper state, nested machine, or subexpression.
@@ -74,11 +74,11 @@ impl BuildEntrySyntaxProjection {
 pub fn project_build_declaration_from_source(
     source: &str,
 ) -> Result<BuildDeclaration, BuildDeclarationError> {
-    let parsed = source_compiler::parse_text(source).map_err(|error| match error {
-        source_compiler::SourceParseError::Lex { message } => {
+    let parsed = source_syntax::parse_text(source).map_err(|error| match error {
+        source_syntax::SourceParseError::Lex { message } => {
             BuildDeclarationError::Lex { message }
         }
-        source_compiler::SourceParseError::Parse { message } => {
+        source_syntax::SourceParseError::Parse { message } => {
             BuildDeclarationError::Parse { message }
         }
     })?;

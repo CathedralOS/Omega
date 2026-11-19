@@ -35,6 +35,5 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
 terminal-check-tables = { path = "../representations/lowered-program" }
 terminal-codec = { path = "../../../psi/codec" }
-terminal-installation = { path = "../../../psi-admission" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }

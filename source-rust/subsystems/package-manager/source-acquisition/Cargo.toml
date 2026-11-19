@@ -11,10 +11,10 @@ path = "lib.rs"
 test-fixtures = []
 
 [dependencies]
-source-capture = { path = "../../../host-support/source-capture" }
+source-selection = { path = "capture/selection" }
+source-capture = { path = "capture" }
 wire = { path = "../../../foundation/wire" }
 record-storage = { path = "../../../foundation/record-storage" }
-filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 bounded-process = { path = "../../../foundation/bounded-process" }
 platform-custody = { path = "../../../foundation/filesystem" }
 resolver-execution = { path = "git/execution" }

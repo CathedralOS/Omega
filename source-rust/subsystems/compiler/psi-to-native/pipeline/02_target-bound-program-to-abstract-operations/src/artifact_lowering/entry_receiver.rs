@@ -13,7 +13,7 @@ use crate::artifact_lowering::{
     validate_native_program_entry_settlement,
 };
 use diagnostics::Diagnostic;
-use terminal_installation::terminal_target_context;
+use psi_target_layouts::terminal_target_context;
 
 pub fn admit_executable_entry(
     input: &VerifiedNativeArtifactInput,

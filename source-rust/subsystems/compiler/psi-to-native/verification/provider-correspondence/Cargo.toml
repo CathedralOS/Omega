@@ -8,7 +8,6 @@ version.workspace = true
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../psi/application-identity" }
 graphs = { path = "../../../foundation/graphs" }
-flow-effects = { path = "../../../source-to-psi/language/source-effects" }
 boundary-applications = { path = "../../installation/boundary-applications" }
 backend-plan = { path = "../../installation/provider-plans" }
 terminal-psi = { path = "../../../psi" }

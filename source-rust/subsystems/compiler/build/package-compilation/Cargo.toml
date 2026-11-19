@@ -5,13 +5,14 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+source-selection = { path = "../../../package-manager/source-acquisition/capture/selection" }
 language-core = { path = "../../foundation/language-core" }
 host-provider-inputs = { path = "../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
 optimization-requests = { path = "../optimization-policy/requests" }
 evaluation-contracts = { path = "../evaluation/usage" }
-source-capture = { path = "../../../host-support/source-capture" }
+source-capture = { path = "../../../package-manager/source-acquisition/capture" }
 source-admission = { path = "../../source-to-psi/pipeline/representations/source-files/custody" }
 source-text = { path = "../../../../foundation/source-text" }
 evaluation-receipts = { path = "../evaluation/receipts" }
@@ -22,7 +23,6 @@ cap-std = "4.0.3"
 source-acquisition = { path = "../../../package-manager/source-acquisition" }
 evaluation-accounting = { path = "../evaluation/accounting" }
 artifacts = { path = "../../foundation/measurements" }
-flow-effects = { path = "../../source-to-psi/language/source-effects" }
 optimization-selections = { path = "../../foundation/optimization-selections" }
 arena = { path = "../../../../foundation/arena" }
 symbols = { path = "../../foundation/declaration-identity" }
@@ -32,7 +32,7 @@ build-output = { path = "../build-output" }
 platform-custody = { path = "../../../../foundation/filesystem" }
 effects = { path = "../../psi-to-native/installation/native-effects" }
 target = { path = "../../psi-to-native/targets/target" }
-filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+filesystem-authority = { path = "../evaluation/filesystem" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = "../../psi" }
 diagnostics = { path = "../../../../foundation/diagnostics" }

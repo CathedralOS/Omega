@@ -95,7 +95,7 @@ mod native_providers {
     pub fn lower_native_execution(
         proposal: &TerminalNativeRealizationProposal,
         execution: PreparedNativeExecution,
-        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+        private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
         scalar_applications: Option<crate::artifact_lowering::NativeScalarApplications<'_>>,
     ) -> Result<
         (

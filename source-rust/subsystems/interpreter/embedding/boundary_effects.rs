@@ -4240,10 +4240,11 @@ pub struct TerminalEffectRejection {
     pub reason: String,
 }
 
+pub use psi_target_layouts::{
+    AdmittedTargetLayouts, TerminalTargetContext, admit_target_layouts, terminal_target_context,
+};
 pub use terminal_installation::{
-    AdmittedAssumedBinding, AdmittedTargetLayouts, AssumedBindingSelection,
-    ProviderInstallationSelection, TerminalTargetContext, admit_target_layouts,
-    terminal_target_context,
+    AdmittedAssumedBinding, AssumedBindingSelection, ProviderInstallationSelection,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

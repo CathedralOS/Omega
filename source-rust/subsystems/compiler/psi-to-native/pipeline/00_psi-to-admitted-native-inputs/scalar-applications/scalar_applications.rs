@@ -17,9 +17,9 @@ target-dependent operations must still resolve a deployment.
 
 pub use artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt as EvaluationReceipt;
 use backend_plan::TerminalTargetProviderProposal;
+use psi_target_layouts::terminal_target_context;
 use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
-use terminal_installation::terminal_target_context;
 
 /// The Product phase's completed scalar work and its unchanged provider inputs.
 /// Native completion adds application roots and demanded values to this owner.

@@ -1,0 +1,15 @@
+[package]
+name = "psi-entry-memory"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "entry_memory.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+psi-target-layouts = { path = "../../layout/admission" }
+terminal-codec = { path = "../../codec" }
+terminal-psi = { path = "../.." }
+terminal-semantics = { path = "../../semantics" }

@@ -1165,21 +1165,20 @@ pub(crate) mod placed {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    enum AccessRamHome {
-        Frame {
+    enum AccessRamHome {        Frame {
             depth: usize,
             machine: MachineId,
             place: PlaceId,
             allocation: TerminalStructuralValue,
         },
         PrivateEntry {
-            recipe: terminal_installation::CheckedPrivateEntryRamRecipe,
+            recipe: psi_entry_memory::CheckedPrivateEntryRamRecipe,
             allocation: TerminalStructuralValue,
         },
     }
 
     pub(crate) struct PrivateEntryRamAllocation {
-        pub(crate) recipe: terminal_installation::CheckedPrivateEntryRamRecipe,
+        pub(crate) recipe: psi_entry_memory::CheckedPrivateEntryRamRecipe,
         pub(crate) allocation: TerminalStructuralValue,
     }
 
@@ -1263,8 +1262,8 @@ pub(crate) mod placed {
 
         pub(crate) fn establish_private_entry_ram(
             &mut self,
-            recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
-            establishments: &[terminal_installation::TerminalAccessViewEstablishment],
+            recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
+            establishments: &[terminal_semantics::entry_values::TerminalAccessViewEstablishment],
         ) -> Result<(), TerminalInterpretError> {
             for recipe in recipes {
                 if recipe.terminal() != self.program.identity.semantic()

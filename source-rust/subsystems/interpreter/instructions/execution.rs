@@ -248,7 +248,7 @@ pub(crate) mod capabilities {
     pub(crate) fn check_with_private_entry_ram(
         program: &AdmittedTerminalProgram,
         installation: Option<&TerminalRuntimeSupplies>,
-        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+        private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
         scalar_scope: Option<&terminal_installation::ScalarScopeInputs>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
         let entry = program.resolve_entry(installation)?;
@@ -693,7 +693,7 @@ pub(crate) mod capabilities {
                     AdmittedBoundarySupply::CheckedProvider(machine) => Some((boundary, *machine)),
                     _ => None,
                 });
-            terminal_installation::SynchronousCallGraph::new(&program.catalogs, None)
+            terminal_semantics::synchronous_calls::SynchronousCallGraph::new(&program.catalogs, None)
                 .and_then(|graph| graph.with_boundary_calls(calls))
                 .and_then(|graph| graph.validate_installed_service_reach(entry))
                 .map_err(TerminalInterpretError::InstallationServiceReach)?;

@@ -17,7 +17,7 @@ record-storage = { path = "../../foundation/record-storage" }
 evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }
 declaration-contracts = { path = "../compiler/source-to-psi/language/declaration-contracts" }
 evaluation-contracts = { path = "../compiler/build/evaluation/usage" }
-source-capture = { path = "../../../host-support/source-capture" }
+source-capture = { path = "source-acquisition/capture" }
 source-admission = { path = "../compiler/source-to-psi/pipeline/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }
@@ -40,7 +40,7 @@ target = { path = "../compiler/psi-to-native/targets/target" }
 provider-admission = { path = "../compiler/psi-to-native/verification/provider-admission" }
 arena = { path = "../../foundation/arena" }
 semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
-filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+filesystem-authority = { path = "../compiler/build/evaluation/filesystem" }
 diagnostics = { path = "../../foundation/diagnostics" }
 source-syntax = { path = "../compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax" }
 syntax-trees = { path = "../compiler/source-to-psi/pipeline/representations/syntax-trees" }

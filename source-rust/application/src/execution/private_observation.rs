@@ -42,7 +42,7 @@ pub(super) fn capture(
             ));
         }
         let observations =
-            terminal_installation::decode_private_entry_observations(recipes, &bytes)
+            psi_entry_memory::decode_private_entry_observations(recipes, &bytes)
                 .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;
         Ok((output, observations, bytes))
     }

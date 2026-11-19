@@ -67,7 +67,7 @@ impl CallingProgram {
         let account = sponsor
             .begin_invocation(measurement, limits.work_budget())
             .map_err(|error| error.to_string())?;
-        let selected = terminal_installation::terminal_target_context(
+        let selected = psi_target_layouts::terminal_target_context(
             self.artifact.view(),
             target.target_name(),
         );
@@ -137,7 +137,7 @@ impl CallingProgram {
         scope: CallingStorageScope<'_>,
         providers: &[effects::provider_plan::ProviderPlan],
     ) -> Result<CanonicalCallingSignature, String> {
-        let demand = terminal_installation::CallingAbiStorageDemand::new(
+        let demand = psi_scalar_applications::CallingAbiStorageDemand::new(
             self.artifact.view(),
             target.target_name(),
             declaration,
@@ -154,7 +154,7 @@ impl CallingProgram {
 
     fn with_storage_extents<Output>(
         &self,
-        demand: &terminal_installation::CallingAbiStorageDemand,
+        demand: &psi_scalar_applications::CallingAbiStorageDemand,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
         providers: &[effects::provider_plan::ProviderPlan],
@@ -212,11 +212,11 @@ impl CallingProgram {
             )?;
             for &application in demand.applications() {
                 let value = match completed.values().value(application) {
-                    Some(terminal_installation::TerminalScalarValue::Integer {
+                    Some(terminal_semantics::entry_values::TerminalScalarValue::Integer {
                         value: semantic_vocabulary::IntegerValue::Unsigned(value),
                         ..
                     }) => u64::try_from(value).map_err(|_| "calling ABI extent exceeds u64")?,
-                    Some(terminal_installation::TerminalScalarValue::Integer {
+                    Some(terminal_semantics::entry_values::TerminalScalarValue::Integer {
                         value: semantic_vocabulary::IntegerValue::Signed(value),
                         ..
                     }) => u64::try_from(value)

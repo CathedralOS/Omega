@@ -457,8 +457,7 @@ pub(crate) mod errors {
     use terminal_work::WorkMeterError;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalInterpretError {
-        UnsuppliedErasedEntryInputs {
+    pub enum TerminalInterpretError {        UnsuppliedErasedEntryInputs {
             machine: MachineId,
             reason: &'static str,
         },
@@ -639,8 +638,8 @@ pub(crate) mod errors {
         TargetContextIdentityMismatch,
         TargetLayoutSelectionIdentityMismatch,
         TargetLayoutSelectionMissing(terminal_psi::LayoutApplicationId),
-        TargetLayoutSelection(terminal_installation::TargetLayoutSelectionError),
-        TerminalEntry(terminal_installation::TerminalEntryError),
+        TargetLayoutSelection(psi_target_layouts::TargetLayoutSelectionError),
+        TerminalEntry(psi_target_layouts::TerminalEntryError),
         RuntimeSupplySelectionRejected {
             boundary: BoundaryMachineId,
             reason: &'static str,
@@ -1404,7 +1403,7 @@ pub(crate) mod values {
     use semantic_vocabulary::{StructuralCaseId, StructuralFieldId, StructuralTypeId};
     use terminal_psi::StructuralPathSegment;
 
-    pub use terminal_installation::{TerminalScalarValue, TerminalStructuralValue};
+    pub use terminal_semantics::entry_values::{TerminalScalarValue, TerminalStructuralValue};
 
     pub(crate) fn scalar_contents(value: TerminalScalarValue) -> crate::TerminalStorageContents {
         crate::TerminalStorageContents::Scalar {

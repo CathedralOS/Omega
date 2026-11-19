@@ -162,7 +162,7 @@ fn scalar_boundaries(
         semantic_vocabulary::MachineId,
     )],
 ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, String> {
-    let graph = terminal_installation::SynchronousCallGraph::new(module, None)?
+    let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)?
         .with_boundary_calls(selected.to_vec())?;
     Ok(graph
         .from_callables(graph.scalar_evaluation_roots(roots, Some(target))?)?

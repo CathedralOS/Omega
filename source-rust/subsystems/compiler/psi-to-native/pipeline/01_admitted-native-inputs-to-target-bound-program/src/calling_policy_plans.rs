@@ -45,11 +45,13 @@ pub struct TerminalCallingPolicyInvocation<'input> {
 }
 
 pub(super) mod scalar_completion {
+    use psi_scalar_applications::CallingAbiStorageDemand;
+    use semantic_vocabulary::ScalarAddressModel;
     use semantic_vocabulary::ScalarApplicationId;
     use terminal_codec::CanonicalTerminalArtifact;
     use terminal_installation::{
-        AdmittedProviderSelections, AdmittedScalarApplications, CallingAbiStorageDemand,
-        ScalarAddressModel, ScalarApplicationClosure, ScalarApplicationObservations,
+        AdmittedProviderSelections, AdmittedScalarApplications, ScalarApplicationClosure,
+        ScalarApplicationObservations,
     };
     use terminal_work::WorkMeter;
 
@@ -96,7 +98,7 @@ pub(super) mod scalar_completion {
         for scope in scopes {
             let profile = target::TargetProfile::from_canonical_target_name(&scope)
                 .map_err(|error| error.message)?;
-            let selected = terminal_installation::terminal_target_context(artifact.view(), &scope);
+            let selected = psi_target_layouts::terminal_target_context(artifact.view(), &scope);
             let facts = profile
                 .layout_target_facts()
                 .ok_or("calling scalar target has no immutable layout catalogue")?;

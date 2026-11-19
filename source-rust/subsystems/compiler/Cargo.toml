@@ -8,6 +8,7 @@ version.workspace = true
 path = "compiler.rs"
 
 [dependencies]
+psi-entry-memory = { path = "psi/access/entry-memory" }
 diagnostics = { path = "../../foundation/diagnostics" }
 native-compiler = { path = "psi-to-native" }
 product-publication = { path = "build/build-output/product-publication" }
@@ -18,10 +19,12 @@ source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }
 terminal-codec = { path = "psi/codec" }
 psi-authorization = { path = "psi/authorization" }
-terminal-installation = { path = "psi-admission" }
 
 [dev-dependencies]
+terminal-installation = { path = "psi-admission" }
 evaluation-accounting = { path = "build/evaluation/accounting" }
+entry-planning = { path = "psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning" }
+native-encoding = { path = "psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding" }
 service-surface = { path = "psi/service-surface" }
 provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 native-scalar-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
@@ -31,6 +34,7 @@ native-compiler = { path = "psi-to-native", features = ["test-support"] }
 numerics = { path = "psi/semantics/numeric" }
 optimization-selections = { path = "foundation/optimization-selections" }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
+terminal-semantics = { path = "psi/semantics" }
 
 [[test]]
 name = "build_charge"

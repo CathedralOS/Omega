@@ -5,10 +5,9 @@ license.workspace = true
 version.workspace = true
 
 [lib]
-name = "filesystem_authority"
-path = "src/lib.rs"
+path = "filesystem_authority.rs"
 
 [dependencies]
-source-capture = { path = "../../../host-support/source-capture" }
-wire = { path = "../../../../../foundation/wire" }
 record-storage = { path = "../../../../../foundation/record-storage" }
+source-selection = { path = "../../../../package-manager/source-acquisition/capture/selection" }
+wire = { path = "../../../../../foundation/wire" }

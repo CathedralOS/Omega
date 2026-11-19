@@ -43,11 +43,11 @@ mod error {
     impl std::error::Error for ArtifactLoweringError {}
 }
 mod establishment {
-    pub use terminal_installation::TerminalAccessViewEstablishment;
+    pub use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
 
     use super::ArtifactLoweringError;
     use std::collections::BTreeSet;
-    use terminal_installation::TerminalStructuralValue;
+    use terminal_semantics::entry_values::TerminalStructuralValue;
     use terminal_psi::{StructuralAccess, TerminalModule};
 
     const fn exclusive(access: StructuralAccess) -> bool {
@@ -141,8 +141,9 @@ mod native {
     use super::retention::AdmittedOptimizationArtifact;
     use crate::artifact_lowering::lowering::lower_decoded_module;
     use abstract_operations::AbstractOperationPlan;
-    use terminal_installation::TerminalAccessViewEstablishment;
-    use terminal_installation::{AdmittedScalarApplications, TerminalTargetContext};
+    use psi_target_layouts::TerminalTargetContext;
+    use terminal_installation::AdmittedScalarApplications;
+    use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
     use verified_optimization_input::{
         VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
     };
@@ -151,7 +152,7 @@ mod native {
     pub struct VerifiedNativeArtifactInput {
         optimization_input: VerifiedPsiOptimizationInput,
         access_view_establishments: Vec<TerminalAccessViewEstablishment>,
-        private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+        private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
     }
 
     pub struct NativeExecutionSelection<'request> {
@@ -168,7 +169,7 @@ mod native {
         profile: target::TargetProfile,
         entry: semantic_vocabulary::MachineId,
         pub(crate) targets: TerminalTargetContext,
-        pub(crate) layouts: terminal_installation::AdmittedTargetLayouts,
+        pub(crate) layouts: psi_target_layouts::AdmittedTargetLayouts,
         pub(crate) scope: Option<crate::artifact_lowering::NativeExecutionScope>,
         pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
     }
@@ -185,7 +186,7 @@ mod native {
                 .admit_address_representation()
                 .map_err(ArtifactLoweringError::TargetContext)?;
             let module = artifact.semantic_module();
-            let selections = terminal_installation::terminal_target_context(
+            let selections = psi_target_layouts::terminal_target_context(
                 artifact.view(),
                 profile.target_name(),
             );
@@ -197,7 +198,7 @@ mod native {
                     "selected native target has no representation facts".into(),
                 )
             })?;
-            let layouts = terminal_installation::admit_target_layouts(
+            let layouts = psi_target_layouts::admit_target_layouts(
                 artifact.view(),
                 &selections,
                 &target_facts,
@@ -377,7 +378,7 @@ mod native {
             )
         }
 
-        pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
+        pub fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe] {
             &self.private_entry_ram
         }
 
@@ -385,7 +386,7 @@ mod native {
             artifact: &psi_authorization::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
-            recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+            recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
             selection: &NativeExecutionSelection<'_>,
         ) -> Result<Self, ArtifactLoweringError> {
             NativeScopePreparation::prepare(artifact, profile, root, selection)?
@@ -422,7 +423,7 @@ mod native {
         pub(crate) fn lower_with_private_entry_ram(
             self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,
-            recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+            recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
             selection: &NativeExecutionSelection<'_>,
             evidence: Option<&terminal_codec::EvidenceSeals>,
         ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
@@ -448,7 +449,7 @@ mod native {
                 .iter()
                 .enumerate()
                 .map(|(index, recipe)| {
-                    let (identity, _) = terminal_installation::private_entry_ram_identity_pair(
+                    let (identity, _) = psi_entry_memory::private_entry_ram_identity_pair(
                         artifact.view().module(),
                         index,
                     )
@@ -459,7 +460,7 @@ mod native {
                     })?;
                     Ok(TerminalAccessViewEstablishment {
                         input: recipe.input().clone(),
-                        referent: terminal_installation::TerminalStructuralValue::minted(
+                        referent: terminal_semantics::entry_values::TerminalStructuralValue::minted(
                             identity,
                             recipe.schema(),
                             Vec::new(),
@@ -669,8 +670,8 @@ mod native {
                 .expect("actual direct placed row")
                 .clone();
             let selections =
-                terminal_installation::terminal_target_context(artifact.view(), "linux_x86_64");
-            let layouts = terminal_installation::admit_target_layouts(
+                psi_target_layouts::terminal_target_context(artifact.view(), "linux_x86_64");
+            let layouts = psi_target_layouts::admit_target_layouts(
                 artifact.view(),
                 &selections,
                 &target::TargetProfile::LinuxX64
@@ -702,11 +703,11 @@ mod native {
                 wrong_binding,
                 stale_machine,
             ] {
-                let failure = terminal_installation::admit_private_entry_ram(
+                let failure = psi_entry_memory::admit_private_entry_ram(
                     artifact.view(),
                     &layouts,
                     entry,
-                    &terminal_installation::PrivateEntryRamRecipe {
+                    &psi_entry_memory::PrivateEntryRamRecipe {
                         input,
                         contents: vec![41, 0, 0, 0, 3, 0, 0, 0],
                     },
@@ -714,11 +715,11 @@ mod native {
                 .expect_err("changed row must not lend private RAM");
                 assert!(failure.contains("exact borrowed entry row"), "{failure}");
             }
-            let recipe = terminal_installation::admit_private_entry_ram(
+            let recipe = psi_entry_memory::admit_private_entry_ram(
                 artifact.view(),
                 &layouts,
                 entry,
-                &terminal_installation::PrivateEntryRamRecipe {
+                &psi_entry_memory::PrivateEntryRamRecipe {
                     input: row,
                     contents: vec![41, 0, 0, 0, 3, 0, 0, 0],
                 },
@@ -728,11 +729,11 @@ mod native {
             assert_eq!(recipe.target(), "linux_x86_64");
             {
                 let profile = target::TargetProfile::MacosArm64;
-                let other_selections = terminal_installation::terminal_target_context(
+                let other_selections = psi_target_layouts::terminal_target_context(
                     artifact.view(),
                     profile.target_name(),
                 );
-                let other = terminal_installation::admit_target_layouts(
+                let other = psi_target_layouts::admit_target_layouts(
                     artifact.view(),
                     &other_selections,
                     &profile
@@ -1002,9 +1003,8 @@ mod retention {
     }
 }
 mod scalar_applications {
-    use terminal_installation::{
-        AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
-    };
+    use psi_target_layouts::{AdmittedTargetLayouts, TerminalTargetContext};
+    use terminal_installation::AdmittedScalarApplications;
 
     pub struct NativeScalarApplications<'request> {
         pub completed: &'request AdmittedScalarApplications,

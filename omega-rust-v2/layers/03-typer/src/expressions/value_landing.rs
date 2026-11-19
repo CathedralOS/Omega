@@ -92,7 +92,13 @@ impl BodyTyper<'_, '_> {
             );
             return Ok(());
         }
-        if let ValueType::Reference(Access::Shared | Access::Mut, inner) = value
+        // The lifetime belongs to the loan. Reading its pointee preserves that
+        // loan and uses the same access check as an unannotated reference.
+        let reference = match value {
+            ValueType::AtLifetime(reference, _) => reference.as_ref(),
+            other => other,
+        };
+        if let ValueType::Reference(Access::Shared | Access::Mut, inner) = reference
             && inner.as_ref() == expected
             && (expected.numeric()
                 || expected == &ValueType::Bool

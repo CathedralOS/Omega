@@ -15,13 +15,15 @@ produces the `TerminalComponentBinding`s installed into `TerminalInstance`.
 */
 
 use crate::host::bindings::BuildProviderRequest;
+use psi_target_layouts::{
+    AdmittedTargetLayouts, TerminalTargetContext, admit_target_layouts, terminal_target_context,
+};
 use source_compiler::ProducedBuildProvider;
 use source_compiler::evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
 use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
 use terminal_installation::{
-    AdmittedComponentProvider, AdmittedTargetLayouts, ProviderInstallationSelection,
-    TerminalTargetContext, admit_component_provider, admit_target_layouts, terminal_target_context,
+    AdmittedComponentProvider, ProviderInstallationSelection, admit_component_provider,
 };
 use terminal_interpreter::{
     TerminalComponentBinding, TerminalProgram, TerminalRuntimeSupplyRequest,
@@ -139,7 +141,7 @@ pub(super) fn prepare<'host, 'code>(
                     targets: Some(terminal_target_context(artifact.view(), scope)),
                     providers: admitted.selection().clone(),
                     address_model: Ok(target::TargetSemantics::close_address_model(scope_profile)
-                        .map(|model| terminal_installation::ScalarAddressModel {
+                        .map(|model| semantic_vocabulary::ScalarAddressModel {
                             target: scope.to_owned(),
                             carrier: model.carrier(),
                             semantics_version: model.semantics_version(),

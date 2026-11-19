@@ -3481,7 +3481,7 @@ pub(crate) mod product_queries {
         use crate::declaration_selection::ProductDeclarationRequest;
         use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
         if source.symbols.source_file(span)?.dependency_scope
-            != declaration_contracts::source_identity::DependencyScope::Build
+            != source_provenance::DependencyScope::Build
         {
             return None;
         }

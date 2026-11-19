@@ -8,7 +8,7 @@ pub struct AdmittedHostedReceiver {
     source: SelectedProgramEntrySignature,
     checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical: ProgramEntryPhysicalContractPlan,
-    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+    private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
 }
 
 impl AdmittedHostedReceiver {
@@ -61,7 +61,7 @@ impl HostedReceiverCustody for AdmittedHostedReceiver {
     fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan {
         &self.physical
     }
-    fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
+    fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe] {
         &self.private_entry_ram
     }
 }
@@ -170,7 +170,7 @@ pub fn validate_entry_arguments(
     input: ReceiverArgumentInput<'_>,
     source: &SelectedProgramEntrySignature,
     checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
-    private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
     let ReceiverArgumentInput {
         target,
@@ -313,7 +313,7 @@ pub fn invalid(target: target::NativeTarget) -> Diagnostic {
 }
 
 pub fn recipe_index_for_runtime_position(
-    recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+    recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
     ordinal: usize,
 ) -> Option<usize> {
     recipes

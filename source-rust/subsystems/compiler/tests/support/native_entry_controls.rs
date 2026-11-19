@@ -174,9 +174,11 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
         return Err("native vector control must remove exactly vector permission".into());
     }
     if !generated_vector_control {
-        let scalar = image_fixtures::emit_native_entry_bridge(missing).map_err(|error| {
-            format!("scalar entry unexpectedly needs vector permission: {error:?}")
-        })?;
+        let scalar = entry_planning::native_entry_bridge::plan_native_entry_bridge(missing)
+            .and_then(native_encoding::native_entry_bridge::encode_native_entry_bridge)
+            .map_err(|error| {
+                format!("scalar entry unexpectedly needs vector permission: {error:?}")
+            })?;
         if scalar.bytes() != bridge.bytes()
             || scalar.complete_effects() != bridge.complete_effects()
         {
@@ -199,7 +201,9 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
         }
         Ok(()) => return Err("generated entry accepted undeclared vector use".into()),
     }
-    match image_fixtures::emit_native_entry_bridge(missing) {
+    match entry_planning::native_entry_bridge::plan_native_entry_bridge(missing)
+        .and_then(native_encoding::native_entry_bridge::encode_native_entry_bridge)
+    {
         Err(
             entry_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
                 reason,

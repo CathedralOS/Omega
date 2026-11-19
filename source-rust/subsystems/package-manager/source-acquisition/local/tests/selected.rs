@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use filesystem_authority::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
+use source_selection::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
 
 use super::{
     LocalSourceLimits, capture_local_source_input, capture_selected_local_source_input, temp_root,

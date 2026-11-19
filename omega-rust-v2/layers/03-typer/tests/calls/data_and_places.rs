@@ -204,6 +204,11 @@ fn parentheses_preserve_field_authority_and_collection_write_selection() {
 #[test]
 fn nested_runtime_callables_require_both_effect_ceilings_at_their_own_type() {
     for context in [
+        "data Slot {callback:CALLBACK;}",
+        "machine f(cb:CALLBACK) {}",
+        "machine f() {let mut cb:CALLBACK;}",
+        "machine f(x:machine(x:u8)->u8 reaches none crashes none)->CALLBACK {x}",
+        "machine f<'a>(cb:@'a CALLBACK) {}",
         "machine f(cb:[CALLBACK;2]) {}",
         "machine f(cb:@CALLBACK) {}",
         "data Box<T>{item:T;} machine f(cb:Box<CALLBACK>) {}",
@@ -240,5 +245,68 @@ fn a_write_only_field_loan_cannot_be_strengthened_to_readable_access() {
         check(&[("loan.omg", &allowed)]).unwrap();
         let forwarded = format!("{defs} machine forward(cell:@write Cell) {{let out=@write {place};}}");
         check(&[("loan.omg", &forwarded)]).unwrap();
+    }
+}
+
+#[test]
+fn composed_place_rewrites_preserve_the_loan_and_its_authority() {
+    // A grouping can occur at the root, between selectors, or around the whole loan target.
+    for root in ["view", "(view)"] {
+        for receiver in [format!("{root}.inner"), format!("({root}.inner)")] {
+            let field = format!("{receiver}.value");
+            for place in [field.clone(), format!("(({field}))")] {
+                for (prefix, access) in [
+                    ("@mut", omega_typer::Access::Mut),
+                    ("@write", omega_typer::Access::Write),
+                ] {
+                    let source = format!("data Cell{{value:u8;}} data Outer{{inner:Cell;}} machine f(view:@mut Outer){{let loan={prefix} {place};}}");
+                    let stage = check(&[("rewrite.omg", &source)]).unwrap();
+                    let loans: Vec<_> = stage
+                        .obligations
+                        .iter()
+                        .filter_map(|obligation| match &obligation.kind {
+                            omega_typer::ObligationKind::Borrow { access, place } => Some((access, place)),
+                            _ => None,
+                        })
+                        .collect();
+                    let [(actual, target)] = loans.as_slice() else {
+                        panic!("expected one loan for {source}")
+                    };
+                    assert_eq!(**actual, access);
+                    assert_eq!(target.span.slice(source.as_bytes()), Some(field.as_bytes()));
+                    let shared = source.replace("view:@mut Outer", "view:@Outer");
+                    assert_eq!(check(&[("rewrite.omg", &shared)]).unwrap_err().message, "place requires writable authority");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn composing_type_constructors_preserves_the_inner_callable_ceiling() {
+    // Try each ordered pair, including a constructor nested inside itself.
+    let containers = ["@TYPE", "[TYPE;2]", "[TYPE]", "Box<TYPE>"];
+    for outer in containers {
+        for inner in containers {
+            let annotation = outer.replace("TYPE", inner);
+            let program = format!("data Box<T>{{item:T;}} machine f(cb:{annotation}){{}}");
+            for (suffix, diagnostic) in [
+                (" reaches none crashes none", None),
+                (" reaches none", Some("runtime callable requires an explicit crash ceiling")),
+                (" crashes none", Some("runtime callable requires an explicit reach ceiling")),
+                ("", Some("runtime callable requires explicit reach and crash ceilings")),
+            ] {
+                let callable = format!("machine(x:u8)->u8{suffix}");
+                let source = program.replace("TYPE", &callable);
+                let result = check(&[("rewrite.omg", &source)]);
+                if let Some(message) = diagnostic {
+                    let error = result.unwrap_err();
+                    assert_eq!(error.message, message, "{source}");
+                    assert_eq!(error.span.slice(source.as_bytes()), Some(callable.as_bytes()), "{source}");
+                } else {
+                    result.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+                }
+            }
+        }
     }
 }
