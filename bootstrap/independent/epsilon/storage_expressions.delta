@@ -219,7 +219,7 @@
                   ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
                     (match field
                       ((EpsilonFieldMember fieldStart fieldEnd fieldName typeValue)
-                        (let descriptor Bytes (epsilon_delta_type_descriptor typeValue)
+                        (let descriptor Bytes (epsilon_delta_type_descriptor source catalog typeValue)
                           (let projection Bytes (epsilon_emit_call "EpsilonRuntimeField"
                             (epsilon_emit_spaced (epsilon_delta_span ownerStart ownerEnd)
                               (epsilon_emit_spaced (epsilon_delta_span fieldStart fieldEnd) descriptor)))

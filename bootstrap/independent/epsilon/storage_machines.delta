@@ -1,4 +1,18 @@
-; Receiver parameters have mutable homes. Lifted states capture the original
+; A stored free machine has the same value, store and output convention as a
+; method. Only a receiver declaration takes and retains an actual receiver.
+(def epsilon_delta_receiver_text ((context EpsilonDeltaContext) (present Bytes) (absent Bytes)) Bytes
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match declaration
+        ((EpsilonDataDeclaration start end name members) absent)
+        ((EpsilonBoundaryDeclaration start end name members) absent)
+        ((EpsilonMachineDeclaration start end name inputs returnType body)
+          (match inputs
+            ((NoEpsilonMachineInputs low high) absent)
+            ((EpsilonPlainMachineInputs low high parameters) absent)
+            ((EpsilonReceiverMachineInputs low high parameter parameters) present)))))))
+
+; Stored parameters have mutable homes. Lifted states capture the original
 ; machine homes, while their own parameters receive fresh homes on transfer.
 ; The invocation floor remains fixed across all of its states.
 (def epsilon_delta_stored_parameter_names ((source EpsilonSourceView)
@@ -64,13 +78,13 @@
               (match (epsilon_delta_stored_blocks context captures statements terminal bodyStart)
                 ((EpsilonDeltaCompiled definitions)
                   (let signature Bytes (epsilon_emit_spaced
-                    "(ep_receiver EpsilonRuntimePlace) (ep_floor Int)" (epsilon_emit_spaced
+                    (epsilon_delta_receiver_text context "(ep_receiver EpsilonRuntimePlace) (ep_floor Int)" "(ep_floor Int)") (epsilon_emit_spaced
                       captureSignature (epsilon_emit_spaced (epsilon_delta_stored_signature source parameters 0)
                         "(ep_input_store EpsilonRuntimeStore) (ep_output Bytes)")))
                     (epsilon_delta_append (EpsilonDeltaCompiled (epsilon_delta_stored_function
                       (epsilon_delta_state_name source state) signature
                       (epsilon_delta_stored_bind_parameters source parameters "ep_input_store"
-                        (epsilon_delta_stored_block_call source captures statements bodyStart "ep_store" "ep_output"))))
+                        (epsilon_delta_stored_block_call context captures statements bodyStart "ep_store" "ep_output"))))
                       (EpsilonDeltaCompiled definitions))))
                 ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
                 ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
@@ -96,7 +110,7 @@
             (match (epsilon_delta_stored_blocks context captures statements terminal start)
               ((EpsilonDeltaCompiled definitions)
                 (let signature Bytes (epsilon_emit_spaced
-                  "(ep_receiver EpsilonRuntimePlace)" (epsilon_emit_spaced
+                  (epsilon_delta_receiver_text context "(ep_receiver EpsilonRuntimePlace)" "") (epsilon_emit_spaced
                     (epsilon_delta_stored_signature source parameters 0)
                     "(ep_input_store EpsilonRuntimeStore) (ep_output Bytes)"))
                   (let definition Bytes (epsilon_delta_stored_function
@@ -106,7 +120,7 @@
                         (epsilon_delta_stored_bind_parameters source parameters "ep_input_store"
                           (epsilon_emit_call "epsilon_compiled_finish_call"
                             (epsilon_emit_spaced "ep_floor"
-                              (epsilon_delta_stored_block_call source captures statements start "ep_store" "ep_output"))))))))
+                              (epsilon_delta_stored_block_call context captures statements start "ep_store" "ep_output"))))))))
                     (epsilon_delta_append (EpsilonDeltaCompiled definition)
                       (epsilon_delta_append (EpsilonDeltaCompiled definitions)
                         (epsilon_delta_stored_states context parameters

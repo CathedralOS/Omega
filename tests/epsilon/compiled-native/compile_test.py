@@ -51,6 +51,70 @@ def identity(data):
     return {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
 
 
+def digit_scanner(base, boundary, program, observe, reference, compiler):
+    lexer = (base / 'lexer.epsilon').read_bytes()
+
+    def methods(first, after):
+        return lexer[lexer.index(b'machine OmegaLexScan::' + first + b'('):
+                     lexer.index(b'machine OmegaLexScan::' + after + b'(')]
+
+    source = ((base / 'representations.epsilon').read_bytes()
+              + (base / 'lexical_classification.epsilon').read_bytes()
+              + lexer[:lexer.index(b'machine OmegaLexScan::reject(')]
+              + methods(b'emit', b'span_equals') + methods(b'consume_digits', b'set_punctuation')
+              + boundary + (FIXTURES / 'lexer_digits_main.epsilon').read_bytes())
+
+    def owner_span(name):
+        start = source.index(b'data ' + name + b' {') + len(b'data ')
+        return start, start + len(name)
+
+    def case_span(owner, name):
+        low, _ = owner_span(owner)
+        member = b'case ' + name + b';'
+        start = source.index(member, low, source.index(b'}', low))
+        return start, start + len(member)
+
+    main_low, main_high = owner_span(b'Main')
+    main_type = f'(EpsilonNamedType 0 0 (EpsilonNameSpan {main_low} {main_high}))'
+    entry = ((FIXTURES / 'lexer_digits_driver.delta').read_bytes()
+             + f'(def main ((input Bytes)) Bytes (test_digits_entry {main_type} input))\n'.encode())
+    target, report = program(source, 'lexer-digits', entry)
+    expected = b'\0' + struct.pack('<i', 42)
+    assert observe(target) == reference(source, b'', 'lexer-digits-source') == expected
+
+    # The same spelling in a foreign owner fails checking at the authored call.
+    call = b'omega_digit_in_base(49, copy[0])'
+    offset = source.index(call)
+    invalid = source.replace(call, b'omega_digit_in_base(49, self.other)', 1)
+    assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
+    assert reference(invalid, b'', 'lexer-digits-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
+
+    # Bypass the Epsilon checker at the target interface to exercise states
+    # impossible in valid source. A wildcard may only accept a known member.
+    number = b'OmegaNumericBase'
+    owner = owner_span(number)
+    owner_end = source.index(b'}', owner[0]) + 1
+    internal = b'\xffEEOUT\1\0' + bytes((3, 2, 0, 0)) + struct.pack('<IQQQ', 1, owner_end, 0, 0)
+    binary = case_span(number, b'Binary')
+    cases = [
+        ('binary', 0, binary, b'\0'), ('octal', 0, case_span(number, b'Octal'), b'\1'),
+        ('decimal', 0, case_span(number, b'Decimal'), b'\1'), ('default-binary', 1, owner, b'\0'),
+        ('foreign-case', 0, case_span(b'OtherBase', b'Binary'), internal),
+        ('foreign-default', 1, owner_span(b'OtherBase'), internal),
+        ('wrong-end', 0, (binary[0], binary[1] - 1), internal),
+        ('wrong-start', 0, (binary[0] + 1, binary[1]), internal),
+        ('supplied-payload', 2, binary, internal), ('declared-payload', 3, binary, internal),
+        ('record-children', 4, owner, internal), ('indexed-children', 5, owner, internal),
+        ('scalar', 6, owner, internal),
+    ]
+    report['cases'] = []
+    for label, kind, span, expected in cases:
+        actual = observe(target, struct.pack('<BII', kind, *span))
+        assert actual == expected, (label, actual, expected)
+        report['cases'].append({'name': label, 'output': identity(actual)})
+    return report
+
+
 def stored_customers(work, observe, compile_delta, reference, compiler):
     boundary = CONSOLE[:CONSOLE.index(b'data Main')]
     driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
@@ -167,12 +231,12 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     assert actual == b'\0' + struct.pack('<i', 42) + b'A', actual
     storage_report['native_state_transfers'] = 300000
 
-    # A free function can take a literal enum. Reading a live parameter for
-    # that ABI needs a conversion before the compiler can emit a module.
+    # The live value is Marker::Clear. The original literal is Marker::Set.
     offset = source.index(b'Marker::Set) == 1')
     live = source[:offset] + source[offset:].replace(b'Marker::Set', b'tag', 1)
-    assert observe(compiler, live) == b'unsupported ' + str(offset).encode()
-    assert reference(live, b'\2', 'stored-pure-argument') == b'\1\10'
+    executable, _ = program(live, 'stored-free-argument')
+    assert observe(executable, b'\2') == reference(live, b'\2', 'stored-free-reference') == b'\1\10'
+    digits = digit_scanner(base, boundary, program, observe, reference, compiler)
     # Echo all decoded octets from one source literal, crossing each control,
     # delimiter and non-ASCII byte as data in the generated Delta program.
     octets = bytes(range(256))
@@ -185,7 +249,7 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     assert observe(executable) == reference(source, b'', 'literal-bytes-reference') == expected
     literal_report['output'] = identity(expected)
     return {'request': request_report, 'lexer_diagnostic': diagnostic_report,
-            'storage': storage_report, 'literal_bytes': literal_report}
+            'storage': storage_report, 'literal_bytes': literal_report, 'lexer_digits': digits}
 
 
 def run(work, vm, producer, realize, seconds):

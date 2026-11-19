@@ -12,6 +12,8 @@
     ((EpsilonExpressionContinuation start end expression)
       (epsilon_delta_expression context expression))))
 
+; A stored enum subject supplies a checked member start. A pure enum
+; instead uses the direct target match in enum_control.delta.
 (def epsilon_delta_arm_selector ((context EpsilonDeltaContext)
   (pattern EpsilonPattern) (subject Bytes) (selected Bytes) (otherwise Bytes))
   EpsilonDeltaCompilation
@@ -29,7 +31,10 @@
                 selected otherwise)))
             (EpsilonTransitionWildcard (EpsilonDeltaCompiled selected))
             ((EpsilonSumCasePattern owner caseValue)
-              (EpsilonDeltaUnsupported (epsilon_pattern_start pattern)))))))))
+              (match caseValue
+                ((EpsilonResolvedSumCaseSyntax start end name parameters)
+                  (EpsilonDeltaCompiled (epsilon_emit_if (epsilon_emit_call "eq"
+                    (epsilon_emit_spaced subject (epsilon_emit_decimal start))) selected otherwise)))))))))))
 
 ; Compile every arm before choosing the runtime branch. Exhausting scalar
 ; arms has the same authored trap9 behavior as the evaluator.

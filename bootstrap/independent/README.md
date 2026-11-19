@@ -263,8 +263,8 @@ contract and a named scalar/resultless/trap/internal outcome. Literal and typed
 parameter reads lower directly; operations that can trap retain outcome
 propagation and short-circuit evaluation order. The shared Epsilon I32 helpers
 own overflow, division, remainder, shifts and bitwise meaning. Delta primitive
-failure is not an Epsilon trap. Future effectful lowering must bridge these pure
-results to the existing store/outcome contract where effects occur. Omega's
+failure is not an Epsilon trap. The storage runtime wraps these scalar results
+when a stored expression uses one of the shared arithmetic leaves. Omega's
 full-u64 `Wrapping` customers are not implemented by this I32 capability.
 Named `EvaluateBoth`, `ShortOnTrue` and `ShortOnFalse` compiler cases express
 eager and short-circuit control.
@@ -419,8 +419,8 @@ The compiled Epsilon lexer can now pass its diagnostic code through a method
 and retain it while transferring to two states. A receiver method or state
 takes an immutable snapshot of each argument, in source order, then allocates
 its parameter homes. The same operation carries records, arrays, sums and
-views. A view still refers to its original backing array. A free function
-taking a Delta enum can receive a checked nullary constructor directly.
+views. A view still refers to its original backing array. At this checkpoint a free function
+taking a Delta enum could receive a checked nullary constructor directly.
 
 On the 825,064-byte bootstrap compiler and construction entry at
 `b95769558667` (SHA-256
@@ -478,3 +478,63 @@ byte 67,414 to 85,007, where `OmegaLexScan::consume_digits` passes the stored
 composed Delta grows from 760,383 to 762,106 bytes. The storage runtime grows
 by 393 bytes. The experiment composes that runtime and a driver with the emitted
 module before Delta and Gamma construct the target executable.
+
+### Calling the numeric lexer with a stored enum
+
+The native Epsilon compiler uses one calling convention throughout a module
+with a nonempty receiver machine. Each machine receives immutable argument values, allocates
+mutable homes, and carries the current store and output. Receiver methods
+also receive the authored receiver's place. Free machines take no receiver.
+Pure modules continue to use direct scalar functions and named Delta enum
+types, including the Alpha-tape lexical customer.
+
+A stored nominal transition evaluates its subject once. An explicit nullary
+case must match both endpoints of a member of the checked declaration. A sparse
+zero with no children selects the first member when its owner matches the
+declaration. Compiled type descriptors retain use-site coordinates and the
+declaration’s name span, including after an array copy. The compiler also
+checks the absence of payloads. The selected
+member's source start identifies its arm. These checks precede the wildcard
+so an invalid runtime value yields an internal diagnostic.
+
+The production `consume_digits` and `scan_number` methods now run with their
+authored calls to `omega_digit_in_base`. The scanner fixture checks all four
+bases, an exponent, a missing exponent and a hex integer. A second argument
+mutates the field read by the first argument. A copied array passes through a
+free machine and keeps its original value. The constructed evaluator agrees
+with the compiled entry. A same-spelling case from a different owner fails
+source checking at the call. The target-interface controls also supply
+malformed cases, wrong owners and children on sparse values.
+
+Two prototypes used the same 44,706-byte scanner and target driver at
+`7c9569ea1d7`. Both passed the scanner and all twelve direct target-interface
+controls. The typed adapter preserved the named Delta enum across free calls.
+The shared convention compiled free machines in the storage module with the
+same store and output as methods.
+
+| Prototype | Compiler Delta source | Generated scanner module | Native scanner with test driver |
+| --- | ---: | ---: | ---: |
+| Typed adapter | 766,900 bytes | 216,890 bytes | 13,121,786 bytes |
+| Shared storage calling convention | 762,566 bytes | 274,206 bytes | 17,512,547 bytes |
+
+For the complete 54,840-byte numeric scanner, native-hosted and Alpha-hosted
+Gamma compilers both constructed the same 11,912,696-byte Alpha tape
+(SHA-256 `3848a7ed048f4f8a96e03b760526b95f4706872b527715dde94b925c5124527b`).
+It left 4,864,516 bytes in the unchanged seed. The tape and the 38,193,583-byte
+native executable matched on all thirteen inputs, including the malformed
+target values. The constructed Epsilon evaluator and the independent model
+also ran the authored scanner to exit 42.
+
+With the representations at `1830ef8ec8e`, the repository fixture has 55,030
+source bytes. Its 38,264,464-byte native executable also passes the authored
+entry and thirteen direct value controls.
+
+The landed compiler also handles the checked wildcard and gives free machines
+their own receiver-free signature. Its Delta composition is 763,595 bytes.
+The storage runtime is 93,995 bytes. The pure runtime is 5,429 bytes.
+On the frozen 825,064-byte compiler at `b95769558667`, the previous compiler
+stopped at byte 85,007. A control inserts one known unsupported constructor
+after the frozen lexer's last machine at byte 108,029. The new compiler reaches
+that constructor at byte 108,141. The lexer itself is unchanged. The complete
+numeric scanner also compiles and runs as a separate executable. [Scanner
+fixture](../../tests/epsilon/compiled-native/lexer_digits_main.epsilon)
