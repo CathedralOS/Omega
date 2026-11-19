@@ -24,5 +24,16 @@ tokens = { path = "../representations/tokens" }
 
 [dev-dependencies]
 source-files = { path = "../representations/source-files" }
-source-admission = { path = "../../inputs/source-admission" }
 source-lexer = { path = "../00_source-files-to-tokens" }
+
+[[test]]
+name = "parsing_diagnostics"
+path = "tests/diagnostics.rs"
+
+[[test]]
+name = "parsing_sample_files"
+path = "tests/sample_files.rs"
+
+[[test]]
+name = "parsing_stage_contract"
+path = "tests/stage_contract.rs"

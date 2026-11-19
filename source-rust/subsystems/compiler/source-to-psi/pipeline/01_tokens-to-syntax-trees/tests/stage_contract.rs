@@ -1,5 +1,5 @@
 use source_files::LoadedSource;
-use source_compiler::parsing::{ParseOptions, parse};
+use source_parser::{ParseOptions, parse};
 use source_text::SourceId;
 
 #[test]
@@ -11,7 +11,7 @@ fn parsing_returns_owned_pages_without_consuming_or_changing_tokens() {
     }]
     .into_iter()
     .collect();
-    let tokens = source_compiler::lexing::lex(loaded).unwrap();
+    let tokens = source_lexer::lex(loaded).unwrap();
     let original = tokens.clone();
     let first = parse(&tokens, Default::default()).unwrap();
     let second = parse(&tokens, Default::default()).unwrap();
@@ -26,7 +26,7 @@ fn invalid_page_coordinates_refuse_before_publishing_any_syntax() {
     let loaded = [LoadedSource::default(), LoadedSource::default()]
         .into_iter()
         .collect();
-    let tokens = source_compiler::lexing::lex(loaded).unwrap();
+    let tokens = source_lexer::lex(loaded).unwrap();
     let original = tokens.clone();
     for first_page_identity in [0, u32::MAX] {
         let error = parse(
@@ -55,7 +55,7 @@ fn shared_pages_validate_the_pages_actually_used_after_rounding() {
             ..Default::default()
         })
         .collect();
-    let tokens = source_compiler::lexing::lex(loaded).unwrap();
+    let tokens = source_lexer::lex(loaded).unwrap();
     let original = tokens.clone();
     let budget = worker_budget::ExecutionBudget::with_workers(1).unwrap();
     // Five sources divided among at most four pages need three two-source chunks.
@@ -76,11 +76,11 @@ fn shared_pages_validate_the_pages_actually_used_after_rounding() {
 
 #[test]
 fn empty_batches_refuse_zero_page_identity_and_accept_valid_extremes() {
-    let tokens = source_compiler::lexing::lex(Default::default()).unwrap();
+    let tokens = source_lexer::lex(Default::default()).unwrap();
     let original = tokens.clone();
     for layout in [
-        source_compiler::parsing::ParseLayout::SharedPages,
-        source_compiler::parsing::ParseLayout::IndependentUnits,
+        source_parser::ParseLayout::SharedPages,
+        source_parser::ParseLayout::IndependentUnits,
     ] {
         let error = parse(
             &tokens,
@@ -111,7 +111,7 @@ fn empty_batches_refuse_zero_page_identity_and_accept_valid_extremes() {
 #[test]
 fn a_single_page_can_use_the_last_identity() {
     let tokens =
-        source_compiler::lexing::lex([LoadedSource::default()].into_iter().collect()).unwrap();
+        source_lexer::lex([LoadedSource::default()].into_iter().collect()).unwrap();
     let parsed = parse(
         &tokens,
         ParseOptions {

@@ -328,5 +328,7 @@ use crate as parsing;
 #[cfg(test)]
 use source_lexer as lexing;
 #[cfg(test)]
-#[path = "../../../../../tests/support/frontend_operations.rs"]
+use source_files::LoadedSource;
+#[cfg(test)]
+#[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;

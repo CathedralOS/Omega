@@ -12,7 +12,9 @@ use symbol_resolved_trees::source_resolved;
 use syntax_trees_to_symbol_resolved_trees::resolution;
 use typed_trees::source_state;
 #[cfg(test)]
-#[path = "../../../../../tests/support/frontend_operations.rs"]
+use source_admission::LoadedSource;
+#[cfg(test)]
+#[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
 
 #[path = "src/lib.rs"]

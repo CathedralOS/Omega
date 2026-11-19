@@ -28,7 +28,9 @@ use typed_trees_to_lowered_program::lowering;
 #[cfg(test)]
 use typed_trees_to_typed_trees::preparation;
 #[cfg(test)]
-#[path = "../../../../../tests/support/frontend_operations.rs"]
+use source_admission::LoadedSource;
+#[cfg(test)]
+#[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
 #[path = "src/lib.rs"]
 pub mod production;
