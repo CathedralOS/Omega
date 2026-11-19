@@ -383,13 +383,12 @@ impl TerminalBuildHost {
             .chain(query_calls.iter().map(|call| call.site.boundary))
             .chain(filesystem_calls.iter().map(|call| call.site.boundary))
             .collect::<Vec<_>>();
-        host_imports.extend(
-            self.providers
-                .intrinsics
-                .operations()
-                .iter()
-                .map(|(slot, _)| *slot),
-        );
+        let operations = self
+            .providers
+            .intrinsics
+            .operations_for(program.execution_identity())
+            .map_err(|reason| format!("Build selected intrinsic binding: {reason}"))?;
+        host_imports.extend(operations.iter().map(|(slot, _)| *slot));
         host_imports.sort_unstable();
         host_imports.dedup();
         let mut supplies = program
@@ -432,8 +431,10 @@ impl TerminalBuildHost {
                 ..Default::default()
             })
             .map_err(describe)?;
-        terminal_runtime::bind_admitted_intrinsics(&mut instance, &self.providers.intrinsics)
-            .map_err(|reason| format!("Build selected intrinsic binding: {reason:?}"))?;
+        for &(slot, operation) in operations {
+            terminal_runtime::embedding::bind_numeric_import_slot(&mut instance, slot, operation)
+                .map_err(|reason| format!("Build selected intrinsic binding: {reason:?}"))?;
+        }
         for boundary in instance.unbound_imports().collect::<Vec<_>>() {
             if provider_slots.contains(&boundary) {
                 continue;

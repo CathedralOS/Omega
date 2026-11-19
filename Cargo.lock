@@ -3576,7 +3576,6 @@ dependencies = [
  "numerics",
  "orchestration",
  "platform-custody",
- "provider-admission",
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-target-layouts",

@@ -20,7 +20,7 @@ mod components;
 mod entry;
 mod host_imports;
 pub use entry::establish as establish_host_entry;
-pub use host_imports::{HostContext, bind_admitted_intrinsics};
+pub use host_imports::{HostContext, bind_numeric_import_slot};
 
 pub use host_imports::clock::{TerminalClockEnvironment, TerminalClockSnapshot};
 

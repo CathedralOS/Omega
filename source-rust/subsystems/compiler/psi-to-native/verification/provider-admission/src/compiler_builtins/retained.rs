@@ -442,13 +442,25 @@ impl AdmittedTerminalIntrinsics {
         &self.terminal
     }
 
-    pub fn operations(
+    /// Borrow the complete selected operation set only for the execution that admitted it.
+    pub fn operations_for(
         &self,
-    ) -> &[(
-        semantic_vocabulary::BoundaryMachineId,
-        NearestIeeeFloatArithmeticRealization,
-    )] {
-        &self.operations
+        receiving: &terminal_codec::TerminalExecutionIdentity,
+    ) -> Result<
+        &[(
+            semantic_vocabulary::BoundaryMachineId,
+            NearestIeeeFloatArithmeticRealization,
+        )],
+        &'static str,
+    > {
+        if self.terminal() != receiving {
+            return Err("semantic intrinsic admission belongs to another Terminal artifact");
+        }
+        Ok(&self.operations)
+    }
+
+    pub fn realizes(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> bool {
+        self.operations.iter().any(|(slot, _)| *slot == boundary)
     }
 }
 
@@ -532,6 +544,27 @@ mod tests {
     use super::*;
     use numerics::intrinsics::NumericIntrinsic;
     use target_operations::CompilerBuiltinExecution;
+
+    #[test]
+    fn intrinsic_slots_are_lent_only_to_the_execution_that_selected_them() {
+        let execution = |fingerprint| {
+            terminal_codec::TerminalExecutionIdentity::portable(terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes(
+                    [fingerprint; 32],
+                ),
+            })
+        };
+        let selected = AdmittedTerminalIntrinsics {
+            terminal: execution(1),
+            operations: Vec::new(),
+        };
+        assert_eq!(selected.operations_for(&execution(1)), Ok(&[][..]));
+        assert_eq!(
+            selected.operations_for(&execution(2)),
+            Err("semantic intrinsic admission belongs to another Terminal artifact"),
+        );
+    }
 
     #[test]
     fn portable_numeric_meaning_cannot_authorize_or_replace_provider_custody() {

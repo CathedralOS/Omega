@@ -30,10 +30,11 @@ mod execution;
 #[cfg(test)]
 mod runtime_boundary;
 
-pub use execution::bind_admitted_intrinsics;
 /// Low-level host bindings and entry storage for embedders of the PSI interpreter.
 pub mod embedding {
-    pub use crate::execution::{HostContext, HostedTerminalProgram, establish_host_entry};
+    pub use crate::execution::{
+        HostContext, HostedTerminalProgram, bind_numeric_import_slot, establish_host_entry,
+    };
 }
 pub use execution::{
     TerminalClockEnvironment, TerminalClockSnapshot, TerminalDomainExitDelegation,
