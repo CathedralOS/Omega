@@ -19,7 +19,7 @@ a candidate machine ID alone.
 mod replay;
 
 use abstract_operations::{AbstractOperationPlan, CompletionClaimSource};
-use installation_evidence::InstalledProviderCallEvidence;
+use operation_evidence::provider_calls::InstalledProviderCallEvidence;
 use replay::replay_installed_provider_calls;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId};
 use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};
@@ -145,14 +145,8 @@ impl AdmittedProviderInstallation {
     pub fn installed_calls(&self) -> &[AdmittedInstalledProviderCall] {
         &self.installed_calls
     }
-}
 
-impl installation_evidence::ProviderInstallationEvidence for AdmittedProviderInstallation {
-    fn psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.psi
-    }
-
-    fn installed_provider_calls(&self) -> Vec<InstalledProviderCallEvidence> {
+    pub fn installed_provider_calls(&self) -> Vec<InstalledProviderCallEvidence> {
         self.installed_calls
             .iter()
             .map(|call| InstalledProviderCallEvidence {
@@ -161,7 +155,7 @@ impl installation_evidence::ProviderInstallationEvidence for AdmittedProviderIns
                 boundary: call.boundary,
                 provider: call.provider.clone(),
                 assumption: call.assumption.as_ref().map(|row| {
-                    installation_evidence::InstalledAssumedBindingEvidence {
+                    operation_evidence::provider_calls::InstalledAssumedBindingEvidence {
                         required: row.required,
                         supplied_requirement: row.supplied_requirement,
                         implementation: row.implementation,
@@ -172,17 +166,7 @@ impl installation_evidence::ProviderInstallationEvidence for AdmittedProviderIns
                 result: call.result.clone(),
                 scalar_arguments: call.scalar_arguments.clone(),
                 structural_arguments: call.structural_arguments.clone(),
-                completion_claim_sources: call
-                    .completion_claim_sources
-                    .iter()
-                    .map(
-                        |source| installation_evidence::InstalledProviderCompletionClaimSource {
-                            claim: source.claim,
-                            entry: source.entry.clone(),
-                            content: source.content.clone(),
-                        },
-                    )
-                    .collect(),
+                completion_claim_sources: call.completion_claim_sources.clone(),
                 completion_receipts: call.completion_receipts.clone(),
             })
             .collect()

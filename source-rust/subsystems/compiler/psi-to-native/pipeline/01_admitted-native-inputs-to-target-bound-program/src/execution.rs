@@ -29,15 +29,23 @@ pub fn plan_unscoped_execution(
 
 /// Select the concrete providers from a portable handoff. Package review reads
 /// its own completed inventory; its refusals never enlarge execution demand.
-pub fn plan_published_target_execution(
+pub(super) fn plan_published_target_execution(
     origins: host_provider_inputs::ProviderExecutionOrigins,
     target: target::TargetProfile,
     logical: &ClosedLogicalProviders,
     bindings: &[CallableBoundaryImplementation],
-    review: Option<backend_plan::package_review::PackageReviewRequirements>,
-    folded_entry: Result<backend_plan::FoldedEntryReach, String>,
+    review: Option<provider_demand::PackageReviewRequirements>,
+    has_bound_applications: bool,
 ) -> Result<SelectedExecution, NativeProgramPlanningError> {
     let artifact = std::sync::Arc::clone(origins.artifact());
+    // An inspection or package review can select providers without an executable entry.
+    // Keep the capture result until an execution product asks to bind the entry.
+    let folded_entry = crate::folded_entry::FoldedEntryReach::capture(
+        artifact.view(),
+        target.target_name(),
+        bindings,
+        has_bound_applications,
+    );
     let module = artifact.semantic_module();
     let (inputs, review) = crate::provider_execution_inputs::plan_inputs_and_review(
         origins,

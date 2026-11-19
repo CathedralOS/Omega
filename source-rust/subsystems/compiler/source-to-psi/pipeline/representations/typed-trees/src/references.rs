@@ -1016,7 +1016,7 @@ pub(crate) mod source_occurrences {
                     semantic_domain: Default::default(),
                     semantic_domain_arguments: Default::default(),
                     semantic_domain_symbol: SymbolHandle::invalid(),
-                    semantic_domain_id: declaration_contracts::SemanticDomainId::NULL,
+                    semantic_domain_id: semantic_vocabulary::SemanticDomainId::NULL,
                     form: language_core::cast_form::CastForm::Value,
                 }));
             let elements = program
@@ -3510,7 +3510,7 @@ pub fn visit_expression(
             if cast.semantic_domain_symbol != SymbolHandle::invalid()
                 || !cast.semantic_domain.is_empty()
                 || !cast.semantic_domain_arguments.is_empty()
-                || cast.semantic_domain_id != declaration_contracts::SemanticDomainId::NULL
+                || cast.semantic_domain_id != semantic_vocabulary::SemanticDomainId::NULL
                 || (cast.form.entry().is_some()
                     && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact)
             {
@@ -5074,7 +5074,7 @@ mod cast_dependency_tests {
             semantic_domain: Default::default(),
             semantic_domain_arguments: Default::default(),
             semantic_domain_symbol: SymbolHandle::invalid(),
-            semantic_domain_id: declaration_contracts::SemanticDomainId::NULL,
+            semantic_domain_id: semantic_vocabulary::SemanticDomainId::NULL,
             form: language_core::cast_form::CastForm::Value,
         };
         let expression = program.expression_table.insert(ExpressionNode::Cast(cast));

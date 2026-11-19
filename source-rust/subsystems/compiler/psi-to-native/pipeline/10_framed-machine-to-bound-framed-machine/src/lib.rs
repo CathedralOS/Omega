@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use installation_admission::{BoundInstallationAuthority, PlannedInstallationResources};
-use installation_evidence::{InstalledInterruptStackRequirement, InstalledPhysicalStackRoot};
+use installation_conditions::{InstalledInterruptStackRequirement, InstalledPhysicalStackRoot};
 /// Bind planner-issued entry recipes for encoding. Callable entries leave their CPU
 /// measurements here once installation binding has used them.
 pub mod entries {

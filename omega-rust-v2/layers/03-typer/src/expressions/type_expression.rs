@@ -204,28 +204,29 @@ impl BodyTyper<'_, '_> {
                 }
                 ValueType::Array(Box::new(element), node.children.len() as u64)
             }
-            Borrow if source_file.nodes[self.unit.single_child(node_index)?].kind == Index => {
-                self.index(self.unit.single_child(node_index)?, Some(self.unit.access(node_index)))?
-            }
             Borrow => {
-                let arg = self.unit.single_child(node_index)?;
+                let arg = self.ungrouped_place(self.unit.single_child(node_index)?)?;
                 let access = self.unit.access(node_index);
-                let ty = if access != crate::Access::Shared && source_file.nodes[arg].kind == FieldAccess {
-                    self.project_fields(arg, true)?
+                if source_file.nodes[arg].kind == Index {
+                    self.index(arg, Some(access))?
                 } else {
-                    self.type_expression(arg)?
-                };
-                if access != crate::Access::Shared {
-                    self.require_writable(arg)?;
+                    let ty = if source_file.nodes[arg].kind == FieldAccess {
+                        self.project_fields(arg, &access)?
+                    } else {
+                        self.type_expression(arg)?
+                    };
+                    if access != crate::Access::Shared {
+                        self.require_writable(arg)?;
+                    }
+                    self.record_obligation(
+                        node_index,
+                        ObligationKind::Borrow {
+                            access: access.clone(),
+                            place: Site::at(source_file, arg),
+                        },
+                    );
+                    ValueType::Reference(access, Box::new(ty))
                 }
-                self.record_obligation(
-                    node_index,
-                    ObligationKind::Borrow {
-                        access: access.clone(),
-                        place: Site::at(source_file, arg),
-                    },
-                );
-                ValueType::Reference(access, Box::new(ty))
             }
             FieldAccess => return self.field_chain(node_index),
             Index => self.index(node_index, None)?,

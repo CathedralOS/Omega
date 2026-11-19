@@ -1,6 +1,6 @@
 //! Project the surviving installations of the prepared program before selecting guards.
 use bound_installations::BoundInstalledEntry;
-use installation_evidence::InstalledInterruptStackRequirement;
+use installation_conditions::InstalledInterruptStackRequirement;
 use legalized_operations::PreparedExecutionPlan;
 use provider_admission::{
     AdmittedInstalledEntryExecution, AdmittedInstalledInterruptCohort, AdmittedNativeCallbackCohort,

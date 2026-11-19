@@ -4,7 +4,7 @@
 use function_identity::MachineFunctionIdentity;
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeSet;
-use target::{Architecture, NativeTarget};
+use target::NativeTarget;
 use target_vocabulary::CallSiteOwner;
 use terminal_psi::TerminalPsiIdentity;
 
@@ -240,53 +240,15 @@ impl StackDemand {
 
     pub const fn admitted_contribution_report_identities(
         &self,
-    ) -> &std::collections::BTreeSet<provider_stack_contribution::AdmittedStackContributionReportId> {
+    ) -> &std::collections::BTreeSet<provider_stack_contribution::AdmittedStackContributionReportId>
+    {
         &self.admitted_contribution_report_identities
     }
 
     pub const fn admitted_contribution_commitments(
         &self,
-    ) -> &std::collections::BTreeSet<provider_stack_contribution::SameStackContributionCommitment> {
+    ) -> &std::collections::BTreeSet<provider_stack_contribution::SameStackContributionCommitment>
+    {
         &self.admitted_contribution_commitments
-    }
-}
-
-impl installation_evidence::StackDemandEvidence for StackDemand {
-    fn psi(&self) -> TerminalPsiIdentity {
-        self.psi
-    }
-
-    fn architecture(&self) -> Architecture {
-        self.target.architecture
-    }
-
-    fn entry(&self) -> MachineId {
-        self.entry
-    }
-
-    fn ceiling_bytes(&self) -> Option<u64> {
-        self.ceiling_bytes()
-    }
-
-    fn stack_alignment(&self) -> u32 {
-        self.stack_alignment
-    }
-
-    fn contributing_machines(&self) -> &std::collections::BTreeSet<MachineId> {
-        &self.contributing_machines
-    }
-
-    fn admitted_stack_contribution_report_identities(&self) -> std::collections::BTreeSet<u64> {
-        self.admitted_contribution_report_identities
-            .iter()
-            .map(|identity| identity.normalized_identity())
-            .collect()
-    }
-
-    fn admitted_stack_contribution_commitments(&self) -> std::collections::BTreeSet<[u8; 32]> {
-        self.admitted_contribution_commitments
-            .iter()
-            .map(|commitment| commitment.as_bytes())
-            .collect()
     }
 }

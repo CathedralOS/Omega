@@ -5,4 +5,4 @@ pub mod declaration_selection;
 pub use source_symbol_table::source_inputs;
 pub mod source_selections;
 pub mod source_symbols;
-pub mod source_tables;
+pub use source_symbol_table::source_tables;

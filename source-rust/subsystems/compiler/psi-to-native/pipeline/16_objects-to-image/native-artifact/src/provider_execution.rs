@@ -10,7 +10,7 @@ selected plan commitments, and confirm that the artifact's reported
 use std::collections::BTreeSet;
 
 use image_emission::{ObjectBoundarySettlement, ObjectForeignCall};
-use installation_evidence::ProviderExecutionEvidence;
+use provider_admission::ProviderExecutionEvidence;
 
 use super::{NativeProviderExecution, NativeSelectedProviderPlan};
 use crate::physical::sole_terminal_operation;

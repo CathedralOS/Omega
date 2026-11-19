@@ -13,7 +13,7 @@ use terminal_psi::TerminalModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanRealizationInput {
-    pub composition_mode: declaration_contracts::selection::CompositionMode,
+    pub composition_mode: semantic_vocabulary::source_selections::CompositionMode,
     pub schema_declaration: terminal_psi::TerminalIdentityIndex,
     pub schema_application: terminal_psi::TerminalIdentityIndex,
     pub declaration: ProviderPlan,
@@ -36,7 +36,7 @@ pub struct TargetSupplyRealizationInput {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PlanRealization {
-    composition_mode: declaration_contracts::selection::CompositionMode,
+    composition_mode: semantic_vocabulary::source_selections::CompositionMode,
     executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
@@ -156,7 +156,7 @@ impl RealizedTargetSupply {
                 return Err("provider realization changes its selected composition mode".into());
             }
             if choice.composition_mode
-                == declaration_contracts::selection::CompositionMode::Independent
+                == semantic_vocabulary::source_selections::CompositionMode::Independent
             {
                 return Err("reached independent provider composition needs its canonical verified component evidence".into());
             }
@@ -321,7 +321,7 @@ impl RealizedTargetSupply {
             match &leaf.execution {
                 backend_plan::DirectBoundaryExecution::Intrinsic(retained) => {
                     if source.binding
-                        != declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
+                        != semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
                         || effects::external_providers::canonical_external_execution(
                             source,
                             &input.target,
@@ -338,7 +338,7 @@ impl RealizedTargetSupply {
                     {
                         let number = *number;
                         if source.binding
-                            != (declaration_contracts::ExternalBindingIdentity::Syscall { number })
+                            != (semantic_vocabulary::ExternalBindingIdentity::Syscall { number })
                         {
                             return Err("direct syscall changes its admitted native binding".into());
                         }
@@ -475,7 +475,7 @@ impl RealizedTargetSupply {
             terminal_codec::terminal_psi_identity(&original).map_err(|error| error.to_string())?,
         )?;
         let root = original.program_entry_contract(target)?.entry;
-        let expected = backend_plan::folded_constant_dependencies(
+        let expected = crate::folded_entry::folded_constant_dependencies(
             &original,
             target,
             realization.plans().plans(),
@@ -495,7 +495,7 @@ impl RealizedTargetSupply {
         realization: &SelectedProviderRealization,
         original: &terminal_codec::CanonicalTerminalArtifact,
         evidence: Option<&terminal_codec::EvidenceSeals>,
-        reach: &backend_plan::FoldedEntryReach,
+        reach: &crate::folded_entry::FoldedEntryReach,
     ) -> Result<Option<(SelectedProviderRealization, crate::FoldedTargetProgram)>, String> {
         realization.require_program(original.view().identity())?;
         let target = realization
@@ -541,7 +541,8 @@ impl SelectedProviderRealization {
     }
     pub fn composition_modes(
         &self,
-    ) -> impl ExactSizeIterator<Item = declaration_contracts::selection::CompositionMode> + '_ {
+    ) -> impl ExactSizeIterator<Item = semantic_vocabulary::source_selections::CompositionMode> + '_
+    {
         self.realizations.iter().map(|row| row.composition_mode)
     }
     pub fn row_executions(

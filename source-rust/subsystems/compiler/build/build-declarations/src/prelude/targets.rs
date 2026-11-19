@@ -2,7 +2,7 @@
 // `build_selection_target` protocol conversion into the toolchain Build prelude
 // from `ProductTarget::ALL`.
 
-use declaration_contracts::selection::ProductTarget;
+use semantic_vocabulary::source_selections::ProductTarget;
 use std::fmt::Write;
 
 pub(super) fn install(prelude: &str) -> String {

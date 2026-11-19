@@ -306,24 +306,18 @@ pub(crate) fn prepare_saved_program(
             Some((*id, module.identities.text(boundary.identity)?.to_owned()))
         })
         .collect();
-    let folded_entry = backend_plan::FoldedEntryReach::capture(
-        artifact.view(),
-        name,
-        &bodies,
-        metadata.has_bound_applications(),
-    );
     let package_permissions = origins.inputs().package_permissions.clone();
     let entry_bindings = Arc::clone(&origins.inputs().semantic_bindings);
-    let facts = backend_plan::ProviderDemandInputs::Target {
+    let facts = provider_demand::ProviderDemandInputs::Target {
         profile: target.profile,
         logical,
         bodies,
-        folded_entry,
+        has_bound_applications: metadata.has_bound_applications(),
         labels,
         origins,
         review: None,
     };
-    let issued = backend_plan::IssuedProviderDemand::issue((), facts);
+    let issued = provider_demand::IssuedProviderDemand::issue((), facts);
     let admitted = native_inputs::admit(authorization, issued)
         .map_err(|error| refuse(error.to_string()))?;
     let mut execution = select_published_providers(admitted)?;

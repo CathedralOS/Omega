@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
     result: SelectedProviderResult,
-    folded_reach: Option<Result<backend_plan::FoldedEntryReach, String>>,
+    folded_reach: Option<Result<crate::folded_entry::FoldedEntryReach, String>>,
 }
 
 /// Selected plans, realized rows, and entry nomination for this publication.
@@ -85,7 +85,7 @@ impl SelectedExecution {
 
     pub(super) fn with_folded_entry_reach(
         mut self,
-        reach: Result<backend_plan::FoldedEntryReach, String>,
+        reach: Result<crate::folded_entry::FoldedEntryReach, String>,
     ) -> Self {
         self.folded_reach = Some(reach);
         self

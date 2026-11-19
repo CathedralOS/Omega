@@ -8,6 +8,14 @@
 
 #![forbid(unsafe_code)]
 
+mod declaration_contracts;
+pub use self::declaration_contracts::{
+    BlockingInterface, BlockingPlan, BlockingSummary, ExternalBindingId, ExternalBindingIdentity,
+    ExternalBindingMechanism, RANKING_VIEW_CORE_SOURCE, RankingViewDeclaration, RankingViewId,
+    SemanticDomainId, ServiceReachId, ServiceReachInterface, ServiceReachPlan, ServiceReachRowId,
+    ServiceReachSummary, SuspensionInterface, SuspensionPlan, SuspensionSummary,
+    SynchronousInvocationInterface, SynchronousInvocationPlan,
+};
 mod declaration_descriptions;
 pub use declaration_descriptions::{FieldInfoDescription, ParameterDescription};
 pub mod provider_identity;

@@ -256,7 +256,7 @@ fn declared_domains(
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum SelectedMeaning {
     Declaration(SelectedOperator),
-    Core(declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature),
+    Core(numerics::intrinsics::CoreIntegerOperatorSignature),
 }
 
 fn core_application(
@@ -264,8 +264,8 @@ fn core_application(
     types: &mut crate::typing::typing_queries::DeclaredExpressionTypes,
     owner: symbols::SymbolHandle,
     binary: crate::source_state::expression::TableBinaryExpression,
-) -> Option<declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature> {
-    use declaration_contracts::numeric_intrinsics::{
+) -> Option<numerics::intrinsics::CoreIntegerOperatorSignature> {
+    use numerics::intrinsics::{
         CoreIntegerOperand, CoreIntegerOperatorSignature,
     };
     use numerics::arithmetic::ArithmeticDomain;
@@ -318,7 +318,7 @@ fn core_application(
 fn retain_core_application(
     program: &mut TypedTrees,
     handle: crate::source_state::expression::ExpressionHandle,
-    application: declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature,
+    application: numerics::intrinsics::CoreIntegerOperatorSignature,
 ) -> Result<(), Diagnostic> {
     use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
     let span = program.expression_table.source_span(handle);

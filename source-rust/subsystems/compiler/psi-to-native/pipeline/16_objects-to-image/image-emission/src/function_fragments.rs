@@ -5322,7 +5322,7 @@ mod source {
     mod installed_interrupts {
         use super::Error;
         use installation_admission::selected::control;
-        use installation_evidence::InstalledInterruptStackRequirement;
+        use installation_conditions::InstalledInterruptStackRequirement;
         use provider_admission::AdmittedInstalledInterruptCohort;
         use selected_instructions::{
             SelectedBlockId, SelectedFunction, SelectedImageAddressReference, SelectedInstructionId,
@@ -5338,7 +5338,7 @@ mod source {
             use super::Error;
             use super::expressions::{Binary as B, Expr, Word};
             use super::inputs::Inputs;
-            use installation_evidence::InstalledInterruptStackRequirement;
+            use installation_conditions::InstalledInterruptStackRequirement;
             use runtime_abi::static_interrupts::{
                 InstalledInterruptFrame, InstalledInterruptProtocol,
             };
@@ -10227,7 +10227,7 @@ mod source {
                     source: &AbstractOperationPlan,
                     selected: &post_allocation_machine::PostAllocationMachineProgram,
                     targeted: &target_operations::TargetOperationPlan,
-                    requirements: &[installation_evidence::InstalledInterruptStackRequirement],
+                    requirements: &[installation_conditions::InstalledInterruptStackRequirement],
                 ) -> Result<(), super::super::super::Error> {
                     let mut required: Vec<_> = requirements
                         .iter()

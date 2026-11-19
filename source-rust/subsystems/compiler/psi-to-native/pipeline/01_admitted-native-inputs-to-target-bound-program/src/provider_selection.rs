@@ -1,6 +1,6 @@
 //! Select the native providers for one published program and target.
 use crate::{SelectedExecution, SelectedProviderResult};
-use backend_plan::ProviderDemandInputs;
+use provider_demand::ProviderDemandInputs;
 use diagnostics::Diagnostic;
 
 /// The publisher type survives planning and folding. Independent calculations
@@ -9,7 +9,7 @@ use diagnostics::Diagnostic;
 pub struct PublishedSelection<Publisher, Plans> {
     plans: Plans,
     authorization: psi_authorization::AuthorizedTerminalArtifact,
-    publisher: std::sync::Arc<backend_plan::ProviderDemandAuthority<Publisher>>,
+    publisher: std::sync::Arc<provider_demand::ProviderDemandAuthority<Publisher>>,
 }
 
 impl<Publisher, Plans: Clone> Clone for PublishedSelection<Publisher, Plans> {
@@ -85,7 +85,7 @@ fn plan_provider_inputs(
     demand: ProviderDemandInputs,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
     use crate::{NativeProgramPlanningError, target_supply::TargetSupplyRealizationError};
-    let (profile, logical, bodies, labels, origins, review, folded_entry) = match demand {
+    let (profile, logical, bodies, labels, origins, review, has_bound_applications) = match demand {
         ProviderDemandInputs::Unscoped { artifact, roots } => {
             return crate::plan_unscoped_execution(artifact.semantic_module(), &roots);
         }
@@ -96,7 +96,7 @@ fn plan_provider_inputs(
             labels,
             origins,
             review,
-            folded_entry,
+            has_bound_applications,
         } => (
             profile,
             logical,
@@ -104,12 +104,12 @@ fn plan_provider_inputs(
             labels,
             origins,
             review,
-            folded_entry,
+            has_bound_applications,
         ),
     };
     let artifact = std::sync::Arc::clone(origins.artifact());
     let module = artifact.semantic_module();
-    crate::plan_published_target_execution(origins, profile, &logical, &bodies, review, folded_entry)
+    crate::execution::plan_published_target_execution(origins, profile, &logical, &bodies, review, has_bound_applications)
         .map_err(|error| match error {
             NativeProgramPlanningError::Supply(TargetSupplyRealizationError::MissingSupplies { target, boundaries }) => {
                 boundaries.iter().map(|boundary| {

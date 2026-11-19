@@ -112,7 +112,7 @@ impl Qualification {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DomainInstance {
     pub declaration: symbols::SymbolHandle,
-    pub identity: declaration_contracts::SemanticDomainId,
+    pub identity: semantic_vocabulary::SemanticDomainId,
 }
 
 /// The declared domains of one type, each by its exact application, kept
@@ -156,7 +156,7 @@ impl DomainSet {
             .iter()
             .map(|(index, generation, identity)| DomainInstance {
                 declaration: symbols::SymbolHandle::from_parts(*index, *generation),
-                identity: declaration_contracts::SemanticDomainId(*identity),
+                identity: semantic_vocabulary::SemanticDomainId(*identity),
             })
     }
 
@@ -1361,7 +1361,7 @@ impl CaseSelector {
 }
 
 /// Scalar operation identities shared by checked expressions and Core’s catalog.
-pub use declaration_contracts::numeric_intrinsics::ScalarBinaryOperation as Strict;
+pub use numerics::intrinsics::ScalarBinaryOperation as Strict;
 
 #[cfg(test)]
 mod qualification_tests {
@@ -1375,7 +1375,7 @@ mod qualification_tests {
     fn a_domain_set_is_one_value_per_set() {
         let [km, positive] = [7, 3].map(|slot| DomainInstance {
             declaration: SymbolHandle::from_arena_index(slot),
-            identity: declaration_contracts::SemanticDomainId(slot),
+            identity: semantic_vocabulary::SemanticDomainId(slot),
         });
         let forward = DomainSet::EMPTY.with(km).unwrap().with(positive).unwrap();
         let backward = DomainSet::EMPTY.with(positive).unwrap().with(km).unwrap();
@@ -1399,13 +1399,13 @@ mod qualification_tests {
             full = full
                 .with(DomainInstance {
                     declaration: SymbolHandle::from_arena_index(index + 20),
-                    identity: declaration_contracts::SemanticDomainId(index + 20),
+                    identity: semantic_vocabulary::SemanticDomainId(index + 20),
                 })
                 .unwrap();
         }
         assert!(full.with(km).is_none());
         let other_application = DomainInstance {
-            identity: declaration_contracts::SemanticDomainId(71),
+            identity: semantic_vocabulary::SemanticDomainId(71),
             ..km
         };
         let applications = DomainSet::EMPTY

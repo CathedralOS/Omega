@@ -87,7 +87,7 @@ pub mod calls {
             pub native_callback_parameters: Vec<NativeCallbackParameter>,
             pub return_type: TypeReferenceHandle,
             pub invokes: HandleSpan<AuthoredInvocation>,
-            pub service_reach_row: declaration_contracts::ServiceReachRowId,
+            pub service_reach_row: semantic_vocabulary::ServiceReachRowId,
             pub service_reach_is_installation_bound: bool,
             pub suspends_keyword_source_spans: Vec<source_text::SourceSpan>,
             pub blocks_keyword_source_spans: Vec<source_text::SourceSpan>,
@@ -115,7 +115,7 @@ pub mod calls {
                     native_callback_parameters: Vec::new(),
                     return_type: TypeReferenceHandle::invalid(),
                     invokes: HandleSpan::empty(),
-                    service_reach_row: declaration_contracts::ServiceReachRowId::NULL,
+                    service_reach_row: semantic_vocabulary::ServiceReachRowId::NULL,
                     service_reach_is_installation_bound: false,
                     suspends_keyword_source_spans: Vec::new(),
                     blocks_keyword_source_spans: Vec::new(),
@@ -606,7 +606,7 @@ pub mod control_flow {
             pub body_status: MachineBodyStatus,
             pub structural_type_equations_pending: bool,
             pub termination_plan: declaration_contracts::MachineTerminationPlan,
-            pub service_reach_row: declaration_contracts::ServiceReachRowId,
+            pub service_reach_row: semantic_vocabulary::ServiceReachRowId,
             pub service_reach_is_installation_bound: bool,
             pub admitted_same_stack_bytes: u64,
             /// The header wrote `crashes none`, which leaves no row in
@@ -712,7 +712,7 @@ pub mod control_flow {
                     body_status: MachineBodyStatus::Complete,
                     structural_type_equations_pending: false,
                     termination_plan: declaration_contracts::MachineTerminationPlan::default(),
-                    service_reach_row: declaration_contracts::ServiceReachRowId::NULL,
+                    service_reach_row: semantic_vocabulary::ServiceReachRowId::NULL,
                     service_reach_is_installation_bound: false,
                     admitted_same_stack_bytes: 0,
                     declares_no_crash_route: false,
@@ -761,7 +761,7 @@ pub mod control_flow {
             pub requirement_symbol: SymbolHandle,
             pub requirement_source_span: Option<source_text::SourceSpan>,
             pub alias: Option<Identifier>,
-            pub external_binding: Option<declaration_contracts::ExternalBindingId>,
+            pub external_binding: Option<semantic_vocabulary::ExternalBindingId>,
             pub via_expression: crate::source_state::expression::ExpressionHandle,
             pub external_binding_source_span: Option<source_text::SourceSpan>,
         }
@@ -929,7 +929,7 @@ pub mod control_flow {
                 domain_symbol: symbols::SymbolHandle,
                 domain_full_name: &str,
                 domain_arguments: Vec<crate::source_state::types::TypeReferenceHandle>,
-                semantic_domain: declaration_contracts::SemanticDomainId,
+                semantic_domain: semantic_vocabulary::SemanticDomainId,
             ) -> crate::source_state::signature::SignatureContract {
                 let domain_arguments = self
                     .type_reference_table

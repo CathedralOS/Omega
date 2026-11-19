@@ -1138,9 +1138,9 @@ fn validate_roster(machine: Option<MachineId>, rows: &[RuntimeDomainMembership])
 pub fn validate_boundary_normal_memberships(
     module: &TerminalModule,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
-    method: &declaration_contracts::service_surface::ServiceMethod,
+    method: &service_surface::ServiceMethod,
 ) -> Result<(), String> {
-    use declaration_contracts::service_surface::{
+    use service_surface::{
         ServiceNormalResultMembership, ServiceResultProjection,
     };
     use semantic_vocabulary::CanonicalStructuralPathSegment as Path;

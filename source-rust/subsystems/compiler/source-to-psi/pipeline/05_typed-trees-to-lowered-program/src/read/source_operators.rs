@@ -521,9 +521,9 @@ impl Program<'_> {
         machine: MachineId,
         expression: ExpressionHandle,
         operands: &[Option<TypeReferenceHandle>],
-        selected: declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature,
+        selected: numerics::intrinsics::CoreIntegerOperatorSignature,
     ) -> Checked<()> {
-        use declaration_contracts::numeric_intrinsics::{
+        use numerics::intrinsics::{
             CoreIntegerOperand, CoreIntegerOperatorSignature,
         };
         let mismatch = || {

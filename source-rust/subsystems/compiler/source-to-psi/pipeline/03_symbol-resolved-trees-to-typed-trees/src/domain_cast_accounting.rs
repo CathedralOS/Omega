@@ -44,8 +44,7 @@ use symbols::SymbolHandle;
 mod tests;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Atom {
-    Declared(SymbolHandle, declaration_contracts::SemanticDomainId),
+enum Atom {    Declared(SymbolHandle, semantic_vocabulary::SemanticDomainId),
     Policy(ArithmeticDomain),
 }
 

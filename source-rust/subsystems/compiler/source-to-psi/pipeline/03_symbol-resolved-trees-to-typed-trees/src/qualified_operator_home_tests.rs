@@ -236,7 +236,7 @@ fn core_policy_casts_of_imported_call_results_retain_the_subtraction_signature()
         AuthoredDeclarationSelectionTarget as Target,
     };
     use crate::source_state::expression::{BinaryOperator, ExpressionNode};
-    use declaration_contracts::numeric_intrinsics::{
+    use numerics::intrinsics::{
         CoreIntegerOperand, CoreIntegerOperatorSignature, ScalarBinaryOperation,
     };
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
@@ -324,7 +324,7 @@ fn core_policy_comparisons_read_selected_collection_lengths() {
         AuthoredDeclarationSelectionTarget as Target,
     };
     use crate::source_state::expression::{BinaryOperator, ExpressionNode};
-    use declaration_contracts::numeric_intrinsics::{
+    use numerics::intrinsics::{
         CoreIntegerOperand, CoreIntegerOperatorSignature, ScalarBinaryOperation,
     };
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};

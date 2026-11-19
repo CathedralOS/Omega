@@ -716,6 +716,16 @@ pub enum ScalarType {
 }
 
 impl ScalarType {
+    /// The scalar representation of a retained numeric operand or result.
+    pub fn from_numeric_type(value: numerics::intrinsics::NumericType) -> Option<Self> {
+        use numerics::intrinsics::NumericType;
+        match value {
+            NumericType::Integer(carrier) => IntegerType::from_fixed(carrier).map(Self::Integer),
+            NumericType::F32 => Some(Self::IeeeFloat(IeeeFloatFormat::Binary32)),
+            NumericType::F64 => Some(Self::IeeeFloat(IeeeFloatFormat::Binary64)),
+        }
+    }
+
     pub fn as_integer(&self) -> Option<IntegerType> {
         let ScalarType::Integer(integer) = self else {
             return None;
@@ -743,6 +753,33 @@ pub enum CanonicalStructuralPathSegment {
 pub enum IeeeFloatFormat {
     Binary32,
     Binary64,
+}
+
+#[cfg(test)]
+mod numeric_carrier_tests {
+    use super::ScalarType;
+    use numerics::{integer_carrier::FixedInteger, intrinsics::NumericType};
+
+    #[test]
+    fn numeric_signatures_convert_only_representable_scalar_widths() {
+        assert!(
+            ScalarType::from_numeric_type(NumericType::Integer(FixedInteger::unsigned(13)))
+                .is_some()
+        );
+        assert!(
+            ScalarType::from_numeric_type(NumericType::Integer(FixedInteger::unsigned(257)))
+                .is_none()
+        );
+    }
+}
+
+impl From<numerics::intrinsics::FloatFormat> for IeeeFloatFormat {
+    fn from(format: numerics::intrinsics::FloatFormat) -> Self {
+        match format {
+            numerics::intrinsics::FloatFormat::F32 => Self::Binary32,
+            numerics::intrinsics::FloatFormat::F64 => Self::Binary64,
+        }
+    }
 }
 
 impl IeeeFloatFormat {

@@ -288,7 +288,8 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
         }
         let format = boundary
             .numeric_intrinsic
-            .and_then(|meaning| meaning.builtin_format());
+            .and_then(|meaning| meaning.builtin_format())
+            .map(Into::into);
         let settlement = match identity {
             None => TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity,
             Some(
@@ -529,7 +530,7 @@ pub fn admit_terminal_intrinsics<'selection>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+    use numerics::intrinsics::NumericIntrinsic;
     use target_operations::CompilerBuiltinExecution;
 
     #[test]
@@ -562,7 +563,7 @@ mod tests {
             .is_ok()
         );
         assert!(reconcile_numeric_meaning(None, None).is_ok());
-        let format = meaning.builtin_format().unwrap();
+        let format = semantic_vocabulary::IeeeFloatFormat::from(meaning.builtin_format().unwrap());
         assert_eq!(format, semantic_vocabulary::IeeeFloatFormat::Binary64);
         assert!(matches!(
             SettledCompilerBuiltin::from_identity(

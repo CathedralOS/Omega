@@ -29,7 +29,8 @@ target-aarch64 = { path = "../../../targets/target-aarch64" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 image-macho = { path = "../image-macho" }
 image-emission = { path = "../image-emission" }
-installation-evidence = { path = "../../../installation/installation-evidence" }
+installation-conditions = { path = "../../../verification/installation-admission/conditions" }
+operation-evidence = { path = "../../representations/operation-evidence" }
 machine-code = { path = "../../representations/machine-code" }
 object-file = { path = "../../15_placed-functions-to-objects" }
 optimization-core = { path = "../../representations/optimization-records" }

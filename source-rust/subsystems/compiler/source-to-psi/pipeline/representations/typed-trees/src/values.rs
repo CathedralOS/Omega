@@ -388,14 +388,14 @@ pub mod expression {
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct BuildSelectionCall {
         pub request: BuildSelectionRequest,
-        pub operation: declaration_contracts::build_requests::SelectionProtocolOperation,
+        pub operation: language_core::build_protocol::SelectionProtocolOperation,
     }
 
     impl Default for BuildSelectionCall {
         fn default() -> Self {
             Self {
                 request: BuildSelectionRequest::default(),
-                operation: declaration_contracts::build_requests::SelectionProtocolOperation::Bind,
+                operation: language_core::build_protocol::SelectionProtocolOperation::Bind,
             }
         }
     }
@@ -3056,7 +3056,7 @@ pub mod expression {
                             semantic_domain: HandleSpan::empty(),
                             semantic_domain_arguments: HandleSpan::empty(),
                             semantic_domain_symbol: SymbolHandle::invalid(),
-                            semantic_domain_id: declaration_contracts::SemanticDomainId::NULL,
+                            semantic_domain_id: semantic_vocabulary::SemanticDomainId::NULL,
                             form: cast.form,
                         }))
                     }
@@ -4916,7 +4916,7 @@ pub mod expression {
         pub semantic_domain: HandleSpan<Identifier>,
         pub semantic_domain_arguments: HandleSpan<crate::source_state::types::TypeReferenceHandle>,
         pub semantic_domain_symbol: SymbolHandle,
-        pub semantic_domain_id: declaration_contracts::SemanticDomainId,
+        pub semantic_domain_id: semantic_vocabulary::SemanticDomainId,
         pub form: language_core::cast_form::CastForm,
     }
 
@@ -5541,8 +5541,8 @@ pub mod expression {
 
         pub fn scalar_operation(
             self,
-        ) -> Option<declaration_contracts::numeric_intrinsics::ScalarBinaryOperation> {
-            use declaration_contracts::numeric_intrinsics::ScalarBinaryOperation as Operation;
+        ) -> Option<numerics::intrinsics::ScalarBinaryOperation> {
+            use numerics::intrinsics::ScalarBinaryOperation as Operation;
             Some(match self {
                 Self::Add => Operation::Add,
                 Self::Subtract => Operation::Subtract,
@@ -6208,8 +6208,8 @@ mod build_selection_input_tests {
         BuildSelectionCall, BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest,
         ExpressionNode, ExpressionTable, TableCallExpression,
     };
+    use language_core::build_protocol::SelectionProtocolOperation as Protocol;
     use record_storage::{RecordLimits, decode, encode};
-    use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
     use symbols::SymbolHandle;
 
     #[test]

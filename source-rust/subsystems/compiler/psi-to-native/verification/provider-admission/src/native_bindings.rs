@@ -417,7 +417,7 @@ fn validate_native_declared_types(
         .text(result_type)
         .filter(|identity| !identity.is_empty())
         .ok_or("native result lost its exact declared type")?;
-    let signature = declaration_contracts::service_surface::declared_type_signature(
+    let signature = service_surface::declared_type_signature(
         parameters.iter().copied(),
         result,
     )?;
@@ -753,7 +753,7 @@ mod tests {
             has_result: true,
             result_type_identity: i32_surface,
             declared_type_signature:
-                declaration_contracts::service_surface::declared_type_signature(
+                service_surface::declared_type_signature(
                     ["compiler-type(atom(i32))"].into_iter(),
                     "compiler-type(atom(i32))",
                 )
@@ -805,7 +805,7 @@ mod tests {
             parameter_count: 2,
             parameter_type_identities: vec![left_surface, right_surface],
             declared_type_signature:
-                declaration_contracts::service_surface::declared_type_signature(
+                service_surface::declared_type_signature(
                     [left, right].into_iter(),
                     "unit",
                 )
@@ -841,7 +841,7 @@ mod tests {
         let scalar = identities.intern("compiler-type(atom(i32))");
         let method = ServiceMethod {
             declared_type_signature:
-                declaration_contracts::service_surface::declared_type_signature(
+                service_surface::declared_type_signature(
                     std::iter::empty::<&str>(),
                     "unit",
                 )
@@ -1051,7 +1051,7 @@ mod tests {
             match change {
                 0 => method.service_reach.push("ProcessExit".into()),
                 1 => method.synchronous_invocations.push(
-                    declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+                    service_surface::ServiceSynchronousInvocation::Service(
                         "Raw::callback".into(),
                     ),
                 ),

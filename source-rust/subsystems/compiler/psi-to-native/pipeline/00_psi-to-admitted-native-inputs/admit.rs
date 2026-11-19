@@ -1,7 +1,7 @@
 //! Bind a provider demand to the exact Psi artifact authorized by the receiving host.
 #![forbid(unsafe_code)]
 
-use backend_plan::{IssuedProviderDemand, ProviderDemandInputs};
+use provider_demand::{IssuedProviderDemand, ProviderDemandInputs};
 use psi_authorization::{ArtifactTrustError, AuthorizedTerminalArtifact};
 
 /// Stage 01 consumes the demand together with the authorization checked here.
@@ -34,7 +34,7 @@ impl<Publisher> AdmittedProviderDemand<Publisher> {
 #[cfg(test)]
 mod tests {
     use super::admit;
-    use backend_plan::{IssuedProviderDemand, ProviderDemandInputs};
+    use provider_demand::{IssuedProviderDemand, ProviderDemandInputs};
     use psi_authorization::{ArtifactTrustError, HostProducerTrust, authorize_terminal_artifact};
     use std::sync::Arc;
     use terminal_codec::{

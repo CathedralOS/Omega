@@ -10,22 +10,22 @@ use crate::wire_fields::{
     wire_record,
 };
 use declaration_contracts::DomainPredicatePresence;
-use declaration_contracts::selection::CompositionMode;
-use declaration_contracts::service_surface::ServiceEntryAuthorityFlow;
-use declaration_contracts::service_surface::ServiceEntryClaim;
-use declaration_contracts::service_surface::ServiceMethod;
-use declaration_contracts::service_surface::ServiceProgressEstablishmentRoute;
-use declaration_contracts::service_surface::ServiceProgressEstablishmentRouteKind;
-use declaration_contracts::service_surface::ServiceProgressPremise;
-use declaration_contracts::service_surface::ServiceProgressSubject;
-use declaration_contracts::service_surface::ServiceReceiverApplication;
-use declaration_contracts::service_surface::ServiceResultClaim;
-use declaration_contracts::service_surface::identities::ProviderIdentityId;
-use declaration_contracts::service_surface::identities::ProviderIdentityTable;
-use declaration_contracts::service_surface::{
+use semantic_vocabulary::source_selections::CompositionMode;
+use service_surface::ServiceEntryAuthorityFlow;
+use service_surface::ServiceEntryClaim;
+use service_surface::ServiceMethod;
+use service_surface::ServiceProgressEstablishmentRoute;
+use service_surface::ServiceProgressEstablishmentRouteKind;
+use service_surface::ServiceProgressPremise;
+use service_surface::ServiceProgressSubject;
+use service_surface::ServiceReceiverApplication;
+use service_surface::ServiceResultClaim;
+use service_surface::identities::ProviderIdentityId;
+use service_surface::identities::ProviderIdentityTable;
+use service_surface::{
     ServiceNormalResultMembership, ServiceResultProjection,
 };
-use declaration_contracts::service_surface::{ServiceSurface, ServiceSynchronousInvocation};
+use service_surface::{ServiceSurface, ServiceSynchronousInvocation};
 use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
 use std::sync::Arc;
 use terminal_psi::{
@@ -232,7 +232,7 @@ mod tests {
         let requirement = identities.intern("Service::exchange");
         let scalar = identities.intern("named(u32)");
         let declared_type_signature =
-            declaration_contracts::service_surface::declared_type_signature(
+            service_surface::declared_type_signature(
                 std::iter::once(identities.text(scalar)),
                 identities.text(scalar),
             )
@@ -358,7 +358,7 @@ mod tests {
         surface.methods[0].result_type_identity = ProviderIdentityId::default();
         surface.methods[0].result_claims.clear();
         surface.methods[0].declared_type_signature =
-            declaration_contracts::service_surface::declared_type_signature(
+            service_surface::declared_type_signature(
                 std::iter::once(surface.identities.text(scalar)),
                 "unit",
             )

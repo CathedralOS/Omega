@@ -7,11 +7,18 @@ use std::{fmt::Write, path::PathBuf, process::Command};
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
-use entry_planning::native_foreign_bridge::{NativeForeignBridgeError, NativeForeignBridgeRequest};
-use image_fixtures::emit_native_foreign_bridge;
-use native_compiler::bridge_replay::validate_native_foreign_bridge;
+use entry_planning::native_foreign_bridge::{
+    NativeForeignBridgeError, NativeForeignBridgeRequest, plan_native_foreign_bridge,
+};
+use native_encoding::native_foreign_bridge::{NativeForeignBridge, encode_native_foreign_bridge};
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, ScalarType};
 use target::{Architecture, NativeTarget, ObjectFormat};
+
+fn emit_native_foreign_bridge(
+    request: NativeForeignBridgeRequest,
+) -> Result<NativeForeignBridge<entry_planning::PhysicalRecipeOrigin>, NativeForeignBridgeError> {
+    plan_native_foreign_bridge(request).and_then(encode_native_foreign_bridge)
+}
 
 fn append_bridge(
     assembly: &mut String,
@@ -294,8 +301,12 @@ fn narrow_signed_register_arguments_extend_without_changing_request_tags() {
                 ..request
             })
             .unwrap();
-            validate_native_foreign_bridge(&signed_bridge).unwrap();
-            validate_native_foreign_bridge(&unsigned_bridge).unwrap();
+            for bridge in [&signed_bridge, &unsigned_bridge] {
+                assert_eq!(
+                    emit_native_foreign_bridge(bridge.request().clone()).unwrap(),
+                    *bridge
+                );
+            }
             assert_ne!(
                 signed_bridge.bytes(),
                 unsigned_bridge.bytes(),

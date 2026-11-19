@@ -4,8 +4,8 @@
 
 use crate::source_state::{TypedTrees, trait_definition::TraitApplicationEnvironment};
 use arena::Handle;
-use declaration_contracts::selection::CompositionMode;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
+use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
@@ -35,7 +35,7 @@ pub(crate) struct SourceProviderSelection {
     pub(crate) target: String,
     pub(crate) schema_declaration: String,
     pub(crate) schema_application: String,
-    pub(crate) surface: std::sync::Arc<declaration_contracts::service_surface::ServiceSurface>,
+    pub(crate) surface: std::sync::Arc<service_surface::ServiceSurface>,
     pub(crate) provider_declaration: SymbolHandle,
     pub(crate) provider_identity: String,
     pub(crate) provider_application: Option<String>,

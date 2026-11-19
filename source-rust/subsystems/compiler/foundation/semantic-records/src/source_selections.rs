@@ -10,6 +10,117 @@ use crate::{
 };
 use arena::IdTable;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProductTarget {
+    LinuxArm64,
+    LinuxX86_64,
+    MacosArm64,
+    MacosX86_64,
+    WindowsX86_64,
+    UefiX86_64,
+    CrossPlatformCli,
+    LocalUnchecked,
+    AlphaBootstrap,
+}
+
+impl ProductTarget {
+    pub const ALL: [Self; 9] = [
+        Self::LinuxArm64,
+        Self::LinuxX86_64,
+        Self::MacosArm64,
+        Self::MacosX86_64,
+        Self::WindowsX86_64,
+        Self::UefiX86_64,
+        Self::CrossPlatformCli,
+        Self::LocalUnchecked,
+        Self::AlphaBootstrap,
+    ];
+
+    pub fn from_code(code: u64) -> Option<Self> {
+        usize::try_from(code)
+            .ok()
+            .and_then(|index| Self::ALL.get(index))
+            .copied()
+    }
+
+    pub fn from_canonical_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|target| target.canonical_name() == name)
+    }
+
+    pub fn code(self) -> u64 {
+        Self::ALL
+            .into_iter()
+            .position(|target| target == self)
+            .expect("complete target catalog") as u64
+    }
+
+    pub const fn canonical_name(self) -> &'static str {
+        match self {
+            Self::LinuxArm64 => "linux_arm64",
+            Self::LinuxX86_64 => "linux_x86_64",
+            Self::MacosArm64 => "macos_arm64",
+            Self::MacosX86_64 => "macos_x86_64",
+            Self::WindowsX86_64 => "windows_x86_64",
+            Self::UefiX86_64 => "uefi_x86_64",
+            Self::CrossPlatformCli => "cross_platform_cli",
+            Self::LocalUnchecked => "local_unchecked",
+            Self::AlphaBootstrap => "alpha_bootstrap",
+        }
+    }
+
+    pub const fn source_case(self) -> &'static str {
+        match self {
+            Self::LinuxArm64 => "LinuxArm64",
+            Self::LinuxX86_64 => "LinuxX86_64",
+            Self::MacosArm64 => "MacosArm64",
+            Self::MacosX86_64 => "MacosX86_64",
+            Self::WindowsX86_64 => "WindowsX86_64",
+            Self::UefiX86_64 => "UefiX86_64",
+            Self::CrossPlatformCli => "CrossPlatformCli",
+            Self::LocalUnchecked => "LocalUnchecked",
+            Self::AlphaBootstrap => "AlphaBootstrap",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompositionMode {
+    #[default]
+    Fused,
+    Independent,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBindingProducer {
+    pub package: crate::PackageKeyIdentity,
+    pub declaration_path: String,
+    pub callable_identity: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
+pub enum WireCompatibilityFact {
+    Readable,
+    Writable,
+    PreserveUnknown,
+    Canonical,
+    CompleteMigration,
+}
+
+impl WireCompatibilityFact {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "Readable" => Some(Self::Readable),
+            "Writable" => Some(Self::Writable),
+            "PreserveUnknown" => Some(Self::PreserveUnknown),
+            "Canonical" => Some(Self::Canonical),
+            "CompleteMigration" => Some(Self::CompleteMigration),
+            _ => None,
+        }
+    }
+}
+
 /// Operation numbers are local to a machine; the boundary fixes its requirement.
 /// The existing Build request and host records share this one representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
@@ -212,4 +323,30 @@ pub struct SelectionQuestions {
     pub declarations: IdTable<SelectionDeclarationId, SelectionDeclaration>,
     pub questions: IdTable<SelectionQuestionId, SelectionQuestion>,
     pub joins: Vec<SelectionJoin>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProductTarget;
+
+    #[test]
+    fn saved_product_target_codes_keep_their_published_meanings() {
+        for (code, name) in [
+            (0, "linux_arm64"),
+            (1, "linux_x86_64"),
+            (2, "macos_arm64"),
+            (3, "macos_x86_64"),
+            (4, "windows_x86_64"),
+            (5, "uefi_x86_64"),
+            (6, "cross_platform_cli"),
+            (7, "local_unchecked"),
+            (8, "alpha_bootstrap"),
+        ] {
+            let target = ProductTarget::from_code(code).unwrap();
+            assert_eq!(target.canonical_name(), name);
+            assert_eq!(ProductTarget::from_canonical_name(name), Some(target));
+            assert_eq!(target.code(), code);
+        }
+        assert_eq!(ProductTarget::from_code(u64::MAX), None);
+    }
 }

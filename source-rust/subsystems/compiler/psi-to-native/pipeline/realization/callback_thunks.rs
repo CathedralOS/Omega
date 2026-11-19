@@ -298,8 +298,8 @@ fn retained_installations(
 pub(crate) fn prepare_installed_callbacks(
     target: &target_lowering::NativeBodyPlan,
     bodies: &PreparedCallbackBodies<'_>,
-    physical_entry: Option<installation_evidence::InstalledPhysicalStackRoot>,
-) -> Result<Vec<installation_evidence::InstalledInterruptStackRequirement>, Vec<Diagnostic>> {
+    physical_entry: Option<installation_conditions::InstalledPhysicalStackRoot>,
+) -> Result<Vec<installation_conditions::InstalledInterruptStackRequirement>, Vec<Diagnostic>> {
     let mut requirements = Vec::new();
     for RetainedInstallation { scope, entries } in retained_installations(target)? {
         let first_requirement = requirements.len();

@@ -5,10 +5,7 @@ use diagnostics::Diagnostic;
 use evaluation_receipts::NativeBindingMaterialization;
 use semantic_vocabulary::BoundaryMachineId;
 
-pub struct PackageReviewRequirements {
-    pub numeric: Result<Vec<BoundaryMachineId>, Vec<Diagnostic>>,
-    pub bindings: Result<Vec<(BoundaryMachineId, NativeBindingMaterialization)>, Vec<Diagnostic>>,
-}
+pub use ::provider_demand::PackageReviewRequirements;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageTargetReview {

@@ -19,5 +19,4 @@ target = { path = "../../../targets/target" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 
-installation-evidence = { path = "../../../installation/installation-evidence" }
 runtime-abi = { path = "../../../targets/runtime-abi" }

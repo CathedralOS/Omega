@@ -2,7 +2,7 @@
 //! planning reads this normalized surface instead of reopening typed source.
 
 use crate::TerminalIdentityIndex;
-use declaration_contracts::service_surface::{ServiceSurface, ServiceSynchronousInvocation};
+use service_surface::{ServiceSurface, ServiceSynchronousInvocation};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -74,7 +74,7 @@ pub struct TerminalProgramEntryContract {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalProviderSelection {
     pub target: String,
-    pub composition_mode: declaration_contracts::selection::CompositionMode,
+    pub composition_mode: semantic_vocabulary::source_selections::CompositionMode,
     pub schema_declaration: TerminalIdentityIndex,
     pub schema_application: TerminalIdentityIndex,
     pub provider_declaration: TerminalIdentityIndex,
@@ -378,7 +378,7 @@ mod tests {
         CoordinateTag, atom, bare, byte_atom, compound,
     };
     use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
-    use declaration_contracts::service_surface::{ServiceMethod, ServiceReceiverApplication};
+    use service_surface::{ServiceMethod, ServiceReceiverApplication};
     use language_core::core_vocabulary::{
         CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
     };

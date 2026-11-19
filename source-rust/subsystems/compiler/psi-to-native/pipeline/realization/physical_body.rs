@@ -65,7 +65,7 @@ impl PreparedPhysicalBody {
     pub(crate) fn bind(
         self,
         handlers: &installation_binding::RetainedHandlerMeasurements,
-        root: Option<installation_evidence::InstalledPhysicalStackRoot>,
+        root: Option<installation_conditions::InstalledPhysicalStackRoot>,
     ) -> Result<BoundPhysicalBody, Vec<diagnostics::Diagnostic>> {
         let stage = installation_binding::bind_function_body(self.stage, handlers, root)
             .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
@@ -79,7 +79,7 @@ impl PreparedPhysicalBody {
 pub(crate) fn prepare_physical_body(
     target: NativeBodyPlan,
     entry_execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
-    requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
+    requirements: Vec<installation_conditions::InstalledInterruptStackRequirement>,
     observation: &NativePipelineObservation,
 ) -> Result<PreparedPhysicalBody, BodyEmissionError> {
     let body_error =

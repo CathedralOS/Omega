@@ -767,7 +767,7 @@ mod build_request_copy_tests {
         BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest, TableCallExpression,
     };
     use crate::source_state::types::TypeReferenceNode;
-    use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
+    use language_core::build_protocol::SelectionProtocolOperation as Protocol;
     use symbols::SymbolHandle;
 
     #[test]

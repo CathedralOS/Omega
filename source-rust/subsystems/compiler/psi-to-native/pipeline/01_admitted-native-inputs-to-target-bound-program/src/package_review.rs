@@ -3,8 +3,9 @@
 //! supply; a library may expose additional authored declarations for review.
 use crate::calling_policy_plans::{CallingProgram, NativeCallingResults};
 use crate::target_supply::{NormalizedNativeSupply, SelectedProviderRealization};
+use provider_demand::PackageReviewRequirements;
 use backend_plan::package_review::{
-    PackageReviewRequirements, PackageTargetReview, ReviewedNativeBinding, ReviewedNativeBindings,
+    PackageTargetReview, ReviewedNativeBinding, ReviewedNativeBindings,
     ReviewedNumericBinding, ReviewedProviderRow,
 };
 use diagnostics::Diagnostic;

@@ -7750,7 +7750,7 @@ pub(crate) mod result_dispatch_terms {
 
     fn declared_domain_name(
         program: &TypedTrees,
-        semantic_id: declaration_contracts::SemanticDomainId,
+        semantic_id: semantic_vocabulary::SemanticDomainId,
         fallback: &str,
     ) -> String {
         semantic_id
@@ -10115,7 +10115,7 @@ impl TypedTrees {
     pub fn domain_application_identity(
         &self,
         declaration: SymbolHandle,
-        identity: declaration_contracts::SemanticDomainId,
+        identity: semantic_vocabulary::SemanticDomainId,
         declaration_identity: &str,
         toolchain_sources: &[(source_text::SourceId, [u8; 32])],
     ) -> Result<String, &'static str> {
@@ -10132,7 +10132,7 @@ impl TypedTrees {
     pub fn domain_application_identity_in_scope(
         &self,
         declaration: SymbolHandle,
-        identity: declaration_contracts::SemanticDomainId,
+        identity: semantic_vocabulary::SemanticDomainId,
         declaration_identity: &str,
         toolchain_sources: &[(source_text::SourceId, [u8; 32])],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],

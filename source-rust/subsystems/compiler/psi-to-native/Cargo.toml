@@ -11,6 +11,7 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
+provider-demand = { path = "pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "pipeline/00_psi-to-admitted-native-inputs" }
 declaration-scope = { path = "../foundation/declaration-scope" }
@@ -38,7 +39,7 @@ selected-instructions = { path = "pipeline/representations/selected-instructions
 abstract-operations = { path = "pipeline/representations/abstract-operations" }
 wire = { path = "../../../foundation/wire" }
 bound-installations = { path = "installation/bound-installations" }
-installation-evidence = { path = "installation/installation-evidence" }
+installation-conditions = { path = "verification/installation-admission/conditions" }
 provider-stack-contribution = { path = "verification/provider-admission/same-stack" }
 component-description = { path = "components/description" }
 effects = { path = "installation/native-effects" }

@@ -19,8 +19,8 @@ use crate::source_resolved::signature::AuthoredServiceReachTarget;
 use crate::source_resolved::signature::StateSignature;
 use crate::source_symbols::SymbolTable;
 use crate::source_tables::{ServiceReachRowTable, ServiceReachTable};
-use declaration_contracts::{ServiceReachId, ServiceReachRowId};
 use diagnostics::Diagnostic;
+use semantic_vocabulary::{ServiceReachId, ServiceReachRowId};
 use std::fmt;
 use symbols::{SymbolHandle, SymbolKind};
 

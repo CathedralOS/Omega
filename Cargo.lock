@@ -48,7 +48,6 @@ dependencies = [
  "compiler-check-site",
  "diagnostics",
  "function-identity",
- "installation-evidence",
  "language-core",
  "legalized-operations",
  "operation-evidence",
@@ -158,6 +157,7 @@ version = "0.1.0"
 name = "backend-plan"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
  "calling-conventions",
  "declaration-contracts",
@@ -203,7 +203,6 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "function-identity",
- "installation-evidence",
  "language-core",
  "semantic-vocabulary",
  "target",
@@ -238,9 +237,10 @@ dependencies = [
 name = "build-declarations"
 version = "0.1.0"
 dependencies = [
- "record-storage",
  "declaration-contracts",
  "optimization-selections",
+ "record-storage",
+ "semantic-vocabulary",
  "source-compiler",
  "syntax-trees",
 ]
@@ -471,7 +471,7 @@ dependencies = [
 name = "psi-to-admitted-native-inputs"
 version = "0.1.0"
 dependencies = [
- "backend-plan",
+ "provider-demand",
  "psi-authorization",
  "terminal-codec",
  "terminal-psi",
@@ -481,6 +481,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
@@ -512,7 +513,6 @@ dependencies = [
  "image-emission",
  "image-fixtures",
  "installation-admission",
- "installation-evidence",
  "isa-aarch64",
  "isa-x86_64",
  "language-core",
@@ -553,6 +553,7 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
+ "service-surface",
  "source-acquisition",
  "source-admission",
  "source-capture",
@@ -757,7 +758,7 @@ dependencies = [
  "frame-admission",
  "function-identity",
  "installation-admission",
- "installation-evidence",
+ "installation-conditions",
  "machine-code",
  "operation-operands",
  "physical-program",
@@ -1024,7 +1025,7 @@ dependencies = [
  "image-macho",
  "image-pe",
  "installation-admission",
- "installation-evidence",
+ "installation-conditions",
  "isa-x86_64",
  "language-core",
  "layout-plans",
@@ -1148,7 +1149,7 @@ dependencies = [
  "calling-conventions",
  "frame-admission",
  "function-identity",
- "installation-evidence",
+ "installation-conditions",
  "language-core",
  "machine-code",
  "post-allocation-machine",
@@ -1171,7 +1172,7 @@ dependencies = [
  "entry-planning",
  "function-identity",
  "installation-admission",
- "installation-evidence",
+ "installation-conditions",
  "machine-code",
  "physical-program",
  "physical-recipes",
@@ -1184,7 +1185,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "installation-evidence"
+name = "installation-conditions"
 version = "0.1.0"
 dependencies = [
  "runtime-abi",
@@ -1392,7 +1393,6 @@ dependencies = [
  "operation-operands",
  "record-storage",
  "function-identity",
- "installation-evidence",
  "optimization-core",
  "post-allocation-machine",
  "provider-stack-contribution",
@@ -1460,10 +1460,11 @@ dependencies = [
  "image",
  "image-emission",
  "image-macho",
- "installation-evidence",
+ "installation-conditions",
  "legalized-operations",
  "machine-code",
  "object-file",
+ "operation-evidence",
  "optimization-core",
  "platform-custody",
  "provider-admission",
@@ -1490,6 +1491,7 @@ dependencies = [
 name = "native-compiler"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
@@ -1513,7 +1515,7 @@ dependencies = [
  "image-fixtures",
  "installation-admission",
  "installation-binding",
- "installation-evidence",
+ "installation-conditions",
  "isa-aarch64",
  "isa-x86_64",
  "legalized-operations",
@@ -1691,6 +1693,7 @@ name = "numerics"
 version = "0.1.0"
 dependencies = [
  "bignum",
+ "language-core",
  "record-storage",
  "wire",
 ]
@@ -1951,6 +1954,7 @@ dependencies = [
  "record-storage",
  "review-evidence",
  "semantic-vocabulary",
+ "service-surface",
  "sha2",
  "source-acquisition",
  "source-admission",
@@ -2011,8 +2015,8 @@ dependencies = [
 name = "portable-publication"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
- "backend-plan",
  "checked-terminal-psi-to-published-psi",
  "declaration-scope",
  "diagnostics",
@@ -2120,7 +2124,6 @@ dependencies = [
  "diagnostics",
  "effects",
  "evaluation-receipts",
- "installation-evidence",
  "native-compiler",
  "optimization-core",
  "optimization-requests",
@@ -2189,6 +2192,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-demand"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "evaluation-receipts",
+ "host-provider-inputs",
+ "semantic-vocabulary",
+ "target",
+ "terminal-codec",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "provider-admission"
 version = "0.1.0"
 dependencies = [
@@ -2199,21 +2215,22 @@ dependencies = [
  "bound-installations",
  "calling-conventions",
  "component-description",
- "declaration-contracts",
  "diagnostics",
  "effects",
  "function-identity",
- "installation-evidence",
+ "installation-conditions",
  "language-core",
  "layout",
  "layout-plans",
  "numeric-literals",
  "numerics",
+ "operation-evidence",
  "optimization-unit-semantics",
  "provider-correspondence",
  "provider-stack-contribution",
  "runtime-abi",
  "semantic-vocabulary",
+ "service-surface",
  "target",
  "target-operations",
  "terminal-codec",
@@ -2267,6 +2284,7 @@ dependencies = [
 name = "admitted-native-inputs-to-target-bound-program"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
  "application-identity",
  "arena",
@@ -2514,6 +2532,7 @@ dependencies = [
  "package-compilation",
  "products",
  "semantic-vocabulary",
+ "service-surface",
  "source-admission",
  "source-compiler",
  "source-text",
@@ -2782,6 +2801,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "service-surface"
+version = "0.1.0"
+dependencies = [
+ "language-core",
+ "record-storage",
+ "semantic-vocabulary",
+ "wire",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2908,18 +2937,14 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "bundled-declarations",
- "declaration-contracts",
  "language-core",
  "numeric-literals",
  "numerics",
  "record-storage",
  "semantic-vocabulary",
  "source-admission",
- "source-symbol-table",
  "source-text",
  "symbols",
- "wire",
 ]
 
 [[package]]
@@ -2992,6 +3017,7 @@ dependencies = [
  "language-core",
  "numerics",
  "record-storage",
+ "semantic-vocabulary",
  "source-admission",
  "source-provenance",
  "source-text",
@@ -3053,6 +3079,7 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "record-storage",
+ "semantic-vocabulary",
  "source-declarations",
  "source-symbol-table",
  "source-text",
@@ -3152,6 +3179,7 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "record-storage",
+ "semantic-vocabulary",
  "source-admission",
  "source-declarations",
  "source-lexer",
@@ -3199,7 +3227,6 @@ name = "target-operations"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
- "installation-evidence",
  "language-core",
  "operation-evidence",
  "operation-operands",
@@ -3223,7 +3250,7 @@ dependencies = [
  "compiler-check-site",
  "diagnostics",
  "installation-admission",
- "installation-evidence",
+ "installation-conditions",
  "language-core",
  "layout-plans",
  "legalized-operations",
@@ -3251,7 +3278,6 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "function-identity",
- "installation-evidence",
  "language-core",
  "operation-evidence",
  "operation-operands",
@@ -3395,6 +3421,7 @@ dependencies = [
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
+ "service-surface",
  "source-provenance",
  "source-text",
  "symbols",
@@ -3410,7 +3437,8 @@ dependencies = [
  "boundary-applications",
  "diagnostics",
  "effects",
- "installation-evidence",
+ "installation-conditions",
+ "operation-evidence",
  "optimization-selections",
  "provider-admission",
  "psi-authorization",
@@ -3486,6 +3514,7 @@ dependencies = [
  "published-runtime-input",
  "runtime-abi",
  "semantic-vocabulary",
+ "service-surface",
  "storage-access",
  "target",
  "target-operations",
@@ -3517,6 +3546,7 @@ dependencies = [
  "resource-bounds",
  "schema-reflection",
  "semantic-vocabulary",
+ "service-surface",
  "source-provenance",
  "source-text",
  "terminal-psi",
@@ -3542,6 +3572,7 @@ dependencies = [
  "proof-applications",
  "schema-reflection",
  "semantic-vocabulary",
+ "service-surface",
  "terminal-psi",
  "terminal-semantics",
  "wire",
@@ -3629,6 +3660,7 @@ dependencies = [
  "semantic-vocabulary",
  "serde",
  "serde_json",
+ "service-surface",
  "sha2",
  "source-admission",
  "source-declarations",
@@ -3710,6 +3742,8 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
+ "installation-conditions",
+ "operation-evidence",
  "operation-operands",
  "psi-authorization",
  "record-storage",
@@ -3718,7 +3752,6 @@ dependencies = [
  "diagnostics",
  "effects",
  "function-identity",
- "installation-evidence",
  "language-core",
  "layout-plans",
  "legalized-operations",
@@ -3731,6 +3764,7 @@ dependencies = [
  "provider-correspondence",
  "runtime-abi",
  "semantic-vocabulary",
+ "service-surface",
  "source-text",
  "target",
  "target-operations",

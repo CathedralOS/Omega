@@ -44,7 +44,7 @@ object-file = { path = "../../15_placed-functions-to-objects" }
 target = { path = "../../../targets/target" }
 machine-code = { path = "../../representations/machine-code" }
 function-identity = { path = "../../representations/function-identity" }
-installation-evidence = { path = "../../../installation/installation-evidence" }
+installation-conditions = { path = "../../../verification/installation-admission/conditions" }
 target-operations = { path = "../../representations/target-operations" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }

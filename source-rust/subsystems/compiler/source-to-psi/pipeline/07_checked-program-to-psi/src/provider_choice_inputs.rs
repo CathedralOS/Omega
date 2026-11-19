@@ -1,7 +1,7 @@
 //! Source-owned provider selection inputs retain the exact authored origin.
 //! Native planning receives the closed canonical selections instead.
-use declaration_contracts::selection::CompositionMode;
 use provider_choices::ProviderApplicationId;
+use semantic_vocabulary::source_selections::CompositionMode;
 use symbols::SymbolHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelectionIdentity {
@@ -34,7 +34,7 @@ pub enum ProviderSelectionSubject {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelection {
-    pub target: Option<declaration_contracts::selection::ProductTarget>,
+    pub target: Option<semantic_vocabulary::source_selections::ProductTarget>,
     pub subject: ProviderSelectionSubject,
     pub provider_type: ProviderSelectionIdentity,
     pub composition_mode: CompositionMode,

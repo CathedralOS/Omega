@@ -70,7 +70,7 @@ pub(crate) fn plan_inputs_and_review(
     origins: ProviderExecutionOrigins,
     profile: target::TargetProfile,
     reached: &[BoundaryMachineId],
-    review: Option<backend_plan::package_review::PackageReviewRequirements>,
+    review: Option<provider_demand::PackageReviewRequirements>,
 ) -> Result<
     (
         TargetSupplyExecutionInputs,
@@ -125,7 +125,7 @@ pub(crate) fn plan_inputs_and_review(
         }) {
             if !matches!(
                 external.binding,
-                declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
+                semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
             ) {
                 return Err(refuse(format!(
                     "native requirement `{requirement}` needs its canonical evaluated Build binding association before physical calling inputs can be formed",
