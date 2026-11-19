@@ -8,12 +8,14 @@ hosted receiver or physical entry settlement.
 */
 
 use crate::{
-    NativeProgramEntrySettlement, TerminalAccessViewEstablishment,
-    ValidatedNativeProgramEntrySettlement, VerifiedNativeArtifactInput,
+    TerminalAccessViewEstablishment, VerifiedNativeArtifactInput,
     validate_native_program_entry_settlement,
 };
 use diagnostics::Diagnostic;
 use psi_target_layouts::terminal_target_context;
+use verified_optimization_input::{
+    NativeProgramEntrySettlement, ValidatedNativeProgramEntrySettlement,
+};
 
 pub fn admit_executable_entry(
     input: &VerifiedNativeArtifactInput,

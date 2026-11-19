@@ -13,10 +13,11 @@ pub(super) mod request;
 #[path = "../tests/physical_publication/mod.rs"]
 mod physical_publication_tests;
 
+use verified_optimization_input::RetainedTerminalArtifact;
 use self::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use self::prepare::PreparedNativeCompilation;
 use self::request::NativeCompileRequest;
-use artifact_lowering::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
+use artifact_lowering::RetainedNativeProviderInputs;
 use diagnostics::Diagnostic;
 use native_artifact::FinishedNativeImage;
 use published_object_verification::NativeStageReplay;

@@ -1,20 +1,6 @@
-/*
-  Retained Terminal product (`RetainedTerminalArtifact`) and target-constrained
-  native realization proposal (`TerminalNativeRealizationProposal`,
-  `project_terminal_native_realization_proposal`).
-
-  Retains canonical semantics, program-entry custody, provider choices, callbacks
-  and registrar imports without replaying source joins. Native preparation uses
-  the final entry and callback roster to select functions, then settles their
-  boundary coverage and comparisons before lowering those same functions.
-*/
-
-pub use verified_optimization_input::component_inputs::{
-    AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
-};
-
+//! Lower the selected root or callable and collect its native provider inputs.
 mod native_providers {
-    use super::TerminalNativeRealizationProposal;
+    use verified_optimization_input::TerminalNativeRealizationProposal;
     use provider_admission::{
         NativeCompilerBuiltinSettlement, NativeProviderSettlement, PreparedSourceEvaluatedBindings,
         ProviderAdmissionRequest, SourceEvaluatedImportSettlement,
@@ -32,7 +18,7 @@ mod native_providers {
         pub imports: &'input [SourceEvaluatedImportSettlement<'input>],
     }
 
-    pub use verified_optimization_input::PreparedNativeExecution;
+    use verified_optimization_input::PreparedNativeExecution;
 
     pub fn lower_native_callable(
         execution: &PreparedNativeExecution,
@@ -257,12 +243,6 @@ mod native_providers {
 }
 
 pub use native_providers::{
-    PreparedNativeExecution, RetainedNativeProviderInputs, lower_native_callable,
+    RetainedNativeProviderInputs, lower_native_callable,
     lower_native_execution, prepare_native_providers,
-};
-
-pub use verified_optimization_input::RetainedTerminalArtifact;
-pub use verified_optimization_input::native_proposal::{
-    TerminalNativeProposalRequest, TerminalNativeRealizationProposal,
-    project_terminal_native_realization_proposal,
 };

@@ -3,10 +3,8 @@
 // projects installed inputs, binds the physical entry adapter when requested,
 // and attaches target provider proposals without consulting checked source.
 
-use artifact_lowering::{
-    RetainedTerminalArtifact, TerminalNativeProposalRequest,
-    project_terminal_native_realization_proposal,
-};
+use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeProposalRequest};
+use verified_optimization_input::native_proposal::project_terminal_native_realization_proposal;
 use diagnostics::Diagnostic;
 use provider_admission::TerminalAuthorityPermissionPolicy;
 use std::sync::Arc;

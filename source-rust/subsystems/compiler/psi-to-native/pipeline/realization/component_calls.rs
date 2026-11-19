@@ -5,7 +5,7 @@
 // same-stack contribution and producing a `NativeProviderSettlement`.
 
 use ::wire::digest_encoder::DomainDigestEncoder;
-use artifact_lowering::AdmittedNativeComponentCall;
+use verified_optimization_input::AdmittedNativeComponentCall;
 use diagnostics::Diagnostic;
 use provider_admission::ProviderExecutionEvidence;
 use provider_admission::{NativeBoundaryRealization, NativeProviderSettlement};

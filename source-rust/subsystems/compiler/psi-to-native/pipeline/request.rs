@@ -1,3 +1,4 @@
+use verified_optimization_input::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationWorkBudget;
 use provider_admission::{
@@ -31,11 +32,11 @@ pub struct NativeCompileRequest<'request> {
 impl NativeCompileRequest<'_> {
     pub(crate) fn prepare_terminal<'input>(
         &mut self,
-        retained: &'input artifact_lowering::RetainedTerminalArtifact,
+        retained: &'input RetainedTerminalArtifact,
     ) -> Result<
         (
             &'input std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-            &'input artifact_lowering::TerminalNativeRealizationProposal,
+            &'input TerminalNativeRealizationProposal,
         ),
         Vec<Diagnostic>,
     > {
