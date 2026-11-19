@@ -89,3 +89,7 @@ native-compiler = { path = ".", features = ["test-support"] }
 optimization-unit = { path = "pipeline/representations/abstract-operations/optimization-unit" }
 legalized-operations = { path = "pipeline/representations/target-operations/legalized-operations" }
 target-operations = { path = "pipeline/representations/target-operations" }
+
+[target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dev-dependencies]
+bounded-process = { path = "../../../foundation/bounded-process" }
+platform-custody = { path = "../../../foundation/filesystem" }
