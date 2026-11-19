@@ -1968,9 +1968,9 @@ pub(crate) mod closure {
             demand.require_artifact(artifact)?;
             Ok(Self::with_scopes(
                 artifact.into(),
-                Some(&demand.target),
-                vec![(Some(demand.target.clone()), false)],
-                ScalarClosureKind::AbiStorage(demand.scope.clone()),
+                Some(demand.target()),
+                vec![(Some(demand.target().to_owned()), false)],
+                ScalarClosureKind::AbiStorage(demand.into()),
             ))
         }
 
@@ -2246,98 +2246,16 @@ pub(crate) struct AbiStorageScope {
     applications: Vec<ScalarApplicationId>,
 }
 
-fn abi_storage_scope(
-    artifact: TerminalArtifactView<'_>,
-    target: &str,
-    declaration: &semantic_vocabulary::CallingAbiIdentity,
-) -> Result<AbiStorageScope, String> {
-    let module = artifact.module();
-    let retained = module
-        .calling_abi_signature(declaration.id())
-        .ok_or("ABI scalar demand has no canonical declaration")?;
-    if retained.identity(&module.identities)? != *declaration {
-        return Err("ABI scalar demand differs from its complete declaration key".into());
-    }
-    let applications =
-        terminal_semantics::calling_abi_extent_dependencies(module, retained.id, target)?;
-    Ok(AbiStorageScope {
-        declaration: declaration.clone(),
-        applications,
-    })
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallingAbiStorageDemand {
-    terminal: terminal_psi::TerminalPsiIdentity,
-    target: String,
-    scope: AbiStorageScope,
-}
-
-impl CallingAbiStorageDemand {
-    pub fn new(
-        artifact: TerminalArtifactView<'_>,
-        target: &str,
-        declaration: &semantic_vocabulary::CallingAbiIdentity,
-    ) -> Result<Self, String> {
-        Ok(Self {
-            terminal: artifact.identity(),
-            target: target.to_owned(),
-            scope: abi_storage_scope(artifact, target, declaration)?,
-        })
-    }
-
-    pub fn declaration(&self) -> &semantic_vocabulary::CallingAbiIdentity {
-        &self.scope.declaration
-    }
-
-    pub fn applications(&self) -> &[ScalarApplicationId] {
-        &self.scope.applications
-    }
-
-    pub fn with_borrowed_parameter(
-        mut self,
-        artifact: TerminalArtifactView<'_>,
-        ordinal: usize,
-    ) -> Result<Self, String> {
-        self.require_artifact(artifact)?;
-        let module = artifact.module();
-        let storage = module
-            .calling_abi_signature(self.declaration().id())
-            .ok_or("borrowed storage demand lost its exact ABI")?
-            .storage
-            .as_ref()
-            .map_err(Clone::clone)?;
-        let parameter = storage
-            .parameters
-            .get(ordinal)
-            .ok_or("borrowed storage demand has no such semantic formal")?;
-        if !matches!(
-            parameter.access,
-            terminal_psi::reading_borrow_pair_pattern!()
-        ) {
-            return Err("borrowed storage demand requires a readable formal".into());
+impl From<&CallingAbiStorageDemand> for AbiStorageScope {
+    fn from(demand: &CallingAbiStorageDemand) -> Self {
+        Self {
+            declaration: demand.declaration().clone(),
+            applications: demand.applications().to_vec(),
         }
-        let dependencies = terminal_semantics::foreign_storage_extent_dependencies(
-            module,
-            [parameter.structural_type],
-            &self.target,
-        )?;
-        self.scope.applications.extend(dependencies);
-        self.scope.applications.sort_unstable();
-        self.scope.applications.dedup();
-        Ok(self)
-    }
-
-    fn require_artifact<'artifact>(
-        &self,
-        artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
-    ) -> Result<(), String> {
-        if self.terminal != artifact.into().identity() {
-            return Err("ABI storage demand belongs to another Terminal artifact".into());
-        }
-        Ok(())
     }
 }
+
+pub use psi_scalar_applications::CallingAbiStorageDemand;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct ApplicationObservations {
@@ -2649,10 +2567,10 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             return Err("Product scalar completion cannot become an ABI storage scope".into());
         }
         demand.require_artifact(self.artifact)?;
-        if Some(demand.target.as_str()) != self.target() {
+        if Some(demand.target()) != self.target() {
             return Err("ABI storage demand names another selected target".into());
         }
-        self.condition_scope = ScalarConditionScope::AbiStorage(demand.scope.clone());
+        self.condition_scope = ScalarConditionScope::AbiStorage(demand.into());
         Ok(self)
     }
 

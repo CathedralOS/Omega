@@ -45,11 +45,13 @@ pub struct TerminalCallingPolicyInvocation<'input> {
 }
 
 pub(super) mod scalar_completion {
+    use psi_scalar_applications::CallingAbiStorageDemand;
+    use semantic_vocabulary::ScalarAddressModel;
     use semantic_vocabulary::ScalarApplicationId;
     use terminal_codec::CanonicalTerminalArtifact;
     use terminal_installation::{
-        AdmittedProviderSelections, AdmittedScalarApplications, CallingAbiStorageDemand,
-        ScalarAddressModel, ScalarApplicationClosure, ScalarApplicationObservations,
+        AdmittedProviderSelections, AdmittedScalarApplications, ScalarApplicationClosure,
+        ScalarApplicationObservations,
     };
     use terminal_work::WorkMeter;
 

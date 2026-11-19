@@ -32,6 +32,7 @@ program-entry-plan = { path = "../../installation/program-entry" }
 provider-admission = { path = "../../verification/provider-admission" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
 runtime-abi = { path = "../../targets/runtime-abi" }
+psi-scalar-applications = { path = "../../../psi/scalar-applications" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 terminal-codec = { path = "../../../psi/codec" }

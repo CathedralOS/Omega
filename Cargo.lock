@@ -489,6 +489,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-scalar-applications"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "psi-target-layouts"
 version = "0.1.0"
 dependencies = [
@@ -2346,6 +2356,7 @@ dependencies = [
  "provider-admission",
  "provider-correspondence",
  "psi-authorization",
+ "psi-scalar-applications",
  "psi-target-layouts",
  "psi-to-admitted-native-inputs",
  "runtime-abi",
