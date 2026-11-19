@@ -11,3 +11,4 @@ path = "build.rs"
 [dependencies]
 compiler = { path = ".." }
 diagnostics = { path = "../../../foundation/diagnostics" }
+platform-custody = { path = "../../../foundation/filesystem" }

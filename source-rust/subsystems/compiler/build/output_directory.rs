@@ -1,6 +1,6 @@
 /*
 
-Build-directory ownership and live occupancy locking (`admit_outputs`, `acquire`).
+Build-directory ownership and live occupancy locking.
 
 A product compilation writes artifacts into a caller-visible build directory.
 Two different source roots defaulting to the same output path, one directory
@@ -14,9 +14,8 @@ We guard each non-private target directory with two marker files written inside
   source project that owns this build directory. This file persists across
   invocations (even if a compile is interrupted), so a later compile from a
   different source root is refused with `BuildDirConflict::AliasedRoot` before
-  touching any existing artifacts. If two processes for the same root race to
-  create `.omega-owner` for the first time, the loser catches `AlreadyExists`
-  and re-reads the winner's file.
+  touching any existing artifacts. The process holding the occupancy marker
+  reads or establishes ownership, so concurrent callers cannot read a partial record.
 - `.omega-occupant` (`OCCUPANT_FILE`): created atomically with `File::create_new`
   for the duration of the compile and removed when `BuildDirOccupancy` drops. A
   second concurrent compile sees `AlreadyExists` and fails immediately with
@@ -51,44 +50,11 @@ const OCCUPANT_FILE: &str = ".omega-occupant";
 const OWNER_MAGIC: &str = "omega-build-directory-owner 1";
 const OCCUPANT_MAGIC: &str = "omega-build-directory-occupant 1";
 
-pub(crate) struct TargetWork {
-    pub profile: target::TargetProfile,
-    pub directory: Result<PathBuf, crate::BuildError>,
-}
-
-pub(crate) fn admit_outputs(
-    profiles: &[target::TargetProfile],
-    base: &Path,
-    root: &Path,
-    per_target: bool,
-    private: bool,
-) -> (Vec<TargetWork>, Vec<BuildDirOccupancy>) {
-    let mut work = Vec::with_capacity(profiles.len());
-    let mut occupancies = Vec::new();
-    for profile in profiles {
-        let directory = if per_target {
-            base.join(profile.target_name())
-        } else {
-            base.to_path_buf()
-        };
-        let directory = if private {
-            Ok(directory)
-        } else {
-            match acquire(&directory, root) {
-                Ok(occupancy) => {
-                    let directory = occupancy.directory().to_path_buf();
-                    occupancies.push(occupancy);
-                    Ok(directory)
-                }
-                Err(error) => Err(crate::BuildError::BuildDirectory(error.to_string())),
-            }
-        };
-        work.push(TargetWork {
-            profile: *profile,
-            directory,
-        });
-    }
-    (work, occupancies)
+/// Use a caller-selected directory or put the output beside the input program.
+pub fn base(root: &Path, requested: Option<&Path>) -> PathBuf {
+    requested
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| root.parent().unwrap_or_else(|| Path::new("")).join("build"))
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -97,6 +63,9 @@ pub enum BuildDirConflict {
         build_dir: PathBuf,
         recorded: String,
         requested: String,
+    },
+    InvalidOwner {
+        build_dir: PathBuf,
     },
     Occupied {
         build_dir: PathBuf,
@@ -120,6 +89,11 @@ impl std::fmt::Display for BuildDirConflict {
                 "build directory `{}` is already the output of a different source root \
                  `{recorded}` (this invocation compiles `{requested}`); \
                  pass a separate --build-dir or remove the directory",
+                build_dir.display()
+            ),
+            Self::InvalidOwner { build_dir } => write!(
+                formatter,
+                "build directory `{}` has an unreadable or incomplete owner record",
                 build_dir.display()
             ),
             Self::Occupied { build_dir, detail } => write!(
@@ -170,7 +144,6 @@ pub fn acquire(build_dir: &Path, root_path: &Path) -> Result<BuildDirOccupancy, 
     }
     let root = display_path(canonicalize_or_literal(root_path));
     let admitted = directory_identity(build_dir);
-    check_owner(&admitted.canonical, &root)?;
     let occupant = admitted.canonical.join(OCCUPANT_FILE);
     match File::create_new(&occupant) {
         Ok(mut marker) => {
@@ -183,10 +156,12 @@ pub fn acquire(build_dir: &Path, root_path: &Path) -> Result<BuildDirOccupancy, 
                 let _ = fs::remove_file(&occupant);
                 return Err(conflict);
             }
-            Ok(BuildDirOccupancy {
+            let occupancy = BuildDirOccupancy {
                 occupant,
                 directory: admitted.canonical,
-            })
+            };
+            check_owner(occupancy.directory(), &root)?;
+            Ok(occupancy)
         }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             let detail = fs::read_to_string(&occupant)
@@ -230,34 +205,30 @@ fn confirm_admitted(spelled: &Path, admitted: &DirectoryIdentity) -> Result<(), 
 
 fn check_owner(build_dir: &Path, root: &str) -> Result<(), BuildDirConflict> {
     let owner = build_dir.join(OWNER_FILE);
-    let recorded = match fs::read_to_string(&owner) {
-        Ok(contents) => contents
-            .lines()
-            .find_map(|line| line.strip_prefix("root "))
-            .map(str::to_owned),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return match File::create_new(&owner) {
-                Ok(mut marker) => {
-                    let _ = writeln!(marker, "{OWNER_MAGIC}");
-                    let _ = writeln!(marker, "root {root}");
-                    Ok(())
-                }
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                    check_owner(build_dir, root)
-                }
-                Err(_) => Err(occupied_io(build_dir)),
-            };
-        }
-        Err(_) => return Err(occupied_io(build_dir)),
+    let invalid = || BuildDirConflict::InvalidOwner {
+        build_dir: build_dir.to_owned(),
     };
-    match recorded {
-        None => Ok(()),
-        Some(recorded) if recorded == root => Ok(()),
-        Some(recorded) => Err(BuildDirConflict::AliasedRoot {
-            build_dir: canonicalize_or_literal(build_dir),
-            recorded,
-            requested: root.to_owned(),
-        }),
+    let expected = format!("{OWNER_MAGIC}\nroot {root}\n");
+    match fs::read_to_string(&owner) {
+        Ok(contents) if contents == expected => Ok(()),
+        Ok(contents) => {
+            let recorded = contents
+                .strip_prefix(OWNER_MAGIC)
+                .and_then(|body| body.strip_prefix("\nroot "))
+                .and_then(|path| path.strip_suffix('\n'))
+                .filter(|path| !path.is_empty())
+                .ok_or_else(invalid)?;
+            Err(BuildDirConflict::AliasedRoot {
+                build_dir: build_dir.to_owned(),
+                recorded: recorded.to_owned(),
+                requested: root.to_owned(),
+            })
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let mut marker = File::create_new(owner).map_err(|_| invalid())?;
+            marker.write_all(expected.as_bytes()).map_err(|_| invalid())
+        }
+        Err(_) => Err(invalid()),
     }
 }
 
@@ -287,4 +258,43 @@ fn host_name() -> String {
     std::env::var("HOSTNAME")
         .or_else(|_| std::env::var("COMPUTERNAME"))
         .unwrap_or_else(|_| "-".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use platform_custody::temporary_directory::TemporaryDirectory;
+
+    #[test]
+    fn occupancy_is_temporary_and_the_source_owner_persists() {
+        let temp = TemporaryDirectory::create("build-output-owner", false).unwrap();
+        let root = temp.path().join("saved.psi");
+        let directory = base(&root, None);
+        assert_eq!(directory, temp.path().join("build"));
+        let first = acquire(&directory, &root).unwrap();
+        assert_eq!(first.directory(), directory.canonicalize().unwrap());
+        assert!(matches!(
+            acquire(&directory, &root),
+            Err(BuildDirConflict::Occupied { .. })
+        ));
+        drop(first);
+        let other = temp.path().join("other.psi");
+        assert!(matches!(
+            acquire(&directory, &other),
+            Err(BuildDirConflict::AliasedRoot { .. })
+        ));
+        assert!(acquire(&directory, &root).is_ok());
+        assert_eq!(base(&root, Some(&other)), other);
+    }
+
+    #[test]
+    fn incomplete_owner_cannot_authorize_publication() {
+        let temp = TemporaryDirectory::create("invalid-build-output-owner", false).unwrap();
+        fs::write(temp.path().join(OWNER_FILE), OWNER_MAGIC).unwrap();
+        assert!(matches!(
+            acquire(temp.path(), Path::new("saved.psi")),
+            Err(BuildDirConflict::InvalidOwner { .. })
+        ));
+        assert!(!temp.path().join(OCCUPANT_FILE).exists());
+    }
 }
