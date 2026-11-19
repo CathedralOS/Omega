@@ -63,3 +63,27 @@ fn long_binary_chain_types_in_source_order_without_recursive_descent() {
             .all(|pair| pair[0].site.span.get_end_offset() < pair[1].site.span.get_end_offset())
     );
 }
+
+#[test]
+fn operator_grouping_survives_typing_with_each_intermediate_result() {
+    for carrier in ["u8", "u32", "u64"] {
+        let expression = "a +% b *% c == wanted && ready";
+        let source = format!("machine f(a:{carrier},b:{carrier},c:{carrier},wanted:{carrier},ready:bool)->bool{{{expression}}}");
+        let stage = check(&[("grouping.omg", &source)]).unwrap();
+        let expected = [
+            ("*%", "b *% c", carrier),
+            ("+%", "a +% b *% c", carrier),
+            ("==", "a +% b *% c == wanted", "bool"),
+            ("&&", expression, "bool"),
+        ];
+        assert_eq!(stage.operations.len(), expected.len());
+        for (token, text, result) in expected {
+            let operation = stage.operations.iter().find(|op| op.token == token).unwrap();
+            assert_eq!(operation.site.span.slice(source.as_bytes()).unwrap(), text.as_bytes());
+            assert_eq!(operation.result.to_string(), result);
+        }
+        let wrong = source.replace("&& ready", "&& c");
+        let error = check(&[("grouping.omg", &wrong)]).unwrap_err();
+        assert_eq!(error.message, format!("no matching operator && for bool and {carrier}"));
+    }
+}

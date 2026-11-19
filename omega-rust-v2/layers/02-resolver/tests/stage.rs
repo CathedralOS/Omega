@@ -694,3 +694,28 @@ fn parameters_must_have_distinct_names_within_each_parameter_list() {
     }
     run(&[("app", "probe.omg", "machine f<T>(x:T)->T{g(x) machine g<T>(x:T)->T{x}}")], &[]).unwrap();
 }
+
+#[test]
+fn a_shadowing_initializer_reads_the_previous_binding_and_the_tail_reads_the_new_one() {
+    for name in ["index", "value", "item"] {
+        let source = format!("machine f({name}:u8)->u8{{let {name}={name}; {name}}}");
+        let sites: Vec<_> = source.match_indices(name).map(|(offset, _)| offset).collect();
+        let stage = run(&[("app", "scope.omg", &source)], &[]).unwrap();
+        for (use_at, declared_at) in [(sites[2], sites[0]), (sites[3], sites[1])] {
+            let target = &stage
+                .uses
+                .iter()
+                .find(|u| u.span.get_start_offset() == use_at)
+                .unwrap()
+                .target;
+            assert!(
+                matches!(target, Symbol::Binding { span, .. } if span.get_start_offset() == declared_at),
+                "{source}: {target:?}"
+            );
+        }
+        let outside = format!("machine f(x:u8)->u8{{match x {{{name} -> {name}, _ -> {name}}}}}");
+        let error = run(&[("app", "scope.omg", &outside)], &[]).unwrap_err();
+        assert_eq!(error.message, format!("unresolved name {name}"));
+        assert_eq!(error.span.get_start_offset(), outside.rfind(name).unwrap());
+    }
+}
