@@ -7,7 +7,7 @@ access-view establishments or private entry RAM recipes are accompanied by a
 hosted receiver or physical entry settlement.
 */
 
-use crate::artifact_lowering::{
+use crate::{
     NativeProgramEntrySettlement, TerminalAccessViewEstablishment,
     ValidatedNativeProgramEntrySettlement, VerifiedNativeArtifactInput,
     validate_native_program_entry_settlement,

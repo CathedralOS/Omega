@@ -39,10 +39,10 @@ mod native_providers {
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         proposal: &TerminalNativeRealizationProposal,
         entry: terminal_psi::TargetMachineCallable,
-        scalar_applications: Option<crate::artifact_lowering::NativeScalarApplications<'_>>,
+        scalar_applications: Option<crate::NativeScalarApplications<'_>>,
     ) -> Result<
         (
-            crate::artifact_lowering::VerifiedNativeArtifactInput,
+            crate::VerifiedNativeArtifactInput,
             boundary_applications::TerminalBoundaryApplicationCoverage,
         ),
         Vec<Diagnostic>,
@@ -52,7 +52,7 @@ mod native_providers {
             .require_artifact(artifact)
             .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         let checked_scope = proposal.callable_execution_scope(artifact, entry, Some(execution))?;
-        let selection = crate::artifact_lowering::NativeExecutionSelection {
+        let selection = crate::NativeExecutionSelection {
             scope: Some(&checked_scope),
             scalar_applications,
             providers: checked_scope.local_adapters(),
@@ -60,13 +60,13 @@ mod native_providers {
             callbacks: checked_scope.callbacks(),
             entry_call: checked_scope.entry_call(),
         };
-        let scope = crate::artifact_lowering::artifact_admission::NativeScopePreparation::prepare(
+        let scope = crate::selected_input::NativeScopePreparation::prepare(
             execution.authorization(),
             proposal.target_profile(),
             entry,
             &selection,
         )
-        .map_err(crate::artifact_lowering::native_admission::artifact_lowering_error)?;
+        .map_err(crate::admit_providers::artifact_lowering_error)?;
         let provenance = proposal.selected_intrinsic_provenance(execution.selection())?;
         let coverage = proposal.settle_scoped_boundary_applications(
             artifact,
@@ -81,7 +81,7 @@ mod native_providers {
                 &selection,
                 execution.evidence().map(std::sync::Arc::as_ref),
             )
-            .map_err(crate::artifact_lowering::native_admission::artifact_lowering_error)?;
+            .map_err(crate::admit_providers::artifact_lowering_error)?;
         let input = input
             .bind_selected_provider_coordinates(artifact, execution.selection())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -96,10 +96,10 @@ mod native_providers {
         proposal: &TerminalNativeRealizationProposal,
         execution: PreparedNativeExecution,
         private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
-        scalar_applications: Option<crate::artifact_lowering::NativeScalarApplications<'_>>,
+        scalar_applications: Option<crate::NativeScalarApplications<'_>>,
     ) -> Result<
         (
-            crate::artifact_lowering::VerifiedNativeArtifactInput,
+            crate::VerifiedNativeArtifactInput,
             PreparedNativeExecution,
         ),
         Vec<Diagnostic>,
@@ -107,11 +107,11 @@ mod native_providers {
         let authorization = execution.authorization().clone();
         let artifact = authorization.artifact();
         let checked = execution.scope();
-        let scope = crate::artifact_lowering::artifact_admission::NativeScopePreparation::prepare(
+        let scope = crate::selected_input::NativeScopePreparation::prepare(
             &authorization,
             proposal.target_profile(),
             terminal_psi::TargetMachineCallable::Machine(checked.entry()),
-            &crate::artifact_lowering::NativeExecutionSelection {
+            &crate::NativeExecutionSelection {
                 scope: Some(checked),
                 scalar_applications: None,
                 providers: checked.local_adapters(),
@@ -120,12 +120,12 @@ mod native_providers {
                 entry_call: checked.entry_call(),
             },
         )
-        .map_err(crate::artifact_lowering::native_admission::artifact_lowering_error)?;
+        .map_err(crate::admit_providers::artifact_lowering_error)?;
         let input = scope
             .lower_with_private_entry_ram(
                 artifact,
                 private_entry_ram,
-                &crate::artifact_lowering::NativeExecutionSelection {
+                &crate::NativeExecutionSelection {
                     scope: Some(execution.scope()),
                     scalar_applications,
                     providers: execution.local_adapters(),
@@ -135,7 +135,7 @@ mod native_providers {
                 },
                 execution.evidence().map(std::sync::Arc::as_ref),
             )
-            .map_err(crate::artifact_lowering::native_admission::artifact_lowering_error)?;
+            .map_err(crate::admit_providers::artifact_lowering_error)?;
         let input = input
             .bind_selected_provider_coordinates(artifact, execution.selection())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -147,7 +147,7 @@ mod native_providers {
         proposal: &'input TerminalNativeRealizationProposal,
         bindings: PreparedSourceEvaluatedBindings<'input>,
         program_demands: BTreeSet<String>,
-        callbacks: &'input [crate::artifact_lowering::NativeCallbackArgumentProposal],
+        callbacks: &'input [crate::NativeCallbackArgumentProposal],
         compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
     }
 
@@ -173,9 +173,9 @@ mod native_providers {
             terminal_authority_policy: &'request TerminalAuthorityPolicy,
             receiving_permissions: &'request Option<TerminalAuthorityPermissionPolicy>,
             installation_assumptions: &'request [installation_conditions::InstallationEnvironmentAssumption],
-        ) -> crate::artifact_lowering::NativeAdmissionRequest<'request, 'request> {
+        ) -> crate::NativeAdmissionRequest<'request, 'request> {
             let proposal = self.proposal;
-            crate::artifact_lowering::NativeAdmissionRequest {
+            crate::NativeAdmissionRequest {
                 private_entry_ram: &[],
                 entry: terminal_psi::TargetMachineCallable::Machine(
                     proposal.program_entry().checked_entry().terminal_entry(),
