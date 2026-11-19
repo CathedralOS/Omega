@@ -10,6 +10,39 @@ impl BodyTyper<'_, '_> {
     ) -> Result<(), TypeError> {
         self.land_value(node_index, value, expected, false)
     }
+    /// Whether reading a value of this type through a reference may copy it.
+    pub(super) fn copy_eligible(
+        &self,
+        ty: &ValueType,
+    ) -> bool {
+        self.catalog.types.multiplicity(ty) == crate::Multiplicity::Copy
+    }
+    /// Reading a value out of borrowed storage copies it, so the value needs
+    /// ordinary copy eligibility (patterns.md: "A field-value binding from
+    /// borrowed storage still needs ordinary copy eligibility"). A non-copy
+    /// value needs an explicit borrow instead, except that a place reached
+    /// through `@mut` may be moved out (ownership.md, borrowed-storage
+    /// invariant windows).
+    pub(super) fn read_borrowed(
+        &mut self,
+        node_index: usize,
+        access: &Access,
+        ty: &ValueType,
+    ) -> Result<(), TypeError> {
+        match access {
+            Access::Write => Err(TypeError::at(self.unit.file, node_index, "cannot read through a write-only reference")),
+            _ if self.copy_eligible(ty) => {
+                self.record_obligation(node_index, ObligationKind::CopyRead(ty.clone()));
+                Ok(())
+            }
+            Access::Mut => Ok(()),
+            Access::Shared => Err(TypeError::at(
+                self.unit.file,
+                node_index,
+                format!("reading {ty} out of borrowed storage requires a copy type; borrow it with @ instead"),
+            )),
+        }
+    }
     pub(super) fn land_value(
         &mut self,
         node_index: usize,
@@ -49,14 +82,7 @@ impl BodyTyper<'_, '_> {
         };
         if let ValueType::Reference(Access::Shared | Access::Mut, inner) = reference
             && inner.as_ref() == expected
-            && (expected.numeric()
-                || expected == &ValueType::Bool
-                || expected.nominal_parts().is_some_and(|(id, _)| {
-                    self.catalog
-                        .data_properties
-                        .get(id)
-                        .is_some_and(|p| p.multiplicity == crate::Multiplicity::Copy)
-                }))
+            && self.copy_eligible(expected)
         {
             self.record_obligation(node_index, ObligationKind::CopyRead(expected.clone()));
             return Ok(());

@@ -132,7 +132,15 @@ impl BodyTyper<'_, '_> {
         let declared = annotation
             .map(|t| self.unit.annotation(t, &self.catalog.types))
             .transpose()?;
-        let value = self.type_expression_with_expected_type(expr, declared.as_ref())?;
+        // A destructuring `let` decomposes its initializer in place, as a
+        // dispatch does; a plain binding reads its value.
+        let decomposes = declared.is_none() && matches!(source.nodes[pattern].kind, NodeKind::RecordPattern | NodeKind::TuplePattern);
+        let (value, from) = if decomposes {
+            self.pattern_subject(expr)?
+        } else {
+            let value = self.type_expression_with_expected_type(expr, declared.as_ref())?;
+            (value, PatternSource::of(self.origin(expr)))
+        };
         let local_type = if let Some(expected) = declared {
             self.check_destination(expr, &value, &expected)?;
             expected
@@ -149,10 +157,7 @@ impl BodyTyper<'_, '_> {
         if source.nodes[node_index].words().any(|w| w.text == "mut") {
             self.writable.insert(source.span(pattern));
         }
-        if !self
-            .bind_pattern(pattern, &local_type, expr, &PatternSource::of(self.origin(expr)))?
-            .is_total()
-        {
+        if !self.bind_pattern(pattern, &local_type, expr, &from)?.is_total() {
             return Err(TypeError::at(source, pattern, "let requires an irrefutable pattern"));
         }
         Ok(())

@@ -1,5 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::expressions::storage_origin::Origin;
+use crate::expressions::storage_origin::{Origin, weaker};
 use crate::type_system::domains;
 use crate::{Access, ObligationKind, Site, TypeError, TypedExpression, ValueType};
 use omega_parser::NodeKind;
@@ -149,7 +149,7 @@ impl BodyTyper<'_, '_> {
         let ty = loop {
             match source.nodes[place].kind {
                 Paren => place = self.unit.single_child(place)?,
-                FieldAccess => break self.project_fields(place, access)?,
+                FieldAccess => break self.project_fields(place, access)?.0,
                 Index => {
                     let ty = match usage {
                         PlaceUse::Assignment => {
@@ -163,7 +163,8 @@ impl BodyTyper<'_, '_> {
                     };
                     return Ok((place, ty));
                 }
-                PathExpression | Literal | Binary | Unary | Cast | Tuple | Move | CallMarker | Call | RecordLiteral | Match | Body | ArrayLiteral | Borrow => {
+                PathExpression => break self.place_operand(place)?.0,
+                Literal | Binary | Unary | Cast | Tuple | Move | CallMarker | Call | RecordLiteral | Match | Body | ArrayLiteral | Borrow => {
                     break self.type_expression(place)?;
                 }
                 File | Fragment | Use | Const | Data | Field | Case | CaseField | StableNumber | Attributes | Attribute | DroppedBy | Domain | Access
@@ -344,13 +345,15 @@ impl BodyTyper<'_, '_> {
                 let Some(Symbol::Binding { span, .. }) = self.unit.symbol(init) else {
                     return Err(TypeError::at(source, init, "missing shorthand binding"));
                 };
-                (
-                    init,
-                    self.locals
-                        .get(span)
-                        .cloned()
-                        .ok_or_else(|| TypeError::at(source, init, "missing type of shorthand binding"))?,
-                )
+                let value = self
+                    .locals
+                    .get(span)
+                    .cloned()
+                    .ok_or_else(|| TypeError::at(source, init, "missing type of shorthand binding"))?;
+                if let Some(access) = self.borrowed_binding(span) {
+                    self.read_borrowed(init, &access, &value)?;
+                }
+                (init, value)
             } else {
                 let expr = self.unit.single_child(init)?;
                 (expr, self.type_expression_with_expected_type(expr, Some(&target))?)
@@ -395,13 +398,21 @@ impl BodyTyper<'_, '_> {
         &mut self,
         node_index: usize,
     ) -> Result<ValueType, TypeError> {
-        self.project_fields(node_index, &Access::Shared)
+        let (ty, borrowed) = self.project_fields(node_index, &Access::Shared)?;
+        if let Some(access) = borrowed {
+            self.read_borrowed(node_index, &access, &ty)?;
+        }
+        Ok(ty)
     }
-    fn project_fields(
+    /// Select a field chain as a place. The second result is the access of
+    /// the borrowed storage the selected field lives in, when any selector or
+    /// the root reaches it through a reference; reading that field as a
+    /// value is then a read out of borrowed storage.
+    pub(super) fn project_fields(
         &mut self,
         mut node_index: usize,
         access: &Access,
-    ) -> Result<ValueType, TypeError> {
+    ) -> Result<(ValueType, Option<Access>), TypeError> {
         let destination = node_index;
         let source = self.unit.file;
         // Postfix selectors form arbitrarily long, left-nested trees in L1.
@@ -410,7 +421,7 @@ impl BodyTyper<'_, '_> {
             selectors.push(node_index);
             node_index = self.unit.single_child(node_index)?;
         }
-        let mut ty = self.type_expression(node_index)?;
+        let (mut ty, mut borrowed) = self.place_operand(node_index)?;
         let mut origin = self.origin(node_index);
         let mut backing = self.backing(node_index);
         let mut opening = self.opening(node_index);
@@ -427,8 +438,9 @@ impl BodyTyper<'_, '_> {
                 ValueType::Reference(Access::Write, _) if *access != Access::Write || node_index != destination => {
                     return Err(TypeError::at(source, node_index, "cannot read through a write-only reference"));
                 }
-                ValueType::Reference(_, inner) => {
+                ValueType::Reference(through, inner) => {
                     // The field lives wherever the reference points.
+                    borrowed = Some(borrowed.map_or(through.clone(), |outer| weaker(&outer, through)));
                     origin = origin.whole();
                     backing = origin.clone();
                     inner.as_ref()
@@ -442,6 +454,8 @@ impl BodyTyper<'_, '_> {
                 }
                 let address = field == "address";
                 ty = if address { ValueType::Address } else { ValueType::integer("u64").unwrap() };
+                // Metadata describes the collection; it reads no element.
+                borrowed = None;
                 origin = Origin::Caller;
                 self.set_origin(node_index, Origin::Caller);
                 self.set_backing(node_index, backing.clone());
@@ -479,6 +493,6 @@ impl BodyTyper<'_, '_> {
                 ty: ty.clone(),
             });
         }
-        Ok(ty)
+        Ok((ty, borrowed))
     }
 }

@@ -13,14 +13,16 @@ impl BodyTyper<'_, '_> {
         let [base, selector] = *source.nodes[node_index].children.as_slice() else {
             return Err(TypeError::unsupported(source, node_index));
         };
-        let base_ty = self.type_expression(base)?;
+        // A binding of a borrowed field names that field in place, so the
+        // collection is reached with the borrowed storage's access.
+        let (base_ty, borrowed) = self.place_operand(base)?;
         let underlying = match &base_ty {
             ValueType::AtLifetime(t, _) => t.as_ref(),
             other => other,
         };
         let (access, storage) = match underlying {
             ValueType::Reference(a, t) => (Some(a), t.as_ref()),
-            t => (None, t),
+            t => (borrowed.as_ref(), t),
         };
         let range = source.nodes[selector].kind == NodeKind::Range;
         // An element of a referenced collection lives wherever the reference

@@ -25,6 +25,7 @@
 //! returned call result to the lifetime checker with its selected signature.
 
 use crate::expressions::body_typer::BodyTyper;
+use crate::{Access, Site, TypeError, TypedExpression, ValueType};
 use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
@@ -87,21 +88,30 @@ impl Origin {
 /// A binding that names a field of borrowed storage in place.
 #[derive(Clone, Debug)]
 pub(super) struct BorrowedPlace {
+    /// The weakest access along the references that reach the field.
+    pub(super) access: Access,
     /// Whose storage the field lives in: the borrowed subject's origin.
     pub(super) backing: Origin,
 }
 
 /// What a pattern position receives: the origin of the value it matches and,
 /// when that value lives behind a reference, the borrowed place it names.
+/// A tuple of places, as in `match (command.id, command.op)`, keeps one
+/// source per component.
 #[derive(Clone, Debug, Default)]
 pub(super) struct PatternSource {
     pub(super) value: Origin,
     pub(super) place: Option<BorrowedPlace>,
+    pub(super) parts: Vec<PatternSource>,
 }
 
 impl PatternSource {
     pub(super) fn of(value: Origin) -> Self {
-        Self { value, place: None }
+        Self {
+            value,
+            place: None,
+            parts: Vec::new(),
+        }
     }
     /// The source of one component of a subject of type `subject`. Fields of
     /// a referenced value live in the reference's backing.
@@ -110,24 +120,141 @@ impl PatternSource {
         subject: &crate::ValueType,
         index: usize,
     ) -> Self {
+        if let Some(part) = self.parts.get(index) {
+            return part.clone();
+        }
         let reference = match subject {
             crate::ValueType::AtLifetime(reference, _) => reference.as_ref(),
             other => other,
         };
         match reference {
-            crate::ValueType::Reference(..) => Self {
+            crate::ValueType::Reference(access, _) => Self {
                 value: self.value.whole(),
-                place: Some(BorrowedPlace { backing: self.value.whole() }),
+                place: Some(BorrowedPlace {
+                    access: self
+                        .place
+                        .as_ref()
+                        .map_or(access.clone(), |outer| weaker(&outer.access, access)),
+                    backing: self.value.whole(),
+                }),
+                parts: Vec::new(),
             },
             _ => Self {
                 value: self.value.component(index),
                 place: self.place.clone(),
+                parts: Vec::new(),
             },
         }
     }
 }
 
+/// The access a place keeps when it is reached through two references in turn:
+/// a `@mut` reached through `@` only reads, and nothing reads through `@write`.
+pub(super) fn weaker(
+    outer: &Access,
+    inner: &Access,
+) -> Access {
+    match (outer, inner) {
+        (Access::Write, _) | (_, Access::Write) => Access::Write,
+        (Access::Shared, _) | (_, Access::Shared) => Access::Shared,
+        _ => Access::Mut,
+    }
+}
+
 impl BodyTyper<'_, '_> {
+    /// Type an operand that names a place without reading it. A binding of a
+    /// field of borrowed storage names that field in place, and so does a
+    /// field selection, so a borrow, assignment, field selection or index
+    /// through either reads nothing yet. The access it returns is that of the
+    /// borrowed storage the place lives in, if any.
+    pub(super) fn place_operand(
+        &mut self,
+        node_index: usize,
+    ) -> Result<(ValueType, Option<Access>), TypeError> {
+        let source = self.unit.file;
+        // A grouped receiver, as in `(view.inner).value`, is still a place.
+        if source.nodes[node_index].kind == NodeKind::Paren {
+            let (ty, borrowed) = self.place_operand(self.unit.single_child(node_index)?)?;
+            self.set_origin(node_index, self.origin(self.unit.single_child(node_index)?));
+            self.output.expressions.push(TypedExpression {
+                node: source.node_id(node_index),
+                site: Site::at(source, node_index),
+                ty: ty.clone(),
+            });
+            return Ok((ty, borrowed));
+        }
+        if source.nodes[node_index].kind == NodeKind::FieldAccess {
+            return self.project_fields(node_index, &Access::Shared);
+        }
+        if source.nodes[node_index].kind == NodeKind::PathExpression
+            && let Some(Symbol::Binding { span, .. }) = self.unit.symbol(node_index)
+            && let Some(place) = self.borrowed_places.get(span)
+        {
+            let access = place.access.clone();
+            let ty = self
+                .locals
+                .get(span)
+                .cloned()
+                .ok_or_else(|| TypeError::at(source, node_index, "missing type of resolved binding"))?;
+            self.set_origin(node_index, self.binding_origin(span));
+            self.output.expressions.push(TypedExpression {
+                node: source.node_id(node_index),
+                site: Site::at(source, node_index),
+                ty: ty.clone(),
+            });
+            return Ok((ty, Some(access)));
+        }
+        Ok((self.type_expression(node_index)?, None))
+    }
+    /// Type the subject a pattern decomposes. A dispatch or destructuring
+    /// inspects its subject in place: matching `command.op` with
+    /// `command: @Command` neither copies nor moves the field out of the
+    /// borrowed parent (patterns.md), and the bindings name its fields. A
+    /// tuple of such subjects keeps each component's place.
+    pub(super) fn pattern_subject(
+        &mut self,
+        node_index: usize,
+    ) -> Result<(ValueType, PatternSource), TypeError> {
+        let source = self.unit.file;
+        if source.nodes[node_index].kind == NodeKind::Tuple {
+            let mut types = Vec::new();
+            let mut parts = Vec::new();
+            for &child in &source.nodes[node_index].children {
+                let (ty, part) = self.pattern_subject(child)?;
+                types.push(ty);
+                parts.push(part);
+            }
+            let ty = ValueType::Tuple(types);
+            let value = Origin::parts(parts.iter().map(|p| p.value.clone()).collect());
+            self.set_origin(node_index, value.clone());
+            self.output.expressions.push(TypedExpression {
+                node: source.node_id(node_index),
+                site: Site::at(source, node_index),
+                ty: ty.clone(),
+            });
+            return Ok((ty, PatternSource { value, place: None, parts }));
+        }
+        let (ty, borrowed) = self.place_operand(node_index)?;
+        let place = borrowed.map(|access| BorrowedPlace {
+            access,
+            backing: self.backing(node_index),
+        });
+        Ok((
+            ty,
+            PatternSource {
+                value: self.origin(node_index),
+                place,
+                parts: Vec::new(),
+            },
+        ))
+    }
+    /// The access of the borrowed storage a binding names in place, if any.
+    pub(super) fn borrowed_binding(
+        &self,
+        span: &SourceSpan,
+    ) -> Option<Access> {
+        self.borrowed_places.get(span).map(|place| place.access.clone())
+    }
     /// The origin of a typed expression.
     pub(super) fn origin(
         &self,
