@@ -248,7 +248,7 @@ mod proposal {
             terminal_module,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
-        task_plans::realize_task_activations(
+        provider_admission::validate_task_activations(
             &terminal_module.task_activation_demands,
             &terminal_module.identities,
             &selected,
