@@ -26,7 +26,7 @@ symbols = { path = "../../source-to-psi/language/declaration-identity" }
 source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
-platform-custody = { path = "../../host-support/platform-custody" }
+platform-custody = { path = "../../../../foundation/filesystem" }
 effects = { path = "../../psi-to-native/installation/native-effects" }
 target = { path = "../../compilation/target-description/target" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }

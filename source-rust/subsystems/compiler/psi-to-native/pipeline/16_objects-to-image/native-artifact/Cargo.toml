@@ -16,7 +16,7 @@ component-description = { path = "../../../components/description" }
 task-plans = { path = "../../../installation/task-plans" }
 runtime-abi = { path = "../../../target-description/runtime-abi" }
 terminal-installation = { path = "../../../../psi-admission" }
-platform-custody = { path = "../../../../host-support/platform-custody" }
+platform-custody = { path = "../../../../../../foundation/filesystem" }
 register-model = { path = "../../../target-description/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 post-allocation-machine = { path = "../../representations/post-allocation-machine" }
