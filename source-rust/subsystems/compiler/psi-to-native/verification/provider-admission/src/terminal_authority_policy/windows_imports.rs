@@ -19,10 +19,14 @@
 
 use std::sync::OnceLock;
 
-use effects::{
-    NormalizedForeignArgumentContract, NormalizedForeignTerminalMechanismIdentity,
-    PortableFilesystemAuthorityFacet as Facet, TerminalAuthorityClass as Class,
+use semantic_vocabulary::{
+    PortableFilesystemAuthorityFacet as Facet,
+    TerminalAuthorityClass as Class,
     TerminalAuthorityDisposition,
+};
+use terminal_authority_receipts::{
+    NormalizedForeignArgumentContract,
+    NormalizedForeignTerminalMechanismIdentity,
 };
 
 use super::TerminalAuthorityPolicyRow;
@@ -142,7 +146,8 @@ pub(super) fn mechanism_row(
 mod tests {
     use super::*;
     use provider_plans::BoundaryCallingPlanCommitment;
-    use effects::{CheckedSyscallArgumentContractIdentity, TerminalAuthorityClass};
+    use semantic_vocabulary::TerminalAuthorityClass;
+    use terminal_authority_receipts::CheckedSyscallArgumentContractIdentity;
 
     fn imported(
         library: &[u8],

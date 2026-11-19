@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use arena::IdSet;
-use effects::{
+use terminal_authority_receipts::{
     CheckedPhysicalTerminalMechanismIdentity, TerminalAuthorityClosureLeafOrigin,
     TerminalMechanismIdentity,
 };

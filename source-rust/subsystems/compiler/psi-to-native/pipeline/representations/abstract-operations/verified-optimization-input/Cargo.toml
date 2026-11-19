@@ -9,6 +9,7 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+host-provider-inputs = { path = "../../../00_psi-to-admitted-native-inputs/host-providers" }
 native-binding-admission = { path = "../../../../verification/native-bindings" }
 direct-boundary-bindings = { path = "../../../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../../../targets/intrinsics" }

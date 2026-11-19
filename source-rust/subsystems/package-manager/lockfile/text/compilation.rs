@@ -9,9 +9,8 @@ use super::{
 use crate::hex_digest;
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
 use semantic_vocabulary::provider_identity::{ProviderPlanDigest, ServiceSchemaDigest};
-use effects::{
-    ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
-};
+use host_provider_inputs::ServiceTerminalAuthorityPermission;
+use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::ObservationCursor;
 use package_compilation::{
     AcceptedSemanticBinding,

@@ -8,7 +8,7 @@ use super::{PackagePolicyServiceMethod, provider_policy::validate_service_method
 use crate::record::accessors::field_projection_accessors;
 use crate::record::validation::ordered_by;
 use crate::record::{PackagePolicyTypeParameter, PackageReviewNominalIdentity};
-use effects::TerminalAuthorityDisposition;
+use semantic_vocabulary::TerminalAuthorityDisposition;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 

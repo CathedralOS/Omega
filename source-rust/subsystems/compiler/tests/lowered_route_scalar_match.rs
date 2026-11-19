@@ -569,7 +569,7 @@ fn assert_direct_process_exit_consent(checked: &compiler::CheckedCompilation) {
         binding.terminal_authority_permissions()[0]
             .permitted()
             .classes(),
-        &[effects::TerminalAuthorityClass::ProcessTermination]
+        &[semantic_vocabulary::TerminalAuthorityClass::ProcessTermination]
     );
     assert!(consent(leaf, receipts, "windows_x86_64").is_err());
     let missing = consent(leaf, &[], "linux_x86_64").unwrap_err();

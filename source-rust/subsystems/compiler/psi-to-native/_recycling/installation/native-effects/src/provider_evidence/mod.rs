@@ -1,4 +1,3 @@
-pub(crate) mod authority;
 pub(crate) mod component_eras;
 pub(crate) use ::wire::digest_encoder;
 pub(crate) mod executable_scopes;

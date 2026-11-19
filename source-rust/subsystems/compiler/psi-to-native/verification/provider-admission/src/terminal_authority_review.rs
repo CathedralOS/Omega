@@ -59,7 +59,7 @@ mod windows_handle_storage;
 mod windows_handle_values;
 
 use abstract_operations::AbstractOperation;
-use effects::TerminalAuthorityClosureReviewReceipt;
+use terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt;
 use selected_provider_plans::SelectedProviderPlanFacts;
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};

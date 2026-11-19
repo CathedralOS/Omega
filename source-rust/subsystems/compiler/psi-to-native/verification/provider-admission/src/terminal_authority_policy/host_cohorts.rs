@@ -11,11 +11,13 @@ refuse unconstrained mechanism rows until an occurrence-specific release
 contract is established.
 */
 
-use effects::{
-    NormalizedForeignArgumentContract, PortableFilesystemAuthorityFacet,
-    ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
-    TerminalMechanismIdentity,
+use host_provider_inputs::ServiceTerminalAuthorityPermission;
+use semantic_vocabulary::{
+    PortableFilesystemAuthorityFacet,
+    TerminalAuthorityClass,
+    TerminalAuthorityDisposition,
 };
+use terminal_authority_receipts::{NormalizedForeignArgumentContract, TerminalMechanismIdentity};
 use provider_plans::{ServiceMethod, ServiceSchema, ServiceSchemaDigest};
 
 use super::TerminalAuthorityPolicyRow;

@@ -12,7 +12,7 @@ without ever admitting equal arity as a replacement.
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use effects::TerminalMechanismIdentity;
+use terminal_authority_receipts::TerminalMechanismIdentity;
 use selected_provider_plans::SelectedProviderPlanFacts;
 use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;

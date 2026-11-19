@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 
 use arena::IdTable;
-use effects::TerminalMechanismIdentity;
+use terminal_authority_receipts::TerminalMechanismIdentity;
 use semantic_vocabulary::{BlockId, BoundaryMachineId, InvocationSite, MachineId, ValueId};
 use terminal_psi::control_flow::BoundaryInvocationCompletion;
 use terminal_psi::{

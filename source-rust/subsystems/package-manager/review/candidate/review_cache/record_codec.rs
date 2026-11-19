@@ -24,7 +24,8 @@ use provider_plans::{
     ServiceReceiverApplication, ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
     ServiceSurface,
 };
-use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
+use host_provider_inputs::ServiceTerminalAuthorityPermission;
+use semantic_vocabulary::TerminalAuthorityDisposition;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use package_compilation::build_execution::build_record_codec;
 use package_compilation::native_output_codec::{decode, encode};

@@ -113,14 +113,14 @@ pub trait ProviderExecutionEvidence: std::fmt::Debug {
 pub struct AdmittedNativeCallableAuthority {
     subject: terminal_psi::TerminalPsiIdentity,
     entry: semantic_vocabulary::MachineId,
-    review: effects::TerminalAuthorityClosureReviewReceipt,
+    review: terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt,
 }
 
 impl AdmittedNativeCallableAuthority {
     fn from_admission(
         subject: terminal_psi::TerminalPsiIdentity,
         entry: semantic_vocabulary::MachineId,
-        review: effects::TerminalAuthorityClosureReviewReceipt,
+        review: terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt,
     ) -> Self {
         Self {
             subject,
@@ -137,7 +137,7 @@ impl AdmittedNativeCallableAuthority {
         self.entry
     }
 
-    pub const fn review(&self) -> &effects::TerminalAuthorityClosureReviewReceipt {
+    pub const fn review(&self) -> &terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt {
         &self.review
     }
 }
@@ -149,9 +149,9 @@ pub struct AdmittedNativeProviders<'execution> {
     pub(crate) native_callbacks: crate::AdmittedNativeCallbackCohort, // Scoped to this executable occurrence scope, never the full retained catalog.
     pub(crate) installed_interrupts: crate::AdmittedInstalledInterruptCohort,
     pub executions: Vec<&'execution dyn ProviderExecutionEvidence>,
-    pub terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
+    pub terminal_authority_policy_identity: terminal_authority_receipts::TerminalAuthorityPolicyIdentity,
     pub terminal_authority_permission_policy_identity:
-        Option<effects::TerminalAuthorityPermissionPolicyIdentity>, // `Some` only when a receiving permission policy was explicitly supplied.
+        Option<terminal_authority_receipts::TerminalAuthorityPermissionPolicyIdentity>, // `Some` only when a receiving permission policy was explicitly supplied.
     callable_authority: AdmittedNativeCallableAuthority,
     program_provider_context: std::sync::Arc<AdmittedProgramProviderContext>,
     pub installation: Option<AdmittedProviderInstallation>,
@@ -192,7 +192,7 @@ impl AdmittedNativeProviders<'_> {
 
     pub const fn terminal_authority_closure_review(
         &self,
-    ) -> &effects::TerminalAuthorityClosureReviewReceipt {
+    ) -> &terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt {
         self.callable_authority.review()
     }
 }
@@ -200,7 +200,7 @@ impl AdmittedNativeProviders<'_> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AdmittedTerminalMechanism {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
-    pub mechanism: effects::TerminalMechanismIdentity,
+    pub mechanism: terminal_authority_receipts::TerminalMechanismIdentity,
 }
 
 pub fn admit_native_providers<'request>(
@@ -512,7 +512,7 @@ fn require_reached_providers(
                 .as_ref()
                 .and_then(|callable| callable.execution.static_interrupt_operation())
             {
-                let expected = effects::TerminalMechanismIdentity::CompilerIntrinsic(
+                let expected = terminal_authority_receipts::TerminalMechanismIdentity::CompilerIntrinsic(
                     native_intrinsics::CompilerIntrinsicExecutionIdentity::StaticInterrupt(kind),
                 );
                 let admitted = interrupt_mechanisms
