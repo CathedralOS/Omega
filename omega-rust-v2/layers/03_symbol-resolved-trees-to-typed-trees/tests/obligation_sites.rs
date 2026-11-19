@@ -205,3 +205,57 @@ fn terminal_transitions_record_the_borrow_they_forward() {
     assert_eq!(error.message, "returned reference borrows invocation-local storage");
     assert_eq!(error.span.slice(local.as_bytes()), Some(b"@x".as_slice()));
 }
+
+#[test]
+fn value_patterns_read_a_copy_through_a_reference_subject() {
+    // domains.md: reading a copyable primitive through a readable reference
+    // needs no cast. A value pattern compares the referent, as a case pattern
+    // already does, and the subject that is read records the copy.
+    for (source, read_site, copied) in [
+        ("machine f(v:@bool)->u8 {match v {true->1,false->0,}}", "v", "bool"),
+        ("machine f(v:@mut bool)->u8 {match v {true->1,false->0,}}", "v", "bool"),
+        ("machine f(v:@u8)->u8 {match v {0->1,_->0,}}", "v", "u8"),
+        ("const Z:u8=0; machine f(v:@u8)->u8 {match v {Z->1,_->0,}}", "v", "u8"),
+        ("machine f<'a>(v:@'a u8)->u8 {match v {0->1,_->0,}}", "v", "u8"),
+        ("machine f(a:@bool,b:u8)->u8 {match (a,b) {(true,_)->1,(false,_)->0,}}", "a", "bool"),
+        ("data V {r:@u8;} machine f(h:V)->u8 {match h {V {r:0}->1,V {r as _}->0,}}", "r:0", "u8"),
+    ] {
+        let stage = support::check(&[("handoff.omg", source)]).unwrap_or_else(|e| panic!("{source}: {e:?}"));
+        expect_at(
+            &stage,
+            source,
+            read_site,
+            |k| matches!(k, ObligationKind::CopyRead(ty) if ty.to_string()==copied),
+        );
+    }
+    // A binder keeps the reference itself, so returning it forwards the loan.
+    let source = "machine f(v:@u8)->@u8 {match v {r->r,}}";
+    let stage = support::check(&[("handoff.omg", source)]).unwrap();
+    assert!(
+        !stage
+            .obligations
+            .iter()
+            .any(|o| matches!(o.kind, ObligationKind::CopyRead(_)))
+    );
+    for (source, site, message) in [
+        (
+            "machine f(v:@write bool)->u8 {match v {true->1,false->0,}}",
+            "true",
+            "cannot read through a write-only reference",
+        ),
+        ("machine f(v:@u8)->u8 {match v {true->1,_->0,}}", "true", "expected u8, found bool"),
+        (
+            "data I {n:u8;} const K:I=I {n:0}; machine f(v:@I)->u8 {match v {K->1,_->0,}}",
+            "v",
+            "expected game::I, found @game::I",
+        ),
+    ] {
+        let error = support::check(&[("handoff.omg", source)]).unwrap_err();
+        assert_eq!(error.span.slice(source.as_bytes()), Some(site.as_bytes()), "{source}: {error:?}");
+        assert_eq!(error.message, message, "{source}");
+    }
+    // An exact reference overload still wins over the by-value one.
+    let source = "machine take(n:u8)->u8 {n} machine take(n:@u8)->u8 {0u8} machine f(v:@u8)->u8 {take(v)}";
+    let stage = support::check(&[("handoff.omg", source)]).unwrap();
+    assert_eq!(stage.calls[0].machine.operands, ["@ u8"]);
+}

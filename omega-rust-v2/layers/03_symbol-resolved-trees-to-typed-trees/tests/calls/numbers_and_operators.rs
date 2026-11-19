@@ -102,7 +102,7 @@ fn every_binder_of_an_unsuffixed_number_is_refused_at_its_initializer() {
         ("machine f() { let _ = 5; }", "5"),
         ("machine f() -> u8 { match 5 { a -> send(a), } }", "5"),
         ("machine f() -> u8 { match 5 { a -> a, } }", "5"),
-        ("machine f() -> u8 { match (5, 6u8) { (a, _) -> send(a), } }", "(5, 6u8)"),
+        ("machine f() -> u8 { match (5, 6u8) { (a, _) -> send(a), } }", "5"),
     ] {
         let code = format!("{send} {body}");
         let err = check(&[("a.omg", &code)]).err().unwrap_or_else(|| panic!("accepted {body}"));

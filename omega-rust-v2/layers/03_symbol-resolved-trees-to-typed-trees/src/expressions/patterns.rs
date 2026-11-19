@@ -1,5 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{TypeError, ValueType};
+use crate::{Access, TypeError, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
 use std::collections::HashSet;
@@ -148,8 +148,55 @@ impl BodyTyper<'_, '_> {
             _ => Err(TypeError::unsupported(self.unit.file, node_index)),
         }
     }
-    /// `initializer` is the expression whose value the whole pattern receives:
-    /// a let initializer or a dispatch subject.
+    /// A value pattern compares against the referent of a readable reference
+    /// subject, as a case pattern does. Reading a copyable primitive through it
+    /// is an ordinary copy read (domains.md), recorded at `read`, the
+    /// expression whose referent is read; a non-copy referent refuses there.
+    fn compare_value(
+        &mut self,
+        pattern: usize,
+        value: &ValueType,
+        subject: &ValueType,
+        read: usize,
+    ) -> Result<(), TypeError> {
+        let reference = match subject {
+            ValueType::AtLifetime(reference, _) => reference.as_ref(),
+            other => other,
+        };
+        let compared = match reference {
+            ValueType::Reference(Access::Write, _) => {
+                return Err(TypeError::at(self.unit.file, pattern, "cannot read through a write-only reference"));
+            }
+            ValueType::Reference(_, inner) => {
+                self.land_value(read, subject, inner, false)?;
+                inner.as_ref()
+            }
+            _ => subject,
+        };
+        self.check_destination(pattern, value, compared)
+    }
+    /// A tuple literal initializer supplies each component from its own
+    /// expression, so a refusal or copy read names that component.
+    fn component(
+        &self,
+        initializer: usize,
+        index: usize,
+        arity: usize,
+    ) -> usize {
+        let source = self.unit.file;
+        let mut node = initializer;
+        while source.nodes[node].kind == NodeKind::Paren
+            && let [inner] = *source.nodes[node].children.as_slice()
+        {
+            node = inner;
+        }
+        match source.nodes[node].children.as_slice() {
+            parts if source.nodes[node].kind == NodeKind::Tuple && parts.len() == arity => parts[index],
+            _ => initializer,
+        }
+    }
+    /// `initializer` is the expression whose value the pattern receives: a let
+    /// initializer, a dispatch subject or one of their components.
     pub(super) fn bind_pattern(
         &mut self,
         node_index: usize,
@@ -168,7 +215,7 @@ impl BodyTyper<'_, '_> {
             }
             BindingPattern => {
                 let ty = self.pattern_value(node_index)?;
-                self.check_destination(node_index, &ty, subject)?;
+                self.compare_value(node_index, &ty, subject, initializer)?;
                 Ok(match self.unit.symbol(node_index) {
                     Some(Symbol::Builtin(s)) if s == "true" || s == "false" => PatternCoverage::Bool(s == "true"),
                     _ => PatternCoverage::Partial,
@@ -189,7 +236,7 @@ impl BodyTyper<'_, '_> {
                     return Ok(PatternCoverage::Case(Box::new(id.clone())));
                 }
                 let ty = self.type_expression(expr)?;
-                self.check_destination(expr, &ty, subject)?;
+                self.compare_value(expr, &ty, subject, initializer)?;
                 Ok(match self.unit.symbol(expr) {
                     Some(Symbol::Builtin(s)) if matches!(s.as_str(), "true" | "false") => PatternCoverage::Bool(s == "true"),
                     _ => PatternCoverage::Partial,
@@ -204,7 +251,8 @@ impl BodyTyper<'_, '_> {
                     .children
                     .iter()
                     .zip(types)
-                    .map(|(&p, t)| self.bind_pattern(p, t, initializer))
+                    .enumerate()
+                    .map(|(i, (&p, t))| self.bind_pattern(p, t, self.component(initializer, i, types.len())))
                     .collect::<std::result::Result<Vec<_>, _>>()?;
                 Ok(if parts.iter().all(PatternCoverage::is_total) {
                     PatternCoverage::All
@@ -251,7 +299,7 @@ impl BodyTyper<'_, '_> {
                             .get(i)
                             .ok_or_else(|| TypeError::at(source, part, "too many pattern components"))?;
                         let ty = self.catalog.types.field_type(&fields[name], owner, args);
-                        total &= self.bind_pattern(part, &ty, initializer)?.is_total();
+                        total &= self.bind_pattern(part, &ty, part)?.is_total();
                         seen.insert(name.as_str());
                         continue;
                     }
@@ -265,7 +313,7 @@ impl BodyTyper<'_, '_> {
                     }
                     if let [child] = *p.children.as_slice() {
                         let v = self.type_expression(child)?;
-                        self.check_destination(child, &v, &ty)?;
+                        self.compare_value(child, &v, &ty, part)?;
                         total = false;
                     } else if let Some(binding) = p.words().next_back().filter(|w| w.text != "_") {
                         self.locals.insert(binding.span, ty);
