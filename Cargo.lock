@@ -2502,7 +2502,6 @@ dependencies = [
  "component-description",
  "diagnostics",
  "direct-boundary-bindings",
- "effects",
  "function-identity",
  "host-provider-inputs",
  "installation-conditions",

@@ -41,7 +41,6 @@ terminal-psi = { path = "../../../psi" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-semantics = { path = "../../../psi/semantics" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-effects = { path = "../../installation/native-effects" }
 target = { path = "../../targets/target" }
 
 [dev-dependencies]
