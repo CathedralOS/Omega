@@ -8,14 +8,12 @@ use provider_admission::{
     CompilerIntrinsicPlanProvenance, TerminalAuthorityPermissionPolicy,
 };
 use provider_realization::{
-    PublishedSelection, SelectedProviderResult, select_published_providers,
+    PublishedSelection, SelectedExecution, select_published_providers,
 };
 use std::sync::Arc;
 
 struct PublishedApplicationInputs<'a, Publisher> {
-    artifact: &'a Arc<terminal_codec::CanonicalTerminalArtifact>,
-    execution: &'a PublishedSelection<Publisher, SelectedProviderResult>,
-    proposal: Option<target_provider_admission::TerminalTargetProviderProposal>,
+    execution: &'a PublishedSelection<Publisher, SelectedExecution>,
     bindings: &'a [provider_acceptance::AcceptedSemanticBinding],
     package_permissions:
         Option<&'a declaration_scope::ProductDeclarationScope>,
@@ -35,16 +33,19 @@ fn prepare_published_application<Publisher>(
     Vec<Diagnostic>,
 > {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
-    let artifact = inputs.artifact;
+    let execution = inputs.execution;
+    let original = execution.published_authorization();
+    let artifact = execution
+        .effective_artifact(original.shared_artifact())
+        .map_err(refuse)?;
     let publication = artifact.publication_metadata().ok_or_else(|| {
         refuse("saved Psi lacks entry declaration owners; recompile it to publish them".into())
     })?;
     let module = artifact.semantic_module();
-    let execution = inputs.execution;
     let realization = execution.realization();
     let profile = execution
         .target_profile()
-        .unwrap_or_else(target::TargetProfile::host);
+        .ok_or_else(|| refuse("saved Psi native selection has no deployment target".into()))?;
     let declarations = realization.provider_declarations();
     let selection = PublishedNativeEntry::for_program(artifact, execution)?;
     let requester = publication
@@ -124,9 +125,11 @@ fn prepare_published_application<Publisher>(
     }
     roots.sort_unstable();
     roots.dedup();
-    let mut provider_proposal = inputs.proposal.ok_or_else(|| {
-        refuse("executable application requires an explicit deployment target".into())
-    })?;
+    let mut provider_proposal = execution
+        .provider_proposal(artifact.view(), inputs.optimizations.identity())
+        .ok_or_else(|| {
+            refuse("executable application requires an explicit deployment target".into())
+        })?;
     provider_proposal.application_roots = Some(roots);
     let plans = entry
         .calling_plans()
@@ -186,20 +189,10 @@ fn prepare_published_application<Publisher>(
     };
     let proposals = vec![provider_proposal];
     let physical_entry_adapter = entry.physical_adapter().is_some();
-    let original = execution.published_authorization();
     let authorized = if Arc::ptr_eq(original.shared_artifact(), artifact) {
         original.clone()
     } else {
-        // Target folding produces a new artifact. Only its actual result may receive
-        // the host's authorization for this locally run transformation.
-        let folded = execution.folded_program().ok_or_else(|| {
-            refuse("native execution received an artifact outside its admitted selection".into())
-        })?;
-        if !Arc::ptr_eq(folded.artifact(), artifact) {
-            return Err(refuse(
-                "native execution received a different folded artifact".into(),
-            ));
-        }
+        // effective_artifact checked the folded program against this publication.
         let producer =
             psi_authorization::HostProducerTrust::accept("in-process target folding");
         psi_authorization::authorize_terminal_artifact(Arc::clone(artifact), Some(&producer))
@@ -320,13 +313,8 @@ pub(crate) fn prepare_saved_program(
     execution
         .bind_folded_entry(&artifact, artifact.published_evidence().map(Arc::as_ref))
         .map_err(refuse)?;
-    let effective = Arc::clone(execution.effective_artifact(&artifact).map_err(refuse)?);
-    let proposal = execution.provider_proposal(effective.view(), target.optimizations.identity());
-    let execution = execution.into_result();
     prepare_published_application(PublishedApplicationInputs {
-        artifact: &effective,
         execution: &execution,
-        proposal,
         bindings: &entry_bindings,
         package_permissions: package_permissions.as_ref(),
         application: target.application,
