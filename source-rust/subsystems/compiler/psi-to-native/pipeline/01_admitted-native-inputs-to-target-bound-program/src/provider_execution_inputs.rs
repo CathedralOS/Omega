@@ -3,7 +3,7 @@
 //! input associated with the canonical program; the evaluator cannot load source.
 use crate::calling_policy_plans::CallingProgram;
 use crate::target_supply::TargetSupplyExecutionInputs;
-use backend_plan::ProviderExecutionOrigins;
+use host_provider_inputs::ProviderExecutionOrigins;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::BoundaryMachineId;
 use declaration_scope::DeclarationSelectionAuthority;
@@ -82,7 +82,7 @@ pub(crate) fn plan_inputs_and_review(
     let (artifact, inputs) = origins
         .into_inputs(profile)
         .map_err(|reason| refuse(reason.into()))?;
-    let backend_plan::ProviderInstallationInputs {
+    let host_provider_inputs::ProviderInstallationInputs {
         bindings,
         package_permissions,
         semantic_bindings,
@@ -450,7 +450,7 @@ pub(crate) fn plan_inputs_and_review(
 }
 
 fn package_authority_permissions(
-    bindings: &[effects::semantic_bindings::AcceptedSemanticBinding],
+    bindings: &[host_provider_inputs::AcceptedSemanticBinding],
 ) -> Result<
     (
         terminal_psi::TerminalIdentityTable,

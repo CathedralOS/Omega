@@ -1,6 +1,6 @@
 //! Rejoin the nominal entry selected by native planning with this exact executable publication.
 use diagnostics::Diagnostic;
-use effects::semantic_bindings::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+use host_provider_inputs::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use provider_realization::program_entry::{
     PublishedEntryNomination, SelectedCompilerProgramEntry,
     plan_published_entry_calling_conventions,
@@ -56,7 +56,7 @@ impl<'a> PublishedNativeEntry<'a> {
         self.source_signature()
             .target_slot()
             .physical_contract_package
-            .map(effects::semantic_bindings::program_entry_semantic_binding_role)
+            .map(host_provider_inputs::program_entry_semantic_binding_role)
     }
 
     pub fn settle_calling_plans(

@@ -7,7 +7,6 @@ coordinates are stored as `ProviderIdentityId` handles into the declaration's
 identity table.
 */
 
-use crate::provider_evidence::evidence_digest;
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 use crate::provider_evidence::providers::provider_plan::{
     ProviderIdentityId, ProviderIdentityTable, ProviderPlanRow,
@@ -53,15 +52,7 @@ impl BoundaryCallingPlanPromise {
     }
 }
 
-evidence_digest!(
-    ProviderPlanDigest,
-    from: #[doc(hidden)] pub
-);
-
-evidence_digest!(
-    ServiceSchemaDigest,
-    from: #[doc(hidden)] pub
-);
+pub use semantic_vocabulary::provider_identity::{ProviderPlanDigest, ServiceSchemaDigest};
 
 pub use declaration_contracts::service_surface::ServiceEntryAuthorityFlow;
 pub use declaration_contracts::service_surface::ServiceEntryClaim;
@@ -333,33 +324,6 @@ impl ServiceSchema {
                 .identities
                 .id_at(row_identities.text(row.declared_requirement_identity))
                 == Some(method.requirement_identity)
-    }
-}
-
-impl record_storage::Record for ServiceSchemaDigest {
-    fn write(
-        &self,
-        output: &mut record_storage::RecordWriter,
-    ) -> Result<(), record_storage::RecordError> {
-        record_storage::Record::write(self.as_bytes(), output)
-    }
-    fn read<Context>(
-        input: &mut record_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, record_storage::RecordError> {
-        record_storage::Record::read(input).map(Self::from_digest)
-    }
-}
-impl record_storage::Record for ProviderPlanDigest {
-    fn write(
-        &self,
-        output: &mut record_storage::RecordWriter,
-    ) -> Result<(), record_storage::RecordError> {
-        record_storage::Record::write(self.as_bytes(), output)
-    }
-    fn read<Context>(
-        input: &mut record_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, record_storage::RecordError> {
-        record_storage::Record::read(input).map(Self::from_digest)
     }
 }
 

@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+host-provider-inputs = { path = "../../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 target = { path = "../../../psi-to-native/targets/target" }
 effects = { path = "../../../psi-to-native/installation/native-effects" }

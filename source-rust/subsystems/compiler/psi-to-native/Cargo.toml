@@ -11,6 +11,7 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
+host-provider-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "pipeline/00_psi-to-admitted-native-inputs" }
 declaration-scope = { path = "../foundation/declaration-scope" }
 native-scalar-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }

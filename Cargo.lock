@@ -158,6 +158,7 @@ version = "0.1.0"
 name = "backend-plan"
 version = "0.1.0"
 dependencies = [
+ "host-provider-inputs",
  "calling-conventions",
  "declaration-contracts",
  "diagnostics",
@@ -480,6 +481,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "host-provider-inputs",
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
@@ -692,6 +694,7 @@ dependencies = [
 name = "effects"
 version = "0.1.0"
 dependencies = [
+ "host-provider-inputs",
  "application-identity",
  "record-storage",
  "declaration-contracts",
@@ -957,6 +960,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c447cff8c7f384a7d4f741cfcff32f75f3ad02b406432e8d6c878d56b1edf6b"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "host-provider-inputs"
+version = "0.1.0"
+dependencies = [
+ "declaration-scope",
+ "evaluation-receipts",
+ "psi-authorization",
+ "record-storage",
+ "semantic-vocabulary",
+ "target",
+ "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -1465,6 +1482,7 @@ dependencies = [
 name = "native-compiler"
 version = "0.1.0"
 dependencies = [
+ "host-provider-inputs",
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
@@ -1862,6 +1880,7 @@ dependencies = [
 name = "package-compilation"
 version = "0.1.0"
 dependencies = [
+ "host-provider-inputs",
  "arena",
  "artifacts",
  "build-declarations",
@@ -1899,9 +1918,9 @@ dependencies = [
 name = "package-manager"
 version = "0.1.0"
 dependencies = [
+ "host-provider-inputs",
  "arena",
  "artifacts",
- "backend-plan",
  "boundary-applications",
  "build-declarations",
  "build-output",
@@ -1985,6 +2004,7 @@ dependencies = [
 name = "portable-publication"
 version = "0.1.0"
 dependencies = [
+ "host-provider-inputs",
  "backend-plan",
  "checked-terminal-psi-to-published-psi",
  "declaration-scope",
@@ -2239,6 +2259,7 @@ dependencies = [
 name = "admitted-native-inputs-to-target-bound-program"
 version = "0.1.0"
 dependencies = [
+ "host-provider-inputs",
  "application-identity",
  "arena",
  "artifact-evaluation",

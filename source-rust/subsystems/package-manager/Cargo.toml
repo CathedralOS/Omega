@@ -9,8 +9,8 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
+host-provider-inputs = { path = "../compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../compiler/foundation/declaration-scope" }
-backend-plan = { path = "../compiler/psi-to-native/installation/provider-plans" }
 record-storage = { path = "../../foundation/record-storage" }
 evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }
 declaration-contracts = { path = "../compiler/source-to-psi/language/declaration-contracts" }

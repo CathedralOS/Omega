@@ -1689,7 +1689,7 @@ fn saved_program_uses_the_hosts_evaluated_native_binding() {
         Some(&producer),
     )
     .unwrap();
-    let empty = backend_plan::TargetProviderInstallation::new(
+    let empty = host_provider_inputs::TargetProviderInstallation::new(
         authorized.identity(),
         profile,
         Default::default(),
@@ -1715,10 +1715,10 @@ fn saved_program_uses_the_hosts_evaluated_native_binding() {
     let bindings: Vec<evaluation_receipts::NativeBindingMaterialization> =
         record_storage::decode(&package_record, Default::default()).unwrap();
     let install = |bindings: Vec<evaluation_receipts::NativeBindingMaterialization>| {
-        backend_plan::TargetProviderInstallation::new(
+        host_provider_inputs::TargetProviderInstallation::new(
             authorized.identity(),
             profile,
-            backend_plan::ProviderInstallationInputs {
+            host_provider_inputs::ProviderInstallationInputs {
                 bindings: bindings.into_iter().map(Ok).collect(),
                 package_permissions: package_permissions.clone(),
                 semantic_bindings: semantic_bindings.clone(),

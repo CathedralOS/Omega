@@ -10,6 +10,8 @@
 
 mod declaration_descriptions;
 pub use declaration_descriptions::{FieldInfoDescription, ParameterDescription};
+pub mod provider_identity;
+
 pub mod identity_encoding;
 pub mod structural_path_encoding;
 

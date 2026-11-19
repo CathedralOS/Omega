@@ -103,7 +103,7 @@ impl ReviewedHostPackages {
     pub fn providers(
         &self,
         profile: target::TargetProfile,
-    ) -> Result<backend_plan::InstalledPackageProviders, String> {
+    ) -> Result<host_provider_inputs::InstalledPackageProviders, String> {
         use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
         let target = self.0.target(profile).ok_or_else(|| {
             format!(
@@ -159,7 +159,7 @@ impl ReviewedHostPackages {
                 return Err("host application supplies a semantic role more than once".into());
             }
         }
-        Ok(backend_plan::InstalledPackageProviders::new(
+        Ok(host_provider_inputs::InstalledPackageProviders::new(
             profile,
             bindings,
             declarations,

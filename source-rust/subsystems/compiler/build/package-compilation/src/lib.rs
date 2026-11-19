@@ -53,9 +53,9 @@ pub use reuse::review_record_encoding;
 mod target_profile_tags;
 
 pub use build_declarations::BuildDeclarationKind;
-pub use effects::semantic_bindings::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
-    program_entry_semantic_binding_role,
+pub use effects::semantic_bindings::accepted_service_schema_digest;
+pub use host_provider_inputs::{
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, program_entry_semantic_binding_role,
 };
 pub use package_compilation::{
     IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
