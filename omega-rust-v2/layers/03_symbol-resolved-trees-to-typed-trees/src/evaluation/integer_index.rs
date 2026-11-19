@@ -24,6 +24,7 @@ pub enum IntegerIndex {
         operands: Vec<IntegerIndex>,
     },
     Invalid(String),
+    Pending(std::sync::Arc<crate::StaticIntegerDemand>),
     Deferred {
         template: std::sync::Arc<crate::StaticTemplate>,
         arguments: Vec<ValueType>,
@@ -31,6 +32,22 @@ pub enum IntegerIndex {
 }
 
 impl IntegerIndex {
+    pub(crate) fn demands(&self) -> impl Iterator<Item = &crate::StaticIntegerDemand> {
+        let mut pending = vec![self];
+        std::iter::from_fn(move || {
+            while let Some(term) = pending.pop() {
+                match term {
+                    Self::Pending(demand) => return Some(demand.as_ref()),
+                    Self::Add(terms) | Self::Multiply(terms) | Self::Primitive { operands: terms, .. } => {
+                        pending.extend(terms.iter().rev());
+                    }
+                    _ => {}
+                }
+            }
+            None
+        })
+    }
+
     fn operation(
         add: bool,
         inputs: Vec<Self>,
@@ -252,6 +269,10 @@ impl std::fmt::Display for IntegerIndex {
         match self {
             Self::Value(n) => write!(f, "{n}"),
             Self::Invalid(message) => write!(f, "{message}"),
+            Self::Pending(demand) => {
+                let site = &demand.request().expression;
+                write!(f, "pending static expression at {}:{}", site.file, site.span.get_start_offset())
+            }
             Self::Deferred { template, .. } => {
                 let site = &template.request.expression;
                 write!(f, "static expression at {}:{}", site.file, site.span.get_start_offset())

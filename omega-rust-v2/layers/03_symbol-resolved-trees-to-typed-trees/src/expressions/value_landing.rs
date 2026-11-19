@@ -1,5 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{Access, ObligationKind, TypeError, TypedExpression, ValueType};
+use crate::{Access, ObligationKind, Site, TypeError, TypedNumericLanding, ValueType};
 
 impl BodyTyper<'_, '_> {
     pub(super) fn check_destination(
@@ -95,6 +95,14 @@ impl BodyTyper<'_, '_> {
             return Ok(());
         }
         if !value.fits(expected) {
+            if self
+                .catalog
+                .types
+                .indices
+                .defer_indexed_landing(value, expected)
+            {
+                return Ok(());
+            }
             return Err(TypeError::at(self.unit.file, node_index, format!("expected {expected}, found {value}")));
         }
         if let ValueType::Exact {
@@ -123,10 +131,13 @@ impl BodyTyper<'_, '_> {
                 },
             );
         }
-        if matches!(value, ValueType::Exact { .. }) {
-            self.output
-                .landings
-                .push(TypedExpression::at(self.unit.file, node_index, expected.clone()));
+        if let ValueType::Exact { value, .. } = value {
+            self.output.landings.push(TypedNumericLanding {
+                node: self.unit.file.node_id(node_index),
+                site: Site::at(self.unit.file, node_index),
+                value: value.clone(),
+                ty: expected.clone(),
+            });
         }
         Ok(())
     }

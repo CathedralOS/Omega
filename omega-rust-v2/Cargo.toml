@@ -7,6 +7,7 @@ members = [
     "layers/01_tokens-to-syntax-trees",
     "layers/02_syntax-trees-to-symbol-resolved-trees",
     "layers/03_symbol-resolved-trees-to-typed-trees",
+    "layers/04_typed-trees-to-prepared-trees",
     "tools/compare-builds",
     "tools/golden",
     "tools/measure",

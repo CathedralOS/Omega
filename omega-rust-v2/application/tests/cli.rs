@@ -78,6 +78,19 @@ fn types_overloaded_calls_and_reports_the_wrong_result_at_its_use() {
 }
 
 #[test]
+fn prepares_a_signed_index_and_reports_exact_intermediate_overflow() {
+    let root = application_directory().join("../layers/04_typed-trees-to-prepared-trees/tests/fixtures");
+    let pass = invoke(&root, &["source", "prepare", "signed_wrap.omg"]);
+    assert!(pass.status.success(), "{}", String::from_utf8_lossy(&pass.stderr));
+    assert!(pass.stdout.is_empty() && pass.stderr.is_empty());
+    let fail = invoke(&root, &["source", "prepare", "signed_overflow.omg"]);
+    assert_eq!(fail.status.code(), Some(1));
+    let diagnostic = String::from_utf8_lossy(&fail.stderr);
+    assert!(diagnostic.contains("signed_overflow.omg:3:19:"), "{diagnostic}");
+    assert!(diagnostic.contains("exact addition exceeds its selected integer carrier"), "{diagnostic}");
+}
+
+#[test]
 fn types_a_computed_width_and_reports_the_overflowing_specialization() {
     let fixtures = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/fixtures");
     let ok = invoke(&fixtures.join("accept"), &["source", "type", "computed_width.omg"]);
@@ -88,6 +101,12 @@ fn types_a_computed_width_and_reports_the_overflowing_specialization() {
         assert_eq!(missing.status.code(), Some(1));
         assert!(String::from_utf8_lossy(&missing.stderr).contains("needs an admitted evaluation result"));
     }
+    let prepared = invoke(&fixtures.join("prepared/accept"), &["source", "prepare", "computed_width.omg"]);
+    assert!(prepared.status.success(), "{}", String::from_utf8_lossy(&prepared.stderr));
+    assert!(prepared.stdout.is_empty() && prepared.stderr.is_empty());
+    let refused = invoke(&fixtures.join("prepared/reject"), &["source", "prepare", "computed_width.omg"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("exact addition exceeds its selected integer carrier"));
     assert_eq!(error.status.code(), Some(1));
     assert_eq!(
         String::from_utf8_lossy(&error.stderr).trim(),
@@ -148,6 +167,7 @@ fn help_and_usage_errors_have_distinct_statuses_and_streams() {
         &["source", "parse", "--help"],
         &["source", "resolve", "--help"],
         &["source", "type", "-h"],
+        &["source", "prepare", "--help"],
     ] {
         let output = invoke(application_directory(), arguments);
         assert!(output.status.success());

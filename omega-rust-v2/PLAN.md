@@ -154,10 +154,10 @@ Psi to native code) are not planned yet.
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
-| L1 Parser | tokens → syntax trees | positional rest handoff tested, awaiting renewed sign-off | 1.12 s (previous revision) |
+| L1 Parser | tokens → syntax trees | locked, positional rest handoff signed off 2026-11-19 | 1.12 s (previous revision) |
 | L2 Resolver | syntax trees → symbol-resolved trees | locked, revised handoff signed off 2026-11-19 | 0.17 s (2026-11-18 warm median, five runs) |
-| L3 Typer | symbol-resolved trees → typed trees | locked, revised handoff signed off 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
-| L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
+| L3 Typer | symbol-resolved trees → typed trees | locked, revised static integer handoff signed off 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
+| L4 Preparation | typed tree → evaluated, frozen typed tree | open, preparing local signed and unsigned integer constants and closed indices, 1–128 bits | — |
 | L5 Lowering | typed tree → Terminal Psi | not started | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |
@@ -278,9 +278,9 @@ an explicit decision to reopen that contract.
 
 ### L1 Parser
 
-**L1 awaits renewed sign-off after the positional rest repair.** The parser owns grammatical structure and exposes the written
+**L1 is locked.** Jarod signed off the positional rest handoff on 2026-11-19. The parser owns grammatical structure and exposes the written
 parts of each construct with their source spans. L2 resolves names and L3
-interprets types and contracts. Once signed off, changes to the accepted grammar or to what L1
+interprets types and contracts. Changes to the accepted grammar or to what L1
 hands downstream require an explicit decision to reopen the parser contract.
 
 - **Spec owners:** none as a single document. The spec has no grammar; syntax
@@ -353,7 +353,7 @@ ordinary bare name binds the matched value. A qualified constant tests its
 value. L2 publishes the binding or declaration, and L3 checks coverage.
 [Package boundaries](wiki/spec/packages/boundaries.md#selection-versus-carrying-a-type)
 
-**L3 is locked.** Jarod signed off the revised typed-tree handoff on 2026-11-19. The [L3 typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) covers calls, operators, generic applications, evidence, storage and effects. L3 selects typed operations and publishes their operands and proof obligations at the producing nodes. For an open index such as `Buffer<width(N)>`, `StaticTemplate::request()` identifies the selected call and its result carrier. In this revision closing the application requires a supplied evaluation result. Preparation owns execution of the selected body. Changing which stage must supply a closed value requires a concrete consumer case and an explicit decision to reopen the handoff.
+**L3 is locked.** The first signoff was at `4baf1e5f5e9`. The computed-width case reopened the handoff because typing stopped before L4 could receive the selected call. The revised handoff passed review on 2026-11-19. L3 selects the declaration, types the operands, and identifies the source occurrence, integer carrier and any specialization arguments. L4 evaluates the admitted call. L3 uses the returned value to finish checks that depend on a closed type identity. [Typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) · [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md)
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.

@@ -68,6 +68,7 @@ version = "0.0.0"
 dependencies = [
  "omega-lexer",
  "omega-parser",
+ "omega-preparation",
  "omega-resolver",
  "omega-toolchain",
  "omega-typer",
@@ -90,6 +91,17 @@ dependencies = [
  "measure",
  "omega-lexer",
  "spec-corpus",
+]
+
+[[package]]
+name = "omega-preparation"
+version = "0.0.0"
+dependencies = [
+ "num-bigint",
+ "omega-lexer",
+ "omega-parser",
+ "omega-resolver",
+ "omega-typer",
 ]
 
 [[package]]

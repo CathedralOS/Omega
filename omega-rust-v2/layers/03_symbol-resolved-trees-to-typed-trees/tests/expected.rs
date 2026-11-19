@@ -111,8 +111,8 @@ fn typed_fixtures_match_handwritten_expectations() {
                             access.result
                         ));
                     }
-                    for (id, ty) in stage.constants {
-                        lines.push(format!("const | {} | {}", id.path, ty));
+                    for constant in stage.constants {
+                        lines.push(format!("const | {} | {}", constant.declaration.path, constant.initializer.carrier));
                     }
                     for route in stage.crash_routes {
                         if let Some(guard) = route.guard {

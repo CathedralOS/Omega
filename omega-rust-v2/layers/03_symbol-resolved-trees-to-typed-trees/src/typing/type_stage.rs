@@ -10,7 +10,7 @@ use crate::evaluation::check_static_indices::{IndexEvaluations, check_static_ind
 use crate::expressions::check_bodies::check_bodies;
 use crate::toolchain_declarations::core_interface::{CheckedLibrary, configure_roles};
 use crate::type_system::definition_order::index_type_definitions;
-use crate::{TypeError, TypedStage, TypingEnvironment};
+use crate::{StaticIntegerDemand, TypeError, TypedStage, TypedTrees, TypingEnvironment};
 use omega_resolver::SymbolResolvedTrees;
 use omega_toolchain::CoreInterface;
 
@@ -19,6 +19,15 @@ pub(crate) fn type_admitted_stage<'text>(
     library: Option<&'static CheckedLibrary>,
     environment: &TypingEnvironment<'_>,
 ) -> Result<crate::TypedTrees<'text>, TypeError> {
+    type_stage_inner(resolved, library, environment, false).map(|(trees, _)| trees)
+}
+
+pub(crate) fn type_stage_inner<'text>(
+    resolved: &SymbolResolvedTrees<'text>,
+    library: Option<&'static CheckedLibrary>,
+    environment: &TypingEnvironment<'_>,
+    allow_pending: bool,
+) -> Result<(TypedTrees<'text>, Vec<StaticIntegerDemand>), TypeError> {
     let mut output = TypedStage::default();
     let mut catalog = library.map_or_else(DeclarationCatalog::default, |lib| lib.import(&mut output));
     let first_local_obligation = output.obligations.len();
@@ -27,12 +36,21 @@ pub(crate) fn type_admitted_stage<'text>(
         catalog.ranking_views = environment.ranking_views.into();
         catalog.access_plan_requirement = environment.access_plan_requirement;
     }
-    check_stage(resolved, environment, &mut catalog, &mut output, None, library.map(|lib| &lib.execution))?;
+    check_stage(
+        resolved,
+        environment,
+        &mut catalog,
+        &mut output,
+        None,
+        library.map(|lib| &lib.execution),
+        allow_pending,
+    )?;
     if library.is_none() && !output.collection_accesses.is_empty() {
         output.library = Some(crate::standard_library());
     }
     catalog.publish_declarations(&mut output);
-    Ok(crate::TypedTrees::new(resolved.clone(), output, first_local_obligation))
+    let demands = catalog.types.indices.take_demands();
+    Ok((crate::TypedTrees::new(resolved.clone(), output, first_local_obligation), demands))
 }
 
 pub(crate) fn check_stage<'a>(
@@ -42,9 +60,10 @@ pub(crate) fn check_stage<'a>(
     output: &mut TypedStage,
     definition: Option<&'a CoreInterface>,
     library_execution: Option<&ExecutionCalls>,
+    allow_pending: bool,
 ) -> Result<ExecutionCalls, TypeError> {
     let mut units = index_resolved_sources(resolved);
-    catalog.types.indices = IndexEvaluations::admit(&units, environment)?;
+    catalog.types.indices = IndexEvaluations::admit(&units, environment, allow_pending)?;
     let trait_tokens = trait_operator_tokens(resolved, &catalog.types.trait_operator_tokens);
     catalog.types.trait_operator_tokens.extend(trait_tokens);
     catalog.types.literal_constants.collect(&units);

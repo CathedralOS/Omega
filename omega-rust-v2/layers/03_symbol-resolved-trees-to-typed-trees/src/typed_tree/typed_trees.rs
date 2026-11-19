@@ -23,14 +23,15 @@ enum Record {
     Obligation(usize),
     RequirementBinding(usize),
     CollectionAccess(usize),
+    Constant(usize),
 }
 
 pub enum NodeSemantics<'a> {
     Field(&'a omega_resolver::DeclarationId),
+    Constant(&'a omega_resolver::DeclarationId),
     CollectionAccess(&'a crate::CollectionAccess),
     Expression(&'a TypedExpression),
-    /// The destination carrier of an exact expression at this node.
-    Landing(&'a TypedExpression),
+    Landing(&'a crate::TypedNumericLanding),
     Call(&'a TypedCall),
     IndirectCall(&'a IndirectCall),
     Operation(&'a TypedOperation),
@@ -49,6 +50,7 @@ impl<'text> TypedTrees<'text> {
         let mut by_node = Vec::with_capacity(
             facts.expressions.len()
                 + facts.landings.len()
+                + facts.constant_references.len()
                 + facts.calls.len()
                 + facts.indirect_calls.len()
                 + facts.operations.len()
@@ -65,6 +67,7 @@ impl<'text> TypedTrees<'text> {
             nodes.enumerate().map(move |(i, node)| (node, record(i)))
         }
         by_node.extend(indexed(facts.expressions.iter().map(|e| e.node), Record::Expression));
+        by_node.extend(indexed(facts.constant_references.iter().map(|(node, _)| *node), Record::Constant));
         by_node.extend(indexed(facts.landings.iter().map(|e| e.node), Record::Landing));
         by_node.extend(indexed(facts.calls.iter().map(|c| c.node), Record::Call));
         by_node.extend(indexed(facts.indirect_calls.iter().map(|c| c.node), Record::IndirectCall));
@@ -108,6 +111,7 @@ impl<'text> TypedTrees<'text> {
                 Record::RequirementBinding(i) => NodeSemantics::RequirementBinding(&self.facts.conformance_rows[i]),
                 Record::CollectionAccess(i) => NodeSemantics::CollectionAccess(&self.facts.collection_accesses[i]),
                 Record::Landing(i) => NodeSemantics::Landing(&self.facts.landings[i]),
+                Record::Constant(i) => NodeSemantics::Constant(&self.facts.constant_references[i].1),
                 Record::Expression(i) => NodeSemantics::Expression(&self.facts.expressions[i]),
                 Record::Call(i) => NodeSemantics::Call(&self.facts.calls[i]),
                 Record::IndirectCall(i) => NodeSemantics::IndirectCall(&self.facts.indirect_calls[i]),

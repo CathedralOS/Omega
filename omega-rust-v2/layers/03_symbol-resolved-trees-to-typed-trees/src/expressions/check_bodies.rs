@@ -27,9 +27,14 @@ pub(crate) fn check_bodies(
             }
             if node.kind == Const {
                 let id = unit.declaration(node_index)?;
-                output
-                    .constants
-                    .push((id.clone(), catalog.constants[id].clone()));
+                let initializer = *node
+                    .children
+                    .last()
+                    .ok_or_else(|| TypeError::unsupported(unit.file, node_index))?;
+                output.constants.push(crate::TypedConstant {
+                    declaration: id.clone(),
+                    initializer: crate::StaticIntegerRequest::at(unit.file, initializer, &catalog.constants[id]),
+                });
                 if node.children.len() == 2 {
                     continue;
                 }

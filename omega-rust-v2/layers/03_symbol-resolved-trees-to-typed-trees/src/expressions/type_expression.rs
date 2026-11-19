@@ -6,6 +6,23 @@ use omega_parser::NodeKind;
 use omega_resolver::Symbol;
 
 impl BodyTyper<'_, '_> {
+    pub(super) fn constant_reference(
+        &mut self,
+        node: usize,
+        declaration: &omega_resolver::DeclarationId,
+    ) -> Result<ValueType, TypeError> {
+        let source = self.unit.file;
+        let ty = self
+            .catalog
+            .constants
+            .get(declaration)
+            .ok_or_else(|| TypeError::unsupported(source, node))?;
+        self.output
+            .constant_references
+            .push((source.node_id(node), declaration.clone()));
+        Ok(ty.clone())
+    }
+
     pub(super) fn type_expression(
         &mut self,
         node_index: usize,
@@ -109,12 +126,7 @@ impl BodyTyper<'_, '_> {
                             .map(|(_, field)| self.catalog.types.apply_type_arguments(&field.ty, owner, args))
                             .ok_or_else(|| TypeError::at(source_file, node_index, "field declaration does not belong to this subject"))?
                     }
-                    Some(Symbol::Declaration(id)) if id.kind == Const => self
-                        .catalog
-                        .constants
-                        .get(id)
-                        .cloned()
-                        .ok_or_else(|| TypeError::unsupported(source_file, node_index))?,
+                    Some(Symbol::Declaration(id)) if id.kind == Const => self.constant_reference(node_index, id)?,
                     Some(Symbol::Declaration(id)) if id.kind == Case => {
                         if !self.catalog.fields[id].ordered.is_empty() {
                             return Err(TypeError::at(source_file, node_index, "case requires its payload fields"));
@@ -258,6 +270,7 @@ impl BodyTyper<'_, '_> {
         value
             .validate_closed_indices()
             .map_err(|reason| TypeError::at(source_file, node_index, reason))?;
+        self.catalog.types.indices.retain_demands(&value);
         self.record_expression(node_index, value.clone());
         Ok(value)
     }

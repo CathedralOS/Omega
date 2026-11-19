@@ -41,6 +41,11 @@ impl SyntaxKey {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub(super) struct ClosedArguments(Vec<ValueType>);
 
+impl ClosedArguments {
+    pub(super) fn into_values(self) -> Vec<ValueType> {
+        self.0
+    }
+}
 impl TryFrom<Vec<ValueType>> for ClosedArguments {
     type Error = Vec<ValueType>;
 
@@ -54,14 +59,19 @@ impl TryFrom<Vec<ValueType>> for ClosedArguments {
 }
 #[derive(Default)]
 pub(crate) struct IndexSpecializations {
+    allow_pending: bool,
     values: HashMap<(SyntaxKey, ValueType), Arc<HashMap<ClosedArguments, BigInt>>>,
 }
 impl IndexSpecializations {
     pub fn build(
         units: &[ResolvedSourceFile<'_>],
         receipts: &[SpecializedIndexValue],
+        allow_pending: bool,
     ) -> Result<Self, TypeError> {
-        let mut prepared = Self::default();
+        let mut prepared = Self {
+            allow_pending,
+            ..Self::default()
+        };
         for receipt in receipts {
             let fail = |message: &str| TypeError::for_site(&receipt.request.expression, message);
             let n = receipt.request.node.node;
@@ -102,6 +112,7 @@ impl IndexSpecializations {
         Arc::new(StaticTemplate {
             key: key.0,
             request: StaticIntegerRequest::at(unit.file, n, carrier),
+            allow_pending: self.allow_pending,
             values,
         })
         .apply(args)

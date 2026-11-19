@@ -196,6 +196,9 @@ impl<'a> ResolvedSourceFile<'a> {
             return Ok(term);
         }
         let (value, suffix) = self.closed_number(types, node_index, carrier)?;
+        if matches!(value, ValueType::StaticFormula { .. }) {
+            return Ok(value);
+        }
         if suffix.as_ref().is_some_and(|t| t != carrier)
             || !value.fits(carrier)
             || matches!(
@@ -262,13 +265,16 @@ impl<'a> ResolvedSourceFile<'a> {
         }
         self.open_index(types, node, &required)
     }
-    pub(crate) fn static_size(
+    pub(crate) fn closed_size(
         &self,
         types: &TypeCatalog<'_>,
         node_index: usize,
-    ) -> Result<u64, TypeError> {
+    ) -> Result<ValueType, TypeError> {
         let (value, suffix) = self.closed_number(types, node_index, &ValueType::integer("u64").unwrap())?;
-        numeric_literals::array_length(self.file, node_index, value, suffix)
+        if matches!(value, ValueType::StaticFormula { .. }) {
+            return Ok(value);
+        }
+        numeric_literals::array_length(self.file, node_index, value, suffix).map(ValueType::static_size)
     }
 }
 

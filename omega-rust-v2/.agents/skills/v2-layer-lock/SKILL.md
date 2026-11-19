@@ -28,6 +28,8 @@ For each decision that matters to the lock, ask “Could this test pass if the c
 
 Pause the proposed change to the locked layer. Name the missing information and trace a concrete case across its existing handoff.
 
+Run the complete program through the ordinary entry point. If the producer demands a value before it releases the facts its consumer needs to compute that value, show where the program stops. Compare it with a literal-value control. A test that supplies the result up front verifies how the producer uses it; the consumer still needs a test that obtains it from the original program.
+
 | What the case shows | Who acts |
 | --- | --- |
 | The handoff already supplies the information. | Fix the consumer to use it. |

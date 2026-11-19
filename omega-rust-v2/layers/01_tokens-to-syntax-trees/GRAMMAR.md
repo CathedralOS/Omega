@@ -4,7 +4,9 @@ Named and structural machine signatures expose their ordered parameter names and
 
 The indexed tree supplies declaration names, generic binders in source order, and a parent link for each nested node. Following these links visits every enclosing node, nearest first. The resolver selects the constructs that govern lexical scope. The indexed tree exposes the spelling and source span of each written operator. A right shift spans its adjacent tokens. An index exposes `[]` and the span between its opening and closing brackets.
 
-Status: **gate passed and signed off 2026-11-18.** All twelve decisions are
+**L1 is locked.** The original grammar passed its gate on 2026-11-18. The revised positional rest handoff was signed off on 2026-11-19. L1 records the final `..` and its span in a tuple pattern. L3 checks the components against the subject type. [Pattern tests](tests/indexed_syntax.rs)
+
+All twelve decisions are
 made. The parser in `src/` follows
 this grammar, every rule below has fixtures (see [Rules and their
 fixtures](#rules-and-their-fixtures)), and all 132 spec examples parse.

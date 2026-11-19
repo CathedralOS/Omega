@@ -3,8 +3,8 @@
 use crate::{
     AccessPolicySelection, BoundarySlot, CallableType, CleanupSelection, CollectionAccess, ConformanceRow, CrashRoute, CrashRouteRef, DataProperties,
     GuardedCall, GuardedInvocationRef, IndirectCall, InvocationTarget, LogicalHypothesis, MachineEffects, PackageConstruction, RankingWitness, Site,
-    StaticIntegerRequest, TraitRefinement, TypedCall, TypedExpression, TypedInstruction, TypedMembership, TypedOperation, TypedSignature, TypingObligation,
-    ValueType,
+    StaticIntegerRequest, TraitRefinement, TypedCall, TypedExpression, TypedInstruction, TypedMembership, TypedNumericLanding, TypedOperation, TypedSignature,
+    TypingObligation, ValueType,
 };
 use num_bigint::BigInt;
 use omega_resolver::DeclarationId;
@@ -23,6 +23,13 @@ impl TypedField {
     }
 }
 
+/// A local constant and the typed occurrence that initializes it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TypedConstant {
+    pub declaration: DeclarationId,
+    pub initializer: StaticIntegerRequest,
+}
+
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct TypedStage {
     /// Typed definitions and predicates of the library admitted for this source stage.
@@ -31,7 +38,8 @@ pub struct TypedStage {
     pub logical_hypotheses: Vec<LogicalHypothesis>,
     pub expressions: Vec<TypedExpression>,
     pub evaluated_indices: Vec<(StaticIntegerRequest, BigInt)>,
-    pub constants: Vec<(DeclarationId, ValueType)>,
+    pub constants: Vec<TypedConstant>,
+    pub(crate) constant_references: Vec<(omega_resolver::TreeNodeId, DeclarationId)>,
     /// Evaluated receivers, projections, and aliases introduced by borrowed patterns.
     pub(crate) place_steps: std::collections::BTreeMap<omega_resolver::TreeNodeId, crate::PlaceStep>,
     pub record_fields: std::collections::HashMap<DeclarationId, Arc<Vec<TypedField>>>,
@@ -56,8 +64,8 @@ pub struct TypedStage {
     pub memberships: Vec<TypedMembership>,
     pub machine_effects: Vec<Arc<MachineEffects>>,
     pub conformance_rows: Vec<ConformanceRow>,
-    /// Source expressions whose exact integer value lands at a concrete destination.
-    pub landings: Vec<TypedExpression>,
+    /// Source expressions whose exact numeric value lands at a concrete destination.
+    pub landings: Vec<TypedNumericLanding>,
 }
 
 impl TypedStage {

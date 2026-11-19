@@ -29,12 +29,17 @@ pub(crate) fn check_static_argument(
         && let Some(Symbol::Declaration(id)) = unit.name_in_role(node_index, false)
         && id.kind == NodeKind::Const
     {
-        catalog.constants[id].clone()
+        let value = body.constant_reference(node_index, id)?;
+        body.record_expression(node_index, value.clone());
+        value
     } else {
         body.type_expression_with_expected_type(node_index, Some(expected))?
     };
     if body.output.calls[start..].iter().any(|c| c.evidence.is_some())
-        && !matches!(evaluation, crate::evaluation::check_static_indices::IndexEvaluation::Specialized(_))
+        && !matches!(
+            evaluation,
+            crate::evaluation::check_static_indices::IndexEvaluation::Specialized(_) | crate::evaluation::check_static_indices::IndexEvaluation::Pending
+        )
         && !catalog.types.indices.has_supplied_value(request)
     {
         return Err(TypeError::at(
@@ -52,6 +57,7 @@ pub(crate) fn infer_constant(
     output: &mut TypedStage,
 ) -> Result<ValueType, TypeError> {
     let mut body = BodyTyper::new(unit, catalog, output);
+    body.context = ExpressionContext::StaticArgument;
     let value = body.type_expression(expr)?;
     if value.holds_anonymous_number() || value == ValueType::NoResult {
         return Err(TypeError::at(unit.file, expr, "constant requires a concrete value type"));
@@ -146,6 +152,7 @@ pub(crate) fn check_declaration(
             .last()
             .ok_or_else(|| TypeError::unsupported(source, node_index))?;
         let ty = &catalog.constants[id];
+        body.context = ExpressionContext::StaticArgument;
         let value = body.type_expression_with_expected_type(expr, Some(ty))?;
         return body.check_destination(expr, &value, ty);
     }

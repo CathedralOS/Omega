@@ -1,4 +1,4 @@
-use crate::expressions::body_typer::BodyTyper;
+use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::{Access, ObligationKind, Site, TypeError, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
@@ -153,11 +153,28 @@ impl BodyTyper<'_, '_> {
             self.admit_argument(node, position, op, &expected)?;
             let mut parameter = signature.site.clone();
             parameter.span = *span;
+            // A const argument keeps its selected generic identity so preparation
+            // can substitute the owning declaration's closed argument.
+            let subject = if self.context == ExpressionContext::StaticArgument
+                && let Some(Symbol::Binding {
+                    span,
+                    kind: NodeKind::ConstParam,
+                    ..
+                }) = self.unit.symbol(source.ungroup(op.node))
+            {
+                self.unit
+                    .parameters
+                    .get(span)
+                    .cloned()
+                    .ok_or_else(|| TypeError::at(source, op.node, "missing type of static argument binder"))?
+            } else {
+                op.subject(self.unit, &expected)
+            };
             applied.push(crate::AppliedOperand {
                 node: source.node_id(op.node),
                 site: Site::at(source, op.node),
                 parameter,
-                subject: op.subject(self.unit, &expected),
+                subject,
                 callable: matches!(op.value, ValueType::Callable(_)).then(|| self.invocation_target(op.node)),
             });
         }

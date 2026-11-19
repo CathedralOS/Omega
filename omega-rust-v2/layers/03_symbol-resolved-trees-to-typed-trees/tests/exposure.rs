@@ -271,3 +271,175 @@ fn competing_canonical_views_refuse_a_default_and_preserve_an_explicit_selection
     assert_eq!(error.message, "ambiguous canonical ranking view");
     assert_eq!(error.span.slice(implicit.as_bytes()), Some(b"x".as_slice()));
 }
+
+#[test]
+fn preparation_receives_typed_static_demands_before_dependent_identity_is_known() {
+    use omega_resolver::{ParsedSource, StageSource};
+    use omega_typer::{
+        NodeSemantics, SpecializedIndexValue, StaticIntegerDemand, TypingEnvironment, TypingProgress, type_source_package, type_source_package_for_preparation,
+    };
+    let declarations = "data Buffer<const N:u8>{} machine width(n:u8)->u8{n+%1}";
+    for (body, specialized) in [
+        ("machine f(x:Buffer<width(7)>)->Buffer<8>{x}", false),
+        (
+            "machine make<const N:u8>()->Buffer<width(N)>{Buffer::<width(N)>{}} machine f()->Buffer<8>{make::<7>()}",
+            true,
+        ),
+    ] {
+        let source = format!("{declarations} {body}");
+        let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
+        let syntax = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
+        let resolved = omega_toolchain::resolve_source_package(&[StageSource {
+            package: "game",
+            source: ParsedSource {
+                logical_path: "prepare.omg",
+                text: &source,
+                tokens: &tokens,
+                tree: &syntax,
+            },
+        }])
+        .unwrap();
+
+        assert!(
+            type_source_package(&resolved)
+                .unwrap_err()
+                .message
+                .contains("admitted evaluation result")
+        );
+        let TypingProgress::Pending(pending) = type_source_package_for_preparation(&resolved, &TypingEnvironment::default()).unwrap() else {
+            panic!("typing needs the selected static expression");
+        };
+        assert!(!pending.demands().is_empty());
+        let byte = ValueType::Integer { signed: false, width: Some(8) };
+        for demand in pending.demands() {
+            let request = demand.request();
+            assert_eq!(request.carrier, byte);
+            let tree = pending.trees().trees().nth(request.node.file).unwrap();
+            let file = tree.resolved().file;
+            let expected = if specialized { b"width(N)".as_slice() } else { b"width(7)".as_slice() };
+            assert_eq!(file.span(request.node.node).slice(source.as_bytes()), Some(expected));
+            let selected = tree
+                .semantics_at(request.node.node)
+                .find_map(|semantics| match semantics {
+                    NodeSemantics::Call(call) => Some(call),
+                    _ => None,
+                })
+                .expect("expected a typed call at the evaluation request");
+            assert_eq!(selected.machine.path, "width");
+            assert_eq!(selected.operands.len(), 1);
+            match demand {
+                StaticIntegerDemand::Specialized { arguments, .. } if specialized => {
+                    assert_eq!(
+                        arguments,
+                        &[ValueType::StaticInteger {
+                            carrier: Box::new(byte.clone()),
+                            value: 7.into()
+                        }]
+                    );
+                    let make = resolved
+                        .declarations
+                        .iter()
+                        .find(|id| id.path == "make")
+                        .unwrap();
+                    assert_eq!(
+                        selected.operands[0].subject,
+                        ValueType::Parameter {
+                            owner: Box::new(make.clone()),
+                            index: 0
+                        }
+                    );
+                }
+                StaticIntegerDemand::Closed(_) if !specialized => {
+                    assert_eq!(
+                        selected.operands[0].subject,
+                        ValueType::StaticInteger {
+                            carrier: Box::new(byte.clone()),
+                            value: 7.into()
+                        }
+                    );
+                }
+                other => panic!("unexpected demand {other:?}"),
+            }
+        }
+
+        let resume = |value: u8| {
+            let mut evaluated_indices = Vec::new();
+            let mut specialized_indices = Vec::new();
+            for demand in pending.demands() {
+                match demand {
+                    StaticIntegerDemand::Closed(request) => evaluated_indices.push((request.clone(), value.into())),
+                    StaticIntegerDemand::Specialized { request, arguments } => specialized_indices.push(SpecializedIndexValue {
+                        request: request.clone(),
+                        arguments: arguments.clone(),
+                        value: value.into(),
+                    }),
+                }
+            }
+            type_source_package_for_preparation(
+                &resolved,
+                &TypingEnvironment {
+                    evaluated_indices: &evaluated_indices,
+                    specialized_indices: &specialized_indices,
+                    ..Default::default()
+                },
+            )
+        };
+        let TypingProgress::Complete(typed) = resume(8).unwrap() else {
+            panic!("the evaluated index closes typing");
+        };
+        let f = typed
+            .signatures
+            .iter()
+            .find(|signature| signature.machine.path == "f")
+            .unwrap();
+        assert_eq!(f.result.to_string(), "game::Buffer<8>");
+        assert!(
+            resume(9)
+                .unwrap_err()
+                .message
+                .contains("expected game::Buffer<8>")
+        );
+    }
+}
+
+#[test]
+fn constant_initializers_publish_references_calls_and_suffixed_values() {
+    use omega_typer::{CallUse, NodeSemantics};
+    let source = "const FORWARD:u8=SIZE; const SIZE=width(7u8); machine width(n:u8)->u8{n+%1}";
+    let resolved = support::resolve_packages(&[("game", "constants.omg", source)], &[]);
+    let typed = omega_typer::type_stage(&resolved).unwrap();
+    let constant = |path| {
+        typed
+            .constants
+            .iter()
+            .find(|value| value.declaration.path == path)
+            .unwrap()
+    };
+    let alias = constant("FORWARD");
+    let size = constant("SIZE");
+    let tree = typed.trees().next().unwrap();
+    let byte = ValueType::Integer { signed: false, width: Some(8) };
+    assert_eq!(alias.initializer.carrier, byte);
+    assert_eq!(size.initializer.carrier, byte);
+    assert!(
+        tree.semantics_at(alias.initializer.node.node)
+            .any(|record| matches!(
+                record, NodeSemantics::Constant(declaration) if declaration == &size.declaration
+            ))
+    );
+    let width = tree
+        .semantics_at(size.initializer.node.node)
+        .find_map(|record| match record {
+            NodeSemantics::Call(call) => Some(call),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(width.machine.path, "width");
+    assert_eq!(width.use_site, CallUse::StaticArgument);
+    assert!(
+        tree.semantics_at(width.operands[0].node.node)
+            .any(|record| matches!(
+                record, NodeSemantics::Landing(landing) if landing.value == num_rational::BigRational::from_integer(7.into()) && landing.ty == byte
+            ))
+    );
+}

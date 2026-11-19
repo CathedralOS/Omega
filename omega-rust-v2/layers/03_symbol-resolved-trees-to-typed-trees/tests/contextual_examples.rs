@@ -259,7 +259,7 @@ fn published_scoped_constants_keep_qualified_identity_and_carrier() {
     let mut constants: Vec<_> = stage
         .constants
         .iter()
-        .map(|(id, ty)| (id.path.as_str(), ty.to_string()))
+        .map(|constant| (constant.declaration.path.as_str(), constant.initializer.carrier.to_string()))
         .collect();
     constants.sort();
     assert_eq!(

@@ -37,6 +37,7 @@ fn read_file(path: &Path) -> Result<ParsedFile, String> {
 pub(crate) enum Stage {
     Resolve,
     Type,
+    Prepare,
 }
 
 pub(crate) fn check_files(
@@ -80,8 +81,14 @@ pub(crate) fn check_files(
         diagnostic(path, bytes, span, layer, message)
     };
     let resolved = omega_toolchain::resolve_source_package(&sources).map_err(|e| stage_error("resolver", &e.package, &e.file, e.span, e.message))?;
-    if matches!(stage, Stage::Type) {
-        omega_typer::type_source_package(&resolved).map_err(|e| stage_error("typer", &e.package, &e.file, e.span, e.message))?;
+    match stage {
+        Stage::Resolve => {}
+        Stage::Type => {
+            omega_typer::type_source_package(&resolved).map_err(|e| stage_error("typer", &e.package, &e.file, e.span, e.message))?;
+        }
+        Stage::Prepare => {
+            omega_preparation::prepare_source_package(&resolved).map_err(|e| stage_error("preparation", &e.package, &e.file, e.span, e.message))?;
+        }
     }
     Ok(())
 }

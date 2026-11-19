@@ -3,7 +3,7 @@ use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::expressions::declaration_bodies;
 use crate::type_system::type_catalog::TypeCatalog;
-use crate::{StaticIntegerRequest, TypeError, TypedStage, TypingEnvironment, ValueType};
+use crate::{IntegerIndex, StaticIntegerDemand, StaticIntegerRequest, TypeError, TypedStage, TypingEnvironment, ValueType};
 use num_bigint::BigInt;
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
@@ -14,10 +14,13 @@ pub(crate) enum IndexEvaluation {
     Primitive,
     Specialized(usize),
     Closed(num_bigint::BigInt),
+    Pending,
 }
 /// Evaluation supplies values across the stage boundary. Internally each request retains its resolved node.
 #[derive(Default)]
 pub(crate) struct IndexEvaluations<'a> {
+    allow_pending: bool,
+    demands: RefCell<Vec<StaticIntegerDemand>>,
     pub(super) specializations: IndexSpecializations,
     supplied: HashMap<&'a StaticIntegerRequest, &'a BigInt>,
     pub(super) uses: RefCell<HashMap<StaticIntegerRequest, IndexEvaluation>>,
@@ -26,8 +29,9 @@ impl<'a> IndexEvaluations<'a> {
     pub(crate) fn admit(
         units: &[ResolvedSourceFile<'_>],
         environment: &TypingEnvironment<'a>,
+        allow_pending: bool,
     ) -> Result<Self, TypeError> {
-        let specializations = IndexSpecializations::build(units, environment.specialized_indices)?;
+        let specializations = IndexSpecializations::build(units, environment.specialized_indices, allow_pending)?;
         let mut supplied = HashMap::new();
         for (request, value) in environment.evaluated_indices {
             if supplied.insert(request, value).is_some_and(|old| old != value) {
@@ -40,9 +44,69 @@ impl<'a> IndexEvaluations<'a> {
         Ok(Self {
             specializations,
             supplied,
+            allow_pending,
+            demands: RefCell::default(),
             uses: RefCell::default(),
         })
     }
+    pub(crate) fn take_demands(&self) -> Vec<StaticIntegerDemand> {
+        self.demands.take()
+    }
+
+    pub(crate) fn retain_demands(
+        &self,
+        value: &ValueType,
+    ) {
+        if !self.allow_pending {
+            return;
+        }
+        let mut demands = self.demands.borrow_mut();
+        for part in value.components() {
+            if let ValueType::StaticFormula { term, .. } = part {
+                for demand in term.demands() {
+                    if !demands.contains(demand) {
+                        demands.push(demand.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    /// A nominal landing can wait for its evaluated arguments only when the
+    /// declaration, arity, and every known argument already agree.
+    pub(crate) fn defer_indexed_landing(
+        &self,
+        actual: &ValueType,
+        expected: &ValueType,
+    ) -> bool {
+        let (ValueType::Applied(a, actual), ValueType::Applied(b, expected)) = (actual, expected) else {
+            return false;
+        };
+        if !self.allow_pending || a != b || actual.len() != expected.len() {
+            return false;
+        }
+        let pending_index = |value: &ValueType| match value {
+            ValueType::StaticFormula { term, .. } => term.demands().next().is_some(),
+            _ => false,
+        };
+        let carrier = |value: &ValueType| match value {
+            ValueType::StaticFormula { carrier, .. } | ValueType::StaticInteger { carrier, .. } => Some(carrier.clone()),
+            _ => None,
+        };
+        if !actual
+            .iter()
+            .zip(expected)
+            .all(|(a, b)| a == b || { (pending_index(a) || pending_index(b)) && carrier(a).is_some_and(|carrier_a| Some(carrier_a) == carrier(b)) })
+        {
+            return false;
+        }
+        actual
+            .iter()
+            .chain(expected)
+            .for_each(|i| self.retain_demands(i));
+        true
+    }
+
     pub(crate) fn has_supplied_value(
         &self,
         request: &StaticIntegerRequest,
@@ -142,6 +206,16 @@ impl ResolvedSourceFile<'_> {
                 }
                 Some(crate::IntegerIndex::Invalid(message)) => return Err(TypeError::at(source, node_index, message)),
                 Some(_) => return Err(TypeError::at(source, node_index, "static expression has unresolved subjects")),
+                None if types.indices.allow_pending && supplied.is_none() => {
+                    let term = IntegerIndex::Pending(std::sync::Arc::new(StaticIntegerDemand::Closed(request.clone()))).typed(carrier.clone());
+                    types.indices.retain_demands(&term);
+                    types
+                        .indices
+                        .uses
+                        .borrow_mut()
+                        .insert(request, IndexEvaluation::Pending);
+                    return Ok((term, Some(carrier.clone())));
+                }
                 None => supplied
                     .cloned()
                     .ok_or_else(|| TypeError::at(source, node_index, "static expression requires an admitted evaluation result"))?,

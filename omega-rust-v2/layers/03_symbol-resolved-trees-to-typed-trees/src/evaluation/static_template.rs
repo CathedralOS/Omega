@@ -10,6 +10,7 @@ use std::{
 pub struct StaticTemplate {
     pub(super) key: SyntaxKey,
     pub(super) request: StaticIntegerRequest,
+    pub(super) allow_pending: bool,
     pub(super) values: Arc<HashMap<ClosedArguments, BigInt>>,
 }
 impl std::fmt::Debug for StaticTemplate {
@@ -60,6 +61,10 @@ impl StaticTemplate {
         match self.values.get(&arguments) {
             Some(v) if self.request.carrier.contains_integer(v) => IntegerIndex::Value(v.clone()),
             Some(v) => IntegerIndex::Invalid(format!("static index {v} exceeds {}", self.request.carrier)),
+            None if self.allow_pending => IntegerIndex::Pending(Arc::new(crate::StaticIntegerDemand::Specialized {
+                request: self.request(),
+                arguments: arguments.into_values(),
+            })),
             None => IntegerIndex::Invalid(format!(
                 "specialized static expression in {} needs an admitted evaluation result",
                 self.key.owner.path

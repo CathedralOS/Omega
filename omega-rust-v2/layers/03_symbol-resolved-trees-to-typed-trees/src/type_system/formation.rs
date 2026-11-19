@@ -77,7 +77,7 @@ impl Formations {
         let mut proofs = Vec::new();
         for call in &output.calls {
             let applications = graph
-                .specialize(&call.machine, |ty| call.instantiate(ty))
+                .specialize(types, &call.machine, |ty| call.instantiate(ty))
                 .map_err(|m| TypeError::for_site(&call.site, m))?;
             graph.check_applications(types, applications, &call.site, call.node, &mut proofs)?;
         }
@@ -89,7 +89,7 @@ impl Formations {
             } = &obligation.kind
             {
                 let applications = graph
-                    .specialize(id, |ty| ty.substitute(id, generic_arguments))
+                    .specialize(types, id, |ty| ty.substitute(id, generic_arguments))
                     .map_err(|m| TypeError::for_site(&obligation.site, m))?;
                 graph.check_applications(types, applications, &obligation.site, obligation.node, &mut proofs)?;
             }
@@ -157,13 +157,18 @@ impl<'a> DeclarationRequirements<'a> {
 
     fn specialize(
         &self,
+        types: &TypeCatalog<'_>,
         owner: &DeclarationId,
         apply: impl Fn(&ValueType) -> ValueType,
     ) -> Result<Vec<Application>, String> {
         let mut nested = Vec::new();
         for row in self.0.get(owner).into_iter().flatten() {
             match row {
-                TypeRequirement::Index(value) => apply(value).validate_closed_indices()?,
+                TypeRequirement::Index(value) => {
+                    let applied = apply(value);
+                    applied.validate_closed_indices()?;
+                    types.indices.retain_demands(&applied);
+                }
                 TypeRequirement::Universe(subject, sort) => TypeCatalog::check_universe_member(&apply(subject), &apply(sort))?,
                 TypeRequirement::Application(id, args) => nested.push((id.clone(), args.iter().map(&apply).collect())),
             }
@@ -205,7 +210,7 @@ impl<'a> DeclarationRequirements<'a> {
             let mut nested = Vec::new();
             for (scope, _) in types.scoped_arguments(&id, &args) {
                 nested.extend(
-                    self.specialize(scope, |value| types.apply_type_arguments(value, &id, &args))
+                    self.specialize(types, scope, |value| types.apply_type_arguments(value, &id, &args))
                         .map_err(|m| TypeError::for_site(site, m))?,
                 );
             }

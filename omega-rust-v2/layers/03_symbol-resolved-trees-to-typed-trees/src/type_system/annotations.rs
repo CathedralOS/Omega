@@ -55,10 +55,14 @@ impl<'a> ResolvedSourceFile<'a> {
         } else {
             let required = ValueType::integer("u64").unwrap();
             let (number, suffix) = self.closed_number(types, arg, &required)?;
-            if suffix.as_ref().is_some_and(|actual| actual != &required) {
-                return Err(TypeError::at(self.file, arg, "integer width requires a static u64"));
+            if matches!(number, ValueType::StaticFormula { .. }) {
+                number
+            } else {
+                if suffix.as_ref().is_some_and(|actual| actual != &required) {
+                    return Err(TypeError::at(self.file, arg, "integer width requires a static u64"));
+                }
+                ValueType::static_size(numeric_literals::array_length(self.file, arg, number, suffix)?)
             }
-            ValueType::static_size(numeric_literals::array_length(self.file, arg, number, suffix)?)
         };
         let formed = ValueType::with_width(signed, width);
         formed
@@ -240,7 +244,7 @@ impl<'a> ResolvedSourceFile<'a> {
                 };
                 let size = match self.open_size(types, count)? {
                     Some(term) => term,
-                    None => ValueType::static_size(self.static_size(types, count)?),
+                    None => self.closed_size(types, count)?,
                 };
                 Ok(ValueType::array_with_extent(self.raw_type(element, types)?, size))
             }
