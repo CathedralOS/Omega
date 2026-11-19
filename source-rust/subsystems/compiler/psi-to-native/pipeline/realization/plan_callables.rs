@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub struct NativeProgramPlanningRequest<'request, 'contract> {
     pub proposal: &'contract artifact_lowering::TerminalNativeRealizationProposal,
     pub execution: &'contract artifact_lowering::PreparedNativeExecution,
-    pub scalar_applications: Option<&'contract terminal_installation::AdmittedScalarApplications>,
+    pub scalar_applications: Option<&'contract psi_scalar_applications::AdmittedScalarApplications>,
     pub admission: &'request artifact_lowering::NativeAdmissionRequest<'contract, 'contract>,
     pub optimization_selections: &'contract optimization_core::PostTerminalOptimizationSelections,
     pub budget: optimization_core::OptimizationWorkBudget,

@@ -24,7 +24,7 @@ pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) recovery: ExecutableImageEmissionRequest,
     pub(crate) execution: PreparedNativeExecution,
     pub(crate) private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
-    pub(crate) scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
+    pub(crate) scalars: Option<&'input psi_scalar_applications::AdmittedScalarApplications>,
     pub(crate) components: Vec<crate::pipeline::components::PreparedComponent<'input>>,
 }
 

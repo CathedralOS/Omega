@@ -4327,7 +4327,7 @@ impl TerminalRuntimeSupplies {
         &self,
         code: terminal_codec::TerminalExecutionView<'_>,
         admission: &terminal_installation::AdmittedCompilerEvaluation,
-        scalars: Option<&terminal_installation::AdmittedScalarApplications>,
+        scalars: Option<&psi_scalar_applications::AdmittedScalarApplications>,
     ) -> Result<(), String> {
         if self.code_identity != code.custody_identity()
             || self.provider_selections.as_ref() != Some(admission.providers())

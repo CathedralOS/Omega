@@ -261,7 +261,8 @@ pub(crate) mod instance {
         use std::collections::BTreeMap;
 
         use semantic_vocabulary::{BoundaryMachineId, OperationId};
-        use terminal_installation::{AdmittedComponentProvider, AdmittedScalarApplications};
+        use psi_scalar_applications::AdmittedScalarApplications;
+        use terminal_installation::AdmittedComponentProvider;
         use terminal_work::WorkMeter;
 
         use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
@@ -3202,7 +3203,7 @@ pub(crate) mod program {
         fn execution_program(
             &self,
             installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
-            scalars: Option<&terminal_installation::AdmittedScalarApplications>,
+            scalars: Option<&psi_scalar_applications::AdmittedScalarApplications>,
         ) -> std::sync::Arc<AdmittedTerminalProgram<'artifact>> {
             let Some(layouts) = installation.and_then(|supplies| supplies.target_layouts.as_ref())
             else {
@@ -3395,20 +3396,20 @@ pub(crate) mod program {
         pub account: Option<&'input EvaluationInvocationAccount>,
         pub entry_results: Option<crate::TerminalEntryResultRequest<'input>>,
         pub scalar_application: Option<TerminalScalarApplicationRequest<'input>>,
-        pub scalar_admission: Option<&'input terminal_installation::AdmittedScalarApplications>,
+        pub scalar_admission: Option<&'input psi_scalar_applications::AdmittedScalarApplications>,
     }
 
     #[derive(Clone, Copy)]
     pub struct TerminalScalarApplicationRequest<'input> {
-        pub admission: &'input terminal_installation::AdmittedScalarEntry<'input, 'input>,
+        pub admission: &'input psi_scalar_applications::AdmittedScalarEntry<'input, 'input>,
     }
 
     impl TerminalProgram<'_> {
         pub(crate) fn admitted_scalar_inputs(
             &self,
-            admission: &terminal_installation::AdmittedScalarApplications,
+            admission: &psi_scalar_applications::AdmittedScalarApplications,
             installation: Option<&TerminalRuntimeSupplies>,
-        ) -> Result<terminal_installation::ScalarApplicationValues, TerminalInterpretError>
+        ) -> Result<psi_scalar_applications::ScalarApplicationValues, TerminalInterpretError>
         {
             let reject = || {
                 TerminalInterpretError::ScalarApplicationEvaluation(
@@ -3446,7 +3447,7 @@ pub(crate) mod program {
             &self,
             request: TerminalScalarApplicationRequest<'_>,
             installation: Option<&TerminalRuntimeSupplies>,
-        ) -> Result<terminal_installation::ScalarApplicationValues, TerminalInterpretError>
+        ) -> Result<psi_scalar_applications::ScalarApplicationValues, TerminalInterpretError>
         {
             let reject = || {
                 TerminalInterpretError::UnsupportedSemanticVariant(

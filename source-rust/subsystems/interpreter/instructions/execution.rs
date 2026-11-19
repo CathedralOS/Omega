@@ -249,7 +249,7 @@ pub(crate) mod capabilities {
         program: &AdmittedTerminalProgram,
         installation: Option<&TerminalRuntimeSupplies>,
         private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
-        scalar_scope: Option<&terminal_installation::ScalarScopeInputs>,
+        scalar_scope: Option<&psi_scalar_applications::ScalarScopeInputs>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
         let entry = program.resolve_entry(installation)?;
         if private_entry_ram.iter().any(|recipe| {
@@ -2014,8 +2014,8 @@ pub(crate) mod execution {
 
     pub struct TerminalExecution<'artifact> {
         pub(crate) call_observations: Option<Box<crate::call_observations::CallObservations>>,
-        pub(crate) scalar_applications: Option<terminal_installation::ScalarApplicationValues>,
-        pub(crate) scalar_entry_checks: Option<terminal_installation::ScalarEntryChecks>,
+        pub(crate) scalar_applications: Option<psi_scalar_applications::ScalarApplicationValues>,
+        pub(crate) scalar_entry_checks: Option<psi_scalar_applications::ScalarEntryChecks>,
         pub(crate) entry_results: Option<crate::boundary::entry_results::EntryResults>,
         pub(crate) account: Option<EvaluationInvocationAccount>,
         pub(crate) failure: Option<TerminalInterpretError>,

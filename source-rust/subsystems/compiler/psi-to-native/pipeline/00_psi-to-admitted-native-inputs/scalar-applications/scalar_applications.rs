@@ -34,7 +34,7 @@ pub struct ProductScalarCompletion {
 pub fn complete_native(
     retained: &verified_optimization_input::RetainedTerminalArtifact,
     accounting: &mut impl Extend<artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt>,
-) -> Result<Option<terminal_installation::AdmittedScalarApplications>, String> {
+) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, String> {
     let proposal = retained
         .native_realization_proposal()
         .ok_or("native constant completion needs the retained native proposal")?;
@@ -51,7 +51,7 @@ pub fn complete_native_demand(
     proposal: &verified_optimization_input::TerminalNativeRealizationProposal,
     demand: Option<Vec<semantic_vocabulary::ScalarApplicationId>>,
     accounting: &mut impl Extend<artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt>,
-) -> Result<Option<terminal_installation::AdmittedScalarApplications>, String> {
+) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, String> {
     let Some(demand) = demand else {
         return Ok(None);
     };
@@ -79,7 +79,7 @@ pub fn complete<'scope>(
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
     accounting: &mut impl Extend<artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt>,
-) -> Result<terminal_installation::AdmittedScalarApplications, String> {
+) -> Result<psi_scalar_applications::AdmittedScalarApplications, String> {
     prepare(artifact, primary, demand, proposals, accounting)
         .map(|completion| completion.completed.into_admitted())
 }
@@ -142,7 +142,7 @@ pub fn prepare<'scope>(
                 .map_err(|diagnostic| diagnostic.message)?;
             let address_model =
                 target::TargetSemantics::close_address_model(profile).map(|model| {
-                    terminal_installation::ScalarAddressModel {
+                    semantic_vocabulary::ScalarAddressModel {
                         target: scope.to_owned(),
                         carrier: model.carrier(),
                         semantics_version: model.semantics_version(),
@@ -176,7 +176,7 @@ pub fn extend_native(
     retained: &verified_optimization_input::RetainedTerminalArtifact,
     completion: ProductScalarCompletion,
     accounting: &mut impl Extend<artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt>,
-) -> Result<Option<terminal_installation::AdmittedScalarApplications>, String> {
+) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, String> {
     let proposal = retained
         .native_realization_proposal()
         .ok_or("native constant completion needs the retained native proposal")?;

@@ -2,7 +2,7 @@
 // by the selected work and refuse a request that omits them.
 
 use diagnostics::Diagnostic;
-use terminal_installation::AdmittedScalarApplications;
+use psi_scalar_applications::AdmittedScalarApplications;
 
 pub(crate) fn required_scalars<'input>(
     artifact: &terminal_codec::CanonicalTerminalArtifact,

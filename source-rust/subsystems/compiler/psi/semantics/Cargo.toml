@@ -33,5 +33,4 @@ numerics = { path = "numeric" }
 terminal-psi = { path = ".." }
 proof-admission = { path = "../proofs/bounded" }
 
-[dev-dependencies]
 proof-applications = { path = "../proof-applications" }

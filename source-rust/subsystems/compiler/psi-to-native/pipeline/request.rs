@@ -52,7 +52,7 @@ pub struct NativeCompileRequest<'request> {
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
     pub components: &'request [super::components::ComponentCompilation<'request>],
     /// Completed scalar values read by the program entry.
-    pub scalars: Option<&'request terminal_installation::AdmittedScalarApplications>,
+    pub scalars: Option<&'request psi_scalar_applications::AdmittedScalarApplications>,
 }
 
 impl NativeCompileRequest<'_> {
