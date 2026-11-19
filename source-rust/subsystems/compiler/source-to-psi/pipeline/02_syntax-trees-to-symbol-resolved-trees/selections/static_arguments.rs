@@ -497,7 +497,7 @@ mod requirement_handoff_tests {
                 machine apply<machine Callback>() -> u64
                 requires machine Callback() -> u64;
                 { Callback() }
-                machine main() -> u64 { apply<Source::get>() }
+                machine main() -> u64 { apply::<Source::get>() }
             "#,
         );
         let argument = program

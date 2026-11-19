@@ -178,7 +178,7 @@ fn a_byte_is_read_where_the_view_is_known_to_reach_it() {
     assert_eq!(
         verdict(
             "machine first(path: @[u8]) -> u8 requires path.len > 0 { path[0] }
-machine build_entry(path: @[u8]) { transition path.len > 0 { true -> use(first(path)) false -> none() } }
+machine build_entry(path: @[u8]) { transition path.len > 0 { true -> use(first(path)), false -> none() } }
 machine use(byte: u8) { }
 machine none() { }"
         ),
@@ -188,7 +188,7 @@ machine none() { }"
     // selects.
     assert_eq!(
         verdict(
-            "machine build_entry(path: @[u8]) { transition path.len > 0 { true -> use(path[0]) false -> none() } }
+            "machine build_entry(path: @[u8]) { transition path.len > 0 { true -> use(path[0]), false -> none() } }
 machine use(byte: u8) { }
 machine none() { }"
         ),
@@ -199,7 +199,7 @@ machine none() { }"
         verdict(
             "machine at(path: @[u8], index: u64) -> u8 requires index < path.len { path[index] }
 machine both(path: @[u8]) -> u8 requires path.len > 1 { path[0] ^ path[1] }
-machine build_entry(path: @[u8]) { transition path.len > 1 { true -> use(at(path, 1), both(path)) false -> none() } }
+machine build_entry(path: @[u8]) { transition path.len > 1 { true -> use(at(path, 1), both(path)), false -> none() } }
 machine use(one: u8, two: u8) { }
 machine none() { }"
         ),
@@ -487,7 +487,7 @@ fn a_subslice_keeps_the_selected_bytes_and_exact_extent() {
             suffix[0]
         }
         machine build_entry(path: @[u8]) {
-            transition path.len > 1 { true -> use(next(path)) false -> none() }
+            transition path.len > 1 { true -> use(next(path)), false -> none() }
         }
         machine use(value: u8) {}
         machine none() {}
@@ -883,7 +883,7 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
             r#"
             machine count(bytes: {access} [u8]) -> u64 {{ bytes.len }}
             machine middle(bytes: {access} [u8]) -> u8 {{
-                transition bytes.len > 1 {{ true -> bytes[1] false -> 0 }}
+                transition bytes.len > 1 {{ true -> bytes[1], false -> 0 }}
             }}
             machine build_entry() {{
                 let mut bytes: [u8; 3] = [17, 42, 99];
@@ -1446,7 +1446,7 @@ fn a_shared_array_view_cannot_observe_write_only_backing() {
 #[test]
 fn two_byte_views_are_compared_by_their_bytes() {
     for program in [
-        "machine build_entry(path: @[u8]) { transition path == \"main.omg\" { true -> yes() false -> no() } }
+        "machine build_entry(path: @[u8]) { transition path == \"main.omg\" { true -> yes(), false -> no() } }
 machine yes() { }
 machine no() { }",
         "machine build_entry(left: @[u8], right: @[u8], count: u64) { use(left == right && count == 2, left != \"x\"); }
@@ -1665,7 +1665,7 @@ requires {requires} && count <= items.len
     let length: u64 = match flag {{ {arms} }};
     window[length - 1]
 }}
-machine build_entry(path: @[u8]) {{ transition path.len > 2 {{ true -> use(last_byte(path, 2, true)) false -> none() }} }}
+machine build_entry(path: @[u8]) {{ transition path.len > 2 {{ true -> use(last_byte(path, 2, true)), false -> none() }} }}
 machine use(byte: u8) {{ }}
 machine none() {{ }}"
     );
@@ -1773,7 +1773,7 @@ requires position < bytes.len {
     machine read(bytes: @[u8], other: @[u8], position: u64) -> u8
     requires position < bytes.len {
         transition position > 0 {
-            true -> scan(bytes, other, position - 1)
+            true -> scan(bytes, other, position - 1),
             false -> bytes[position]
         }
     }
@@ -1953,7 +1953,7 @@ machine posix_filesystem_mkall_walk(filesystem: @mut Context, path: @[u8] in Pat
 terminates by remaining
 {
     transition i < path.len && remaining > 0 {
-        true -> inspect(filesystem, path, i, remaining)
+        true -> inspect(filesystem, path, i, remaining),
         false -> posix_filesystem_create_dir_existing(filesystem, path)
     }
     machine inspect(filesystem: @mut Context, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
@@ -1961,7 +1961,7 @@ terminates by remaining
     terminates by remaining
     {
         transition (path as -Path)[i] == 47 {
-            true -> create(filesystem, path, i, remaining)
+            true -> create(filesystem, path, i, remaining),
             false -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
         }
     }
@@ -1971,7 +1971,7 @@ terminates by remaining
     {
         let result: UnitResult = posix_filesystem_create_dir_existing(filesystem, (path as -Path)[0..i] as +Path);
         transition result {
-            UnitResult::Error { kind } -> (UnitResult::Error { kind: kind })
+            UnitResult::Error { kind } -> (UnitResult::Error { kind: kind }),
             UnitResult::Ok -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
         }
     }
@@ -2031,7 +2031,7 @@ requires index < cells.len && steps > 0u64
     cells[index].value = 9u32;
     cells[index].after = 10u32;
     transition steps > 1u64 {
-        true -> write(cells, index, steps - 1u64)
+        true -> write(cells, index, steps - 1u64),
         false -> cells[index].value
     }
 }

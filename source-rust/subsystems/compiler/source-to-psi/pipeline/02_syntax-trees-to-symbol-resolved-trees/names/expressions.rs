@@ -1462,7 +1462,7 @@ mod case_pattern_tests {
     fn bare_cases_keep_the_same_exact_subject_capture_as_empty_braces() {
         let source = "data Choice [copy] { case Left; case Right; }\n\
             machine choose(value: Choice) -> u32 {\n\
-                match value { Choice::Left -> 1 Choice::Right -> 2 }\n\
+                match value { Choice::Left -> 1, Choice::Right -> 2 }\n\
             }";
         for braces in [false, true] {
             let source = if braces {
@@ -1510,7 +1510,7 @@ mod case_pattern_tests {
             "data Choice [copy] { case Left; case Right; }\n\
             data Other [copy] { case Left; }\n\
             machine choose(value: Choice) -> u32 {\n\
-                match value { Other::Left -> 1 _ -> 2 }\n\
+                match value { Other::Left -> 1, _ -> 2 }\n\
             }",
         );
         let table = &program.tables.bodies.expressions;
@@ -1530,10 +1530,10 @@ mod case_pattern_tests {
     fn payload_cases_and_value_calls_are_not_empty_case_patterns() {
         for source in [
             "data Choice [copy] { case Payload(value: u32); }\n\
-                machine choose(value: Choice) -> u32 { match value { Choice::Payload -> 1 _ -> 2 } }",
+                machine choose(value: Choice) -> u32 { match value { Choice::Payload -> 1, _ -> 2 } }",
             "data Choice [copy] { case Left; }\n\
                 machine candidate() -> Choice { Choice::Left {} }\n\
-                machine choose(value: Choice) -> u32 { match value { candidate() -> 1 _ -> 2 } }",
+                machine choose(value: Choice) -> u32 { match value { candidate() -> 1, _ -> 2 } }",
         ] {
             let program = resolved(source);
             let table = &program.tables.bodies.expressions;

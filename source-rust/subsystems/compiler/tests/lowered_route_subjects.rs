@@ -1129,7 +1129,7 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
     let relay = |bound: u32| {
         format!(
             "{forward}\nmachine relay<T>(item: @T, limit: u32) -> u32 \
-             requires limit <= 10 ensures result <= {bound} {{ forward<T>(item, limit) + 1 }}"
+             requires limit <= 10 ensures result <= {bound} {{ forward::<T>(item, limit) + 1 }}"
         )
     };
     // The closure (the empty entry), `forward`'s form, and `relay`'s form
@@ -1156,14 +1156,14 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
         judged_parts(
             "generic_application_of_itself",
             "machine again<T>(limit: u32) -> u32 \
-             ensures result <= 10 { again<T>(limit) }"
+             ensures result <= 10 { again::<T>(limit) }"
         ),
         [Verdict::Accepted(1), Verdict::Accepted(1)]
     );
     assert_eq!(
         judged_parts(
             "generic_application_of_itself_with_no_guarantee",
-            "machine forever<T>(limit: u32) -> u32              terminates { forever<T>(limit) }"
+            "machine forever<T>(limit: u32) -> u32              terminates { forever::<T>(limit) }"
         ),
         [
             Verdict::Accepted(1),
@@ -1174,8 +1174,8 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
     assert_eq!(
         judged_parts(
             "generic_application_cycle_of_two",
-            "machine ping<T>(limit: u32) -> u32 { pong<T>(limit) }
-             machine pong<T>(limit: u32) -> u32 { ping<T>(limit) }"
+            "machine ping<T>(limit: u32) -> u32 { pong::<T>(limit) }
+             machine pong<T>(limit: u32) -> u32 { ping::<T>(limit) }"
         ),
         [
             Verdict::Accepted(1),
@@ -1672,7 +1672,7 @@ fn mutable_contract_inputs_keep_crash_guards_and_arrivals_at_their_own_inputs() 
             "fresh_recursive_input",
             "machine spare(mut position: u32) requires position <= 10u32 { \
              position = position + 1; transition position <= 10u32 { \
-             true -> spare(position) false -> done() } } machine done() {}"
+             true -> spare(position), false -> done() } } machine done() {}"
         ),
         Verdict::Accepted(3)
     );
@@ -1761,7 +1761,7 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
     (
         "wrapping_loop",
         "machine spare(count: u32 in Wrapping, left: u32) -> u32 in Wrapping {\n    \
-         transition left > 0 {\n        true -> spare(count + 1, left - 1)\n        \
+         transition left > 0 {\n        true -> spare(count + 1, left - 1),\n        \
          false -> count\n    }\n}",
     ),
     (
@@ -1793,7 +1793,7 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
         "wrapping_compared_with_plain_field",
         "data Clock [copy] { at: u64; }\n\
          machine spare(sum: u64 in Wrapping, clock: Clock) -> u32 {\n    \
-         transition sum < clock.at { true -> 1 false -> 0 }\n}",
+         transition sum < clock.at { true -> 1, false -> 0 }\n}",
     ),
     (
         "wrapping_and_plain_binding_of_another_carrier",
@@ -2041,7 +2041,7 @@ fn a_guarded_array_index_survives_only_writes_to_separate_fields() {
             "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}\n\
             machine fetch(input: @mut Input) -> u32 {{ {write} input.values[input.index as -Wrapping] }}\n\
             public machine spare(input: @mut Input) -> u32 requires true {{\n\
-                transition input.index < 3u32 {{ true -> fetch(input) false -> 0u32 }}\n\
+                transition input.index < 3u32 {{ true -> fetch(input), false -> 0u32 }}\n\
             }}"
         );
         assert_eq!(verdict_on_unused(name, &source), expected, "{name}");
@@ -2087,13 +2087,13 @@ fn a_guarded_array_index_survives_a_terminal_call_cycle() {
             public machine spare(input: @mut Input) -> u32 requires true {{
                 transition {{ _ -> block test(input) }}
                 machine test(input: @mut Input) -> u32 {{
-                    transition input.index < 3u32 {{ true -> block fetch(input) _ -> {alternative} }}
+                    transition input.index < 3u32 {{ true -> block fetch(input), _ -> {alternative} }}
                 }}
                 machine fetch(input: @mut Input) -> u32 {contract} {{
                     {write}
                     let found: u32 = input.values[input.index as -Wrapping];
                     input.index = input.index + 1;
-                    transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
+                    transition found == 0u32 {{ true -> 0u32, _ -> block test(input) }}
                 }}
             }}");
         let frontier = staged_unused(name, &source);
@@ -2124,7 +2124,7 @@ fn a_guarded_array_index_survives_a_terminal_call_cycle() {
         ),
         (
             "narrow_ordinary_arrival",
-            "transition input.index == 0u32 { true -> block fetch(input) _ -> 0u32 }",
+            "transition input.index == 0u32 { true -> block fetch(input), _ -> 0u32 }",
         ),
     ] {
         let source = format!(
@@ -2132,11 +2132,11 @@ fn a_guarded_array_index_survives_a_terminal_call_cycle() {
             public machine spare(input: @mut Input) -> u32 requires true {{
                 {entry}
                 machine test(input: @mut Input) -> u32 {{
-                    transition input.index < 3u32 {{ true -> block fetch(input) _ -> 0u32 }}
+                    transition input.index < 3u32 {{ true -> block fetch(input), _ -> 0u32 }}
                 }}
                 machine fetch(input: @mut Input) -> u32 {{
                     input.index = input.index + 1;
-                    transition input.index == 0u32 {{ true -> 0u32 _ -> block test(input) }}
+                    transition input.index == 0u32 {{ true -> 0u32, _ -> block test(input) }}
                 }}
             }}"
         );

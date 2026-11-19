@@ -199,7 +199,7 @@ machine entry() crashes Trap {{
     let mut session: Session;
     build_entry(@mut session);
     transition session.inner.name.len == 4 {{
-        true -> done()
+        true -> done(),
         _ -> bad()
     }}
     machine done() {{}}

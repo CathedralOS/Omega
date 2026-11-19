@@ -350,7 +350,7 @@ machine build(builder: @mut Build) suspends {
     let mut root_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../.." });
     dependency::with_alias(@mut root_dependency, "root");
     let root_registration: DependencyRegistration = Build::build_dependency(builder, root_dependency);
-    suspend Build::await_provider<ProgramImage, root::TestImage>(builder);
+    suspend Build::await_provider::<ProgramImage, root::TestImage>(builder);
 }
 "#,
             )

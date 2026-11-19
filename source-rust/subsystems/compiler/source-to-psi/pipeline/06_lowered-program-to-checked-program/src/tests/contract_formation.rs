@@ -655,7 +655,7 @@ machine build_entry() {
     let saved: u32 in Small = keep(cell.value);
     transition cell.before == 41u32 && cell.after == 73u32
         && plain.number == 6u32 && (saved as -Small) == 6u32 {
-        true -> done()
+        true -> done(),
         false -> failed()
     }
     machine done() {}

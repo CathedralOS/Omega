@@ -516,7 +516,7 @@ machine build(builder: @mut Build) suspends {
     suspend Build::prepare_dependency(builder, second);
     let seven: i32 = kit::v();
     transition seven == 7 {
-        true -> done(builder)
+        true -> done(builder),
         _ -> wrong()
     }
     machine done(builder: @mut Build) { }

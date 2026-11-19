@@ -174,12 +174,12 @@ fn summaries_compose_callees_first() {
 fn private_generic_results_stay_inside_the_verification_unit() {
     let source = r#"
 machine same<T>(left: @T, right: @T) -> bool { false }
-machine compare<T>(left: @T, right: @T) -> bool { same<T>(left, right) }
+machine compare<T>(left: @T, right: @T) -> bool { same::<T>(left, right) }
 machine hold(direct: bool) -> bool requires direct == false { true }
 machine entry() -> bool {
     let left: u64 = 1;
     let right: u64 = 1;
-    let direct: bool = compare<u64>(@left, @right);
+    let direct: bool = compare::<u64>(@left, @right);
     hold(direct)
 }
 "#;

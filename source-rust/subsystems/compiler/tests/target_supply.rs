@@ -35,8 +35,8 @@ const SLOT: &str = "public boundary trait Service {\n    machine go() reaches no
 /// Two named implementations of `Service`, each a provider a default can
 /// name.
 const PROVIDERS: &str = "Native satisfies Service {\n    machine go() reaches none crashes none {\n    }\n}\nOther satisfies Service {\n    machine go() reaches none crashes none {\n    }\n}\n";
-const NATIVE_DEFAULT: &str = "machine NativeDefaults::provider_defaults(defaults: @mut NativeDefaults) {\n    NativeDefaults::select_provider<Service, Native>(defaults);\n}\n";
-const OTHER_DEFAULT: &str = "machine OtherDefaults::provider_defaults(defaults: @mut OtherDefaults) {\n    OtherDefaults::select_provider<Service, Other>(defaults);\n}\n";
+const NATIVE_DEFAULT: &str = "machine NativeDefaults::provider_defaults(defaults: @mut NativeDefaults) {\n    NativeDefaults::select_provider::<Service, Native>(defaults);\n}\n";
+const OTHER_DEFAULT: &str = "machine OtherDefaults::provider_defaults(defaults: @mut OtherDefaults) {\n    OtherDefaults::select_provider::<Service, Other>(defaults);\n}\n";
 const REACHES: &str = "machine main() {\n    Service::go();\n}\n";
 const REACHES_NOTHING: &str = "machine main() {\n}\n";
 
@@ -422,7 +422,7 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
 }
 
 /// A second boundary trait whose provider reaches a third.
-const DEEPER: &str = "public boundary trait Deeper {\n    machine down() reaches none crashes none;\n}\npublic boundary trait Chained {\n    machine go() reaches Deeper crashes none;\n}\nChaining satisfies Chained {\n    machine go() reaches Deeper crashes none {\n        Deeper::down();\n    }\n}\nBottom satisfies Deeper {\n    machine down() reaches none crashes none {\n    }\n}\nmachine NativeDefaults::provider_defaults(defaults: @mut NativeDefaults) {\n    NativeDefaults::select_provider<Chained, Chaining>(defaults);\n    NativeDefaults::select_provider<Deeper, Bottom>(defaults);\n}\n";
+const DEEPER: &str = "public boundary trait Deeper {\n    machine down() reaches none crashes none;\n}\npublic boundary trait Chained {\n    machine go() reaches Deeper crashes none;\n}\nChaining satisfies Chained {\n    machine go() reaches Deeper crashes none {\n        Deeper::down();\n    }\n}\nBottom satisfies Deeper {\n    machine down() reaches none crashes none {\n    }\n}\nmachine NativeDefaults::provider_defaults(defaults: @mut NativeDefaults) {\n    NativeDefaults::select_provider::<Chained, Chaining>(defaults);\n    NativeDefaults::select_provider::<Deeper, Bottom>(defaults);\n}\n";
 
 /// The chosen provider of a reached requirement becomes a root of the same
 /// compilation: the module judged for the target holds the provider's
@@ -492,7 +492,7 @@ fn a_chosen_provider_that_does_not_refine_its_requirement_stops_the_program() {
 /// provider calls a raw requirement of its own operating system. Both
 /// providers are judged in the Product's one module, which therefore
 /// declares both raw requirements.
-const PER_TARGET: &str = "public boundary trait LinuxRaw {\n    machine call() reaches none crashes none;\n}\npublic boundary trait WindowsRaw {\n    machine call() reaches none crashes none;\n}\nNative satisfies Service {\n    machine go() reaches LinuxRaw crashes none {\n        LinuxRaw::call();\n    }\n}\nOther satisfies Service {\n    machine go() reaches WindowsRaw crashes none {\n        WindowsRaw::call();\n    }\n}\nLeaf satisfies LinuxRaw {\n    machine call() reaches none crashes none {\n    }\n}\ndata LeafDefaults {}\nmachine LeafDefaults::provider_defaults(defaults: @mut LeafDefaults) {\n    LeafDefaults::select_provider<LinuxRaw, Leaf>(defaults);\n}\n";
+const PER_TARGET: &str = "public boundary trait LinuxRaw {\n    machine call() reaches none crashes none;\n}\npublic boundary trait WindowsRaw {\n    machine call() reaches none crashes none;\n}\nNative satisfies Service {\n    machine go() reaches LinuxRaw crashes none {\n        LinuxRaw::call();\n    }\n}\nOther satisfies Service {\n    machine go() reaches WindowsRaw crashes none {\n        WindowsRaw::call();\n    }\n}\nLeaf satisfies LinuxRaw {\n    machine call() reaches none crashes none {\n    }\n}\ndata LeafDefaults {}\nmachine LeafDefaults::provider_defaults(defaults: @mut LeafDefaults) {\n    LeafDefaults::select_provider::<LinuxRaw, Leaf>(defaults);\n}\n";
 const REACHES_BOTH_OS: &str = "public boundary trait Service {\n    machine go() reaches LinuxRaw, WindowsRaw crashes none;\n}\ndata NativeDefaults {}\ndata OtherDefaults {}\n";
 
 /// Keys `Native` and the raw Linux leaf to Linux and `Other` to Windows.

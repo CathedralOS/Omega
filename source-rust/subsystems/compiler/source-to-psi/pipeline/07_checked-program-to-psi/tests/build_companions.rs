@@ -46,7 +46,6 @@ public const LIMIT: u64 = 4;
 "#;
 
 const BUILD_PRODUCT_MODULE: &str = r#"
-module BuildProduct;
 public machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::entry(product, path, slot)
 }
@@ -92,23 +91,23 @@ fn typed_with_core_sources(
         (
             "<build-prelude>",
             prelude,
-            "package",
+            "<build-prelude>",
             Some(package()),
             source_admission::SourceOrigin::Toolchain,
         ),
         // The prelude's operations belong to code modules that
         // `source_assembly` admits beside the data and protocols.
         (
-            "<build-prelude:Build>",
-            "module Build;\n",
-            "package",
+            "<build-prelude>/Build/mod.omg",
+            "",
+            "<build-prelude>",
             Some(package()),
             source_admission::SourceOrigin::Toolchain,
         ),
         (
-            "<build-prelude:BuildProduct>",
+            "<build-prelude>/BuildProduct/mod.omg",
             BUILD_PRODUCT_MODULE,
-            "package",
+            "<build-prelude>",
             Some(package()),
             source_admission::SourceOrigin::Toolchain,
         ),
@@ -774,7 +773,7 @@ fn a_native_binding_publishes_its_closed_locator_shape() {
     let prelude = native_binding_prelude();
     let build = r#"
 machine build(builder: @mut Build) {
-    Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 });
+    Build::bind::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 });
 }
 "#;
     let program = native_binding_program(build);
@@ -801,7 +800,7 @@ machine build(builder: @mut Build) {
     let lookalike_build = r#"
 machine build(builder: @mut Build) {
     let locator: ForeignBinding<0, 0, 0> = ForeignBinding::Syscall { number: 9u64 };
-    Build::bind<Probe::poke>(builder, linux_x86_64, locator);
+    Build::bind::<Probe::poke>(builder, linux_x86_64, locator);
 }
 "#;
     let lookalike = accepted_frontier(
@@ -833,7 +832,7 @@ machine build(builder: @mut Build) {
 fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
     use language_core::build_protocol::SelectionProtocolOperation as Protocol;
     use source_compiler::source_state::expression::ExpressionNode;
-    let build = "machine build(builder: @mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
+    let build = "machine build(builder: @mut Build) { Build::bind::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
     let typed = || {
         typed_with_external_binding(
             build,
@@ -935,7 +934,7 @@ fn a_native_import_infers_nested_byte_widths_and_publishes_their_shapes() {
     let program = native_binding_program(
         r#"
 machine build(builder: @mut Build) {
-    Build::bind<Probe::poke>(builder, windows_x86_64, ForeignBinding::DllImport {
+    Build::bind::<Probe::poke>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
     });
 }
@@ -980,7 +979,7 @@ machine locator() -> ForeignBinding<9, 10, 0> {
     }
 }
 machine build(builder: @mut Build) {
-    Build::bind<Probe::poke>(builder, windows_x86_64, locator());
+    Build::bind::<Probe::poke>(builder, windows_x86_64, locator());
 }
 "#,
     );
@@ -993,7 +992,7 @@ fn a_closed_generic_boundary_call_keeps_its_type_argument() {
     let accepted = accepted_frontier(
         typed_with_prelude(
             r#"
-machine build(builder: @mut Build) { Probe::send<u64>(9u64); Probe::send(11u64); }
+machine build(builder: @mut Build) { Probe::send::<u64>(9u64); Probe::send(11u64); }
 "#,
             &prelude,
         ),
@@ -1047,9 +1046,9 @@ fn distinct_closed_boundary_arguments_keep_distinct_source_declarations() {
         typed_with_prelude(
             r#"
 machine build(builder: @mut Build) {
-    Probe::send<u64>(9u64);
+    Probe::send::<u64>(9u64);
     Probe::send(11u64);
-    Probe::send<u32>(9u32);
+    Probe::send::<u32>(9u32);
     Probe::send(11u32);
 }
 "#,
@@ -1162,7 +1161,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     use source_compiler::source_state::expression::{ExpressionNode, MatchPattern};
     use source_compiler::source_state::types::TypeReferenceNode;
     let mut typed = typed_with_external_binding(
-        "machine build(builder: @mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
+        "machine build(builder: @mut Build) { Build::bind::<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
         &native_binding_prelude(),
         Some(include_str!(
             "../../../../../../../source/library/core/external_binding.omg"
@@ -1248,7 +1247,7 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
         "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;",
     );
     let typed = typed_with_prelude(
-        "machine build(builder: @mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
+        "machine build(builder: @mut Build) { Build::select_provider::<Probe, Candidate>(builder, linux_x86_64); }",
         &prelude,
     );
     let probe = typed

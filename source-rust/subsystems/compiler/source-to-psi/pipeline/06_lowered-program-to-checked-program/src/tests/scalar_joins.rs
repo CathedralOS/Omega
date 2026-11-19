@@ -90,7 +90,7 @@ fn guarded_call_result(subtrahend: u64) -> String {
 machine main() {{
     let s: u64 = helper(25u64);
     transition s >= 100u64 && s <= 200u64 {{
-        true -> done(s - {subtrahend}u64)
+        true -> done(s - {subtrahend}u64),
         _ -> other()
     }}
     machine done(d: u64) {{}}
@@ -230,7 +230,7 @@ fn a_value_defined_in_one_arm_does_not_enter_the_join_scope() {
     let source = "public machine helper(val: u64) -> u64 { val }
 public machine pick(flag: bool) -> u64 {
     let s: u64 = match flag {
-        true -> helper(150u64)
+        true -> helper(150u64),
         false -> helper(5u64)
     };
     s - 100u64
@@ -293,14 +293,14 @@ fn nested_conjunction_and_disjunction_guards_refute_untaken_boolean_join_arms() 
     const SOURCE: &str = r#"
 public machine check(word: u64, size: u64, align: u64) -> u64 {
     transition word < 6u64 && ((size == 4u64 && align == 4u64) || (size == 8u64 && align == 8u64)) {
-        true -> place(word, size, align)
+        true -> place(word, size, align),
         _ -> 7u64
     }
     machine place(word: u64, size: u64, align: u64) -> u64
     requires word < 6u64
     {
         transition (size == 4u64 || size == 8u64) && align == size {
-            true -> finish(word)
+            true -> finish(word),
             _ -> 7u64
         }
     }

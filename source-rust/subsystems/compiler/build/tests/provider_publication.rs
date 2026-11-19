@@ -382,7 +382,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
 
     // Small and Same both return four. Swapping the chosen implementation
     // must be observable even when the resulting language-level value agrees.
-    let selection = "Build::select_provider<Answer, Small>(builder, linux_x86_64);";
+    let selection = "Build::select_provider::<Answer, Small>(builder, linux_x86_64);";
     assert_eq!(original_build.matches(selection).count(), 1);
     std::fs::write(
         &build,

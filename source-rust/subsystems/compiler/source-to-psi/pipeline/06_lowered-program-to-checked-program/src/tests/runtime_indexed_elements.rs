@@ -47,7 +47,7 @@ fn counting(last: u64, entry: &str) -> String {
     format!(
         r#"{DATA}
 machine slot_of(kind: Kind) -> u64 ensures result <= {last}u64 {{
-    match kind {{ Kind::First -> 1u64 Kind::Second -> {last}u64 }}
+    match kind {{ Kind::First -> 1u64, Kind::Second -> {last}u64 }}
 }}
 machine count(table: @mut Table, kind: Kind) {{
     let slot: u64 = slot_of(kind);
@@ -103,7 +103,7 @@ fn an_element_of_a_moved_record_is_not_available() {
     let verdict = verdict(&format!(
         r#"{DATA}
 machine slot_of(kind: Kind) -> u64 ensures result < 4u64 {{
-    match kind {{ Kind::First -> 1u64 Kind::Second -> 3u64 }}
+    match kind {{ Kind::First -> 1u64, Kind::Second -> 3u64 }}
 }}
 machine build_entry(kind: Kind) {{
     let table: Table;
@@ -132,7 +132,7 @@ fn a_dispatch_on_an_element_chosen_at_run_time_owns_its_bound_at_the_terminator(
 data Choice {{ case Stay; case Leave; }}
 data Table {{ choices: [Choice; 2]; }}
 machine pick(table: @Table, index: u64) -> u8 requires index < {bound}u64 {{
-    match table.choices[index] {{ Choice::Stay -> 0u8 Choice::Leave -> 1u8 }}
+    match table.choices[index] {{ Choice::Stay -> 0u8, Choice::Leave -> 1u8 }}
 }}
 machine build_entry() {{
     let table: Table;

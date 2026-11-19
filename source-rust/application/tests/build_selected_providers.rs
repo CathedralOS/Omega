@@ -27,7 +27,7 @@ boundary trait Service {
 
 const ENTRY: &str = "\
 machine entry() crashes Trap {
-    transition Service::go(3) == 4 { true -> done() _ -> bad() }
+    transition Service::go(3) == 4 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -36,10 +36,10 @@ machine entry() crashes Trap {
 const BUILD: &str = "\
 machine build(builder: @mut Build) {
     Build::application(builder, \"selected_provider\");
-    Build::select_provider<Service, Native>(builder, linux_x86_64);
-    Build::select_provider<Service, Native>(builder, linux_arm64);
-    Build::select_provider<Service, Native>(builder, macos_arm64);
-    Build::select_provider<Service, Native>(builder, windows_x86_64);
+    Build::select_provider::<Service, Native>(builder, linux_x86_64);
+    Build::select_provider::<Service, Native>(builder, linux_arm64);
+    Build::select_provider::<Service, Native>(builder, macos_arm64);
+    Build::select_provider::<Service, Native>(builder, windows_x86_64);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry);
     Build::bind(builder, linux_arm64::ProgramEntry, entry);
     Build::bind(builder, macos_arm64::ProgramEntry, entry);

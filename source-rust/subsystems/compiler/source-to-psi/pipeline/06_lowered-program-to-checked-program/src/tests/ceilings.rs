@@ -593,7 +593,7 @@ terminates
 {
     block helper()
     machine helper() -> u32 {
-        transition true { true -> block sibling() false -> 0u32 }
+        transition true { true -> block sibling(), false -> 0u32 }
     }
     machine sibling() -> u32 {
         block Selected::wait()
@@ -896,7 +896,7 @@ trait Operations { machine apply(counter: @mut Counter) reaches none; }
 machine entry<const Left: Operations, const Right: Operations>(counter: @mut Counter) reaches none {
     first(counter, true)
     machine first(counter: @mut Counter, again: bool) reaches none {
-        transition again { true -> second(counter, false) false -> done() }
+        transition again { true -> second(counter, false), false -> done() }
     }
     machine second(counter: @mut Counter, again: bool) reaches none {
         Left::apply(counter);

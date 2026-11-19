@@ -321,7 +321,7 @@ terminates by n -> Nat::Descending
 crashes none
 {{
     transition n > 0 {{
-        true -> countdown({next})
+        true -> countdown({next}),
         false -> 37
     }}
 }}
@@ -457,7 +457,7 @@ fn an_authored_ranking_lookalike_grants_no_theory_and_cannot_change_a_default() 
             r#"
 {definition}
 machine countdown(n: u32) -> u32 terminates by n {view} crashes none {{
-    transition n > 0 {{ true -> countdown(n - 1) false -> 37 }}
+    transition n > 0 {{ true -> countdown(n - 1), false -> 37 }}
 }}
 machine entry() -> u32 terminates crashes none {{ countdown(4) }}
 "#
@@ -499,7 +499,7 @@ machine Nat::BoundedDistance(lower: u64, upper: u64) -> u64 { 0 }
 machine count(lower: u64, upper: u64) -> u64
 terminates by (lower, upper) -> Nat::BoundedDistance {
     transition lower < upper {
-        true -> count(lower + 1, upper)
+        true -> count(lower + 1, upper),
         false -> lower
     }
 }
@@ -634,21 +634,21 @@ terminates by remaining -> Nat::Descending
 crashes none
 {{
     transition {{
-        ordinal == sig.count -> true
-        ordinal < sig.count && remaining > 0 -> root(sig, ordinal, remaining)
+        ordinal == sig.count -> true,
+        ordinal < sig.count && remaining > 0 -> root(sig, ordinal, remaining),
         _ -> false
     }}
     machine root(sig: @Signature, ordinal: u64, remaining: u64) -> bool
     requires remaining > 0 {{
         transition {guard} {{
-            true -> shape(sig, ordinal, remaining, @sig.shapes[ordinal])
+            true -> shape(sig, ordinal, remaining, @sig.shapes[ordinal]),
             _ -> false
         }}
     }}
     machine shape(sig: @Signature, ordinal: u64, remaining: u64, item: @Shape) -> bool
     requires remaining > 0, ordinal < 5 {{
         transition remaining > 1 {{
-            true -> walk(sig, ordinal + 1, remaining - 1)
+            true -> walk(sig, ordinal + 1, remaining - 1),
             _ -> false
         }}
     }}

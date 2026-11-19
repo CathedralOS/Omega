@@ -55,7 +55,7 @@ machine entry() crashes Trap {
     transition signed(bits) == -1i64 && unsigned(-1i64) == bits
         && scalar == -1i64 && word.value == -1i64
         && envelope.before == 11u64 && envelope.after == 37u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -225,7 +225,7 @@ machine read_word(receiver: @Receiver) -> u64 {
 machine entry() crashes Trap {
     let receiver: Receiver = Receiver { prefix: 0, stat_buf: [42, 0, 0, 0, 0, 0, 0, 0] };
     let value: u64 = read_word(@receiver);
-    transition value == 42 { true -> done() false -> fail() }
+    transition value == 42 { true -> done(), false -> fail() }
     machine done() {}
     machine fail() { crash Trap; }
 }

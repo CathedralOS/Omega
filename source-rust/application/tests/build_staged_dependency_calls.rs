@@ -127,7 +127,7 @@ fn after(callee: &str) -> String {
     format!(
         "    let seven: i32 = {callee}();
     transition seven == 7 && builder.tests.disabled {{
-        true -> carried(builder)
+        true -> carried(builder),
         _ -> wrong(builder)
     }}"
     )
@@ -153,7 +153,7 @@ fn a_local_bound_before_the_wait_is_not_carried_across_it() {
         "    let before: i32 = 7;",
         "    let seven: i32 = before;
     transition seven == 7 {
-        true -> carried(builder)
+        true -> carried(builder),
         _ -> wrong(builder)
     }",
         7,

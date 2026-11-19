@@ -76,7 +76,7 @@ requires depth > 0 && depth <= 2 && restart <= 1 {
     machine next(frames: @mut [Frame; 2], depth: u64, restart: u8) -> i64
     requires depth > 0 && depth <= 2 && restart <= 1 {
         transition frames[depth - 1] {
-            Frame::Directory { handle } -> block directory(frames, depth, restart, handle)
+            Frame::Directory { handle } -> block directory(frames, depth, restart, handle),
             Frame::Empty -> 0i64
         }
     }
@@ -84,7 +84,7 @@ requires depth > 0 && depth <= 2 && restart <= 1 {
         handle: i64 in FileHandle) -> i64
     requires depth > 0 && depth <= 2 && restart <= 1 {
         transition restart == 1 {
-            true -> block next(frames, depth, 0u8)
+            true -> block next(frames, depth, 0u8),
             false -> (handle as -FileHandle)
         }
     }
@@ -227,7 +227,7 @@ requires count <= 2 {
     machine next(frames: @mut [Frame; 2], count: u64, original: u32) -> u32
     requires count <= 2 {
         transition count > 0 {
-            true -> block pop(frames, count, original)
+            true -> block pop(frames, count, original),
             false -> (original)
         }
     }
@@ -236,7 +236,7 @@ requires count <= 2 {
         let frame: Frame = frames[count - 1];
         frames[count - 1] = Frame::Empty;
         transition frame {
-            Frame::Empty -> block next(frames, count - 1, original)
+            Frame::Empty -> block next(frames, count - 1, original),
             Frame::Directory { handle } -> block close(frames, count - 1, original, handle)
         }
     }
@@ -244,7 +244,7 @@ requires count <= 2 {
         handle: i64 in FileHandle) -> u32
     requires count < 2 {
         transition (handle as -FileHandle) != 0 {
-            true -> block release(frames, count, original, handle)
+            true -> block release(frames, count, original, handle),
             false -> block next(frames, count, original)
         }
     }
@@ -347,13 +347,13 @@ data Source<'storage> {
 machine build_entry(builder: @Builder, source: Source) { route(builder, source); }
 machine route(builder: @Builder, source: Source) {
     transition source {
-        Source::Path { location } -> request(builder, location, "", "")
+        Source::Path { location } -> request(builder, location, "", ""),
         Source::Git { repository, revision, selection } -> git(builder, repository, revision, selection)
     }
 }
 machine git(builder: @Builder, repository: @[u8], revision: @[u8], selection: Selection) {
     transition selection {
-        Selection::Root -> request(builder, repository, revision, "")
+        Selection::Root -> request(builder, repository, revision, ""),
         Selection::Named { package } -> request(builder, repository, revision, package)
     }
 }
@@ -378,7 +378,7 @@ fn a_dispatch_arm_passes_the_view_its_case_holds() {
 machine build_entry(source: Source) {{ route(source); }}
 machine route(source: Source) {{
     transition source {{
-        Source::Path {{ location }} -> take(location)
+        Source::Path {{ location }} -> take(location),
         Source::Git {{ repository, revision }} -> take({git})
     }}
 }}
@@ -403,7 +403,7 @@ fn a_match_arm_lends_the_payload_its_case_holds() {
 machine build_entry(source: Source) {{ let n: u32 = route(source); }}
 machine route(source: Source) -> u32 {{
     match source {{
-        Source::Path {{ location }} -> measure(location)
+        Source::Path {{ location }} -> measure(location),
         Source::Git {{ repository, revision }} -> measure(repository)
     }}
 }}
@@ -418,7 +418,7 @@ machine build_entry(source: Source) {{ let n: u32 = route(source); }}
 machine route(source: Source) -> u32 {{
     let mut held: Source = source;
     match held {{
-        Source::Path {{ location }} -> {lent}
+        Source::Path {{ location }} -> {lent},
         Source::Git {{ repository, revision }} -> 2
     }}
 }}
@@ -445,7 +445,7 @@ machine build_entry(source: Source) {{ route(source); }}
 machine route(source: Source) {{
     let mut held: Source = source;
     transition held {{
-        Source::Path {{ location }} -> replace_scalar(@mut location)
+        Source::Path {{ location }} -> replace_scalar(@mut location),
         Source::Git {{ repository, revision }} -> replace_scalar(@mut repository)
     }}
 }}
@@ -592,7 +592,7 @@ machine build_entry() crashes Trap {{
         Slot::Empty -> 0
     }};
     transition got == 1 {{
-        true -> done()
+        true -> done(),
         false -> bad()
     }}
     machine done() {{ }}
@@ -628,12 +628,12 @@ fn a_scalar_payload_loan_preserves_the_enclosing_case() {
         machine bump(value:@mut u32)->u32 { value=9; 0 }
         machine last(first:u32, result:u32)->u32 { result }
         machine read(held:@mut Slot)->u32 { match held {
-            Slot::Full {n}->last(bump(@mut held.n), n)
+            Slot::Full {n}->last(bump(@mut held.n), n),
             Slot::Empty->0
         } }
         machine build_entry() crashes Trap {
             let mut held:Slot=Slot::Full {n:1};
-            transition read(@mut held)==9 { true->done() _->bad() }
+            transition read(@mut held)==9 { true->done(), _->bad() }
             machine done() {}
             machine bad() { crash Trap; }
         }

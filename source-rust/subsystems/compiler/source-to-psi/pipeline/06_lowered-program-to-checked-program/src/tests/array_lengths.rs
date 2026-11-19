@@ -317,7 +317,7 @@ fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
     );
     for length in [0, 3] {
         let source = format!(
-            "machine scratch<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.len }} machine entry() -> u64 {{ scratch<{length}u64>() }}"
+            "machine scratch<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u8; N]; let view: @mut [u8] = @mut scratch[..]; view.len }} machine entry() -> u64 {{ scratch::<{length}u64>() }}"
         );
         let verdicts = array_subject(&source);
         assert!(
@@ -345,7 +345,7 @@ fn a_parameter_array_lends_a_typed_view_without_changing_its_element() {
     );
     for length in [0, 3] {
         let source = format!(
-            "machine typed<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u32; N]; let view: @mut [u32] = @mut scratch[..]; view.len }} machine entry() -> u64 {{ typed<{length}u64>() }}"
+            "machine typed<const N: u64>() -> u64 ensures result == N {{ let mut scratch: [u32; N]; let view: @mut [u32] = @mut scratch[..]; view.len }} machine entry() -> u64 {{ typed::<{length}u64>() }}"
         );
         let verdicts = array_subject(&source);
         assert!(
@@ -465,8 +465,8 @@ machine entry<Kind>(value: @Kind) -> u64
 requires Kind == Buffer<u8, 4> || Kind == Buffer<u16, 4>
 {
     transition {
-        Kind == Buffer<u8, 4> -> measure<u8, 4>(value)
-        _ -> measure<u16, 4>(value)
+        Kind == Buffer<u8, 4> -> measure::<u8, 4>(value),
+        _ -> measure::<u16, 4>(value)
     }
 }";
     let verdicts = array_subject(source);
@@ -657,13 +657,13 @@ fn a_size_generic_requirement_is_checked_once_for_every_size() {
     // contract first requires `Count > 0`.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && used <= Count - 1",
-        "Sink::take<4>(@buffer, 0)",
+        "Sink::take::<4>(@buffer, 0)",
     );
     assert_eq!(verdicts.len(), 2, "{verdicts:?}");
     assert!(verdicts.iter().all(accepted), "{verdicts:?}");
 
     let verdicts =
-        sized_boundary_program("requires used <= Count - 1", "Sink::take<4>(@buffer, 0)");
+        sized_boundary_program("requires used <= Count - 1", "Sink::take::<4>(@buffer, 0)");
     assert_eq!(verdicts.len(), 2, "{verdicts:?}");
     assert!(accepted(&verdicts[0]), "{verdicts:?}");
     assert!(
@@ -678,7 +678,7 @@ fn a_program_checks_a_size_generic_requirement_at_its_concrete_size() {
     // holds 1; `items[Count]` is index 4, outside it.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[0] == 1",
-        "Sink::take<4>(@buffer, 0)",
+        "Sink::take::<4>(@buffer, 0)",
     );
     let Ok(RouteVerdict::Accepted(closure)) = &verdicts[0] else {
         panic!("the closed application is formed and established: {verdicts:?}")
@@ -700,7 +700,7 @@ fn a_program_checks_a_size_generic_requirement_at_its_concrete_size() {
 
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[Count] == 1",
-        "Sink::take<4>(@buffer, 0)",
+        "Sink::take::<4>(@buffer, 0)",
     );
     assert!(!accepted(&verdicts[0]), "{verdicts:?}");
 }
@@ -723,7 +723,7 @@ fn a_closed_call_checks_an_index_computed_from_its_size() {
     // byte is 0.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[Count - 1] == 0",
-        "Sink::take<4>(@buffer, 0)",
+        "Sink::take::<4>(@buffer, 0)",
     );
     let Ok(RouteVerdict::Accepted(closure)) = &verdicts[0] else {
         panic!("the closed index is formed and established: {verdicts:?}")
@@ -733,7 +733,7 @@ fn a_closed_call_checks_an_index_computed_from_its_size() {
     // The same index, a byte the buffer does not hold there.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[Count - 1] == 1",
-        "Sink::take<4>(@buffer, 0)",
+        "Sink::take::<4>(@buffer, 0)",
     );
     assert!(
         matches!(verdicts[0], Ok(RouteVerdict::Rejected { .. })),
@@ -743,7 +743,7 @@ fn a_closed_call_checks_an_index_computed_from_its_size() {
     // `4 + 1` is outside the four-byte array.
     let verdicts = sized_boundary_program(
         "requires Count > 0 && items[Count + 1] == 0",
-        "Sink::take<4>(@buffer, 0)",
+        "Sink::take::<4>(@buffer, 0)",
     );
     assert!(!accepted(&verdicts[0]), "{verdicts:?}");
 }

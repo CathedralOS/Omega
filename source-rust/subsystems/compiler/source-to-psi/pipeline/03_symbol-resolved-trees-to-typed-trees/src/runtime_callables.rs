@@ -1413,7 +1413,6 @@ machine entry(scale: @Scale) -> u64 {
 }
 "#;
         const QUALIFIED: &str = r#"
-module kit;
 trait Shrink<T> {
     machine shrink(scale: @T, value: u64) -> u64;
 }
@@ -1426,10 +1425,19 @@ machine entry(scale: @Scale) -> u64 {
     one(scale, 7)
 }
 "#;
-        for (text, qualified) in [(TEXT, false), (QUALIFIED, true)] {
+        for (text, path, qualified) in [
+            (TEXT, "runtime_callables/named_value.omg", false),
+            (QUALIFIED, "runtime_callables/kit/named_value.omg", true),
+        ] {
             let mut sources = crate::source_inputs::SourceMap::default();
             let source = sources
-                .add("runtime_callables/named_value.omg".into(), text.into())
+                .add_with_metadata(
+                    path.into(),
+                    text.into(),
+                    "runtime_callables".into(),
+                    None,
+                    source_admission::SourceOrigin::User,
+                )
                 .source_id;
             let tokens = crate::typing::frontend_fixture::Lexer::new(text)
                 .tokenize()

@@ -71,12 +71,12 @@ fn module_qualification_does_not_attach_a_machine_to_data() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let frontier = unbuilt_frontier::staged_frontier(
+    let frontier = unbuilt_frontier::staged_in(
         "module-qualified-static-call",
-        "module utility;\n\
-         machine step() {}\n\
+        "utility",
+        "machine step() {}\n\
          machine main() { utility::step(); }\n",
-    );
+    ).expect("resolve the machines in utility/main.omg");
     let entry = unbuilt_frontier::program_machine(&frontier.typed, "main")
         .expect("the module's exact main declaration");
     let verdict = judge(source_compiler::lowering::elaborate_closure(

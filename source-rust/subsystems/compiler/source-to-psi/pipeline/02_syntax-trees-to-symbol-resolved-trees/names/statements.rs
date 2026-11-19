@@ -881,7 +881,7 @@ mod scalar_pattern_selection_tests {
 
     #[test]
     fn scalar_transition_comparisons_retain_the_pattern_source_question() {
-        let text = "machine choose(value: u64 in Trapping) -> u8 { transition value { 0 -> (7) _ -> (0) } }";
+        let text = "machine choose(value: u64 in Trapping) -> u8 { transition value { 0 -> (7), _ -> (0) } }";
         let mut sources = crate::source_inputs::SourceMap::default();
         let source = sources
             .add("patterns/scalar.omg".into(), text.into())

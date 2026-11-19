@@ -612,7 +612,7 @@ machine replace_text<'text>(text: @mut Text<'text>) {
 }
 machine chosen(choice: Choice) -> bool {
     transition choice {
-        Choice::First -> false
+        Choice::First -> false,
         Choice::Second { value } -> (value == 11)
     }
 }
@@ -623,7 +623,7 @@ machine main() crashes Trap {
     replace(@mut item, @mut choice);
     replace_text(@mut text);
     transition item.value == 7 && chosen(choice) && text.bytes.len == 5 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -705,7 +705,7 @@ data Choice [copy] { case Left; case Right; }
 data Item { value: u32; }
 machine choose(choice: Choice) -> Item {
     match choice {
-        Choice::Left -> Item { value: 7 }
+        Choice::Left -> Item { value: 7 },
         Choice::Right -> Item { value: 11 }
     }
 }
@@ -714,7 +714,7 @@ machine main() crashes Trap {
     let left: Item = choose(Choice::Left {});
     let right: Item = choose(Choice::Right {});
     transition left.value == 7 && right.value == 11 {
-        true -> pair(left, right)
+        true -> pair(left, right),
         false -> bad()
     }
     machine bad() { crash Trap; }
@@ -789,7 +789,7 @@ machine main() crashes Trap {
     let restored: Pair = pair;
     let total: u64 = restored.first.value + restored.second.value + previous.value;
     transition total == 15 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -883,7 +883,7 @@ machine main() crashes Trap {
         + restored.selected.first.value + restored.selected.second.value
         + restored.other.first.value + restored.other.second.value;
     transition total == 56 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -968,7 +968,7 @@ machine restored(choice: Choice) -> u64 {
         other: Pair { first: Item { value: 13 }, second: Item { value: 17 } }
     };
     let consumed: u32 = match choice {
-        Choice::Part -> take_item(outer.selected.first)
+        Choice::Part -> take_item(outer.selected.first),
         Choice::Whole -> take_pair(outer.selected)
     };
     outer.selected = Pair { first: Item { value: 7 }, second: Item { value: 11 } };
@@ -981,7 +981,7 @@ machine main() crashes Trap {
     let partial: u64 = restored(Choice::Part {});
     let whole: u64 = restored(Choice::Whole {});
     transition partial == 51 && whole == 53 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -993,8 +993,8 @@ machine main() crashes Trap {
         if reversed {
             source = source.replace("case Part; case Whole;", "case Whole; case Part;")
                 .replace(
-                    "Choice::Part -> take_item(outer.selected.first)\n        Choice::Whole -> take_pair(outer.selected)",
-                    "Choice::Whole -> take_pair(outer.selected)\n        Choice::Part -> take_item(outer.selected.first)",
+                    "Choice::Part -> take_item(outer.selected.first),\n        Choice::Whole -> take_pair(outer.selected)",
+                    "Choice::Whole -> take_pair(outer.selected),\n        Choice::Part -> take_item(outer.selected.first)",
                 );
         }
         if wrong_region {

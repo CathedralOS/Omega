@@ -56,7 +56,7 @@ fn psi_admission_retains_the_native_borrowed_storage_layouts() {
     package_compilation::toolchain_library::configure(&library).unwrap();
     let build = r#"machine build(builder: @mut Build) {
     Build::application(builder, "checked_read_geometry");
-    Build::select_provider<ReadCell, Reader>(builder, macos_arm64);
+    Build::select_provider::<ReadCell, Reader>(builder, macos_arm64);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
 }
 "#;
@@ -73,7 +73,7 @@ machine main() crashes Trap {
     let cell: Cell = Cell { prefix: 7, word: 11, suffix: 13 };
     let value: u32 = ReadCell::word(@cell);
     transition value == 11 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -86,7 +86,7 @@ machine main() crashes Trap {
     let native = compile(&project, Product::Native);
 
     let unbound = build.replace(
-        "    Build::select_provider<ReadCell, Reader>(builder, macos_arm64);\n",
+        "    Build::select_provider::<ReadCell, Reader>(builder, macos_arm64);\n",
         "",
     );
     std::fs::write(project.join("build.omg"), unbound).expect("staged missing provider");

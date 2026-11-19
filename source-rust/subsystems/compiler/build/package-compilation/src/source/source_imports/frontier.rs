@@ -956,11 +956,14 @@ mod tests {
         use source_capture::{CapturedSourceNode, CapturedSourceTree, SourceFileSystem};
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-test-capture");
         let entry = root.join("entry.omg");
-        let mut entries = std::collections::BTreeMap::new();
+        let mut entries = std::collections::BTreeMap::from([(
+            PathBuf::from("other"),
+            CapturedSourceNode::Directory,
+        )]);
         for (name, body) in [
             ("entry.omg", "public data Entry {}"),
             ("sibling.omg", "data PrivateSibling {}"),
-            ("other.omg", "module other; public data Other {}"),
+            ("other/record.omg", "public data Other {}"),
             ("build.omg", "machine build() {}"),
         ] {
             entries.insert(

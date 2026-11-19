@@ -517,7 +517,7 @@ mod compiler_machine_tests {
         let caller = "trait SlotKind {}
                 TimerSlot satisfies SlotKind {}
                 data Table {}
-                machine owner() { let selected: bool = X86StaticInterruptScope::run<owner, TimerSlot, Table>(); }";
+                machine owner() { let selected: bool = X86StaticInterruptScope::run::<owner, TimerSlot, Table>(); }";
         for origin in [SourceOrigin::Toolchain, SourceOrigin::User] {
             let mut sources = SourceMap::default();
             let declaration = if origin == SourceOrigin::Toolchain {

@@ -113,7 +113,7 @@ fn interrupt_gate_retains_the_executed_fragments_of_its_own_callback() {
             "{errors:?}"
         );
     }
-    let ordinary = "\npublic machine ordinary(plan: LayoutPlan, field: FieldPlan) -> LayoutPlan {\n    layout_plan_place_private_field<GateSlot00>(plan, field)\n}\n";
+    let ordinary = "\npublic machine ordinary(plan: LayoutPlan, field: FieldPlan) -> LayoutPlan {\n    layout_plan_place_private_field::<GateSlot00>(plan, field)\n}\n";
     let (_, policy) = source.split_once("public GateLayout00 satisfies ").unwrap();
     let (policy, _) = policy.split_once("\nmachine main()").unwrap();
     let other_owner = format!("\npublic OtherGatePolicy satisfies {policy}\n");

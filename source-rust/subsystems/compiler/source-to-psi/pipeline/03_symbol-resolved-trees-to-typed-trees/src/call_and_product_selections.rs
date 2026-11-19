@@ -3142,7 +3142,7 @@ pub(crate) mod construction_destinations {
         fn pending_call_result_context_waits_for_the_actual_receiving_type() {
             use crate::source_state::deferred_refusals::DeferredRequest;
             let mut program = crate::typing::qualified_operator_home_tests::checked(&[
-                ("kit.omg", "module kit; public machine only() -> u32 in Saturating { 0u32 }"),
+                ("kit/only.omg", "public machine only() -> u32 in Saturating { 0u32 }"),
                 ("client.omg", "use kit::only; machine pending() { let selected: u32 in Saturating = kit::only(); }"),
             ]).unwrap();
             let (value, target) = program

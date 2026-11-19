@@ -195,7 +195,7 @@ fn capacity_guards_reach_the_original_addition_operands() {
 machine cap(length: u64, position: u64) -> u64
 requires position < length {
     transition length - position > 4294967295 {
-        true -> receive(length, position + 4294967295)
+        true -> receive(length, position + 4294967295),
         false -> position
     }
 }
@@ -203,7 +203,7 @@ machine advance(length: u64, position: u64, count: i64) -> u64
 requires position <= length, count >= 0 {
     let written: u64 = count as u64;
     transition written <= length - position {
-        true -> receive(length, position + written)
+        true -> receive(length, position + written),
         false -> position
     }
 }

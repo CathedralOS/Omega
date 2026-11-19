@@ -181,7 +181,7 @@ machine entry() crashes Trap {{
     let observed: bool = carrier.cell.value == 41;
     carrier.cell.value = 73;
     transition observed && cell.value == {expected} && cell.before == 11 && cell.after == 17 {{
-        true -> done()
+        true -> done(),
         false -> bad()
     }}
     machine done() {{}}
@@ -223,7 +223,7 @@ machine entry() crashes Trap {{
     transition observe(@two) && two.left.value == 5 && two.right.value == 9
         && two.left.before == 11 && two.left.after == 17
         && two.right.before == 23 && two.right.after == 29 {{
-        true -> done()
+        true -> done(),
         false -> bad()
     }}
     machine done() {{}}
@@ -376,7 +376,7 @@ machine entry() crashes Trap {{
     transition two.left.value == 5 && two.right.value == 9
         && two.left.before == 11 && two.left.after == 17
         && two.right.before == 23 && two.right.after == 29 {{
-        true -> done()
+        true -> done(),
         false -> bad()
     }}
     machine done() {{}}
@@ -405,7 +405,7 @@ machine entry() crashes Trap {{
     let exclusive: @mut Cell = @mut cell;
     let view: View = View {{ cell: exclusive }};
     transition view.cell.value == 5 && view.cell.before == 11 && view.cell.after == 17 {{
-        true -> done()
+        true -> done(),
         false -> bad()
     }}
     machine done() {{}}
@@ -587,7 +587,7 @@ machine journey(named: @mut Named) -> bool {{
 machine entry() crashes Trap {{
     let mut named: Named = Named {{ name: "abc", value: 5 }};
     transition journey(@mut named) && named.value == {expected} {{
-        true -> done()
+        true -> done(),
         false -> bad()
     }}
     machine done() {{}}
@@ -655,7 +655,7 @@ machine entry() crashes Trap {{
     let mut named: Named = Named {{ name: "abc", value: 5 }};
     journey(@mut named);
     transition named.value == {expected} {{
-        true -> done()
+        true -> done(),
         false -> bad()
     }}
     machine done() {{}}
@@ -714,12 +714,12 @@ machine entry() crashes Trap {
     start(lent);
     AFTER
     transition engine.mode {
-        Mode::Busy { level } -> check(level, engine.count)
+        Mode::Busy { level } -> check(level, engine.count),
         Mode::Idle -> bad()
     }
     machine check(level: u64, count: u64) crashes Trap {
         transition level == 7 && count == 3 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }
@@ -729,8 +729,7 @@ machine entry() crashes Trap {
 
 #[test]
 fn a_match_on_storage_lent_to_a_live_exclusive_reference_is_rejected() {
-    let observe =
-        "let busy: bool = match engine.mode { Mode::Busy { level } -> true  Mode::Idle -> false };";
+    let observe = "let busy: bool = match engine.mode { Mode::Busy { level } -> true,  Mode::Idle -> false };";
     let after = LENT_MODE.replace("BEFORE", "").replace("AFTER", observe);
     assert_eq!(
         run(&after),

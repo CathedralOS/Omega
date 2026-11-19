@@ -123,7 +123,7 @@ fn a_case_pattern_that_misses_or_repeats_a_payload_field_is_rejected() {
         format!(
             "data Shape {{\n    case Point(x: u32, y: u32);\n    case Empty;\n}}\n\
              machine measure(shape: Shape) -> u32 {{\n    match shape {{\n        \
-             Shape::Point {{ {pattern} }} -> 1\n        Shape::Empty -> 0\n    }}\n}}\n"
+             Shape::Point {{ {pattern} }} -> 1,\n        Shape::Empty -> 0\n    }}\n}}\n"
         )
     };
     accepted(&program("x as _, y as _"));

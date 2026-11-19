@@ -1042,7 +1042,7 @@ machine entry(packet: @mut Packet, again: bool) {
         (@mut packet.bytes as -Terminated)[7] = 0;
         observe((@packet.bytes as -Terminated)[..]);
         transition again {
-            true -> block cycle(packet, false)
+            true -> block cycle(packet, false),
             _ -> block done(packet)
         }
     }
@@ -1061,7 +1061,7 @@ machine entry(packet: @mut Packet, again: bool) {
     transition { _ -> block cycle(packet, again) }
     machine cycle(packet: @mut Packet, again: bool) {
         transition (packet.index as -Wrapping) == 7i32 {
-            true -> block write(packet, again)
+            true -> block write(packet, again),
             _ -> block done(packet)
         }
     }
@@ -1069,7 +1069,7 @@ machine entry(packet: @mut Packet, again: bool) {
         (@mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
         observe((@packet.bytes as -Terminated)[..]);
         transition again {
-            true -> block cycle(packet, false)
+            true -> block cycle(packet, false),
             _ -> block done(packet)
         }
     }

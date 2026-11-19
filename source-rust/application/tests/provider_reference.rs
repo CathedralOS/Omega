@@ -69,7 +69,7 @@ boundary trait Source { machine cell() -> @i32 reaches none crashes none; }
 boundary trait Sink { machine read(cell: @i32) -> i32 reaches none crashes none; }
 machine main() reaches Source + Sink invokes Source invokes Sink crashes Trap {
     let observed: i32 = Sink::read(Source::cell());
-    transition observed == 37i32 { true -> done() _ -> bad() }
+    transition observed == 37i32 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -81,7 +81,7 @@ boundary trait Source { machine cell() -> @Pair reaches none crashes none; }
 machine matches(pair: @Pair) -> bool { pair.left == 37i32 && pair.right == 91i32 }
 machine main() reaches Source invokes Source crashes Trap {
     let observed: bool = matches(Source::cell());
-    transition observed { true -> done() _ -> bad() }
+    transition observed { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -92,7 +92,7 @@ boundary trait Source { machine cell() -> @i32 reaches none crashes none; }
 machine read(cell: @i32) -> i32 { cell }
 machine main() reaches Source invokes Source crashes Trap {
     let observed: i32 = read(Source::cell());
-    transition observed == 37i32 { true -> done() _ -> bad() }
+    transition observed == 37i32 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -103,7 +103,7 @@ machine main() reaches Source invokes Source crashes Trap {
     let profile = target::TargetProfile::host();
     let forwarding_binding = if forward {
         format!(
-            r#"    Build::bind<Sink::read>(builder, {target}, ForeignBinding::DllImport {{
+            r#"    Build::bind::<Sink::read>(builder, {target}, ForeignBinding::DllImport {{
         import: DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_read", version: "REFERENCE_1.0" }}
     }});
 "#,
@@ -125,7 +125,7 @@ machine build(builder: @mut Build) {{
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind<Source::cell>(builder, {target}, ForeignBinding::DllImport {{
+    Build::bind::<Source::cell>(builder, {target}, ForeignBinding::DllImport {{
         import: DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_cell", version: "REFERENCE_1.0" }}
     }});
 {forwarding_binding}}}

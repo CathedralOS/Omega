@@ -55,7 +55,7 @@ use omega_language_std::ByteRead;
 use omega_language_std::Console;
 machine main() reaches ProcessExit + Console {
     let read: ByteRead = block Console::read_byte();
-    transition read { ByteRead::Eof -> done() _ -> unexpected() }
+    transition read { ByteRead::Eof -> done(), _ -> unexpected() }
     machine done() { ProcessExit::exit_process(0); }
     machine unexpected() { ProcessExit::exit_process(1); }
 }
@@ -148,11 +148,11 @@ fn psi_runs_a_named_sum_constant_with_its_case_payload() {
 const selected: Policy = Policy::Read { number: 7u64 };
 machine main() crashes Trap {
     let result: u64 = match selected {
-        Policy::Read { number } -> number
+        Policy::Read { number } -> number,
         _ -> 99u64
     };
     transition result == 7u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

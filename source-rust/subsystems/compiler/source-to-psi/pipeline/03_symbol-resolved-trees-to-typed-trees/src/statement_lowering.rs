@@ -1630,13 +1630,13 @@ mod boolean_result_tests {
             data Choice { case A; case B; }
             domain u64::Small requires self <= 8;
             machine case_subject(value: Choice) -> u64 {
-                transition value in Choice::A { true -> 41u64 _ -> 0u64 }
+                transition value in Choice::A { true -> 41u64, _ -> 0u64 }
             }
             machine domain_subject(value: u64) -> u64 {
-                transition value in Small { true -> 41u64 _ -> 0u64 }
+                transition value in Small { true -> 41u64, _ -> 0u64 }
             }
             machine negated_subject(value: bool) -> u64 {
-                transition !value { true -> 41u64 _ -> 0u64 }
+                transition !value { true -> 41u64, _ -> 0u64 }
             }
             machine ordinary(value: Choice, bit: bool, count: u64) -> bool {
                 let membership: bool = value in Choice::A;

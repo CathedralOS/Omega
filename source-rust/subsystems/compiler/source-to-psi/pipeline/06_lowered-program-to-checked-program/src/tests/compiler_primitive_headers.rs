@@ -301,7 +301,7 @@ ensures result == byte_observation::ascii_only(bytes)
 machine main() crashes Trap {
     let valid: bool = checked("Room A1");
     let invalid: bool = checked("é");
-    transition valid && !invalid { true -> {} false -> bad() }
+    transition valid && !invalid { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
 "#,
@@ -470,7 +470,7 @@ machine main() crashes Trap {
     let mut bytes: [u8; 2] in Utf8 = plain as +Utf8;
     bytes[0] = 65u8;
     let valid: bool = byte_observation::valid_utf8(@bytes[..]);
-    transition valid { true -> {} false -> bad() }
+    transition valid { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
 "#;
@@ -546,7 +546,7 @@ requires bytes.len >= 1
 }
 machine main() crashes Trap {
     let bytes: @[u8] in Utf8 = whole("é" as +Utf8);
-    transition bytes.len == 2 { true -> {} false -> bad() }
+    transition bytes.len == 2 { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
 "#;
@@ -668,7 +668,7 @@ machine main() crashes Trap {
     let mut bytes: [u8; 2] in Ascii = [65u8, 90u8] as +Ascii;
     put(@mut bytes, 1, 66u8);
     transition bytes[0] == 65u8 && bytes[1] == 66u8 {
-        true -> {} false -> bad()
+        true -> {}, false -> bad()
     }
     machine bad() crashes Trap { crash Trap; }
 }

@@ -1798,8 +1798,8 @@ mod tests {
     fn ranges_retain_view_types_before_calls_and_exclusive_formations() {
         let program = checked(&[
             (
-                "kit.omg",
-                "module kit; public machine pick(value: u8) {} \
+                "kit/overloads.omg",
+                "public machine pick(value: u8) {} \
                  public machine pick(value: @[u8]) {}",
             ),
             (
@@ -1873,7 +1873,6 @@ mod tests {
     #[test]
     fn closed_call_families_bind_complete_operands_in_every_call_position() {
         let library = r#"
-            module kit;
             public machine pick(value: u32) -> u32 { value }
             public machine pick(value: u64) -> u64 { value }
             public machine borrow(value: @u32) {}
@@ -1908,7 +1907,7 @@ mod tests {
                 machine pick(inner: u64) -> u64 { inner }
             }
         "#;
-        let program = checked(&[("kit.omg", library), ("client.omg", client)])
+        let program = checked(&[("kit/overloads.omg", library), ("client.omg", client)])
             .expect("type actual source families");
         let u32_atom =
             BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::unsigned(32));
@@ -2000,7 +1999,6 @@ mod tests {
     #[test]
     fn result_domain_families_use_the_complete_receiving_set_and_cast_input() {
         let library = r#"
-            module kit;
             public domain u32::Tagged;
             public domain u32::OtherTagged;
             public machine pick(value: u32) -> u32 { value }
@@ -2020,7 +2018,7 @@ mod tests {
             machine unique_matching_context() -> u32 in Tagged { only() }
         "#;
         let unit = format!("{library}\n{client}");
-        let program = checked(&[("kit.omg", &unit)])
+        let program = checked(&[("kit/overloads.omg", &unit)])
             .expect("retain source selections without claiming their body proofs");
         for (owner, expected) in [
             ("policy", "arithmetic:Saturating"),
@@ -2087,7 +2085,7 @@ mod tests {
     #[test]
     fn qualified_machine_headers_use_resolved_namespace_ownership() {
         let mut program = checked(&[
-            ("namespace.omg", "module converted;"),
+            ("converted/namespace.omg", ""),
             (
                 "operations.omg",
                 r#"
@@ -2190,7 +2188,6 @@ mod tests {
     #[test]
     fn closed_call_families_select_lifetime_bound_headers() {
         let library = r#"
-            module kit;
             public data Payload<'text> [copy] { text: @'text [u8]; }
             public machine choose<'text>(value: Payload<'text>) -> u32 { 17u32 }
             public machine choose<'text>(value: @'text u32) -> u32 { 64u32 }
@@ -2202,7 +2199,7 @@ mod tests {
             machine incompatible(value: bool) -> u32 { kit::choose(value) }
             machine access_mismatch(value: @mut u32) -> u32 { kit::choose(value) }
         "#;
-        let program = checked(&[("kit.omg", library), ("client.omg", client)])
+        let program = checked(&[("kit/overloads.omg", library), ("client.omg", client)])
             .expect("select actual lifetime-bound headers from their argument carriers");
         for owner in ["stored", "shared"] {
             let (target, occurrence) = owned_call(&program, owner);
@@ -2258,7 +2255,6 @@ mod tests {
     #[test]
     fn closed_call_families_refuse_missing_incompatible_access_domains_and_ambiguity() {
         let library = r#"
-            module kit;
             public domain u32::Tagged;
             public domain u32::OtherTagged;
             public machine pick(value: u32) -> u32 { value }
@@ -2299,7 +2295,7 @@ mod tests {
                 machine pick(inner: u64) -> u64 { inner }
             }
         "#;
-        let program = checked(&[("kit.omg", library), ("client.omg", client)])
+        let program = checked(&[("kit/overloads.omg", library), ("client.omg", client)])
             .expect("retain real unavailable source calls");
         // Defaults enter the ordinary machine path through an actual selected
         // implementation. An unused trait template has no typed body to inspect.
@@ -2407,12 +2403,12 @@ mod tests {
         }
         let Err(error) = checked(&[
             (
-                "left.omg",
-                "module left; public machine pick(value: u32) -> u32 { value }",
+                "left/pick.omg",
+                "public machine pick(value: u32) -> u32 { value }",
             ),
             (
-                "right.omg",
-                "module right; public machine pick(value: u32) -> u32 { value }",
+                "right/pick.omg",
+                "public machine pick(value: u32) -> u32 { value }",
             ),
             (
                 "client.omg",

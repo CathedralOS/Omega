@@ -26,7 +26,7 @@ data View<'storage> { cell: @'storage Cell; }
 const SELECTED: &str = r#"
 machine selected<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, first: bool) -> Carrier<'storage> {
     transition first {
-        true -> Carrier { cell: left }
+        true -> Carrier { cell: left },
         false -> Carrier { cell: right }
     }
 }
@@ -47,7 +47,7 @@ machine entry() crashes Trap {
     journey(@mut left, @mut right, false);
     transition first_correct && left.value == 73 && right.value == 73
         && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -121,7 +121,7 @@ fn a_call_gives_one_lifetime_the_loans_of_two_places() {
         r#"
 machine both<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, first: bool) {
     transition first {
-        true -> write(left)
+        true -> write(left),
         false -> write(right)
     }
     machine write(cell: @mut Cell) { cell.value = 73; }
@@ -245,7 +245,7 @@ machine journey(left: @mut Cell, right: @mut Cell, first: bool) {{
         r#"{CELLS}
 machine journey(left: @mut Cell, right: @mut Cell, first: bool) {{
     let mut carrier: Carrier = match first {{
-        true -> Carrier {{ cell: left }}
+        true -> Carrier {{ cell: left }},
         false -> Carrier {{ cell: right }}
     }};
     carrier.cell.value = 73;

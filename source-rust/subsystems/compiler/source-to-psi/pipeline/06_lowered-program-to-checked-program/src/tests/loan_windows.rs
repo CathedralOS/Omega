@@ -20,7 +20,7 @@ machine entry() crashes Trap {{
     let mut s: Span = Span {{ low: 1, high: 5, spare: 0 }};
     bump(@mut s.{lent});
     {restore}
-    transition width(s) == 4 {{ true -> ok() false -> bad() }}
+    transition width(s) == 4 {{ true -> ok(), false -> bad() }}
     machine ok() {{ }}
     machine bad() {{ crash Trap; }}
 }}

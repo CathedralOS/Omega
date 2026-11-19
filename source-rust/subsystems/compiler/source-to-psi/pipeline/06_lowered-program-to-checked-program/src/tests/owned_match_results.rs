@@ -10,7 +10,7 @@ data Choice [copy] { case Left; case Right; }
 data Item { value: u32; }
 machine choose(choice: Choice) -> Item {
     match choice {
-        Choice::Left -> Item { value: 7 }
+        Choice::Left -> Item { value: 7 },
         Choice::Right -> Item { value: 11 }
     }
 }

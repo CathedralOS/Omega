@@ -173,7 +173,7 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
 fn view_extent_facts_follow_only_the_guarded_input_across_private_arrivals() {
     let source = r#"
 machine entry(bytes: @[u8], other: @[u8], index: u64) -> u8 {
-    transition index < bytes.len { true -> next(INPUT, index) false -> 255u8 }
+    transition index < bytes.len { true -> next(INPUT, index), false -> 255u8 }
     machine next(bytes: @[u8], index: u64) -> u8 {
         transition { _ -> fetch(bytes, index) }
     }
@@ -223,18 +223,18 @@ OTHER_BODY
 fn private_arrival_retains_a_guard_on_the_computed_argument() {
     let source = r#"
 machine entry(bytes: @[u8], index: u64) -> u8 {
-    transition index < bytes.len { true -> lead(bytes, index) false -> 255u8 }
+    transition index < bytes.len { true -> lead(bytes, index), false -> 255u8 }
     machine lead(bytes: @[u8], index: u64) -> u8 {
         let first: u8 = bytes[index];
         transition first > 0 && first < 128 {
-            true -> first
+            true -> first,
             false -> following(bytes, index, first)
         }
     }
     machine following(bytes: @[u8], index: u64, first: u8) -> u8 {
         let next: u64 = index + 1;
         transition first >= 194 && first <= 244 && next < bytes.len {
-            true -> fetch(bytes, first, INPUT)
+            true -> fetch(bytes, first, INPUT),
             false -> 255u8
         }
     }
@@ -265,7 +265,7 @@ fn private_arrivals_preserve_the_guarded_field_of_an_owned_argument() {
     let source = r#"
 data Character { point: u32; sibling: u32; }
 machine entry(character: Character) -> u32 {
-    transition character.GUARDED_FIELD < 65536 { true -> 0u32 false -> forward(character) }
+    transition character.GUARDED_FIELD < 65536 { true -> 0u32, false -> forward(character) }
     machine forward(character: Character) -> u32 {
         transition { _ -> encode(character) }
     }
@@ -451,44 +451,44 @@ machine entry(options: OpenOptions) -> u32
     // Truncation requires random-write access. Append-only access cannot
     // satisfy it, and must not be upgraded just to make a flag combination fit.
     transition options.truncate && (!options.write || options.append) && !options.create_new {
-        true -> 0u32
+        true -> 0u32,
         false -> access(options)
     }
     machine access(options: OpenOptions) -> u32 {
         transition options.read || (!options.write && !options.append) {
-            true -> writable(options, 2147483648)
+            true -> writable(options, 2147483648),
             false -> writable(options, 0)
         }
     }
     machine writable(options: OpenOptions, desired: u32) -> u32 {
         transition options.append {
-            true -> disposition(options, desired | 1179924)
+            true -> disposition(options, desired | 1179924),
             false -> ordinary_write(options, desired)
         }
     }
     machine ordinary_write(options: OpenOptions, desired: u32) -> u32 {
         transition options.write {
-            true -> disposition(options, desired | 1073741824)
+            true -> disposition(options, desired | 1073741824),
             false -> disposition(options, desired)
         }
     }
     machine disposition(options: OpenOptions, desired: u32) -> u32 {
         transition options.create_new {
-            true -> acquire(desired, 1)
+            true -> acquire(desired, 1),
             false -> creating(options, desired)
         }
     }
     machine creating(options: OpenOptions, desired: u32) -> u32 {
         transition options.create {
-            true -> create_mode(options.truncate, desired)
+            true -> create_mode(options.truncate, desired),
             false -> existing_mode(options.truncate, desired)
         }
     }
     machine create_mode(truncate: bool, desired: u32) -> u32 {
-        transition truncate { true -> acquire(desired, 2) false -> acquire(desired, 4) }
+        transition truncate { true -> acquire(desired, 2), false -> acquire(desired, 4) }
     }
     machine existing_mode(truncate: bool, desired: u32) -> u32 {
-        transition truncate { true -> acquire(desired, 5) false -> acquire(desired, 3) }
+        transition truncate { true -> acquire(desired, 5), false -> acquire(desired, 3) }
     }
     machine acquire(desired: u32, disposition: u32) -> u32 {
         desired | disposition
@@ -513,14 +513,14 @@ machine walk(handle: i64 in FileHandle, again: bool) -> i64 {
     machine directory(handle: i64 in FileHandle, again: bool) -> i64
     requires true {
         transition (handle as -FileHandle) != 0 {
-            true -> query(handle, again)
+            true -> query(handle, again),
             false -> -3i64
         }
     }
     machine query(handle: i64 in FileHandle, again: bool) -> i64
     requires (handle as -FileHandle) != 0 {
         transition again {
-            true -> directory(handle, false)
+            true -> directory(handle, false),
             false -> (handle as -FileHandle)
         }
     }
@@ -528,7 +528,7 @@ machine walk(handle: i64 in FileHandle, again: bool) -> i64 {
 
 machine entry() crashes Trap {
     let result: i64 = walk(41i64 as +FileHandle, true);
-    transition result == 41 { true -> done() false -> fail() }
+    transition result == 41 { true -> done(), false -> fail() }
     machine done() {}
     machine fail() { crash Trap; }
 }
@@ -606,13 +606,13 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
             public machine entry(input: @mut Input) -> u32 requires true {{
                 transition {{ _ -> block test(input) }}
                 machine test(input: @mut Input) -> u32 {{
-                    transition input.index < 3u32 {{ true -> block fetch(input) _ -> {alternative} }}
+                    transition input.index < 3u32 {{ true -> block fetch(input), _ -> {alternative} }}
                 }}
                 machine fetch(input: @mut Input) -> u32 {contract} {{
                     {write}
                     let found: u32 = input.values[input.index as -Wrapping];
                     input.index = input.index + 1;
-                    transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
+                    transition found == 0u32 {{ true -> 0u32, _ -> block test(input) }}
                 }}
             }}"
         );
@@ -659,9 +659,9 @@ fn a_caller_proves_the_inferred_disjunct_it_can_state() {
 data Board { cells: [u32; 2]; }
 machine entry(board: @mut Board) -> u32 {
     fill(board, 1);
-    transition board.cells[0] == 1 { true -> second_step(board) false -> report(board) }
+    transition board.cells[0] == 1 { true -> second_step(board), false -> report(board) }
     machine second_step(board: @mut Board) -> u32 {
-        transition board.cells[1] == 1 { true -> 0u32 false -> report(board) }
+        transition board.cells[1] == 1 { true -> 0u32, false -> report(board) }
     }
     machine report(board: @mut Board) -> u32 {
         7u32
@@ -687,7 +687,7 @@ fn an_unstated_disjunct_is_proved_false_not_assumed() {
     let source = r#"
 data Pair { first: u32; second: u32; }
 machine entry(pair: @mut Pair) -> u32 {
-    transition pair.first < BOUND { true -> check(pair) false -> 0u32 }
+    transition pair.first < BOUND { true -> check(pair), false -> 0u32 }
 }
 machine check(pair: @mut Pair) -> u32 requires pair.first < 10 || pair.second < 3 {
     7u32
@@ -741,7 +741,7 @@ fn a_guard_on_a_field_written_before_the_call_reaches_the_helper() {
             "data Main {{ stack: [i32; 8]; sp: i32; k: i32; }}
             machine entry(main: @mut Main) {{
                 {writes}
-                transition {guarded} >= 0 && {guarded} < 8 {{ true -> push(main) false -> done() }}
+                transition {guarded} >= 0 && {guarded} < 8 {{ true -> push(main), false -> done() }}
                 machine push(main: @mut Main) {{
                     main.stack[main.sp] = 3;
                 }}

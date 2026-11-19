@@ -30,7 +30,7 @@ satisfies Tests::arithmetic
 crashes Trap
 {
     transition 2u32 + 3u32 != EXPECTED {
-        true -> failed()
+        true -> failed(),
         _ -> passed()
     }
 
@@ -46,7 +46,7 @@ satisfies Tests::arithmetic
 crashes Trap
 {
     transition 5u32 - 3u32 != 2u32 {
-        true -> failed()
+        true -> failed(),
         _ -> passed()
     }
 
@@ -107,7 +107,7 @@ fn build(name: &str, expected_sum: &str, registration: &str) -> (bool, String) {
     )
 }
 
-const GROUP: &str = "    _ = builder.tests.group<Tests::arithmetic>();";
+const GROUP: &str = "    _ = builder.tests.group::<Tests::arithmetic>();";
 
 #[test]
 fn a_registered_group_runs_each_satisfier_as_a_test() {
@@ -140,17 +140,17 @@ fn the_build_refuses_malformed_group_requests_before_any_test_runs() {
     for (name, registration, refusal) in [
         (
             "twice",
-            "    _ = builder.tests.group<Tests::arithmetic>();\n    _ = builder.tests.group<Tests::arithmetic>();",
+            "    _ = builder.tests.group::<Tests::arithmetic>();\n    _ = builder.tests.group::<Tests::arithmetic>();",
             "test group registration repeats the same requirement",
         ),
         (
             "unregistered",
-            "    _ = builder.tests.service<Tests::arithmetic, FilesystemService>();",
+            "    _ = builder.tests.service::<Tests::arithmetic, FilesystemService>();",
             "test group service names a group this Build has not registered",
         ),
         (
             "slot",
-            "    _ = builder.tests.group<Tests::arithmetic>();\n    _ = builder.tests.service<Tests::arithmetic, FilesystemService>();",
+            "    _ = builder.tests.group::<Tests::arithmetic>();\n    _ = builder.tests.service::<Tests::arithmetic, FilesystemService>();",
             "the test runner cannot back `FilesystemService`",
         ),
     ] {
