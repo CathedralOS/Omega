@@ -3,9 +3,9 @@
 
 pub fn authorize(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-) -> terminal_installation::AuthorizedTerminalArtifact {
-    let producer = terminal_installation::HostProducerTrust::accept("controlled compiler fixture");
-    terminal_installation::authorize_terminal_artifact(
+) -> psi_authorization::AuthorizedTerminalArtifact {
+    let producer = psi_authorization::HostProducerTrust::accept("controlled compiler fixture");
+    psi_authorization::authorize_terminal_artifact(
         std::sync::Arc::new(artifact.clone()),
         Some(&producer),
     )

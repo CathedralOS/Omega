@@ -1931,8 +1931,8 @@ machine build(builder: @mut Build) {{
             let expected = semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(standard);
             let saved = artifact.to_bytes();
             let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&saved).unwrap();
-            let producer = terminal_installation::HostProducerTrust::accept("fixture source compiler");
-            let authorized = terminal_installation::authorize_terminal_artifact(
+            let producer = psi_authorization::HostProducerTrust::accept("fixture source compiler");
+            let authorized = psi_authorization::authorize_terminal_artifact(
                 Arc::new(reopened), Some(&producer),
             ).unwrap();
             drop(portable);

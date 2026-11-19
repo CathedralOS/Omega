@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use backend_plan::{IssuedProviderDemand, ProviderDemandInputs};
-use terminal_installation::{ArtifactTrustError, AuthorizedTerminalArtifact};
+use psi_authorization::{ArtifactTrustError, AuthorizedTerminalArtifact};
 
 /// Stage 01 consumes the demand together with the authorization checked here.
 pub struct AdmittedProviderDemand<Publisher> {
@@ -35,12 +35,10 @@ impl<Publisher> AdmittedProviderDemand<Publisher> {
 mod tests {
     use super::admit;
     use backend_plan::{IssuedProviderDemand, ProviderDemandInputs};
+    use psi_authorization::{ArtifactTrustError, HostProducerTrust, authorize_terminal_artifact};
     use std::sync::Arc;
     use terminal_codec::{
         CanonicalTerminalArtifact, TerminalDebugMap, build_identity_optimization_execution_record,
-    };
-    use terminal_installation::{
-        ArtifactTrustError, HostProducerTrust, authorize_terminal_artifact,
     };
 
     #[test]

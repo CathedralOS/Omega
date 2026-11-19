@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 #[derive(Debug, PartialEq, Eq)]
 pub struct PublishedSelection<Publisher, Plans> {
     plans: Plans,
-    authorization: terminal_installation::AuthorizedTerminalArtifact,
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
     publisher: std::sync::Arc<backend_plan::ProviderDemandAuthority<Publisher>>,
 }
 
@@ -23,7 +23,7 @@ impl<Publisher, Plans: Clone> Clone for PublishedSelection<Publisher, Plans> {
 }
 
 impl<Publisher, Plans> PublishedSelection<Publisher, Plans> {
-    pub fn published_authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
+    pub fn published_authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
         &self.authorization
     }
 

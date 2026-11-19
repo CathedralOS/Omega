@@ -1,6 +1,8 @@
 //! Keep the receiving host's producer-trust decision beside the exact immutable
 //! artifact it authorizes. Canonical decoding supplies neither decision.
 
+#![forbid(unsafe_code)]
+
 use std::sync::Arc;
 
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};

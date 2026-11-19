@@ -40,10 +40,9 @@ fn check_missing_framed_reference(
 
 fn authorize_fixture(
     artifact: &CanonicalTerminalArtifact,
-) -> terminal_installation::AuthorizedTerminalArtifact {
-    let producer =
-        terminal_installation::HostProducerTrust::accept("controlled publication fixture");
-    terminal_installation::authorize_terminal_artifact(Arc::new(artifact.clone()), Some(&producer))
+) -> psi_authorization::AuthorizedTerminalArtifact {
+    let producer = psi_authorization::HostProducerTrust::accept("controlled publication fixture");
+    psi_authorization::authorize_terminal_artifact(Arc::new(artifact.clone()), Some(&producer))
         .unwrap()
 }
 

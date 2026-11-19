@@ -3,10 +3,9 @@
 //! its private fields preserve the association admission established.
 
 use crate::VerifiedPsiOptimizationInput;
+use psi_authorization::AuthorizedTerminalArtifact;
 use semantic_vocabulary::MachineId;
-use terminal_installation::{
-    AdmittedScalarApplications, AuthorizedTerminalArtifact, TerminalTargetContext,
-};
+use terminal_installation::{AdmittedScalarApplications, TerminalTargetContext};
 
 #[derive(Clone, Copy)]
 pub struct AdmittedRuntimeInput<'input> {

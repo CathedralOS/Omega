@@ -30,6 +30,7 @@ language-core = { path = "../../../../../foundation/language-core" }
 layout-plans = { path = "../../../../../psi/layout" }
 symbols = { path = "../../../../../source-to-psi/language/declaration-identity" }
 terminal-codec = { path = "../../../../../psi/codec" }
+psi-authorization = { path = "../../../../../psi/authorization" }
 terminal-installation = { path = "../../../../../psi-admission" }
 terminal-psi = { path = "../../../../../psi" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
