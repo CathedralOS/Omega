@@ -11,6 +11,8 @@ The [entry point](psi_to_native.rs) takes a Psi program [authorized by the recei
 
 The ELF, Mach-O and PE writer tests start from [fixed encoded imports](pipeline/16_objects-to-image/image/src/test_support.rs). The samples include the instruction bytes, each relocation field, register effects and stack use the writer receives.
 
+Production stage consumers are the native entry, packages within the same stage, and the next numbered stage. Other readers have exact package-to-package permissions in the [Cargo boundary check](../../../../tools/xtask/src/boundary/native_stages.rs). For example, file publication reads the finished artifact and its companions. Published-object replay reopens the stages that issued the evidence it verifies.
+
 ## Placement during the repair
 
 | Code | Owner |
