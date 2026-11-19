@@ -2841,7 +2841,6 @@ name = "source-compiler"
 version = "0.1.0"
 dependencies = [
  "access-admission",
- "access-vocabulary",
  "application-identity",
  "arena",
  "artifact-evaluation",

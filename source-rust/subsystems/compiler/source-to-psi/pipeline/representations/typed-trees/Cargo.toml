@@ -10,7 +10,7 @@ path = "lib.rs"
 [dependencies]
 declaration-scope = { path = "../../../../foundation/declaration-scope" }
 artifacts = { path = "../../../../foundation/measurements" }
-access-vocabulary = { path = "../../../language/access-vocabulary" }
+access-vocabulary = { path = "../../../../psi/access" }
 declaration-contracts = { path = "../../../language/declaration-contracts" }
 schema-reflection = { path = "../../../language/schema-reflection" }
 application-identity = { path = "../../../language/application-identity" }

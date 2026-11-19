@@ -7,7 +7,6 @@ version.workspace = true
 [dependencies]
 operation-evidence = { path = "../operation-evidence" }
 operation-operands = { path = "../operation-operands" }
-access-vocabulary = { path = "../../../../source-to-psi/language/access-vocabulary" }
 wire = { path = "../../../../../../foundation/wire" }
 target-vocabulary = { path = "../target-operations/target-vocabulary" }
 register-environment = { path = "../../../targets/register-environment" }
@@ -28,4 +27,5 @@ terminal-psi = { path = "../../../../psi" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+access-vocabulary = { path = "../../../../psi/access" }
 access-admission = { path = "../../../../source-to-psi/access-admission" }
