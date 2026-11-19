@@ -22,7 +22,7 @@ pub(super) fn core_reflection_data(
 }
 
 /// The `TypeSchema` of the domain's subject, asked for by the domain's
-/// author: the same graph `reflect::schema<Subject>()` returns there.
+/// author: the same graph `reflect::schema::<Subject>()` returns there.
 pub(super) fn subject_schema(
     typed: &TypedTrees,
     definition: &crate::source_state::domain::DomainDefinition,

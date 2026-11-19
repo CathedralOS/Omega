@@ -109,8 +109,8 @@ pub mod cast_form {
 pub mod data_layout_queries {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub enum DataLayoutQueryKind {
-        Size,      // `size_of<T>()`: the fixed complete extent in bytes, including padding.
-        Alignment, // `align_of<T>()`: the validated alignment in bytes.
+        Size,      // `size_of::<T>()`: the fixed complete extent in bytes, including padding.
+        Alignment, // `align_of::<T>()`: the validated alignment in bytes.
     }
 
     impl DataLayoutQueryKind {

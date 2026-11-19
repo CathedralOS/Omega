@@ -8,7 +8,7 @@
 //! things on different targets. This check finds such differences from the
 //! source text alone, in well under a second and without building anything.
 //!
-//! For each `Build::select_provider<Service, Provider>(builder, target)` row in
+//! For each `Build::select_provider::<Service, Provider>(builder, target)` row in
 //! `std/build.omg` that covers all four hosted targets, it reads each target's
 //! provider block, follows the top-level machines each member calls inside
 //! that target's files, and collects four kinds of fact:
@@ -385,10 +385,10 @@ fn read(path: &Path) -> Result<String, String> {
     fs::read_to_string(path).map_err(|error| format!("cannot read {}: {error}", path.display()))
 }
 
-/// `Build::select_provider<Service, Provider>(builder, target)` rows, as
+/// `Build::select_provider::<Service, Provider>(builder, target)` rows, as
 /// service -> target -> provider.
 fn provider_selections(build: &str) -> BTreeMap<String, BTreeMap<String, String>> {
-    const CALL: &str = "Build::select_provider<";
+    const CALL: &str = "Build::select_provider::<";
     let mut out: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
     let mut rest = build;
     while let Some(start) = rest.find(CALL) {
@@ -999,8 +999,8 @@ mod tests {
 
     #[test]
     fn provider_selections_read_build_rows() {
-        let build = "    Build::select_provider<Clock, WinClock>(builder, windows_x86_64);\n\
-                     Build::select_provider<Clock, LinClock>(builder, linux_x86_64);\n";
+        let build = "    Build::select_provider::<Clock, WinClock>(builder, windows_x86_64);\n\
+                     Build::select_provider::<Clock, LinClock>(builder, linux_x86_64);\n";
         let selections = provider_selections(build);
         assert_eq!(selections["Clock"]["windows_x86_64"], "WinClock");
         assert_eq!(selections["Clock"]["linux_x86_64"], "LinClock");

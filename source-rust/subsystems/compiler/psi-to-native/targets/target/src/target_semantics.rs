@@ -162,7 +162,7 @@ impl std::fmt::Display for TargetSemanticObservationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "target observation `{}<{}>()` requires profile `{}` but `{}` was selected",
+            "target observation `{}::<{}>()` requires profile `{}` but `{}` was selected",
             self.projection,
             self.subject,
             self.required_profile.target_name(),

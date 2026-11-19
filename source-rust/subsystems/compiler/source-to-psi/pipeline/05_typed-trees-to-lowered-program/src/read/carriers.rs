@@ -2,11 +2,11 @@
 Integer carrier families: which kind of computational integer a type is, and
 what a generic body may assume about a type parameter's kind.
 
-`numeric_values.md`, "Integer carrier families": `is_integer<T>()`,
-`is_signed_integer<T>()`, `is_unsigned_integer<T>()` and
-`is_fixed_width_integer<T>()` are ordinary checked machines in
+`numeric_values.md`, "Integer carrier families": `is_integer::<T>()`,
+`is_signed_integer::<T>()`, `is_unsigned_integer::<T>()` and
+`is_fixed_width_integer::<T>()` are ordinary checked machines in
 `core::integer`. Each states its answer in its `ensures` from one metadata
-query, `integer::carrier<T>()`, whose fields this module answers from the
+query, `integer::carrier::<T>()`, whose fields this module answers from the
 type's carrier identity: the sign and width of the one integer identity
 (`IntegerType`, `FixedInteger`), an integer family head written alone (the
 unbounded `i` and `u`), and nothing else. Every other type, nominal data with
@@ -349,7 +349,7 @@ impl Program<'_> {
     }
 
     /// The carrier query a member reads and the facet it reads, when
-    /// `expression` is `integer::carrier<X>().field`: `X` as written.
+    /// `expression` is `integer::carrier::<X>().field`: `X` as written.
     fn carrier_read(&self, expression: ExpressionHandle) -> Option<(Written, Facet)> {
         let table = &self.typed.expression_table;
         if !expression.is_valid() {
@@ -378,7 +378,7 @@ impl Program<'_> {
     }
 
     /// The facet `expression` reads of the carrier query, when it is
-    /// `integer::carrier<X>().field`: `Some(None)` when `X`'s family leaves
+    /// `integer::carrier::<X>().field`: `Some(None)` when `X`'s family leaves
     /// that facet open, `None` when the expression is no such read.
     pub(super) fn carrier_member(
         &self,

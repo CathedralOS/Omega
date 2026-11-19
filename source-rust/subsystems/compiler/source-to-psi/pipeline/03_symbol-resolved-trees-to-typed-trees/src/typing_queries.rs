@@ -1135,7 +1135,7 @@ pub(crate) fn defer_unbound_calls(
                     .map_err(Diagnostic::error)?;
                 continue;
             }
-            // `size_of<T>()` and `align_of<T>()` name no declaration by
+            // `size_of::<T>()` and `align_of::<T>()` name no declaration by
             // construction: typing recognized the compiler-known query and
             // retained its operand, and Terminal Psi production reads that
             // request as a layout observation. It is not a call awaiting a

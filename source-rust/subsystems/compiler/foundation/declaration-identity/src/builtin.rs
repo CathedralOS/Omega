@@ -275,7 +275,7 @@ pub enum FixedCoreDeclaration {
     Strict,
     /* `core::Squash` — the witness-hiding proposition squash. */
     Squash,
-    /// `core::Identity<T>(left, right)` — proof-relevant kernel identity.
+    /// `core::Identity::<T>(left, right)` — proof-relevant kernel identity.
     Identity,
 }
 

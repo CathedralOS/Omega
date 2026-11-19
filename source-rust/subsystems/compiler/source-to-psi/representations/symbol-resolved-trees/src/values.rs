@@ -32,7 +32,7 @@ pub mod expression {
                                     }
                                     crate::source_resolved::expression::MatchPattern::Wildcard => "_".to_owned(),
                                 };
-                                format!("{pattern} => {}", table.display_name(arm.value))
+                                format!("{pattern} -> {}", table.display_name(arm.value))
                             })
                             .collect::<Vec<_>>()
                             .join(", ");
@@ -108,7 +108,7 @@ pub mod expression {
                     Self::String(value) => source_text::display_literal_bytes(value),
                     Self::Unary(unary) => unary.display_name(table),
                     Self::TypeExpression(_) => "type".to_owned(),
-                    Self::ZeroValue(_) => "zero_value<type>()".to_owned(),
+                    Self::ZeroValue(_) => "zero_value::<type>()".to_owned(),
                 }
             }
         }
@@ -221,7 +221,7 @@ pub mod expression {
                     String::new()
                 } else {
                     format!(
-                        "<{}>",
+                        "::<{}>",
                         self.machine_arguments
                             .iter()
                             .map(|argument| argument.display_name_in(table))

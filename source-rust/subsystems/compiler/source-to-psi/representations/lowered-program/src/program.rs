@@ -266,7 +266,7 @@ pub struct Elaboration {
     pub nominal_calls: Vec<terminal_psi::generic_calls::NominalCallArgument>,
     /// The literals a requirement's value parameters are bound to in the
     /// machine that stands for it, in declaration order: a requirement read
-    /// at the static arguments of a call (`Step::apply<7>(x)`), in a generic
+    /// at the static arguments of a call (`Step::apply::<7>(x)`), in a generic
     /// check form or as a conformance witness. Empty for every other
     /// machine, and for bodies lowered without typed trees.
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
@@ -366,7 +366,7 @@ pub struct Selected {
     pub requirement: SymbolHandle,
     pub implementation: MachineId,
     /// The literals the call binds the requirement's value parameters to
-    /// (`Selected::apply<7>(x)`), in declaration order, read from the
+    /// (`Selected::apply::<7>(x)`), in declaration order, read from the
     /// call's own static arguments; empty when it has none.
     pub value_arguments: Vec<semantic_vocabulary::ScalarTerm>,
 }

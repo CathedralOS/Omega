@@ -467,7 +467,7 @@ pub mod expression {
                                     OwnedMatchPattern::Value(value) => value.display_name(),
                                     OwnedMatchPattern::Wildcard => "_".to_owned(),
                                 };
-                                format!("{pattern} => {}", arm.value.display_name())
+                                format!("{pattern} -> {}", arm.value.display_name())
                             })
                             .collect::<Vec<_>>()
                             .join(", ");
@@ -519,7 +519,7 @@ pub mod expression {
                     Expression::String(value) => source_text::display_literal_bytes(value),
                     Expression::Unary(unary) => unary.display_name(),
                     Expression::TypeExpression(_) => "type".to_owned(),
-                    Expression::ZeroValue(_) => "zero_value<type>()".to_owned(),
+                    Expression::ZeroValue(_) => "zero_value::<type>()".to_owned(),
                 }
             }
         }
@@ -567,7 +567,7 @@ pub mod expression {
                                     out.push('_')
                                 }
                             }
-                            out.push_str(" => ");
+                            out.push_str(" -> ");
                             table.write_display_name(arm.value, out);
                         }
                         out.push_str(" }");
@@ -660,7 +660,7 @@ pub mod expression {
                     Self::String(value) => out.push_str(&source_text::display_literal_bytes(value)),
                     Self::Unary(unary) => unary.write_display_name_with(table, out),
                     Self::TypeExpression(_) => out.push_str("type"),
-                    Self::ZeroValue(_) => out.push_str("zero_value<type>()"),
+                    Self::ZeroValue(_) => out.push_str("zero_value::<type>()"),
                 }
             }
         }
@@ -887,7 +887,7 @@ pub mod expression {
                     || private_slot.is_some()
                     || installed_operands.is_some()
                 {
-                    out.push('<');
+                    out.push_str("::<");
                     for (index, argument) in installed_operands
                         .into_iter()
                         .flatten()

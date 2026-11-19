@@ -504,7 +504,7 @@ mod statement_nodes {
             .span_or_empty(call.receiver)
             .to_vec();
         let mut receiver_members = receiver_members;
-        // `owner.tests.group<Requirement>()` passes the Build's `tests` facet
+        // `owner.tests.group::<Requirement>()` passes the Build's `tests` facet
         // as a value (wiki/spec/build/testing.md), so its receiver keeps the
         // member projection an ordinary `owner.tests` value has instead of the
         // static path a statement call's receiver otherwise becomes.

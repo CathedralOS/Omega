@@ -8,7 +8,7 @@ use semantic_vocabulary::source_selections::CompositionMode;
 /// implementations" (`wiki/spec/build/provider_selection.md`,
 /// "Declaration and choice"). A package declares them in a machine named
 /// `Type::provider_defaults`, whose body is a list of
-/// `Type::select_provider<Slot, Provider>(defaults)` calls. Each call
+/// `Type::select_provider::<Slot, Provider>(defaults)` calls. Each call
 /// becomes one selection, read from the typed trees: this is source
 /// policy, not code the Product runs. Machines of one target share a
 /// row, and rows come out ordered by target.

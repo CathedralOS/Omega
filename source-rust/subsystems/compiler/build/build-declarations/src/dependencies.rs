@@ -167,7 +167,7 @@ impl fmt::Display for DependencyRowError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::WrongReceiver => {
-                "dependency registration must use Build::<operation>(builder, ...), with the root build machine's first parameter"
+                "dependency registration must call Build::dependency or Build::build_dependency with the root build machine's first parameter"
             }
             Self::WrongArguments => {
                 "dependency registration takes the builder operand and one description, written `_ = Build::dependency(builder, dependency::from_source(source));` or, with an alias, a `let mut name: DependencyDescription = dependency::from_source(source);` local, one `dependency::with_alias(@mut name, \"alias\");` and `_ = Build::dependency(builder, name);`, with no generic, evidence or operational modifiers"
