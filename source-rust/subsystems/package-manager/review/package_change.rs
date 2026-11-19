@@ -111,7 +111,7 @@ pub fn review_package_change_reusing(
             crate::review::PackagePolicyChangeError::TargetMismatch,
         ));
     }
-    let compiler_identity = super::accepted_compilation::compiler_input_identity()
+    let compiler_identity = crate::dependencies::compiler_input_identity()
         .map_err(PackageChangeError::CompilerIdentity)?;
     let target_closure = source_closure.for_exact_target(target);
     let reviews = review_resolved_packages(
@@ -142,7 +142,7 @@ pub fn review_package_change_reusing(
 }
 
 fn verify_compiler_identity(expected: [u8; 32]) -> Result<(), PackageChangeError> {
-    let current = super::accepted_compilation::compiler_input_identity()
+    let current = crate::dependencies::compiler_input_identity()
         .map_err(PackageChangeError::CompilerIdentity)?;
     if current != expected {
         return Err(PackageChangeError::CompilerIdentity(

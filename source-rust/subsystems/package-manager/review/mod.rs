@@ -41,3 +41,16 @@ pub(crate) use decision::{
 };
 pub(crate) use restricted_build_grants::RestrictedBuildCheckpoint;
 pub use restricted_build_grants::UngrantedRestrictedBuildRequest;
+
+pub(crate) mod build_session;
+mod inspect_packages;
+pub mod inspect_source;
+mod package_change;
+
+pub use inspect_packages::{
+    PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome,
+    PackageInspectionSources, PackageInspectionTransaction, PreparedPackageInspection,
+};
+pub(crate) use package_change::{
+    PackageChangeError, PackageChangeReview, review_package_change_reusing,
+};

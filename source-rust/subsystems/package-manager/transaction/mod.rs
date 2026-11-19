@@ -16,24 +16,19 @@ stay untouched (`ReviewRequired`); once all changes are accepted, the build sess
 before `publish_reviewed_package_change` commits `build.omg` and `omega.lock`.
 */
 
-#[path = "change_decisions.rs"]
 mod change_decisions;
-#[path = "planning.rs"]
 mod planning;
-#[path = "proposal.rs"]
 mod proposal;
-#[path = "source_review.rs"]
 mod source_review;
-#[path = "state.rs"]
 mod state;
 
 use crate::build_session::{PackageBuildSession, PackageSourceBindings};
 use crate::declarations::{BuildFileReplacement, PackageKey};
+use crate::dependencies::{LOCAL_PROJECT_CONTEXT, stage_build_dependency_edit};
 use crate::digest_encoder::content_identity;
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
-use crate::operations::{
-    LOCAL_PROJECT_CONTEXT, PackageChangeReview, PackageFileTransaction, PackagePublicationLimits,
-    publish_reviewed_package_change, review_package_change_reusing, stage_build_dependency_edit,
+use crate::lockfile::publication::{
+    PackageFileTransaction, PackagePublicationLimits, publish_reviewed_package_change,
 };
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
@@ -43,6 +38,7 @@ use crate::resolution::source::{
     AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
 };
 use crate::review::{CompileResolvedPackageReviewsError, PackageReviewExecutor};
+use crate::review::{PackageChangeReview, review_package_change_reusing};
 use platform_custody::record_file::{RecordFileRoot, RootRecordRead};
 use proposal::PendingPackageChange;
 use source_acquisition::PrimaryGitChoices;
@@ -680,9 +676,9 @@ pub struct PackageCommandError {
 enum PackageCommandCause {
     Message(String),
     Review(Box<CompileResolvedPackageReviewsError>),
-    Change(Box<crate::operations::PackageChangeError>),
+    Change(Box<crate::review::PackageChangeError>),
     Compilation(products::CompileFailure),
-    Preparation(Box<crate::operations::PrepareLocalProjectError>),
+    Preparation(Box<crate::dependencies::PrepareLocalProjectError>),
 }
 
 impl PackageCommandError {
@@ -709,7 +705,7 @@ impl PackageCommandError {
         match &self.cause {
             PackageCommandCause::Review(failure) => Some(failure),
             PackageCommandCause::Change(failure) => match failure.as_ref() {
-                crate::operations::PackageChangeError::Compilation(error) => Some(error),
+                crate::review::PackageChangeError::Compilation(error) => Some(error),
                 _ => None,
             },
             _ => None,
@@ -731,9 +727,9 @@ impl From<CompileResolvedPackageReviewsError> for PackageCommandError {
 }
 
 impl PackageCommandError {
-    fn from_package_change(error: crate::operations::PackageChangeError) -> Self {
+    fn from_package_change(error: crate::review::PackageChangeError) -> Self {
         let accounting = match &error {
-            crate::operations::PackageChangeError::Compilation(error) => error
+            crate::review::PackageChangeError::Compilation(error) => error
                 .source_completion_accounting()
                 .cloned()
                 .unwrap_or_default(),
@@ -759,8 +755,8 @@ impl From<products::CompileFailure> for PackageCommandError {
     }
 }
 
-impl From<crate::operations::PrepareLocalProjectError> for PackageCommandError {
-    fn from(error: crate::operations::PrepareLocalProjectError) -> Self {
+impl From<crate::dependencies::PrepareLocalProjectError> for PackageCommandError {
+    fn from(error: crate::dependencies::PrepareLocalProjectError) -> Self {
         Self {
             cause: PackageCommandCause::Preparation(Box::new(error)),
             accounting: Default::default(),
@@ -794,10 +790,9 @@ impl PackageCommandError {
             PackageCommandCause::Review(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Change(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Preparation(error) => fmt::Display::fmt(error, formatter),
-            PackageCommandCause::Compilation(failure) => render(
-                formatter,
-                &failure.clone().into_diagnostics(),
-            ),
+            PackageCommandCause::Compilation(failure) => {
+                render(formatter, &failure.clone().into_diagnostics())
+            }
         }
     }
 }

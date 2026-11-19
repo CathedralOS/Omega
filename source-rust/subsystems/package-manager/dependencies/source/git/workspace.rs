@@ -122,7 +122,7 @@ pub(crate) fn account_declaration_bytes(
     Ok(observed)
 }
 
-pub(in crate::resolution::source) fn git_workspace_declaration_limits()
+pub(in crate::dependencies::source) fn git_workspace_declaration_limits()
 -> source_acquisition::GitWorkspaceDeclarationLimits {
     source_acquisition::GitWorkspaceDeclarationLimits::new(
         MAX_WORKSPACE_MEMBERS,

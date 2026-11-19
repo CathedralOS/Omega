@@ -237,3 +237,6 @@ impl PackageLock {
         Ok(())
     }
 }
+
+pub(crate) mod hex;
+pub(crate) mod publication;

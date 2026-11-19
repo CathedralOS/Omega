@@ -8,7 +8,7 @@ pub enum PublishReviewedPackageChangeError {
     Publication(super::super::PackagePublicationError),
     Source(source_acquisition::SourceResolveError),
     Lock(crate::lock::PackageLockError),
-    Review(crate::operations::PackageChangeError),
+    Review(crate::review::PackageChangeError),
     Comparison(crate::review::PackagePolicyChangeError),
 }
 

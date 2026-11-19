@@ -10,8 +10,8 @@ pub(crate) use error::PublishReviewedPackageChangeError;
 use super::PackageFileTransaction;
 use crate::declarations::BuildFileReplacement;
 use crate::lock::{PackageLock, PackageLockRecoveryLimits};
-use crate::operations::PackageChangeReview;
 use crate::resolution::graph::PackageRootSourceRequest;
+use crate::review::PackageChangeReview;
 use crate::review::{
     PackagePolicyChangeLimits, PackagePolicyResolution, compare_package_policy_changes,
 };

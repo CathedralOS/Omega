@@ -9,13 +9,13 @@ in `omega.lock`, and verifies at `finish` that neither `build.omg` nor `omega.lo
 changed while inspection ran.
 */
 
-use super::prepare_project::LOCAL_PROJECT_CONTEXT;
+use crate::dependencies::LOCAL_PROJECT_CONTEXT;
 mod report;
 mod sources;
 
-use super::{PackageFileTransaction, PackagePublicationLimits};
 use crate::build_session::{PackageBuildSession, PackageSourceBindings};
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
+use crate::lockfile::publication::{PackageFileTransaction, PackagePublicationLimits};
 use crate::resolution::graph::{
     CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
 };

@@ -1,16 +1,14 @@
 # Omega Package Manager
 
-Start at
-[`src/package_manager.rs`](src/package_manager.rs): it recovers the project
-transaction, admits install, update and resume requests, resolves the
-candidate, and reconciles findings for publication. Application Build's
-[`package_commands.rs`](../../build-system/orchestration/src/package/package_commands.rs) runs
-the target-review loop. Compiler preparation and read-only inspection have
-separate entrances in [`operations`](src/operations/mod.rs).
+The [package manager](package_manager.rs) admits sources, gathers review decisions
+and publishes the accepted project files. The [transaction](transaction/mod.rs)
+holds the project lock while its caller executes each requested Build and returns
+its evidence. The application’s Build host still needs to connect that loop to
+the relocated compiler.
 
-[Source selection](../../../../wiki/spec/packages/sources.md) owns the
+[Source selection](../../../wiki/spec/packages/sources.md) owns the
 requester-local graph and workspace-member contract. Acquisition enforces the
-[resolver security boundary](../../../../wiki/spec/packages/resolver_security.md).
+[resolver security boundary](../../../wiki/spec/packages/resolver_security.md).
 
 The ratified design is Cargo-like install and update from repositories, with
 review of reachability, unsafe API and assumptions that the compiler derives.
@@ -23,16 +21,12 @@ independent of installation.
 
 ```text
 package-manager/
-├── Cargo.toml
-├── README.md
-├── src/
-│   ├── lib.rs             Rust module wiring and exports
-│   ├── package_manager.rs command admission, decision join and publication
-│   ├── operations/        compiler preparation, inspection, publication
-│   ├── declarations/      checked package declarations from build.omg
-│   ├── resolution/        exact source selection and dependency closure
-│   ├── lock/              persistent source-scoped project policy
-│   └── review/            admit review passes, join evidence, compare and decide
+├── package_manager.rs            library entry and public package APIs
+├── dependencies/                 project preparation, declarations and source graphs
+├── lockfile/                     recovery and journaled file publication
+├── review/                       candidate evidence, comparisons and decisions
+├── transaction/                  install, update, discard and resume
+└── revsision-control-providers/  source acquisition
 ```
 
 `PackageCommandTransaction` holds the project lock and the review-file root
@@ -44,20 +38,19 @@ discovery, exact occurrence reuse, policy comparison and cache admission live
 here. Application Build runs the admitted dependency work through one
 whole-pass executor that commands and audit share. Package policy does not
 prepare Builds, publish components or finish compiler reviews.
-Supporting packages are siblings under [packages/](../README.md).
-The independent [declaration](../build-declarations/README.md),
-[output](../build-output/README.md) and [compilation-input](../package-compilation/README.md)
+The independent [declaration](../compiler/build/build-declarations/README.md),
+[output](../compiler/build/build-output/README.md) and [compilation-input](../compiler/build/package-compilation/README.md)
 packages sit below both the compiler and this crate, so the compiler does not
 depend on install/update code. Source acquisition creates input custody, the
 compiler records the exact source units it used, and review joins both to
 package policy.
 
-[`PackageInspectionTransaction`](src/operations/inspect_packages/README.md)
+[`PackageInspectionTransaction`](review/inspect_packages/README.md)
 runs `omega packages audit`. It checks the current project source and pinned
 dependencies, collects fresh compiler findings and compares them with accepted
 policy, without publishing changes. The default summary is readable; `--details`
 prints the complete normalized policy.
-`operations::stage_build_dependency_edit` applies the declaration planner's
+`dependencies::stage_build_dependency_edit` applies the declaration planner's
 edit to a proposed source snapshot without writing the live `build.omg`. It
 accepts only an automatic replacement and checks the planner's digest of the
 old file. The staged local project resolver reads the proposed declaration but
@@ -80,7 +73,7 @@ CLI's `--offline` applies it to install and update and reuses proposed pins on
 resume. Missing old source bytes only limit code diffs, not lock policy
 comparison; historical recovery also respects the network restriction.
 
-`operations::review_package_change` checks an already-resolved candidate for
+`review::review_package_change_reusing` checks an already-resolved candidate for
 one exact target (Psi checking rejects broken contract obligations) and
 compares its risk-bearing rows with an optional accepted lock section. No
 baseline means a fresh review; old source is not needed for the comparison.
@@ -102,7 +95,7 @@ retained target reviews to exact current project bytes, then records commit
 intent and publishes the pair under a project mutex. After an interruption,
 recovery only completes the write, from the recorded old and new contents;
 unrelated edits stop it. Ordinary project preparation settles pending state
-before taking a snapshot. See [publication](src/operations/publication/README.md) for the
+before taking a snapshot. See [publication](lockfile/publication/README.md) for the
 file protocol and platform limits. The [command operation](#install-and-update)
 owns package/alias selection, persisted per-target findings, exact candidate
 resume, and reviewed publication for `omega packages install` and `omega packages update`.
@@ -122,9 +115,8 @@ Git content fails without network access. Offline mode keeps source and
 compiler identity matching and the lock format unchanged.
 
 Per the owner ruling of 2026-10-03, ordinary checks and native builds use
-accepted compilation, not candidate review. The application's
-[`orchestration`](../../build-system/orchestration/README.md) calls the compiler
-for them, including inspection and SDK consumers. Package management's
+accepted compilation, not candidate review. [Build](../compiler/build/README.md) owns execution of accepted compilation requests,
+including inspection and SDK consumers. Package management's
 `admit_project_compilation` returns ordered requests and a completion owner that
 holds staging, total sponsors and source custody. Completion maps occurrence
 failures back to packages, checks compiler-library identity and reports
@@ -172,7 +164,7 @@ production, while receiving permission policy remains a separate input.
 The CLI update/resume regression test reaches the independent native
 publication gate. Executable publication is still blocked: nothing produces
 the function-validation evidence tracked under
-[`TARGET-MATRICES`](../../../../TASKS_OPTIMIZER.md#verification-and-rollout).
+[`TARGET-MATRICES`](../../../TASKS_OPTIMIZER.md#verification-and-rollout).
 Native artifact validation does not mean publication succeeded.
 
 `declarations` reads the statically checked package declarations in
@@ -195,7 +187,7 @@ claimed about receiver admission: production is not blocked and no execution
 grant is invented. Install/update must
 separately surface and accept restricted build requests before execution, retain decisions in the lock,
 and require actual host grants under
-[restricted-build acceptance](../../../../wiki/spec/packages/acceptance.md#restricted-build-acceptance).
+[restricted-build acceptance](../../../wiki/spec/packages/acceptance.md#restricted-build-acceptance).
 
 Reading captured source and named inputs, with bounded private output
 staging, needs no restricted-action decision. The filesystem sponsor owns that
@@ -205,9 +197,8 @@ requests, and what the lock records for them differs from the grants an
 invocation actually receives.
 
 The top-level invocation owns one `PackageBuildSession` across its review
-targets and rounds. Application Build's
-[`package_inspection.rs`](../../build-system/orchestration/src/package/package_inspection.rs)
-creates and disposes the audit's owner and executes its ordered target roster.
+targets and rounds. The Build host creates and disposes the audit session and
+executes the target roster issued by [inspection](review/inspect_packages.rs).
 The CLI's
 [`packages::run`](../../application/src/commands/packages.rs) retains the
 install/update owner across automatic acceptance and resume rounds, lending it
@@ -217,7 +208,7 @@ Package commands close staging before publishing accepted project files;
 operation and decision-file failures return to the owner for disposal.
 
 Start candidate review at
-[`passes.rs`](src/review/candidate/passes.rs): select discovery, derive consumer
+[`passes.rs`](review/candidate/passes.rs): select discovery, derive consumer
 bindings, then select a bound pass only if needed. Each pass borrows the caller's
 session; it neither creates sponsors nor disposes them. Every fresh occurrence
 in a target/round pass receives a new
@@ -229,7 +220,7 @@ Completed application and dependency reviews can be reused across commands
 when every recorded input still matches. The source resolver keeps its cache
 locations on the acquired root as well as dependencies. The existing full key
 and current source-consumption check govern reuse; ordinary decisions and lock
-publication still run. [The Cathedral measurement](../../../../wiki/drafts/measurements/root_review_reuse_2026_11_04.md)
+publication still run. [The Cathedral measurement](../../../wiki/drafts/measurements/root_review_reuse_2026_11_04.md)
 records the unchanged-resume result and input-change controls.
 
 If a persisted dependency review lacks a demanded component description, refresh
@@ -237,16 +228,15 @@ that dependency while retaining completed sibling reviews and the consumer's
 Build continuation. Reuse still compares complete inputs, entry and snapshot;
 changed generated inputs require fresh work. Interrupted review sets are private
 progress, not an accepted root-wide review.
-Its [`passes_occurrences.rs`](src/review/candidate/passes_occurrences.rs) admits each
+Its [`passes_occurrences.rs`](review/candidate/passes_occurrences.rs) admits each
 build/product occurrence and joins compiler evidence, using the same roster as
-lock comparison and reconstruction. Application Build's
-[`package_review.rs`](../../build-system/orchestration/src/package/package_review.rs) owns the
-dependency loop, compiler calls and cache-miss recovery. Acquisition and parsed
+lock comparison and reconstruction. The caller of the [review pass](review/candidate/passes.rs)
+owns the dependency loop, compiler calls and cache-miss recovery. Acquisition and parsed
 source are shared; checked targets,
 generated bundles, bindings, component descriptions and reviews are not.
 Build session and staging ownership are shared through `build_session`; review
 policy and ledger budgeting remain with the review owner.
-[`review_set.rs`](src/review/candidate/review_set.rs) describes the issued output.
+[`review_set.rs`](review/candidate/review_set.rs) describes the issued output.
 
 `review_resolved_packages` is the candidate review entry point for install,
 update and audit. Both discover bindings before the final bound pass;
@@ -294,7 +284,7 @@ checks remain separate and unchanged. This finding is not accepted-lock
 storage or an extra authorization stage.
 
 Binding nomination belongs to the compiler's
-[`review-evidence::capture`](../review-evidence/src/capture/semantic_bindings.rs),
+[`review-evidence::capture`](review/evidence/src/capture/semantic_bindings.rs),
 which reads checked callable reach and invocation facts, entry requirements and
 selected provider plans. Package review takes its inert candidates, adds
 consumer context to projection errors, and scopes permission proposals; it does
@@ -451,29 +441,26 @@ candidate and project-file checks. The commands load review files and resume.
 
 Related contracts and usage:
 
-- [Package workflow](../../../../wiki/language_guide/packages.md)
-- [Build declarations and identity](../../../../wiki/spec/build/declarations.md)
-- [Package acceptance](../../../../wiki/spec/packages/acceptance.md)
-- [Ordinary libraries and semantic bindings](../../../../wiki/spec/packages/toolchain.md)
-- [`TASKS.md`](../../../../TASKS.md)
+- [Package workflow](../../../wiki/language_guide/packages.md)
+- [Build declarations and identity](../../../wiki/spec/build/declarations.md)
+- [Package acceptance](../../../wiki/spec/packages/acceptance.md)
+- [Ordinary libraries and semantic bindings](../../../wiki/spec/packages/toolchain.md)
+- [`TASKS.md`](../../../TASKS.md)
 
 ## Install and update
 
-Enter through [`../package_manager.rs`](src/package_manager.rs), which also
+Enter through the [package transaction](transaction/mod.rs), which also
 declares the commands and outcomes. The CLI at
 `../../application/src/arguments/packages.rs` parses arguments; this operation owns resolution,
 checking, review, and publication.
 
 ```text
-src/
-├── package_manager.rs         command admission, decision join and publication
-├── planning.rs                dependency edits and exact update selections
-├── change_decisions.rs        compiler findings rendered and the per-change decisions loaded
-├── source_review.rs           separate bounded source-code diagnostics
-├── source_review_old_sources.rs  exact old-source recovery through custody issuers
-├── state.rs                   retained proposal and review files
-├── proposal.rs                restart record
-└── proposal_framing.rs        bounded framing and codec tests
+transaction/mod.rs            command admission, decision join and publication
+transaction/planning.rs      dependency edits and exact update selections
+transaction/change_decisions.rs    review findings and project decisions
+transaction/source_review.rs       bounded source diagnostics
+transaction/state.rs       retained proposal and review files
+transaction/proposal.rs    restart record and bounded framing
 ```
 
 ```text
@@ -575,7 +562,7 @@ Ignored `build/package-manager/` contains:
   Its contents are hostile source data and cannot supply project decisions.
 - `check-<target>/`: disposable compiler/build outputs.
 - `transaction.lock` and `pending`: the separate publication mutex and
-  commit-intent journal, owned by [publication](src/operations/publication/README.md).
+  commit-intent journal, owned by [publication](lockfile/publication/README.md).
 
 Resume fetches only the proposed exact pins, when needed and not offline,
 recompiles, and rejects any change in source, graph, accepted files or
