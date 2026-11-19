@@ -180,6 +180,11 @@ fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
     );
 }
 
+#[path = "../../../../tests/support/frontend.rs"]
+mod frontend_fixture;
+
+// The unchanged fixture imports GNU libc's versioned abs through the GNU loader.
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
 #[test]
 fn dynamic_native_publication_and_receiver_replay_need_no_producer_recheck_report() {
     std::thread::scope(|scope| {
