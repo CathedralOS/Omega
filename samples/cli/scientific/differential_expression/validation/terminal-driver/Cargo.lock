@@ -109,7 +109,6 @@ name = "bio02-terminal-validation"
 version = "0.1.0"
 dependencies = [
  "compilation-products",
- "compiler",
  "omega-build",
  "package-manager",
  "target",

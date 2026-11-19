@@ -15,7 +15,6 @@ source-admission = { path = "../../../compiler/source-to-psi/inputs/source-admis
 source-text = { path = "../../../../foundation/source-text" }
 wire = { path = "../../../../foundation/wire" }
 arena = { path = "../../../../foundation/arena" }
-build-settings = { path = "../../../compiler/build/build-settings" }
 backend-plan = { path = "../../../compiler/psi-to-native/installation/provider-plans" }
 layout-plans = { path = "../../../compiler/psi/layout" }
 products = { path = "../../compilation/products" }

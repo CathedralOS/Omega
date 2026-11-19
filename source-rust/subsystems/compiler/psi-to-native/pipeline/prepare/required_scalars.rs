@@ -1,7 +1,5 @@
-// The scalar values native compilation reads arrive complete in its request
-// (`build_settings::scalar_completion::complete_native`), so the native
-// pipeline never pauses for evaluation. This keeps them only where the selected
-// work needs them and refuses work that needs them when they are missing.
+// Native compilation receives completed scalar values. Keep the values needed
+// by the selected work and refuse a request that omits them.
 
 use diagnostics::Diagnostic;
 use terminal_installation::AdmittedScalarApplications;

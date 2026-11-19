@@ -264,13 +264,9 @@ dependencies = [
 name = "build-settings"
 version = "0.1.0"
 dependencies = [
- "arena",
- "artifact-evaluation",
  "artifacts",
- "backend-plan",
  "build-declarations",
  "build-output",
- "calling-conventions",
  "declaration-contracts",
  "declaration-scope",
  "diagnostics",
@@ -279,9 +275,6 @@ dependencies = [
  "evaluation-contracts",
  "evaluation-receipts",
  "filesystem-authority",
- "language-core",
- "layout-plans",
- "native-scalar-inputs",
  "optimization-requests",
  "package-compilation",
  "products",
@@ -525,6 +518,7 @@ dependencies = [
  "native-artifact",
  "native-compiler",
  "native-encoding",
+ "native-scalar-inputs",
  "numerics",
  "object-file",
  "optimization",
@@ -1646,7 +1640,6 @@ dependencies = [
 name = "new087-terminal-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
  "orchestration",
  "target",
  "terminal-interpreter",
@@ -2502,7 +2495,6 @@ dependencies = [
  "application-identity",
  "arena",
  "backend-plan",
- "build-settings",
  "calling-conventions",
  "declaration-contracts",
  "diagnostics",

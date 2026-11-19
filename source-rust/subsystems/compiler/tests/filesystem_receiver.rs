@@ -247,7 +247,7 @@ fn windows_canonicalize_receiver() {
     let optimizations = optimization_selections::PostTerminalOptimizationSelections::default();
     eprintln!("Windows receiver: preparing restricted native admission");
     let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
-    let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)
+    let scalars = native_scalar_inputs::complete_native(&retained, &mut accounting)
         .expect("scalar completion");
     let subsystem = proposal.application().subsystem;
     let request = |receiver| native_compiler::test_support::NativeCompileRequest {

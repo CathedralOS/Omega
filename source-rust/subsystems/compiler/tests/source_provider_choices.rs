@@ -204,7 +204,7 @@ fn check_conditions(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
     proposal: &backend_plan::TerminalTargetProviderProposal,
 ) -> Result<(), String> {
-    build_settings::scalar_completion::complete(
+    native_scalar_inputs::complete(
         artifact,
         TARGET,
         &[],
