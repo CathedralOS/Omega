@@ -249,9 +249,9 @@ impl PreparedNumeric {
         if target != self.target || checked.execution().target_profile() != Some(target) {
             return Err(unavailable("the numeric declaration's target realization"));
         }
-        let leaves: &[backend_plan::package_review::ReviewedNumericBinding] =
+        let leaves =
             match checked.execution().package_review() {
-                Some(reviewed) => reviewed.numeric.as_ref().map_err(Clone::clone)?,
+                Some(reviewed) => reviewed.numeric.as_deref().map_err(Clone::clone)?,
                 None if self.demanded == 0 => &[],
                 None => return Err(unavailable("the numeric declaration's target realization")),
             };
@@ -295,10 +295,11 @@ impl PreparedNumeric {
 impl NumericMethod {
     fn realize(
         &self,
-        leaf: &backend_plan::DirectBoundaryLeaf,
+        leaf: &direct_boundary_bindings::DirectBoundaryLeaf,
         target: TargetProfile,
     ) -> Result<(PackagePolicyProviderPlan, Application), Vec<Diagnostic>> {
-        let backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)) = leaf.execution
+        let direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(Some(execution)) =
+            leaf.execution
         else {
             return Err(unavailable(
                 "the numeric declaration's closed intrinsic execution",

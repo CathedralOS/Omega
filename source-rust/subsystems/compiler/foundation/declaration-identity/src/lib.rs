@@ -8,6 +8,7 @@ pub use builtin::{
 };
 pub use language_core::BuiltinFunction;
 pub use primitive::PrimitiveType;
+pub mod root_grants;
 pub use symbol::kind::SymbolKind;
 pub use symbol::name::{SymbolName, SymbolNameRef};
 pub use symbol::path::SymbolPath;

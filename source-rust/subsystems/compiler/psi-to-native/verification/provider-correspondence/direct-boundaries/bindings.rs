@@ -1,16 +1,17 @@
-/*
-We retain exact boundary callable dependencies before executable demand selects
-them, pairing each satisfied service contract with its foreign or intrinsic
-execution projection and authenticating calling custody against the receiving
-Terminal module without granting execution authority.
-*/
+//! Check a selected native binding against its published callable, service
+//! contract and target ABI. An authored grant is bound to the exact selected
+//! plan and package when its native requirement is verified.
+#![forbid(unsafe_code)]
+
+mod schemas;
+pub use schemas::{compiler_primitive_schemas, hosted_requirement_schema};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectBoundaryLeaf {
     pub declaration_identity: String,
     pub callable_identity: String,
-    pub satisfied_schema: effects::provider_plan::ServiceSchema,
-    pub plan: effects::provider_plan::ProviderPlan,
+    pub satisfied_schema: provider_plans::ServiceSchema,
+    pub plan: provider_plans::ProviderPlan,
     pub satisfied_requirement_identity: String,
     pub target_realization: Option<target::CanonicalFloatRealization>,
     pub execution: DirectBoundaryExecution, // Preserves exact refusal until executable demand activates this row.
@@ -20,18 +21,15 @@ pub struct DirectBoundaryLeaf {
 /// locator have been validated against the receiving Terminal module.
 #[derive(Debug, Clone)]
 pub struct NativeRequirementTrust {
-    grant: declaration_contracts::selection::AuthoredRootGrant,
+    grant: symbols::root_grants::AuthoredRootGrant,
     commitment: String,
     contract: [u8; 32],
-    plan: effects::provider_plan::ProviderPlanDigest,
+    plan: provider_plans::ProviderPlanDigest,
     report_identity: u64,
 }
 
 impl NativeRequirementTrust {
-    pub fn matches_grant(
-        &self,
-        grant: &declaration_contracts::selection::AuthoredRootGrant,
-    ) -> bool {
+    pub fn matches_grant(&self, grant: &symbols::root_grants::AuthoredRootGrant) -> bool {
         self.grant == *grant
     }
 
@@ -43,7 +41,7 @@ impl NativeRequirementTrust {
         &self.contract
     }
 
-    pub fn plan(&self) -> effects::provider_plan::ProviderPlanDigest {
+    pub fn plan(&self) -> provider_plans::ProviderPlanDigest {
         self.plan
     }
 
@@ -55,7 +53,7 @@ impl NativeRequirementTrust {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DirectBoundaryExecution {
     Foreign(Result<calling_conventions::ExternalBindingRow, Vec<diagnostics::Diagnostic>>),
-    Intrinsic(Option<effects::CompilerIntrinsicExecutionIdentity>),
+    Intrinsic(Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>),
 }
 
 impl DirectBoundaryLeaf {
@@ -127,7 +125,7 @@ impl DirectBoundaryLeaf {
     pub fn validate_plain_execution<'module>(
         &self,
         module: &'module terminal_psi::TerminalModule,
-        evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
+        evaluated: &[provider_plans::EvaluatedNativeBinding],
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<&'module terminal_psi::BoundaryMachineDeclaration, String> {
         let boundary = self.bound_calling_declaration(module)?;
@@ -165,11 +163,11 @@ impl DirectBoundaryLeaf {
         }
         match (receipt, &binding.binding) {
             (
-                effects::provider_plan::EvaluatedNativeBinding::Import(import),
+                provider_plans::EvaluatedNativeBinding::Import(import),
                 calling_conventions::ExternalBindingKind::Import { locator },
             ) if import.locator() == locator => {}
             (
-                effects::provider_plan::EvaluatedNativeBinding::Syscall(syscall),
+                provider_plans::EvaluatedNativeBinding::Syscall(syscall),
                 calling_conventions::ExternalBindingKind::Syscall { number },
             ) if syscall.number() == *number => {}
             _ => return Err("plain binding changes its normalized execution mechanism".into()),
@@ -179,13 +177,13 @@ impl DirectBoundaryLeaf {
 
     pub fn prepare_native_trust(
         &self,
-        grant: &declaration_contracts::selection::AuthoredRootGrant,
+        grant: &symbols::root_grants::AuthoredRootGrant,
         target: Option<&str>,
         module: &terminal_psi::TerminalModule,
-        evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
+        evaluated: &[provider_plans::EvaluatedNativeBinding],
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<NativeRequirementTrust, String> {
-        use declaration_contracts::selection::RootGrantSubject;
+        use symbols::root_grants::RootGrantSubject;
         let RootGrantSubject::BoundaryRequirement {
             declaration,
             callable,
@@ -450,8 +448,7 @@ impl DirectBoundaryLeaf {
             declaration.execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive
         });
         if numeric {
-            let expected_schema =
-                crate::canonical_schemas::numeric_requirement_schema(module, boundary)?;
+            let expected_schema = schemas::numeric_requirement_schema(module, boundary)?;
             if self.satisfied_schema != expected_schema {
                 return Err("numeric leaf changes its canonical declared schema".into());
             }
@@ -489,14 +486,10 @@ impl DirectBoundaryLeaf {
             .as_ref()
             .map(|declaration| &declaration.execution)
         {
-            let expected = crate::canonical_schemas::hosted_requirement_schema(
-                module,
-                *operation,
-                *requirement,
-            )?;
+            let expected = schemas::hosted_requirement_schema(module, *operation, *requirement)?;
             let execution = match operation {
                 language_core::sealed_intrinsics::HostedOperation::ProcessExit => {
-                    effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+                    native_intrinsics::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                 }
                 _ => return Err("hosted primitive has no exact native execution".into()),
             };
@@ -552,7 +545,7 @@ impl DirectBoundaryLeaf {
 #[cfg(test)]
 mod native_trust_tests {
     use super::{DirectBoundaryExecution, DirectBoundaryLeaf};
-    use declaration_contracts::selection::{AuthoredRootGrant, RootGrantSubject};
+    use symbols::root_grants::{AuthoredRootGrant, RootGrantSubject};
 
     #[test]
     fn native_grant_preparation_requires_the_exact_subject_target_and_owner() {
@@ -562,7 +555,7 @@ mod native_trust_tests {
             declaration_identity: "root::allocate".into(),
             callable_identity: "root::allocate<u32>".into(),
             satisfied_schema: Default::default(),
-            plan: effects::provider_plan::ProviderPlan {
+            plan: provider_plans::ProviderPlan {
                 target: "macos_arm64".into(),
                 origin_package_identity: Some(owner),
                 ..Default::default()

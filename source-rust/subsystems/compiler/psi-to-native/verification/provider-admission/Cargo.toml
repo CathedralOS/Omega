@@ -6,6 +6,7 @@ version.workspace = true
 
 [dependencies]
 native-binding-admission = { path = "../native-bindings" }
+direct-boundary-bindings = { path = "../provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 target-provider-admission = { path = "../target-providers" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
@@ -38,7 +39,6 @@ terminal-psi = { path = "../../../psi" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-semantics = { path = "../../../psi/semantics" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-backend-plan = { path = "../../installation/provider-plans" }
 effects = { path = "../../installation/native-effects" }
 target = { path = "../../targets/target" }
 

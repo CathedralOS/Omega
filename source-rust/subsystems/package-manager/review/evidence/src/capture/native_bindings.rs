@@ -160,7 +160,7 @@ pub(super) fn prepare(
                 "the native binding's complete callable identity",
             ));
         }
-        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, boundary.id)
+        let abi = direct_boundary_bindings::DirectBoundaryLeaf::declared_calling_abi(module, boundary.id)
             .map_err(|reason| unavailable(&reason))?;
         let declared_identity = module
             .identities

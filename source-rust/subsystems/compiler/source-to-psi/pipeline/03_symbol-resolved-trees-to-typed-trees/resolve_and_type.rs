@@ -388,10 +388,10 @@ mod product_policy {
     use crate::evaluation::provider_declarations::ProviderSelection;
     use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
     use declaration_contracts::selection::AuthoredBehaviorExclusion;
-    use declaration_contracts::selection::AuthoredRootGrant;
     use diagnostics::Diagnostic;
     use std::sync::Arc;
     use symbols::SymbolHandle;
+    use symbols::root_grants::AuthoredRootGrant;
 
     pub struct ProductPolicyRequest<'request> {
         pub activation: Option<SymbolHandle>,

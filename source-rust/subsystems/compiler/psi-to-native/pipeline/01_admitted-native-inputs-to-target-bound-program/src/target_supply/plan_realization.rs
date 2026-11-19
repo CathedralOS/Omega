@@ -213,7 +213,7 @@ fn direct_leaves(
     evaluated: &[provider_plans::EvaluatedNativeBinding],
     evaluated_identities: &terminal_psi::TerminalIdentityTable,
     reached: &[BoundaryMachineId],
-) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, String> {
+) -> Result<Vec<direct_boundary_bindings::DirectBoundaryLeaf>, String> {
     let mut leaves = Vec::new();
     let mut declarations = module
         .boundary_machines
@@ -331,7 +331,7 @@ fn direct_leaves(
                     machine: callable.to_owned(),
                 },
                 crate::DirectBoundaryMechanism::Intrinsic,
-                backend_plan::DirectBoundaryExecution::Intrinsic(
+                direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(
                     effects::external_providers::canonical_external_execution(row, target)?,
                 ),
             ),
@@ -358,7 +358,7 @@ fn direct_leaves(
                 (
                     ProviderBinding::Syscall { number: *number },
                     crate::DirectBoundaryMechanism::Foreign(execution.clone()),
-                    backend_plan::DirectBoundaryExecution::Foreign(execution),
+                    direct_boundary_bindings::DirectBoundaryExecution::Foreign(execution),
                 )
             }
             _ if reached.contains(&declaration.id) => {
@@ -412,7 +412,7 @@ fn direct_leaves(
         if bindings.next().is_some() {
             return Err("plain native requirement has competing retained external bindings".into());
         }
-        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, id)?;
+        let schema = direct_boundary_bindings::DirectBoundaryLeaf::declared_schema(module, id)?;
         let mut receipts = evaluated.iter().filter(|row| {
             row.target().target_name() == target
                 && row.receipt().build_origin().is_some_and(|origin| {
@@ -422,7 +422,7 @@ fn direct_leaves(
         let (Some(receipt), None) = (receipts.next(), receipts.next()) else {
             return Err("plain native requirement has no unique evaluated Build supply".into());
         };
-        let signature = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, id)?;
+        let signature = direct_boundary_bindings::DirectBoundaryLeaf::declared_calling_abi(module, id)?;
         let declared_requirement = text(module, signature.requirement_identity)?;
         let mut methods = schema.surface.methods.iter().filter(|method| {
             schema.surface.identity_text(method.requirement_identity) == declared_requirement
@@ -468,7 +468,7 @@ fn direct_leaves(
         let leaf = input
             .finish(
                 &original,
-                backend_plan::DirectBoundaryExecution::Foreign(Ok(binding.clone())),
+                direct_boundary_bindings::DirectBoundaryExecution::Foreign(Ok(binding.clone())),
             )
             .map_err(|error| error.message)?;
         leaf.validate_plain_execution(module, evaluated, evaluated_identities)?;

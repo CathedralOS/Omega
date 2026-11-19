@@ -538,7 +538,7 @@ fn assert_direct_process_exit_consent(checked: &compiler::CheckedCompilation) {
     let (Some(leaf), None) = (leaves.next(), leaves.next()) else {
         panic!("one direct native exit leaf")
     };
-    let consent = |leaf: &backend_plan::DirectBoundaryLeaf,
+    let consent = |leaf: &direct_boundary_bindings::DirectBoundaryLeaf,
                    receipts: &[provider_plans::EvaluatedNativeBinding],
                    target: &str| {
         fixture_package_inputs::provider_acceptance::direct_process_exit_leaf_binding(
@@ -586,7 +586,9 @@ fn assert_direct_process_exit_consent(checked: &compiler::CheckedCompilation) {
     wrong.satisfied_requirement_identity.push_str("::wrong");
     assert!(consent(&wrong, receipts, "linux_x86_64").is_err());
     let mut wrong = leaf.clone();
-    let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut wrong.execution else {
+    let direct_boundary_bindings::DirectBoundaryExecution::Foreign(Ok(binding)) =
+        &mut wrong.execution
+    else {
         panic!("actual foreign supply")
     };
     binding

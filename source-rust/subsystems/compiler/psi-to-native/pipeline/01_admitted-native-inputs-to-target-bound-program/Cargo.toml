@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 target-provider-admission = { path = "../../verification/target-providers" }
@@ -22,7 +23,6 @@ native-inputs = { package = "psi-to-admitted-native-inputs", path = "../00_psi-t
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 application-identity = { path = "../../../psi/application-identity" }
 arena = { path = "../../../../../foundation/arena" }
-backend-plan = { path = "../../installation/provider-plans" }
 build-time-values = { path = "../../../build/evaluation/values" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }

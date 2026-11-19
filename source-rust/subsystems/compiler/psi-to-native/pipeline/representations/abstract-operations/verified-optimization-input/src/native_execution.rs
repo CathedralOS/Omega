@@ -252,10 +252,10 @@ impl TerminalNativeRealizationProposal {
                     })?;
                 let row_executions: &[Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>] =
                     match &leaf.execution {
-                        backend_plan::DirectBoundaryExecution::Intrinsic(identity) => {
+                        direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(identity) => {
                             std::slice::from_ref(identity)
                         }
-                        backend_plan::DirectBoundaryExecution::Foreign(_) => {
+                        direct_boundary_bindings::DirectBoundaryExecution::Foreign(_) => {
                             &NON_INTRINSIC_EXECUTION
                         }
                     };
@@ -343,7 +343,7 @@ impl TerminalNativeRealizationProposal {
                 leaf.validate_bound_calling_custody(module)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 direct.push(leaf.plan.clone());
-                if let backend_plan::DirectBoundaryExecution::Foreign(binding) = &leaf.execution {
+                if let direct_boundary_bindings::DirectBoundaryExecution::Foreign(binding) = &leaf.execution {
                     let binding = binding.clone()?;
                     let mut prior = external_bindings.iter().filter(|row| {
                         row.target_name == binding.target_name

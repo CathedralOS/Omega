@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 native-binding-admission = { path = "../../../../verification/native-bindings" }
+direct-boundary-bindings = { path = "../../../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../../../targets/intrinsics" }
 target-provider-admission = { path = "../../../../verification/target-providers" }
 selected-provider-plans = { path = "../../../../../build/providers/selections" }
@@ -42,7 +43,6 @@ terminal-codec = { path = "../../../../../psi/codec" }
 psi-authorization = { path = "../../../../../psi/authorization" }
 terminal-psi = { path = "../../../../../psi" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
-backend-plan = { path = "../../../../installation/provider-plans" }
 target = { path = "../../../../targets/target" }
 terminal-semantics = { path = "../../../../../psi/semantics" }
 program-entry-contracts = { path = "../../../01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }

@@ -1828,7 +1828,7 @@ machine build(builder: @mut Build) {{
             let module = accepted.module();
             let realization = checked.execution().realization();
             let mut leaves = realization.direct_boundary_leaves().iter().filter(|leaf|
-                matches!(&leaf.execution, backend_plan::DirectBoundaryExecution::Foreign(Ok(binding))
+                matches!(&leaf.execution, direct_boundary_bindings::DirectBoundaryExecution::Foreign(Ok(binding))
                     if binding.method == "write"));
             let leaf = leaves.next().expect("the actual Console wrapper reaches its raw write");
             assert!(leaves.next().is_none(), "one target has one exact raw write");
@@ -1837,7 +1837,7 @@ machine build(builder: @mut Build) {{
                     == Some(leaf.satisfied_requirement_identity.as_str()));
             let boundary = boundaries.next().expect("the original raw requirement is retained");
             assert!(boundaries.next().is_none());
-            let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary.id)
+            let schema = direct_boundary_bindings::DirectBoundaryLeaf::declared_schema(module, boundary.id)
                 .expect("the raw requirement retains its complete public schema");
             assert_eq!(leaf.satisfied_schema.declaration.as_ref(), schema.surface.as_ref());
             let formals = boundary.scalar_contract_parameters().unwrap();
@@ -1891,7 +1891,7 @@ machine build(builder: @mut Build) {{
             assert!(refusal.contains("unique completed Build locator receipt"), "{refusal}");
 
             let mut wrong = leaf.clone();
-            let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut wrong.execution else {
+            let direct_boundary_bindings::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut wrong.execution else {
                 panic!("the selected plain leaf is foreign")
             };
             binding.calling_applications.first_mut().expect("actual Calling result")
@@ -1902,7 +1902,7 @@ machine build(builder: @mut Build) {{
             assert_eq!(refusal, "direct ABI instance changes its original declared method");
 
             let mut wrong = leaf.clone();
-            let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut wrong.execution else {
+            let direct_boundary_bindings::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut wrong.execution else {
                 panic!("the selected plain leaf is foreign")
             };
             binding.calling_applications.first_mut().expect("actual Calling result")

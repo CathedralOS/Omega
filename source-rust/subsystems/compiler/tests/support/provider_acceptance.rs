@@ -153,7 +153,7 @@ pub fn direct_process_exit_leaf_binding(
     module: &terminal_psi::TerminalModule,
     boundary: semantic_vocabulary::BoundaryMachineId,
     target: &str,
-    leaf: &backend_plan::DirectBoundaryLeaf,
+    leaf: &direct_boundary_bindings::DirectBoundaryLeaf,
     evaluated: &[provider_plans::EvaluatedNativeBinding],
     evaluated_identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
@@ -179,8 +179,8 @@ pub fn direct_process_exit_leaf_binding(
             "different canonical completion or requirement".into(),
         ));
     }
-    let schema =
-        backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary).map_err(refused)?;
+    let schema = direct_boundary_bindings::DirectBoundaryLeaf::declared_schema(module, boundary)
+        .map_err(refused)?;
     if leaf.satisfied_schema.declaration.as_ref() != schema.surface.as_ref() {
         return Err(refused("different complete checked service schema".into()));
     }

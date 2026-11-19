@@ -3,12 +3,9 @@
 //! supply; a library may expose additional authored declarations for review.
 use crate::calling_policy_plans::{CallingProgram, NativeCallingResults};
 use crate::target_supply::{NormalizedNativeSupply, SelectedProviderRealization};
-use provider_demand::PackageReviewRequirements;
-use backend_plan::package_review::{
-    PackageTargetReview, ReviewedNativeBinding, ReviewedNativeBindings,
-    ReviewedNumericBinding, ReviewedProviderRow,
-};
 use diagnostics::Diagnostic;
+use evaluation_receipts::NativeBindingMaterialization;
+use provider_demand::PackageReviewRequirements;
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::TerminalModule;
 
@@ -140,7 +137,7 @@ fn numeric(
         }
     }
     if !additional.is_empty() {
-        let schemas = backend_plan::compiler_primitive_schemas(module)
+        let schemas = direct_boundary_bindings::compiler_primitive_schemas(module)
             .map_err(|reason| unavailable(&reason))?;
         leaves.extend(crate::direct_compiler_primitive_leaves(
             module,
@@ -169,4 +166,71 @@ fn unavailable(what: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
         "package review cannot retain {what} from the accepted declaration"
     ))]
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageTargetReview {
+    /// Includes declarations reached through selected provider implementations.
+    pub numeric: Result<Vec<ReviewedNumericBinding>, Vec<Diagnostic>>,
+    pub bindings: Result<ReviewedNativeBindings, Vec<Diagnostic>>,
+    /// Checked adapter candidates, in retained plan and binding order.
+    pub provider_candidates: Result<Vec<ReviewedProviderRow>, Vec<Diagnostic>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewedProviderRow {
+    pub plan: String,
+    pub requirement: String,
+    pub candidates: Vec<(BoundaryMachineId, semantic_vocabulary::MachineId)>,
+}
+
+/// A numeric target leaf checked against the exact canonical declaration it implements.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewedNumericBinding {
+    boundary: BoundaryMachineId,
+    leaf: direct_boundary_bindings::DirectBoundaryLeaf,
+}
+
+impl ReviewedNumericBinding {
+    fn from_leaf(
+        module: &terminal_psi::TerminalModule,
+        target: target::TargetProfile,
+        leaf: direct_boundary_bindings::DirectBoundaryLeaf,
+    ) -> Result<Self, String> {
+        let declaration = leaf.bound_calling_declaration(module)?;
+        if leaf.plan.target != target.target_name()
+            || declaration.declaration.as_ref().is_none_or(|source| {
+                source.execution != terminal_psi::CheckedBoundaryExecution::NumericPrimitive
+            })
+        {
+            return Err("the numeric declaration's target realization".into());
+        }
+        Ok(Self {
+            boundary: declaration.id,
+            leaf,
+        })
+    }
+
+    pub const fn boundary(&self) -> BoundaryMachineId {
+        self.boundary
+    }
+
+    pub const fn leaf(&self) -> &direct_boundary_bindings::DirectBoundaryLeaf {
+        &self.leaf
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewedNativeBindings {
+    pub identities: terminal_psi::TerminalIdentityTable,
+    /// In the same order as the Build supplied the bindings for this target.
+    pub rows: Vec<ReviewedNativeBinding>,
+    pub calling: Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewedNativeBinding {
+    pub boundary: BoundaryMachineId,
+    pub materialization: NativeBindingMaterialization,
+    pub binding: provider_plans::EvaluatedNativeBinding,
 }
