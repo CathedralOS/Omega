@@ -289,8 +289,10 @@ fn compile_targets(
             .expect("saved Psi retains its artifact")
             .manifest()
             .identity();
-        println!("Psi manifest {identity}");
-        writeln!(report, "Psi manifest {identity}").unwrap();
+        for profile in &profiles {
+            println!("Psi manifest {identity}");
+            writeln!(report, "target: {}\nPsi manifest {identity}", profile.target_name()).unwrap();
+        }
     }
     let count = profiles.len();
     if batch && !failed_targets.is_empty() {
