@@ -273,3 +273,27 @@ fn governed_domains_require_the_admitted_policy_requirement() {
     );
     assert!(run("").unwrap_err().message.contains("requires the admitted"));
 }
+
+#[test]
+fn a_result_domain_can_be_declared_before_its_parent() {
+    let parent = "domain u8::Parent;";
+    let child = "domain u8::Parent::Child;";
+    let caller = "machine pick(x:u8)->u8 in u8::Parent::Child{x as +Parent +u8::Parent::Child} machine f(x:u8)->u8 in u8::Parent::Child{pick(x)}";
+    for (first, second) in [(parent, child), (child, parent)] {
+        let stage = check(&[("a.omg", first), ("b.omg", second), ("caller.omg", caller)]).unwrap();
+        let [call] = stage.calls.as_slice() else {
+            panic!("expected one selected call")
+        };
+        assert_eq!(call.machine.result_domains, ["u8 :: Parent :: Child"]);
+        let ValueType::Qualified(_, domains) = &call.result else {
+            panic!("expected a qualified result")
+        };
+        assert_eq!(
+            domains
+                .iter()
+                .map(|domain| domain.declaration.path.as_str())
+                .collect::<Vec<_>>(),
+            ["u8::Parent", "u8::Parent::Child"]
+        );
+    }
+}

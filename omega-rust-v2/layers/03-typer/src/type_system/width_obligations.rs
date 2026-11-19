@@ -1,4 +1,4 @@
-use crate::declarations::declaration_catalog::DeclarationCatalog;
+use super::type_catalog::TypeCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::{ObligationKind, Site, TypeError, TypedStage, TypingObligation, ValueType};
 use omega_parser::NodeKind;
@@ -6,7 +6,7 @@ use omega_resolver::Symbol;
 
 pub(crate) fn collect_width_obligations(
     units: &[ResolvedSourceFile<'_>],
-    catalog: &mut DeclarationCatalog<'_>,
+    types: &mut TypeCatalog<'_>,
     output: &mut TypedStage,
 ) -> Result<(), TypeError> {
     for unit in units {
@@ -21,12 +21,12 @@ pub(crate) fn collect_width_obligations(
                         span,
                         kind: NodeKind::ConstParam | NodeKind::KindedParam,
                     }) => unit.parameters.get(span).cloned(),
-                    _ => unit.open_index(&catalog.types, arg, &ValueType::integer("u64").unwrap())?,
+                    _ => unit.open_index(types, arg, &ValueType::integer("u64").unwrap())?,
                 };
                 let Some(width) = width else {
                     continue;
                 };
-                catalog.types.positive_widths.insert(width.clone());
+                types.positive_widths.insert(width.clone());
                 output.obligations.push(TypingObligation {
                     site: Site::at(&unit.file, node_index),
                     kind: ObligationKind::PositiveWidth(width.clone()),

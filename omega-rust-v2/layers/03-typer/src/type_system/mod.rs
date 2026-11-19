@@ -1,6 +1,6 @@
 pub(crate) mod annotations;
-pub(crate) mod binder_dependencies;
 pub(crate) mod binder_indexing;
+pub(crate) mod definition_order;
 pub(crate) mod dependent_subjects;
 pub(crate) mod domains;
 pub(crate) mod generic_arguments;

@@ -57,23 +57,6 @@ impl<'a> ResolvedSourceFile<'a> {
             .map_err(|msg| TypeError::at(&self.file, n, msg))?;
         Ok(app)
     }
-    pub fn index_domains(
-        &self,
-        types: &mut TypeCatalog<'a>,
-    ) -> Result<(), TypeError> {
-        let f = &self.file;
-        for (n, _) in f
-            .nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, node)| node.kind == NodeKind::Domain)
-        {
-            if types.domains.known_carrier(self.declaration(n)?).is_none() {
-                self.index_domain(n, types)?;
-            }
-        }
-        Ok(())
-    }
     pub(super) fn index_domain(
         &self,
         n: usize,

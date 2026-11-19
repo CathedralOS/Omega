@@ -10,7 +10,7 @@ use crate::evaluation::check_static_indices::check_static_indices;
 use crate::evaluation::{integer_program, specialized_indices};
 use crate::expressions::check_bodies::check_bodies;
 use crate::toolchain_declarations::core_interface::core_interface;
-use crate::type_system::width_obligations::collect_width_obligations;
+use crate::type_system::definition_order::index_type_definitions;
 use crate::{TypeError, TypedStage, TypingEnvironment};
 use omega_parser::NodeKind;
 use omega_resolver::{ResolvedStage, StageSource};
@@ -52,15 +52,7 @@ pub(crate) fn type_admitted_stage(
     if admits_toolchain_declarations {
         core_interface().install(&mut catalog, &mut output);
     }
-    crate::type_system::binder_dependencies::index_binder_carriers(&units, &mut catalog.types)?;
-    collect_width_obligations(&units, &mut catalog, &mut output)?;
-    for unit in &units {
-        unit.index_aliases(&mut catalog.types)?;
-    }
-    catalog.types.flatten_plain_aliases();
-    for unit in &units {
-        unit.index_domains(&mut catalog.types)?;
-    }
+    index_type_definitions(&units, &mut catalog.types, &mut output)?;
     for unit in &units {
         unit.index_static_equations(&mut catalog.types)?;
     }
