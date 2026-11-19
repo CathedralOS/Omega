@@ -217,14 +217,19 @@ pub(crate) fn open_product(
     use package_compilation::build_execution::BuildSnapshotCapture;
     use package_manager::operations::begin_local_project_preparation;
     let error = |error: PackageCommandError| {
-        error.compilation_failure().cloned().map(|failure| failure.into_diagnostics())
+        error
+            .compilation_failure()
+            .cloned()
+            .map(|failure| failure.into_diagnostics())
             .unwrap_or_else(|| vec![diagnostics::Diagnostic::error(error.to_string())])
     };
     let profile = TargetProfile::host_if_supported().ok_or_else(|| {
-        vec![diagnostics::Diagnostic::error("project Build execution needs a supported host")]
+        vec![diagnostics::Diagnostic::error(
+            "project Build execution needs a supported host",
+        )]
     })?;
-    let preparation = begin_local_project_preparation(root, profiles, offline)
-        .map_err(|e| error(e.into()))?;
+    let preparation =
+        begin_local_project_preparation(root, profiles, offline).map_err(|e| error(e.into()))?;
     let workspace = project_build::output_directory::base(root, build_directory);
     let mut session = PackageBuildSession::create(&workspace.join("package-manager"))
         .map_err(|e| error(e.into()))?;
@@ -235,14 +240,28 @@ pub(crate) fn open_product(
         };
         let Some(preparation) = preparation else {
             let capture = match selected {
-                Some(selection) => package_compilation::capture_selected_anonymous_compilation_source(root, selection),
+                Some(selection) => {
+                    package_compilation::capture_selected_anonymous_compilation_source(
+                        root, selection,
+                    )
+                }
                 None => package_compilation::capture_anonymous_compilation_source(root),
-            }.map_err(|rows| { let mut text = String::new(); let _ = diagnostics::write_diagnostics(&mut text, &rows); text })?;
-            let stage = planning::prepare(PlanningRequest {
-                root, sources: PlanningSources::Captured(&capture),
-                execution: session.source_build_inputs(profile, snapshot, false)?,
-                artifact_only: false,
-            }, Default::default(), Default::default())?;
+            }
+            .map_err(|rows| {
+                let mut text = String::new();
+                let _ = diagnostics::write_diagnostics(&mut text, &rows);
+                text
+            })?;
+            let stage = planning::prepare(
+                PlanningRequest {
+                    root,
+                    sources: PlanningSources::Captured(&capture),
+                    execution: session.source_build_inputs(profile, snapshot, false)?,
+                    artifact_only: false,
+                },
+                Default::default(),
+                Default::default(),
+            )?;
             return Ok(planning::interpret(stage, &mut ())?.open_product(None)?);
         };
         let acquired = match selected {
@@ -252,7 +271,10 @@ pub(crate) fn open_product(
         let mut acquisitions = preparation.source_acquisitions()?;
         let acquired = acquisitions.retain_root(acquired)?;
         let mut host = SourceHost {
-            session: &mut session, acquisitions: &mut acquisitions, profile, observed: Vec::new(),
+            session: &mut session,
+            acquisitions: &mut acquisitions,
+            profile,
+            observed: Vec::new(),
         };
         let entry = preparation.entry_path();
         let returned = host.execute(&entry, &acquired, snapshot, false)?;
@@ -262,12 +284,20 @@ pub(crate) fn open_product(
         }
         let resolved = host.join(acquired, returned)?;
         let project = preparation.complete_source_resolution(resolved.sources)?;
+        let mut consents = Vec::new();
         for &profile in profiles {
             // The graph, exact compiler, and accepted target belong to this invocation.
             // Fresh verification never imports cached judgments into the source compiler.
-            project.accepted_root_permissions(profile)?;
+            if let Some(consent) = project.accepted_root_permissions(profile)? {
+                consents.push(consent);
+            }
         }
-        Ok(resolved.root.open_product(Some(&resolved.inputs))?)
+        let planned = resolved.root.open_product(Some(&resolved.inputs))?;
+        Ok(if consents.is_empty() {
+            planned
+        } else {
+            planned.with_runtime_consents(consents)
+        })
     })();
     session.dispose(result).map_err(error)
 }

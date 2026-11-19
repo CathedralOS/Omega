@@ -155,8 +155,25 @@ impl ProductStage<'_> {
             }
             _ => None,
         };
+        let runtime_consent = self
+            .product
+            .runtime_consents
+            .as_ref()
+            .map(|consents| {
+                consents
+                    .iter()
+                    .find(|consent| consent.target == profile)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "the locked Product has no accepted runtime policy for {}",
+                            profile.target_name()
+                        ))]
+                    })
+            })
+            .transpose()?;
         Ok(SourceNativeTarget {
             profile,
+            runtime_consent,
             settings: NativeApplicationSettings {
                 application: target::NativeApplicationMetadata {
                     name,

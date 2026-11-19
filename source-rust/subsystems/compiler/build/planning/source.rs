@@ -12,6 +12,7 @@ use package_compilation::source_assembly::{
 };
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
+use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use source_compiler::{BuildStageSource, SourceContinuation, SourcePreparation};
 use source_declarations::build_stage::BuildStage;
 use std::{path::Path, sync::Arc};
@@ -48,6 +49,7 @@ pub(super) struct PlanningSource {
 pub struct PlannedProduct {
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
+    pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
     pub(crate) source: AssembledSyntax,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) preparation: SourcePreparation,
@@ -55,6 +57,12 @@ pub struct PlannedProduct {
 }
 
 impl PlannedProduct {
+    /// Restrict native and runtime requests to the reviewed Product occurrences of this lock.
+    pub fn with_runtime_consents(mut self, accepted: Vec<TerminalPermissionAcceptance>) -> Self {
+        self.runtime_consents = Some(accepted);
+        self
+    }
+
     pub fn evaluated(&self) -> &EvaluatedBuild {
         &self.evaluated
     }
@@ -274,6 +282,7 @@ impl PlanningSource {
         Ok(PlannedProduct {
             evaluated,
             build_profile: self.profile,
+            runtime_consents: None,
             source,
             package_inputs: inputs.cloned(),
             preparation: self.preparation,

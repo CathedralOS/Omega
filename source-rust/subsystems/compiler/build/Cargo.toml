@@ -9,6 +9,7 @@ build = false
 path = "build.rs"
 
 [dependencies]
+review-evidence = { path = "../../package-manager/review/evidence" }
 optimization-requests = { path = "optimization-policy/requests" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 installation-conditions = { path = "../psi-to-native/verification/installation-admission/conditions" }
