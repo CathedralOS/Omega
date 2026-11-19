@@ -103,13 +103,7 @@ pub struct JudgedSource {
     pub constants: Vec<crate::ConstantRead>,
 }
 
-/// A failed preparation keeps actual invocation usage, including successful
-/// earlier jobs and a metered failed run. No frozen product accompanies it.
-#[derive(Debug)]
-pub struct SourcePreparationFailure {
-    pub diagnostics: Vec<Diagnostic>,
-    pub accounting: crate::evaluation::SourceCompletionAccounting,
-}
+pub use source_completion_accounting::SourcePreparationFailure;
 
 impl SourcePreparationRequest<'_> {
     /// Complete preparation and let the lowered-form checker judge this exact
