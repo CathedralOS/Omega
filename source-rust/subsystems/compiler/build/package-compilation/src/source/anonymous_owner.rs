@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 #[derive(Clone, record_storage::Record)]
 pub struct AnonymousSourceCapture {
+    pub(crate) acquisition: Option<crate::CapturedLocalSource>,
     pub(crate) root: std::path::PathBuf, // Canonical live root of the anonymous capture.
     pub(crate) capture: Arc<CapturedSourceTree>, // Complete captured source tree.
     pub(crate) filesystem: source_capture::SourceFileSystem, // Captured virtual filesystem used during assembly.
@@ -26,6 +27,18 @@ pub struct AnonymousSourceCapture {
 }
 
 impl AnonymousSourceCapture {
+    /// The unbound local acquisition whose source map this Build actually typed.
+    pub fn acquired_for(
+        &self,
+        program: &source_compiler::source_state::TypedTrees,
+    ) -> Option<&crate::CapturedLocalSource> {
+        let sources = program.symbols.source_map()?;
+        if !Arc::ptr_eq(&sources, self.sources()) {
+            return None;
+        }
+        self.acquisition.as_ref()
+    }
+
     pub fn root(&self) -> &std::path::Path {
         &self.root
     }
@@ -186,6 +199,7 @@ mod tests {
             .source_id;
         let sources = Arc::new(sources);
         let capture = AnonymousSourceCapture {
+            acquisition: None,
             root,
             capture: tree,
             filesystem,

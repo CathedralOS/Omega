@@ -32,13 +32,13 @@ the returned activation via `validate_return`, `source_result`,
 
 use crate::{PreparedBuildExecution, PureBuildCompilation};
 use artifacts::compile_timings::CompileTimings;
+use build_evaluation_result::CompileFailure;
 use diagnostics::Diagnostic;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::{RestrictedBuildRequest, select_build_machine};
 use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
-use build_evaluation_result::CompileFailure;
 use source_compiler::source_state::TypedTrees;
 use std::path::Path;
 use std::sync::Arc;
@@ -68,10 +68,11 @@ pub struct BuildStageRequest<'request> {
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
 }
 
-pub use build_evaluation_result::EvaluatedBuild;
 use build_evaluation_result::BuildSubjectValidation;
+pub use build_evaluation_result::EvaluatedBuild;
 
 pub struct PreparedBuildEvaluation {
+    unbound_acquisition: Option<package_compilation::CapturedLocalSource>,
     execution: PreparedBuildExecution,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
@@ -80,6 +81,10 @@ pub struct PreparedBuildEvaluation {
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     subject_validation: BuildSubjectValidation,
 }
+
+#[path = "catalog_declaration.rs"]
+mod catalog_declaration;
+pub use catalog_declaration::SourceBuildDeclaration;
 
 impl PreparedBuildEvaluation {
     /// Judges and admits the next stage of this Build and makes it the
@@ -101,6 +106,10 @@ impl PreparedBuildEvaluation {
             package_inputs,
             anonymous_source,
         } = request;
+        let continues_acquisition = self.unbound_acquisition.is_some()
+            && package_inputs.is_none()
+            && anonymous_source.and_then(|owner| owner.acquired_for(typed))
+                == self.unbound_acquisition.as_ref();
         let build_source = build_source.ok_or_else(|| {
             vec![Diagnostic::error(
                 "Build execution requires its source-owned selection",
@@ -154,6 +163,9 @@ impl PreparedBuildEvaluation {
                 self.restricted_build_requests.push(request);
             }
             self.execution = self.execution.continue_with(admitted)?;
+            if !continues_acquisition {
+                self.unbound_acquisition = None;
+            }
             Ok(())
         })();
         result.map_err(|failure: CompileFailure| failure.with_source_completion_accounting(spent))
@@ -241,6 +253,7 @@ impl PreparedBuildEvaluation {
         returned: Option<crate::ReturnedBuild>,
     ) -> Result<EvaluatedBuild, CompileFailure> {
         let Self {
+            unbound_acquisition: _,
             execution,
             restricted_build_requests,
             base_source_consumption_commitment,
@@ -386,7 +399,14 @@ pub fn prepare_build_evaluation(
             });
         }
         let execution = PreparedBuildExecution::prepare(admitted, execution_purpose)?;
+        let unbound_acquisition = anonymous_source
+            .filter(|owner| {
+                package_inputs.is_none() && std::ptr::eq(owner.sources().as_ref(), sources)
+            })
+            .and_then(|owner| owner.acquired_for(typed))
+            .cloned();
         Ok(PreparedBuildEvaluation {
+            unbound_acquisition,
             execution,
             restricted_build_requests,
             base_source_consumption_commitment,

@@ -196,111 +196,34 @@ directories get no such exemption. Broader host scopes still raise restricted
 requests, and what the lock records for them differs from the grants an
 invocation actually receives.
 
-The top-level invocation owns one `PackageBuildSession` across its review
-targets and rounds. The Build host creates and disposes the audit session and
-executes the target roster issued by [inspection](review/inspect_packages.rs).
-The CLI's
-[`packages::run`](../../application/src/commands/packages.rs) retains the
-install/update owner across automatic acceptance and resume rounds, lending it
-to `orchestration::execute_package_command`. A later user-issued command creates its own
-session. Discard requires only project-state recovery, without a Build owner.
-Package commands close staging before publishing accepted project files;
-operation and decision-file failures return to the owner for disposal.
+The package manager reads the accepted root Product's terminal permissions
+after verifying the requested target, current compiler, source closure and
+dependency bindings. Saved Psi hosts can open a separately pinned application
+lock and recover its reviewed providers through
+[`ReviewedHostPackages`](dependencies/reviewed_host_packages.rs).
 
-Start candidate review at
-[`passes.rs`](review/candidate/passes.rs): select discovery, derive consumer
-bindings, then select a bound pass only if needed. Each pass borrows the caller's
-session; it neither creates sponsors nor disposes them. Every fresh occurrence
-in a target/round pass receives a new
-sponsored directory from the invocation's monotonic sequence. Component demands
-join the completed Build's opaque continuation before Product checking; they do
-not trigger a second compilation or replay Build effects. Closing an owner
-prevents another review from using it.
-Completed application and dependency reviews can be reused across commands
-when every recorded input still matches. The source resolver keeps its cache
-locations on the acquired root as well as dependencies. The existing full key
-and current source-consumption check govern reuse; ordinary decisions and lock
-publication still run. [The Cathedral measurement](../../../wiki/drafts/measurements/root_review_reuse_2026_11_04.md)
-records the unchanged-resume result and input-change controls.
+Candidate review derives the exact dependency-first Product and Build
+occurrence roster. `PackageReviewPass::recover_cached` first recovers discovery
+evidence and repeats the lookup with consumer-scoped bindings when required.
+The persistent cache key includes the package, compiler, target, execution
+profile, entry, complete compilation inputs and Build snapshot. Recovery checks
+lineage and resolution and re-derives source consumption from the retained
+units and current inputs. Complete reviews use the existing policy comparison,
+consent and lock encodings. The closure permits at most 64 MiB of canonical
+policy data. [Review passes](review/candidate/passes.rs)
+and [occurrence recovery](review/candidate/passes_occurrences.rs).
 
-If a persisted dependency review lacks a demanded component description, refresh
-that dependency while retaining completed sibling reviews and the consumer's
-Build continuation. Reuse still compares complete inputs, entry and snapshot;
-changed generated inputs require fresh work. Interrupted review sets are private
-progress, not an accepted root-wide review.
-Its [`passes_occurrences.rs`](review/candidate/passes_occurrences.rs) admits each
-build/product occurrence and joins compiler evidence, using the same roster as
-lock comparison and reconstruction. The caller of the [review pass](review/candidate/passes.rs)
-owns the dependency loop, compiler calls and cache-miss recovery. Acquisition and parsed
-source are shared; checked targets,
-generated bundles, bindings, component descriptions and reviews are not.
-Build session and staging ownership are shared through `build_session`; review
-policy and ledger budgeting remain with the review owner.
-[`review_set.rs`](review/candidate/review_set.rs) describes the issued output.
+A cache miss identifies the package occurrence and target that require a fresh
+review. The current project Build and source compilation APIs still need to
+issue the complete checked policy, provider nominations and generated handoff
+for that occurrence. The previous scheduler and projection are preserved under
+[`v1-project-admission`](_recycling/v1-project-admission) and
+[`v1-project-review`](_recycling/v1-project-review).
 
-`review_resolved_packages` is the candidate review entry point for install,
-update and audit. Both discover bindings before the final bound pass;
-observational review shows restricted requests but never grants them. Accepted
-production builds admit grants separately through `accepted_compilation`.
-Each package uses its authored `main.omg` if it has one, otherwise its
-authored `build.omg` through the compiler's build-file entry. This creates no
-source exports: missing imported modules are still rejected. Explicit root
-check entries and native application entry requirements are unchanged.
-
-A preliminary compiler review only discovers the package's supported
-semantic surfaces; the package is then recompiled with exact consumer-scoped
-bindings. Only that final review goes on to policy comparison and admission;
-the discovery pass is neither policy nor evidence that an audit happened. The
-passes share one compiler session, which keeps prepared source, completed Pure
-Builds and exact language judgments. Package review owns source bindings,
-dependency order, occurrence consent and sponsor accounts, not compiler
-caches. Each activation still validates custody, selections, generated inputs
-and grants. A matching earlier judgment lends checked storage only after fresh
-admission. `PackageSourceBindings` records resolved roots by package position;
-it is not a frontend checkpoint table. The command's `PackageBuildSession`
-lasts across review rounds and targets, so sponsors are not refilled per
-target.
-
-Ordinary accepted compilation builds a dependency-ordered request from those
-inputs. Application Build schedules dependencies and joins generated outputs;
-the compiler keeps opaque Build continuations and publishes the independent
-components that are needed. Review also asks the compiler for component
-descriptions, so this crate has no backend-publication dependency. Check,
-native and inspection requests name their finished product up front. The
-compiler owns root permission comparison and completion; package operations do
-not return checked source or hand it back to finish production.
-
-Each package review also lends its complete typed `PackagePolicyBaseline`,
-taken from the same final checked source and target. The compiler's
-`review_package_build` returns that evidence with an opaque
-`PackageReviewSource`, from which review cannot extract a checked program,
-Build configuration or execution plan. Its source-free facts support reuse
-and cache capture, and its component publication runs only on demand. The
-compiler checks each projection against the caller's remaining policy budget
-before nomination; the closure still owns total accounting and decisions. The
-closure keeps at most 64 MiB of canonical policy encoding in total; this is
-not an exact heap limit. Legacy comparison rows, commitments, and obligation
-checks remain separate and unchanged. This finding is not accepted-lock
-storage or an extra authorization stage.
-
-Binding nomination belongs to the compiler's
-[`review-evidence::capture`](review/evidence/src/capture/semantic_bindings.rs),
-which reads checked callable reach and invocation facts, entry requirements and
-selected provider plans. Package review takes its inert candidates, adds
-consumer context to projection errors, and scopes permission proposals; it does
-not walk checked machines, symbols, traits or provider plans, and has no
-provider-planning, flow-effects or symbols dependency. The review shows the
-exact checked `ServiceSchema` beside each proposed binding. This material
-grants nothing: a consumer may use the schema's complete requirement
-identities to write terminal-permission rows. Requirement-only services gain no
-authority from readable names. Hosted leaf proposals use the compiler's fixed
-permission policy and still need root approval. The binding must survive the
-complete final recompilation and ordinary root-policy admission. Hosted
-permission proposals are kept with the candidate, but only the current product
-root carries them into policy; dependency and build-host uses drop them, even
-on a cache hit. Nomination does not read rendered callable or provider review
-rows. Ordinary accepted compilation uses the kept bindings and does not repeat
-nomination or review.
+Workspace and Git acquisition get their source declaration from the prepared
+Build's original unbound capture and its returned activation. A workspace
+member roster requires completion of that same Build. Package and application
+requests can observe the declaration before joining their resolved inputs.
 
 Install and update live in `package_manager.rs`, which records accepted
 baselines and decisions directly and certifies nothing; the source and review

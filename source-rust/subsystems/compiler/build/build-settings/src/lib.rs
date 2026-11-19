@@ -91,7 +91,7 @@ pub use activation::{
 pub use admission::checking::settle_rejoined_build_slice;
 use admission::program::{AdmittedBuildProgram, admit_build_program};
 pub use build_evaluation::{
-    BuildEvaluationRequest, BuildStageRequest, EvaluatedBuild, PreparedBuildEvaluation,
+    BuildEvaluationRequest, BuildStageRequest, EvaluatedBuild, PreparedBuildEvaluation, SourceBuildDeclaration,
     RestrictedBuildGrants, prepare_build_evaluation,
 };
 pub use build_output::BuildStagedOutputEntryKind;
