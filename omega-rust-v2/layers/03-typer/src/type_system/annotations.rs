@@ -390,7 +390,16 @@ impl<'a> ResolvedSourceFile<'a> {
                     _ => Err(TypeError::at(source, node_index, "expected a type declaration or type parameter")),
                 }
             }
-            _ => Err(TypeError::unsupported(source, node_index)),
+            // Keep annotation formation exhaustive. Every new container must choose how
+            // to form its children, including a runtime callable nested inside it.
+            File | Fragment | Use | Const | Data | Field | Case | CaseField | StableNumber | Attributes | Attribute | DroppedBy | Domain | Access | Trait
+            | Restriction | Conformance | SelectionRow | Hypothesis | Machine | AsmMachine | OperatorToken | MathLet | Path | GenericParams | TypeParam
+            | KindedParam | ConstParam | MachineParam | SomeParam | LifetimeParam | Params | Param | Result | Body | Requires | Ensures | Reaches | Crashes
+            | Blocks | Suspends | Terminates | Invokes | Satisfies | Registers | Clobbers | TypeArgs | Let | Assign | Discard | ExpressionStatement | Tail
+            | AsmBlock | Instruction | AsmTransition | Match | Transition | Arm | WildcardPattern | BindingPattern | RecordPattern | FieldPattern
+            | RestPattern | TuplePattern | ParenPattern | ValuePattern | Literal | ExpressionArgs | Paren | Tuple | RecordLiteral | FieldInit | Omission
+            | ArrayLiteral | Selection | Call | Args | FieldAccess | Index | Range | Borrow | Unary | Move | CallMarker | Cast | CastEntry | Binary
+            | Unfinished => Err(TypeError::unsupported(source, node_index)),
         }
     }
 }

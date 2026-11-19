@@ -205,28 +205,15 @@ impl BodyTyper<'_, '_> {
                 ValueType::Array(Box::new(element), node.children.len() as u64)
             }
             Borrow => {
-                let arg = self.ungrouped_place(self.unit.single_child(node_index)?)?;
-                let access = self.unit.access(node_index);
-                if source_file.nodes[arg].kind == Index {
-                    self.index(arg, Some(access))?
-                } else {
-                    let ty = if source_file.nodes[arg].kind == FieldAccess {
-                        self.project_fields(arg, &access)?
-                    } else {
-                        self.type_expression(arg)?
-                    };
-                    if access != crate::Access::Shared {
-                        self.require_writable(arg)?;
-                    }
-                    self.record_obligation(
-                        node_index,
-                        ObligationKind::Borrow {
-                            access: access.clone(),
-                            place: Site::at(source_file, arg),
-                        },
-                    );
-                    ValueType::Reference(access, Box::new(ty))
-                }
+                let place = self.unit.single_child(node_index)?;
+                self.check_place(
+                    place,
+                    super::places::PlaceUse::Borrow {
+                        site: node_index,
+                        access: self.unit.access(node_index),
+                    },
+                )?
+                .1
             }
             FieldAccess => return self.field_chain(node_index),
             Index => self.index(node_index, None)?,
