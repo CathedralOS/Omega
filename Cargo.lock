@@ -406,25 +406,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "checked-terminal-psi-to-published-psi"
+name = "checked-program-to-psi"
 version = "0.1.0"
 dependencies = [
  "arena",
  "bundled-declarations",
- "lowered-program-to-checked-program",
- "record-storage",
- "declaration-contracts",
+ "declaration-scope",
  "diagnostics",
+ "evaluation-admission",
  "evaluation-receipts",
  "language-core",
+ "lowered-program-to-checked-program",
+ "numeric-literals",
  "numerics",
  "optimization",
- "provider-choices",
+ "psi-authorization",
+ "psi-provider-selections",
+ "record-storage",
  "semantic-vocabulary",
+ "service-surface",
  "source-admission",
  "source-declarations",
  "source-lexer",
  "source-parser",
+ "source-provenance",
+ "source-symbol-table",
  "source-text",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
@@ -652,7 +658,6 @@ dependencies = [
  "program-entry-plan",
  "proof-admission",
  "provider-admission",
- "provider-choices",
  "provider-correspondence",
  "provider-plans",
  "psi-authorization",
@@ -672,6 +677,7 @@ dependencies = [
  "source-admission",
  "source-capture",
  "source-compiler",
+ "source-provenance",
  "source-text",
  "symbols",
  "syntax-trees",
@@ -2181,9 +2187,9 @@ dependencies = [
 name = "portable-publication"
 version = "0.1.0"
 dependencies = [
+ "checked-program-to-psi",
  "provider-demand",
  "host-provider-inputs",
- "checked-terminal-psi-to-published-psi",
  "declaration-scope",
  "diagnostics",
  "effects",
@@ -2299,7 +2305,6 @@ dependencies = [
  "product-publication",
  "program-entry-plan",
  "provider-admission",
- "provider-choices",
  "provider-correspondence",
  "published-program",
  "published-runtime-input",
@@ -2409,17 +2414,6 @@ dependencies = [
  "terminal-semantics",
  "terminal-work",
  "wire",
-]
-
-[[package]]
-name = "provider-choices"
-version = "0.1.0"
-dependencies = [
- "declaration-contracts",
- "evaluation-receipts",
- "semantic-vocabulary",
- "source-text",
- "symbols",
 ]
 
 [[package]]
@@ -3055,7 +3049,7 @@ dependencies = [
  "application-identity",
  "arena",
  "bignum",
- "checked-terminal-psi-to-published-psi",
+ "checked-program-to-psi",
  "declaration-contracts",
  "declaration-scope",
  "diagnostics",
@@ -3069,7 +3063,6 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "optimization",
- "provider-choices",
  "rayon",
  "record-storage",
  "semantic-vocabulary",

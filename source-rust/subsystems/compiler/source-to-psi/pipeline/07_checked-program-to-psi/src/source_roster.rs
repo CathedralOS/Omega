@@ -130,7 +130,7 @@ impl SourceCompilationRoster {
                 .as_ref()
                 .map_or(self.entries.as_slice(), std::slice::from_ref),
             subjects: std::slice::from_ref(&self.subject),
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &self.selected,
             bindings: &self.bindings,
             supplies: &self.supplies,
@@ -157,7 +157,7 @@ impl SourceCompilationRoster {
                 declaration_metadata: &self.declaration_metadata,
                 entries: &self.entries,
                 subjects: std::slice::from_ref(&self.subject),
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &self.selected,
                 bindings: &self.bindings,
                 supplies: &self.supplies,

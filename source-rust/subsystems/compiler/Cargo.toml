@@ -22,6 +22,7 @@ psi-authorization = { path = "psi/authorization" }
 
 [dev-dependencies]
 provider-plans = { path = "build/providers/plans" }
+source-provenance = { path = "foundation/source-provenance" }
 psi-provider-selections = { path = "psi/providers" }
 evaluation-accounting = { path = "build/evaluation/accounting" }
 entry-planning = { path = "psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning" }

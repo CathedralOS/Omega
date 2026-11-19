@@ -12,6 +12,7 @@ mod fixture_package_inputs;
 mod unbuilt_frontier;
 
 use source_compiler::AcceptedTerminalSource;
+use source_compiler::provider_choice_inputs::{NativeBindingSelection, NativeBuildSupply};
 use source_compiler::evaluation::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
 };
@@ -112,7 +113,7 @@ fn judged(
                 Some(package),
                 origin,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .source_id;
         let tokens = crate::frontend_fixture::Lexer::new(text)
@@ -137,7 +138,7 @@ fn judged(
         source_compiler::typing::lower_symbol_resolved_trees(&resolved).expect("type source");
     let defaults = retain_provider_defaults(ProviderPlanningContext::new(
         &typed,
-        declaration_contracts::source_identity::DependencyScope::Product,
+        source_provenance::DependencyScope::Product,
     ))
     .expect("harvest provider defaults");
     let entry = typed
@@ -202,7 +203,7 @@ fn supplied_product(
     defaults: Vec<TargetProviderDefaults>,
     roster: source_compiler::SourceCompilationRoster,
     target: &str,
-    native_bindings: &[provider_choices::NativeBuildSupply],
+    native_bindings: &[NativeBuildSupply],
 ) -> Result<Supplied, String> {
     let original = Arc::new(
         source_compiler::SourcePublication::judge(
@@ -589,7 +590,7 @@ fn prepare(
 fn prepare_for_target(
     accepted: &AcceptedTerminalSource,
     build: &[ProviderSelection],
-    native_bindings: &[provider_choices::NativeBuildSupply],
+    native_bindings: &[NativeBuildSupply],
     defaults: &[TargetProviderDefaults],
     target: Option<&str>,
 ) -> Result<PreparedTargetSupply, String> {
@@ -764,7 +765,7 @@ fn native_supply(
     accepted: &AcceptedTerminalSource,
     target: semantic_vocabulary::source_selections::ProductTarget,
     supplier: semantic_vocabulary::PackageKeyIdentity,
-) -> provider_choices::NativeBuildSupply {
+) -> NativeBuildSupply {
     use evaluation_accounting::BuildEvaluationSponsor;
     use evaluation_contracts::{
         BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
@@ -791,8 +792,8 @@ fn native_supply(
         .snapshot()
         .unwrap()
         .record();
-    provider_choices::NativeBuildSupply {
-        selection: source_compiler::evaluation::native_bindings::NativeBindingSelection {
+    NativeBuildSupply {
+        selection: NativeBindingSelection {
             application: None,
             subject: requirement.slot,
             requirement: requirement.requirement,

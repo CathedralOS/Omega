@@ -88,7 +88,7 @@ pub struct ProviderSupply {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SupplySelection {
     Checked(ProviderSelection),
-    Native(provider_choices::NativeBuildSupply),
+    Native(crate::provider_choice_inputs::NativeBuildSupply),
 }
 
 impl ProviderSupply {
@@ -147,7 +147,7 @@ pub struct TargetSupplyRequest<'a> {
     pub build: &'a [ProviderSelection],
     /// Exact native requirements and the completed Build evaluations that
     /// produced their target-specific locators.
-    pub native_bindings: &'a [provider_choices::NativeBuildSupply],
+    pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
     /// The defaults target packages retain.
     pub defaults: &'a [TargetProviderDefaults],
     /// The selected deployment, or no deployment for targetless checking.

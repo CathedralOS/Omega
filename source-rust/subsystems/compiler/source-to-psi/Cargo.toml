@@ -47,7 +47,6 @@ bignum = { path = "../../../foundation/bignum" }
 sha2 = "0.10.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-provider-choices = { path = "language/provider-choices" }
 wire = { path = "../../../foundation/wire" }
 arena = { path = "../../../foundation/arena" }
 record-storage = { path = "../../../foundation/record-storage" }

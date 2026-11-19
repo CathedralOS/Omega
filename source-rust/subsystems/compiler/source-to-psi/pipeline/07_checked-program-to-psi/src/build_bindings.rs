@@ -56,7 +56,7 @@ use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::declaration_selection::product_operands::ProductStaticEnvironment;
 use crate::production::TerminalBuildQueryCall;
-use declaration_contracts::build_requests::BuildCallSite;
+use semantic_vocabulary::source_selections::BuildCallSite;
 use semantic_vocabulary::BoundaryMachineId;
 use std::sync::Arc;
 use terminal_codec::TerminalExecutionView;
@@ -222,7 +222,7 @@ pub(crate) mod build_filesystem {
 
     #[derive(Debug, PartialEq, Eq, record_storage::Record)]
     pub struct TerminalBuildFilesystemCall {
-        pub site: declaration_contracts::build_requests::BuildCallSite,
+        pub site: semantic_vocabulary::source_selections::BuildCallSite,
         pub action: TerminalBuildFilesystemOperation,
     }
 
@@ -324,7 +324,7 @@ pub(crate) mod build_queries {
 
     #[derive(Debug, PartialEq, Eq, record_storage::Record)]
     pub struct TerminalBuildQueryCall {
-        pub site: declaration_contracts::build_requests::BuildCallSite,
+        pub site: semantic_vocabulary::source_selections::BuildCallSite,
         pub action: TerminalBuildQueryOperation,
         pub occurrence: source_text::SourceSpan,
         pub request:
@@ -336,9 +336,25 @@ pub(crate) mod build_queries {
 
 pub(crate) mod build_requests {
 
-    pub use declaration_contracts::build_requests::BuildCallSite;
-    pub use declaration_contracts::build_requests::TerminalBuildRequestCall;
-    pub use declaration_contracts::build_requests::TerminalBuildRequestOperation;
+    pub use semantic_vocabulary::source_selections::BuildCallSite;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub enum TerminalBuildRequestOperation {
+        Package,
+        Application,
+        Member,
+        ArtifactOnly,
+        PathDependency,
+        GitDependency,
+        PrepareDependency,
+        LogLine,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct TerminalBuildRequestCall {
+        pub site: BuildCallSite,
+        pub action: TerminalBuildRequestOperation,
+    }
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct TerminalBuildRequests {

@@ -15,7 +15,7 @@ pub struct ProductSourceInputs<'a> {
     pub root_bindings: &'a [declaration_contracts::selection::RootBinding],
     pub provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
     pub default_provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
-    pub native_bindings: &'a [provider_choices::NativeBuildSupply],
+    pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
     pub representations: crate::ProductRepresentationInput<'a>,
     pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
     pub wire_demands: &'a [crate::preparation::WireCompatibilityDemand],
@@ -162,7 +162,7 @@ fn prepare_and_judge(
                     &typed,
                     machine,
                     &[subject],
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 )
                 .unwrap_or(false)
             })
@@ -225,7 +225,7 @@ fn prepare_and_judge(
             Arc::new(PreparedServiceCatalog::prepare(
                 ProviderPlanningContext::new(
                     &typed,
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 ),
                 &exact_sources,
             ))
@@ -233,7 +233,7 @@ fn prepare_and_judge(
         let catalog = catalog
             .bind(ProviderPlanningContext::new(
                 &typed,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ))
             .map_err(|diagnostic| vec![diagnostic])?;
         let declaration =
@@ -282,7 +282,7 @@ fn prepare_and_judge(
     let mut provider_defaults = crate::evaluation::provider_declarations::retain_provider_defaults(
         crate::evaluation::provider_declarations::ProviderPlanningContext::new(
             &program,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
     )?;
     // Keep every available default for settlement. Only actual target choices
@@ -466,7 +466,7 @@ fn inspection_root(
                 typed,
                 symbol,
                 &[subject],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?
         {
