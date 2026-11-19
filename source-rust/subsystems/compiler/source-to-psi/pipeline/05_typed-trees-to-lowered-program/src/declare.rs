@@ -2465,38 +2465,46 @@ pub(crate) fn boundary_source(
     if callable.is_empty() {
         return Err("the boundary has no callable identity");
     }
-    if let Some(machine) = typed.machine_by_symbol(source) {
+    // Normalize the whole declaration in the same scope as the service schema.
+    // Computing each type alone loses the relation between borrowed inputs and results.
+    let (machine, parameter_types, result_type) = if let Some(machine) =
+        typed.machine_by_symbol(source)
+    {
         let Some([state]) = typed.machine_states(machine).as_array() else {
             return Err("the machine boundary has no exact entry declaration");
         };
-        if entry != state.symbol {
+        if entry != state.symbol
+            || signature.parameters != state.parameters
+            || signature.return_type != state.return_type
+        {
             return Err("the machine boundary names another entry declaration");
         }
-    } else if entry != signature.symbol {
-        return Err("the boundary header names another entry declaration");
-    }
-    // A checked trait callable names its declaring trait in `machine` and
-    // its exact member in `state`, as `trait_requirement` does. A concrete
-    // realization instead keeps its own machine and generated entry.
-    let machine = if let Some((declaring, requirement)) = typed.trait_machine_signature(source) {
-        if declaring.symbol != owner || requirement.symbol != source || entry != requirement.symbol
+        let (parameters, result) = typed
+            .machine_definition_types(machine)
+            .ok_or("the machine boundary has no complete declared signature identity")?;
+        (machine.symbol, parameters, result)
+    } else {
+        let (declaring, requirement) = typed
+            .trait_machine_signature(source)
+            .ok_or("the boundary requirement has no declaring trait")?;
+        if declaring.symbol != owner
+            || requirement.symbol != source
+            || entry != requirement.symbol
+            || signature.symbol != requirement.symbol
         {
             return Err("the boundary requirement has another declaring trait or member");
         }
-        owner
-    } else {
-        source
+        let scope =
+            crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(declaring);
+        let (parameters, result, _) = typed
+            .requirement_definition_types(&scope, requirement)
+            .ok_or("the boundary requirement has no complete declared signature identity")?;
+        (declaring.symbol, parameters, result)
     };
     let formals = typed
         .state_parameters
         .span(signature.parameters)
         .ok_or("the boundary parameter span does not resolve")?;
-    let type_text = |reference| {
-        typed
-            .type_identity_text(typed.package_qualified_type_identity(reference))
-            .filter(|text| !text.is_empty())
-            .ok_or("a boundary signature type has no exact identity")
-    };
     let nominal_text = |symbol| {
         typed
             .exact_owner_nominal_identity(symbol, &sources)
@@ -2512,15 +2520,12 @@ pub(crate) fn boundary_source(
         semantic: typed
             .normalized_hermetic_symbol_identity(source)
             .map_err(|_| "the boundary has no hermetic declaration identity")?,
-        parameter_types: formals
-            .iter()
-            .map(|formal| type_text(formal.type_reference))
-            .collect::<Result<Vec<_>, _>>()?,
+        parameter_types,
         parameter_modes: formals
             .iter()
             .map(|formal| (formal.is_mutable, formal.is_const, formal.relevance))
             .collect(),
-        result_type: type_text(signature.return_type)?,
+        result_type,
         may_suspend: signature.suspends,
         may_block: signature.blocks,
         application: typed
