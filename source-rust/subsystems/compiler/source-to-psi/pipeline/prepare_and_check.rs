@@ -12,7 +12,7 @@ pub struct ProductSourceInputs<'a> {
     pub targets: &'a [crate::source_targets::SourceTarget],
     pub calling_targets: &'a [&'a str],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub root_bindings: &'a [declaration_contracts::selection::RootBinding],
+    pub root_bindings: &'a [crate::RootBinding],
     pub provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
     pub default_provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
     pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
@@ -90,7 +90,7 @@ struct JudgedSource {
 }
 
 pub(crate) fn program_roots(
-    bindings: &[declaration_contracts::selection::RootBinding],
+    bindings: &[crate::RootBinding],
 ) -> Vec<symbols::SymbolHandle> {
     let mut roots = bindings
         .iter()
@@ -498,7 +498,7 @@ fn inspection_root(
 /// binding names.
 pub fn layout_target_scopes(
     typed: &crate::source_state::TypedTrees,
-    root_bindings: &[declaration_contracts::selection::RootBinding],
+    root_bindings: &[crate::RootBinding],
     provider_selections: &[crate::provider_choice_inputs::ProviderSelection],
     chosen_defaults: &[crate::source_supply::ChosenDefaultLayout],
     claimed: &[&crate::evaluation::native_bindings::NativeBindingSelection],
@@ -624,7 +624,7 @@ pub fn layout_target_scopes(
 }
 
 fn selected_program_entry(
-    root_bindings: &[declaration_contracts::selection::RootBinding],
+    root_bindings: &[crate::RootBinding],
     selected_profile: &crate::source_targets::SourceTarget,
     targets: &[crate::source_targets::SourceTarget],
 ) -> Result<Option<usize>, Vec<Diagnostic>> {

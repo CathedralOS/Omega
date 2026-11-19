@@ -5,7 +5,7 @@ use crate::{SourcePreparationFailure, TypedFrontier};
 use diagnostics::Diagnostic;
 
 pub struct UnbuiltSourceInputs<'a> {
-    pub root_bindings: &'a [declaration_contracts::selection::RootBinding],
+    pub root_bindings: &'a [crate::RootBinding],
     pub provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
     pub targets: &'a [crate::source_targets::SourceTarget],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
