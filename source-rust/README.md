@@ -1,6 +1,6 @@
 # Rust Omega compiler
 
-This tree contains Omega's Rust development and comparison compiler. Delta implements the Epsilon evaluator. Epsilon is used to write the first Omega compiler D, which builds the Omega-written product. The Omega sources live in [source/psi](../source/psi) and [source/omega](../source/omega). The [bootstrap source map](../bootstrap/README.md) describes how they fit into the bootstrap.
+This tree contains Omega's Rust development and comparison compiler. Delta implements the Epsilon evaluator. Epsilon is used to write the first Omega compiler D, which builds the Omega-written product. The Omega sources live in [source/](../source/README.md). The [bootstrap source map](../bootstrap/README.md) describes how they fit into the bootstrap.
 
 A release or bootstrap input set can omit the Rust compiler when its dependency closure contains no artifact, build step or path supplied by this checkout. That includes finding the [bundled library](../source/library) independently. Each compiler's outputs earn trust through checks of meaning, refinement, artifact bytes, manifest identities and proof sidecars.
 

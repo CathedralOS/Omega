@@ -14,7 +14,7 @@ Omega is a proof-checked systems language whose programs are data-oriented
 state machines:
 - [source-rust/](source-rust/README.md) contains the Rust compiler, CLI, interpreter and package manager in the root Cargo workspace.
 - [omega-rust-v2/](omega-rust-v2/Cargo.toml) is a separate Cargo workspace.
-- `source/psi/` + `source/omega/` — the Omega-written product compiler.
+- `source/application/` and `source/subsystems/compiler/` — the Omega-written product compiler.
 - `source/library/` — bundled `omega::` packages (`name.omg` or `name/mod.omg`).
 - `bootstrap/interpreted/{0_alpha,…,5_omega}/` — the trust-minimizing bootstrap chain (`bootstrap/proofs/` holds Gamma-written derivation checking; host-side checks live in `tests/bootstrap/` and resolve locations via `tools/bootstrap/paths.sh`).
 
@@ -456,8 +456,8 @@ reads the allowed lanes from this table:
 | `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/interpreted/<N>_<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific checks under `tests/bootstrap/interpreted/`. |
 | `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/interpreted/5_omega/` and its tests. Never shorten to `omega`. |
 | `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `tests/bootstrap/interpreted/`, and `tools/bootstrap/`. |
-| `psi` | Target-neutral source semantics and Psi publication in `source-rust/subsystems/compiler/source-to-psi/`, portable Psi in its sibling `psi/`, and self-hosted `source/psi/`. |
-| `omega` | Native planning, representations and verification in `source-rust/subsystems/compiler/psi-to-native/`, or self-hosted `source/omega/`. |
+| `psi` | Target-neutral source semantics and Psi publication in `source-rust/subsystems/compiler/source-to-psi/`, portable Psi in its sibling `psi/`, and Omega-written `source/subsystems/compiler/source_to_psi/`. |
+| `omega` | Native planning, representations and verification in `source-rust/subsystems/compiler/psi-to-native/`, or Omega-written `source/subsystems/compiler/alpha/`. |
 | `backend` | Native targets and ABIs under `psi-to-native/targets/`, and encoding, layout, objects and images in native stages 11–16. |
 | `compiler` | The public compiler entry in `source-rust/subsystems/compiler/compiler.rs` and contracts spanning the two pipelines. |
 | `build` | Project planning, Build execution and settings in `source-rust/subsystems/compiler/build/`, and authored `build.omg` declarations. |

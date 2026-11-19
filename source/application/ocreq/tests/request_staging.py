@@ -6,7 +6,7 @@ import struct
 import subprocess
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tests/bootstrap"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "tests/bootstrap"))
 from conformance.vectors import ocreq_request
 
 

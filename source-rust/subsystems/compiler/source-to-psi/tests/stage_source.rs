@@ -6,6 +6,7 @@ use source_compiler::declaration_selection::{
 };
 use source_compiler::product::ProductSourceInputs;
 use source_compiler::source_inputs::SourceMap;
+use source_compiler::source_symbols::SourceScopedTopLevelBinding;
 use source_compiler::{StageSource, compile};
 use source_provenance::DependencyScope;
 use source_text::{SourceId, SourceSpan, Span};
@@ -70,22 +71,21 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
     assert_eq!(reopened.to_bytes(), bytes);
 }
 
-const OMEGA_REQUEST: &str = include_str!("../../../../../source/omega/application/ocreq/request.omg");
-const OMEGA_OUTCOME: &str = include_str!("../../../../../source/omega/application/ocreq/outcome.omg");
+const OMEGA_REQUEST: &str = include_str!("../../../../../source/subsystems/compiler/request/request.omg");
+const OMEGA_OUTCOME: &str = include_str!("../../../../../source/subsystems/compiler/request/outcome.omg");
 
 #[test]
 fn omega_compiler_storage_and_outcomes_publish_psi() {
     // Compile the product declarations directly so a broken hosted Build
     // cannot hide a regression in their field types or accessors.
-    let sources = include_str!("../../../../../source/psi/foundation/source.omg");
-    let (staging, _) = OMEGA_REQUEST.split_once("machine u32_at(").unwrap();
+    let sources = include_str!("../../../../../source/subsystems/compiler/source_to_psi/representations/source_files/source.omg");
     let (storage, _) = sources
         .split_once("public machine source_set_add(")
         .unwrap();
 
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     for (name, text) in [
-        ("request staging", staging),
+        ("request staging", OMEGA_REQUEST),
         ("source storage", storage),
         ("outcomes", OMEGA_OUTCOME),
     ] {
@@ -111,8 +111,29 @@ fn complete_omega_request_protocol_publishes_psi() {
             DependencyScope::Product,
         )
         .source_id;
+    let protocol = files.add_checked_instance(
+        "product/protocol.omg".into(),
+        include_str!("../../../../../source/subsystems/compiler/request/protocol.omg"),
+        "product".into(),
+        Some(package),
+        SourceOrigin::User,
+        SourceResolutionStratum::Base,
+        DependencyScope::Product,
+    ).source_id;
+    let wire = files.add_checked_instance(
+        "wire/codec.omg".into(),
+        include_str!("../../../../../source/foundation/wire/codec.omg"),
+        "wire".into(),
+        PackageKeyIdentity::from_digest([0x62; 32]),
+        SourceOrigin::User,
+        SourceResolutionStratum::Base,
+        DependencyScope::Product,
+    ).source_id;
     let mut stage = product(files, root, package, &[]);
-    stage.roots.push(outcome);
+    stage.roots.extend([outcome, protocol, wire]);
+    stage.imports.push(SourceScopedTopLevelBinding::logical_module_import(
+        protocol, wire, "wire::u32_from_le_bytes", 1,
+    ));
     let program = compile(stage).unwrap();
     assert!(!program.to_bytes().is_empty());
 }

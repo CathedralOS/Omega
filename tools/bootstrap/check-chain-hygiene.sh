@@ -55,7 +55,7 @@ for required in \
   "$OMEGA_PATH_OMEGA_COMPILER" \
   "$OMEGA_PATH_PROOFS" \
   "$OMEGA_REPO_ROOT/source/library" \
-  "$OMEGA_REPO_ROOT/source/psi"
+  "$OMEGA_REPO_ROOT/source/subsystems/compiler/source_to_psi"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
 done

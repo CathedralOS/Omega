@@ -14,19 +14,22 @@ import subprocess
 import tempfile
 import time
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 PACKAGES = (
-    ('omega_compiler_construction', 'source/omega/application/construction', 0),
-    ('omega_compiler', 'source/omega/compilation', 0),
-    ('psi', 'source/psi', 0),
+    ('omega_compiler_construction', 'source/application/construction', 0),
+    ('omega_compiler', 'source/subsystems/compiler/driver', 0),
+    ('psi', 'source/subsystems/compiler/source_to_psi', 0),
     ('omega_language_std', 'source/library/std', 2),
     ('omega_language_core', 'source/library/core', 1),
+    ('compiler_alpha', 'source/subsystems/compiler/alpha', 0),
+    ('wire', 'source/foundation/wire', 0),
 )
 # These are explicit construction inputs, matching the ordinary application and
 # library declarations. The invocation does not claim to execute those Builds.
 EDGES = ((0, 1, 'omega_compiler'), (0, 2, 'psi'),
-         (0, 3, 'omega_language_std'), (1, 2, 'psi'))
-ENTRY = 'source/omega/application/construction/main.omg'
+         (0, 3, 'omega_language_std'), (0, 6, 'wire'),
+         (1, 2, 'psi'), (1, 5, 'compiler_alpha'), (5, 2, 'psi'))
+ENTRY = 'source/application/construction/main.omg'
 ENTRY_NAME = b'entry_start'
 
 

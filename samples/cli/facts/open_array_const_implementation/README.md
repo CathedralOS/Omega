@@ -143,4 +143,4 @@ The repair needed three changes beyond the array recipe support:
 
 The row closes the fixed-array production of the parent's const-expression
 closure and package projection. Case (tagged variant) recipes are not
-exercised here, and `source/psi/` product-producer parity remains open.
+exercised here, and `source/subsystems/compiler/source_to_psi/` product-producer parity remains open.
