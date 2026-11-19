@@ -123,7 +123,7 @@ public boundary trait DeviceLoanProvider {
     // Publication names the live loan's range and current write state. An
     // intersecting CPU write after this crossing invalidates the occurrence
     // before `notify` may consume it.
-    machine publish(loan: &DeviceLoan) -> DeviceOrderingEvent
+    machine publish(loan: @DeviceLoan) -> DeviceOrderingEvent
     reaches none
     ensures
         result in DeviceOrderingEvent::Publication
@@ -134,7 +134,7 @@ public boundary trait DeviceLoanProvider {
     // as an occurrence the caller retires through `settle`. An
     // instruction-free coherent realization produces no occurrence here —
     // it simply has nothing to report.
-    machine maintain_cache(loan: &DeviceLoan) -> DeviceOrderingEvent
+    machine maintain_cache(loan: @DeviceLoan) -> DeviceOrderingEvent
     reaches none
     ensures
         result in DeviceOrderingEvent::CacheMaintenance

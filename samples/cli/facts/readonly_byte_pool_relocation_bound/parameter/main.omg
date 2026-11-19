@@ -2,7 +2,7 @@
 // Place: parameter. The slice literal is passed through a parameter with required length contract.
 // Expected exit: 0
 
-machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap
+machine inspect_bytes(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {
@@ -20,7 +20,7 @@ ensures result == 0u64
     }
 }
 
-machine check_param(bytes: &[u8]) -> u64 crashes Trap
+machine check_param(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {

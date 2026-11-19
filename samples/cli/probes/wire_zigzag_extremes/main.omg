@@ -39,7 +39,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let value: ExtremeValues = ExtremeValues {
         minimum: -9223372036854775808i64,
@@ -50,8 +50,8 @@ machine Main::main(main: &mut Main) {
     let mut decoded: ExtremeValues = ExtremeValues {
         minimum: 0i64, maximum: 0i64, signed32: [0i32, 0i32], trailing: 0u32
     };
-    Extremes::encode(&value, &mut main.buffer, &mut main.written);
-    Extremes::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
+    Extremes::encode(@value, @mut main.buffer, @mut main.written);
+    Extremes::decode(@mut decoded, @main.buffer, @mut main.read, @mut main.verdict);
     let matches: bool = main.verdict == WireVerdict::Sound
         && main.written == 37u64
         && main.read == 37u64
@@ -64,12 +64,12 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

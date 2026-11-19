@@ -24,7 +24,7 @@ requires Degree >= 1 && Degree <= 2
     base * local
 }
 
-machine from_field<const Degree: u64>(basis: &Basis<Degree>) -> i64 in Wrapping
+machine from_field<const Degree: u64>(basis: @Basis<Degree>) -> i64 in Wrapping
 requires Degree >= 1 && Degree <= 2
 {
     power<Degree>(basis.setting)
@@ -38,18 +38,18 @@ requires Degree >= 1 && Degree <= 2
 
 data Main { }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     let setting: i64 in Wrapping = 10;
     let constant: i64 in Wrapping = step<0>(setting);
     let linear: Basis<1> = Basis { setting: setting };
-    let linear_power: i64 in Wrapping = from_field(&linear);
+    let linear_power: i64 in Wrapping = from_field(@linear);
     let quadratic: Basis<2> = Basis { setting: setting };
     let quadratic_power: i64 in Wrapping = from_parameter<2>(quadratic.setting);
     transition constant == 1 && linear_power == 10 && quadratic_power == 100 {
         true -> report(main, constant, linear_power, quadratic_power)
         false -> ProcessExit::exit_process(1)
     }
-    machine report(main: &mut Main, constant: i64 in Wrapping, linear_power: i64 in Wrapping,
+    machine report(main: @mut Main, constant: i64 in Wrapping, linear_power: i64 in Wrapping,
                  quadratic_power: i64 in Wrapping) {
         show(main, constant);
         Console::write(" ");
@@ -61,37 +61,37 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
 }
 
-machine show(main: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
+machine show(main: @mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value >= 0 && value < 1000 {
         true -> hundreds(main, value / 100, value)
         false -> ProcessExit::exit_process(1)
     }
-    machine hundreds(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
+    machine hundreds(main: @mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
         transition digit > 0 {
             true -> emit(main, digit, value, 100)
             false -> tens(main, (value / 10) % 10, value)
         }
     }
-    machine tens(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
+    machine tens(main: @mut Main, digit: i64 in Wrapping, value: i64 in Wrapping) {
         transition value >= 10 {
             true -> emit(main, digit, value, 10)
             false -> ones(main, value)
         }
     }
-    machine emit(main: &mut Main, digit: i64 in Wrapping, value: i64 in Wrapping, place: i64 in Wrapping)
+    machine emit(main: @mut Main, digit: i64 in Wrapping, value: i64 in Wrapping, place: i64 in Wrapping)
     requires digit >= 0 && digit <= 9
     {
         Console::write_byte((digit as i32) + 48);
         transition place == 100 { true -> tens(main, (value / 10) % 10, value) _ -> ones(main, value) }
     }
-    machine ones(main: &mut Main, value: i64 in Wrapping) {
+    machine ones(main: @mut Main, value: i64 in Wrapping) {
         let digit: i64 in Wrapping = value % 10;
         transition digit >= 0 && digit <= 9 {
             true -> finish(main, digit)
             false -> ProcessExit::exit_process(1)
         }
     }
-    machine finish(main: &mut Main, digit: i64 in Wrapping)
+    machine finish(main: @mut Main, digit: i64 in Wrapping)
     requires digit >= 0 && digit <= 9
     {
         Console::write_byte((digit as i32) + 48);
@@ -101,5 +101,5 @@ machine show(main: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Cons
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

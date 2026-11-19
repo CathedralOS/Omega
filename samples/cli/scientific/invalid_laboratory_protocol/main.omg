@@ -3,18 +3,18 @@
 // invalid stdin, which the valid interpreter handles without compilation errors.
 data Main { }
 data Lease { owner: i32; }
-machine release(lease: &mut Lease, actor: i32)
+machine release(lease: @mut Lease, actor: i32)
 requires lease.owner == actor
 {
     lease.owner = 0;
 }
-machine main(main: &mut Main) {
+machine main(main: @mut Main) {
     let mut lease: Lease = Lease { owner: 1 };
-    release(&mut lease, 2);
+    release(@mut lease, 2);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

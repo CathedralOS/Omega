@@ -2,8 +2,8 @@
 // Invalid: querying thin pointer &u64 (size == 8u64, align == 8u64), so SLICE_SIZE - (SLICE_ALIGN * 2u64) underflows u64.
 // Expected exit: 0
 
-const SLICE_SIZE: u64 = size_of<&u64>();
-const SLICE_ALIGN: u64 = align_of<&u64>();
+const SLICE_SIZE: u64 = size_of<@u64>();
+const SLICE_ALIGN: u64 = align_of<@u64>();
 
 machine main() crashes Trap {
     let diff: u64 = SLICE_SIZE - (SLICE_ALIGN * 2u64);

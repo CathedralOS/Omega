@@ -46,8 +46,8 @@ fn a_borrowed_collection_cast_keeps_its_declared_field_type() {
         r#"
 domain [u8; 2]::Marked;
 data Packet { bytes: [u8; 2] in Marked; }
-machine update(packet: &mut Packet) {
-    (&mut packet.bytes as -Marked)[0] = 1;
+machine update(packet: @mut Packet) {
+    (@mut packet.bytes as -Marked)[0] = 1;
 }
 "#,
     );
@@ -123,8 +123,8 @@ fn a_declared_receiving_type_still_constrains_a_cast_initializer() {
         r#"
 domain [u8; 2]::Marked;
 data Packet { bytes: [u8; 2] in Marked; }
-machine update(packet: &mut Packet) {
-    let wrong: bool = &mut packet.bytes as -Marked;
+machine update(packet: @mut Packet) {
+    let wrong: bool = @mut packet.bytes as -Marked;
 }
 "#,
     );
@@ -541,8 +541,8 @@ fn a_captured_cast_index_retains_its_declared_result_type() {
         r#"
 domain [u8; 8]::Terminated requires self[7] == 0;
 data Packet { bytes: [u8; 8] in Terminated; index: i32 in Wrapping; }
-machine update(packet: &mut Packet) {
-    (&mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
+machine update(packet: @mut Packet) {
+    (@mut packet.bytes as -Terminated)[packet.index as -Wrapping] = 0;
 }
 "#,
     );

@@ -11,12 +11,12 @@ public data Fit [copy] {
     first: f64; second: f64; objective: f64;
     rank: i32; null_first: f64; null_second: f64;
 }
-public machine residual(ray: &Ray, first: f64, second: f64) -> f64 {
+public machine residual(ray: @Ray, first: f64, second: f64) -> f64 {
     ray.first * first + ray.second * second - ray.time
 }
-public machine objective(problem: &Problem, first: f64, second: f64) -> f64 {
-    let a: f64 = residual(&problem.rays[0], first, second);
-    let b: f64 = residual(&problem.rays[1], first, second);
-    let c: f64 = residual(&problem.rays[2], first, second);
+public machine objective(problem: @Problem, first: f64, second: f64) -> f64 {
+    let a: f64 = residual(@problem.rays[0], first, second);
+    let b: f64 = residual(@problem.rays[1], first, second);
+    let c: f64 = residual(@problem.rays[2], first, second);
     a * a + b * b + c * c
 }

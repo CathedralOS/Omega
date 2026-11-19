@@ -13,7 +13,7 @@
 
 data Carrier<'storage> {
     marker: i32;
-    reference: &'storage i32;
+    reference: @'storage i32;
 }
 
 data Holder<'storage> { carrier: Carrier<'storage>; }
@@ -29,7 +29,7 @@ machine transform<'storage>(carrier: Carrier<'storage>) -> Carrier<'storage> {
     machine preserve(carrier: Carrier<'storage>) -> Carrier<'storage> { carrier }
 }
 
-machine repair<'storage>(holder: &mut Holder<'storage>) -> i32 {
+machine repair<'storage>(holder: @mut Holder<'storage>) -> i32 {
     let removed: Carrier<'storage> = holder.carrier;
     holder.carrier = removed;
     holder.carrier.reference
@@ -37,26 +37,26 @@ machine repair<'storage>(holder: &mut Holder<'storage>) -> i32 {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     run(main);
 }
 
-machine run<'storage>(main: &mut Main) {
+machine run<'storage>(main: @mut Main) {
     let storage: i32 = 7;
-    let mut holder: Holder<'storage> = Holder { carrier: Carrier { marker: 41, reference: &storage } };
+    let mut holder: Holder<'storage> = Holder { carrier: Carrier { marker: 41, reference: @storage } };
     holder.carrier = transform(holder.carrier);
-    let observed: i32 = repair(&mut holder);
+    let observed: i32 = repair(@mut holder);
     transition observed == 7 && holder.carrier.marker == 42 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

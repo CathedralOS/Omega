@@ -30,7 +30,7 @@ use omega::language::core::reflect::FieldInfo;
 
 // A new plan adds no reader/writer restriction, observation demand or reach.
 // Its explicit issuance choice is independent of those empty axes.
-public machine new_plan<'text>(schema: &TypeSchema<'text>, issuance: Issuance<'text>) -> AccessPlan<'text>
+public machine new_plan<'text>(schema: @TypeSchema<'text>, issuance: Issuance<'text>) -> AccessPlan<'text>
 reaches none
 crashes none
 terminates
@@ -54,7 +54,7 @@ ensures result.field_count == 0, result.reader_count == 0,
 // Each call appends an independent restriction. Empty callers deny that
 // region, while no row adds no restriction. Parent and repeated rules remain
 // separate so normalization must intersect them rather than replace a row.
-public machine allow_readers<'text>(plan: &mut AccessPlan<'text>, region: AccessRegion<'text>, callers: [CallableInfo<'text>])
+public machine allow_readers<'text>(plan: @mut AccessPlan<'text>, region: AccessRegion<'text>, callers: [CallableInfo<'text>])
 reaches none
 crashes none
 terminates
@@ -66,7 +66,7 @@ ensures embed(plan.reader_count) == embed(old(plan.reader_count)) + 1
     plan.reader_count = index + 1;
 }
 
-public machine allow_readers<'text>(plan: &mut AccessPlan<'text>, field: FieldInfo<'text>, callers: [CallableInfo<'text>])
+public machine allow_readers<'text>(plan: @mut AccessPlan<'text>, field: FieldInfo<'text>, callers: [CallableInfo<'text>])
 reaches none
 crashes none
 terminates
@@ -76,7 +76,7 @@ ensures embed(plan.reader_count) == embed(old(plan.reader_count)) + 1
     allow_readers(plan, AccessRegion::Field { field: field }, callers);
 }
 
-public machine allow_writers<'text>(plan: &mut AccessPlan<'text>, region: AccessRegion<'text>, callers: [CallableInfo<'text>])
+public machine allow_writers<'text>(plan: @mut AccessPlan<'text>, region: AccessRegion<'text>, callers: [CallableInfo<'text>])
 reaches none
 crashes none
 terminates
@@ -88,7 +88,7 @@ ensures embed(plan.writer_count) == embed(old(plan.writer_count)) + 1
     plan.writer_count = index + 1;
 }
 
-public machine allow_writers<'text>(plan: &mut AccessPlan<'text>, field: FieldInfo<'text>, callers: [CallableInfo<'text>])
+public machine allow_writers<'text>(plan: @mut AccessPlan<'text>, field: FieldInfo<'text>, callers: [CallableInfo<'text>])
 reaches none
 crashes none
 terminates
@@ -100,7 +100,7 @@ ensures embed(plan.writer_count) == embed(old(plan.writer_count)) + 1
 
 // Appending preserves repeated demands for the same field. Normalization must
 // satisfy every row; construction does not replace an inherited restriction.
-public machine observe<'text>(plan: &mut AccessPlan<'text>, field: FieldInfo<'text>, access: FieldAccess)
+public machine observe<'text>(plan: @mut AccessPlan<'text>, field: FieldInfo<'text>, access: FieldAccess)
 reaches none
 crashes none
 terminates
@@ -129,60 +129,60 @@ terminates
 // Ordinary RAM retains its actual source type and loan. A different View
 // argument is a request to check that correspondence, never a coercion or an
 // authority grant from these declarations alone.
-public boundary machine view<Source, View>(source: &Source) -> &View
+public boundary machine view<Source, View>(source: @Source) -> @View
 reaches none crashes none;
-public boundary machine view_mut<Source, View>(source: &mut Source) -> &mut View
+public boundary machine view_mut<Source, View>(source: @mut Source) -> @mut View
 reaches none crashes none;
 
 // Resident interpretation retains the exact content claim as well as the
 // complete qualified View. Retiring the result loan cannot retire that claim.
 public boundary machine view_resident_mut<P, Source, View>(
-    storage: &mut Extent in Granted & Resident<P, Source>
-) -> &mut View reaches none crashes none;
+    storage: @mut Extent in Granted & Resident<P, Source>
+) -> @mut View reaches none crashes none;
 
 // View already-established external content without manufacturing Resident or
 // Vacant. The selected call supplies compatibility for this exact qualified
 // range, while the result retains the original storage loan. A numeric address
 // or a constructed ResourceProfile is not a substitute for either input.
 public machine view_extent<'storage, View, Role>(
-    storage: &'storage Extent in Granted
+    storage: @'storage Extent in Granted
 ) -> AccessOutcome<
-    &'storage View, AccessBorrowReturn, AccessInitializationFailure
+    @'storage View, AccessBorrowReturn, AccessInitializationFailure
 >
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    view_from_profile<View, Role>(storage, &profile)
+    view_from_profile<View, Role>(storage, @profile)
 }
 
 boundary machine view_from_profile<'storage, View, Role>(
-    storage: &'storage Extent in Granted,
-    profile: &ResourceProfile
+    storage: @'storage Extent in Granted,
+    profile: @ResourceProfile
 ) -> AccessOutcome<
-    &'storage View, AccessBorrowReturn, AccessInitializationFailure
+    @'storage View, AccessBorrowReturn, AccessInitializationFailure
 >;
 
 // The exclusive counterpart carries the same interpretation and original
 // profile occurrence. Its reference ceiling, not a second lifecycle or a
 // geometry-based permission, allows the placement's admitted writes.
 public machine view_extent_mut<'storage, View, Role>(
-    storage: &'storage mut Extent in Granted
+    storage: @'storage mut Extent in Granted
 ) -> AccessOutcome<
-    &'storage mut View, AccessBorrowReturn, AccessInitializationFailure
+    @'storage mut View, AccessBorrowReturn, AccessInitializationFailure
 >
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    view_mut_from_profile<View, Role>(storage, &profile)
+    view_mut_from_profile<View, Role>(storage, @profile)
 }
 
 boundary machine view_mut_from_profile<'storage, View, Role>(
-    storage: &'storage mut Extent in Granted,
-    profile: &ResourceProfile
+    storage: @'storage mut Extent in Granted,
+    profile: @ResourceProfile
 ) -> AccessOutcome<
-    &'storage mut View, AccessBorrowReturn, AccessInitializationFailure
+    @'storage mut View, AccessBorrowReturn, AccessInitializationFailure
 >;
 
 // These exact private machines are explicit content-establishment routes.
@@ -192,7 +192,7 @@ boundary machine view_mut_from_profile<'storage, View, Role>(
 boundary machine initialize_from_profile<P, T, Storage, Role>(
     storage: Extent in Granted & Vacant,
     value: T,
-    profile: &ResourceProfile
+    profile: @ResourceProfile
 ) -> AccessOutcome<
     Extent in Granted & Resident<P, T>,
     AccessReturn<Extent in Granted & Vacant, T>,
@@ -201,7 +201,7 @@ boundary machine initialize_from_profile<P, T, Storage, Role>(
 
 boundary machine extract_resident<P, T, Storage, Role>(
     storage: Extent in Granted & Resident<P, T>,
-    profile: &ResourceProfile
+    profile: @ResourceProfile
 ) -> AccessExtraction<Extent in Granted & Vacant, T>;
 
 // The owned operation captures both inputs before its ordinary selected supply

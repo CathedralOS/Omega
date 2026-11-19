@@ -510,7 +510,7 @@ mod product {
                 author_package: Some(package),
                 root_scope: true,
                 declaration_path: "build".into(),
-                callable_identity: "build(&mut Build)".into(),
+                callable_identity: "build(@mut Build)".into(),
                 source_occurrence_digest: [9; 32],
                 resolution_stratum: source_admission::SourceResolutionStratum::Base,
             };

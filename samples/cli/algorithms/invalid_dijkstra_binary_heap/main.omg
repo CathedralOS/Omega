@@ -7,14 +7,14 @@ use omega_language_std::Console;
 data Heap<T> { items: [T; 16]; len: u64; }
 data Popped<T [copy]> [copy] { value: T; }
 
-machine ent_less(left: &u64, right: &u64) -> bool {
+machine ent_less(left: @u64, right: @u64) -> bool {
     left < right
 }
 
 data Main { heap: Heap<u64>; }
 
-machine pop_heap<T [copy], machine Less>(h: &mut Heap<T>, root: &mut Popped<T>)
-requires machine Less(left: &T, right: &T) -> bool;
+machine pop_heap<T [copy], machine Less>(h: @mut Heap<T>, root: @mut Popped<T>)
+requires machine Less(left: @T, right: @T) -> bool;
     requires h.len >= 1
     requires h.len <= 16
 {
@@ -23,15 +23,15 @@ requires machine Less(left: &T, right: &T) -> bool;
     h.len = 0;
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
+machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     main.heap.len = 0;
     let mut popped: Popped<u64> = Popped { value: 0 };
-    pop_heap<ent_less>(&mut main.heap, &mut popped);
+    pop_heap<ent_less>(@mut main.heap, @mut popped);
     ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

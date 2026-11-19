@@ -5,7 +5,7 @@
 
 use custody_kernel;
 
-machine build(builder: &mut Build)
+machine build(builder: @mut Build)
 suspends
 {
     Build::application(builder, "build_depend_unaliased");

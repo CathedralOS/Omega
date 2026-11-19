@@ -2,7 +2,7 @@
 // Invalid: the store observes the write-only referent. Place: another target body.
 // Expected diagnostic: reads write-only parameter
 
-machine store(r: &write f64) { r = 6.0 / 8.0; let _x: f64 = r; }
+machine store(r: @write f64) { r = 6.0 / 8.0; let _x: f64 = r; }
 
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
@@ -49,7 +49,7 @@ ArmExpected satisfies SelectedExpected {
 
 machine main() crashes Trap {
     let mut slot: f64;
-    store(&write slot);
+    store(@write slot);
     let v: f64 = slot;
     transition v == SelectedExpected::expected() { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }

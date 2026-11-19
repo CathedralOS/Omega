@@ -4,7 +4,7 @@
 use omega::language::core::OpaqueRepresentation;
 public boundary data InternetAddress;
 public data AddressWord dropped by drop_address_word { address: u32; }
-machine drop_address_word(word: &mut AddressWord) {}
+machine drop_address_word(word: @mut AddressWord) {}
 public data AddressCarrier<T> { payload: T; }
 public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
 

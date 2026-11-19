@@ -8,13 +8,13 @@ crashes Trap value == 0
 public data Leaf { bits: u64; marker: u64; }
 public data Packet { leaf: Leaf; tag: u64; }
 
-public machine read_bits(packet: &Packet) -> u64
+public machine read_bits(packet: @Packet) -> u64
 {
     maybe_zero(packet.leaf.bits)
 }
 machine main() crashes Trap {
     let packet: Packet = Packet { leaf: Leaf { bits: 7, marker: 3 }, tag: 11 };
-    let observed: u64 = read_bits(&packet);
+    let observed: u64 = read_bits(@packet);
     transition observed == 7 { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

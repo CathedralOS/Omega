@@ -1,1 +1,1 @@
-machine build(builder: &mut Build) { Build::application(builder, "invalid_standard_bound"); }
+machine build(builder: @mut Build) { Build::application(builder, "invalid_standard_bound"); }

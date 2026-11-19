@@ -1350,11 +1350,11 @@ mod tests {
             "main.omg",
             r#"
             domain [u8]::Marked;
-            machine [..] alternative(path: &[u8] in Marked, start: u64, end: u64) -> &[u8] {
+            machine [..] alternative(path: @[u8] in Marked, start: u64, end: u64) -> @[u8] {
                 "selected"
             }
-            machine build_entry(path: &[u8] in Marked) {
-                let prefix: &[u8] = path[0..0];
+            machine build_entry(path: @[u8] in Marked) {
+                let prefix: @[u8] = path[0..0];
             }
         "#,
         )])
@@ -1404,12 +1404,12 @@ mod tests {
             r#"
             domain [u8; 4]::Marked;
             data Buffer { storage: [u8; 4] in Marked; }
-            machine ranged(buffer: &Buffer) {
-                let view: &[u8] = &buffer.storage[..];
+            machine ranged(buffer: @Buffer) {
+                let view: @[u8] = @buffer.storage[..];
             }
-            machine indexed(buffer: &Buffer) -> u8 { buffer.storage[0u64] }
-            machine direct(items: &mut [u8; 4] in Marked) {
-                let view: &[u8] = &items[..];
+            machine indexed(buffer: @Buffer) -> u8 { buffer.storage[0u64] }
+            machine direct(items: @mut [u8; 4] in Marked) {
+                let view: @[u8] = @items[..];
             }
         "#,
         )])
@@ -1483,8 +1483,8 @@ mod tests {
             "main.omg",
             r#"
             data Buffer<T> { storage: [T; 4]; }
-            machine bytes(buffer: &Buffer<u8>) -> u8 { buffer.storage[0u64] }
-            machine words(buffer: &Buffer<u16>) -> u16 { buffer.storage[0u64] }
+            machine bytes(buffer: @Buffer<u8>) -> u8 { buffer.storage[0u64] }
+            machine words(buffer: @Buffer<u16>) -> u16 { buffer.storage[0u64] }
         "#,
         )])
         .unwrap();
@@ -1559,7 +1559,7 @@ mod tests {
     fn recasts_retain_their_written_reference_type_and_lifetime_owner() {
         let program = checked(&[(
             "main.omg",
-            "machine observe(items: &[u32]) { let bytes: &[u8] = items as &[u8]; }",
+            "machine observe(items: @[u32]) { let bytes: @[u8] = items as @[u8]; }",
         )])
         .expect("a recast has an exact written destination");
         let (expression, cast) = program
@@ -1636,8 +1636,8 @@ mod tests {
     #[test]
     fn ordinary_call_inference_recovers_a_repeated_const_array_extent() {
         let source = r#"
-            machine extent<const N: u64>(left: &[u8; N], right: &[u8; N]) -> u64 { N }
-            machine use_it(left: &[u8; 3], right: &[u8; 3]) -> u64 { extent(left, right) }
+            machine extent<const N: u64>(left: @[u8; N], right: @[u8; N]) -> u64 { N }
+            machine use_it(left: @[u8; 3], right: @[u8; 3]) -> u64 { extent(left, right) }
         "#;
         let program = checked(&[("main.omg", source)]).expect("the array shape determines N");
         let call = program
@@ -1664,7 +1664,7 @@ mod tests {
             panic!("N has its declared integer carrier")
         };
         assert_eq!(literal.value_bignum().unwrap().to_string(), "3");
-        let conflicting = source.replace("right: &[u8; 3]", "right: &[u8; 4]");
+        let conflicting = source.replace("right: @[u8; 3]", "right: @[u8; 4]");
         let refusal = checked(&[("main.omg", &conflicting)]).unwrap_err();
         assert!(
             format!("{refusal:?}").contains("conflicting generic arguments"),
@@ -1785,13 +1785,13 @@ mod tests {
             (
                 "kit.omg",
                 "module kit; public machine pick(value: u8) {} \
-                 public machine pick(value: &[u8]) {}",
+                 public machine pick(value: @[u8]) {}",
             ),
             (
                 "client.omg",
-                "machine ordinary(bytes: &mut [u8; 3]) { kit::pick(bytes[..]); } \
-                 machine exclusive(bytes: &mut [u8; 3]) { sink(&mut bytes[..]); } \
-                 machine sink(value: &mut [u8]) {}",
+                "machine ordinary(bytes: @mut [u8; 3]) { kit::pick(bytes[..]); } \
+                 machine exclusive(bytes: @mut [u8; 3]) { sink(@mut bytes[..]); } \
+                 machine sink(value: @mut [u8]) {}",
             ),
         ])
         .expect("the source retains its range and written borrow");
@@ -1861,12 +1861,12 @@ mod tests {
             module kit;
             public machine pick(value: u32) -> u32 { value }
             public machine pick(value: u64) -> u64 { value }
-            public machine borrow(value: &u32) {}
-            public machine borrow(value: &mut u32) {}
+            public machine borrow(value: @u32) {}
+            public machine borrow(value: @mut u32) {}
             public machine array(values: [u32]) {}
             public machine array(values: [u64]) {}
-            public machine view(values: &[u32]) {}
-            public machine view(values: &[u64]) {}
+            public machine view(values: @[u32]) {}
+            public machine view(values: @[u64]) {}
         "#;
         let client = r#"
             use kit::pick;
@@ -1876,10 +1876,10 @@ mod tests {
             machine expression(value: u32) -> u32 { kit::pick(value) }
             machine statement(value: u64) { kit::pick(value); }
             machine terminal(value: u32) -> u32 { transition { _ -> kit::pick(value) } }
-            machine shared(value: &u32) { kit::borrow(value); }
-            machine exclusive(value: &mut u32) { kit::borrow(value); }
+            machine shared(value: @u32) { kit::borrow(value); }
+            machine exclusive(value: @mut u32) { kit::borrow(value); }
             machine array_value(value: u64) { kit::array([value]); }
-            machine slice_view(value: &[u32]) { kit::view(value); }
+            machine slice_view(value: @[u32]) { kit::view(value); }
             machine before_local(value: u32) { kit::pick(value); let kit: u32 = 0; }
             machine expression_before_local(value: u32) -> u32 {
                 let result_value: u32 = kit::pick(value);
@@ -2176,16 +2176,16 @@ mod tests {
     fn closed_call_families_select_lifetime_bound_headers() {
         let library = r#"
             module kit;
-            public data Payload<'text> [copy] { text: &'text [u8]; }
+            public data Payload<'text> [copy] { text: @'text [u8]; }
             public machine choose<'text>(value: Payload<'text>) -> u32 { 17u32 }
-            public machine choose<'text>(value: &'text u32) -> u32 { 64u32 }
+            public machine choose<'text>(value: @'text u32) -> u32 { 64u32 }
         "#;
         let client = r#"
             use kit;
             machine stored<'text>(value: kit::Payload<'text>) -> u32 { kit::choose(value) }
-            machine shared(value: &u32) -> u32 { kit::choose(value) }
+            machine shared(value: @u32) -> u32 { kit::choose(value) }
             machine incompatible(value: bool) -> u32 { kit::choose(value) }
-            machine access_mismatch(value: &mut u32) -> u32 { kit::choose(value) }
+            machine access_mismatch(value: @mut u32) -> u32 { kit::choose(value) }
         "#;
         let program = checked(&[("kit.omg", library), ("client.omg", client)])
             .expect("select actual lifetime-bound headers from their argument carriers");
@@ -2248,12 +2248,12 @@ mod tests {
             public domain u32::OtherTagged;
             public machine pick(value: u32) -> u32 { value }
             public machine pick(value: u64) -> u64 { value }
-            public machine borrow(value: &u32) {}
-            public machine borrow(value: &mut u32) {}
+            public machine borrow(value: @u32) {}
+            public machine borrow(value: @mut u32) {}
             public machine domain_value(value: u32 in Tagged) {}
             public machine domain_value(value: u32 in OtherTagged) {}
-            public machine view(values: &[u32]) {}
-            public machine view(values: &[u64]) {}
+            public machine view(values: @[u32]) {}
+            public machine view(values: @[u64]) {}
             public machine scoped(value: bool) -> bool { value }
             public machine scoped(value: u8) -> u8 { value }
             trait RequiredScope {
@@ -2273,7 +2273,7 @@ mod tests {
             machine access_mismatch(value: u32) { kit::borrow(value); }
             machine domain_mismatch(value: u32) { kit::domain_value(value); }
             machine domain_match(value: u32 in Tagged) { kit::domain_value(value); }
-            machine array_reference(value: &[u32; 1]) { kit::view(value); }
+            machine array_reference(value: @[u32; 1]) { kit::view(value); }
             machine parameter_shadow(kit: u32) { kit::pick(7u32); }
             machine local_shadow() { let kit: u32 = 0; kit::pick(7u32); }
             machine missing(value: u32) -> u32 { kit::absent(value) }

@@ -5,18 +5,18 @@ use clock::model::Acquisition;
 // Anchor-constrained least squares: host = host[0] + elapsed * numerator / denominator.
 // At most 16 rows, elapsed and host <=100000: sums <=1.6e11, scaled drift
 // <=1.6e17 and residual products <=3.2e16, all strictly below i64::MAX.
-public machine fit_clock(acquisition: &mut Acquisition) {
+public machine fit_clock(acquisition: @mut Acquisition) {
     acquisition.numerator = 0;
     acquisition.denominator = 0;
     acquisition.residual = 0;
     transition { _ -> accumulate(acquisition, 1) }
-    machine accumulate(acquisition: &mut Acquisition, index: i64 in Wrapping) {
+    machine accumulate(acquisition: @mut Acquisition, index: i64 in Wrapping) {
         transition index >= 1 && index < 16 && index < acquisition.count {
             true -> add(acquisition, index)
             false -> residual(acquisition, 1)
         }
     }
-    machine add(acquisition: &mut Acquisition, index: i64 in Wrapping)
+    machine add(acquisition: @mut Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         let ticks: i64 in Wrapping = acquisition.elapsed[index];
@@ -25,13 +25,13 @@ public machine fit_clock(acquisition: &mut Acquisition) {
         acquisition.denominator = acquisition.denominator + ticks * ticks;
         transition { _ -> accumulate(acquisition, index + 1) }
     }
-    machine residual(acquisition: &mut Acquisition, index: i64 in Wrapping) {
+    machine residual(acquisition: @mut Acquisition, index: i64 in Wrapping) {
         transition index >= 1 && index < 16 && index < acquisition.count {
             true -> measure(acquisition, index)
             false -> done()
         }
     }
-    machine measure(acquisition: &mut Acquisition, index: i64 in Wrapping)
+    machine measure(acquisition: @mut Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         let scaled: i64 in Wrapping = (acquisition.host[index] - acquisition.host[0]) * acquisition.denominator - acquisition.elapsed[index] * acquisition.numerator;
@@ -40,7 +40,7 @@ public machine fit_clock(acquisition: &mut Acquisition) {
             false -> maximum(acquisition, index, scaled)
         }
     }
-    machine maximum(acquisition: &mut Acquisition, index: i64 in Wrapping, scaled: i64 in Wrapping)
+    machine maximum(acquisition: @mut Acquisition, index: i64 in Wrapping, scaled: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         transition scaled > acquisition.residual {
@@ -48,7 +48,7 @@ public machine fit_clock(acquisition: &mut Acquisition) {
             false -> residual(acquisition, index + 1)
         }
     }
-    machine update(acquisition: &mut Acquisition, index: i64 in Wrapping, scaled: i64 in Wrapping)
+    machine update(acquisition: @mut Acquisition, index: i64 in Wrapping, scaled: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
         acquisition.residual = scaled;

@@ -22,13 +22,13 @@ DefaultRead satisfies ReadValue {
         let mut storage: LayoutStorage<Payload, Policy>;
         storage.first = 9u64;
         storage.value = 7u64;
-        let bytes: &[u8; 16] = &storage as &[u8; 16];
+        let bytes: @[u8; 16] = @storage as @[u8; 16];
         widen_u8_to_u64(bytes[8])
     }
 }
 OverrideRead satisfies ReadValue { machine read() -> u64 { 7u64 } }
 data Defaults {}
-macos_arm64 machine Defaults::provider_defaults(defaults: &mut Defaults) {
+macos_arm64 machine Defaults::provider_defaults(defaults: @mut Defaults) {
     Defaults::select_provider<ReadValue, DefaultRead>(defaults);
 }
 machine main() reaches ReadValue crashes Trap {

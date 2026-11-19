@@ -3,7 +3,7 @@
 // (wiki/spec/build/behavior_exclusions.md). The library composes the no-op
 // implementation by default; an application selects the one it composes.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::package(builder, "assert_kit");
     Build::select_provider<Assert, NoOpAssert>(builder, linux_arm64);
     Build::select_provider<Assert, NoOpAssert>(builder, linux_x86_64);

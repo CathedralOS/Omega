@@ -1,1 +1,1 @@
-machine build(builder: &mut Build) { Build::application(builder, "invalid_survival_table_access"); }
+machine build(builder: @mut Build) { Build::application(builder, "invalid_survival_table_access"); }

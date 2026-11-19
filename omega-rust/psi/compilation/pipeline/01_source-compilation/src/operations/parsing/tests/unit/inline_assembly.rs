@@ -6,7 +6,7 @@ use syntax_trees::statement::{AssemblyOperands, StatementNode};
 fn preserves_authored_mnemonics_operands_clobbers_and_facts() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
-        machine Main::main(main: &mut Main) {
+        machine Main::main(main: @mut Main) {
             asm requires main.ready clobbers rdx, rax ensures main.ready {
                 first requires main.ready:
                 vendor.op main.port, main.value;
@@ -93,7 +93,7 @@ fn rejects_malformed_asm_syntax_at_the_parser_boundary() {
         ("asm where clobbers none { hlt }", "`clobbers <registers>`"),
     ] {
         let source = format!(
-            "data Main {{ port: u16; value: u8; }} machine Main::main(main: &mut Main) {{ {block} }}"
+            "data Main {{ port: u16; value: u8; }} machine Main::main(main: @mut Main) {{ {block} }}"
         );
         let error = parse_tokenized_error(&source, "malformed assembly syntax should reject");
         assert!(error.message.contains(expected), "{block}: {error:?}");

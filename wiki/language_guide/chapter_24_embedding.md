@@ -15,13 +15,13 @@ public boundary trait Game {
 }
 
 public trait ScriptCalls<Context> {
-    machine reward(context: &mut Context, player: u64)
+    machine reward(context: @mut Context, player: u64)
         reaches Game;
 }
 
 data RewardScript { }
 
-machine reward(context: &mut RewardScript, player: u64)
+machine reward(context: @mut RewardScript, player: u64)
 satisfies ScriptCalls<RewardScript>::reward
 reaches Game
 {

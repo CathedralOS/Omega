@@ -48,11 +48,11 @@ fn check(name: &str, choice: &str) -> (bool, String) {
     std::fs::write(
         package.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{
+            "machine build(builder: @mut Build) {{
     Build::package(builder, \"reading\");
     configure<(8u64 + 9u64)>(builder);
 }}
-machine configure<const Tag: u64>(builder: &mut Build) {{
+machine configure<const Tag: u64>(builder: @mut Build) {{
     {choice}
 }}
 "
@@ -62,7 +62,7 @@ machine configure<const Tag: u64>(builder: &mut Build) {{
     std::fs::write(program.join("main.omg"), "machine main() { }\n").expect("staged program");
     std::fs::write(
         program.join("build.omg"),
-        "machine build(builder: &mut Build) {
+        "machine build(builder: @mut Build) {
     Build::application(builder, \"reader\");
     let registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: \"../reading\" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

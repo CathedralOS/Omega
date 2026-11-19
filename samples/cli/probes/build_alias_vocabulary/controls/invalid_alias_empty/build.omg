@@ -1,6 +1,6 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "invalid_alias_empty");
     let mut aliased_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep" });
-    dependency::with_alias(&mut aliased_dependency, "");
+    dependency::with_alias(@mut aliased_dependency, "");
     let aliased_registration: DependencyRegistration = Build::dependency(builder, aliased_dependency);
 }

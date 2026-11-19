@@ -11,22 +11,22 @@ use omega_language_std::Console;
 data Main {
 }
 
-machine main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: @mut Main) reaches ProcessExit + Console {
     Console::write_line("array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum");
     let numbers: [i32; 6] = [4, 15, 8, 42, 16, 23];
-    let maximum: i32 = array_maximum(&numbers);
+    let maximum: i32 = array_maximum(@numbers);
     Console::write_line("result: the maximum, 42 for this dataset (the exit code)");
     Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block Console::read_line(&mut pause[..]);
+    _ = block Console::read_line(@mut pause[..]);
     ProcessExit::exit_process(maximum);
 }
 
-machine array_maximum(numbers: &[i32; 6]) -> i32 {
+machine array_maximum(numbers: @[i32; 6]) -> i32 {
     transition { _ -> step(numbers, 0, 0) }
 
     // Loop head: scan until every element has been visited.
-    machine step(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    machine step(numbers: @[i32; 6], index: i32, maximum: i32) -> i32
     requires index >= 0 {
         transition index < 6 {
             true -> body(numbers, index, maximum)
@@ -35,7 +35,7 @@ machine array_maximum(numbers: &[i32; 6]) -> i32 {
     }
 
     // Read the current element; keep it if it beats the running maximum.
-    machine body(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    machine body(numbers: @[i32; 6], index: i32, maximum: i32) -> i32
     requires index >= 0
     requires index < 6 {
         let current: i32 = numbers[index];
@@ -47,7 +47,7 @@ machine array_maximum(numbers: &[i32; 6]) -> i32 {
 
     // Re-guard before the increment: the direct edge into bump proves
     // index + 1 cannot overflow -- fully Exact, no wrapping arithmetic.
-    machine advance(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    machine advance(numbers: @[i32; 6], index: i32, maximum: i32) -> i32
     requires index >= 0 {
         transition index < 6 {
             true -> bump(numbers, index, maximum)
@@ -55,7 +55,7 @@ machine array_maximum(numbers: &[i32; 6]) -> i32 {
         }
     }
 
-    machine bump(numbers: &[i32; 6], index: i32, maximum: i32) -> i32
+    machine bump(numbers: @[i32; 6], index: i32, maximum: i32) -> i32
     requires index >= 0
     requires index < 6 {
         transition { _ -> step(numbers, index + 1, maximum) }
@@ -67,5 +67,5 @@ machine array_maximum(numbers: &[i32; 6]) -> i32 {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

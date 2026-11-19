@@ -1,7 +1,7 @@
 // An effectful call may sit as the argument of a requires-bearing call: the
 // writes to `counter` complete before `accept`'s requires is judged.
 data Counter { hits: u32 in Wrapping; }
-machine produce(value: u32, counter: &mut Counter) -> u32
+machine produce(value: u32, counter: @mut Counter) -> u32
 requires value <= 20
 ensures result <= 20 {
     counter.hits = counter.hits + 1;
@@ -12,9 +12,9 @@ requires value <= 20 {
     value
 }
 data Main { counter: Counter; }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.counter = Counter { hits: 0 };
-    let observed: u32 = accept(produce(7, &mut main.counter));
+    let observed: u32 = accept(produce(7, @mut main.counter));
     transition observed == 7 && main.counter.hits == 1 {
         true -> done()
         false -> done()
@@ -25,5 +25,5 @@ machine Main::main(main: &mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

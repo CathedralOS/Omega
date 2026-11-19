@@ -2,7 +2,7 @@
 // lent to a callee, so the callee reads byte 11 from the first window and byte 29 from the second.
 // Place: other_state.
 // Expected exit: 0
-machine read(bytes: &[u8]) -> u8
+machine read(bytes: @[u8]) -> u8
 requires bytes.len == 1
 {
     bytes[0]
@@ -10,12 +10,12 @@ requires bytes.len == 1
 
 machine main() crashes Trap {
     let packet: [u8; 4] = [11, 23, 29, 31];
-    let windows: [&[u8]; 2] = [&packet[0..2], &packet[2..3]];
+    let windows: [@[u8]; 2] = [@packet[0..2], @packet[2..3]];
     transition { _ -> inspect(windows) }
-    machine inspect(windows: [&[u8]; 2])
+    machine inspect(windows: [@[u8]; 2])
     requires windows[0].len == 1 && windows[1].len == 1
     {
-        let first: &[u8] = windows[0];
+        let first: @[u8] = windows[0];
         let a: u8 = read(first);
         let b: u8 = read(windows[1]);
         let observed: bool = a == 11 && b == 29;

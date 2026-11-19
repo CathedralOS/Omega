@@ -684,13 +684,13 @@ mod tests {
     fn a_provider_default_is_read_from_its_select_provider_call() {
         assert_eq!(
             provider_defaults_of(&format!(
-                "{SLOT}machine Native::configure(defaults: &mut Native) {{ }}\n"
+                "{SLOT}machine Native::configure(defaults: @mut Native) {{ }}\n"
             )),
             Ok(Vec::new())
         );
         assert_eq!(
             provider_defaults_of(&format!(
-                "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{\n    Native::select_provider<Service, NativeProvider>(defaults);\n}}\n"
+                "{SLOT}machine Native::provider_defaults(defaults: @mut Native) {{\n    Native::select_provider<Service, NativeProvider>(defaults);\n}}\n"
             )),
             Ok(vec![(
                 None,
@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn a_provider_default_cannot_use_its_data_namespace_as_the_provider_value() {
         let refused = provider_defaults_of(&format!(
-            "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{\n    Native::select_provider<Service, Native>(defaults);\n}}\n"
+            "{SLOT}machine Native::provider_defaults(defaults: @mut Native) {{\n    Native::select_provider<Service, Native>(defaults);\n}}\n"
         ))
         .unwrap_err();
         assert_eq!(
@@ -721,7 +721,7 @@ mod tests {
     #[test]
     fn a_provider_default_that_is_not_a_selection_of_a_boundary_is_refused() {
         let refused = provider_defaults_of(&format!(
-            "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{\n    Native::select_provider<Native, NativeProvider>(defaults);\n}}\n"
+            "{SLOT}machine Native::provider_defaults(defaults: @mut Native) {{\n    Native::select_provider<Native, NativeProvider>(defaults);\n}}\n"
         ))
         .unwrap_err();
         assert!(
@@ -729,7 +729,7 @@ mod tests {
             "{refused}"
         );
         let refused = provider_defaults_of(&format!(
-            "{SLOT}machine other() {{ }}\nmachine Native::provider_defaults(defaults: &mut Native) {{\n    other();\n}}\n"
+            "{SLOT}machine other() {{ }}\nmachine Native::provider_defaults(defaults: @mut Native) {{\n    other();\n}}\n"
         ))
         .unwrap_err();
         assert_eq!(

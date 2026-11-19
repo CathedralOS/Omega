@@ -34,7 +34,7 @@ ensures result >= 0 && result < 8
 
 data Main { endpoints: Endpoints; }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     main.endpoints.values = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     let lower: i32 = slot(1, 0);
     main.endpoints.values[lower] = 2.0;
@@ -81,5 +81,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -82,7 +82,7 @@ omitted result is resultless. Captures are comma-separated binding initializers,
 not implicitly collected free variables. Generic parameters precede captures:
 
 ```omega
-let show = <Value>[output = &mut output](value: &Value)
+let show = <Value>[output = @mut output](value: @Value)
 where Value == u32 || Value == f32;
 {
     transition {
@@ -127,7 +127,7 @@ passing a private getter does not give its caller private field-access rights.
 Explicit environment receivers use `&self`, `&mut self`, or owned `self`:
 
 ```omega
-let show = [output = &mut output](&mut self, value: &u32) {
+let show = [output = @mut output](@mut self, value: @u32) {
     self.output.show_u32(value);
 };
 ```
@@ -194,8 +194,8 @@ declare the following fixed-ceiling visitor:
 ```omega
 trait Visitor<Item, Context> {
     machine visit<'context, 'item>(
-        context: &'context mut Context,
-        item: &'item Item
+        context: @'context mut Context,
+        item: @'item Item
     )
     terminates;
 }

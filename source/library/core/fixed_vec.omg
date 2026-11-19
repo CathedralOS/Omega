@@ -65,12 +65,12 @@ public data FixedVec<T, const N: u64> {
 boundary trait FixedVecAccess {
     // Length in LIVE elements (`length`, not the static capacity `N`).
     // Cheap O(1) measure for `requires`/`ensures`.
-    machine Length<T, const N: u64>(items: &FixedVec<T, N>) -> u64 reaches none crashes none;
+    machine Length<T, const N: u64>(items: @FixedVec<T, N>) -> u64 reaches none crashes none;
 
     // Append a value. Requires provable spare room — there is no growth
     // path and no trap; a call without a discharged capacity fact is a
     // compile error.
-    machine push<T, const N: u64>(items: &mut FixedVec<T, N>, value: T)
+    machine push<T, const N: u64>(items: @mut FixedVec<T, N>, value: T)
     reaches none
     requires
         items.length < items.items.len
@@ -81,7 +81,7 @@ boundary trait FixedVecAccess {
     // stage 1 is an obligation, not a fallback — a
     // `try_pop -> Optional<T>` belongs to the dynamic-failure stage-2
     // vocabulary.
-    machine pop<T, const N: u64>(items: &mut FixedVec<T, N>) -> T
+    machine pop<T, const N: u64>(items: @mut FixedVec<T, N>) -> T
     reaches none
     requires
         items.length > 0
@@ -89,7 +89,7 @@ boundary trait FixedVecAccess {
 
     // Read the element at `index`, which must be provably within the live
     // length.
-    machine get<T, const N: u64>(items: &FixedVec<T, N>, index: u64) -> T
+    machine get<T, const N: u64>(items: @FixedVec<T, N>, index: u64) -> T
     reaches none
     requires
         index < items.length
@@ -97,7 +97,7 @@ boundary trait FixedVecAccess {
 
     // Borrow the LIVE elements as a slice view; the view length matches the
     // vector length, not the capacity.
-    machine as_slice<T, const N: u64>(items: &FixedVec<T, N>) -> &[T]
+    machine as_slice<T, const N: u64>(items: @FixedVec<T, N>) -> @[T]
     reaches none
     requires
         items.length <= items.items.len

@@ -2,8 +2,8 @@
 // borrowed: another element of that array cannot change while it is live.
 data Cell { x: i64; y: i64; }
 data Grid { cells: [Cell; 4]; tag: i64; }
-machine pick<'a>(grid: &'a mut Grid, index: u64) -> &'a mut i64 requires index < 4 {
-    &mut grid.cells[index].x
+machine pick<'a>(grid: @'a mut Grid, index: u64) -> @'a mut i64 requires index < 4 {
+    @mut grid.cells[index].x
 }
 machine main() crashes Trap {
     let mut grid: Grid = Grid {
@@ -11,7 +11,7 @@ machine main() crashes Trap {
         tag: 0,
     };
     let index: u64 = 1;
-    let chosen: &mut i64 = pick(&mut grid, index);
+    let chosen: @mut i64 = pick(@mut grid, index);
     grid.cells[0].x = 9;
     chosen = 10;
     transition grid.cells[1].x == 10 { true -> done() _ -> bad() }

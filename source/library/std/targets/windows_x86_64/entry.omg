@@ -46,7 +46,7 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
     }
 
     machine physical_shape(result: ValueShape) -> BoundaryPlanResult {
-        transition hosted_entry_integer_shape(&result, 4) {
+        transition hosted_entry_integer_shape(@result, 4) {
             true -> build_physical()
             _ -> reject()
         }
@@ -86,8 +86,8 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
     machine semantic_shapes(image: ValueShape, storage: ValueShape,
         signature: BoundarySignature) -> BoundaryPlanResult
     {
-        transition hosted_entry_extent_shape(image, &signature)
-            && hosted_entry_extent_shape(storage, &signature)
+        transition hosted_entry_extent_shape(image, @signature)
+            && hosted_entry_extent_shape(storage, @signature)
         {
             true -> build_semantic()
             _ -> reject()

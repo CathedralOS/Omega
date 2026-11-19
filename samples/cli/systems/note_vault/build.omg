@@ -1,6 +1,6 @@
 // note_vault build manifest.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "note_vault");
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../../source/library/std"

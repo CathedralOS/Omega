@@ -42,14 +42,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::set_value(main: &mut Main, v: i32)
+machine Main::set_value(main: @mut Main, v: i32)
 requires
     v >= 0 && v <= 1000
 {
     main.state.inner.value = v;
 }
 
-machine Main::set_bonus(main: &mut Main, b: i32)
+machine Main::set_bonus(main: @mut Main, b: i32)
 requires
     b >= 0 && b <= 1000
 {
@@ -61,18 +61,18 @@ requires
 // the outer `% 101` wraps to 0 at 101 exactly as before for a count in
 // 0..=100. The boundary behavior is declared IN the arithmetic, not silently
 // assumed -- nothing here can overflow, so no overflow domain is needed.
-machine Main::increment_count(main: &mut Main) {
+machine Main::increment_count(main: @mut Main) {
     main.state.count = (main.state.count % 101 + 1) % 101;
 }
 
-machine Main::set_multiplier(main: &mut Main, m: i32)
+machine Main::set_multiplier(main: @mut Main, m: i32)
 requires
     m >= 0 && m <= 100
 {
     main.state.multiplier = m;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
     Main::set_value(main, 10);
     Main::set_bonus(main, 20);
@@ -87,56 +87,56 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block bad_value(main)
     }
 
-    machine bad_value(main: &mut Main) {
+    machine bad_value(main: @mut Main) {
         Console::write_line("FAIL: wrong nested value field (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(71);
     }
 
-    machine check_bonus(main: &mut Main) {
+    machine check_bonus(main: @mut Main) {
         transition main.state.inner.bonus == 20 {
             true -> block check_count(main)
             _ -> block bad_bonus(main)
         }
     }
 
-    machine bad_bonus(main: &mut Main) {
+    machine bad_bonus(main: @mut Main) {
         Console::write_line("FAIL: wrong nested bonus field (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(72);
     }
 
-    machine check_count(main: &mut Main) {
+    machine check_count(main: @mut Main) {
         transition main.state.count == 2 {
             true -> block check_multiplier(main)
             _ -> block bad_count(main)
         }
     }
 
-    machine bad_count(main: &mut Main) {
+    machine bad_count(main: @mut Main) {
         Console::write_line("FAIL: wrong counter value (exit 73)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(73);
     }
 
-    machine check_multiplier(main: &mut Main) {
+    machine check_multiplier(main: @mut Main) {
         transition main.state.multiplier == 5 {
             true -> block compute_result(main)
             _ -> block bad_multiplier(main)
         }
     }
 
-    machine bad_multiplier(main: &mut Main) {
+    machine bad_multiplier(main: @mut Main) {
         Console::write_line("FAIL: wrong nested multiplier field (exit 75)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(75);
     }
 
-    machine compute_result(main: &mut Main) {
+    machine compute_result(main: @mut Main) {
         // result = inner.value + inner.bonus + count * multiplier
         //        = 40 + 20 + 2 * 5 = 70
         let result: i32 = main.state.inner.value + main.state.inner.bonus
@@ -147,17 +147,17 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine bad_result(main: &mut Main) {
+    machine bad_result(main: @mut Main) {
         Console::write_line("FAIL: wrong combined result (exit 74)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(74);
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(70);
     }
 }
@@ -165,5 +165,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block Main::main(@mut entry_storage);
 }

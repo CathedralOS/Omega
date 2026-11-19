@@ -5,7 +5,7 @@ data Cell [copy] { before: i64; value: i64; after: i64; }
 data Pair { chosen: Cell; other: Cell; }
 data Outcome [copy] { chosen: i64; other: i64; }
 
-machine choose(counter: &mut u64, flag: bool) -> bool
+machine choose(counter: @mut u64, flag: bool) -> bool
 requires counter == 0
 {
     counter = 1;
@@ -18,9 +18,9 @@ machine store(flag: bool) -> Outcome crashes Trap {
         other: Cell { before: 7, value: 23, after: 9 },
     };
     let mut visits: u64 = 0;
-    let selected: &write i64 = match choose(&mut visits, flag) {
-        true -> &write pair.chosen.value
-        false -> &write pair.other.value
+    let selected: @write i64 = match choose(@mut visits, flag) {
+        true -> @write pair.chosen.value
+        false -> @write pair.other.value
     };
     selected = 41;
     transition visits == 1 && pair.chosen.before == 3 && pair.chosen.after == 5 && pair.other.before == 7 && pair.other.after == 9 {

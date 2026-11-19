@@ -2,7 +2,7 @@
 // Place: const_name. Reject twin: the source is used while that loan is live.
 const DECIDE: bool = true;
 
-machine choose(counter: &mut u64) -> bool
+machine choose(counter: @mut u64) -> bool
 requires counter == 0
 {
     counter = 1;
@@ -13,9 +13,9 @@ machine main() crashes Trap {
     let mut chosen: i64 = 17;
     let mut other: i64 = 0;
     let mut visits: u64 = 0;
-    let selected: &mut i64 = match choose(&mut visits) {
-        true -> &mut chosen
-        false -> &mut other
+    let selected: @mut i64 = match choose(@mut visits) {
+        true -> @mut chosen
+        false -> @mut other
     };
     chosen = 7;
     selected = 41;

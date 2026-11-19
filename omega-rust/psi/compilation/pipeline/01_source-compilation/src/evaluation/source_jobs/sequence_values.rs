@@ -6,13 +6,13 @@ use crate::evaluation::{
 };
 
 const SOURCE: &str = r#"
-data Item<'bytes> [copy] { number: u64; bytes: &'bytes [u8]; }
+data Item<'bytes> [copy] { number: u64; bytes: @'bytes [u8]; }
 data Holder<'bytes> {
     tag: u64;
     rows: [Item<'bytes>];
     groups: [[Item<'bytes>]];
     empty: [Item<'bytes>];
-    bytes: &'bytes [u8];
+    bytes: @'bytes [u8];
 }
 data Seen<'bytes> { holder: Holder<'bytes>; observed: u64; }
 machine make() -> Holder {
@@ -24,9 +24,9 @@ machine make() -> Holder {
     }
 }
 machine transport(value: Holder) -> Holder { value }
-machine inspect(value: &Holder) -> u64 { value.tag }
+machine inspect(value: @Holder) -> u64 { value.tag }
 machine borrow_roundtrip(value: Holder) -> Seen {
-    let observed: u64 = inspect(&value);
+    let observed: u64 = inspect(@value);
     Seen { holder: value, observed: observed }
 }
 machine zero() -> Holder { let value: Holder; value }
@@ -247,9 +247,9 @@ fn owned_source_sequence_reads_its_copyable_item_under_its_live_length_guard() {
 }
 
 const SHARED: &str = r#"
-data Item<'bytes> [copy] { number: u64; bytes: &'bytes [u8]; }
-machine echo<'items, 'bytes>(items: &'items [Item<'bytes>]) -> &'items [Item<'bytes>] { items }
-machine consume<'items, 'bytes>(items: &'items [Item<'bytes>]) { }
+data Item<'bytes> [copy] { number: u64; bytes: @'bytes [u8]; }
+machine echo<'items, 'bytes>(items: @'items [Item<'bytes>]) -> @'items [Item<'bytes>] { items }
+machine consume<'items, 'bytes>(items: @'items [Item<'bytes>]) { }
 "#;
 
 /// A shared typed view is its descriptor and immutable backing, not a loan of
@@ -317,7 +317,7 @@ fn shared_typed_sequence_arguments_keep_complete_backing_and_refuse_mutable_fabr
         error.contains("record names another declaration"),
         "{error}"
     );
-    let mutable = SHARED.replace("&'items [Item<'bytes>]", "&'items mut [Item<'bytes>]");
+    let mutable = SHARED.replace("@'items [Item<'bytes>]", "@'items mut [Item<'bytes>]");
     let mutable = PreparedBuildMachineProgram::prepare(&super::tests::typed(&mutable), None)
         .expect("retain the exact mutable twin for checking");
     let error = entry(
@@ -346,7 +346,7 @@ fn shared_typed_sequence_arguments_keep_complete_backing_and_refuse_mutable_fabr
 #[test]
 fn shared_typed_sequence_inputs_retain_nested_sequence_descriptors() {
     let source = format!(
-        "{SHARED}\nmachine echo_groups<'groups, 'bytes>(groups: &'groups [[Item<'bytes>]]) -> &'groups [[Item<'bytes>]] {{ groups }}\n"
+        "{SHARED}\nmachine echo_groups<'groups, 'bytes>(groups: @'groups [[Item<'bytes>]]) -> @'groups [[Item<'bytes>]] {{ groups }}\n"
     );
     let prepared = PreparedBuildMachineProgram::prepare(&super::tests::typed(&source), None)
         .expect("nested immutable view source");
@@ -437,7 +437,7 @@ fn shared_typed_sequence_input_boundary_refuses_incomplete_and_duplicate_content
 fn shared_typed_sequence_inputs_in_owned_records_and_cases_keep_applied_lifetimes() {
     let source = format!(
         "{SHARED}\n\
-         data Envelope<'bytes, 'items> {{ tag: u64; rows: &'items [Item<'bytes>]; }}\n\
+         data Envelope<'bytes, 'items> {{ tag: u64; rows: @'items [Item<'bytes>]; }}\n\
          data Choice<'bytes, 'items> {{ case Rows(value: Envelope<'bytes, 'items>); }}\n\
          machine echo_record<'items, 'bytes>(value: Envelope<'bytes, 'items>) -> Envelope<'bytes, 'items> {{ value }}\n\
          machine echo_case<'items, 'bytes>(value: Choice<'bytes, 'items>) -> Choice<'bytes, 'items> {{ value }}\n"
@@ -506,8 +506,8 @@ fn shared_typed_sequence_inputs_in_owned_records_and_cases_keep_applied_lifetime
             assert_eq!(echoed.value(), returned.value());
         }
         let mutable = source.replace(
-            "rows: &'items [Item<'bytes>]",
-            "rows: &'items mut [Item<'bytes>]",
+            "rows: @'items [Item<'bytes>]",
+            "rows: @'items mut [Item<'bytes>]",
         );
         let mutable = PreparedBuildMachineProgram::prepare(&super::tests::typed(&mutable), None)
             .expect("retain the owned envelope's exclusive twin");

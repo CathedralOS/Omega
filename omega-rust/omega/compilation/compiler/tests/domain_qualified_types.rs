@@ -304,7 +304,7 @@ fn a_plain_value_for_a_qualified_local_is_rejected() {
 fn a_bare_literal_assigned_to_a_qualified_field_is_rejected() {
     violates(
         "plain_assigned",
-        "machine wrong(sample: &mut Sample) {\n    sample.reading = Reading { value: 1 };\n}\n",
+        "machine wrong(sample: @mut Sample) {\n    sample.reading = Reading { value: 1 };\n}\n",
         "this value's type carries no domain and the place it is assigned to declares \
          `Reading::Checked`",
     );
@@ -755,9 +755,9 @@ machine counted(sealed: Sealed) -> i32 {
 machine unsealed(sealed: Sealed) -> Seal in Issued {
     sealed.seal
 }
-machine held(seal: &Seal in Issued) { }
-machine lent(sealed: &Sealed) {
-    held(&sealed.seal)
+machine held(seal: @Seal in Issued) { }
+machine lent(sealed: @Sealed) {
+    held(@sealed.seal)
 }
 machine checked(reading: Reading) -> Reading in Checked {
     reading as +Checked
@@ -881,11 +881,11 @@ fn a_literal_for_a_governed_field_is_rejected() {
 fn lending_a_governed_field_as_its_plain_carrier_is_rejected() {
     violates(
         "governed_loan",
-        "machine peek(seal: &Seal) -> i32 {
+        "machine peek(seal: @Seal) -> i32 {
     seal.mark
 }
-machine wrong(sealed: &Sealed) -> i32 {
-    peek(&sealed.seal)
+machine wrong(sealed: @Sealed) -> i32 {
+    peek(@sealed.seal)
 }
 ",
         "this value's type carries `Seal::Issued` and the parameter it is passed for declares no \
@@ -897,7 +897,7 @@ machine wrong(sealed: &Sealed) -> i32 {
 fn writing_through_a_reference_to_a_governed_value_is_refused_by_name() {
     refused_with(
         "governed_reference_write",
-        "machine wrong(seal: &mut Seal in Issued) {
+        "machine wrong(seal: @mut Seal in Issued) {
     seal.mark = 2;
 }
 ",
@@ -934,7 +934,7 @@ fn moving_a_governed_field_out_of_an_exclusive_loan_is_not_accepted() {
     assert_eq!(
         verdicts(
             "governed_moved_out",
-            "machine wrong(sealed: &mut Sealed) -> Seal in Issued {\n    sealed.seal\n}\n",
+            "machine wrong(sealed: @mut Sealed) -> Seal in Issued {\n    sealed.seal\n}\n",
         ),
         ["rejected: 1 unestablished; ", "accepted"]
     );
@@ -944,7 +944,7 @@ fn moving_a_governed_field_out_of_an_exclusive_loan_is_not_accepted() {
 fn rebuilding_a_record_from_a_lent_governed_field_is_not_accepted() {
     refused_with(
         "governed_rebuilt",
-        "machine wrong(sealed: &Sealed) -> Sealed {\n    Sealed { seal: sealed.seal, count: 1 }\n}\n",
+        "machine wrong(sealed: @Sealed) -> Sealed {\n    Sealed { seal: sealed.seal, count: 1 }\n}\n",
         "owned extraction from borrowed storage",
     );
 }

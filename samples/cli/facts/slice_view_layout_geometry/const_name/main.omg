@@ -2,8 +2,8 @@
 // Place: const name. Named constants evaluate size_of and align_of before subtracting.
 // Expected exit: 0
 
-const SLICE_SIZE: u64 = size_of<&[u64]>();
-const SLICE_ALIGN: u64 = align_of<&[u64]>();
+const SLICE_SIZE: u64 = size_of<@[u64]>();
+const SLICE_ALIGN: u64 = align_of<@[u64]>();
 
 machine main() crashes Trap {
     let diff: u64 = SLICE_SIZE - (SLICE_ALIGN * 2u64);

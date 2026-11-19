@@ -17,8 +17,8 @@
 // ProcessExit provider.
 
 trait Logger<T> {
-    machine write(subject: &mut T) suspends blocks;
-    machine flush(subject: &mut T);
+    machine write(subject: @mut T) suspends blocks;
+    machine flush(subject: @mut T);
 }
 
 trait LocalLogger<T> = Logger<T> {
@@ -30,34 +30,34 @@ data Sink {
     pending: i32;
 }
 
-machine Sink::write(sink: &mut Sink) satisfies Logger<Sink>::write {
+machine Sink::write(sink: @mut Sink) satisfies Logger<Sink>::write {
     sink.pending = 0;
 }
 
-machine Sink::flush(sink: &mut Sink) satisfies Logger<Sink>::flush {
+machine Sink::flush(sink: @mut Sink) satisfies Logger<Sink>::flush {
     sink.pending = 0;
 }
 
 data Main { sink: Sink; hits: i32 in Wrapping; }
 
 SinkLogger satisfies Logger<Sink> {
-    machine write(subject: &mut Sink) suspends blocks { Sink::write(subject) }
-    machine flush(subject: &mut Sink) { Sink::flush(subject) }
+    machine write(subject: @mut Sink) suspends blocks { Sink::write(subject) }
+    machine flush(subject: @mut Sink) { Sink::flush(subject) }
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.sink.pending = 9;
     transition main.sink.pending == 9 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -7,7 +7,7 @@ data Outcome [copy] { chosen: i64; other: i64; }
 const CHOSEN: Cell = Cell { before: 3, value: 17, after: 5 };
 const UNSELECTED: Cell = Cell { before: 7, value: 23, after: 9 };
 
-machine choose(counter: &mut u64, flag: bool) -> bool
+machine choose(counter: @mut u64, flag: bool) -> bool
 requires counter == 0
 {
     counter = 1;
@@ -18,9 +18,9 @@ machine store(flag: bool) -> Outcome crashes Trap {
     let mut chosen: Cell = CHOSEN;
     let mut other: Cell = UNSELECTED;
     let mut visits: u64 = 0;
-    let selected: &write i64 = match choose(&mut visits, flag) {
-        true -> &write chosen.value
-        false -> &write other.value
+    let selected: @write i64 = match choose(@mut visits, flag) {
+        true -> @write chosen.value
+        false -> @write other.value
     };
     selected = 41;
     transition visits == 1 && chosen.before == 3 && chosen.after == 5 && other.before == 7 && other.after == 9 {

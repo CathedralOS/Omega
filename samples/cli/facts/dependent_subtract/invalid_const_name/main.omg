@@ -4,7 +4,7 @@
 const USED: u32 = 4;
 data Main requires count <= 11 { count: u32; j: u32; out: i32; }
 
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
 {
     let remaining: u32 = main.count - USED;
     main.out = remaining as i32;

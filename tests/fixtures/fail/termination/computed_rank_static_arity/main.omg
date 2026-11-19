@@ -1,5 +1,5 @@
 // Reject: has no const parameter for extra argument.
-data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
+data View<'storage> [copy] { bytes: @'storage [u8]; sibling: @'storage [u8]; }
 data Counted<'storage, Count: u64> [copy]
 requires view.bytes.len == Count
 { view: View<'storage>; }

@@ -1,6 +1,6 @@
 // Print-a-number sample build sketch. Needs stdout + process.exit.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "print_number");
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../../source/library/std"

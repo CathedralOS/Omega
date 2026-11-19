@@ -252,7 +252,7 @@ fn keyed_index(formal: &str, body: &str) -> String {
             r#"
 data Table [copy] {{ cells: [u32; 256]; count: u64; }}
 data Key [copy] {{ slot: u64; other: u64; }}
-machine pick(table: &Table, {formal}) -> u32 {{
+machine pick(table: @Table, {formal}) -> u32 {{
     {body}
     machine sum(left: u32) -> u32 {{ left }}
     machine none() -> u32 {{ 0 }}
@@ -272,7 +272,7 @@ fn a_guard_over_the_fields_of_a_formal_reaches_its_arm() {
     let arms = |guard: &str, index: &str| {
         format!("transition {guard} {{ true -> sum(table.cells[{index}]) _ -> none() }}")
     };
-    for formal in ["key: Key", "key: &Key"] {
+    for formal in ["key: Key", "key: @Key"] {
         for guard in [
             "key.slot < 256 && key.other < 256",
             "key.slot < 256 && key.other < 256 && key.slot < table.count",
@@ -315,24 +315,24 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
     let root = |access: &str, body: &str| {
         format!("{PAIR}machine root(pair: {access}Pair) -> u64 {{ {body} }}")
     };
-    for access in ["&", "&mut "] {
+    for access in ["@", "@mut "] {
         assert_eq!(verdict(&root(access, "pair.left"), &["root"]), "accepted");
     }
     assert_eq!(
         verdict(
-            &root("&mut ", "pair.left = 3; pair.left = 2; pair.left"),
+            &root("@mut ", "pair.left = 3; pair.left = 2; pair.left"),
             &["root"]
         ),
         "accepted",
         "the exact field's invariant window closes after a restoring write"
     );
     assert_eq!(
-        verdict(&root("&write ", "0u64"), &["root"]),
+        verdict(&root("@write ", "0u64"), &["root"]),
         "parameter write-only reference parameter while reading the signature of `root`",
         "a readable established input is not an uninitialized write-only loan"
     );
     let crash = format!(
-        "{PAIR}machine root(pair: &mut Pair) -> u64 crashes Trap {{ pair.left = 3; crash Trap; }}"
+        "{PAIR}machine root(pair: @mut Pair) -> u64 crashes Trap {{ pair.left = 3; crash Trap; }}"
     );
     assert_eq!(
         verdict(&crash, &["root"]),
@@ -341,8 +341,8 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
     );
     let gated = judged(
         "data Positive [copy] requires value > 0 { value: u64; }\n\
-         machine consume(value: &mut Positive) -> u64 { 1u64 }\n\
-         machine root() -> u64 { let mut value: Positive; consume(&mut value) }",
+         machine consume(value: @mut Positive) -> u64 { 1u64 }\n\
+         machine root() -> u64 { let mut value: Positive; consume(@mut value) }",
         &["root"],
     );
     let [Ok(RouteVerdict::Rejected { unestablished, .. })] = gated.as_slice() else {
@@ -352,7 +352,7 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
     let nested = |body: &str| {
         format!(
             "{PAIR}data Wrapper {{ pair: Pair; sibling: u64; }}\n\
-         machine root(value: &mut Wrapper) -> u64 {{ {body} }}"
+         machine root(value: @mut Wrapper) -> u64 {{ {body} }}"
         )
     };
     assert_eq!(
@@ -360,7 +360,7 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
         "accepted"
     );
     for text in [
-        root("&mut ", "pair.left = 3; 0u64"),
+        root("@mut ", "pair.left = 3; 0u64"),
         nested("value.pair.left = 3; value.sibling"),
     ] {
         let verdicts = judged(&text, &["root"]);
@@ -406,11 +406,11 @@ fn an_indexed_record_write_keeps_its_stored_scalar_for_domain_checking() {
 data Placement requires count <= 16 { count: u64; }
 data Metadata [copy] { tag: u64; }
 data Plan { placements: [Placement; 2]; metadata: Metadata; }
-machine read_tag(metadata: &Metadata) -> u64 { metadata.tag }
-machine root(plan: &mut Plan, index: u64) -> u64
+machine read_tag(metadata: @Metadata) -> u64 { metadata.tag }
+machine root(plan: @mut Plan, index: u64) -> u64
 requires index < 2 {
     plan.placements[index].count = 1;
-    read_tag(&plan.metadata)
+    read_tag(@plan.metadata)
 }
 "#;
     assert_eq!(
@@ -458,14 +458,14 @@ requires index < 2 {
 fn a_call_preserves_only_storage_outside_its_published_write_frame() {
     let source = r#"
 data Pair [copy] { left: u64; right: u64; }
-public machine update(pair: &mut Pair, value: u64) reaches none crashes none terminates {
+public machine update(pair: @mut Pair, value: u64) reaches none crashes none terminates {
     pair.left = value;
 }
 machine root(mut pair: Pair) -> u64
 requires pair.right == 9
 ensures result == 9
 {
-    update(&mut pair, 7);
+    update(@mut pair, 7);
     pair.right
 }
 public machine change_owned(mut pair: Pair) -> Pair

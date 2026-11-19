@@ -12,7 +12,7 @@ Reader satisfies Operations {
 machine read_value_provider(value: i32) -> i32 { value }
 machine identity_provider(value: i32) -> i32 { value }
 data Main { }
-machine check_reviewed_operations(main: &mut Main) reaches ReadCapability crashes Trap {
+machine check_reviewed_operations(main: @mut Main) reaches ReadCapability crashes Trap {
     let read: i32 = read_value(17);
     let pure: i32 = pure_value(39);
     transition read == 17 && pure == 39 { true -> good() false -> bad() }
@@ -23,5 +23,5 @@ machine check_reviewed_operations(main: &mut Main) reaches ReadCapability crashe
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ReadCapability crashes Trap {
     let mut entry_storage: Main;
-    check_reviewed_operations(&mut entry_storage);
+    check_reviewed_operations(@mut entry_storage);
 }

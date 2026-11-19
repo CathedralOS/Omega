@@ -7,7 +7,7 @@ machine braces() -> leaf::settings::Value { leaf::settings::Value::Empty {} }
 
 data Main {}
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     let a: leaf::settings::Value = bare();
     let b: leaf::settings::Value = braces();
 }

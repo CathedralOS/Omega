@@ -4,17 +4,17 @@
 // Place: match_join.
 // Expected exit: 0
 boundary trait Mark {
-    machine record<T>(value: &T, label: u64, hits: &mut u64) reaches crashes none;
+    machine record<T>(value: @T, label: u64, hits: @mut u64) reaches crashes none;
 }
 
 Counting satisfies Mark {
-    machine record<T>(value: &T, label: u64, hits: &mut u64) { hits = label; }
+    machine record<T>(value: @T, label: u64, hits: @mut u64) { hits = label; }
 }
 
-machine notify<T>(left: &T, right: &T, pick: bool, hits: &mut u64) {
-    let chosen: &T = match pick { true -> left, _ -> right };
+machine notify<T>(left: @T, right: @T, pick: bool, hits: @mut u64) {
+    let chosen: @T = match pick { true -> left, _ -> right };
     let label: u64 = match pick { true -> 9, _ -> 5 };
-    Mark::record<T>(&label, label, hits);
+    Mark::record<T>(@label, label, hits);
 }
 
 machine main() crashes Trap {
@@ -24,8 +24,8 @@ machine main() crashes Trap {
     let right_b: u8 = 4;
     let mut first: u64 = 0;
     let mut second: u64 = 0;
-    notify<i32>(&left_i, &right_i, true, &mut first);
-    notify<u8>(&left_b, &right_b, false, &mut second);
+    notify<i32>(@left_i, @right_i, true, @mut first);
+    notify<u8>(@left_b, @right_b, false, @mut second);
     transition first == 9 && second == 5 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

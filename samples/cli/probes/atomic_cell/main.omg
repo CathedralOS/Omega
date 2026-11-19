@@ -18,7 +18,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.counter.store(10, NoOrdering);
     let old1: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
@@ -26,7 +26,7 @@ machine Main::main(main: &mut Main) {
         true -> second(main)
         _ -> fail(main)
     }
-    machine second(main: &mut Main) {
+    machine second(main: @mut Main) {
         let prior: u32 in Wrapping =
             main.counter.compare_exchange(15, 99, ReceivePublish, Receive);
         transition prior == 15 && main.counter == 99 {
@@ -34,12 +34,12 @@ machine Main::main(main: &mut Main) {
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

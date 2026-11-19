@@ -508,7 +508,7 @@ mod tests {
     }
 
     const STAGED: &str = "
-machine build(builder: &mut Build) suspends {
+machine build(builder: @mut Build) suspends {
     Build::application(builder, \"app\");
     let first: DependencyRegistration = Build::build_dependency(builder, one());
     suspend Build::prepare_dependency(builder, first);
@@ -519,7 +519,7 @@ machine build(builder: &mut Build) suspends {
         true -> done(builder)
         _ -> wrong()
     }
-    machine done(builder: &mut Build) { }
+    machine done(builder: @mut Build) { }
     machine wrong() { }
 }
 ";
@@ -540,7 +540,7 @@ machine build(builder: &mut Build) suspends {
     #[test]
     fn an_entry_with_no_top_level_preparation_is_one_stage() {
         let plain = "
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, \"app\");
     let seven: i32 = 7;
 }
@@ -548,10 +548,10 @@ machine build(builder: &mut Build) {
         assert_eq!(stage(plain, 0), Ok((1, 2, 0)));
         assert!(stage(plain, 1).is_err());
         let nested = "
-machine build(builder: &mut Build) suspends {
+machine build(builder: @mut Build) suspends {
     let registered: DependencyRegistration = Build::build_dependency(builder, one());
     suspend wait(builder, registered);
-    machine wait(builder: &mut Build, registered: DependencyRegistration) suspends {
+    machine wait(builder: @mut Build, registered: DependencyRegistration) suspends {
         suspend Build::prepare_dependency(builder, registered);
     }
 }
@@ -564,10 +564,10 @@ machine build(builder: &mut Build) suspends {
     /// it reads the local or a field of it.
     #[test]
     fn a_local_bound_before_a_preparation_is_not_carried_across_it() {
-        for used in ["before", "before.alias", "pick(&before)"] {
+        for used in ["before", "before.alias", "pick(@before)"] {
             let text = format!(
                 "
-machine build(builder: &mut Build) suspends {{
+machine build(builder: @mut Build) suspends {{
     let before: DependencyDescription = one();
     let registered: DependencyRegistration = Build::build_dependency(builder, two());
     suspend Build::prepare_dependency(builder, registered);
@@ -584,7 +584,7 @@ machine build(builder: &mut Build) suspends {{
         // The twin: a later stage that binds the same name again uses its
         // own local, and the parameter is carried.
         let rebound = "
-machine build(builder: &mut Build) suspends {
+machine build(builder: @mut Build) suspends {
     let value: i32 = 1;
     let registered: DependencyRegistration = Build::build_dependency(builder, one());
     suspend Build::prepare_dependency(builder, registered);
@@ -601,12 +601,12 @@ machine build(builder: &mut Build) suspends {
     #[test]
     fn a_stage_before_the_last_cannot_name_a_nested_machine() {
         let text = "
-machine build(builder: &mut Build) suspends {
+machine build(builder: @mut Build) suspends {
     helper(builder);
     let registered: DependencyRegistration = Build::build_dependency(builder, one());
     suspend Build::prepare_dependency(builder, registered);
     helper(builder);
-    machine helper(builder: &mut Build) { }
+    machine helper(builder: @mut Build) { }
 }
 ";
         let refusal = stage(text, 0).unwrap_err();

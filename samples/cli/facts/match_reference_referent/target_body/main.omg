@@ -8,14 +8,14 @@ ensures result == true
     true
 }
 
-machine read_through(place: &i64) -> i64
+machine read_through(place: @i64) -> i64
 requires place == 17
 {
     place
 }
 
-machine apply(chosen: &i64, spare: &i64) -> i64 {
-    let joined: &i64 = match choose() {
+machine apply(chosen: @i64, spare: @i64) -> i64 {
+    let joined: @i64 = match choose() {
         true -> chosen
         false -> spare
     };
@@ -23,13 +23,13 @@ machine apply(chosen: &i64, spare: &i64) -> i64 {
 }
 
 boundary trait SelectedReference {
-    machine read(chosen: &i64, spare: &i64) -> i64
+    machine read(chosen: @i64, spare: @i64) -> i64
     requires chosen == 17
     reaches crashes none;
 }
 
 LinuxX86Reference satisfies SelectedReference {
-    machine read(chosen: &i64, spare: &i64) -> i64
+    machine read(chosen: @i64, spare: @i64) -> i64
     requires chosen == 17
     reaches {
         apply(chosen, spare)
@@ -37,7 +37,7 @@ LinuxX86Reference satisfies SelectedReference {
 }
 
 LinuxArmReference satisfies SelectedReference {
-    machine read(chosen: &i64, spare: &i64) -> i64
+    machine read(chosen: @i64, spare: @i64) -> i64
     requires chosen == 17
     reaches {
         apply(chosen, spare)
@@ -45,7 +45,7 @@ LinuxArmReference satisfies SelectedReference {
 }
 
 MacReference satisfies SelectedReference {
-    machine read(chosen: &i64, spare: &i64) -> i64
+    machine read(chosen: @i64, spare: @i64) -> i64
     requires chosen == 17
     reaches {
         apply(chosen, spare)
@@ -53,7 +53,7 @@ MacReference satisfies SelectedReference {
 }
 
 WindowsReference satisfies SelectedReference {
-    machine read(chosen: &i64, spare: &i64) -> i64
+    machine read(chosen: @i64, spare: @i64) -> i64
     requires chosen == 17
     reaches {
         apply(chosen, spare)
@@ -63,7 +63,7 @@ WindowsReference satisfies SelectedReference {
 machine main() crashes Trap {
     let chosen: i64 = 17;
     let spare: i64 = 5;
-    let observed: i64 = SelectedReference::read(&chosen, &spare);
+    let observed: i64 = SelectedReference::read(@chosen, @spare);
     transition observed == 17 {
         true -> done()
         false -> wrong()

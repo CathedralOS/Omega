@@ -33,7 +33,7 @@ machine number(value: i32 in Wrapping) reaches Console {
     }
 }
 
-public machine render(image: &Image)
+public machine render(image: @Image)
 invokes Console
 reaches Console {
     Console::write_line("P2");
@@ -41,19 +41,19 @@ reaches Console {
     number(image.width); Console::write(" "); number(image.height); Console::write_line("");
     Console::write_line("64");
     transition { _ -> pixel(image, 0) }
-    machine pixel(image: &Image, position: i32 in Wrapping) {
+    machine pixel(image: @Image, position: i32 in Wrapping) {
         transition position >= 0 && position < 64 && position < image.length {
             true -> emit(image, position)
             false -> heading(image)
         }
     }
-    machine emit(image: &Image, position: i32 in Wrapping) {
+    machine emit(image: @Image, position: i32 in Wrapping) {
         transition image.width > 0 {
             true -> emit_pixel(image, position)
             false -> stopped()
         }
     }
-    machine emit_pixel(image: &Image, position: i32 in Wrapping) {
+    machine emit_pixel(image: @Image, position: i32 in Wrapping) {
         let label: i32 in Wrapping = image.labels[position] as i32 in Wrapping;
         number(label);
         transition (position + 1) % image.width == 0 {
@@ -61,28 +61,28 @@ reaches Console {
             false -> space(image, position)
         }
     }
-    machine newline(image: &Image, position: i32 in Wrapping) {
+    machine newline(image: @Image, position: i32 in Wrapping) {
         Console::write_line("");
         transition { _ -> pixel(image, position + 1) }
     }
-    machine space(image: &Image, position: i32 in Wrapping) {
+    machine space(image: @Image, position: i32 in Wrapping) {
         Console::write(" ");
         transition { _ -> pixel(image, position + 1) }
     }
-    machine heading(image: &Image) {
+    machine heading(image: @Image) {
         Console::write("regions "); number(image.components); Console::write_line("");
         Console::write_line("label area centroid_x centroid_y min_x min_y max_x max_y");
         transition { _ -> region(image, 1) }
     }
-    machine region(image: &Image, label: i32 in Wrapping) {
+    machine region(image: @Image, label: i32 in Wrapping) {
         transition label <= image.components {
             true -> report(image, label)
             false -> stopped()
         }
     }
-    machine report(image: &Image, label: i32 in Wrapping) {
+    machine report(image: @Image, label: i32 in Wrapping) {
         let mut measured: Region;
-        measure(image, label, &mut measured);
+        measure(image, label, @mut measured);
         number(label); Console::write(" "); number(measured.area);
         Console::write(" "); number(measured.sum_x); Console::write("/"); number(measured.area);
         Console::write(" "); number(measured.sum_y); Console::write("/"); number(measured.area);

@@ -27,12 +27,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedWriteCell {
-    machine write_cell(cell: &mut Cell)
+    machine write_cell(cell: @mut Cell)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86WriteCell satisfies SelectedWriteCell {
-    machine write_cell(cell: &mut Cell)
+    machine write_cell(cell: @mut Cell)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -41,7 +41,7 @@ X86WriteCell satisfies SelectedWriteCell {
 }
 
 ArmWriteCell satisfies SelectedWriteCell {
-    machine write_cell(cell: &mut Cell)
+    machine write_cell(cell: @mut Cell)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -51,7 +51,7 @@ ArmWriteCell satisfies SelectedWriteCell {
 
 machine main() crashes Trap {
     let mut cell: Cell = Cell { value: 0u64 };
-    SelectedWriteCell::write_cell(&mut cell);
+    SelectedWriteCell::write_cell(@mut cell);
     let val: u64 = cell.value;
     transition val >= 100u64 && val <= 100u64 {
         true -> done(val)

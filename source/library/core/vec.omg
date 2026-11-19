@@ -28,10 +28,10 @@ data Vec<T> {
 // lets `Vec::push(items, value)` participate in ordinary mutation checks. The
 // parameter is named as the `VecAccess` requirements below name it, so the
 // two spellings of one operation agree.
-machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] {
+machine Vec::as_slice<T>(items: @Vec<T>) -> @[T] {
 }
 
-machine Vec::push<T>(items: &mut Vec<T>, value: T) {
+machine Vec::push<T>(items: @mut Vec<T>, value: T) {
 }
 
 // The vector's runtime boundary operations. One runtime realization supplies
@@ -39,23 +39,23 @@ machine Vec::push<T>(items: &mut Vec<T>, value: T) {
 // explicit argument.
 boundary trait VecAccess {
     // Length in elements. Cheap O(1) measure used by `requires`/`ensures`.
-    machine Length<T>(items: &Vec<T>) -> u64 reaches none crashes none;
+    machine Length<T>(items: @Vec<T>) -> u64 reaches none crashes none;
 
     // Capacity in elements; always at least the current length. Cheap O(1)
     // measure.
-    machine Capacity<T>(items: &Vec<T>) -> u64
+    machine Capacity<T>(items: @Vec<T>) -> u64
     reaches none
     ensures
         result >= items.len
     crashes none;
 
-    machine index<T>(items: &Vec<T>, index: u64) -> T
+    machine index<T>(items: @Vec<T>, index: u64) -> T
     reaches none
     requires
         index < items.len
     crashes none;
 
-    machine index_mut<T>(items: &mut Vec<T>, index: u64) -> &mut T
+    machine index_mut<T>(items: @mut Vec<T>, index: u64) -> @mut T
     reaches none
     requires
         index < items.len
@@ -63,13 +63,13 @@ boundary trait VecAccess {
 
     // Borrow the elements as a slice view; the view length matches the
     // vector.
-    machine as_slice<T>(items: &Vec<T>) -> &[T]
+    machine as_slice<T>(items: @Vec<T>) -> @[T]
     reaches none
     ensures
         result.len == items.len
     crashes none;
 
-    machine as_mut_slice<T>(items: &mut Vec<T>) -> &mut [T]
+    machine as_mut_slice<T>(items: @mut Vec<T>) -> @mut [T]
     reaches none
     ensures
         result.len == items.len
@@ -78,7 +78,7 @@ boundary trait VecAccess {
     // Append a value using already-owned capacity. Reallocation is never
     // ambient; a future growing owner must use an explicit allocator
     // package/capability.
-    machine push<T>(items: &mut Vec<T>, value: T)
+    machine push<T>(items: @mut Vec<T>, value: T)
     reaches none
     requires
         items.len < items.capacity
@@ -87,7 +87,7 @@ boundary trait VecAccess {
     // Infallible under its proof obligation, matching
     // `FixedVecAccess::pop`. A future dynamic-failure `try_pop` may return
     // `Optional<T>` from std.
-    machine pop<T>(items: &mut Vec<T>) -> T
+    machine pop<T>(items: @mut Vec<T>) -> T
     reaches none
     requires
         items.len > 0

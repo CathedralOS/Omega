@@ -2,14 +2,14 @@
 // Expected exit: 0
 // Place: other_machine.
 
-machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
+machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
         true -> chosen
         _ -> other
     }
 }
 
-machine overwrite(slot: &mut u64) -> u64 in Wrapping {
+machine overwrite(slot: @mut u64) -> u64 in Wrapping {
     slot = 9;
     (1 as u64 in Wrapping)
 }
@@ -18,7 +18,7 @@ machine add(first: u64 in Wrapping, second: u64 in Wrapping) -> u64 in Wrapping 
     first + second
 }
 
-machine read_at(items: &[u8; 4], index: u64) -> u8
+machine read_at(items: @[u8; 4], index: u64) -> u8
 requires index < 4
 {
     items[index]
@@ -30,11 +30,11 @@ machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     let zero: u64 in Wrapping = 0;
     let mut scratch: u64 = 3;
-    let mut referent: &mut u64 = &mut scratch;
-    referent = choose(&mut chosen, &mut other, false);
-    let loaded: &mut u64 = referent;
+    let mut referent: @mut u64 = @mut scratch;
+    referent = choose(@mut chosen, @mut other, false);
+    let loaded: @mut u64 = referent;
     let marker: u64 in Wrapping = add(overwrite(loaded), zero);
-    let found: u8 = read_at(&items, other);
+    let found: u8 = read_at(@items, other);
     transition (marker as u64) == 1 && chosen == 9 && found == 7 {
         true -> done()
         _ -> bad()

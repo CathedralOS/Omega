@@ -115,7 +115,7 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
     .unwrap();
     std::fs::write(
         project.join("build.omg"),
-        r#"machine build(builder: &mut Build) { Build::package(builder, "inspection_ambiguity"); }"#,
+        r#"machine build(builder: @mut Build) { Build::package(builder, "inspection_ambiguity"); }"#,
     )
     .unwrap();
     let checked = omega(project)

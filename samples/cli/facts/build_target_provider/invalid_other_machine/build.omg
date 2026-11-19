@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "build_target_provider_other_machine_invalid");
     let reading_provider_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../support/fact_dependencies/reading_provider_weak_contract" }));
     Build::bind(builder, windows_x86_64::ProgramEntry, first_entry);

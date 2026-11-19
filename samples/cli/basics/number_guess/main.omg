@@ -36,7 +36,7 @@ data Main {
 
 // Perform one binary-search step: compute mid = (lo+hi)/2, compare to target.
 // Updates lo or hi, increments guesses, sets found=1 if matched.
-machine step(main: &mut Main, target: i32 in Saturating) {
+machine step(main: @mut Main, target: i32 in Saturating) {
     let mid: i32 in Saturating = (main.search.lo + main.search.hi) / 2;
     main.search.mid = mid;
     main.search.guesses = main.search.guesses + 1;
@@ -45,27 +45,27 @@ machine step(main: &mut Main, target: i32 in Saturating) {
         _ -> not_found(main, mid, target)
     }
 
-    machine found(main: &mut Main) {
+    machine found(main: @mut Main) {
         main.search.found = 1 as +Saturating;
     }
 
-    machine not_found(main: &mut Main, mid: i32 in Saturating, target: i32 in Saturating) {
+    machine not_found(main: @mut Main, mid: i32 in Saturating, target: i32 in Saturating) {
         transition mid < target {
             true -> move_lo(main, mid)
             _ -> move_hi(main, mid)
         }
     }
 
-    machine move_lo(main: &mut Main, mid: i32 in Saturating) {
+    machine move_lo(main: @mut Main, mid: i32 in Saturating) {
         main.search.lo = mid + 1;
     }
 
-    machine move_hi(main: &mut Main, mid: i32 in Saturating) {
+    machine move_hi(main: @mut Main, mid: i32 in Saturating) {
         main.search.hi = mid - 1;
     }
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("number_guess: binary-searching [1,100] for the secret number 42");
     // Initialize search range [1, 100].
     main.search.lo = 1 as +Saturating;
@@ -89,7 +89,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block not_found_error(main)
     }
 
-    machine check_guesses(main: &mut Main) {
+    machine check_guesses(main: @mut Main) {
         // Exactly 7 guesses needed: 7 * 10 = 70.
         transition main.search.guesses == 7 {
             true -> block good(main)
@@ -97,24 +97,24 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: found 42 in exactly 7 guesses (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
-    machine not_found_error(main: &mut Main) {
+    machine not_found_error(main: @mut Main) {
         Console::write_line("FAIL: target never found (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
-    machine bad_guesses(main: &mut Main) {
+    machine bad_guesses(main: @mut Main) {
         Console::write_line("FAIL: wrong guess count (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 }
@@ -122,5 +122,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

@@ -715,7 +715,7 @@ fn a_selected_recursive_call_keeps_an_explicit_unavailable_boundary() {
 fn a_tail_call_keeps_its_borrowed_formal_contract() {
     let original = invocation(
         r#"
-        machine main(bytes: &[u8], pending: bool) blocks {
+        machine main(bytes: @[u8], pending: bool) blocks {
             transition pending {
                 true -> block main(bytes, false)
                 false -> done()

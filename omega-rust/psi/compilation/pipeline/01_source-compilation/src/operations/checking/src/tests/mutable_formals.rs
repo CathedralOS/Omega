@@ -351,8 +351,8 @@ fn a_whole_borrowed_record_replacement_changes_the_callers_root() {
 #[test]
 fn a_whole_borrowed_record_replacement_requires_mutable_access() {
     let source = borrowed_replacement_source()
-        .replace("owner: &mut Item", "owner: &Item")
-        .replace("replace(&mut item)", "replace(&item)");
+        .replace("owner: @mut Item", "owner: @Item")
+        .replace("replace(@mut item)", "replace(@item)");
     let verdict = super::build_purpose::judge_build(&source);
     let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
         panic!("shared access cannot replace the caller's root: {verdict:?}");
@@ -380,7 +380,7 @@ fn a_whole_borrowed_record_replacement_requires_mutable_access() {
 fn a_whole_borrowed_replacement_cannot_discard_a_linear_resident() {
     let source = r#"
 data Item [linear] { value: u32; }
-machine build_entry(owner: &mut Item, replacement: Item) {
+machine build_entry(owner: @mut Item, replacement: Item) {
     owner = replacement;
 }
 "#;
@@ -410,11 +410,11 @@ fn a_whole_borrowed_record_replacement_conflicts_with_a_live_child_loan() {
     let source = borrowed_replacement_source()
         .replace(
             "machine consume(item: Item) { }",
-            "machine consume(item: Item) { }\nmachine observe(value: &u32) { }",
+            "machine consume(item: Item) { }\nmachine observe(value: @u32) { }",
         )
         .replace(
             "owner = replacement;",
-            "let held: &u32 = &owner.value; observe(held); owner = replacement;",
+            "let held: @u32 = @owner.value; observe(held); owner = replacement;",
         );
     // End the child before replacing the root, then keep the same child
     // alive across that exact store. Both use the same incoming root.
@@ -442,7 +442,7 @@ fn a_whole_borrowed_record_replacement_conflicts_with_a_live_child_loan() {
 #[test]
 fn a_slice_formal_does_not_gain_whole_view_replacement() {
     let source = r#"
-machine build_entry<'storage>(view: &'storage mut [u8]) {
+machine build_entry<'storage>(view: @'storage mut [u8]) {
     view = view;
 }
 "#;

@@ -9,12 +9,12 @@ frame is now part of the published contract, the way an inferred reach row
 is. Source does not change and no syntax is added:
 
 ```omega
-public machine set_time(entry: &mut Entry, time: u64) {
+public machine set_time(entry: @mut Entry, time: u64) {
     entry.at = time;
 }
 // published frame: entry.at
 
-set_time(&mut e, 5);
+set_time(@mut e, 5);
 use(e.owner);        // facts about e.owner survive
 
 // Editing set_time to also write entry.owner changes its published

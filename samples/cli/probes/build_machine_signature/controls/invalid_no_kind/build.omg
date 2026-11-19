@@ -1,2 +1,2 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
 }

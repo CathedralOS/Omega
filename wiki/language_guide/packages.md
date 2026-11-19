@@ -10,7 +10,7 @@ this page explains the workflow.
 A library declares its own name in `build.omg`:
 
 ```omega
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::package(builder, "arithmetic_kernels");
 }
 ```

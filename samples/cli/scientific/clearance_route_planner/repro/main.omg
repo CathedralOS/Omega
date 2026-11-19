@@ -3,24 +3,24 @@ use omega::language::core::ProcessExit;
 // Expected exit: 70.
 use omega_language_std::Console;
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let bytes: [u8; 2] = [65,66];
     transition bytes[0] == 65 {
-        true -> read(main, &bytes)
+        true -> read(main, @bytes)
         false -> bad(main)
     }
-    machine read(main: &mut Main, bytes: &[u8; 2]) {
+    machine read(main: @mut Main, bytes: @[u8; 2]) {
         transition bytes[1] == 66 {
             true -> good(main)
             false -> bad(main)
         }
     }
-    machine good(main: &mut Main) { ProcessExit::exit_process(70); }
-    machine bad(main: &mut Main) { ProcessExit::exit_process(71); }
+    machine good(main: @mut Main) { ProcessExit::exit_process(70); }
+    machine bad(main: @mut Main) { ProcessExit::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

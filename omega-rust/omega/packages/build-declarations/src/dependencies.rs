@@ -170,7 +170,7 @@ impl fmt::Display for DependencyRowError {
                 "dependency registration must use Build::<operation>(builder, ...), with the root build machine's first parameter"
             }
             Self::WrongArguments => {
-                "dependency registration takes the builder operand and one description, written `_ = Build::dependency(builder, dependency::from_source(source));` or, with an alias, a `let mut name: DependencyDescription = dependency::from_source(source);` local, one `dependency::with_alias(&mut name, \"alias\");` and `_ = Build::dependency(builder, name);`, with no generic, evidence or operational modifiers"
+                "dependency registration takes the builder operand and one description, written `_ = Build::dependency(builder, dependency::from_source(source));` or, with an alias, a `let mut name: DependencyDescription = dependency::from_source(source);` local, one `dependency::with_alias(@mut name, \"alias\");` and `_ = Build::dependency(builder, name);`, with no generic, evidence or operational modifiers"
             }
         })
     }
@@ -450,15 +450,15 @@ mod tests {
     #[test]
     fn rows_retain_their_purpose_alias_and_literal_occurrences() {
         let (trees, rows) = rows(
-            r#"machine build(builder: &mut Build) {
+            r#"machine build(builder: @mut Build) {
     Build::application(builder, "probe");
     _ = Build::dependency(builder, dependency::from_source(Source::Path { location: "math" }));
     let mut other: DependencyDescription = dependency::from_source(Source::Path { location: "other" });
-    dependency::with_alias(&mut other, "other");
+    dependency::with_alias(@mut other, "other");
     let other_registration: DependencyRegistration = Build::dependency(builder, other);
     let git: DependencyRegistration = Build::build_dependency(builder, dependency::from_source(Source::Git { repository: "r", revision: "v" }));
     let mut host: DependencyDescription = dependency::from_source(Source::Path { location: "host" });
-    dependency::with_alias(&mut host, "host");
+    dependency::with_alias(@mut host, "host");
     _ = Build::build_dependency(builder, host);
 }
 "#,
@@ -502,7 +502,7 @@ mod tests {
             "let r: DependencyRegistration = Build::dependency(helper, dependency::from_source(Source::Path { location: \"x\" }));",
         ];
         for statements in wrong_receiver {
-            let source = format!("machine build(builder: &mut Build) {{\n{statements}\n}}\n");
+            let source = format!("machine build(builder: @mut Build) {{\n{statements}\n}}\n");
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
                 Err(DependencyRowError::WrongReceiver),
@@ -517,12 +517,12 @@ mod tests {
             "_ = Build::dependency(builder, Source::Path { location: \"x\" })",
             // An alias configuration must follow its description directly.
             "let mut x: DependencyDescription = dependency::from_source(Source::Path { location: \"x\" });\n    _ = Build::dependency(builder, x)",
-            "let x: DependencyDescription = dependency::from_source(Source::Path { location: \"x\" });\n    dependency::with_alias(&mut x, \"x\");\n    _ = Build::dependency(builder, x)",
-            "let mut x: DependencyDescription = dependency::from_source(Source::Path { location: \"x\" });\n    dependency::with_alias(&mut x, \"x\");\n    _ = Build::dependency(builder, y)",
+            "let x: DependencyDescription = dependency::from_source(Source::Path { location: \"x\" });\n    dependency::with_alias(@mut x, \"x\");\n    _ = Build::dependency(builder, x)",
+            "let mut x: DependencyDescription = dependency::from_source(Source::Path { location: \"x\" });\n    dependency::with_alias(@mut x, \"x\");\n    _ = Build::dependency(builder, y)",
         ];
         for statement in wrong_arguments {
             let source = format!(
-                "machine build(builder: &mut Build) {{\n    Build::application(builder, \"probe\");\n    {statement};\n}}\n"
+                "machine build(builder: @mut Build) {{\n    Build::application(builder, \"probe\");\n    {statement};\n}}\n"
             );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),

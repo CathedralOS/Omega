@@ -97,18 +97,18 @@ fn an_ordinary_published_header_retains_its_declared_result_lifetime_relation() 
     let declared_signature = |binders: &str, input: &str, result: &str| {
         let source = format!(
             "machine build_entry() {{\n\
-                 let output: &[u8] = label(\"input\");\n\
+                 let output: @[u8] = label(\"input\");\n\
                  take(output);\n\
              }}\n\
              machine label{binders}(value: {input}) -> {result} {{\n\
                  \"label\"\n\
              }}\n\
-             machine take(view: &[u8]) {{ }}"
+             machine take(view: @[u8]) {{ }}"
         );
         published_label_signature(&source)
     };
-    let related = declared_signature("<'input, 'other>", "&'input [u8]", "&'input [u8]");
-    let chosen = declared_signature("<'input, 'other>", "&'input [u8]", "&'other [u8]");
+    let related = declared_signature("<'input, 'other>", "@'input [u8]", "@'input [u8]");
+    let chosen = declared_signature("<'input, 'other>", "@'input [u8]", "@'other [u8]");
     assert_eq!(related.0, chosen.0, "the input promise is unchanged");
     assert_ne!(
         related.1, chosen.1,
@@ -120,21 +120,21 @@ fn an_ordinary_published_header_retains_its_declared_result_lifetime_relation() 
     );
     assert_eq!(
         related,
-        declared_signature("<'source, 'independent>", "&'source [u8]", "&'source [u8]"),
+        declared_signature("<'source, 'independent>", "@'source [u8]", "@'source [u8]"),
         "renaming binders preserves the declared relation"
     );
     assert_eq!(
         chosen,
         declared_signature(
             "<'source, 'independent>",
-            "&'source [u8]",
-            "&'independent [u8]"
+            "@'source [u8]",
+            "@'independent [u8]"
         ),
         "renaming a caller-chosen binder preserves the promise"
     );
     assert_eq!(
-        declared_signature("<'input>", "&'input [u8]", "&'input [u8]"),
-        declared_signature("", "&[u8]", "&[u8]"),
+        declared_signature("<'input>", "@'input [u8]", "@'input [u8]"),
+        declared_signature("", "@[u8]", "@[u8]"),
         "elision publishes the same unique input relation"
     );
 }
@@ -147,7 +147,7 @@ fn an_ordinary_record_signature_retains_its_elided_lifetime_relation() {
         |binders: &str, formal: &str, result: &str, argument: &str, body: &str, consumer: &str| {
             published_label_signature(&format!(
                 r#"
-            data View<'storage> {{ bytes: &'storage [u8]; }}
+            data View<'storage> {{ bytes: @'storage [u8]; }}
             machine build_entry() {{
                 let value: View = View {{ bytes: "input" }};
                 take(label({argument}));
@@ -191,19 +191,19 @@ fn an_ordinary_record_signature_retains_its_elided_lifetime_relation() {
     assert_eq!(
         signature(
             "<'outer, 'inner>",
-            "&'outer View<'inner>",
+            "@'outer View<'inner>",
             "u32",
-            "&value",
+            "@value",
             "7u32",
             "u32"
         ),
-        signature("", "&View", "u32", "&value", "7u32", "u32"),
+        signature("", "@View", "u32", "@value", "7u32", "u32"),
         "the outer reference is numbered before its carried reference"
     );
     let no_input = |binders: &str, result: &str| {
         published_label_signature(&format!(
             r#"
-            data Pair<'left, 'right> {{ left: &'left [u8]; right: &'right [u8]; }}
+            data Pair<'left, 'right> {{ left: @'left [u8]; right: @'right [u8]; }}
             machine build_entry() {{ take(label()); }}
             machine label{binders}() -> {result} {{ Pair {{ left: "a", right: "b" }} }}
             machine take(value: Pair) {{}}
@@ -246,8 +246,8 @@ fn a_machine_returns_only_a_view_of_the_region_its_result_names() {
     assert_eq!(
         verdict(
             r#"
-machine build_entry(name: &[u8]) { let kept: &[u8] = same(name); }
-machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
+machine build_entry(name: @[u8]) { let kept: @[u8] = same(name); }
+machine same<'a>(view: @'a [u8]) -> @'a [u8] { view }
 "#
         ),
         "accepted"
@@ -255,8 +255,8 @@ machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
     assert_eq!(
         verdict(
             r#"
-machine build_entry(name: &[u8], second: &[u8]) { let kept: &[u8] = pick(name, second); }
-machine pick<'a, 'b>(view: &'a [u8], other: &'b [u8]) -> &'a [u8] { other }
+machine build_entry(name: @[u8], second: @[u8]) { let kept: @[u8] = pick(name, second); }
+machine pick<'a, 'b>(view: @'a [u8], other: @'b [u8]) -> @'a [u8] { other }
 "#
         ),
         "rejected"
@@ -275,9 +275,9 @@ fn a_call_gives_a_lifetime_the_region_of_the_view_it_passes() {
     assert_eq!(
         verdict(
             r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry<'s>(session: &mut Session<'s>, other: &Session<'s>) { session.name = same(other.name); }
-machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry<'s>(session: @mut Session<'s>, other: @Session<'s>) { session.name = same(other.name); }
+machine same<'a>(view: @'a [u8]) -> @'a [u8] { view }
 "#
         ),
         "accepted"
@@ -285,9 +285,9 @@ machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
     assert_eq!(
         verdict(
             r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &mut Session, other: &Session) { session.name = same(other.name); }
-machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(session: @mut Session, other: @Session) { session.name = same(other.name); }
+machine same<'a>(view: @'a [u8]) -> @'a [u8] { view }
 "#
         ),
         "typing call that gives one lifetime two regions while reading the body of `build_entry`"
@@ -295,9 +295,9 @@ machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
     assert_eq!(
         verdict(
             r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &mut Session, name: &[u8]) { session.name = same(name); }
-machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(session: @mut Session, name: @[u8]) { session.name = same(name); }
+machine same<'a>(view: @'a [u8]) -> @'a [u8] { view }
 "#
         ),
         "typing call that gives one lifetime two regions while reading the body of `build_entry`"
@@ -309,12 +309,12 @@ machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
 /// for one lifetime are refused; a literal is within every region.
 #[test]
 fn one_lifetime_is_not_given_two_regions() {
-    let both = "machine both<'a>(left: &'a [u8], right: &'a [u8]) -> &'a [u8] { left }";
+    let both = "machine both<'a>(left: @'a [u8], right: @'a [u8]) -> @'a [u8] { left }";
     assert_eq!(
         verdict(&format!(
             r#"
-data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}
-machine build_entry<'s>(session: &mut Session<'s>, other: &Session<'s>) {{ session.name = both(other.name, "literal"); }}
+data Session<'storage> {{ ready: bool; name: @'storage [u8]; }}
+machine build_entry<'s>(session: @mut Session<'s>, other: @Session<'s>) {{ session.name = both(other.name, "literal"); }}
 {both}
 "#
         )),
@@ -323,8 +323,8 @@ machine build_entry<'s>(session: &mut Session<'s>, other: &Session<'s>) {{ sessi
     assert_eq!(
         verdict(&format!(
             r#"
-data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}
-machine build_entry<'s>(session: &mut Session<'s>, other: &Session<'s>, name: &[u8]) {{ session.name = both(other.name, name); }}
+data Session<'storage> {{ ready: bool; name: @'storage [u8]; }}
+machine build_entry<'s>(session: @mut Session<'s>, other: @Session<'s>, name: @[u8]) {{ session.name = both(other.name, name); }}
 {both}
 "#
         )),
@@ -342,8 +342,8 @@ fn a_result_without_a_lifetime_needs_one_input_lifetime() {
     assert_eq!(
         verdict(
             r#"
-machine build_entry(name: &[u8]) { let kept: &[u8] = same(name); }
-machine same(view: &[u8]) -> &[u8] { view }
+machine build_entry(name: @[u8]) { let kept: @[u8] = same(name); }
+machine same(view: @[u8]) -> @[u8] { view }
 "#
         ),
         "accepted"
@@ -351,8 +351,8 @@ machine same(view: &[u8]) -> &[u8] { view }
     assert_eq!(
         verdict(
             r#"
-machine build_entry(name: &[u8], second: &[u8]) { let kept: &[u8] = pick(name, second); }
-machine pick(view: &[u8], other: &[u8]) -> &[u8] { other }
+machine build_entry(name: @[u8], second: @[u8]) { let kept: @[u8] = pick(name, second); }
+machine pick(view: @[u8], other: @[u8]) -> @[u8] { other }
 "#
         ),
         "typing result without a lifetime of a signature with several input lifetimes while reading \
@@ -362,9 +362,9 @@ machine pick(view: &[u8], other: &[u8]) -> &[u8] { other }
     assert_eq!(
         verdict(
             r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &Session, name: &[u8]) { take(session.name, name); }
-machine take(view: &[u8], other: &[u8]) { }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(session: @Session, name: @[u8]) { take(session.name, name); }
+machine take(view: @[u8], other: @[u8]) { }
 "#
         ),
         "accepted"
@@ -383,27 +383,27 @@ fn a_result_lifetime_no_input_carries_is_chosen_by_the_caller() {
     for build in [
         // Named, into a local.
         r#"
-machine build_entry() { let kept: &[u8] = made(); }
-machine made<'a>() -> &'a [u8] { "made" }
+machine build_entry() { let kept: @[u8] = made(); }
+machine made<'a>() -> @'a [u8] { "made" }
 "#,
         // The spec's `package_name`: left off, with no reference input.
         r#"
 machine build_entry() { take(package_name()); }
-machine package_name() -> &[u8] { "my_library" }
-machine take(view: &[u8]) { }
+machine package_name() -> @[u8] { "my_library" }
+machine take(view: @[u8]) { }
 "#,
         // The spec's `kind_name`: the result does not keep `value` borrowed.
         r#"
-machine build_entry(value: &[u8]) { take(kind_name(value)); }
-machine kind_name<'name>(value: &[u8]) -> &'name [u8] { "record" }
-machine take(view: &[u8]) { }
+machine build_entry(value: @[u8]) { take(kind_name(value)); }
+machine kind_name<'name>(value: @[u8]) -> @'name [u8] { "record" }
+machine take(view: @[u8]) { }
 "#,
         // "a view projected from another caller-chosen result" qualifies.
         r#"
 machine build_entry() { take(forward()); }
-machine forward() -> &[u8] { package_name() }
-machine package_name() -> &[u8] { "my_library" }
-machine take(view: &[u8]) { }
+machine forward() -> @[u8] { package_name() }
+machine package_name() -> @[u8] { "my_library" }
+machine take(view: @[u8]) { }
 "#,
     ] {
         assert_eq!(verdict(build), "accepted", "{build}");
@@ -530,12 +530,12 @@ fn a_caller_chosen_result_is_not_a_view_of_a_local_even_when_empty() {
     let local_view = |result: &str| {
         format!(
             "machine build_entry() {{ take(leak()); }}\n\
-             machine leak<'out>() -> &'out [u8] {{\n\
+             machine leak<'out>() -> @'out [u8] {{\n\
                  let bytes: [u8; 2] = [98u8, 98u8];\n\
-                 let view: &[u8] = &bytes[..];\n\
+                 let view: @[u8] = @bytes[..];\n\
                  {result}\n\
              }}\n\
-             machine take(view: &[u8]) {{ }}"
+             machine take(view: @[u8]) {{ }}"
         )
     };
     let local_match = include_str!(concat!(
@@ -571,15 +571,15 @@ fn a_caller_chosen_result_is_not_a_view_of_a_local_even_when_empty() {
 fn a_caller_chosen_result_is_not_a_view_of_an_input() {
     for build in [
         r#"
-machine build_entry(text: &[u8]) { take(leak(text)); }
-machine leak<'name>(text: &[u8]) -> &'name [u8] { text }
-machine take(view: &[u8]) { }
+machine build_entry(text: @[u8]) { take(leak(text)); }
+machine leak<'name>(text: @[u8]) -> @'name [u8] { text }
+machine take(view: @[u8]) { }
 "#,
         r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &Session) { take(held(session)); }
-machine held<'name>(session: &Session) -> &'name [u8] { session.name }
-machine take(view: &[u8]) { }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(session: @Session) { take(held(session)); }
+machine held<'name>(session: @Session) -> @'name [u8] { session.name }
+machine take(view: @[u8]) { }
 "#,
     ] {
         assert_eq!(verdict(build), "rejected", "{build}");
@@ -593,8 +593,8 @@ fn a_signature_names_only_lifetimes_its_machine_declares() {
     assert_eq!(
         violation(
             r#"
-machine build_entry(name: &[u8]) { take(name); }
-machine take(view: &'missing [u8]) { }
+machine build_entry(name: @[u8]) { take(name); }
+machine take(view: @'missing [u8]) { }
 "#
         ),
         undeclared("missing", "take")
@@ -602,8 +602,8 @@ machine take(view: &'missing [u8]) { }
     assert_eq!(
         violation(
             r#"
-machine build_entry() { let count: u32 = 1; take(&count); }
-machine take(count: &'missing u32) { }
+machine build_entry() { let count: u32 = 1; take(@count); }
+machine take(count: @'missing u32) { }
 "#
         ),
         undeclared("missing", "take")
@@ -611,8 +611,8 @@ machine take(count: &'missing u32) { }
     assert_eq!(
         verdict(
             r#"
-machine build_entry() { let count: u32 = 1; take(&count); }
-machine take<'a>(count: &'a u32) { }
+machine build_entry() { let count: u32 = 1; take(@count); }
+machine take<'a>(count: @'a u32) { }
 "#
         ),
         "accepted"
@@ -620,9 +620,9 @@ machine take<'a>(count: &'a u32) { }
 }
 
 const DATA_QUALIFIED_MACHINE: &str = r#"
-data Session<'storage> { ready: bool; name: &'storage [u8]; }
-machine build_entry(session: &mut Session, name: &[u8]) { Session::keep(session, name); }
-machine Session::keep(session: &mut Session, view: &'storage [u8]) { session.name = view; }
+data Session<'storage> { ready: bool; name: @'storage [u8]; }
+machine build_entry(session: @mut Session, name: @[u8]) { Session::keep(session, name); }
+machine Session::keep(session: @mut Session, view: @'storage [u8]) { session.name = view; }
 "#;
 
 #[test]
@@ -654,8 +654,8 @@ fn a_static_machine_must_declare_the_lifetime_its_signature_uses() {
     let bound = ordinary
         .replace("machine build_entry(", "machine build_entry<'storage>(")
         .replace("machine keep(", "machine keep<'storage>(")
-        .replace("&mut Session,", "&mut Session<'storage>,")
-        .replace("name: &[u8]", "name: &'storage [u8]");
+        .replace("@mut Session,", "@mut Session<'storage>,")
+        .replace("name: @[u8]", "name: @'storage [u8]");
     assert_eq!(verdict(&bound), "accepted");
 }
 
@@ -668,19 +668,19 @@ fn a_description_is_made_from_a_source_and_taken_apart_for_a_request() {
     let program = |request: &str| {
         format!(
             r#"
-data Source<'storage> {{ location: &'storage [u8]; }}
-data Description<'storage> {{ source: Source<'storage>; explicit_alias: bool; alias: &'storage [u8]; }}
+data Source<'storage> {{ location: @'storage [u8]; }}
+data Description<'storage> {{ source: Source<'storage>; explicit_alias: bool; alias: @'storage [u8]; }}
 machine build_entry() {{ register(from_source(Source {{ location: "std" }})); }}
 machine from_source<'storage>(source: Source<'storage>) -> Description<'storage> {{
     Description {{ source: source, explicit_alias: false, alias: "" }}
 }}
 machine register(description: Description) {{ {request} }}
-machine request(explicit_alias: bool, alias: &[u8], source: Source) {{
+machine request(explicit_alias: bool, alias: @[u8], source: Source) {{
     path(explicit_alias, alias, source.location);
 }}
-machine path(explicit_alias: bool, alias: &[u8], location: &[u8]) {{ }}
-machine whole(alias: &[u8], description: Description) {{ }}
-machine whole_source(source: &Source, description: Description) {{ }}
+machine path(explicit_alias: bool, alias: @[u8], location: @[u8]) {{ }}
+machine whole(alias: @[u8], description: Description) {{ }}
+machine whole_source(source: @Source, description: Description) {{ }}
 "#
         )
     };
@@ -701,7 +701,7 @@ machine whole_source(source: &Source, description: Description) {{ }}
     // storage. Snapshotting shared views must not remove the source guard
     // against transferring that same storage in another argument.
     assert_eq!(
-        verdict(&program("whole_source(&description.source, description);")),
+        verdict(&program("whole_source(@description.source, description);")),
         "call argument that names storage another argument lends while reading the body of \
          `register`"
     );
@@ -716,9 +716,9 @@ fn a_view_of_a_machine_lifetime_is_stored_in_data_applied_at_it() {
     assert_eq!(
         verdict(
             r#"
-data Description<'storage> { explicit_alias: bool; alias: &'storage [u8]; }
+data Description<'storage> { explicit_alias: bool; alias: @'storage [u8]; }
 machine build_entry() { }
-machine with_alias<'storage>(description: &mut Description<'storage>, alias: &'storage [u8]) {
+machine with_alias<'storage>(description: @mut Description<'storage>, alias: @'storage [u8]) {
     description.explicit_alias = true;
     description.alias = alias;
 }
@@ -729,9 +729,9 @@ machine with_alias<'storage>(description: &mut Description<'storage>, alias: &'s
     assert_eq!(
         verdict(
             r#"
-data Description<'storage> { explicit_alias: bool; alias: &'storage [u8]; }
+data Description<'storage> { explicit_alias: bool; alias: @'storage [u8]; }
 machine build_entry() { }
-machine with_alias<'storage, 'other>(description: &mut Description<'storage>, alias: &'other [u8]) {
+machine with_alias<'storage, 'other>(description: @mut Description<'storage>, alias: @'other [u8]) {
     description.alias = alias;
 }
 "#
@@ -771,7 +771,7 @@ fn an_ambiguous_elided_result_is_refused_without_a_caller() {
         assert_eq!(
             verdict(&format!(
                 "machine build_entry() {{ }}\n\
-                 machine pick(view: &[u8], other: &[u8]) -> &[u8] {{ {returned} }}\n"
+                 machine pick(view: @[u8], other: @[u8]) -> @[u8] {{ {returned} }}\n"
             )),
             "typing result without a lifetime of a signature with several input lifetimes while \
              reading the signature of `pick`",

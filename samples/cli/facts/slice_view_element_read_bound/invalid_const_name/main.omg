@@ -6,7 +6,7 @@
 const INDEX: u64 = 3;
 const SUBTRAHEND: u64 = 3;
 
-machine read_guarded(view: &[u64]) -> i32
+machine read_guarded(view: @[u64]) -> i32
     requires view.len >= SUBTRAHEND
 {
     let elem: u64 = view[INDEX];
@@ -21,7 +21,7 @@ machine read_guarded(view: &[u64]) -> i32
 
 machine main() crashes Trap {
     let items: [u64; 4] = [10u64, 20u64, 30u64, 40u64];
-    let view: &[u64] = &items[..];
+    let view: @[u64] = @items[..];
     let res: i32 = read_guarded(view);
     transition res == 0 {
         true -> pass()

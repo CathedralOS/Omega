@@ -1401,28 +1401,28 @@ mod named_value_tests {
     fn named_values_keep_the_applied_requirement_and_refuse_stale_members() {
         const TEXT: &str = r#"
 trait Shrink<T> {
-    machine shrink(scale: &T, value: u64) -> u64;
+    machine shrink(scale: @T, value: u64) -> u64;
 }
 data Scale { unit: u8; }
 TrimOne satisfies Shrink<Scale> {
-    machine shrink(scale: &Scale, value: u64) -> u64 { value }
+    machine shrink(scale: @Scale, value: u64) -> u64 { value }
 }
-machine entry(scale: &Scale) -> u64 {
-    let one: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none = TrimOne::shrink;
+machine entry(scale: @Scale) -> u64 {
+    let one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none = TrimOne::shrink;
     one(scale, 7)
 }
 "#;
         const QUALIFIED: &str = r#"
 module kit;
 trait Shrink<T> {
-    machine shrink(scale: &T, value: u64) -> u64;
+    machine shrink(scale: @T, value: u64) -> u64;
 }
 data Scale { unit: u8; }
 TrimOne satisfies Shrink<Scale> {
-    machine shrink(scale: &Scale, value: u64) -> u64 { value }
+    machine shrink(scale: @Scale, value: u64) -> u64 { value }
 }
-machine entry(scale: &Scale) -> u64 {
-    let one: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none = kit::TrimOne::shrink;
+machine entry(scale: @Scale) -> u64 {
+    let one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none = kit::TrimOne::shrink;
     one(scale, 7)
 }
 "#;

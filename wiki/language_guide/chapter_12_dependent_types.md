@@ -6,7 +6,7 @@ count to a capacity stored next to it. That is all "dependent" means here.
 ## Between parameters
 
 ```omega
-machine get(items: &[u8], index: u64) -> u8
+machine get(items: @[u8], index: u64) -> u8
 requires index < items.len
 {
     items[index]
@@ -71,7 +71,7 @@ data Matrix<const R: u64, const C: u64> {
 ## Dimensions known at run time
 
 ```omega
-machine pixel(pixels: &[u8], width: u32, height: u32, x: u32, y: u32) -> u8
+machine pixel(pixels: @[u8], width: u32, height: u32, x: u32, y: u32) -> u8
 requires width in 1..=1024
 requires height in 1..=1024
 requires x < width
@@ -91,11 +91,11 @@ A call invalidates what you knew about storage it may write, and nothing else.
 The compiler works out which places a machine writes from its body:
 
 ```omega
-public machine set_time(entry: &mut Entry, time: u64) {
+public machine set_time(entry: @mut Entry, time: u64) {
     entry.at = time;
 }
 
-set_time(&mut e, 5);
+set_time(@mut e, 5);
 use(e.owner);        // facts about e.owner survive the call
 ```
 
@@ -112,7 +112,7 @@ Two things keep that from costing you:
 Each round must establish what the next round requires:
 
 ```omega
-machine clear(buffer: &mut [u8], remaining: u64)
+machine clear(buffer: @mut [u8], remaining: u64)
 requires remaining <= buffer.len
 terminates by remaining -> Nat::Descending
 {
@@ -121,7 +121,7 @@ terminates by remaining -> Nat::Descending
         false -> step(buffer, remaining)
     }
 
-    machine step(buffer: &mut [u8], remaining: u64)
+    machine step(buffer: @mut [u8], remaining: u64)
     requires remaining > 0
     requires remaining <= buffer.len
     terminates by remaining -> Nat::Descending

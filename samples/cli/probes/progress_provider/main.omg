@@ -24,36 +24,36 @@ satisfies ProgressProfile
 established by Scheduler::grant;
 
 public boundary trait Scheduler {
-    machine notify(provider: &SchedulerProvider, value: i32)
+    machine notify(provider: @SchedulerProvider, value: i32)
     reaches
     terminates crashes none;
 
-    machine grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair reaches crashes none;
+    machine grant(provider: @SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair reaches crashes none;
 }
 
 public data SchedulerProvider { grant: addr; notify: addr; }
 
-linux_x86_64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
+linux_x86_64 machine SchedulerProvider::notify(provider: @SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::Syscall(1);
 
-linux_arm64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
+linux_arm64 machine SchedulerProvider::notify(provider: @SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-macos_arm64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
+macos_arm64 machine SchedulerProvider::notify(provider: @SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-macos_x86_64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
+macos_x86_64 machine SchedulerProvider::notify(provider: @SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-windows_x86_64 machine SchedulerProvider::notify(provider: &SchedulerProvider, value: i32)
+windows_x86_64 machine SchedulerProvider::notify(provider: @SchedulerProvider, value: i32)
 satisfies Scheduler::notify
 via ForeignBinding::VtableField(notify);
 
-machine SchedulerProvider::grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair
+machine SchedulerProvider::grant(provider: @SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair
 satisfies Scheduler::grant
 via ForeignBinding::VtableField(grant);
 
@@ -62,12 +62,12 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
 reaches Scheduler
 terminates
 {
     main.hits = 1;
-    Scheduler::notify(&main.provider, 65);
+    Scheduler::notify(@main.provider, 65);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
@@ -76,5 +76,5 @@ reaches Scheduler
 terminates
 {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

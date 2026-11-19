@@ -100,127 +100,127 @@ data Main {
 
 // ── write helpers: deposit/withdraw per const index ────────────────────────────
 
-machine do_deposit(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+machine do_deposit(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
     transition idx == 0 {
         true -> dep0(main, amount)
         _ -> dep_try1(main, idx, amount)
     }
-    machine dep0(main: &mut Main, amount: i32 in Wrapping) {
+    machine dep0(main: @mut Main, amount: i32 in Wrapping) {
         main.accounts[0].balance = main.accounts[0].balance + amount;
     }
-    machine dep_try1(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine dep_try1(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         transition idx == 1 {
             true -> dep1(main, amount)
             _ -> dep_try2(main, idx, amount)
         }
     }
-    machine dep1(main: &mut Main, amount: i32 in Wrapping) {
+    machine dep1(main: @mut Main, amount: i32 in Wrapping) {
         main.accounts[1].balance = main.accounts[1].balance + amount;
     }
-    machine dep_try2(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine dep_try2(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         transition idx == 2 {
             true -> dep2(main, amount)
             _ -> dep3(main, amount)
         }
     }
-    machine dep2(main: &mut Main, amount: i32 in Wrapping) {
+    machine dep2(main: @mut Main, amount: i32 in Wrapping) {
         main.accounts[2].balance = main.accounts[2].balance + amount;
     }
-    machine dep3(main: &mut Main, amount: i32 in Wrapping) {
+    machine dep3(main: @mut Main, amount: i32 in Wrapping) {
         main.accounts[3].balance = main.accounts[3].balance + amount;
     }
 }
 
-machine do_withdraw(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+machine do_withdraw(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
     transition idx == 0 {
         true -> wd0(main, amount)
         _ -> wd_try1(main, idx, amount)
     }
-    machine wd0(main: &mut Main, amount: i32 in Wrapping) {
+    machine wd0(main: @mut Main, amount: i32 in Wrapping) {
         main.accounts[0].balance = main.accounts[0].balance - amount;
     }
-    machine wd_try1(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine wd_try1(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         transition idx == 1 {
             true -> wd1(main, amount)
             _ -> wd_try2(main, idx, amount)
         }
     }
-    machine wd1(main: &mut Main, amount: i32 in Wrapping) {
+    machine wd1(main: @mut Main, amount: i32 in Wrapping) {
         main.accounts[1].balance = main.accounts[1].balance - amount;
     }
-    machine wd_try2(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine wd_try2(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         transition idx == 2 {
             true -> wd2(main, amount)
             _ -> wd3(main, amount)
         }
     }
-    machine wd2(main: &mut Main, amount: i32 in Wrapping) {
+    machine wd2(main: @mut Main, amount: i32 in Wrapping) {
         main.accounts[2].balance = main.accounts[2].balance - amount;
     }
-    machine wd3(main: &mut Main, amount: i32 in Wrapping) {
+    machine wd3(main: @mut Main, amount: i32 in Wrapping) {
         main.accounts[3].balance = main.accounts[3].balance - amount;
     }
 }
 
-machine do_freeze(main: &mut Main, idx: i32 in Wrapping) {
+machine do_freeze(main: @mut Main, idx: i32 in Wrapping) {
     transition idx == 0 {
         true -> fr0(main)
         _ -> fr_try1(main, idx)
     }
-    machine fr0(main: &mut Main) { main.accounts[0].frozen = 1 as +Wrapping; }
-    machine fr_try1(main: &mut Main, idx: i32 in Wrapping) {
+    machine fr0(main: @mut Main) { main.accounts[0].frozen = 1 as +Wrapping; }
+    machine fr_try1(main: @mut Main, idx: i32 in Wrapping) {
         transition idx == 1 {
             true -> fr1(main)
             _ -> fr_try2(main, idx)
         }
     }
-    machine fr1(main: &mut Main) { main.accounts[1].frozen = 1 as +Wrapping; }
-    machine fr_try2(main: &mut Main, idx: i32 in Wrapping) {
+    machine fr1(main: @mut Main) { main.accounts[1].frozen = 1 as +Wrapping; }
+    machine fr_try2(main: @mut Main, idx: i32 in Wrapping) {
         transition idx == 2 {
             true -> fr2(main)
             _ -> fr3(main)
         }
     }
-    machine fr2(main: &mut Main) { main.accounts[2].frozen = 1 as +Wrapping; }
-    machine fr3(main: &mut Main) { main.accounts[3].frozen = 1 as +Wrapping; }
+    machine fr2(main: @mut Main) { main.accounts[2].frozen = 1 as +Wrapping; }
+    machine fr3(main: @mut Main) { main.accounts[3].frozen = 1 as +Wrapping; }
 }
 
-machine do_unfreeze(main: &mut Main, idx: i32 in Wrapping) {
+machine do_unfreeze(main: @mut Main, idx: i32 in Wrapping) {
     transition idx == 0 {
         true -> uf0(main)
         _ -> uf_try1(main, idx)
     }
-    machine uf0(main: &mut Main) { main.accounts[0].frozen = 0 as +Wrapping; }
-    machine uf_try1(main: &mut Main, idx: i32 in Wrapping) {
+    machine uf0(main: @mut Main) { main.accounts[0].frozen = 0 as +Wrapping; }
+    machine uf_try1(main: @mut Main, idx: i32 in Wrapping) {
         transition idx == 1 {
             true -> uf1(main)
             _ -> uf_try2(main, idx)
         }
     }
-    machine uf1(main: &mut Main) { main.accounts[1].frozen = 0 as +Wrapping; }
-    machine uf_try2(main: &mut Main, idx: i32 in Wrapping) {
+    machine uf1(main: @mut Main) { main.accounts[1].frozen = 0 as +Wrapping; }
+    machine uf_try2(main: @mut Main, idx: i32 in Wrapping) {
         transition idx == 2 {
             true -> uf2(main)
             _ -> uf3(main)
         }
     }
-    machine uf2(main: &mut Main) { main.accounts[2].frozen = 0 as +Wrapping; }
-    machine uf3(main: &mut Main) { main.accounts[3].frozen = 0 as +Wrapping; }
+    machine uf2(main: @mut Main) { main.accounts[2].frozen = 0 as +Wrapping; }
+    machine uf3(main: @mut Main) { main.accounts[3].frozen = 0 as +Wrapping; }
 }
 
 // Read frozen flag (value-returning).
-machine is_frozen(main: &mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
+machine is_frozen(main: @mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
     transition idx == 0 {
         true -> (main.accounts[0].frozen)
         _ -> try_f1(main, idx)
     }
-    machine try_f1(main: &mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
+    machine try_f1(main: @mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
         transition idx == 1 {
             true -> (main.accounts[1].frozen)
             _ -> try_f2(main, idx)
         }
     }
-    machine try_f2(main: &mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
+    machine try_f2(main: @mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
         transition idx == 2 {
             true -> (main.accounts[2].frozen)
             _ -> (main.accounts[3].frozen)
@@ -234,44 +234,44 @@ machine is_frozen(main: &mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
 // per-arm mutation fired 3x per call natively (interp 1x -- unobserved by the
 // exit checks until the effectful-arm fence caught it 2026-07-07). Entry
 // effects are ordered by the deferral machinery and safe.
-machine balance_of(main: &mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
+machine balance_of(main: @mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
     main.query_count = main.query_count + 1;
     transition idx == 0 {
         true -> read0(main)
         _ -> try1(main, idx)
     }
-    machine read0(main: &mut Main) -> i32 in Wrapping {
+    machine read0(main: @mut Main) -> i32 in Wrapping {
         let b: i32 in Wrapping = main.accounts[0].balance;
         transition { _ -> (b) }
     }
-    machine try1(main: &mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
+    machine try1(main: @mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
         transition idx == 1 {
             true -> read1(main)
             _ -> try2(main, idx)
         }
     }
-    machine read1(main: &mut Main) -> i32 in Wrapping {
+    machine read1(main: @mut Main) -> i32 in Wrapping {
         let b: i32 in Wrapping = main.accounts[1].balance;
         transition { _ -> (b) }
     }
-    machine try2(main: &mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
+    machine try2(main: @mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
         transition idx == 2 {
             true -> read2(main)
             _ -> read3(main)
         }
     }
-    machine read2(main: &mut Main) -> i32 in Wrapping {
+    machine read2(main: @mut Main) -> i32 in Wrapping {
         let b: i32 in Wrapping = main.accounts[2].balance;
         transition { _ -> (b) }
     }
-    machine read3(main: &mut Main) -> i32 in Wrapping {
+    machine read3(main: @mut Main) -> i32 in Wrapping {
         let b: i32 in Wrapping = main.accounts[3].balance;
         transition { _ -> (b) }
     }
 }
 
 // ── value-returning: sum all four balances ────────────────────────────────────
-machine total(main: &mut Main) -> i32 in Wrapping {
+machine total(main: @mut Main) -> i32 in Wrapping {
     let t: i32 in Wrapping = main.accounts[0].balance
                + main.accounts[1].balance
                + main.accounts[2].balance
@@ -280,7 +280,7 @@ machine total(main: &mut Main) -> i32 in Wrapping {
 }
 
 // ── case dispatcher: apply a transaction to an account index ──────────────────
-machine apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches ProcessExit + Console {
+machine apply(main: @mut Main, idx: i32 in Wrapping, tx: Transaction) reaches ProcessExit + Console {
     transition tx {
         Transaction::Deposit { amount } -> check_frozen_dep(main, idx, amount)
         Transaction::Withdraw { amount } -> check_frozen_wd(main, idx, amount)
@@ -291,7 +291,7 @@ machine apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches Pr
         _ -> done(main)
     }
 
-    machine check_frozen_dep(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine check_frozen_dep(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         let frozen: i32 in Wrapping = is_frozen(main, idx);
         transition frozen == 0 {
             true -> exec_dep(main, idx, amount)
@@ -299,11 +299,11 @@ machine apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches Pr
         }
     }
 
-    machine exec_dep(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine exec_dep(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         do_deposit(main, idx, amount);
     }
 
-    machine check_frozen_wd(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine check_frozen_wd(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         let frozen: i32 in Wrapping = is_frozen(main, idx);
         transition frozen == 0 {
             true -> exec_wd(main, idx, amount)
@@ -311,13 +311,13 @@ machine apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches Pr
         }
     }
 
-    machine exec_wd(main: &mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine exec_wd(main: @mut Main, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         do_withdraw(main, idx, amount);
     }
 
     // Transfer path: probe the extracted payload fields.
     // In native: `amount` receives the value of `to` (the first payload field).
-    machine check_xfer(main: &mut Main, idx: i32 in Wrapping, to: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine check_xfer(main: @mut Main, idx: i32 in Wrapping, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // Guard chain that exposed the (now-fixed) miscompile:
         // src (=idx) should be 0 for our apply(0, Transfer{...}) call.
         transition idx == 0 {
@@ -326,14 +326,14 @@ machine apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches Pr
         }
     }
 
-    machine xfer_bad_idx(main: &mut Main) {
+    machine xfer_bad_idx(main: @mut Main) {
         Console::write_line("FAIL: Transfer sub-state src idx != 0 -- probe arm (exit 91)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(91);
     }
 
-    machine xfer_check_to(main: &mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine xfer_check_to(main: @mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // to should be 3.
         transition to == 3 {
             true -> block xfer_check_amount(main, to, amount)
@@ -341,14 +341,14 @@ machine apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches Pr
         }
     }
 
-    machine xfer_bad_to(main: &mut Main) {
+    machine xfer_bad_to(main: @mut Main) {
         Console::write_line("FAIL: Transfer payload field to != 3 -- probe arm (exit 92)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(92);
     }
 
-    machine xfer_check_amount(main: &mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine xfer_check_amount(main: @mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // amount should be 40. In native: amount==3 (same as `to`).
         // Historical MISCOMPILE arm: fired in native (exit 93) while the payload-extraction bug was live; now a regression tripwire.
         transition amount == 40 {
@@ -357,35 +357,35 @@ machine apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches Pr
         }
     }
 
-    machine xfer_bad_amount(main: &mut Main) {
+    machine xfer_bad_amount(main: @mut Main) {
         Console::write_line("FAIL: Transfer payload field amount != 40 -- historical miscompile tripwire (exit 93)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(93);
     }
 
-    machine xfer_do(main: &mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
+    machine xfer_do(main: @mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
         do_withdraw(main, 0 as +Wrapping, amount);
         do_deposit(main, to, amount);
     }
 
-    machine do_freeze_now(main: &mut Main, idx: i32 in Wrapping) {
+    machine do_freeze_now(main: @mut Main, idx: i32 in Wrapping) {
         do_freeze(main, idx);
     }
 
-    machine do_unfreeze_now(main: &mut Main, idx: i32 in Wrapping) {
+    machine do_unfreeze_now(main: @mut Main, idx: i32 in Wrapping) {
         do_unfreeze(main, idx);
     }
 
-    machine do_query(main: &mut Main) {
+    machine do_query(main: @mut Main) {
         main.query_count = main.query_count + 1;
     }
 
-    machine done(main: &mut Main) {}
+    machine done(main: @mut Main) {}
 }
 
 // ── main: scripted transaction sequence + multi-layer verification ─────────────
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
     // 10 apply calls. `apply` acknowledges `block` transitively (its failure
     // arms call `block console.read_line`), so each call site repeats it.
@@ -406,57 +406,57 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block bad_raw0(main)
     }
 
-    machine bad_raw0(main: &mut Main) {
+    machine bad_raw0(main: @mut Main) {
         Console::write_line("FAIL: raw acc[0].balance wrong -- expected 40 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
-    machine raw_check_acc2(main: &mut Main) {
+    machine raw_check_acc2(main: @mut Main) {
         transition main.accounts[2].balance == 30 {
             true -> block raw_check_acc1(main)
             _ -> block bad_raw2(main)
         }
     }
 
-    machine bad_raw2(main: &mut Main) {
+    machine bad_raw2(main: @mut Main) {
         Console::write_line("FAIL: raw acc[2].balance wrong -- expected 30 (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 
-    machine raw_check_acc1(main: &mut Main) {
+    machine raw_check_acc1(main: @mut Main) {
         transition main.accounts[1].balance == 120 {
             true -> block raw_check_acc3(main)
             _ -> block bad_raw1(main)
         }
     }
 
-    machine bad_raw1(main: &mut Main) {
+    machine bad_raw1(main: @mut Main) {
         Console::write_line("FAIL: raw acc[1].balance wrong -- expected 120 (exit 73)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(73);
     }
 
-    machine raw_check_acc3(main: &mut Main) {
+    machine raw_check_acc3(main: @mut Main) {
         transition main.accounts[3].balance == 40 {
             true -> block vcall_check_b0(main)
             _ -> block bad_raw3(main)
         }
     }
 
-    machine bad_raw3(main: &mut Main) {
+    machine bad_raw3(main: @mut Main) {
         Console::write_line("FAIL: raw acc[3].balance wrong -- expected 40 (exit 74)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(74);
     }
 
     // Layer 2: value-call reads (balance_of captures+mutates+returns).
-    machine vcall_check_b0(main: &mut Main) {
+    machine vcall_check_b0(main: @mut Main) {
         let b0: i32 in Wrapping = balance_of(main, 0 as +Wrapping);
         transition b0 == 40 {
             true -> block vcall_check_b2(main, b0)
@@ -464,14 +464,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine bad_vcall0(main: &mut Main) {
+    machine bad_vcall0(main: @mut Main) {
         Console::write_line("FAIL: balance_of(0) value-call read wrong -- expected 40 (exit 75)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(75);
     }
 
-    machine vcall_check_b2(main: &mut Main, b0: i32 in Wrapping) {
+    machine vcall_check_b2(main: @mut Main, b0: i32 in Wrapping) {
         let b2: i32 in Wrapping = balance_of(main, 2 as +Wrapping);
         transition b2 == 30 {
             true -> block vcall_check_sum(main, b0, b2)
@@ -479,10 +479,10 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine bad_vcall2(main: &mut Main) {
+    machine bad_vcall2(main: @mut Main) {
         Console::write_line("FAIL: balance_of(2) value-call read wrong -- expected 30 (exit 76)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(76);
     }
 
@@ -490,7 +490,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     // balance_of(0) + balance_of(2) = 40 + 30 = 70 (the key checksum).
     // If layers 1-2 pass but this fires, it's a value-call arithmetic miscompile
     // (the stack_vm-style bug -- distinct from the payload-extraction bug above).
-    machine vcall_check_sum(main: &mut Main, b0: i32 in Wrapping, b2: i32 in Wrapping) {
+    machine vcall_check_sum(main: @mut Main, b0: i32 in Wrapping, b2: i32 in Wrapping) {
         let checksum: i32 in Wrapping = b0 + b2;
         transition checksum == 70 {
             true -> block check_total(main)
@@ -498,15 +498,15 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine bad_sum(main: &mut Main) {
+    machine bad_sum(main: @mut Main) {
         Console::write_line("FAIL: balance_of(0)+balance_of(2) checksum wrong -- expected 70 (exit 77)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(77);
     }
 
     // Layer 4: total() value-call.
-    machine check_total(main: &mut Main) {
+    machine check_total(main: @mut Main) {
         let t: i32 in Wrapping = total(main);
         transition t == 230 {
             true -> block good(main)
@@ -514,17 +514,17 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine bad_total(main: &mut Main) {
+    machine bad_total(main: @mut Main) {
         Console::write_line("FAIL: total() wrong -- expected 230 (exit 78)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(78);
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: all 4 balances + value-call checksum 70 + total 230 verified (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 }
@@ -532,5 +532,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

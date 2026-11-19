@@ -9,28 +9,28 @@ data Main {
     game: Game;
 }
 
-machine main(main: &mut Main) {
-    game_initialize(&mut main.game, 7);
+machine main(main: @mut Main) {
+    game_initialize(@mut main.game, 7);
 
     transition {
         _ -> block running(main)
     }
 
 
-    machine running(main: &mut Main) {
-        block run_game_loop(&mut main.game);
+    machine running(main: @mut Main) {
+        block run_game_loop(@mut main.game);
 
         transition {
             _ -> shutdown(main)
         }
     }
 
-    machine shutdown(main: &mut Main) {
+    machine shutdown(main: @mut Main) {
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

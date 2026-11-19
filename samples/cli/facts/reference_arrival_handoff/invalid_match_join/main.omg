@@ -5,9 +5,9 @@ machine main() crashes Trap {
     let mut backing: i64 = 17;
     let mut spare: i64 = 0;
     let pick: bool = true;
-    let original: &mut i64 = &mut backing;
-    let alternate: &mut i64 = &mut spare;
-    let child: &mut i64 = match pick {
+    let original: @mut i64 = @mut backing;
+    let alternate: @mut i64 = @mut spare;
+    let child: @mut i64 = match pick {
         true -> original
         false -> alternate
     };

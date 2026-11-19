@@ -4,7 +4,7 @@
 data Slot { case Absent; case Present(value: i64); }
 data Pair { chosen: Slot; other: Slot; }
 
-machine choose(counter: &mut u64) -> bool
+machine choose(counter: @mut u64) -> bool
 requires counter == 0
 {
     counter = 1;
@@ -17,9 +17,9 @@ machine main() crashes Trap {
         other: Slot::Present { value: 0 }
     };
     let mut visits: u64 = 0;
-    let selected: &mut i64 = match choose(&mut visits) {
-        true -> &mut pair.chosen.value
-        false -> &mut pair.other.value
+    let selected: @mut i64 = match choose(@mut visits) {
+        true -> @mut pair.chosen.value
+        false -> @mut pair.other.value
     };
     selected = 41;
     let observed: i64 = selected;

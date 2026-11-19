@@ -8,13 +8,13 @@ requires Length == u64::AtMost<Capacity>
 { Capacity }
 machine recovered() -> u64 { capacity<u64 in AtMost<257> >() }
 data Main { hits: i32 in Wrapping; }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     let n: u64 = recovered();
     transition n == 257 {
         true -> done(main)
         _ -> done(main)
     }
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
         main.hits = main.hits + 1;
     }
 }
@@ -22,5 +22,5 @@ machine Main::main(main: &mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

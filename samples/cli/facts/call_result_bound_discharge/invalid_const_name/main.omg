@@ -10,7 +10,7 @@ machine nine() -> u64 { 9u64 }
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0 as +Wrapping;
 
     let r: u64 = echo(SCALE);
@@ -18,6 +18,6 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1 as +Wrapping; }
-    machine fail(main: &mut Main) { main.hits = (-1) as +Wrapping; }
+    machine pass(main: @mut Main) { main.hits = 1 as +Wrapping; }
+    machine fail(main: @mut Main) { main.hits = (-1) as +Wrapping; }
 }

@@ -40,7 +40,7 @@ fn callable_field_named_store_keeps_its_value_arguments() {
 #[test]
 fn indexed_atomic_store_retains_its_destination() {
     let typed = type_source(
-        "machine set(cells: &mut [AtomicU32; 2]) {
+        "machine set(cells: @mut [AtomicU32; 2]) {
             cells[0].store(17, NoOrdering);
         }",
     )
@@ -75,13 +75,13 @@ fn selected_cells_check_ordering_and_keep_the_event_and_its_result() {
             format!("let prior: u32 = cell.{member};")
         };
         let error = type_source(&format!(
-            "machine update(cell: &AtomicU32) {{ {invocation} }}"
+            "machine update(cell: @AtomicU32) {{ {invocation} }}"
         ))
         .unwrap_err();
         assert!(error.message.contains(forbidden), "{}", error.message);
     }
     let typed = type_source(
-        "machine update(cell: &AtomicU32) {
+        "machine update(cell: @AtomicU32) {
             cell.store(1, Publish);
             let read: u32 = cell.load(Receive);
             let prior: u32 = cell.fetch_add(1, GlobalOrder);

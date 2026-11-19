@@ -18,7 +18,7 @@ fn members(text: &str) -> Vec<MemberSelection> {
 #[test]
 fn collection_length_is_selected_on_the_real_borrowed_receiver() {
     assert_eq!(
-        members("machine observe(items: &[u8]) -> u64 { items.len }"),
+        members("machine observe(items: @[u8]) -> u64 { items.len }"),
         vec![MemberSelection::CollectionMeasure(
             CollectionMeasure::Length
         )]
@@ -97,7 +97,7 @@ fn elaborated(
 
 #[test]
 fn a_length_read_uses_the_exact_formals_entry_extent() {
-    for view in ["&[u8]", "&mut [u8]"] {
+    for view in ["@[u8]", "@mut [u8]"] {
         let result = judged(&format!(
             "machine entry(items: {view}) -> u64 requires items.len > 0 {{ items.len - 1 }}"
         ));
@@ -114,7 +114,7 @@ fn a_length_read_uses_the_exact_formals_entry_extent() {
 
 #[test]
 fn a_stored_element_length_reads_its_exact_descriptor() {
-    for carrier in ["[Ticket]", "&[Ticket]"] {
+    for carrier in ["[Ticket]", "@[Ticket]"] {
         let result = judged(&format!(
             "data Ticket {{ number: u32; }}
              machine entry(tickets: {carrier}) -> u64 requires tickets.len > 0 {{ tickets.len - 1 }}"
@@ -135,7 +135,7 @@ fn a_stored_element_length_reads_its_exact_descriptor() {
 fn another_element_descriptors_extent_cannot_justify_this_length() {
     let result = judged(
         "data Ticket { number: u32; }
-         machine entry(left: &[Ticket], right: &[Ticket]) -> u64
+         machine entry(left: @[Ticket], right: @[Ticket]) -> u64
          requires left.len > 0 { right.len - 1 }",
     );
     assert!(
@@ -148,7 +148,7 @@ fn another_element_descriptors_extent_cannot_justify_this_length() {
 #[test]
 fn another_views_extent_cannot_justify_this_length() {
     let result = judged(
-        "machine entry(left: &[u8], right: &[u8]) -> u64 requires left.len > 0 { right.len - 1 }",
+        "machine entry(left: @[u8], right: @[u8]) -> u64 requires left.len > 0 { right.len - 1 }",
     );
     assert!(
         matches!(result, super::RouteVerdict::Rejected { ref unproved, .. }
@@ -161,8 +161,8 @@ fn another_views_extent_cannot_justify_this_length() {
 fn a_copied_view_keeps_its_formals_extent_without_an_extra_source_read() {
     let result = judged(
         r#"
-machine entry<'a>(items: &'a [u8]) -> u64 requires items.len > 0 {
-    let local: &'a [u8] = items;
+machine entry<'a>(items: @'a [u8]) -> u64 requires items.len > 0 {
+    let local: @'a [u8] = items;
     local.len - 1
 }
 "#,
@@ -187,22 +187,22 @@ machine entry<'a>(items: &'a [u8]) -> u64 requires items.len > 0 {
 #[test]
 fn a_call_binds_length_to_its_actual_descriptor_version() {
     for (parameters, requirement, body) in [
-        ("items: &'a [u8]", "items.len > 0", "required(items)"),
+        ("items: @'a [u8]", "items.len > 0", "required(items)"),
         (
-            "items: &'a [u8]",
+            "items: @'a [u8]",
             "items.len > 0",
-            "let local: &'a [u8] = items; required(local)",
+            "let local: @'a [u8] = items; required(local)",
         ),
         (
-            "holder: &Holder<'a>",
+            "holder: @Holder<'a>",
             "holder.left.len > 0",
             "required(holder.left)",
         ),
     ] {
         let source = format!(
             r#"
-data Holder<'held> {{ left: &'held [u8]; right: &'held [u8]; }}
-machine required<'a>(items: &'a [u8]) -> u64 requires items.len > 0 {{ items.len - 1 }}
+data Holder<'held> {{ left: @'held [u8]; right: @'held [u8]; }}
+machine required<'a>(items: @'a [u8]) -> u64 requires items.len > 0 {{ items.len - 1 }}
 machine entry<'a>({parameters}) -> u64 requires {requirement} {{ {body} }}
 "#
         );
@@ -218,9 +218,9 @@ machine entry<'a>({parameters}) -> u64 requires {requirement} {{ {body} }}
 fn a_call_cannot_use_another_fields_length() {
     let result = judged(
         r#"
-data Holder<'held> { left: &'held [u8]; right: &'held [u8]; }
-machine required<'a>(items: &'a [u8]) -> u64 requires items.len > 0 { items.len - 1 }
-machine entry<'a>(holder: &Holder<'a>) -> u64 requires holder.left.len > 0 {
+data Holder<'held> { left: @'held [u8]; right: @'held [u8]; }
+machine required<'a>(items: @'a [u8]) -> u64 requires items.len > 0 { items.len - 1 }
+machine entry<'a>(holder: @Holder<'a>) -> u64 requires holder.left.len > 0 {
     required(holder.right)
 }
 "#,
@@ -236,10 +236,10 @@ machine entry<'a>(holder: &Holder<'a>) -> u64 requires holder.left.len > 0 {
 fn a_call_cannot_reuse_length_from_before_an_overlapping_mutable_call() {
     let result = judged(
         r#"
-data Holder<'held> { bytes: &'held [u8]; }
-machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) { holder.bytes = replacement; }
-machine required<'a>(items: &'a [u8]) -> u64 requires items.len > 0 { items.len - 1 }
-machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64
+data Holder<'held> { bytes: @'held [u8]; }
+machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) { holder.bytes = replacement; }
+machine required<'a>(items: @'a [u8]) -> u64 requires items.len > 0 { items.len - 1 }
+machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
 requires holder.bytes.len > 0 {
     let before: u64 = holder.bytes.len;
     replace(holder, replacement);
@@ -260,16 +260,16 @@ fn a_later_argument_preserves_an_explicit_descriptor_copy() {
     // captured in a distinct local before the call's arguments execute.
     let result = judged(
         r#"
-data Holder<'held> { bytes: &'held [u8]; }
-machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {
+data Holder<'held> { bytes: @'held [u8]; }
+machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {
     holder.bytes = replacement;
     0
 }
-machine required<'a>(items: &'a [u8], ignored: u64) -> u64
+machine required<'a>(items: @'a [u8], ignored: u64) -> u64
 requires items.len > 0 { items.len - 1 }
-machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64
+machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
 requires holder.bytes.len > 0 {
-    let captured: &'a [u8] = holder.bytes;
+    let captured: @'a [u8] = holder.bytes;
     required(captured, replace(holder, replacement))
 }
 "#,
@@ -284,14 +284,14 @@ requires holder.bytes.len > 0 {
 fn a_direct_view_argument_keeps_its_length_across_later_argument_effects() {
     let result = judged(
         r#"
-data Holder<'held> { bytes: &'held [u8]; }
-machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {
+data Holder<'held> { bytes: @'held [u8]; }
+machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {
     holder.bytes = replacement;
     0
 }
-machine required<'a>(items: &'a [u8], ignored: u64) -> u64
+machine required<'a>(items: @'a [u8], ignored: u64) -> u64
 requires items.len > 0 { items.len - 1 }
-machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64
+machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
 requires holder.bytes.len > 0 {
     required(holder.bytes, replace(holder, replacement))
 }
@@ -307,17 +307,17 @@ requires holder.bytes.len > 0 {
 fn a_direct_view_argument_executes_with_its_captured_descriptor() {
     let result = judged_invocation(
         r#"
-data Holder<'held> { bytes: &'held [u8]; }
-machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {
+data Holder<'held> { bytes: @'held [u8]; }
+machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {
     holder.bytes = replacement;
     0
 }
-machine length(items: &[u8], ignored: u64) -> u64 { items.len }
+machine length(items: @[u8], ignored: u64) -> u64 { items.len }
 machine entry<'a>() -> u64 {
-    let original: &'a [u8] = "long";
-    let replacement: &'a [u8] = "x";
+    let original: @'a [u8] = "long";
+    let replacement: @'a [u8] = "x";
     let mut holder: Holder<'a> = Holder { bytes: original };
-    length(holder.bytes, replace(&mut holder, replacement))
+    length(holder.bytes, replace(@mut holder, replacement))
 }
 "#,
     );
@@ -350,9 +350,9 @@ machine entry<'a>() -> u64 {
 fn a_returned_view_keeps_its_incoming_backing_after_argument_home_retirement() {
     let result = judged_invocation(
         r#"
-data Holder<'held> { bytes: &'held [u8]; }
-machine echo<'a>(items: &'a [u8]) -> &'a [u8] { items }
-machine entry<'a>(holder: &Holder<'a>) -> &'a [u8] { echo(holder.bytes) }
+data Holder<'held> { bytes: @'held [u8]; }
+machine echo<'a>(items: @'a [u8]) -> @'a [u8] { items }
+machine entry<'a>(holder: @Holder<'a>) -> @'a [u8] { echo(holder.bytes) }
 "#,
     );
     let super::RouteVerdict::Accepted(accepted) = result else {
@@ -365,15 +365,15 @@ machine entry<'a>(holder: &Holder<'a>) -> &'a [u8] { echo(holder.bytes) }
 fn a_returned_view_executes_after_its_argument_home_and_source_slot_end() {
     let result = judged_invocation(
         r#"
-data Holder<'held> { bytes: &'held [u8]; }
-machine echo<'a>(items: &'a [u8]) -> &'a [u8] { items }
-machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) { holder.bytes = replacement; }
+data Holder<'held> { bytes: @'held [u8]; }
+machine echo<'a>(items: @'a [u8]) -> @'a [u8] { items }
+machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) { holder.bytes = replacement; }
 machine entry<'a>() -> u64 {
-    let original: &'a [u8] = "long";
-    let replacement: &'a [u8] = "x";
+    let original: @'a [u8] = "long";
+    let replacement: @'a [u8] = "x";
     let mut holder: Holder<'a> = Holder { bytes: original };
-    let returned: &'a [u8] = echo(holder.bytes);
-    replace(&mut holder, replacement);
+    let returned: @'a [u8] = echo(holder.bytes);
+    replace(@mut holder, replacement);
     returned.len
 }
 "#,
@@ -407,7 +407,7 @@ machine entry<'a>() -> u64 {
 fn a_staged_view_keeps_its_loan_through_a_crashing_transfer() {
     let result = judged_invocation(
         r#"
-machine fail(items: &[u8]) crashes Trap { crash Trap; }
+machine fail(items: @[u8]) crashes Trap { crash Trap; }
 machine entry() crashes Trap { fail("x"); }
 "#,
     );
@@ -431,8 +431,8 @@ machine entry() crashes Trap { fail("x"); }
 fn replacing_a_stored_descriptor_cannot_reuse_its_old_extent() {
     let result = judged(
         r#"
-data Holder<'held> { bytes: &'held [u8]; }
-machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 requires holder.bytes.len > 0 {
+data Holder<'held> { bytes: @'held [u8]; }
+machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 requires holder.bytes.len > 0 {
     holder.bytes = replacement;
     holder.bytes.len - 1
 }
@@ -449,8 +449,8 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 require
 fn measuring_a_call_result_keeps_the_bases_real_call_requirement() {
     let result = judged(
         r#"
-machine produce<'a>(items: &'a [u8]) -> &'a [u8] requires 1u64 == 0u64 { items }
-machine entry(items: &[u8]) -> u64 { produce(items).len }
+machine produce<'a>(items: @'a [u8]) -> @'a [u8] requires 1u64 == 0u64 { items }
+machine entry(items: @[u8]) -> u64 { produce(items).len }
 "#,
     );
     assert!(
@@ -465,9 +465,9 @@ fn a_mutable_call_keeps_a_saved_scalar_but_invalidates_a_fresh_extent() {
     let source = |returned| {
         format!(
             r#"
-data Holder<'held> {{ bytes: &'held [u8]; }}
-machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) {{ holder.bytes = replacement; }}
-machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64
+data Holder<'held> {{ bytes: @'held [u8]; }}
+machine replace<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) {{ holder.bytes = replacement; }}
+machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64
 requires holder.bytes.len > 0 {{
     let before: u64 = holder.bytes.len;
     replace(holder, replacement);
@@ -495,11 +495,11 @@ fn a_mutable_boundary_keeps_the_extent_used_to_restore_a_saved_byte() {
     let elaboration = elaborated_invocation(
         r#"
 boundary trait Fill {
-    machine read_dir(fd: i32, bytes: &mut [u8], position: &mut i64) -> i64
+    machine read_dir(fd: i32, bytes: @mut [u8], position: @mut i64) -> i64
     reaches none crashes none;
 }
 machine normalize(outcome: i64) -> i64 { outcome }
-machine entry(bytes: &mut [u8], position: &mut i64) -> i64
+machine entry(bytes: @mut [u8], position: @mut i64) -> i64
 requires bytes.len >= 1024
 reaches Fill invokes Fill
 {
@@ -594,13 +594,13 @@ reaches Fill invokes Fill
 fn a_mutable_boundary_does_not_preserve_the_previous_byte_contents() {
     let verdict = judged_invocation(
         r#"
-boundary trait Fill { machine fill(bytes: &mut [u8]) reaches none crashes none; }
-machine entry(bytes: &mut [u8; 1]) -> u8
+boundary trait Fill { machine fill(bytes: @mut [u8]) reaches none crashes none; }
+machine entry(bytes: @mut [u8; 1]) -> u8
 ensures result == 7u8
 reaches Fill invokes Fill
 {
     bytes[0] = 7;
-    Fill::fill(&mut bytes[..]);
+    Fill::fill(@mut bytes[..]);
     bytes[0]
 }
 "#,
@@ -645,7 +645,7 @@ fn an_overlapping_mutable_call_on_a_backedge_invalidates_the_next_read() {
     use terminal_psi::{Block, OperationKind, Terminator};
 
     for mutable in [false, true] {
-        let access = if mutable { "&mut" } else { "&" };
+        let access = if mutable { "@mut" } else { "@" };
         let body = if mutable {
             "holder.bytes = replacement;"
         } else {
@@ -653,9 +653,9 @@ fn an_overlapping_mutable_call_on_a_backedge_invalidates_the_next_read() {
         };
         let source = format!(
             r#"
-data Holder<'held> {{ bytes: &'held [u8]; }}
-machine touch<'a>(holder: {access} Holder<'a>, replacement: &'a [u8]) {{ {body} }}
-machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
+data Holder<'held> {{ bytes: @'held [u8]; }}
+machine touch<'a>(holder: {access} Holder<'a>, replacement: @'a [u8]) {{ {body} }}
+machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {{
     let before: u64 = holder.bytes.len;
     touch(holder, replacement);
     holder.bytes.len

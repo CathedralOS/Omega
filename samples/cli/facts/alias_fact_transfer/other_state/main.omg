@@ -24,22 +24,22 @@ requires
     player.health
 }
 
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
 requires
     main.player in Player::Alive
 {
     let mut copy: Player = main.player;
     transition { _ -> arrived(main, copy) }
-    machine arrived(main: &mut Main, player: Player in Player::Alive) {
+    machine arrived(main: @mut Main, player: Player in Player::Alive) {
         main.observed = Main::inspect(player);
     }
 }
 
 machine entry() crashes Trap {
     let mut a: Main = Main { player: Player { health: 42 }, observed: 0 };
-    Main::main(&mut a);
+    Main::main(@mut a);
     let mut b: Main = Main { player: Player { health: 1 }, observed: 0 };
-    Main::main(&mut b);
+    Main::main(@mut b);
     transition a.observed == 42 && b.observed == 1 {
         true -> done()
         _ -> bad()

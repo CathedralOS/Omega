@@ -929,8 +929,8 @@ mod tests {
             root.join("main.omg"),
             r#"
 data Pair { left: i32; right: i32; }
-boundary trait Source { machine cell() -> &Pair reaches none crashes none; }
-machine read(pair: &Pair) -> i32 { pair.left }
+boundary trait Source { machine cell() -> @Pair reaches none crashes none; }
+machine read(pair: @Pair) -> i32 { pair.left }
 machine main() reaches Source invokes Source crashes Trap {
     let observed: i32 = read(Source::cell());
     transition observed == 37i32 { true -> done() _ -> bad() }
@@ -944,7 +944,7 @@ machine main() reaches Source invokes Source crashes Trap {
         std::fs::write(root.join("build.omg"), format!(r#"
 use omega::language::core::DllImport;
 use omega::language::core::ForeignBinding;
-machine build(builder: &mut Build) {{
+machine build(builder: @mut Build) {{
     Build::application(builder, "provider_pair");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

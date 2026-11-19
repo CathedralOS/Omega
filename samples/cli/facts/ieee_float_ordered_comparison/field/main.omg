@@ -16,14 +16,14 @@ requires reading >= 1.0 && reading <= 3.0
     0i32
 }
 
-machine probe(holder: &Holder) -> i32 {
+machine probe(holder: @Holder) -> i32 {
     verify_window(holder.reading.value)
 }
 
 machine main() crashes Trap {
     let reading: Reading = Reading { value: 2.0 };
     let holder: Holder = Holder { reading: reading };
-    transition probe(&holder) == 0 {
+    transition probe(@holder) == 0 {
         true -> done()
         _ -> bad()
     }

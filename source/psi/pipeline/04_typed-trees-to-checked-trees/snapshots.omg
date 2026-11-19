@@ -23,7 +23,7 @@ public data WriteFootprint [copy] {
 // Whether a represented scalar lies under a written field. Aggregate
 // operands are captured separately: their written fields can still be
 // pending, or completely unrepresented until a later contract reads them.
-machine written_subject(checker: &Checker, subject: u64 in Trapping, write: WriteFootprint) -> bool
+machine written_subject(checker: @Checker, subject: u64 in Trapping, write: WriteFootprint) -> bool
 crashes Trap
 {
     let inside: bool = checker_within(checker, subject, write.place);
@@ -32,21 +32,21 @@ crashes Trap
         _ -> no()
     }
 
-    machine step(checker: &Checker, current: u64 in Trapping, write: WriteFootprint) -> bool {
+    machine step(checker: @Checker, current: u64 in Trapping, write: WriteFootprint) -> bool {
         transition write.whole {
             true -> yes()
             _ -> narrow(checker, current, write)
         }
     }
 
-    machine narrow(checker: &Checker, current: u64 in Trapping, write: WriteFootprint) -> bool {
+    machine narrow(checker: @Checker, current: u64 in Trapping, write: WriteFootprint) -> bool {
         transition current > 0 && current != write.place {
             true -> inspect(checker, current, write)
             _ -> no()
         }
     }
 
-    machine inspect(checker: &Checker, current: u64 in Trapping, write: WriteFootprint) -> bool {
+    machine inspect(checker: @Checker, current: u64 in Trapping, write: WriteFootprint) -> bool {
         let entry: Place = place_at(checker, current - 1);
         let written: bool = entry.kind == PlaceKind::Field && writes_field(checker, write.callee, entry.handle);
         transition written {
@@ -62,9 +62,9 @@ crashes Trap
 // Snapshot every operand evaluated before the call `expression` whose value
 // reads the storage in `write`, lent exclusively by operand `lender`.
 public machine snapshot_operands(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    typing: &Typing,
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    typing: @Typing,
     expression: Expression,
     lender: u64 in Trapping,
     write: WriteFootprint
@@ -73,7 +73,7 @@ crashes Trap
 {
     transition { _ -> own(checker, syntax, typing, expression, lender, write, 0) }
 
-    machine own(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
+    machine own(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
         let count: u64 in Trapping = operand_count(expression);
         transition offset < count {
             true -> operand(checker, syntax, typing, expression, lender, write, offset)
@@ -81,7 +81,7 @@ crashes Trap
         }
     }
 
-    machine operand(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
+    machine operand(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
         let handle: u64 in Trapping = checker_operand(syntax, expression, offset);
         snapshot_tree(checker, syntax, typing, handle, lender, write);
         transition { _ -> own(checker, syntax, typing, expression, lender, write, offset + 1) }
@@ -90,14 +90,14 @@ crashes Trap
     // The operands before the call's subtree that no node evaluated since
     // has taken: walking back, each is the root of the subtree that ends
     // just before the previous one starts.
-    machine earlier(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint) {
+    machine earlier(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, lender: u64 in Trapping, write: WriteFootprint) {
         transition expression.first_row > checker.tree_low {
             true -> pending(checker, syntax, typing, lender, write, expression.first_row - 1)
             _ -> done()
         }
     }
 
-    machine pending(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, lender: u64 in Trapping, write: WriteFootprint, root: u64 in Trapping) {
+    machine pending(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, lender: u64 in Trapping, write: WriteFootprint, root: u64 in Trapping) {
         let tree: Expression = syntax_trees_expression(syntax, root);
         snapshot_tree(checker, syntax, typing, root, lender, write);
         transition tree.first_row > checker.tree_low {
@@ -113,20 +113,20 @@ crashes Trap
 // comparison uses its two reads, even after the comparison itself became a
 // Boolean. Capture every evaluated descendant, not just the operand root.
 // The caller supplies completed subtrees only; later nodes have no values.
-machine snapshot_tree(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint)
+machine snapshot_tree(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint)
 crashes Trap
 {
     let tree: Expression = syntax_trees_expression(syntax, root);
     transition { _ -> node(checker, typing, root, lender, write, tree.first_row) }
 
-    machine node(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, handle: u64 in Trapping) {
+    machine node(checker: @mut Checker, typing: @Typing, root: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, handle: u64 in Trapping) {
         transition handle <= root {
             true -> captured(checker, typing, root, lender, write, handle)
             _ -> done()
         }
     }
 
-    machine captured(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, handle: u64 in Trapping) {
+    machine captured(checker: @mut Checker, typing: @Typing, root: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, handle: u64 in Trapping) {
         snapshot_node(checker, typing, handle, lender, write);
         transition { _ -> node(checker, typing, root, lender, write, handle + 1) }
     }
@@ -139,7 +139,7 @@ crashes Trap
 // has no place yet. Scalar reads use the frame along their existing path;
 // snapshotting a disjoint scalar on one short-circuit path loses its live
 // equality at the join, despite the call preserving that scalar.
-machine snapshot_node(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint)
+machine snapshot_node(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint)
 crashes Trap
 {
     transition handle >= checker.tree_low {
@@ -148,9 +148,9 @@ crashes Trap
     }
 
     // Only a node of the open tree has a value.
-    machine evaluated(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
+    machine evaluated(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, offset: u64 in Trapping) {
         let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        let row: TypeRow = type_table_row(@typing.types, type_handle);
         let adaptation: Adaptation = typing_adaptation(typing, handle);
         let read: bool = row.kind != TypeKind::Reference || adaptation == Adaptation::Read;
         transition offset < checker.tree_size && read {
@@ -159,7 +159,7 @@ crashes Trap
         }
     }
 
-    machine valued(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, type_handle: u64 in Trapping, row: TypeRow) {
+    machine valued(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, type_handle: u64 in Trapping, row: TypeRow) {
         let value: Value = value_at(checker, handle);
         transition value.known && value.subject > 0 {
             true -> term(checker, typing, handle, lender, write, value)
@@ -167,7 +167,7 @@ crashes Trap
         }
     }
 
-    machine term(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, value: Value) {
+    machine term(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, value: Value) {
         let owner: u64 in Trapping = subject_place(checker, value.subject);
         let reads: bool = owner > 0 && written_subject(checker, owner, write);
         transition reads {
@@ -176,7 +176,7 @@ crashes Trap
         }
     }
 
-    machine integer(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, value: Value, owner: u64 in Trapping) {
+    machine integer(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, lender: u64 in Trapping, value: Value, owner: u64 in Trapping) {
         // Capture the admitted value's scalar type, not the storage path's
         // metadata. Synthetic lengths have no source type handle; a read
         // adaptation also denotes the scalar value rather than a reference.
@@ -189,7 +189,7 @@ crashes Trap
         }
     }
 
-    machine numbered(checker: &mut Checker, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping) {
+    machine numbered(checker: @mut Checker, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping) {
         let entry: Place = place_at(checker, snapshot - 1);
         transition entry.subject > 0 {
             true -> captured(checker, handle, value, snapshot, entry.subject)
@@ -200,12 +200,12 @@ crashes Trap
     // The snapshot's subject equals the one read: captured - read <= 0 and
     // read - captured <= 0. Every operand reading that subject at this call
     // shares the snapshot.
-    machine captured(checker: &mut Checker, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping, subject: u64 in Trapping) {
+    machine captured(checker: @mut Checker, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping, subject: u64 in Trapping) {
         let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
         let unknown: Value = value_unknown();
         let own: Value = Value { place: 0, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
         let read: Value = Value { place: 0, known: true, subject: value.subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
-        zone_forget(&mut checker.zone, subject);
+        zone_forget(@mut checker.zone, subject);
         constrain_difference(checker, own, read, zero);
         constrain_difference(checker, read, own, zero);
         let exact: bool = value.place > 0 && value.offset.magnitude == 0;
@@ -215,11 +215,11 @@ crashes Trap
         }
     }
 
-    machine moved(checker: &mut Checker, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping, subject: u64 in Trapping) {
+    machine moved(checker: @mut Checker, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping, subject: u64 in Trapping) {
         checker_set_value(checker, handle, Value { place: snapshot, known: true, subject: subject, offset: value.offset, ceiling: value.ceiling, floor: value.floor });
     }
 
-    machine placed(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, type_handle: u64 in Trapping, row: TypeRow, value: Value) {
+    machine placed(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, lender: u64 in Trapping, write: WriteFootprint, type_handle: u64 in Trapping, row: TypeRow, value: Value) {
         let reads: bool = value.place > 0 && (checker_within(checker, value.place, write.place) || checker_within(checker, write.place, value.place));
         transition reads {
             true -> shaped(checker, typing, handle, lender, type_handle, row, value)
@@ -227,7 +227,7 @@ crashes Trap
         }
     }
 
-    machine shaped(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow, value: Value) {
+    machine shaped(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, lender: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow, value: Value) {
         transition row.kind == TypeKind::Data {
             true -> record(checker, typing, handle, lender, type_handle, value)
             _ -> unplaced(checker, handle, value)
@@ -235,7 +235,7 @@ crashes Trap
     }
 
     // A record's snapshot holds the fields known of what it read.
-    machine record(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
+    machine record(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, lender: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
         let snapshot: u64 in Trapping = checker_place(checker, typing, PlaceKind::Snapshot, lender, value.place, type_handle);
         transition snapshot > 0 {
             true -> fields(checker, typing, handle, value, snapshot)
@@ -243,13 +243,13 @@ crashes Trap
         }
     }
 
-    machine fields(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping) {
+    machine fields(checker: @mut Checker, typing: @Typing, handle: u64 in Trapping, value: Value, snapshot: u64 in Trapping) {
         forget_place(checker, typing, snapshot);
         copy_fields(checker, typing, snapshot, value.place);
         checker_set_value(checker, handle, Value { place: snapshot, known: value.known, subject: 0, offset: value.offset, ceiling: value.ceiling, floor: value.floor });
     }
 
-    machine unplaced(checker: &mut Checker, handle: u64 in Trapping, value: Value) {
+    machine unplaced(checker: @mut Checker, handle: u64 in Trapping, value: Value) {
         checker_set_value(checker, handle, Value { place: 0, known: false, subject: 0, offset: value.offset, ceiling: value.ceiling, floor: value.floor });
     }
 
@@ -260,7 +260,7 @@ crashes Trap
 // scratch window is separate from later guards/targets; value facts use the
 // same snapshots as call operands, so writes cannot reinterpret old reads.
 // Snapshotting is performed once before the arm zone is saved.
-public machine capture_subject(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, present: bool) -> CapturedSubject
+public machine capture_subject(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, present: bool) -> CapturedSubject
 crashes Trap
 {
     let frame: TreeFrame = tree_frame(checker);
@@ -270,19 +270,19 @@ crashes Trap
         _ -> done(captured)
     }
 
-    machine retain(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject) -> CapturedSubject {
+    machine retain(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, captured: CapturedSubject) -> CapturedSubject {
         checker.retained_values = captured.frame.base + captured.frame.size;
         transition { _ -> node(checker, syntax, typing, root, captured, captured.frame.low) }
     }
 
-    machine node(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping) -> CapturedSubject {
+    machine node(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping) -> CapturedSubject {
         transition handle <= root {
             true -> valued(checker, syntax, typing, root, captured, handle)
             _ -> done(captured)
         }
     }
 
-    machine valued(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping) -> CapturedSubject {
+    machine valued(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping) -> CapturedSubject {
         let value: Value = value_at(checker, handle);
         transition value.known && value.subject > 0 {
             true -> term(checker, syntax, typing, root, captured, handle, value)
@@ -290,19 +290,19 @@ crashes Trap
         }
     }
 
-    machine term(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value) -> CapturedSubject {
+    machine term(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value) -> CapturedSubject {
         let place: u64 in Trapping = subject_place(checker, value.subject);
         transition { _ -> placed(checker, syntax, typing, root, captured, handle, value, place) }
     }
 
-    machine placed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value, place: u64 in Trapping) -> CapturedSubject {
+    machine placed(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value, place: u64 in Trapping) -> CapturedSubject {
         transition place > 0 {
             true -> snapshotted(checker, syntax, typing, root, captured, handle, value, place)
             _ -> node(checker, syntax, typing, root, captured, handle + 1)
         }
     }
 
-    machine snapshotted(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value, place: u64 in Trapping) -> CapturedSubject {
+    machine snapshotted(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, captured: CapturedSubject, handle: u64 in Trapping, value: Value, place: u64 in Trapping) -> CapturedSubject {
         let write: WriteFootprint = WriteFootprint { place: place, callee: 0, whole: true };
         snapshot_node(checker, typing, handle, root, write);
         let saved: Value = value_at(checker, handle);
@@ -318,7 +318,7 @@ crashes Trap
 // overlapping completed value. This shared capture preserves the old subject
 // for ordinary assignments and ranking comparisons alike; it grants no access
 // authority and never reevaluates an operand after the write.
-public machine snapshot_assignment(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, destination: u64 in Trapping)
+public machine snapshot_assignment(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, destination: u64 in Trapping)
 crashes Trap
 {
     let value: Value = value_at(checker, root);
@@ -329,7 +329,7 @@ crashes Trap
         true -> captured(checker, syntax, typing, root, destination)
         false -> {}
     }
-    machine captured(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, destination: u64 in Trapping) {
+    machine captured(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, destination: u64 in Trapping) {
         let write: WriteFootprint = WriteFootprint { place: destination, callee: 0, whole: true };
         snapshot_tree(checker, syntax, typing, root, root, write);
     }

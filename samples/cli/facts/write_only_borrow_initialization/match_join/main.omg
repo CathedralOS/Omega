@@ -10,7 +10,7 @@ data BoxedSlot {
     value: u64 in SlotDomain;
 }
 
-machine initialize_slot(destination: &write BoxedSlot) {
+machine initialize_slot(destination: @write BoxedSlot) {
     destination.value = 100u64;
 }
 
@@ -19,8 +19,8 @@ ensures
     result == 0u64 {
     let mut left_slot: BoxedSlot = BoxedSlot { value: 100u64 };
     let mut right_slot: BoxedSlot = BoxedSlot { value: 100u64 };
-    initialize_slot(&write left_slot);
-    initialize_slot(&write right_slot);
+    initialize_slot(@write left_slot);
+    initialize_slot(@write right_slot);
     let joined: u64 = match flag {
         true -> left_slot.value
         false -> right_slot.value

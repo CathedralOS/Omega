@@ -40,9 +40,9 @@ fn ranking_defaults_follow_typed_carriers_and_selected_length() {
         data Counter { len: i32; }
         machine natural(n: u64) terminates by n {}
         machine signed(n: i32) terminates by n {}
-        machine slice(items: &[u8]) terminates by items {}
-        machine length(items: &[u8]) terminates by items.len {}
-        machine field(counter: &Counter) terminates by counter.len {}
+        machine slice(items: @[u8]) terminates by items {}
+        machine length(items: @[u8]) terminates by items.len {}
+        machine field(counter: @Counter) terminates by counter.len {}
         machine explicit(n: i32) terminates by n -> Nat::Descending {}
         machine pair(index: u64, limit: u64) terminates by (index, limit) {}
         machine distance(index: u64, limit: u64) terminates by (index, limit) -> Nat::BoundedDistance {}

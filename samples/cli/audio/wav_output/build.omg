@@ -1,7 +1,7 @@
 // wav_output: the portable write-a-buffer-to-a-file boundary shared by the
 // audio samples.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::package(builder, "wav_output");
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../../source/library/std"

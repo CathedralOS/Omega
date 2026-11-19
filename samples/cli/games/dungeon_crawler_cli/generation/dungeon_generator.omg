@@ -4,9 +4,9 @@ data DungeonGenerator {
 }
 
 machine generate(
-    dungeon_generator: &mut DungeonGenerator,
+    dungeon_generator: @mut DungeonGenerator,
     seed: u64 in Wrapping,
-    out_level: &mut Level
+    out_level: @mut Level
 ) {
-    build(&mut dungeon_generator.maze, seed, out_level);
+    build(@mut dungeon_generator.maze, seed, out_level);
 }

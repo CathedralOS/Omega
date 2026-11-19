@@ -3,44 +3,44 @@
 // Expected exit: 0
 public domain [u8]::Utf8 requires valid_utf8(self);
 trait Payload {
-    machine window<'input>(first: &'input [u8] in Utf8, second: &'input [u8] in Utf8) -> &'input [u8] in Utf8;
+    machine window<'input>(first: @'input [u8] in Utf8, second: @'input [u8] in Utf8) -> @'input [u8] in Utf8;
 }
 First satisfies Payload {
-    machine window<'input>(first: &'input [u8] in Utf8, second: &'input [u8] in Utf8) -> &'input [u8] in Utf8 {
-        let bytes: &'input [u8] in Utf8 = first;
+    machine window<'input>(first: @'input [u8] in Utf8, second: @'input [u8] in Utf8) -> @'input [u8] in Utf8 {
+        let bytes: @'input [u8] in Utf8 = first;
         bytes
     }
 }
 Second satisfies Payload {
-    machine window<'input>(first: &'input [u8] in Utf8, second: &'input [u8] in Utf8) -> &'input [u8] in Utf8 {
-        let bytes: &'input [u8] in Utf8 = second;
+    machine window<'input>(first: @'input [u8] in Utf8, second: @'input [u8] in Utf8) -> @'input [u8] in Utf8 {
+        let bytes: @'input [u8] in Utf8 = second;
         bytes
     }
 }
 boundary trait Reader {
-    machine read<'input>(first: &'input [u8] in Utf8, second: &'input [u8] in Utf8, decoder: dyn Payload) -> &'input [u8] in Utf8 reaches crashes none;
+    machine read<'input>(first: @'input [u8] in Utf8, second: @'input [u8] in Utf8, decoder: dyn Payload) -> @'input [u8] in Utf8 reaches crashes none;
 }
 Selected satisfies Reader {
-    machine read<'input>(first: &'input [u8] in Utf8, second: &'input [u8] in Utf8, decoder: dyn Payload) -> &'input [u8] in Utf8 {
-        let bytes: &'input [u8] in Utf8 = Payload::window(decoder, first, second);
+    machine read<'input>(first: @'input [u8] in Utf8, second: @'input [u8] in Utf8, decoder: dyn Payload) -> @'input [u8] in Utf8 {
+        let bytes: @'input [u8] in Utf8 = Payload::window(decoder, first, second);
         bytes
     }
 }
-machine classify(bytes: &[u8] in Utf8) -> u64 {
+machine classify(bytes: @[u8] in Utf8) -> u64 {
     match bytes == "abc" {
         true -> 3
         false -> accented(bytes)
     }
 }
-machine accented(bytes: &[u8]) -> u64 {
+machine accented(bytes: @[u8]) -> u64 {
     match bytes == "é" {
         true -> 2
         false -> 9
     }
 }
 machine main() crashes Trap {
-    let accent: &[u8] in Utf8 = "é";
-    let word: &[u8] in Utf8 = "abc";
+    let accent: @[u8] in Utf8 = "é";
+    let word: @[u8] in Utf8 = "abc";
     let first: u64 = classify(Reader::read(accent, word, First as dyn Payload));
     let second: u64 = classify(Reader::read(accent, word, Second as dyn Payload));
     transition first == 2 && second == 3 {

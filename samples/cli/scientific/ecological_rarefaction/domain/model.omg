@@ -27,29 +27,29 @@ public machine choose(total: u64 in Wrapping, depth: u64 in Wrapping) -> u64 in 
     }
 }
 // Loan the selected DP row; writes retain the matrix's original backing.
-machine select_row(matrix: &mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping)
-    -> &mut [u64 in Wrapping; 13]
-requires depth < 33 { &mut matrix[depth] }
-machine accumulate_row(row: &mut [u64 in Wrapping; 13], richness: u64 in Wrapping,
+machine select_row(matrix: @mut [[u64 in Wrapping; 13]; 33], depth: u64 in Wrapping)
+    -> @mut [u64 in Wrapping; 13]
+requires depth < 33 { @mut matrix[depth] }
+machine accumulate_row(row: @mut [u64 in Wrapping; 13], richness: u64 in Wrapping,
                        weight: u64 in Wrapping)
 requires richness < 13 { row[richness] = row[richness]+weight; }
-public machine analyze(community: &mut Community) {
+public machine analyze(community: @mut Community) {
     community.weights[0][0] = 1;
     transition { _ -> species(community, 0) }
-    machine species(community: &mut Community, species_index: u64 in Wrapping) {
+    machine species(community: @mut Community, species_index: u64 in Wrapping) {
         transition species_index < community.species && species_index < 12 {
             true -> clear(community, species_index, 0, 0)
             false -> done()
         }
     }
-    machine clear(community: &mut Community, species_index: u64 in Wrapping,
+    machine clear(community: @mut Community, species_index: u64 in Wrapping,
                 depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 {
             true -> clear_cell(community, species_index, depth, richness)
             false -> source_depth(community, species_index, 0, 0)
         }
     }
-    machine clear_cell(community: &mut Community, species_index: u64 in Wrapping,
+    machine clear_cell(community: @mut Community, species_index: u64 in Wrapping,
                      depth: u64 in Wrapping, richness: u64 in Wrapping)
     requires depth < 33 && richness < 13 {
         community.next[depth][richness] = 0;
@@ -58,14 +58,14 @@ public machine analyze(community: &mut Community) {
             false -> clear(community, species_index, depth+1, 0)
         }
     }
-    machine source_depth(community: &mut Community, species_index: u64 in Wrapping,
+    machine source_depth(community: @mut Community, species_index: u64 in Wrapping,
                        depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 && species_index < 12 {
             true -> source_cell(community, species_index, depth, richness)
             false -> copy(community, species_index, 0, 0)
         }
     }
-    machine source_cell(community: &mut Community, species_index: u64 in Wrapping,
+    machine source_cell(community: @mut Community, species_index: u64 in Wrapping,
                       depth: u64 in Wrapping, richness: u64 in Wrapping)
     requires depth < 33 && richness < 13 && species_index < 12 {
         let weight: u64 in Wrapping = community.weights[depth][richness];
@@ -74,7 +74,7 @@ public machine analyze(community: &mut Community) {
             false -> advance(community, species_index, depth, richness)
         }
     }
-    machine contribution(community: &mut Community, species_index: u64 in Wrapping,
+    machine contribution(community: @mut Community, species_index: u64 in Wrapping,
                        depth: u64 in Wrapping, richness: u64 in Wrapping,
                        taken: u64 in Wrapping, weight: u64 in Wrapping)
     requires species_index < 12 {
@@ -83,7 +83,7 @@ public machine analyze(community: &mut Community) {
             false -> advance(community, species_index, depth, richness)
         }
     }
-    machine select_richness(community: &mut Community, species_index: u64 in Wrapping,
+    machine select_richness(community: @mut Community, species_index: u64 in Wrapping,
                          depth: u64 in Wrapping, richness: u64 in Wrapping,
                          taken: u64 in Wrapping, weight: u64 in Wrapping) {
         transition taken == 0 {
@@ -91,7 +91,7 @@ public machine analyze(community: &mut Community) {
             false -> add(community, species_index, depth, richness, taken, weight, richness+1)
         }
     }
-    machine add(community: &mut Community, species_index: u64 in Wrapping,
+    machine add(community: @mut Community, species_index: u64 in Wrapping,
               depth: u64 in Wrapping, richness: u64 in Wrapping,
               taken: u64 in Wrapping, weight: u64 in Wrapping,
               target_richness: u64 in Wrapping) {
@@ -100,31 +100,31 @@ public machine analyze(community: &mut Community) {
             false -> advance(community, species_index, depth, richness)
         }
     }
-    machine add_cell(community: &mut Community, species_index: u64 in Wrapping,
+    machine add_cell(community: @mut Community, species_index: u64 in Wrapping,
                    depth: u64 in Wrapping, richness: u64 in Wrapping,
                    taken: u64 in Wrapping, weight: u64 in Wrapping,
                    target_richness: u64 in Wrapping)
     requires depth+taken < 33 && target_richness < 13 && species_index < 12 {
         let multiplier: u64 in Wrapping = choose(community.counts[species_index], taken);
-        let row: &mut [u64 in Wrapping; 13] = select_row(&mut community.next, depth+taken);
+        let row: @mut [u64 in Wrapping; 13] = select_row(@mut community.next, depth+taken);
         accumulate_row(row, target_richness, weight*multiplier);
         transition { _ -> contribution(community, species_index, depth, richness, taken+1, weight) }
     }
-    machine advance(community: &mut Community, species_index: u64 in Wrapping,
+    machine advance(community: @mut Community, species_index: u64 in Wrapping,
                   depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition richness < 12 {
             true -> source_depth(community, species_index, depth, richness+1)
             false -> source_depth(community, species_index, depth+1, 0)
         }
     }
-    machine copy(community: &mut Community, species_index: u64 in Wrapping,
+    machine copy(community: @mut Community, species_index: u64 in Wrapping,
                depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 {
             true -> copy_cell(community, species_index, depth, richness)
             false -> species(community, species_index+1)
         }
     }
-    machine copy_cell(community: &mut Community, species_index: u64 in Wrapping,
+    machine copy_cell(community: @mut Community, species_index: u64 in Wrapping,
                     depth: u64 in Wrapping, richness: u64 in Wrapping)
     requires depth < 33 && richness < 13 {
         community.weights[depth][richness] = community.next[depth][richness];

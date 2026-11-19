@@ -2,7 +2,7 @@
 // freestanding, so no host boundary packages; services arrive via the entry's
 // parameters. `builder.freestanding` only grants machine-owner assembly.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "uefi_hello");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;

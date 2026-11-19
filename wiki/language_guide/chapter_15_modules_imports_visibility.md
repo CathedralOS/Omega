@@ -6,7 +6,7 @@ modules, and `use` brings names into a file.
 ## A package
 
 ```omega
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::package(builder, "arithmetic_kernels");
 }
 ```
@@ -58,7 +58,7 @@ public data Player {
     health: i32;
 }
 
-public machine take_damage(player: &mut Player, amount: i32)
+public machine take_damage(player: @mut Player, amount: i32)
 requires amount >= 0
 requires player.health >= amount
 {
@@ -84,7 +84,7 @@ fields. Code that names a field has chosen to depend on it.
 
 ```omega
 let handle = filesystem::open(path);
-filesystem::read(&handle);
+filesystem::read(@handle);
 filesystem::close(handle);
 ```
 
@@ -99,14 +99,14 @@ A build can run code from another package, for example a table generator:
 ```omega
 use generator;
 
-machine build(builder: &mut Build)
+machine build(builder: @mut Build)
 suspends
 {
     Build::application(builder, "generated_tables");
     let mut request = dependency::from_source(Source::Path {
         location: "../table-generator"
     });
-    dependency::with_alias(&mut request, "generator");
+    dependency::with_alias(@mut request, "generator");
     let registered = Build::build_dependency(builder, request);
 
     suspend Build::prepare_dependency(builder, registered);

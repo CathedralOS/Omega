@@ -1,7 +1,7 @@
 // A returned f64 equals the live field it came from.
 // Expected exit: 0
 data Ends { kept: f64; other: f64; }
-machine read_kept(item: &Ends) -> f64
+machine read_kept(item: @Ends) -> f64
 requires item.kept == 7.0
 ensures result == item.kept && result == 7.0
 {
@@ -14,12 +14,12 @@ requires observed == current && observed == 7.0
     observed
 }
 boundary trait FloatObservation {
-    machine observe(item: &Ends) -> f64
+    machine observe(item: @Ends) -> f64
     requires item.kept == 7.0
     reaches crashes none;
 }
 SelectedFloatObservation satisfies FloatObservation {
-    machine observe(item: &Ends) -> f64
+    machine observe(item: @Ends) -> f64
     requires item.kept == 7.0
     {
         let saved: f64 = read_kept(item);
@@ -30,7 +30,7 @@ SelectedFloatObservation satisfies FloatObservation {
 
 machine main() crashes Trap {
     let item: Ends = Ends { kept: 7.0, other: 1.0 };
-    transition FloatObservation::observe(&item) == 7.0 { true -> done() _ -> bad() }
+    transition FloatObservation::observe(@item) == 7.0 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

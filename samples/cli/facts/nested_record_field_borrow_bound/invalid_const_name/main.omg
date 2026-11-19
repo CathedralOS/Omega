@@ -20,7 +20,7 @@ requires seed <= 73
         inner: Inner { quota: seed, tag: 7 },
         header: 10,
     };
-    let view: &Outer = &outer;
+    let view: @Outer = @outer;
     let quota: u64 = view.inner.quota;
     let diff: u64 = LIMIT - quota;
     diff

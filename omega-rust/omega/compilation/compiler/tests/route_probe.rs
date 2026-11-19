@@ -288,22 +288,22 @@ fn a_guard_in_a_call_cycle_reaches_the_helper_it_selects() {
     ] {
         let source = format!(
             "data Main requires self.i >= 0 && self.i <= 31 {{ i: i32; }}\n\
-             machine cycle(main: &mut Main) {{\n\
+             machine cycle(main: @mut Main) {{\n\
                  main.i = 0;\n\
                  transition {{ _ -> block head(main) }}\n\
-                 machine head(main: &mut Main) {{\n\
+                 machine head(main: @mut Main) {{\n\
                      transition main.i >= 0 && main.i < 31 {{ true -> block mark(main) _ -> block done(main) }}\n\
                  }}\n\
-                 machine mark(main: &mut Main) {{\n\
+                 machine mark(main: @mut Main) {{\n\
                      transition main.i >= 0 && main.i < {bound} {{ true -> block bump(main) _ -> block head(main) }}\n\
                  }}\n\
-                 machine bump(main: &mut Main) {{\n\
+                 machine bump(main: @mut Main) {{\n\
                      main.i = main.i + 1;\n\
                      transition {{ _ -> block head(main) }}\n\
                  }}\n\
-                 machine done(main: &mut Main) {{ }}\n\
+                 machine done(main: @mut Main) {{ }}\n\
              }}\n\
-             machine main() {{ let mut storage: Main; block cycle(&mut storage); }}\n"
+             machine main() {{ let mut storage: Main; block cycle(@mut storage); }}\n"
         );
         assert_eq!(verdicts(name, &source), [expected], "{name}");
     }
@@ -321,48 +321,48 @@ fn a_caller_fact_reaches_its_helper_through_elements_and_stores() {
     let element = |bound: &str| {
         format!(
             "data Main {{ wires: [i32; 8]; n: i32; r: i32; }}\n\
-             machine fill(main: &mut Main) {{ main.wires[4] = main.r; }}\n\
-             machine scan(main: &mut Main) {{\n\
+             machine fill(main: @mut Main) {{ main.wires[4] = main.r; }}\n\
+             machine scan(main: @mut Main) {{\n\
                  main.n = 0;\n\
                  main.r = 0;\n\
                  transition {{ _ -> sc_pos(main) }}\n\
-                 machine sc_pos(main: &mut Main) {{ fill(main); transition {{ _ -> sc_verdict(main) }} }}\n\
-                 machine sc_verdict(main: &mut Main) {{\n\
+                 machine sc_pos(main: @mut Main) {{ fill(main); transition {{ _ -> sc_verdict(main) }} }}\n\
+                 machine sc_verdict(main: @mut Main) {{\n\
                      transition main.wires[4] == 3 {{ true -> sc_next(main) _ -> sc_stop(main) }}\n\
                  }}\n\
-                 machine sc_stop(main: &mut Main) {{\n\
+                 machine sc_stop(main: @mut Main) {{\n\
                      transition main.n >= 0{bound} {{ true -> sc_ct(main) _ -> sc_next(main) }}\n\
                  }}\n\
-                 machine sc_ct(main: &mut Main) {{ main.n = main.n + 1; transition {{ _ -> sc_next(main) }} }}\n\
-                 machine sc_next(main: &mut Main) {{\n\
+                 machine sc_ct(main: @mut Main) {{ main.n = main.n + 1; transition {{ _ -> sc_next(main) }} }}\n\
+                 machine sc_next(main: @mut Main) {{\n\
                      transition main.r >= 0 && main.r < 25 {{ true -> sc_inc(main) _ -> sc_done(main) }}\n\
                  }}\n\
-                 machine sc_inc(main: &mut Main) {{ main.r = main.r + 1; transition {{ _ -> sc_pos(main) }} }}\n\
-                 machine sc_done(main: &mut Main) {{ }}\n\
+                 machine sc_inc(main: @mut Main) {{ main.r = main.r + 1; transition {{ _ -> sc_pos(main) }} }}\n\
+                 machine sc_done(main: @mut Main) {{ }}\n\
              }}\n\
-             machine main() {{ let mut storage: Main; scan(&mut storage); }}\n"
+             machine main() {{ let mut storage: Main; scan(@mut storage); }}\n"
         )
     };
     let stored = |bound: &str| {
         format!(
             "data Main {{ plug: [i32; 26]; x: i32; t: i32; }}\n\
-             machine involution(main: &mut Main) {{\n\
+             machine involution(main: @mut Main) {{\n\
                  main.x = 0;\n\
                  transition {{ _ -> head(main) }}\n\
-                 machine head(main: &mut Main) {{\n\
+                 machine head(main: @mut Main) {{\n\
                      transition main.x >= 0 && main.x < 26 {{ true -> check(main) _ -> done(main) }}\n\
                  }}\n\
-                 machine check(main: &mut Main) {{\n\
+                 machine check(main: @mut Main) {{\n\
                      main.t = main.plug[main.x];\n\
                      transition main.t >= 0 && main.t < {bound} {{ true -> pair(main) _ -> done(main) }}\n\
                  }}\n\
-                 machine pair(main: &mut Main) {{\n\
+                 machine pair(main: @mut Main) {{\n\
                      transition main.plug[main.t] == main.x && main.x < 26 {{ true -> next(main) _ -> done(main) }}\n\
                  }}\n\
-                 machine next(main: &mut Main) {{ main.x = main.x + 1; transition {{ _ -> head(main) }} }}\n\
-                 machine done(main: &mut Main) {{ }}\n\
+                 machine next(main: @mut Main) {{ main.x = main.x + 1; transition {{ _ -> head(main) }} }}\n\
+                 machine done(main: @mut Main) {{ }}\n\
              }}\n\
-             machine main() {{ let mut storage: Main; involution(&mut storage); }}\n"
+             machine main() {{ let mut storage: Main; involution(@mut storage); }}\n"
         )
     };
     for (name, source, expected) in [
@@ -384,15 +384,15 @@ fn a_conjunctive_guard_over_a_read_after_a_call_reaches_the_taken_edge() {
     ] {
         let source = format!(
             "data Main {{ pout: i32; }}\n\
-             machine fill(main: &mut Main, v: i32) {{ main.pout = v; }}\n\
-             machine use_it(main: &mut Main, mid: i32) requires 0 <= mid && mid < 26 {{ main.pout = mid; }}\n\
-             machine step(main: &mut Main, v: i32) {{\n\
+             machine fill(main: @mut Main, v: i32) {{ main.pout = v; }}\n\
+             machine use_it(main: @mut Main, mid: i32) requires 0 <= mid && mid < 26 {{ main.pout = mid; }}\n\
+             machine step(main: @mut Main, v: i32) {{\n\
                  fill(main, v);\n\
                  let mid: i32 = main.pout;\n\
                  transition {guard} {{ true -> use_it(main, mid) _ -> done(main) }}\n\
              }}\n\
-             machine done(main: &mut Main) {{ }}\n\
-             machine main() {{ let mut storage: Main; step(&mut storage, 3); step(&mut storage, 300); }}\n"
+             machine done(main: @mut Main) {{ }}\n\
+             machine main() {{ let mut storage: Main; step(@mut storage, 3); step(@mut storage, 300); }}\n"
         );
         assert_eq!(verdicts(name, &source), [expected], "{name}");
     }
@@ -848,14 +848,14 @@ fn a_sum_bounds_each_cases_payload_under_that_case() {
 fn a_nested_requirement_names_a_mutable_byte_views_length() {
     let program = |guard: &str| {
         format!(
-            "machine put(path: &[u8], out: &mut [u8], index: u64) {{\n    \
+            "machine put(path: @[u8], out: @mut [u8], index: u64) {{\n    \
              transition index < path.len {{ true -> byte(path, out, index) _ -> done() }}\n    \
-             machine byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+             machine byte(path: @[u8], out: @mut [u8], index: u64) {{\n        \
              transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    }}\n    \
-             machine write_byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+             machine write_byte(path: @[u8], out: @mut [u8], index: u64) {{\n        \
              out[index] = path[index];\n        transition {{ _ -> done() }}\n    }}\n    \
              machine done() {{ }}\n}}\n\
-             machine main() {{\n    let mut out: [u8; 4];\n    put(\"abc\", &mut out[..], 1);\n}}\n"
+             machine main() {{\n    let mut out: [u8; 4];\n    put(\"abc\", @mut out[..], 1);\n}}\n"
         )
     };
     assert_eq!(
@@ -882,7 +882,7 @@ fn a_nested_requirement_names_a_mutable_byte_views_length() {
 fn a_recursive_caller_preserves_a_mutable_byte_views_extent_bound() {
     let program = |guard: &str, write_index: &str| {
         format!(
-            "machine copy_path_from(path: &[u8], out: &mut [u8], index: u64, remaining: u64)\n\
+            "machine copy_path_from(path: @[u8], out: @mut [u8], index: u64, remaining: u64)\n\
              terminates by remaining\n\
              {{\n    \
                  put_path_byte(path, out, index);\n    \
@@ -892,22 +892,22 @@ fn a_recursive_caller_preserves_a_mutable_byte_views_extent_bound() {
                  }}\n    \
                  machine done() {{ }}\n\
              }}\n\
-             machine put_path_byte(path: &[u8], out: &mut [u8], index: u64) {{\n    \
+             machine put_path_byte(path: @[u8], out: @mut [u8], index: u64) {{\n    \
                  transition index < path.len {{\n        \
                      true -> byte(path, out, index)\n        \
                      _ -> terminator(out, index)\n    \
                  }}\n    \
-                 machine byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+                 machine byte(path: @[u8], out: @mut [u8], index: u64) {{\n        \
                      transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    \
                  }}\n    \
-                 machine write_byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+                 machine write_byte(path: @[u8], out: @mut [u8], index: u64) {{\n        \
                      out[{write_index}] = path[index];\n        \
                      transition {{ _ -> done() }}\n    \
                  }}\n    \
-                 machine terminator(out: &mut [u8], index: u64) {{\n        \
+                 machine terminator(out: @mut [u8], index: u64) {{\n        \
                      transition index < out.len {{ true -> write_terminator(out, index) _ -> done() }}\n    \
                  }}\n    \
-                 machine write_terminator(out: &mut [u8], index: u64) {{\n        \
+                 machine write_terminator(out: @mut [u8], index: u64) {{\n        \
                      out[index] = 0;\n        \
                      transition {{ _ -> done() }}\n    \
                  }}\n    \
@@ -916,8 +916,8 @@ fn a_recursive_caller_preserves_a_mutable_byte_views_extent_bound() {
              machine main() {{\n    \
                  let mut short: [u8; 2];\n    \
                  let mut full: [u8; 4];\n    \
-                 copy_path_from(\"a\", &mut short[..], 0, 1);\n    \
-                 copy_path_from(\"abc\", &mut full[..], 0, 3);\n\
+                 copy_path_from(\"a\", @mut short[..], 0, 1);\n    \
+                 copy_path_from(\"abc\", @mut full[..], 0, 3);\n\
              }}\n"
         )
     };
@@ -1685,8 +1685,8 @@ fn a_value_name_nothing_declares_is_rejected() {
 fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
     let program = |returned: &str| {
         format!(
-            "machine pick<'a, 'b>(view: &'a [u8], other: &'b [u8]) -> &'a [u8] {{ {returned} }}\n\
-             machine relay(name: &[u8], second: &[u8]) {{ let kept: &[u8] = pick(name, second); }}\n\
+            "machine pick<'a, 'b>(view: @'a [u8], other: @'b [u8]) -> @'a [u8] {{ {returned} }}\n\
+             machine relay(name: @[u8], second: @[u8]) {{ let kept: @[u8] = pick(name, second); }}\n\
              machine main() {{ }}\n"
         )
     };
@@ -1707,10 +1707,10 @@ fn a_case_payload_is_lent_only_where_its_case_is_selected() {
     let program = |lent: &str| {
         format!(
             "data Source<'storage> {{\n\
-                 case Path(location: &'storage [u8]);\n\
-                 case Git(repository: &'storage [u8], revision: u32);\n\
+                 case Path(location: @'storage [u8]);\n\
+                 case Git(repository: @'storage [u8], revision: u32);\n\
              }}\n\
-             machine measure(view: &[u8]) -> u32 {{ 1 }}\n\
+             machine measure(view: @[u8]) -> u32 {{ 1 }}\n\
              machine route(source: Source) -> u32 {{\n\
                  match source {{\n\
                      Source::Path {{ location }} -> measure(location)\n\
@@ -2132,10 +2132,10 @@ fn an_owned_sum_is_dispatched_and_disposed_of_once() {
         format!(
             "data Selection<'storage> {{\n\
                  case Root;\n\
-                 case Named(package: &'storage [u8]);\n\
+                 case Named(package: @'storage [u8]);\n\
              }}\n\
-             machine take(view: &[u8]) {{ }}\n\
-             machine select(view: &[u8], selection: Selection) {{\n\
+             machine take(view: @[u8]) {{ }}\n\
+             machine select(view: @[u8], selection: Selection) {{\n\
                  transition selection {{\n\
                      Selection::Root -> take(view)\n\
                      Selection::Named {{ package }} -> take(package)\n\

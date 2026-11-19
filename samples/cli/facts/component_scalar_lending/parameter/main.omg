@@ -6,13 +6,13 @@ use producer::Observation;
 use producer::Reading;
 use producer::Token;
 use producer::Word;
-machine apply(value: &mut Word, token: &Token) -> u64 reaches Lending Reading Observation suspends crashes Trap {
-    let original: addr = address_of(&value);
-    let member: addr = address_of(&value.count);
+machine apply(value: @mut Word, token: @Token) -> u64 reaches Lending Reading Observation suspends crashes Trap {
+    let original: addr = address_of(@value);
+    let member: addr = address_of(@value.count);
     let reported: u64 = suspend Lending::write(value, token, original, member);
-    let reused: u64 = suspend Reading::read(&value, &value, token, token, original, member);
+    let reused: u64 = suspend Reading::read(@value, @value, token, token, original, member);
     Observation::seen(token);
-    transition reused == 73 && value.before == 11 && value.after == 29 && address_of(&value) == original && address_of(&value.count) == member  {
+    transition reused == 73 && value.before == 11 && value.after == 29 && address_of(@value) == original && address_of(@value.count) == member  {
         true -> value.count
         _ -> bad()
     }
@@ -20,7 +20,7 @@ machine apply(value: &mut Word, token: &Token) -> u64 reaches Lending Reading Ob
 }
 machine entry(token: Token) -> u64 reaches Lending Reading Observation suspends crashes Trap {
     let mut value: Word = Word { before: 11, count: 0, after: 29 };
-    suspend apply(&mut value, &token)
+    suspend apply(@mut value, @token)
 }
 machine main() reaches Lending Reading Observation suspends crashes Trap {
     let result: u64 = suspend entry(Token {});

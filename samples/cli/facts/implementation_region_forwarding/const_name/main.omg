@@ -10,7 +10,7 @@ machine observed<'environment, 'storage, const N: u64>(value: Holder<Choice<'env
 // Place: const_name. Named constant inputs select index 7 and payload 42 in the runtime environment region.
 const INDEX: u64 = 7u64;
 const VALUE: u64 = 42u64;
-machine exercise<'environment, 'storage>(environment: &'environment u64, storage: &'storage u64) -> u64 {
+machine exercise<'environment, 'storage>(environment: @'environment u64, storage: @'storage u64) -> u64 {
     let value: Holder<Choice<'environment, INDEX> > = Holder { value: VALUE };
     let result: Holder<Choice<'environment, 7u64> > = observed<INDEX>(value);
     result.value
@@ -19,7 +19,7 @@ machine exercise<'environment, 'storage>(environment: &'environment u64, storage
 machine main() crashes Trap {
     let environment: u64 = 17u64;
     let storage: u64 = 23u64;
-    let result: u64 = exercise(&environment, &storage);
+    let result: u64 = exercise(@environment, @storage);
     transition result == 42u64 {
         true -> done()
         false -> wrong()

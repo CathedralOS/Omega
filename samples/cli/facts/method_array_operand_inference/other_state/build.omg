@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "method_array_operand_inference_other_state");
     Build::select_provider<Bytes, SelectedBytes>(builder, windows_x86_64);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

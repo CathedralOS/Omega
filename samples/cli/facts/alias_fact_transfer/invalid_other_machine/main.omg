@@ -29,7 +29,7 @@ requires
     Main::inspect(player);
 }
 
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
 requires
     main.player in Player::Alive
 {
@@ -40,5 +40,5 @@ requires
 machine entry_start()
 {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

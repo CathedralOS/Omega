@@ -12,7 +12,7 @@
 public data DataSelectors { ds: u16; es: u16; ss: u16; fs: u16; gs: u16; }
 
 public boundary trait DataSegmentControl {
-    machine reload<const Entries: u64>(gdt: &mut [u64; Entries], selector: u16) -> bool
+    machine reload<const Entries: u64>(gdt: @mut [u64; Entries], selector: u16) -> bool
     requires Entries >= 1 && Entries <= 8192
     reaches MachineControl
     crashes none;
@@ -22,11 +22,11 @@ public boundary trait DataSegmentControl {
 
 // Build selects the implementation. This implementation requires x86-64.
 public X86DataSegmentControl satisfies DataSegmentControl {
-    machine reload<const Entries: u64>(gdt: &mut [u64; Entries], selector: u16) -> bool
+    machine reload<const Entries: u64>(gdt: @mut [u64; Entries], selector: u16) -> bool
     requires Entries >= 1 && Entries <= 8192
     reaches MachineControl {
         let mut observed: [u8; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        reload_data_segments<Entries>(gdt, selector, &mut observed) == 1
+        reload_data_segments<Entries>(gdt, selector, @mut observed) == 1
     }
 
     machine selectors() -> DataSelectors reaches MachineControl {
@@ -40,7 +40,7 @@ public X86DataSegmentControl satisfies DataSegmentControl {
 // All descriptor checks precede the first selector change. The compiler keeps
 // FS/GS bases across the group and consumes the MOV SS shadow before returning.
 boundary machine reload_data_segments<const Entries: u64>(
-    gdt: &mut [u64; Entries], selector: u16, scratch: &mut [u8; 10]
+    gdt: @mut [u64; Entries], selector: u16, scratch: @mut [u8; 10]
 ) -> u8 reaches MachineControl;
 boundary machine read_data_selector() -> u16 reaches MachineControl;
 boundary machine read_extra_selector() -> u16 reaches MachineControl;

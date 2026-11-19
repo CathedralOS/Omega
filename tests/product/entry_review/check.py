@@ -22,7 +22,7 @@ def dependency(alias, path):
     return (
         f'let mut {alias}_dependency: DependencyDescription = '
         f'dependency::from_source(Source::Path {{ location: "{path.as_posix()}" }});\n'
-        f'    dependency::with_alias(&mut {alias}_dependency, "{alias}");\n'
+        f'    dependency::with_alias(@mut {alias}_dependency, "{alias}");\n'
         f'    let package_registration: DependencyRegistration = Build::dependency(builder, {alias}_dependency);'
     )
 
@@ -37,7 +37,7 @@ def check(omega, repository, workspace, mode):
     contract = contract.replace("\nUefiX86_64CallingPolicy satisfies", "\npub UefiX86_64CallingPolicy satisfies")
     for name, package in (("selected", selected), ("alternative", alternative)):
         extra = dependency("selected", selected) if name == "alternative" and mode == "shared_requirement" else ""
-        write(package / "build.omg", f'''machine build(builder: &mut Build) {{
+        write(package / "build.omg", f'''machine build(builder: @mut Build) {{
     Build::package(builder, "entry_{name}");
     {dependency("std", standard)}
     {extra}
@@ -53,7 +53,7 @@ boundary trait UefiApplication: ProgramStorageEntry + selected::UefiPhysicalEntr
 '''
         write(package / "entry.omg", body)
     selection = "" if mode == "no_selection" else "Build::select_provider<selected::UefiPhysicalEntry, Adapter>(builder);"
-    write(application / "build.omg", f'''machine build(builder: &mut Build) {{
+    write(application / "build.omg", f'''machine build(builder: @mut Build) {{
     Build::application(builder, "entry_review");
     {dependency("std", standard)}
     {dependency("selected", selected)}
@@ -69,7 +69,7 @@ use selected::entry;
 Adapter satisfies UefiPhysicalEntry {
     UefiPhysicalEntry::enter = physical;
 }
-machine physical(handle: EfiImageHandle, table: &EfiSystemTable) -> EfiStatus
+machine physical(handle: EfiImageHandle, table: @EfiSystemTable) -> EfiStatus
 satisfies UefiPhysicalEntry::enter {
     EfiStatus { code: 0x8000000000000002 }
 }

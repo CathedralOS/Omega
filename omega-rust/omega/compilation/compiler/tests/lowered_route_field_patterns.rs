@@ -73,7 +73,7 @@ fn a_case_field_value_keeps_its_case_fallback() {
         "case_field_value",
         r#"
         data Token [copy] { case Keyword(keyword: u8, offset: u32); case Other; }
-        machine classify(token: &Token) -> u32 {
+        machine classify(token: @Token) -> u32 {
             match token {
                 Token::Keyword { keyword: 7, offset as _ } -> 1
                 Token::Keyword { keyword as _, offset as _ } -> 2
@@ -106,7 +106,7 @@ fn ordered_case_tests_and_partial_wildcards_are_accepted() {
     ] {
         let found = verdict(
             name,
-            &format!("{TOKEN} machine pick(token:&Token)->u32{{{body}}} machine main(){{}}"),
+            &format!("{TOKEN} machine pick(token:@Token)->u32{{{body}}} machine main(){{}}"),
         );
         let RouteVerdict::Accepted(closure) = found else {
             panic!("{name}: {found:?}")
@@ -140,7 +140,7 @@ fn an_unconditional_pattern_shadows_later_arms_with_an_advisory() {
     ] {
         let found = verdict(
             name,
-            &format!("{TOKEN} machine pick(token:&Token)->u32{{{body}}} machine main(){{}}"),
+            &format!("{TOKEN} machine pick(token:@Token)->u32{{{body}}} machine main(){{}}"),
         );
         let RouteVerdict::Accepted(closure) = found else {
             panic!("{name}: {found:?}")
@@ -169,7 +169,7 @@ fn tested_payload_fields_do_not_establish_complete_case_coverage() {
         "missing_field_fallback",
         &format!(
             r#"{TOKEN}
-        machine pick(token:&Token)->u32 {{ match token {{
+        machine pick(token:@Token)->u32 {{ match token {{
             Token::Keyword {{keyword:7, offset as _}}->1
             Token::Other->2
         }} }} machine main() {{}}
@@ -187,7 +187,7 @@ fn a_pattern_value_must_have_the_projected_fields_type() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let source = format!(
         r#"{TOKEN}
-        machine pick(token:&Token)->u32 {{ match token {{
+        machine pick(token:@Token)->u32 {{ match token {{
             Token::Keyword {{keyword:true, offset as _}}->1 _->2
         }} }} machine main() {{}}
     "#
@@ -215,7 +215,7 @@ fn a_projected_comparison_selects_declared_equality() {
         data Key [copy] { case A; case B; }
         machine == pattern_key_equal(left:Key, right:Key)->bool { false }
         data Token [copy] { case Keyword(keyword:Key); case Other; }
-        machine pick(token:&Token)->u32 { match token {
+        machine pick(token:@Token)->u32 { match token {
             Token::Keyword {keyword:Key::A}->1 _->2
         } }
         machine main() {}
@@ -345,10 +345,10 @@ fn an_enclosing_case_remains_selected_after_a_guard_updates_its_payload() {
     let source = r#"
         data Outer { case Hold(value:u32); case Empty; }
         data Token { case Keyword(keyword:u8); case Other; }
-        machine touch(state:&mut u32)->u8 { state=9; 0 }
-        machine pick(outer:&mut Outer, token:&Token)->u32 { match outer {
+        machine touch(state:@mut u32)->u8 { state=9; 0 }
+        machine pick(outer:@mut Outer, token:@Token)->u32 { match outer {
             Outer::Hold {value}->match token {
-                Token::Keyword {keyword:touch(&mut outer.value)}->99 _->value
+                Token::Keyword {keyword:touch(@mut outer.value)}->99 _->value
             }
             Outer::Empty->0
         } }
@@ -357,9 +357,9 @@ fn an_enclosing_case_remains_selected_after_a_guard_updates_its_payload() {
     let found = verdict("nested_guard_case", source);
     assert!(matches!(found, RouteVerdict::Accepted(_)), "{found:?}");
     let replacement = source
-        .replace("state:&mut u32", "state:&mut Outer")
+        .replace("state:@mut u32", "state:@mut Outer")
         .replace("state=9", "state=Outer::Empty")
-        .replace("touch(&mut outer.value)", "touch(&mut outer)");
+        .replace("touch(@mut outer.value)", "touch(@mut outer)");
     let found = verdict("nested_guard_replaces_case", &replacement);
     let RouteVerdict::Rejected { unestablished, .. } = found else {
         panic!("{found:?}")

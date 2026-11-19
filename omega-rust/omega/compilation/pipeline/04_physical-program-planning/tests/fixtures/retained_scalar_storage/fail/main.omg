@@ -1,7 +1,7 @@
 // The declared bound permits an index outside the two-element storage.
 // Expected: operation-safety proof rejection.
 data Cell { value: i64; }
-machine select(cells: &mut [Cell; 2], index: u64) -> i64
+machine select(cells: @mut [Cell; 2], index: u64) -> i64
 requires index < 3
 {
     cells[index].value = 4294967339;
@@ -9,7 +9,7 @@ requires index < 3
 }
 machine main() crashes Trap {
     let mut cells: [Cell; 2] = [Cell { value: 17 }, Cell { value: 29 }];
-    let observed: i64 = select(&mut cells, 1);
+    let observed: i64 = select(@mut cells, 1);
     transition observed == 4294967339 && cells[0].value == 17 && cells[1].value == 4294967339 {
         true -> done()
         _ -> bad()

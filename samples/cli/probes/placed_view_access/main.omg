@@ -58,17 +58,17 @@ machine RegPlacement::plan(schema: Schema) -> AccessPlan {
         }
     )
 }
-machine inspect(view: &mut Access<RegPlacement, Registers>) -> u32 {
-    view.transmit.write(&mut view.transmit, 9);
-    view.status.read(&view.status)
+machine inspect(view: @mut Access<RegPlacement, Registers>) -> u32 {
+    view.transmit.write(@mut view.transmit, 9);
+    view.status.read(@view.status)
 }
 data Main { hits: i32 in Wrapping; }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = main.hits + 1;
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -32,17 +32,17 @@ machine square_root(value: f64) -> f64 {
 }
 // Snell's horizontal slowness is 1 / refractor velocity. The critical
 // offset includes both inclined legs; the half-space leg is nonnegative.
-public machine branch(model: &mut Model, refractor: i32 in Wrapping)
+public machine branch(model: @mut Model, refractor: i32 in Wrapping)
 requires refractor >= 1 && refractor < 4 {
  model.critical[refractor] = 0.0; model.intercept[refractor] = 0.0;
  transition { _ -> layer(model, refractor, 0) }
- machine layer(model: &mut Model, refractor: i32 in Wrapping, index: i32 in Wrapping)
+ machine layer(model: @mut Model, refractor: i32 in Wrapping, index: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4 {
   transition index >= 0 && index < refractor && index < 3 {
    true -> accumulate(model, refractor, index) false -> done()
   }
  }
- machine accumulate(model: &mut Model, refractor: i32 in Wrapping, index: i32 in Wrapping)
+ machine accumulate(model: @mut Model, refractor: i32 in Wrapping, index: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4
  requires index >= 0 && index < 3 {
   let ratio: f64 = model.velocities[index] / model.velocities[refractor];

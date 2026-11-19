@@ -250,7 +250,7 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
         ("other.child.next", false),
     ] {
         let source = format!(
-            "machine Main::next(main: &Main, input: u64) -> u64 {{ transition {{ _ -> {target}(input; proof) }} }}"
+            "machine Main::next(main: @Main, input: u64) -> u64 {{ transition {{ _ -> {target}(input; proof) }} }}"
         );
         let parsed = crate::tests::parse_source_unwrap(&source);
         let machine = crate::tests::root_machine_unwrap(&parsed);
@@ -555,7 +555,7 @@ fn trait_machine_parameter_is_requirement_identity() {
 #[test]
 fn provider_selection_retains_two_structural_type_paths() {
     let source = r#"
-        machine build(builder: &mut Build) {
+        machine build(builder: @mut Build) {
             Build::select_provider<host::Console, application::ConsoleProvider>(builder);
         }
     "#;
@@ -590,7 +590,7 @@ fn provider_selection_retains_two_structural_type_paths() {
 #[test]
 fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
     let source = r#"
-        machine build(builder: &mut Build) {
+        machine build(builder: @mut Build) {
             Build::exclude_service<host::Console>(builder);
         }
     "#;
@@ -627,15 +627,15 @@ fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
 fn service_exclusion_rejects_retired_receiver_calls() {
     for (source, expected) in [
         (
-            "machine build(builder: &mut Build) { builder.exclude_service<host::Console, other::Log>(); }",
+            "machine build(builder: @mut Build) { builder.exclude_service<host::Console, other::Log>(); }",
             "receiver-style service exclusion is retired",
         ),
         (
-            "machine build(builder: &mut Build) { builder.exclude_service<host::Console>(1); }",
+            "machine build(builder: @mut Build) { builder.exclude_service<host::Console>(1); }",
             "receiver-style service exclusion is retired",
         ),
         (
-            "machine build(builder: &mut Build) { builder.exclude_service<>(); }",
+            "machine build(builder: @mut Build) { builder.exclude_service<>(); }",
             "exclude_service",
         ),
     ] {
@@ -653,7 +653,7 @@ fn service_exclusion_rejects_retired_receiver_calls() {
 #[test]
 fn provider_selection_retains_one_explicit_composition_mode_argument() {
     let source = r#"
-        machine build(builder: &mut Build) {
+        machine build(builder: @mut Build) {
             Build::select_provider<host::Console, application::ConsoleProvider>(
                 builder, CompositionMode::Independent
             );
@@ -705,7 +705,7 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
 #[test]
 fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
     let source = r#"
-        machine build(builder: &mut Build) {
+        machine build(builder: @mut Build) {
             Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
         }
     "#;
@@ -753,7 +753,7 @@ fn root_binding_statement_rejects_malformed_operands() {
         "Slot::, Entry",
     ] {
         let source =
-            format!("machine build(builder: &mut Build) {{ Build::bind(builder, {operands}); }}");
+            format!("machine build(builder: @mut Build) {{ Build::bind(builder, {operands}); }}");
         let tokens = Lexer::new(&source)
             .tokenize()
             .expect("tokenize malformed root binding");
@@ -768,7 +768,7 @@ fn root_binding_statement_rejects_malformed_operands() {
 fn root_binding_statement_retains_computed_operands_without_a_declaration_path() {
     for operand in ["setup::retain(entry)", "12"] {
         let source = format!(
-            "machine build(builder: &mut Build) {{ Build::bind(builder, Slot, {operand}); }}"
+            "machine build(builder: @mut Build) {{ Build::bind(builder, Slot, {operand}); }}"
         );
         let parsed = crate::tests::parse_source_verbose(
             &source,
@@ -793,7 +793,7 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
 #[test]
 fn opaque_representation_selection_retains_data_and_conformance_paths() {
     let source = r#"
-        machine build(builder: &mut Build) {
+        machine build(builder: @mut Build) {
             Build::select_representation<interrupt::Ack, platform::AckRepresentation>(builder);
         }
     "#;

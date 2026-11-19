@@ -49,7 +49,7 @@ invokes Console
 public machine newline() reaches Console
 invokes Console
 { Console::write_byte(10); }
-public machine bases(sequence: &Sequence) reaches Console
+public machine bases(sequence: @Sequence) reaches Console
 invokes Console
 {
     transition sequence.length == 0 {
@@ -57,13 +57,13 @@ invokes Console
         _ -> base(sequence, 0)
     }
     machine empty() { Console::write_byte(45); }
-    machine base(sequence: &Sequence, index: u64 in Wrapping) {
+    machine base(sequence: @Sequence, index: u64 in Wrapping) {
         transition index < sequence.length {
             true -> read(sequence, index)
             _ -> stop()
         }
     }
-    machine read(sequence: &Sequence, index: u64 in Wrapping) {
+    machine read(sequence: @Sequence, index: u64 in Wrapping) {
         let value: u64 in Wrapping = sequence_base(sequence, index);
         transition value {
             1 -> write(sequence, index, 65)
@@ -73,16 +73,16 @@ invokes Console
             _ -> write(sequence, index, 63)
         }
     }
-    machine write(sequence: &Sequence, index: u64 in Wrapping, character: i32) {
+    machine write(sequence: @Sequence, index: u64 in Wrapping, character: i32) {
         Console::write_byte(character);
         transition { _ -> base(sequence, index + 1) }
     }
     machine stop() { }
 }
-public machine variant_row(variant: &Variant) reaches Console
+public machine variant_row(variant: @Variant) reaches Console
 invokes Console
 {
     number(variant.contig); separator(); number(variant.position); separator();
-    number(variant.removed); separator(); bases(&variant.inserted); separator();
+    number(variant.removed); separator(); bases(@variant.inserted); separator();
     number(variant.provenance);
 }

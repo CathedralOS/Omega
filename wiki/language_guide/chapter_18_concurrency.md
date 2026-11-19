@@ -31,7 +31,7 @@ data WorkerState {
     case Running(task: Task<WorkResult>);
 }
 
-Supervisor::adopt(&mut supervisor, move task);
+Supervisor::adopt(@mut supervisor, move task);
 ```
 
 When starting can be refused at run time, `try_start` hands the arguments
@@ -51,9 +51,9 @@ can run something else. Blocking holds the thread. A machine declares which it
 may do, and each call acknowledges it:
 
 ```omega
-let count: u32 = Counter::read(&counter);
-let event: Event = suspend Inbox::take(&mut inbox);
-let guard: Guard = block Mutex::lock(&mut mutex);
+let count: u32 = Counter::read(@counter);
+let event: Event = suspend Inbox::take(@mut inbox);
+let guard: Guard = block Mutex::lock(@mut mutex);
 let outcome: Outcome = suspend block Operation::finish(move operation);
 ```
 
@@ -66,7 +66,7 @@ ordinary machine with `suspends` in its header.
 ## Borrow values across a wait
 
 ```omega
-let count: u64 = suspend Storage::read(&mut storage, &mut buffer);
+let count: u64 = suspend Storage::read(@mut storage, @mut buffer);
 consume(buffer, count);
 ```
 
@@ -83,7 +83,7 @@ data Take {
     case Got(frame: Frame);
 }
 
-machine run_worker(worker: &mut Worker, ring: &mut Ring) {
+machine run_worker(worker: @mut Worker, ring: @mut Ring) {
     transition suspend Ring::take(ring) {
         Take::Got { frame } -> work(worker, frame)
         Take::Cancelled -> cleanup(worker)
@@ -107,8 +107,8 @@ data Event {
     case Shutdown;
 }
 
-machine run_server(server: &mut Server) {
-    transition suspend Inbox::take(&mut server.inbox) {
+machine run_server(server: @mut Server) {
+    transition suspend Inbox::take(@mut server.inbox) {
         Event::Packet { frame } -> Server::handle(server, frame)
         Event::Tick -> Server::heartbeat(server)
         Event::Shutdown -> Server::drain(server)
@@ -144,7 +144,7 @@ memory when many tasks are parked. `serve` is the same machine either way.
 A library that starts tasks for its caller passes the choice through:
 
 ```omega
-machine accept_loop<const Storage: ActivationStorage>(listener: &mut Listener) suspends {
+machine accept_loop<const Storage: ActivationStorage>(listener: @mut Listener) suspends {
     ...
     TaskRuntime::start<Reply, Request, serve, Storage>(move request);
 }
@@ -185,7 +185,7 @@ A generator is a machine you resume one step at a time. It pauses with the
 same `suspend`; there is no `yield`:
 
 ```omega
-machine announce(out: &mut Emitter<u32>, job: Announcement) suspends {
+machine announce(out: @mut Emitter<u32>, job: Announcement) suspends {
     suspend Emitter::emit(out, job.first);
     suspend Emitter::emit(out, job.second);
 }
@@ -212,8 +212,8 @@ data TicketLine {
     next_ticket: AtomicU32;
 }
 
-machine take_ticket(line: &mut TicketLine) -> u32 {
-    AtomicU32::fetch_add(&line.next_ticket, 1, NoOrdering)
+machine take_ticket(line: @mut TicketLine) -> u32 {
+    AtomicU32::fetch_add(@line.next_ticket, 1, NoOrdering)
 }
 ```
 

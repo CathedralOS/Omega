@@ -10,7 +10,7 @@ requires above >= -12 && above <= 12
 }
 
 data Main { }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     let reduced: i64 = bareiss(6, 4, 2, 3);
     transition { _ -> {} }
 }

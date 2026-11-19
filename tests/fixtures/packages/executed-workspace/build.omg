@@ -1,7 +1,7 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     declare_members(builder);
 }
-machine declare_members(builder: &mut Build) {
+machine declare_members(builder: @mut Build) {
     Build::member(builder, "member");
     Build::member(builder, "sibling");
     Build::member(builder, "unselected");

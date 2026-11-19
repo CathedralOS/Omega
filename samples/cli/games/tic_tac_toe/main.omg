@@ -39,7 +39,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("tic_tac_toe: replays a scripted game where X wins the top row");
     // Scripted moves.
     play(main, 0, 1);  // X plays cell 0
@@ -54,7 +54,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block bad_count(main)
     }
 
-    machine check_winner(main: &mut Main) {
+    machine check_winner(main: @mut Main) {
         // Check top row: cells 0, 1, 2 all == 1 means X won.
         transition main.board.cells[0] == 1 {
             true -> block check_row_mid(main)
@@ -62,21 +62,21 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine check_row_mid(main: &mut Main) {
+    machine check_row_mid(main: @mut Main) {
         transition main.board.cells[1] == 1 {
             true -> block check_row_right(main)
             _ -> block bad_winner(main)
         }
     }
 
-    machine check_row_right(main: &mut Main) {
+    machine check_row_right(main: @mut Main) {
         transition main.board.cells[2] == 1 {
             true -> block check_o_did_not_win(main)
             _ -> block bad_winner(main)
         }
     }
 
-    machine check_o_did_not_win(main: &mut Main) {
+    machine check_o_did_not_win(main: @mut Main) {
         // Verify O did not somehow win: board[3] and board[4] are O's but
         // board[5] is empty (0), so O's middle row is incomplete.
         transition main.board.cells[5] == 0 {
@@ -85,90 +85,90 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: X owns the top row after 5 moves (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
-    machine bad_count(main: &mut Main) {
+    machine bad_count(main: @mut Main) {
         Console::write_line("FAIL: move count was not 5 after the script (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
-    machine bad_winner(main: &mut Main) {
+    machine bad_winner(main: @mut Main) {
         Console::write_line("FAIL: the board did not show X winning the top row (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 }
 
 // Place a piece on the board: cell=which cell, player=1 for X, 2 for O.
-machine play(main: &mut Main, cell: i32, player: i32) {
+machine play(main: @mut Main, cell: i32, player: i32) {
     main.board.move_count = (main.board.move_count + 1) % 10;
     transition cell == 0 {
         true -> set0(main, player)
         _ -> try_cell1(main, cell, player)
     }
 
-    machine set0(main: &mut Main, player: i32) {
+    machine set0(main: @mut Main, player: i32) {
         main.board.cells[0] = player;
     }
 
-    machine try_cell1(main: &mut Main, cell: i32, player: i32) {
+    machine try_cell1(main: @mut Main, cell: i32, player: i32) {
         transition cell == 1 {
             true -> set1(main, player)
             _ -> try_cell2(main, cell, player)
         }
     }
 
-    machine set1(main: &mut Main, player: i32) {
+    machine set1(main: @mut Main, player: i32) {
         main.board.cells[1] = player;
     }
 
-    machine try_cell2(main: &mut Main, cell: i32, player: i32) {
+    machine try_cell2(main: @mut Main, cell: i32, player: i32) {
         transition cell == 2 {
             true -> set2(main, player)
             _ -> try_cell3(main, cell, player)
         }
     }
 
-    machine set2(main: &mut Main, player: i32) {
+    machine set2(main: @mut Main, player: i32) {
         main.board.cells[2] = player;
     }
 
-    machine try_cell3(main: &mut Main, cell: i32, player: i32) {
+    machine try_cell3(main: @mut Main, cell: i32, player: i32) {
         transition cell == 3 {
             true -> set3(main, player)
             _ -> try_cell4(main, cell, player)
         }
     }
 
-    machine set3(main: &mut Main, player: i32) {
+    machine set3(main: @mut Main, player: i32) {
         main.board.cells[3] = player;
     }
 
-    machine try_cell4(main: &mut Main, cell: i32, player: i32) {
+    machine try_cell4(main: @mut Main, cell: i32, player: i32) {
         transition cell == 4 {
             true -> set4(main, player)
             _ -> done(main)
         }
     }
 
-    machine set4(main: &mut Main, player: i32) {
+    machine set4(main: @mut Main, player: i32) {
         main.board.cells[4] = player;
     }
 
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

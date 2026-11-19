@@ -18,8 +18,8 @@ data Main {
     linkage: Linkage;
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console blocks crashes Trap {
-    block read(&mut main.input);
+machine main(main: @mut Main) reaches ProcessExit + Console blocks crashes Trap {
+    block read(@mut main.input);
     transition main.input.valid && main.input.tokens[0] > 0 &&
                main.input.tokens[25] < 4 && main.input.tokens[26] < 4 && main.input.tokens[27] < 4 &&
                (main.input.tokens[25] == 0 || main.input.tokens[25] != main.input.tokens[26]) &&
@@ -28,7 +28,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console blocks crashes Trap 
         true -> load(main)
         false -> invalid(main)
     }
-    machine load(main: &mut Main) {
+    machine load(main: @mut Main) {
         main.linkage.threshold = main.input.tokens[0];
         main.linkage.left[0] = Record { identifier: main.input.tokens[1], title: main.input.tokens[2], author: main.input.tokens[3], year: main.input.tokens[4] };
         main.linkage.left[1] = Record { identifier: main.input.tokens[5], title: main.input.tokens[6], author: main.input.tokens[7], year: main.input.tokens[8] };
@@ -39,13 +39,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console blocks crashes Trap 
         main.linkage.truth[0] = main.input.tokens[25];
         main.linkage.truth[1] = main.input.tokens[26];
         main.linkage.truth[2] = main.input.tokens[27];
-        solve(&mut main.linkage);
-        report(&main.linkage);
+        solve(@mut main.linkage);
+        report(@main.linkage);
         // The process result fingerprints every computed report field. The CLI's
         // Terminal comparison observes termination.
         ProcessExit::exit_process(((main.linkage.best % 100 * 2 + main.linkage.optima % 100 * 3 + main.linkage.edges % 100 * 5 + main.linkage.conflicts % 100 * 7 + main.linkage.linked % 100 * 11 + main.linkage.ambiguous % 100 * 13 + main.linkage.unmatched % 100 * 17 + main.linkage.true_positive % 100 * 19 + main.linkage.false_positive % 100 * 23 + main.linkage.false_negative % 100 * 29 + main.linkage.consensus[0] % 100 * 31 + main.linkage.consensus[1] % 100 * 37 + main.linkage.consensus[2] % 100 * 41) % 191 + 1) as i32);
     }
-    machine invalid(main: &mut Main) {
+    machine invalid(main: @mut Main) {
         Console::write_line("INVALID input");
         ProcessExit::exit_process(64);
     }
@@ -54,5 +54,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console blocks crashes Trap 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console blocks crashes Trap {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

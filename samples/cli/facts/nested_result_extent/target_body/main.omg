@@ -26,28 +26,28 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedTrial {
-    machine trial(buffer: &mut [u8], other: &[u8], count: u64) -> u64
+    machine trial(buffer: @mut [u8], other: @[u8], count: u64) -> u64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Trial satisfies SelectedTrial {
-    machine trial(buffer: &mut [u8], other: &[u8], count: u64) -> u64
+    machine trial(buffer: @mut [u8], other: @[u8], count: u64) -> u64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
         let capacity: u64 = minimum(minimum(count, buffer.len), 2147483647);
-        let prefix: &mut [u8] = &mut buffer[0..capacity];
+        let prefix: @mut [u8] = @mut buffer[0..capacity];
         prefix.len
     }
 }
 
 ArmTrial satisfies SelectedTrial {
-    machine trial(buffer: &mut [u8], other: &[u8], count: u64) -> u64
+    machine trial(buffer: @mut [u8], other: @[u8], count: u64) -> u64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
         let capacity: u64 = minimum(minimum(count, buffer.len), 2147483647);
-        let prefix: &mut [u8] = &mut buffer[0..capacity];
+        let prefix: @mut [u8] = @mut buffer[0..capacity];
         prefix.len
     }
 }
@@ -56,8 +56,8 @@ ArmTrial satisfies SelectedTrial {
 machine main() crashes Trap {
     let mut bytes: [u8; 8];
     let other: [u8; 16];
-    let first: u64 = SelectedTrial::trial(&mut bytes[..], &other[..], 13);
-    let second: u64 = SelectedTrial::trial(&mut bytes[..], &other[..], 0);
+    let first: u64 = SelectedTrial::trial(@mut bytes[..], @other[..], 13);
+    let second: u64 = SelectedTrial::trial(@mut bytes[..], @other[..], 0);
     transition first == 8 && second == 0 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

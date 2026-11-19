@@ -1,6 +1,6 @@
 // Deployable asm canary: the AArch64 targets select their exact entry.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "asm_aarch64_system_registers_compile");
     builder.freestanding = true;
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

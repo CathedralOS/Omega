@@ -33,10 +33,10 @@ fn check(name: &str, dependency_build: Option<&str>) -> (bool, String) {
     .expect("staged program");
     std::fs::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) {
+        "machine build(builder: @mut Build) {
     Build::application(builder, \"consumer\");
     let mut description: DependencyDescription = dependency::from_source(Source::Path { location: \"dep\" });
-    dependency::with_alias(&mut description, \"dep\");
+    dependency::with_alias(@mut description, \"dep\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ",
@@ -68,7 +68,7 @@ fn check(name: &str, dependency_build: Option<&str>) -> (bool, String) {
 fn a_dependency_with_a_build_file_compiles() {
     let (compiled, stderr) = check(
         "declared",
-        Some("machine build(builder: &mut Build) {\n    Build::package(builder, \"kernel\");\n}\n"),
+        Some("machine build(builder: @mut Build) {\n    Build::package(builder, \"kernel\");\n}\n"),
     );
     assert!(compiled, "{stderr}");
 }

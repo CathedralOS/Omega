@@ -45,7 +45,7 @@ machine number(value: i32 in Wrapping) reaches Console {
     }
     machine done() { }
 }
-public machine report(problem: &Problem, plan: &Plan) reaches ProcessExit + Console {
+public machine report(problem: @Problem, plan: @Plan) reaches ProcessExit + Console {
     Console::write("candidates="); number(plan.candidates); Console::write_line("");
     Console::write("feasible="); number(plan.feasible); Console::write_line("");
     Console::write("boundary_rejected="); number(plan.boundary_rejected); Console::write_line("");
@@ -58,20 +58,20 @@ public machine report(problem: &Problem, plan: &Plan) reaches ProcessExit + Cons
         Console::write_line("INFEASIBLE: every sequence violates a step constraint or terminal equality");
         ProcessExit::exit_process(3);
     }
-    machine chosen(problem: &Problem, plan: &Plan) {
+    machine chosen(problem: @Problem, plan: @Plan) {
         Console::write("cost="); number(plan.cost); Console::write_line("");
         Console::write("initial="); number(problem.initial); Console::write_line("");
         let divisor: i32 in Wrapping = power_three(problem.horizon - 1);
         transition { _ -> step(problem, plan, 0, divisor, problem.initial) }
     }
-    machine step(problem: &Problem, plan: &Plan,
+    machine step(problem: @Problem, plan: @Plan,
                time: i32 in Wrapping, divisor: i32 in Wrapping, position: i32 in Wrapping) {
         transition divisor > 0 {
             true -> emit(problem, plan, time, divisor, position)
             _ -> finish()
         }
     }
-    machine emit(problem: &Problem, plan: &Plan,
+    machine emit(problem: @Problem, plan: @Plan,
                time: i32 in Wrapping, divisor: i32 in Wrapping, position: i32 in Wrapping) {
         let action: i32 in Wrapping = plan.code / divisor % 3 - 1;
         let next: i32 in Wrapping = position + action + problem.drift;

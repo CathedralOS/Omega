@@ -28,7 +28,7 @@ Every Omega compiler proves two kinds of fact without help: chains of
 comparisons, and arithmetic that fits because its operands are bounded.
 
 ```omega
-machine get(items: &[u8], i: u64, n: u64) -> u8
+machine get(items: @[u8], i: u64, n: u64) -> u8
 requires i < n
 requires n <= items.len
 {
@@ -85,7 +85,7 @@ warns that it is unreachable.
 ## Values you saved
 
 ```omega
-machine restore(items: &mut [u8]) -> u8
+machine restore(items: @mut [u8]) -> u8
 requires items.len > 0
 ensures result == 42
 {
@@ -109,7 +109,7 @@ requires health in 0..=100
     health: i32;
 }
 
-machine take_damage(player: &mut Player, damage: i32)
+machine take_damage(player: @mut Player, damage: i32)
 requires damage >= 0
 requires damage <= player.health
 {

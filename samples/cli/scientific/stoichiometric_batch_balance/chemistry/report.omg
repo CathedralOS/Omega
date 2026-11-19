@@ -38,7 +38,7 @@ invokes Console
     Console::write_line("");
 }
 
-machine line_four(values: &[i64 in Wrapping; 4]) reaches Console
+machine line_four(values: @[i64 in Wrapping; 4]) reaches Console
 invokes Console
 {
     number(values[0]);

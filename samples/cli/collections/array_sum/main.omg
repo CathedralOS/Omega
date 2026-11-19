@@ -25,7 +25,7 @@ requires
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("array_sum: overflow-safe reduction -- i32 elements widened to an i64 accumulator");
     main.nums[0] = 0x7735_9400;
     main.nums[1] = 0x0BEB_C200;
@@ -36,14 +36,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block step(main)
     }
 
-    machine step(main: &mut Main) {
+    machine step(main: @mut Main) {
         transition main.i < 2 {
             true -> block add(main)
             _ -> block done(main)
         }
     }
 
-    machine add(main: &mut Main) {
+    machine add(main: @mut Main) {
         main.sum =
             main.sum
             + (widen_i32_to_i64(main.nums[main.i]) as i64 in Wrapping);
@@ -53,24 +53,24 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
         transition main.sum == 0x8321_5600 {
             true -> block good(main)
             _ -> block bad(main)
         }
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: sum == 2200000000 -- past i32 max, correct in i64 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("FAIL: sum != 2200000000 -- widening reduction wrong (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -78,5 +78,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

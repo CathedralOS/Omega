@@ -46,19 +46,19 @@ public machine posterior(alpha: i32 in Wrapping, beta: i32 in Wrapping) -> Poste
 }
 // P(K=0)=product_j (b+j)/(a+b+j), followed by adjacent-bin ratios.
 // All denominators are positive for a,b>=1 and 0<=K<m<=32.
-public machine predict(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33]) {
+public machine predict(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: @mut [f64; 33]) {
     transition { _ -> zero(alpha, beta, future, bins, 0, 1.0) }
-    machine zero(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
+    machine zero(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: @mut [f64; 33], position: i32 in Wrapping, mass: f64) {
         transition position < future { true -> zero(alpha, beta, future, bins, position + 1, mass * F64::from_i32((beta + position) as i32) / F64::from_i32((alpha + beta + position) as i32)) _ -> first(alpha, beta, future, bins, mass) }
     }
-    machine first(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], mass: f64) {
+    machine first(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: @mut [f64; 33], mass: f64) {
         bins[0] = mass;
         transition { _ -> next(alpha, beta, future, bins, 0, mass) }
     }
-    machine next(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
+    machine next(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: @mut [f64; 33], position: i32 in Wrapping, mass: f64) {
         transition position >= 0 && position < 32 && position < future { true -> bin(alpha, beta, future, bins, position, mass) _ -> {} }
     }
-    machine bin(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: &mut [f64; 33], position: i32 in Wrapping, mass: f64) {
+    machine bin(alpha: i32 in Wrapping, beta: i32 in Wrapping, future: i32 in Wrapping, bins: @mut [f64; 33], position: i32 in Wrapping, mass: f64) {
         let following: f64 = mass * F64::from_i32((future - position) as i32) / F64::from_i32((position + 1) as i32) * F64::from_i32((alpha + position) as i32) / F64::from_i32((beta + future - position - 1) as i32);
         bins[position + 1] = following;
         transition { _ -> next(alpha, beta, future, bins, position + 1, following) }

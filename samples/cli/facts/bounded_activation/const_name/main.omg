@@ -12,12 +12,12 @@ const COMMITTED: u64 = 3;
 const OVER_BOUND: u64 = 9;
 const MARKER: u8 = 37u8;
 
-machine write_read(bytes: &mut [u8]) -> u8 {
+machine write_read(bytes: @mut [u8]) -> u8 {
     transition bytes.len >= COMMITTED {
         true -> access(bytes)
         false -> (0u8)
     }
-    machine access(bytes: &mut [u8]) -> u8
+    machine access(bytes: @mut [u8]) -> u8
     requires bytes.len >= COMMITTED {
         bytes[2] = MARKER;
         bytes[2]
@@ -31,7 +31,7 @@ machine main() crashes Trap {
     }
     machine established(claim: ActivationClaim) {
         let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
+        let bytes: @mut [u8] = ActivationClaim::bytes(@mut live);
         let length: u64 = bytes.len;
         let observed: u8 = write_read(bytes);
         ActivationClaim::release(live);

@@ -38,25 +38,25 @@ machine StablePlacement::plan(schema: Schema) -> AccessPlan {
     )
 }
 
-machine update(value: &mut Value, other: &mut Access<StablePlacement, Value>, choose: bool) {
-    let view: &mut Access<StablePlacement, Value> = match choose {
+machine update(value: @mut Value, other: @mut Access<StablePlacement, Value>, choose: bool) {
+    let view: @mut Access<StablePlacement, Value> = match choose {
         true -> Access::view_mut<StablePlacement, Value>(value),
         false -> Access::view_mut<StablePlacement, Value>(value),
     };
     write_pair(view, other);
 }
 
-machine write_pair(view: &mut Access<StablePlacement, Value>, other: &mut Access<StablePlacement, Value>) {
-    let observed: u64 = read(&other.number);
-    write(&mut view.number, 29u64);
+machine write_pair(view: @mut Access<StablePlacement, Value>, other: @mut Access<StablePlacement, Value>) {
+    let observed: u64 = read(@other.number);
+    write(@mut view.number, 29u64);
 }
 
 machine main() crashes Trap {
     let mut value: Value = Value { number: 17 };
     let mut companion: Value = Value { number: 43 };
-    let companion_view: &mut Access<StablePlacement, Value> = Access::view_mut<StablePlacement, Value>(&mut companion);
-    update(&mut value, companion_view, true);
-    update(&mut value, companion_view, false);
+    let companion_view: @mut Access<StablePlacement, Value> = Access::view_mut<StablePlacement, Value>(@mut companion);
+    update(@mut value, companion_view, true);
+    update(@mut value, companion_view, false);
     transition value.number == 29 && companion.number == 43 {
         true -> done()
         _ -> wrong()

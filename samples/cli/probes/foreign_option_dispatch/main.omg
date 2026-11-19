@@ -20,14 +20,14 @@ use omega::language::core::Optional;
 data First { value: i32; }
 data Second { padding: u64; value: i32; }
 
-machine first(subject: &Optional<First>) -> i32 {
+machine first(subject: @Optional<First>) -> i32 {
     transition subject {
         Optional::Some { value } -> (value.value)
         Optional::None -> (0)
     }
 }
 
-machine second(subject: &Optional<Second>) -> i32 {
+machine second(subject: @Optional<Second>) -> i32 {
     transition subject {
         Optional::Some { value } -> (2)
         Optional::None -> (0)
@@ -36,24 +36,24 @@ machine second(subject: &Optional<Second>) -> i32 {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let left: Optional<First> = Optional::Some { value: First { value: 1 } };
     let right: Optional<Second> = Optional::Some { value: Second { padding: 41, value: 2 } };
     let empty: Optional<Second> = Optional::None;
-    let left_result: i32 = first(&left);
-    let right_result: i32 = second(&right);
-    let empty_result: i32 = second(&empty);
+    let left_result: i32 = first(@left);
+    let right_result: i32 = second(@right);
+    let empty_result: i32 = second(@empty);
     transition left_result == 1 && right_result == 2 && empty_result == 0 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

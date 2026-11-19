@@ -1224,9 +1224,9 @@ impl<'program> ShapeNormalizer<'program> {
             }
             TypeReference::Reference(reference) => {
                 let access = match reference.access {
-                    ReferenceAccess::Shared => "&",
-                    ReferenceAccess::Mutable => "&mut ",
-                    ReferenceAccess::WriteOnly => "&write ",
+                    ReferenceAccess::Shared => "@",
+                    ReferenceAccess::Mutable => "@mut ",
+                    ReferenceAccess::WriteOnly => "@write ",
                 };
                 let referee = self.program.child_type_reference(reference.referee);
                 format!("{access}{}", self.type_shape(referee))

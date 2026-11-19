@@ -31,8 +31,8 @@ data FailedOpen {
     result: UnitResult;
 }
 
-machine FailedOpen::main(failed_open: &mut FailedOpen) -> i32 {
-    let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt", &mut failed_open.buffer);
+machine FailedOpen::main(failed_open: @mut FailedOpen) -> i32 {
+    let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt", @mut failed_open.buffer);
     transition outcome {
         UnitResult::Error { kind } -> failed(kind)
         _ -> unexpected()
@@ -49,47 +49,47 @@ data Main {
     canon: [u8; 1024];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.unit_result = block FilesystemService::write_all("omega_wcanon_probe.txt", "canon");
     transition main.unit_result { UnitResult::Ok -> block resolve(main) _ -> bad(main, 71) }
-    machine resolve(main: &mut Main) {
-        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_probe.txt", &mut main.canon);
+    machine resolve(main: @mut Main) {
+        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_probe.txt", @mut main.canon);
         transition main.unit_result { UnitResult::Ok -> block spelled(main) _ -> bad(main, 72) }
     }
-    machine spelled(main: &mut Main) {
+    machine spelled(main: @mut Main) {
         // Native: '\\' (92, the \\?\ prefix). Hermetic: 'o' (111, the key
         // verbatim). Anything else = the resolve never wrote the buffer.
         transition canonical_prefix_is_valid(main.canon[0]) { true -> block make_dir(main) _ -> bad(main, 73) }
     }
-    machine make_dir(main: &mut Main) {
+    machine make_dir(main: @mut Main) {
         main.unit_result = block FilesystemService::create_dir("omega_wcanon_dir");
         transition main.unit_result { UnitResult::Ok -> block resolve_dir(main) _ -> bad(main, 76) }
     }
-    machine resolve_dir(main: &mut Main) {
-        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_dir", &mut main.canon);
+    machine resolve_dir(main: @mut Main) {
+        main.unit_result = block FilesystemService::canonicalize("omega_wcanon_dir", @mut main.canon);
         transition main.unit_result { UnitResult::Ok -> block spelled_dir(main) _ -> bad(main, 77) }
     }
-    machine spelled_dir(main: &mut Main) {
+    machine spelled_dir(main: @mut Main) {
         transition canonical_prefix_is_valid(main.canon[0]) { true -> block missing(main) _ -> bad(main, 78) }
     }
-    machine missing(main: &mut Main) {
-        let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt", &mut main.canon);
+    machine missing(main: @mut Main) {
+        let outcome: UnitResult = block FilesystemService::canonicalize("omega_wcanon_missing.txt", @mut main.canon);
         transition outcome { UnitResult::Error { kind } -> block kindcheck(main, kind) _ -> bad(main, 74) }
     }
-    machine kindcheck(main: &mut Main, kind: ErrorKind) {
+    machine kindcheck(main: @mut Main, kind: ErrorKind) {
         // The open leg's captured GetLastError supplies this classification.
         transition kind { ErrorKind::NotFound -> block cleanup(main) _ -> bad(main, 75) }
     }
-    machine cleanup(main: &mut Main) {
+    machine cleanup(main: @mut Main) {
         main.unit_result = block FilesystemService::remove("omega_wcanon_probe.txt");
         transition { _ -> block cleanup_dir(main) }
     }
-    machine cleanup_dir(main: &mut Main) {
+    machine cleanup_dir(main: @mut Main) {
         main.unit_result = block FilesystemService::remove_dir("omega_wcanon_dir");
         transition { _ -> good(main) }
     }
-    machine good(main: &mut Main) { ProcessExit::exit_process(70); }
-    machine bad(main: &mut Main, code: i32) { ProcessExit::exit_process(code); }
+    machine good(main: @mut Main) { ProcessExit::exit_process(70); }
+    machine bad(main: @mut Main, code: i32) { ProcessExit::exit_process(code); }
 }
 
 // A hosted native canonical path is absolute in its selected OS spelling.
@@ -103,5 +103,5 @@ windows_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 92 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block Main::main(@mut entry_storage);
 }

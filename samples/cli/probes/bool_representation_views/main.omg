@@ -26,30 +26,30 @@ requires
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.flag = true;
     main.byte = 1;
-    let flag_bits: &u8 = &main.flag as &u8;
-    let byte_flag: &bool = &main.byte as &bool;
+    let flag_bits: @u8 = @main.flag as @u8;
+    let byte_flag: @bool = @main.byte as @bool;
     transition flag_bits == 1 && byte_flag {
         true -> mutate(main)
         _ -> fail(main)
     }
-    machine mutate(main: &mut Main) {
-        let byte_alias: &mut bool = &mut main.byte as &mut bool;
+    machine mutate(main: @mut Main) {
+        let byte_alias: @mut bool = @mut main.byte as @mut bool;
         byte_alias = false;
         transition main.byte == 0 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

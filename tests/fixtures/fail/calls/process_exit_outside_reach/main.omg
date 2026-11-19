@@ -8,12 +8,12 @@ machine require_success(status: i32) ensures status == 0 reaches ProcessExit {
     }
 }
 
-machine main(root: &mut Main) reaches none {
+machine main(root: @mut Main) reaches none {
     require_success(root.status);
     ProcessExit::exit_process(0);
 }
 
 machine entry_start() reaches ProcessExit {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

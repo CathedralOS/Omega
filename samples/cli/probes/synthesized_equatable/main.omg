@@ -27,7 +27,7 @@ data Token {
 }
 
 OverrideEquality satisfies Equatable<Token> {
-    machine equals(left: &Token, right: &Token) -> bool {
+    machine equals(left: @Token, right: @Token) -> bool {
         false
     }
 }
@@ -49,7 +49,7 @@ machine synthesized_equatable() {
     }
 
     machine check_callable(a: Point, c: Point) {
-        let callable: bool = PointEquality::equals(&a, &c);
+        let callable: bool = PointEquality::equals(@a, @c);
         transition !callable {
             true -> check_override()
             _ -> done(73)

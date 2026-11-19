@@ -1,30 +1,30 @@
 // A machine name binds at one lexical tier in one module. Every declaration
 // in that family shares the same import route. Across packages only its public
 // members are visible; each use records which chain typing may walk.
-public machine bind_visible_overloads(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine bind_visible_overloads(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> clear(resolver, sources, syntax, 0u64 as +Trapping) }
-    machine clear(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine clear(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition (index as -Trapping) < syntax.machine_count && index < 10240 {
             true -> clear_one(resolver, sources, syntax, index)
             false -> next(resolver, sources, syntax, 0u64 as +Trapping)
         }
     }
-    machine clear_one(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping)
+    machine clear_one(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping)
     requires index < 10240
     {
         resolver.overload_heads[index as -Trapping] = OverloadLinks { all: 0u64 as +Trapping, exported: 0u64 as +Trapping };
         transition { _ -> clear(resolver, sources, syntax, index + 1) }
     }
 
-    machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition (index as -Trapping) < syntax.expression_count && index < 131072 {
             true -> inspect(resolver, sources, syntax, index)
             false -> done()
         }
     }
-    machine inspect(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping)
+    machine inspect(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping)
     requires index < 131072
     {
         let binding: ValueBinding = resolver.output.value_bindings[index as -Trapping];
@@ -33,7 +33,7 @@ crashes Trap
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
-    machine bind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, handle: u64 in Trapping)
+    machine bind(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, handle: u64 in Trapping)
     requires index < 131072
     {
         let expression: Expression = syntax_trees_expression(syntax, index);
@@ -44,7 +44,7 @@ crashes Trap
     machine done() {}
 }
 
-machine visible_overloads(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, representative: u64 in Trapping, from: SourceId) -> VisibleOverloads
+machine visible_overloads(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, representative: u64 in Trapping, from: SourceId) -> VisibleOverloads
 crashes Trap
 {
     let item: MachineItem = machine_item(syntax, representative);
@@ -56,7 +56,7 @@ crashes Trap
         _ -> VisibleOverloads { first: 0u64 as +Trapping, public_only: false }
     }
 
-    machine family(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, representative: u64 in Trapping, item: MachineItem, local: bool) -> VisibleOverloads
+    machine family(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, representative: u64 in Trapping, item: MachineItem, local: bool) -> VisibleOverloads
     requires representative < 10240
     {
         let heads: OverloadLinks = resolver.overload_heads[representative as -Trapping];
@@ -66,8 +66,8 @@ crashes Trap
         }
     }
 
-    machine build(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, representative: u64 in Trapping, item: MachineItem, local: bool) -> VisibleOverloads {
-        let path: MachineOwner = machine_owner(&resolver.output, representative);
+    machine build(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, representative: u64 in Trapping, item: MachineItem, local: bool) -> VisibleOverloads {
+        let path: MachineOwner = machine_owner(@resolver.output, representative);
         let empty: OverloadLinks = OverloadLinks { all: 0u64 as +Trapping, exported: 0u64 as +Trapping };
         let heads: OverloadLinks = link_overloads(resolver, sources, syntax, item, path, syntax.machine_count as +Trapping, empty);
         transition representative < 10240 {
@@ -75,7 +75,7 @@ crashes Trap
             _ -> invalid()
         }
     }
-    machine cache(resolver: &mut Resolver, representative: u64 in Trapping, heads: OverloadLinks, local: bool) -> VisibleOverloads
+    machine cache(resolver: @mut Resolver, representative: u64 in Trapping, heads: OverloadLinks, local: bool) -> VisibleOverloads
     requires representative < 10240
     {
         resolver.overload_heads[representative as -Trapping] = heads;
@@ -92,7 +92,7 @@ crashes Trap
 
 // Prepending in reverse declaration order gives both views stable forward
 // iteration. Links are stored once per declaration, regardless of call count.
-machine link_overloads(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, named: MachineItem, path: MachineOwner, end: u64 in Trapping, heads: OverloadLinks) -> OverloadLinks
+machine link_overloads(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, named: MachineItem, path: MachineOwner, end: u64 in Trapping, heads: OverloadLinks) -> OverloadLinks
 crashes Trap
 {
     transition end > 0 {
@@ -100,16 +100,16 @@ crashes Trap
         false -> heads
     }
 
-    machine candidate(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, named: MachineItem, path: MachineOwner, index: u64 in Trapping, heads: OverloadLinks) -> OverloadLinks {
+    machine candidate(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, named: MachineItem, path: MachineOwner, index: u64 in Trapping, heads: OverloadLinks) -> OverloadLinks {
         let item: MachineItem = machine_item(syntax, index);
-        let same: bool = machine_spells(&resolver.output, sources, item, index, path.has_owner, path.owner.source_span, named.name.source_span);
+        let same: bool = machine_spells(@resolver.output, sources, item, index, path.has_owner, path.owner.source_span, named.name.source_span);
         transition same && item.parent == named.parent {
             true -> owner(resolver, sources, syntax, named, path, index, item, heads)
             false -> link_overloads(resolver, sources, syntax, named, path, index, heads)
         }
     }
 
-    machine owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, named: MachineItem, path: MachineOwner, index: u64 in Trapping, item: MachineItem, heads: OverloadLinks) -> OverloadLinks {
+    machine owner(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, named: MachineItem, path: MachineOwner, index: u64 in Trapping, item: MachineItem, heads: OverloadLinks) -> OverloadLinks {
         let same: bool = resolver_same_module(sources, overload_unit_index(named.name.source_span.source), overload_unit_index(item.name.source_span.source));
         transition same {
             true -> prepend(resolver, sources, syntax, named, path, index, item, heads)
@@ -117,9 +117,9 @@ crashes Trap
         }
     }
 
-    machine prepend(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, named: MachineItem, path: MachineOwner, index: u64 in Trapping, item: MachineItem, heads: OverloadLinks) -> OverloadLinks {
-        let exported: bool = machine_public(&resolver.output, syntax, item, index);
-        let first: OverloadLinks = prepend_overload(&mut resolver.output.overloads, index, heads, exported);
+    machine prepend(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, named: MachineItem, path: MachineOwner, index: u64 in Trapping, item: MachineItem, heads: OverloadLinks) -> OverloadLinks {
+        let exported: bool = machine_public(@resolver.output, syntax, item, index);
+        let first: OverloadLinks = prepend_overload(@mut resolver.output.overloads, index, heads, exported);
         transition { _ -> link_overloads(resolver, sources, syntax, named, path, index, first) }
     }
 }
@@ -136,9 +136,9 @@ machine overload_unit_index(source: SourceId) -> u64 in Trapping {
 // visible machine of the same path in another module makes the name
 // ambiguous.
 public machine machine_named(
-    resolution: &NameResolution,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolution: @NameResolution,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     owned: bool,
     owner: SourceSpan,
     name: SourceSpan
@@ -147,14 +147,14 @@ crashes Trap
 {
     transition { _ -> next(resolution, sources, syntax, owned, owner, name, 0) }
 
-    machine next(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine next(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         transition index < syntax.machine_count {
             true -> candidate(resolution, sources, syntax, owned, owner, name, index)
             _ -> absent()
         }
     }
 
-    machine candidate(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine candidate(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         let item: MachineItem = machine_item(syntax, index);
         let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, owner, name);
         let visible: bool = machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
@@ -165,9 +165,9 @@ crashes Trap
     }
 
     machine rival(
-        resolution: &NameResolution,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolution: @NameResolution,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         owned: bool,
         owner: SourceSpan,
         name: SourceSpan,
@@ -182,9 +182,9 @@ crashes Trap
     }
 
     machine rival_candidate(
-        resolution: &NameResolution,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolution: @NameResolution,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         owned: bool,
         owner: SourceSpan,
         name: SourceSpan,
@@ -219,8 +219,8 @@ crashes Trap
 // Whether machine `handle` (row `item`) has the path `name` (owned by
 // `owner` when `owned`), through its `MachineOwner`.
 public machine machine_spells(
-    resolution: &NameResolution,
-    sources: &SourceSet,
+    resolution: @NameResolution,
+    sources: @SourceSet,
     item: MachineItem,
     handle: u64 in Trapping,
     owned: bool,
@@ -238,9 +238,9 @@ crashes Trap
 
 // A machine's visibility, tested only when its spelling matched.
 public machine machine_visible_if(
-    resolution: &NameResolution,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolution: @NameResolution,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     named: bool,
     from: SourceId,
     item: MachineItem,
@@ -253,7 +253,7 @@ crashes Trap
         _ -> hidden()
     }
 
-    machine test(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, from: SourceId, item: MachineItem, handle: u64 in Trapping) -> bool {
+    machine test(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, item: MachineItem, handle: u64 in Trapping) -> bool {
         let is_public: bool = machine_public(resolution, syntax, item, handle);
         resolver_visible(sources, syntax, from, item.name.source_span.source, is_public)
     }
@@ -265,7 +265,7 @@ crashes Trap
 
 // Whether machine `handle` (row `item`) is `public`: a root machine by its own
 // marker, a trait's or conformance's member by its container's.
-public machine machine_public(resolution: &NameResolution, syntax: &SyntaxTrees, item: MachineItem, handle: u64 in Trapping) -> bool
+public machine machine_public(resolution: @NameResolution, syntax: @SyntaxTrees, item: MachineItem, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let owner: MachineOwner = machine_owner(resolution, handle);
@@ -277,12 +277,12 @@ crashes Trap
         MachineContainer::Conformance -> conformance_container(syntax, owner.item)
     }
 
-    machine trait_container(syntax: &SyntaxTrees, index: u64 in Trapping) -> bool {
+    machine trait_container(syntax: @SyntaxTrees, index: u64 in Trapping) -> bool {
         let container: TraitItem = trait_item(syntax, index);
         container.is_public
     }
 
-    machine conformance_container(syntax: &SyntaxTrees, index: u64 in Trapping) -> bool {
+    machine conformance_container(syntax: @SyntaxTrees, index: u64 in Trapping) -> bool {
         let container: ConformanceItem = conformance_item(syntax, index);
         container.is_public
     }

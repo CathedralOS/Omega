@@ -50,7 +50,7 @@ machine Main::main(&mut self) {
         // u32-mul-overflow; Alpha must Trap, not return normally.
         self.positive("machine operation(value:u32 in Trapping)->u32 in Trapping {value*2} machine main()->u8 {let result:u32 in Trapping=operation(4294967295 as +Trapping);42}",0,23);
         // capture-order; expected normal completion.
-        self.positive("data Cell [copy] {value:u32 in Trapping;} machine change(cell:&mut Cell)->u32 in Trapping {cell.value=9 as +Trapping;cell.value} machine main()->u8 {let mut cell:Cell=Cell{value:7 as +Trapping};let result:u32 in Trapping=cell.value+change(&mut cell);transition result==16 && cell.value==9 {true->yes() _->no()} machine yes()->u8{42} machine no()->u8{1}}",42,24);
+        self.positive("data Cell [copy] {value:u32 in Trapping;} machine change(cell:@mut Cell)->u32 in Trapping {cell.value=9 as +Trapping;cell.value} machine main()->u8 {let mut cell:Cell=Cell{value:7 as +Trapping};let result:u32 in Trapping=cell.value+change(@mut cell);transition result==16 && cell.value==9 {true->yes() _->no()} machine yes()->u8{42} machine no()->u8{1}}",42,24);
         // short-circuit; expected normal completion.
         self.positive("machine overflow()->bool {let value:u32 in Trapping=4294967295 as +Trapping;let sum:u32 in Trapping=value+1;sum==0} machine main()->u8 {transition false && overflow() {true->no() _->yes()} machine yes()->u8{42} machine no()->u8{1}}",42,25);
         // plain-peer; expected normal completion.
@@ -66,7 +66,7 @@ machine Main::main(&mut self) {
     }
     state batch_3() {
         // ordinary-forward; expected normal completion.
-        self.positive("data Cell [copy] {value:u8;} machine read(cell:&Cell)->u8 {cell.value} machine forward(cell:&Cell)->u8 {read(cell)} machine main()->u8 {let cell:Cell=Cell{value:42};forward(&cell)}",42,30);
+        self.positive("data Cell [copy] {value:u8;} machine read(cell:@Cell)->u8 {cell.value} machine forward(cell:@Cell)->u8 {read(cell)} machine main()->u8 {let cell:Cell=Cell{value:42};forward(@cell)}",42,30);
         // carrier mismatch.
         self.refusal("machine bad(a:u32 in Trapping,b:u64)->u32 in Trapping {a+b} machine main()->u8{0}",1,50);
         // implicit domain removal.
@@ -74,11 +74,11 @@ machine Main::main(&mut self) {
         // unsupported wide multiply.
         self.refusal("machine bad(a:u64 in Trapping)->u64 in Trapping {a*2} machine main()->u8{0}",2,52);
         // ordinary forwarding retains loan.
-        self.refusal("data Cell [copy] {value:u8;} machine take(cell:&mut Cell,value:u8)->u8 {value} machine forward(cell:&mut Cell)->u8 {take(cell,cell.value)} machine main()->u8{0}",1,53);
+        self.refusal("data Cell [copy] {value:u8;} machine take(cell:@mut Cell,value:u8)->u8 {value} machine forward(cell:@mut Cell)->u8 {take(cell,cell.value)} machine main()->u8{0}",1,53);
         // ordinary forwarding holds later borrow.
-        self.refusal("data Cell [copy] {value:u8;} machine change(cell:&mut Cell)->u8{cell.value=1;1} machine take(cell:&mut Cell,value:u8)->u8 {value} machine forward(cell:&mut Cell)->u8 {take(cell,change(cell))} machine main()->u8{0}",1,54);
+        self.refusal("data Cell [copy] {value:u8;} machine change(cell:@mut Cell)->u8{cell.value=1;1} machine take(cell:@mut Cell,value:u8)->u8 {value} machine forward(cell:@mut Cell)->u8 {take(cell,change(cell))} machine main()->u8{0}",1,54);
         // local backing in tail transfer.
-        self.refusal("data Cell [copy] {value:u8;} machine main()->u8 {let seed:Cell;transition{_->again(&seed,42,false)} machine again(view:&Cell,n:u8,done:bool)->u8 {let temp:Cell=Cell{value:n};transition done {true->view.value _->again(&temp,44,true)}}",2,55);
+        self.refusal("data Cell [copy] {value:u8;} machine main()->u8 {let seed:Cell;transition{_->again(@seed,42,false)} machine again(view:@Cell,n:u8,done:bool)->u8 {let temp:Cell=Cell{value:n};transition done {true->view.value _->again(@temp,44,true)}}",2,55);
         // Unsupported indexed carriers remain coverage failures; known mismatches reject.
         // word-right.
         self.refusal("data Words{values:[u32;1];} machine f(value:u32 in Trapping)->u32 in Trapping{let w:Words;value+w.values[0]} machine main()->u8{0}",2,56);
@@ -171,7 +171,7 @@ machine Main::main(&mut self) {
         self.refusal("machine main()->u8 {let x:u32 in Trapping=5 as +Trapping; transition true {true->finish(x==3*x)} machine finish(n:u32 in Trapping)->u8 {transition n==20 {true->pass() _->miss()}} machine pass()->u8 {42} machine miss()->u8 {1}}",1,154);
         self.refusal("machine main()->u8 {let x:u32 in Trapping=5 as +Trapping; transition true {true->finish(x+unknown())} machine finish(n:u32 in Trapping)->u8 {transition n==20 {true->pass() _->miss()}} machine pass()->u8 {42} machine miss()->u8 {1}}",2,155);
         // A mutation in the middle argument is observed once, from left to right.
-        self.positive("data Cell [copy] {n:u32 in Trapping;} machine tick(cell:&mut Cell)->u32 in Trapping {let old:u32 in Trapping=cell.n;cell.n=old+1;cell.n} machine main()->u8 {let mut cell:Cell;cell.n=1 as +Trapping; transition true {true->finish(cell.n,tick(&mut cell),cell.n)} machine finish(a:u32 in Trapping,b:u32 in Trapping,c:u32 in Trapping)->u8 {transition a==1 && b==2 && c==2 {true->pass() _->miss()}} machine pass()->u8 {42} machine miss()->u8 {1}}",42,156);
+        self.positive("data Cell [copy] {n:u32 in Trapping;} machine tick(cell:@mut Cell)->u32 in Trapping {let old:u32 in Trapping=cell.n;cell.n=old+1;cell.n} machine main()->u8 {let mut cell:Cell;cell.n=1 as +Trapping; transition true {true->finish(cell.n,tick(@mut cell),cell.n)} machine finish(a:u32 in Trapping,b:u32 in Trapping,c:u32 in Trapping)->u8 {transition a==1 && b==2 && c==2 {true->pass() _->miss()}} machine pass()->u8 {42} machine miss()->u8 {1}}",42,156);
     }
 
     state batch_7() {
@@ -180,12 +180,12 @@ machine Main::main(&mut self) {
         self.positive("machine fail()->bool crashes Trap {crash Trap;} machine main()->u8 {transition true {true->pick(true && fail()) _->pick(fail())} machine pick(n:bool)->u8 {transition n {true->miss() _->pass()}} machine pass()->u8 {42} machine miss()->u8 {1}}",0,158);
         self.positive("machine leaf()->u8 blocks {43} machine main()->u8 blocks {transition true {true->take(block leaf())} machine take(n:u8)->u8 {n}}",43,159);
         // A loan and a blocking call nested in an operand keep their normal obligations.
-        self.refusal("data I {n:u32 in Trapping;} machine go(input:&mut I)->u8 { transition true {true->block rows(input,input.n+1)} machine rows(input:&mut I,n:u32 in Trapping)->u8 blocks {43}} machine main()->u8 blocks {let mut x:I;block go(&mut x)}",1,160);
+        self.refusal("data I {n:u32 in Trapping;} machine go(input:@mut I)->u8 { transition true {true->block rows(input,input.n+1)} machine rows(input:@mut I,n:u32 in Trapping)->u8 blocks {43}} machine main()->u8 blocks {let mut x:I;block go(@mut x)}",1,160);
         self.refusal("machine leaf()->u8 blocks {43} machine main()->u8 blocks {transition true {true->take(leaf())} machine take(n:u8)->u8 {n}}",1,161);
         // Plain unsigned arithmetic and the target precondition still require proof.
         self.refusal("machine step(index:u64)->u8 requires index<4 {transition true {true->next(index+1)} machine next(n:u64)->u8 requires n<2 {44}} machine main()->u8 {step(2)}",2,162);
         self.refusal("machine choose(v:u64)->u8 {transition true {true->take(v*3)} machine take(n:u64)->u8 {42}} machine main()->u8 {choose(3)}",2,163);
-        self.positive("data I {n:u32 in Trapping;} machine go(input:&mut I)->u8 {let n:u32 in Trapping=input.n; transition true {true->block rows(input,n+1)} machine rows(input:&mut I,n:u32 in Trapping)->u8 blocks {43}} machine main()->u8 blocks {let mut x:I;block go(&mut x)}",43,164);
+        self.positive("data I {n:u32 in Trapping;} machine go(input:@mut I)->u8 {let n:u32 in Trapping=input.n; transition true {true->block rows(input,n+1)} machine rows(input:@mut I,n:u32 in Trapping)->u8 blocks {43}} machine main()->u8 blocks {let mut x:I;block go(@mut x)}",43,164);
         self.positive("machine step(index:u64)->u8 requires index<4 {transition true {true->next(index+1)} machine next(n:u64)->u8 requires n<=4 {44}} machine main()->u8 {step(2)}",44,165);
     }
 

@@ -40,19 +40,19 @@ machine round_away(value: f64) -> i32 in Wrapping {
     }
 }
 
-machine ratio(table: &Table, index: i32 in Wrapping) -> f64
+machine ratio(table: @Table, index: i32 in Wrapping) -> f64
 requires index >= 0 && index < 2
 {
     table.moment[index] / table.area[index]
 }
 
-machine arm(application: &mut Main, index: i32 in Wrapping)
+machine arm(application: @mut Main, index: i32 in Wrapping)
 requires index >= 0 && index < 2
 {
     application.slots[index].ready = true;
 }
 
-public machine Main::main(application: &mut Main) reaches ProcessExit + Console
+public machine Main::main(application: @mut Main) reaches ProcessExit + Console
 invokes Console
 {
     arm(application, 0);
@@ -66,32 +66,32 @@ invokes Console
         Reading::Value { amount } -> observe(application, amount)
         _ -> mismatch(application)
     }
-    machine observe(application: &mut Main, amount: f64) {
+    machine observe(application: @mut Main, amount: f64) {
         let zero: i32 in Wrapping = round_away(amount);
-        let negative: i32 in Wrapping = round_away(ratio(&application.table, 0));
-        let positive: i32 in Wrapping = round_away(ratio(&application.table, 1));
+        let negative: i32 in Wrapping = round_away(ratio(@application.table, 0));
+        let positive: i32 in Wrapping = round_away(ratio(@application.table, 1));
         transition zero == 0 && negative == -1 && positive == 1 && application.slots[0].ready && !application.slots[1].ready {
             true -> second(application)
             false -> mismatch(application)
         }
     }
-    machine second(application: &mut Main) {
+    machine second(application: @mut Main) {
         transition application.slots[1].reading {
             Reading::Value { amount } -> second_amount(application, amount)
             _ -> mismatch(application)
         }
     }
-    machine second_amount(application: &mut Main, amount: f64) {
+    machine second_amount(application: @mut Main, amount: f64) {
         transition round_away(amount) == 0 {
             true -> report(application)
             false -> mismatch(application)
         }
     }
-    machine report(application: &mut Main) {
+    machine report(application: @mut Main) {
         Console::write_line("zero float case rounds -1 and 1");
         ProcessExit::exit_process(0);
     }
-    machine mismatch(application: &mut Main) {
+    machine mismatch(application: @mut Main) {
         Console::write_line("zero float case mismatch");
         ProcessExit::exit_process(2);
     }

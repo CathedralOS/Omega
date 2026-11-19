@@ -42,20 +42,20 @@ public boundary trait WaitWake {
     // Completes `Mismatched` immediately if the first observation differs
     // from `expected`. Blocking is the published premise; no finite wait
     // ceiling is implied.
-    machine wait(word: &u64, expected: u64) -> WaitOutcome
+    machine wait(word: @u64, expected: u64) -> WaitOutcome
     reaches WaitWake
     blocks
     crashes Trap crashes Abort;
 
     // Release at most one activation waiting on `word`; returns how many
     // wakes the provider actually delivered (0 or 1).
-    machine wake_one(word: &u64) -> u64
+    machine wake_one(word: @u64) -> u64
     reaches WaitWake
     crashes Trap crashes Abort;
 
     // Release up to `limit` activations waiting on `word`; returns the count
     // actually released. `limit` 0 is a legal no-wake query.
-    machine wake_many(word: &u64, limit: u64) -> u64
+    machine wake_many(word: @u64, limit: u64) -> u64
     reaches WaitWake
     crashes Trap crashes Abort;
 }

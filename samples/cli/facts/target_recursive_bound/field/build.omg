@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::select_provider<Countdown, CountdownCode>(builder, windows_x86_64);
     Build::select_provider<Countdown, CountdownCode>(builder, linux_x86_64);
     Build::select_provider<Countdown, CountdownCode>(builder, macos_arm64);

@@ -43,7 +43,7 @@ satisfies Tests::arithmetic
 ```
 
 ```omega
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::package(builder, "arithmetic_example");
     _ = builder.tests.group<Tests::arithmetic>();
 }

@@ -12,11 +12,11 @@ machine consume(first: Division, copied: Division) -> bool reaches IntegerDivisi
  && second.quotient == 7777777777 && second.remainder == 7
 }
 machine receive(value: Division) -> bool reaches IntegerDivision { consume(value, value) }
-machine marked_result(marker: &mut u64, selected: u64) -> Division reaches IntegerDivision {
+machine marked_result(marker: @mut u64, selected: u64) -> Division reaches IntegerDivision {
  marker = selected;
  IntegerDivision::divide(-70000000000, 3)
 }
-machine select(choice: bool, marker: &mut u64) -> Division reaches IntegerDivision {
+machine select(choice: bool, marker: @mut u64) -> Division reaches IntegerDivision {
  match choice {
   true -> marked_result(marker, 17u64)
   _ -> marked_result(marker, 29u64)
@@ -24,9 +24,9 @@ machine select(choice: bool, marker: &mut u64) -> Division reaches IntegerDivisi
 }
 machine observe() -> bool reaches IntegerDivision {
  let mut marker: u64 = 0u64;
- let first: Division = select(true, &mut marker);
+ let first: Division = select(true, @mut marker);
  let first_agrees: bool = marker == 17u64 && receive(first);
- let second: Division = select(false, &mut marker);
+ let second: Division = select(false, @mut marker);
  first_agrees && marker == 29u64 && receive(second)
 }
 

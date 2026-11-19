@@ -3335,9 +3335,9 @@ impl<'t> Program<'t> {
                     && self.is_borrowed_view(formal)
                 {
                     let borrow = if *access == ReferenceAccess::Mutable {
-                        "&mut array[..]"
+                        "@mut array[..]"
                     } else {
-                        "&array[..]"
+                        "@array[..]"
                     };
                     return Err(crate::lowering::reject(
                         id,
@@ -3654,7 +3654,7 @@ impl<'t> Program<'t> {
         // A recast forms its written reference presentation over the same
         // captured storage. Its source still runs once and keeps its type.
         let (mut place, presentation) = match self.node(id, operand)? {
-            // `view as &[T]` given to a slice formal is the re-view of an
+            // `view as @[T]` given to a slice formal is the re-view of an
             // existing view; it passes on like any other view value.
             ExpressionNode::Cast(cast)
                 if cast.form.is_recast()

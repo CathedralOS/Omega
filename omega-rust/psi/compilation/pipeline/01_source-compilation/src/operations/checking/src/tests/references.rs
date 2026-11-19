@@ -1,6 +1,6 @@
 // Formals passed by reference and the loans a call forms for them.
 //
-//     machine bump(x: &mut u32) requires x < 10 { x = x + 1; }
+//     machine bump(x: @mut u32) requires x < 10 { x = x + 1; }
 //     machine main() { let mut y: u32 = 3; bump(&mut y); }
 //
 // The callee reads and stores the caller's storage in place, its `requires`
@@ -204,7 +204,7 @@ fn referent_below_ten() -> Proposition {
     )
 }
 
-/// `machine bump(x: &mut u32) requires x < 10 { x = x + 1; }`
+/// `machine bump(x: @mut u32) requires x < 10 { x = x + 1; }`
 fn bump() -> Lending {
     Lending {
         borrowed: vec![(0, ReferenceAccess::Mutable)],
@@ -220,7 +220,7 @@ fn bump() -> Lending {
     }
 }
 
-/// `machine two(a: &<access> u32, b: &<access> u32) {}`
+/// `machine two(a: @<access> u32, b: @<access> u32) {}`
 fn two(first: ReferenceAccess, second: ReferenceAccess) -> Lending {
     Lending {
         borrowed: vec![(0, first), (1, second)],
@@ -318,11 +318,11 @@ fn a_build_dispatch_captures_a_reference_without_copying_its_referent() {
         format!(
             r#"
 data Source<'path> {{
-    case Path(location: &'path [u8]);
+    case Path(location: @'path [u8]);
     case Empty;
 }}
-machine build_entry(source: &Source) {{ {body} }}
-machine consume(location: &[u8]) {{ }}
+machine build_entry(source: @Source) {{ {body} }}
+machine consume(location: @[u8]) {{ }}
 machine done() {{ }}
 "#
         )
@@ -703,18 +703,18 @@ fn a_selected_reference_result_needs_its_public_requirement_contract() {
     use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
     let text = r#"
 trait Handoff {
-    machine hand(source: &mut i64) -> &mut i64 crashes none;
+    machine hand(source: @mut i64) -> @mut i64 crashes none;
 }
 Direct satisfies Handoff {
-    machine hand(source: &mut i64) -> &mut i64 crashes none { source }
+    machine hand(source: @mut i64) -> @mut i64 crashes none { source }
 }
-machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
-    let child: &mut i64 = Chosen::hand(source);
+machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
+    let child: @mut i64 = Chosen::hand(source);
     child = 41;
 }
 machine entry() crashes none {
     let mut backing: i64 = 17;
-    relay<Direct>(&mut backing);
+    relay<Direct>(@mut backing);
 }
 "#;
     let (typed, _) = crate::preparation::prepare_typed_trees(
@@ -1122,7 +1122,7 @@ fn a_shared_reference_formation_owns_its_fresh_permission_carrier() {
 fn a_shared_reference_copy_keeps_the_original_formation_owned() {
     let source = shared_reference_source().replace(
         "observe(held);",
-        "let copied: &u32 = held; observe(held); observe(copied);",
+        "let copied: @u32 = held; observe(held); observe(copied);",
     );
     let verdict = super::build_purpose::judge_build(&source).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
@@ -1436,10 +1436,10 @@ fn an_exclusive_loan_is_lent_on_to_a_parameter_that_only_observes() {
     let program = |binding: &str, call: &str| {
         format!(
             "data Pair {{ left: u32; right: u32; }}
-machine see(pair: &Pair) -> u32 {{ pair.left }}
-machine both(first: &Pair, second: &Pair) -> u32 {{ first.left }}
-machine relay(pair: &mut Pair) -> u32 {{ see(&mut pair) }}
-machine watch(pair: &Pair) -> u32 {{ see(&pair) }}
+machine see(pair: @Pair) -> u32 {{ pair.left }}
+machine both(first: @Pair, second: @Pair) -> u32 {{ first.left }}
+machine relay(pair: @mut Pair) -> u32 {{ see(@mut pair) }}
+machine watch(pair: @Pair) -> u32 {{ see(@pair) }}
 machine build_entry() {{
     let {binding}: Pair = Pair {{ left: 1, right: 2 }};
     let mut other: Pair = Pair {{ left: 3, right: 4 }};
@@ -1453,21 +1453,21 @@ machine pair_left(left: u32) {{ }}"
     // The loan as written, through a reference the machine holds, and beside
     // a loan of other storage.
     for call in [
-        "see(&mut pair)",
-        "relay(&mut pair)",
-        "watch(&pair)",
-        "both(&mut pair, &other)",
-        "both(&mut pair, &mut other)",
+        "see(@mut pair)",
+        "relay(@mut pair)",
+        "watch(@pair)",
+        "both(@mut pair, @other)",
+        "both(@mut pair, @mut other)",
     ] {
         assert_eq!(verdict(&program("mut pair", call)), "accepted", "{call}");
     }
     // The place does not admit an exclusive loan.
     assert_eq!(
-        verdict(&program("pair", "see(&mut pair)")),
+        verdict(&program("pair", "see(@mut pair)")),
         "call exclusive loan of an immutable binding while reading the body of `build_entry`"
     );
     // The exclusive loan overlaps another loan of its storage.
-    for call in ["both(&mut pair, &pair)", "both(&pair, &mut pair)"] {
+    for call in ["both(@mut pair, @pair)", "both(@pair, @mut pair)"] {
         let judged = judge_build(&program("mut pair", call));
         assert!(
             matches!(&judged,
@@ -1480,9 +1480,9 @@ machine pair_left(left: u32) {{ }}"
     }
     // The other direction has no row: observation does not become mutation.
     assert!(
-        verdict(&program("mut pair", "relay(&pair)")).contains("lends only immutable access"),
+        verdict(&program("mut pair", "relay(@pair)")).contains("lends only immutable access"),
         "{}",
-        verdict(&program("mut pair", "relay(&pair)"))
+        verdict(&program("mut pair", "relay(@pair)"))
     );
 }
 
@@ -1492,10 +1492,10 @@ machine pair_left(left: u32) {{ }}"
 fn exclusive_formation_beside(cohort: &str) -> String {
     format!(
         "data Item {{ value: u32; }}
-machine observe(value: &Item) {{ }}
+machine observe(value: @Item) {{ }}
 machine build_entry() {{
     let mut item: Item = Item {{ value: 3 }};
-    let view: &Item = &item;
+    let view: @Item = @item;
 {cohort}
 }}"
     )
@@ -1504,7 +1504,7 @@ machine build_entry() {{
 #[test]
 fn an_exclusive_formation_for_a_shared_formal_excludes_a_live_shared_cohort() {
     let verdict = super::build_purpose::judge_build(&exclusive_formation_beside(
-        "    observe(&mut item);\n    observe(view);",
+        "    observe(@mut item);\n    observe(view);",
     ))
     .unwrap();
     let RouteVerdict::Rejected { conflicts, .. } = verdict else {
@@ -1520,9 +1520,9 @@ fn an_exclusive_formation_for_a_shared_formal_excludes_a_live_shared_cohort() {
 fn an_exclusive_formation_for_a_shared_formal_follows_an_ended_cohort() {
     for cohort in [
         // The view's last use precedes the exclusive formation.
-        "    observe(view);\n    observe(&mut item);",
+        "    observe(view);\n    observe(@mut item);",
         // An ordinary shared loan joins the live cohort.
-        "    observe(&item);\n    observe(view);",
+        "    observe(@item);\n    observe(view);",
     ] {
         let verdict =
             super::build_purpose::judge_build(&exclusive_formation_beside(cohort)).unwrap();
@@ -1538,18 +1538,18 @@ fn a_shared_reference_formed_from_an_exclusive_loan_holds_it_exclusively() {
     let source = |uses: &str| {
         format!(
             "data Item {{ value: u32; }}
-machine observe(value: &Item) {{ }}
+machine observe(value: @Item) {{ }}
 machine build_entry() {{
     let mut item: Item = Item {{ value: 3 }};
-    let view: &Item = &mut item;
+    let view: @Item = @mut item;
 {uses}
 }}"
         )
     };
     for uses in [
-        "observe(&item); observe(view);",
-        "let child: &Item = &view; observe(&item); observe(child);",
-        "let child: &Item = &view; let leaf: &Item = &child; observe(&item); observe(leaf);",
+        "observe(@item); observe(view);",
+        "let child: @Item = @view; observe(@item); observe(child);",
+        "let child: @Item = @view; let leaf: @Item = @child; observe(@item); observe(leaf);",
     ] {
         let rejected = super::build_purpose::judge_build(&source(uses)).unwrap();
         assert!(
@@ -1560,9 +1560,9 @@ machine build_entry() {{
         );
     }
     for uses in [
-        "observe(view); observe(&item);",
-        "let child: &Item = &view; observe(child); observe(&item);",
-        "let child: &Item = &view; let leaf: &Item = &child; observe(leaf); observe(&item);",
+        "observe(view); observe(@item);",
+        "let child: @Item = @view; observe(child); observe(@item);",
+        "let child: @Item = @view; let leaf: @Item = @child; observe(leaf); observe(@item);",
     ] {
         let accepted = super::build_purpose::judge_build(&source(uses)).unwrap();
         assert!(
@@ -1574,10 +1574,10 @@ machine build_entry() {{
 
 const HANDOFF: &str = "
 trait Handoff {
-    machine hand(source: &mut i64) -> &mut i64 crashes none;
+    machine hand(source: @mut i64) -> @mut i64 crashes none;
 }
 Direct satisfies Handoff {
-    machine hand(source: &mut i64) -> &mut i64 crashes none { source }
+    machine hand(source: @mut i64) -> @mut i64 crashes none { source }
 }
 ";
 
@@ -1636,8 +1636,8 @@ fn a_rigid_requirement_call_borrows_its_declared_input_region() {
     // selected call reads from its public header, and no body-origin row.
     // `relay`'s generic form keeps `source` exclusively lent while `child`
     // is live.
-    const ASSIGN: &str = "machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
-    let child: &mut i64 = Chosen::hand(source);
+    const ASSIGN: &str = "machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
+    let child: @mut i64 = Chosen::hand(source);
     child = 41;
 }";
     let (form, discharged) = rigid_relay(ASSIGN);
@@ -1672,8 +1672,8 @@ fn a_rigid_requirement_call_borrows_its_declared_input_region() {
 
     // The negative twin writes the lent input while `child` is still used.
     let (_, discharged) = rigid_relay(
-        "machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
-    let child: &mut i64 = Chosen::hand(source);
+        "machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
+    let child: @mut i64 = Chosen::hand(source);
     source = 5;
     child = 41;
 }",
@@ -1698,7 +1698,7 @@ fn a_returned_requirement_result_publishes_its_input_region() {
     // `source`'s region. The generic form publishes that region rather than
     // inventing an exact projection.
     let (form, discharged) = rigid_relay(
-        "machine relay<Chosen satisfies Handoff>(source: &mut i64) -> &mut i64 crashes none {
+        "machine relay<Chosen satisfies Handoff>(source: @mut i64) -> @mut i64 crashes none {
     Chosen::hand(source)
 }",
     );
@@ -1720,7 +1720,7 @@ fn a_returned_requirement_result_publishes_its_input_region() {
 /// selected call's result.
 fn returned_relay(entry: &str) -> crate::checking::RouteVerdict {
     let text = format!(
-        "{HANDOFF}machine relay<Chosen satisfies Handoff>(source: &mut i64) -> &mut i64 crashes none {{
+        "{HANDOFF}machine relay<Chosen satisfies Handoff>(source: @mut i64) -> @mut i64 crashes none {{
     Chosen::hand(source)
 }}
 {entry}"
@@ -1758,7 +1758,7 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     let verdict = returned_relay(
         "machine entry() crashes none {
     let mut backing: i64 = 17;
-    let child: &mut i64 = relay<Direct>(&mut backing);
+    let child: @mut i64 = relay<Direct>(@mut backing);
     child = 41;
 }",
     );
@@ -1779,7 +1779,7 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     let verdict = returned_relay(
         "machine entry() crashes none {
     let mut backing: i64 = 17;
-    let child: &mut i64 = relay<Direct>(&mut backing);
+    let child: @mut i64 = relay<Direct>(@mut backing);
     backing = 5;
     child = 41;
 }",

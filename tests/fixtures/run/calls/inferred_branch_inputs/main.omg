@@ -7,7 +7,7 @@ data Main {
 }
 data Decoded { room: u64; length: u64; first: i64; second: i64; depth: i64; }
 
-public machine check_fields(main: &mut Main, decoded: Decoded) -> u64
+public machine check_fields(main: @mut Main, decoded: Decoded) -> u64
 requires true
 {
         let bytes_ok: bool = main.buffer[0u64] == 0u8
@@ -31,12 +31,12 @@ requires true
         false -> block bad_fields(main)
     }
 
-    machine good(main: &mut Main) -> u64 {
+    machine good(main: @mut Main) -> u64 {
         main.pause[0u64] = 17u8;
         70u64
     }
 
-    machine bad_fields(main: &mut Main) -> u64 {
+    machine bad_fields(main: @mut Main) -> u64 {
         main.pause[0u64] = 29u8;
         72u64
     }
@@ -58,12 +58,12 @@ machine main() crashes Trap {
     input.buffer[11u64] = 2u8;
     input.buffer[12u64] = 127u8;
     input.buffer[13u64] = 53u8;
-    let matched: u64 = check_fields(&mut input, Decoded {
+    let matched: u64 = check_fields(@mut input, Decoded {
         room: 300u64, length: 2u64, first: 150i64, second: 0i64 - 2i64, depth: 0i64 - 64i64
     });
     let matched_marker: u8 = input.pause[0u64];
     input.buffer[12u64] = 126u8;
-    let missed: u64 = check_fields(&mut input, Decoded {
+    let missed: u64 = check_fields(@mut input, Decoded {
         room: 300u64, length: 2u64, first: 150i64, second: 0i64 - 2i64, depth: 0i64 - 64i64
     });
     transition matched == 70u64 && matched_marker == 17u8 && missed == 72u64

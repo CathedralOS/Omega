@@ -2,14 +2,14 @@
 // Expected exit: 0
 // Place: field.
 
-machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
+machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
         true -> chosen
         _ -> other
     }
 }
 
-machine overwrite(slot: &mut u64) -> u64 in Wrapping {
+machine overwrite(slot: @mut u64) -> u64 in Wrapping {
     slot = 9;
     (1 as u64 in Wrapping)
 }
@@ -24,9 +24,9 @@ machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     let zero: u64 in Wrapping = 0;
     let mut scratch: u64 = 3;
-    let mut referent: &mut u64 = &mut scratch;
-    referent = choose(&mut bounds.chosen, &mut bounds.other, false);
-    let loaded: &mut u64 = referent;
+    let mut referent: @mut u64 = @mut scratch;
+    referent = choose(@mut bounds.chosen, @mut bounds.other, false);
+    let loaded: @mut u64 = referent;
     let marker: u64 in Wrapping = add(overwrite(loaded), zero);
     transition (marker as u64) == 1 && bounds.chosen == 9 && items[bounds.other] == 7 {
         true -> done()

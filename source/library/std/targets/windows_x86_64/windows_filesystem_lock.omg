@@ -32,7 +32,7 @@ machine windows_filesystem_native_lock_file(handle: u64, exclusive: bool, nonblo
     machine acquire(duplicate: i64 in WindowsSynchronousFileOrAbsent, flags: u32) -> i32
     requires (duplicate as -WindowsSynchronousFileOrAbsent) != 0 && flags <= 3 {
         let mut request: WindowsNativeLockRequest;
-        let succeeded: i32 = block WindowsFilesystemLockIo::acquire(duplicate, flags, 0, 4294967295, 4294967295, &mut request);
+        let succeeded: i32 = block WindowsFilesystemLockIo::acquire(duplicate, flags, 0, 4294967295, 4294967295, @mut request);
         let status: i32 = windows_filesystem_native_completion_status(succeeded);
         block windows_lock_completion(duplicate, status)
     }

@@ -9,21 +9,21 @@ use omega::language::core::FilesystemMetadataQuery;
 use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::FilesystemNamespaceMutation;
 
-machine windows_filesystem_copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+machine windows_filesystem_copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 {
     transition cap <= buffer.len && cap <= 4294967295 {
         true -> block acquire(from, to, buffer, cap)
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
-    machine acquire(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
+    machine acquire(from: @[u8] in Path, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult {
         let acquired: OpenResult = block windows_filesystem_open(from);
         transition acquired {
             OpenResult::Error { kind } -> (IoResult::Error { kind: kind })
             OpenResult::Ok { file } -> block metadata(file, to, buffer, cap)
         }
     }
-    machine metadata(source: File, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
+    machine metadata(source: File, to: @[u8] in Path, buffer: @mut [u8], cap: u64) -> IoResult {
         let result: MetadataResult = block windows_filesystem_metadata(source);
         transition result {
             MetadataResult::Error { kind } -> block failed(source, kind)
@@ -34,7 +34,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         let released: UnitResult = block windows_filesystem_close(file);
         IoResult::Error { kind: kind }
     }
-    machine read(source: File, to: &[u8] in Path, buffer: &mut [u8], cap: u64, permissions: Permissions) -> IoResult {
+    machine read(source: File, to: @[u8] in Path, buffer: @mut [u8], cap: u64, permissions: Permissions) -> IoResult {
         let result: IoResult = block windows_filesystem_read(source, buffer, cap);
         let released: UnitResult = block windows_filesystem_close(source);
         let finished: IoResult = windows_filesystem_finish_read(result, released);
@@ -43,13 +43,13 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
             IoResult::Ok { count } -> block bounded(to, buffer, count, permissions)
         }
     }
-    machine bounded(to: &[u8] in Path, buffer: &mut [u8], count: u64, permissions: Permissions) -> IoResult {
+    machine bounded(to: @[u8] in Path, buffer: @mut [u8], count: u64, permissions: Permissions) -> IoResult {
         transition count <= buffer.len {
             true -> block destination(to, buffer, count, permissions)
             false -> (IoResult::Error { kind: ErrorKind::Other })
         }
     }
-    machine destination(to: &[u8] in Path, buffer: &mut [u8], count: u64, permissions: Permissions) -> IoResult
+    machine destination(to: @[u8] in Path, buffer: @mut [u8], count: u64, permissions: Permissions) -> IoResult
     requires count <= buffer.len {
         // GENERIC_WRITE plus FILE_READ_ATTRIBUTES allows the permission update
         // to preserve unrelated attributes on this same object. Ordinary write
@@ -62,9 +62,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
             OpenResult::Ok { file } -> block write(file, buffer, count, permissions)
         }
     }
-    machine write(destination: File, buffer: &mut [u8], count: u64, permissions: Permissions) -> IoResult
+    machine write(destination: File, buffer: @mut [u8], count: u64, permissions: Permissions) -> IoResult
     requires count <= buffer.len {
-        let bytes: &[u8] = &buffer[0..count];
+        let bytes: @[u8] = @buffer[0..count];
         let result: UnitResult = block windows_filesystem_write_complete(destination, bytes);
         transition result {
             UnitResult::Error { kind } -> block failed(destination, kind)

@@ -9,11 +9,11 @@ data Sprite {
     id: i32;
 }
 data Main {}
-machine Sprite::draw(sprite: &Sprite, canvas: &mut Canvas) satisfies Drawable<Sprite, Canvas>::draw {
+machine Sprite::draw(sprite: @Sprite, canvas: @mut Canvas) satisfies Drawable<Sprite, Canvas>::draw {
     canvas.width = 80;
 }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     let sprite: Sprite;
     let mut canvas: Canvas;
-    Sprite::draw(&sprite, &mut canvas);
+    Sprite::draw(@sprite, @mut canvas);
 }

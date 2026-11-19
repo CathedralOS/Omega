@@ -97,13 +97,13 @@ loan and consumer behavior while completing the migration.
 `use omega::language::core::iteration;` supplies an ordinary checked traversal:
 
 ```omega
-machine clear_one(command: &mut Command)
+machine clear_one(command: @mut Command)
 satisfies ElementStep<Command>::apply {
     command.direction = -1;
     command.attack = false;
 }
 
-machine clear_commands(commands: &mut [Command]) terminates {
+machine clear_commands(commands: @mut [Command]) terminates {
     for_each<Command, clear_one>(commands);
 }
 ```

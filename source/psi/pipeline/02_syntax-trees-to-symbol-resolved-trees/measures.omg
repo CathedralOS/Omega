@@ -3,19 +3,19 @@
 // a result type and a one-expression body; a lexicographic measure `measure
 // Owner::Name lexicographic { fields }` names a data declaration `Owner` and
 // fields of it, each recorded by member handle for the checker's ranking.
-public machine check_measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine check_measures(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
 
-    machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
             true -> item(resolver, sources, syntax, index)
             _ -> done()
         }
     }
 
-    machine item(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine item(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let declared: MachineItem = machine_item(syntax, index);
         transition declared.container == MachineContainer::Measure {
             true -> measure(resolver, sources, syntax, index, declared)
@@ -23,14 +23,14 @@ crashes Trap
         }
     }
 
-    machine measure(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
+    machine measure(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
         transition declared.component_count > 0 {
             true -> owner(resolver, sources, syntax, index, declared)
             _ -> computed(resolver, sources, syntax, index, declared)
         }
     }
 
-    machine computed(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
+    machine computed(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
         let formed: bool = declared.parameter_count == 1 && declared.has_return_type && declared.has_body
             && declared.statement_count == 1;
         transition formed {
@@ -39,7 +39,7 @@ crashes Trap
         }
     }
 
-    machine owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
+    machine owner(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
         let binding: ValueBinding = data_name(sources, syntax, declared.owner.source_span);
         transition binding {
             ValueBinding::Data { item } -> component(resolver, sources, syntax, index, declared, item, 0)
@@ -48,9 +48,9 @@ crashes Trap
     }
 
     machine component(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         index: u64 in Trapping,
         declared: MachineItem,
         item: u64 in Trapping,
@@ -63,9 +63,9 @@ crashes Trap
     }
 
     machine candidate(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         index: u64 in Trapping,
         declared: MachineItem,
         item: u64 in Trapping,
@@ -81,9 +81,9 @@ crashes Trap
     }
 
     machine compare(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         index: u64 in Trapping,
         declared: MachineItem,
         item: u64 in Trapping,
@@ -102,21 +102,21 @@ crashes Trap
     }
 
     machine bound(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         index: u64 in Trapping,
         declared: MachineItem,
         item: u64 in Trapping,
         offset: u64 in Trapping,
         handle: u64 in Trapping
     ) {
-        set_component_field(&mut resolver.output, declared.first_component + offset, handle + 1);
+        set_component_field(@mut resolver.output, declared.first_component + offset, handle + 1);
         transition { _ -> component(resolver, sources, syntax, index, declared, item, offset + 1) }
     }
 
-    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
-        name_resolution_reject(&mut resolver.output, code, source_span);
+    machine reject(resolver: @mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+        name_resolution_reject(@mut resolver.output, code, source_span);
     }
 
     machine done() {}

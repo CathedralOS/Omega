@@ -21,7 +21,7 @@ boundary trait ReceiptAck {
 
 data Main { choose_first: bool; hits: i32 in Wrapping; }
 
-machine Main::run(main: &mut Main) -> i32 {
+machine Main::run(main: @mut Main) -> i32 {
     let receipt: Receipt = Receipt { code: 7 };
     transition main.choose_first {
         true -> consume_first(receipt)
@@ -39,7 +39,7 @@ machine Main::run(main: &mut Main) -> i32 {
     }
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.choose_first = true;
     main.hits = (Main::run(main) == 70) as i32 in Wrapping;
 }

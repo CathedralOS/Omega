@@ -5,17 +5,17 @@
 // length 3 and disagrees with the other arm's length 2.
 const SPAN: i64 = 3;
 
-machine from_const<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+machine from_const<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
     ensures result.len == 2
 {
     match which {
-        0 -> &mut items[0..which + SPAN]
-        _ -> &mut items[2..4]
+        0 -> @mut items[0..which + SPAN]
+        _ -> @mut items[2..4]
     }
 }
 machine main() crashes Trap {
     let mut bytes: [u8; 4] = [1, 2, 3, 4];
-    let window: &mut [u8] = from_const(&mut bytes, 0);
+    let window: @mut [u8] = from_const(@mut bytes, 0);
     transition window.len == 2 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

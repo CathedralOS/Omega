@@ -74,7 +74,7 @@ const SAVED: LayoutStorage<PackedFlags, CompactBits> = make();
 machine main() crashes Trap {
     let value: LayoutStorage<PackedFlags, CompactBits> = SAVED;
     let difference: u64 = value.mode - 5u64;
-    let bytes: &[u8; 1] = &value as &[u8; 1];
+    let bytes: @[u8; 1] = @value as @[u8; 1];
     transition difference == 0u64 && value.code == 10u64 && bytes[0] == 171u8 {
         true -> done()
         _ -> bad()

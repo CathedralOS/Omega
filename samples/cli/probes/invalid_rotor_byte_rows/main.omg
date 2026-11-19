@@ -4,7 +4,7 @@ data Wiring {
     rows: [[u8; 26]; 3];
 }
 
-machine read_past_alphabet(wiring: &Wiring, rotor: i32) -> u8
+machine read_past_alphabet(wiring: @Wiring, rotor: i32) -> u8
     requires rotor >= 0 && rotor < 3
 {
     wiring.rows[rotor][26]
@@ -14,7 +14,7 @@ data Main {
     wiring: Wiring;
 }
 
-machine Main::main(main: &mut Main) {
-    let byte: u8 = read_past_alphabet(&main.wiring, 0);
+machine Main::main(main: @mut Main) {
+    let byte: u8 = read_past_alphabet(@main.wiring, 0);
     main.wiring.rows[0][0] = byte;
 }

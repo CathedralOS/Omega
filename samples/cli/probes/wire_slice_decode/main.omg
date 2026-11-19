@@ -16,11 +16,11 @@
 // ProcessExit provider.
 
 data Blob<'view> {
-    #0 bytes: &'view [u8];
+    #0 bytes: @'view [u8];
 }
 
 data BlobSample<'view> {
-    bytes: &'view [u8];
+    bytes: @'view [u8];
 }
 
 data WireVerdict {
@@ -39,15 +39,15 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.source[0] = 72;
     main.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: main.source[0..2] };
-    Blob::encode(&sample, &mut main.buffer, &mut main.written);
+    Blob::encode(@sample, @mut main.buffer, @mut main.written);
     let mut decoded: BlobSample = BlobSample { bytes: main.source[0..2] };
-    Blob::decode(&mut decoded, &main.buffer, &mut main.read, &mut main.verdict);
-    Blob::encode(&decoded, &mut main.buffer2, &mut main.written2);
+    Blob::decode(@mut decoded, @main.buffer, @mut main.read, @mut main.verdict);
+    Blob::encode(@decoded, @mut main.buffer2, @mut main.written2);
     let matches: bool = main.verdict == WireVerdict::Sound
         && main.read == 5
         && main.written2 == 5
@@ -58,12 +58,12 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

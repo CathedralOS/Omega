@@ -6,7 +6,7 @@ data Main {
     b: i32 in Wrapping;
     grid: [i32 in Wrapping; 200];
 }
-machine mark_coordinate(value: i32 in Wrapping, route: &mut u64, tag: u64) -> i32 in Wrapping
+machine mark_coordinate(value: i32 in Wrapping, route: @mut u64, tag: u64) -> i32 in Wrapping
 ensures result == value
 {
     route = tag;
@@ -14,30 +14,30 @@ ensures result == value
 }
 
 // Preserve the original setup before code checked for unrestricted Main.
-machine run_main(main: &mut Main) crashes Trap {
+machine run_main(main: @mut Main) crashes Trap {
     main.hits = 0i32 as +Wrapping;
     main.a = 15i32 as +Wrapping;
     main.b = 3i32 as +Wrapping;
     guarded_store(main);
 }
 
-machine guarded_store(main: &mut Main) crashes Trap {
+machine guarded_store(main: @mut Main) crashes Trap {
     transition main.b * 20 + main.a >= 0 {
         true -> put(main)
         _ -> done(main)
     }
-    machine put(main: &mut Main) {
+    machine put(main: @mut Main) {
         let mut route: u64 = 0;
         let a: i32 in Wrapping = match main.hits == 0 {
-            true -> mark_coordinate(main.a, &mut route, 17),
-            false -> mark_coordinate(main.a, &mut route, 23)
+            true -> mark_coordinate(main.a, @mut route, 17),
+            false -> mark_coordinate(main.a, @mut route, 23)
         };
         main.grid[main.b * 20 + a] = 7i32 as +Wrapping;
         let first_route: u64 = route;
         let first_written: i32 in Wrapping = main.grid[75];
         let second_a: i32 in Wrapping = match main.hits != 0 {
-            true -> mark_coordinate(main.a, &mut route, 17),
-            false -> mark_coordinate(main.a, &mut route, 23)
+            true -> mark_coordinate(main.a, @mut route, 17),
+            false -> mark_coordinate(main.a, @mut route, 23)
         };
         main.grid[main.b * 20 + second_a] = 7i32 as +Wrapping;
         let second_route: u64 = route;
@@ -48,15 +48,15 @@ machine guarded_store(main: &mut Main) crashes Trap {
             _ -> fail(main)
         }
     }
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
         main.hits = (-1i32) as +Wrapping;
         transition false {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) {}
-    machine fail(main: &mut Main) { crash Trap; }
+    machine pass(main: @mut Main) {}
+    machine fail(main: @mut Main) { crash Trap; }
 }
 
 // Caller-owned initialized storage makes original-address writeback observable.
@@ -76,7 +76,7 @@ machine entry_start() crashes Trap {
             0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping
         ]
     };
-    run_main(&mut entry_storage);
+    run_main(@mut entry_storage);
     transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
         && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
         true -> observed()

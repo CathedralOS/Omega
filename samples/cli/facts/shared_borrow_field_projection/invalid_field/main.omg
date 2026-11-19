@@ -6,14 +6,14 @@ data Window requires used <= 91, {
 }
 
 data ViewHolder<'view> {
-    view: &'view Window;
+    view: @'view Window;
 }
 
 machine evaluate(seed: u64) -> u64
 requires seed <= 91
 {
     let window: Window = Window { used: seed };
-    let holder: ViewHolder = ViewHolder { view: &window };
+    let holder: ViewHolder = ViewHolder { view: @window };
     let used: u64 = holder.view.used;
     let diff: u64 = 90u64 - used;
     diff

@@ -9,4 +9,4 @@ ensures result >= value - tolerance + 1
 }
 
 data Main { }
-machine Main::main(main: &mut Main) {}
+machine Main::main(main: @mut Main) {}

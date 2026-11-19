@@ -9,13 +9,13 @@ use omega_language_std::Console;
 domain [u8; 32]::Ascii requires ascii_only(self);
 domain [u8]::Ascii requires ascii_only(self);
 data TextBuffer requires used <= 32 { storage: [u8; 32] in Ascii; used: u64; }
-machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
-machine copy(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64)
+machine live(buffer: @TextBuffer) -> @[u8] in Ascii { @buffer.storage[..buffer.used] }
+machine copy(buffer: @mut [u8; 32] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 32, bytes.len <= 32 - start
 ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    machine copying(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: @mut [u8; 32] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 32, index <= 32
     ensures buffer in Ascii
     {
@@ -24,7 +24,7 @@ ensures buffer in Ascii
             _ -> done()
         }
     }
-    machine writing(buffer: &mut [u8; 32] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: @mut [u8; 32] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 32, index < 32, index < bytes.len, start + index < 32
     ensures buffer in Ascii
     {
@@ -42,30 +42,30 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("text_greeting: builds Hello, Ada! in an explicit text buffer");
     main.name = "Ada";
-    copy(&mut main.greeting.storage, "Hello, ", 0);
-    copy(&mut main.greeting.storage, &main.name, 7);
-    copy(&mut main.greeting.storage, "!", 10);
+    copy(@mut main.greeting.storage, "Hello, ", 0);
+    copy(@mut main.greeting.storage, @main.name, 7);
+    copy(@mut main.greeting.storage, "!", 10);
     main.greeting.used = 11;
-    Console::write_line(live(&main.greeting));
+    Console::write_line(live(@main.greeting));
 
-    transition live(&main.greeting) == "Hello, Ada!" {
+    transition live(@main.greeting) == "Hello, Ada!" {
         true -> block ok(main)
         _ -> block mismatch(main)
     }
 
-    machine ok(main: &mut Main) {
+    machine ok(main: @mut Main) {
         Console::write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
-    machine mismatch(main: &mut Main) {
+    machine mismatch(main: @mut Main) {
         Console::write_line("FAIL: the concatenated greeting did not match (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -73,5 +73,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

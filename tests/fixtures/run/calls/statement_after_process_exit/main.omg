@@ -7,12 +7,12 @@ use omega::language::core::ProcessExit;
 // twin `fail/calls/statement_after_conditional_exit` is.
 data Main { status: i32; count: i32; }
 
-machine main(root: &mut Main) reaches ProcessExit {
+machine main(root: @mut Main) reaches ProcessExit {
     ProcessExit::exit_process(root.status);
     let next: i32 = root.count + 1;
 }
 
 machine entry_start() reaches ProcessExit {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

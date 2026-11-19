@@ -57,31 +57,31 @@ crashes Trap
     }
 }
 
-public machine read_acquisition(acquisition: &mut Acquisition) reaches Console
+public machine read_acquisition(acquisition: @mut Acquisition) reaches Console
 blocks
 crashes Trap
 {
     acquisition.used = 0;
     acquisition.error = 0;
     transition { _ -> read(acquisition) }
-    machine read(acquisition: &mut Acquisition) {
+    machine read(acquisition: @mut Acquisition) {
         transition block next_token() {
             Token::End -> done()
             Token::Invalid -> invalid(acquisition)
             Token::Number { value } -> store(acquisition, value)
         }
     }
-    machine store(acquisition: &mut Acquisition, value: i64 in Wrapping) {
+    machine store(acquisition: @mut Acquisition, value: i64 in Wrapping) {
         transition acquisition.used < 53 && acquisition.used >= 0 {
             true -> append(acquisition, value)
             false -> invalid(acquisition)
         }
     }
-    machine append(acquisition: &mut Acquisition, value: i64 in Wrapping) {
+    machine append(acquisition: @mut Acquisition, value: i64 in Wrapping) {
         acquisition.tokens[acquisition.used] = value;
         acquisition.used = acquisition.used + 1;
         transition { _ -> read(acquisition) }
     }
-    machine invalid(acquisition: &mut Acquisition) { acquisition.error = 1; }
+    machine invalid(acquisition: @mut Acquisition) { acquisition.error = 1; }
     machine done() { }
 }

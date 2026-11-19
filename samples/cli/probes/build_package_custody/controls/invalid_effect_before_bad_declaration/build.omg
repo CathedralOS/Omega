@@ -4,17 +4,17 @@
 // effects have run, `build/` gains a `must_not_exist.txt` the request was
 // never entitled to produce.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "invalid_effect_before_bad_declaration");
     mark(builder);
     let mut missing_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "missing_package" });
-    dependency::with_alias(&mut missing_dependency, "missing");
+    dependency::with_alias(@mut missing_dependency, "missing");
     let missing_registration: DependencyRegistration = Build::dependency(builder, missing_dependency);
 }
 
-machine mark(builder: &mut Build) {
-    let path: BuildPath = BuildOutput::resolve(&builder.output, "must_not_exist.txt");
-    let writer: i32 = BuildOutput::create(&mut builder.output, path, 0);
-    _ = BuildOutput::write(&mut builder.output, writer, "this effect must never stage\n");
-    _ = BuildOutput::close(&mut builder.output, writer);
+machine mark(builder: @mut Build) {
+    let path: BuildPath = BuildOutput::resolve(@builder.output, "must_not_exist.txt");
+    let writer: i32 = BuildOutput::create(@mut builder.output, path, 0);
+    _ = BuildOutput::write(@mut builder.output, writer, "this effect must never stage\n");
+    _ = BuildOutput::close(@mut builder.output, writer);
 }

@@ -14,16 +14,16 @@ use omega::language::core::I32::from_f64;
 data Main {
  protocol: Protocol; model: Model; best_time: f64; best_branch: i32 in Wrapping;
 }
-machine main(main: &mut Main) reaches ProcessExit + Console {
- let valid: bool = block read(&mut main.protocol);
+machine main(main: @mut Main) reaches ProcessExit + Console {
+ let valid: bool = block read(@mut main.protocol);
  transition valid && main.protocol.position >= 2 { true -> header(main) false -> syntax(main) }
- machine header(main: &mut Main) {
+ machine header(main: @mut Main) {
   let layers: f64 = main.protocol.fields[0]; let offsets: f64 = main.protocol.fields[1];
   transition layers >= 1.0 && layers <= 4.0 && offsets >= 0.0 && offsets <= 16.0 {
    true -> counts(main, layers, offsets) false -> range(main)
   }
  }
- machine counts(main: &mut Main, layers: f64, offsets: f64)
+ machine counts(main: @mut Main, layers: f64, offsets: f64)
  requires layers >= 1.0 && layers <= 4.0
  requires offsets >= 0.0 && offsets <= 16.0 {
   main.model.layers = I32::from_f64(layers) as i32 in Wrapping;
@@ -33,32 +33,32 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
    true -> velocity(main, 0, 0.0) false -> syntax(main)
   }
  }
- machine velocity(main: &mut Main, index: i32 in Wrapping, previous: f64) {
+ machine velocity(main: @mut Main, index: i32 in Wrapping, previous: f64) {
   transition index >= 0 && index < main.model.layers && index < 4 {
    true -> velocity_record(main, index, previous) false -> thickness(main, 0)
   }
  }
- machine velocity_record(main: &mut Main, index: i32 in Wrapping, previous: f64)
+ machine velocity_record(main: @mut Main, index: i32 in Wrapping, previous: f64)
  requires index >= 0 && index < 4 {
   let value: f64 = main.protocol.fields[2 + index];
   transition value >= 0.000001 && value <= 1000000.0 && value > previous {
    true -> store_velocity(main, index, value) false -> range(main)
   }
  }
- machine store_velocity(main: &mut Main, index: i32 in Wrapping, value: f64)
+ machine store_velocity(main: @mut Main, index: i32 in Wrapping, value: f64)
  requires index >= 0 && index < 4 {
   main.model.velocities[index] = value;
   main.model.numerators[index] = main.protocol.numerators[2 + index];
   main.model.scales[index] = main.protocol.scales[2 + index];
   transition { _ -> velocity(main, index + 1, value) }
  }
- machine thickness(main: &mut Main, index: i32 in Wrapping) {
+ machine thickness(main: @mut Main, index: i32 in Wrapping) {
   let position: i32 in Wrapping = 2 + main.model.layers + index;
   transition index >= 0 && index < main.model.layers - 1 && index < 3 && position >= 0 && position < 25 {
    true -> thickness_record(main, index, position) false -> prepare(main, 1)
   }
  }
- machine thickness_record(main: &mut Main, index: i32 in Wrapping, position: i32 in Wrapping)
+ machine thickness_record(main: @mut Main, index: i32 in Wrapping, position: i32 in Wrapping)
  requires index >= 0 && index < 3
  requires position >= 0 && position < 25 {
   let value: f64 = main.protocol.fields[position];
@@ -66,39 +66,39 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
    true -> store_thickness(main, index, value) false -> range(main)
   }
  }
- machine store_thickness(main: &mut Main, index: i32 in Wrapping, value: f64)
+ machine store_thickness(main: @mut Main, index: i32 in Wrapping, value: f64)
  requires index >= 0 && index < 3 {
   main.model.thicknesses[index] = value;
   transition { _ -> thickness(main, index + 1) }
  }
- machine prepare(main: &mut Main, refractor: i32 in Wrapping) {
+ machine prepare(main: @mut Main, refractor: i32 in Wrapping) {
   transition refractor >= 1 && refractor < main.model.layers && refractor < 4 {
    true -> compute_branch(main, refractor) false -> offset(main, 0)
   }
  }
- machine compute_branch(main: &mut Main, refractor: i32 in Wrapping)
+ machine compute_branch(main: @mut Main, refractor: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4 {
-  branch(&mut main.model, refractor);
-  Console::write("B "); integer(&mut main.protocol, refractor);
-  Console::write(" "); number(&mut main.protocol, main.model.critical[refractor]);
-  Console::write(" "); number(&mut main.protocol, main.model.intercept[refractor]);
+  branch(@mut main.model, refractor);
+  Console::write("B "); integer(@mut main.protocol, refractor);
+  Console::write(" "); number(@mut main.protocol, main.model.critical[refractor]);
+  Console::write(" "); number(@mut main.protocol, main.model.intercept[refractor]);
   Console::write_line("");
   transition { _ -> prepare(main, refractor + 1) }
  }
- machine offset(main: &mut Main, index: i32 in Wrapping) {
+ machine offset(main: @mut Main, index: i32 in Wrapping) {
   let position: i32 in Wrapping = 1 + 2 * main.model.layers + index;
   transition index >= 0 && index < main.model.offsets && index < 16 && position >= 0 && position < 25 {
    true -> offset_record(main, index, position) false -> success(main)
   }
  }
- machine offset_record(main: &mut Main, index: i32 in Wrapping, position: i32 in Wrapping)
+ machine offset_record(main: @mut Main, index: i32 in Wrapping, position: i32 in Wrapping)
  requires position >= 0 && position < 25 {
   let distance: f64 = main.protocol.fields[position];
   transition distance >= 0.0 && distance <= 1000000.0 {
    true -> direct(main, index, distance) false -> range(main)
   }
  }
- machine direct(main: &mut Main, index: i32 in Wrapping, distance: f64) {
+ machine direct(main: @mut Main, index: i32 in Wrapping, distance: f64) {
   let offset: f64 in SurfaceOffset = distance as f64 in SurfaceOffset;
   let speed: f64 in Velocity = main.model.velocities[0] as f64 in Velocity;
   let duration: f64 in TravelTime = direct_time(offset, speed);
@@ -107,18 +107,18 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
   emit(main, "R ", index, 0, distance, time);
   transition { _ -> head(main, index, distance, 1) }
  }
- machine head(main: &mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping) {
+ machine head(main: @mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping) {
   transition refractor >= 1 && refractor < main.model.layers && refractor < 4 {
    true -> admissible(main, index, distance, refractor) false -> first(main, index, distance)
   }
  }
- machine admissible(main: &mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping)
+ machine admissible(main: @mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4 {
   transition distance >= main.model.critical[refractor] {
    true -> arrival(main, index, distance, refractor) false -> head(main, index, distance, refractor + 1)
   }
  }
- machine arrival(main: &mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping)
+ machine arrival(main: @mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4 {
   let time: f64 = main.model.intercept[refractor] + distance / main.model.velocities[refractor];
   emit(main, "R ", index, refractor, distance, time);
@@ -129,29 +129,29 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
    true -> improve(main, index, distance, refractor, time) false -> head(main, index, distance, refractor + 1)
   }
  }
- machine improve(main: &mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping, time: f64) {
+ machine improve(main: @mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping, time: f64) {
   main.best_time = time; main.best_branch = refractor;
   transition { _ -> head(main, index, distance, refractor + 1) }
  }
- machine first(main: &mut Main, index: i32 in Wrapping, distance: f64) {
+ machine first(main: @mut Main, index: i32 in Wrapping, distance: f64) {
   let identifier: i32 in Wrapping = main.best_branch; let time: f64 = main.best_time;
   emit(main, "F ", index, identifier, distance, time);
   transition { _ -> offset(main, index + 1) }
  }
- machine success(main: &mut Main) { ProcessExit::exit_process(0); }
- machine syntax(main: &mut Main) { Console::write_line("ERROR syntax"); ProcessExit::exit_process(64); }
- machine range(main: &mut Main) { Console::write_line("ERROR range"); ProcessExit::exit_process(65); }
+ machine success(main: @mut Main) { ProcessExit::exit_process(0); }
+ machine syntax(main: @mut Main) { Console::write_line("ERROR syntax"); ProcessExit::exit_process(64); }
+ machine range(main: @mut Main) { Console::write_line("ERROR range"); ProcessExit::exit_process(65); }
 }
-machine emit(main: &mut Main, prefix: &[u8], index: i32 in Wrapping, identifier: i32 in Wrapping, distance: f64, time: f64) reaches Console {
- Console::write(prefix); integer(&mut main.protocol, index);
- Console::write(" "); integer(&mut main.protocol, identifier);
- Console::write(" "); number(&mut main.protocol, distance);
- Console::write(" "); number(&mut main.protocol, time);
+machine emit(main: @mut Main, prefix: @[u8], index: i32 in Wrapping, identifier: i32 in Wrapping, distance: f64, time: f64) reaches Console {
+ Console::write(prefix); integer(@mut main.protocol, index);
+ Console::write(" "); integer(@mut main.protocol, identifier);
+ Console::write(" "); number(@mut main.protocol, distance);
+ Console::write(" "); number(@mut main.protocol, time);
  Console::write_line("");
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

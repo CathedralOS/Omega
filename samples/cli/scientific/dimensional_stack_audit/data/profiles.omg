@@ -2,7 +2,7 @@ module data::profiles;
 use model::audit;
 use model::audit::Assembly;
 // Authored fixture data, independent of the reference and expected outputs.
-public machine load(assembly: &mut Assembly, profile: i32 in Saturating) {
+public machine load(assembly: @mut Assembly, profile: i32 in Saturating) {
     transition profile {
         1 -> profile_1(assembly)
         2 -> profile_2(assembly)
@@ -12,7 +12,7 @@ public machine load(assembly: &mut Assembly, profile: i32 in Saturating) {
         6 -> profile_6(assembly)
         _ -> profile_1(assembly)
     }
-    machine profile_1(assembly: &mut Assembly) {
+    machine profile_1(assembly: @mut Assembly) {
         assembly.contributors[0].nominal = 100;
         assembly.contributors[0].tolerance = 0;
         assembly.contributors[0].thermal = 3;
@@ -35,7 +35,7 @@ public machine load(assembly: &mut Assembly, profile: i32 in Saturating) {
         assembly.fit_low = -1;
         assembly.fit_high = 1;
     }
-    machine profile_2(assembly: &mut Assembly) {
+    machine profile_2(assembly: @mut Assembly) {
         assembly.contributors[0].nominal = 100;
         assembly.contributors[0].tolerance = 1;
         assembly.contributors[0].thermal = 1;
@@ -58,7 +58,7 @@ public machine load(assembly: &mut Assembly, profile: i32 in Saturating) {
         assembly.fit_low = 18;
         assembly.fit_high = 32;
     }
-    machine profile_3(assembly: &mut Assembly) {
+    machine profile_3(assembly: @mut Assembly) {
         assembly.contributors[0].nominal = 100;
         assembly.contributors[0].tolerance = 1;
         assembly.contributors[0].thermal = 2;
@@ -81,7 +81,7 @@ public machine load(assembly: &mut Assembly, profile: i32 in Saturating) {
         assembly.fit_low = 20;
         assembly.fit_high = 40;
     }
-    machine profile_4(assembly: &mut Assembly) {
+    machine profile_4(assembly: @mut Assembly) {
         assembly.contributors[0].nominal = 100;
         assembly.contributors[0].tolerance = 1;
         assembly.contributors[0].thermal = 0;
@@ -104,7 +104,7 @@ public machine load(assembly: &mut Assembly, profile: i32 in Saturating) {
         assembly.fit_low = 0;
         assembly.fit_high = 40;
     }
-    machine profile_5(assembly: &mut Assembly) {
+    machine profile_5(assembly: @mut Assembly) {
         assembly.contributors[0].nominal = 30;
         assembly.contributors[0].tolerance = 1;
         assembly.contributors[0].thermal = -1;
@@ -127,7 +127,7 @@ public machine load(assembly: &mut Assembly, profile: i32 in Saturating) {
         assembly.fit_low = 5;
         assembly.fit_high = 47;
     }
-    machine profile_6(assembly: &mut Assembly) {
+    machine profile_6(assembly: @mut Assembly) {
         assembly.contributors[0].nominal = 90;
         assembly.contributors[0].tolerance = 3;
         assembly.contributors[0].thermal = 4;

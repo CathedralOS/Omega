@@ -106,21 +106,21 @@ invokes Console
     }
     machine done() { }
 }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let total: u64 in Trapping = doubled_sum(1);
     transition total == 1120 {
         true -> good(main)
         _ -> bad(main)
     }
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         integer(1120);
         ProcessExit::exit_process(70);
     }
-    machine bad(main: &mut Main) { ProcessExit::exit_process(71); }
+    machine bad(main: @mut Main) { ProcessExit::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

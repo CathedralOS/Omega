@@ -2,7 +2,7 @@
 // Place: match join. Branches of a pattern match evaluate the slice literal and join before inspection.
 // Expected exit: 0
 
-machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap
+machine inspect_bytes(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {
@@ -21,11 +21,11 @@ ensures result == 0u64
 }
 
 machine main() crashes Trap {
-    let first: &[u8] = match true {
+    let first: @[u8] = match true {
         true -> "omega",
         false -> "omega",
     };
-    let second: &[u8] = match false {
+    let second: @[u8] = match false {
         true -> "omega",
         false -> "omega",
     };

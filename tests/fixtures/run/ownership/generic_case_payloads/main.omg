@@ -11,7 +11,7 @@ machine rebuild<T>(value: Outcome<T>) -> Outcome<T> {
         Outcome::Present { item } -> Outcome::Present { item: move item }
     }
 }
-machine observe<T>(value: &T) -> Outcome<T> { Outcome::Missing }
+machine observe<T>(value: @T) -> Outcome<T> { Outcome::Missing }
 machine main() crashes Trap {
     let empty: Outcome<Ticket> = rebuild<Ticket>(absent<Ticket>());
     let full: Outcome<Ticket> = rebuild<Ticket>(present<Ticket>(Ticket { number: 29u64 }));

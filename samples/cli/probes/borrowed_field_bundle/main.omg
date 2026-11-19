@@ -3,14 +3,14 @@
 // nested forwarding, field permutation and a consuming helper call.
 data Cell { value: i32; }
 data Pair { first: Cell; second: Cell; marker: i32; }
-data Bundle<'storage> { first: &'storage mut Cell; second: &'storage mut Cell; marker: i32; }
+data Bundle<'storage> { first: @'storage mut Cell; second: @'storage mut Cell; marker: i32; }
 
-machine forward(cell: &mut Cell) -> &mut Cell { cell }
+machine forward(cell: @mut Cell) -> @mut Cell { cell }
 
-machine gather<'storage>(pair: &'storage mut Pair) -> Bundle<'storage> {
+machine gather<'storage>(pair: @'storage mut Pair) -> Bundle<'storage> {
     Bundle {
-        first: forward(forward(&mut pair.first)),
-        second: forward(&mut pair.second),
+        first: forward(forward(@mut pair.first)),
+        second: forward(@mut pair.second),
         marker: pair.marker
     }
 }
@@ -25,7 +25,7 @@ machine apply<'storage>(bundle: Bundle<'storage>) -> bool {
     bundle.marker == 9
 }
 
-machine exercise<'storage>(pair: &'storage mut Pair) -> bool {
+machine exercise<'storage>(pair: @'storage mut Pair) -> bool {
     pair.first.value = 11;
     pair.second.value = 23;
     pair.marker = 9;
@@ -37,7 +37,7 @@ machine exercise<'storage>(pair: &'storage mut Pair) -> bool {
 
 machine main() crashes Trap {
     let mut pair: Pair;
-    transition exercise(&mut pair) {
+    transition exercise(@mut pair) {
         true -> done()
         false -> bad()
     }

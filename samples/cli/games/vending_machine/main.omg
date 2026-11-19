@@ -32,7 +32,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
     apply(main, Event::Insert { cents: 50 as +Saturating });
@@ -46,49 +46,49 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         false -> block bad_balance(main)
     }
 
-    machine check_dispensed(main: &mut Main) {
+    machine check_dispensed(main: @mut Main) {
         transition main.register.dispensed == 75 {
             true -> block good_verdict(main)
             false -> block bad_dispensed(main)
         }
     }
 
-    machine good_verdict(main: &mut Main) {
+    machine good_verdict(main: @mut Main) {
         Console::write_line("PASS: balance spent and 75c dispensed (exit 70)");
         transition { _ -> block report(main, 70 as +Saturating) }
     }
 
-    machine bad_balance(main: &mut Main) {
+    machine bad_balance(main: @mut Main) {
         Console::write_line("FAIL: the balance was not fully spent (exit 71)");
         transition { _ -> block report(main, 71 as +Saturating) }
     }
 
-    machine bad_dispensed(main: &mut Main) {
+    machine bad_dispensed(main: @mut Main) {
         Console::write_line("FAIL: dispensed total was not 75 cents (exit 72)");
         transition { _ -> block report(main, 72 as +Saturating) }
     }
 
-    machine report(main: &mut Main, code: i32 in Saturating) {
+    machine report(main: @mut Main, code: i32 in Saturating) {
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(code as i32);
     }
 }
 
 // Fold one event into the register. Coins add to the balance; a press that
 // the balance covers dispenses the price and spends the balance.
-machine apply(main: &mut Main, event: Event) {
+machine apply(main: @mut Main, event: Event) {
     transition event {
         Event::Insert { cents } -> add_balance(main, cents)
         Event::Press { slot } -> try_dispense(main, slot)
         _ -> idle()
     }
 
-    machine add_balance(main: &mut Main, cents: i32 in Saturating) {
+    machine add_balance(main: @mut Main, cents: i32 in Saturating) {
         main.register.balance = main.register.balance + cents;
     }
 
-    machine try_dispense(main: &mut Main, slot: i32 in Saturating) {
+    machine try_dispense(main: @mut Main, slot: i32 in Saturating) {
         let price: i32 in Saturating = price_of(slot);
         transition main.register.balance >= price {
             true -> dispense(main, price)
@@ -96,7 +96,7 @@ machine apply(main: &mut Main, event: Event) {
         }
     }
 
-    machine dispense(main: &mut Main, price: i32 in Saturating) {
+    machine dispense(main: @mut Main, price: i32 in Saturating) {
         main.register.dispensed = main.register.dispensed + price;
         main.register.balance = 0 as +Saturating;
     }
@@ -128,5 +128,5 @@ machine price_of(slot: i32 in Saturating) -> i32 in Saturating {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

@@ -35,16 +35,16 @@ machine number(value: f64) reaches Console {
     }
     machine done() { }
 }
-public machine emit(input: &io::input::Input, solution: &model::stages::Solution) reaches Console invokes Console crashes Trap {
+public machine emit(input: @io::input::Input, solution: @model::stages::Solution) reaches Console invokes Console crashes Trap {
     Console::write_line("heat_exchanger_balances midpoint counterflow; temperature=mdegC heat=mW");
     transition { _ -> node(input, solution, 0) }
-    machine node(input: &io::input::Input, solution: &model::stages::Solution, position: u32) {
+    machine node(input: @io::input::Input, solution: @model::stages::Solution, position: u32) {
         transition position <= input.stages && position < 9 {
             true -> row(input, solution, position)
             false -> total(solution)
         }
     }
-    machine row(input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 9 {
+    machine row(input: @io::input::Input, solution: @model::stages::Solution, position: u32) requires position < 9 {
         Console::write("node hot cold: ");
         number(solution.hot[position]);
         Console::write(" ");
@@ -55,13 +55,13 @@ public machine emit(input: &io::input::Input, solution: &model::stages::Solution
             false -> total(solution)
         }
     }
-    machine heat(input: &io::input::Input, solution: &model::stages::Solution, position: u32) requires position < 8 {
+    machine heat(input: @io::input::Input, solution: @model::stages::Solution, position: u32) requires position < 8 {
         Console::write("stage heat: ");
         number(solution.heat[position]);
         Console::write_line("");
         transition { _ -> node(input, solution, position + 1) }
     }
-    machine total(solution: &model::stages::Solution) {
+    machine total(solution: @model::stages::Solution) {
         Console::write("total heat: ");
         number(solution.total);
         Console::write_line("");

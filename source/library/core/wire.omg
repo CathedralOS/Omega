@@ -36,7 +36,7 @@ public data DecodeResult<T> {
 // its input, while an owned-copy package may use an owned remainder carrier.
 public data OpaqueWireRemainder<'bytes> {
     codec_identity: u64;
-    bytes_and_ordering: &'bytes [u8];
+    bytes_and_ordering: @'bytes [u8];
 }
 
 // The ordinary preserving package carrier. Code may inspect or update the
@@ -52,24 +52,24 @@ public data Relayed<'bytes, T> {
 // passes per live element (exact packed-size measurement, then emission) and
 // enough output for the canonical length prefix plus exact packed body.
 public trait Encode<Policy, Value> {
-    machine encode(value: &Value, out: &mut [u8], written: &mut u64);
+    machine encode(value: @Value, out: @mut [u8], written: @mut u64);
 }
 
 // Reject every unknown field or case and establish `Value` only after
 // validating the complete input.
 public trait StrictDecode<Policy, Value> {
-    machine decode_strict(bytes: &[u8]) -> DecodeResult<Value>;
+    machine decode_strict(bytes: @[u8]) -> DecodeResult<Value>;
 }
 
 // Validate all known members, discard unknown members, and establish `Value`.
 public trait ProjectingDecode<Policy, Value> {
-    machine decode_projecting(bytes: &[u8]) -> DecodeResult<Value>;
+    machine decode_projecting(bytes: @[u8]) -> DecodeResult<Value>;
 }
 
 // Validate all known members and retain unknown bytes/order information for a
 // later faithful relay through the same codec realization.
 public trait PreservingDecode<Policy, Value> {
-    machine decode_preserving<'bytes>(bytes: &'bytes [u8]) -> DecodeResult<Relayed<'bytes, Value>>;
+    machine decode_preserving<'bytes>(bytes: @'bytes [u8]) -> DecodeResult<Relayed<'bytes, Value>>;
 }
 
 // Source-owned adapters may report a verdict alongside their output slots.
@@ -99,8 +99,8 @@ public data EncodedField [copy] {
 }
 
 public data EncodeContext<'storage, 'fields> {
-    storage: &'storage mut [u8];
-    fields: &'fields mut [EncodedField];
+    storage: @'storage mut [u8];
+    fields: @'fields mut [EncodedField];
     used: u64;
     count: u64;
     valid: bool;
@@ -117,7 +117,7 @@ public data SignedRead {
 
 public data BlobRead<'input> {
     case Invalid;
-    case Read(value: &'input [u8], next: u64);
+    case Read(value: @'input [u8], next: u64);
 }
 
 // A staged scalar document contains descriptive plans and validated carrier
@@ -135,7 +135,7 @@ public data ScalarSlot [copy] {
     unsigned: u64;
 }
 public data ScalarPlanContext<'slots> {
-    slots: &'slots mut [ScalarSlot];
+    slots: @'slots mut [ScalarSlot];
     count: u64;
     valid: bool;
 }

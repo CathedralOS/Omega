@@ -58,13 +58,13 @@ fn assert_operator_value(verdict: Result<RouteVerdict, String>, expected: bool) 
 #[test]
 fn mutable_byte_formals_keep_their_source_operator_access() {
     let source = r#"
-machine store(bytes: &mut [u8], peer: &[u8]) requires bytes.len > 0u64 {
+machine store(bytes: @mut [u8], peer: @[u8]) requires bytes.len > 0u64 {
     bytes[0u64] = 7u8;
 }
 machine entry() -> bool {
     let mut bytes: [u8; 2] = [19u8, 23u8];
     let peer: [u8; 1] = [42u8];
-    store(&mut bytes[..], &peer[..]);
+    store(@mut bytes[..], @peer[..]);
     bytes[0u64] == 7u8 && bytes[1u64] == 23u8
 }
 "#;
@@ -288,11 +288,11 @@ data Schema [copy] { fields: [Cell; 4]; }
 data Capture { schema: Schema; }
 data Info { position: u64; }
 machine replacement() -> u32 { 7u32 }
-machine describe<Kind>(capture: &mut Capture, info: &Info)
+machine describe<Kind>(capture: @mut Capture, info: @Info)
 requires info.position < 4u64
 {
     put(capture, info)
-    machine put(capture: &mut Capture, info: &Info)
+    machine put(capture: @mut Capture, info: @Info)
     requires info.position < 4u64
     {
         capture.schema.fields[info.position] = Cell { value: replacement() };
@@ -301,7 +301,7 @@ requires info.position < 4u64
 machine entry() -> bool {
     let mut capture: Capture;
     let info: Info = Info { position: 1u64 };
-    describe<bool>(&mut capture, &info);
+    describe<bool>(@mut capture, @info);
     capture.schema.fields[1u64].value == 7u32
 }
 "#,
@@ -317,7 +317,7 @@ machine entry() -> bool {
 #[test]
 fn an_unselected_declared_value_index_is_explicitly_refused_for_reads_and_writes() {
     let declarations = "data Cell [copy] { value: u32; }\n\
-        machine [] at(buffer: &[Cell; 4], index: u64) -> Cell { Cell { value: 99u32 } }";
+        machine [] at(buffer: @[Cell; 4], index: u64) -> Cell { Cell { value: 99u32 } }";
     for body in [
         "let buffer: [Cell; 4]; buffer[0u64].value == 99u32",
         "let mut buffer: [Cell; 4]; buffer[0u64] = Cell { value: 7u32 }; true",
@@ -351,15 +351,15 @@ fn indexed_writer_source(requirement: &str) -> String {
     format!(
         r#"
 trait Writer {{
-    machine put(items: &mut [u32; 4], index: u64)
+    machine put(items: @mut [u32; 4], index: u64)
     requires index < 4u64 reaches none crashes none;
 }}
-machine supplied(items: &mut [u32; 4], index: u64)
+machine supplied(items: @mut [u32; 4], index: u64)
 {requirement} reaches none crashes none
 {{ items[index] = 7u32; }}
 machine entry() -> bool {{
     let mut items: [u32; 4];
-    supplied(&mut items, 1u64);
+    supplied(@mut items, 1u64);
     items[1u64] == 7u32
 }}
 "#
@@ -568,8 +568,8 @@ fn fixed_array_contract_indices_keep_their_selected_collection_operation() {
     let source = |index, byte| {
         format!(
             r#"
-machine last(name: &[u8; 8]) -> bool requires name[{index}] == 0 {{ true }}
-machine entry() -> bool {{ let name: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, {byte}]; last(&name) }}
+machine last(name: @[u8; 8]) -> bool requires name[{index}] == 0 {{ true }}
+machine entry() -> bool {{ let name: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, {byte}]; last(@name) }}
 "#
         )
     };
@@ -939,9 +939,9 @@ fn byte_equality_after_a_domain_cast_keeps_its_exact_operand_types() {
     {
         let source = format!(
             r#"
-domain [u8]::Utf8 requires byte_observation::valid_utf8(&self[..]);
+domain [u8]::Utf8 requires byte_observation::valid_utf8(@self[..]);
 machine build_entry() -> bool {{
-    let encoded: &[u8] in Utf8 = "é" as +Utf8;
+    let encoded: @[u8] in Utf8 = "é" as +Utf8;
     (encoded as -Utf8) {operator} "{peer}"
 }}
 "#

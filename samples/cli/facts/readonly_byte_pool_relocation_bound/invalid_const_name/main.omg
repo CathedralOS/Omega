@@ -4,7 +4,7 @@
 const PROJECTION_INDEX: u64 = 4u64;
 const SUBTRAHEND: u64 = 6u64;
 
-machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap
+machine inspect_bytes(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {
@@ -25,7 +25,7 @@ ensures result == 0u64
 machine probe() -> u64 crashes Trap
 ensures result == 0u64
 {
-    let bytes: &[u8] = "omega";
+    let bytes: @[u8] = "omega";
     inspect_bytes(bytes)
 }
 

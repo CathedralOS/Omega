@@ -3,17 +3,17 @@
 // Expected exit: 0
 
 
-machine pass_through(param: &[u64]) -> &[u64]
+machine pass_through(param: @[u64]) -> @[u64]
     requires param.len >= 3
     ensures result.len == param.len
 {
     param
 }
 
-machine read_guarded(view: &[u64]) -> i32
+machine read_guarded(view: @[u64]) -> i32
     requires view.len >= 3
 {
-    let v: &[u64] = pass_through(view);
+    let v: @[u64] = pass_through(view);
     let elem: u64 = v[2];
     let diff: u64 = v.len - 3u64;
     transition elem == 30u64 && diff == 1u64 {
@@ -26,7 +26,7 @@ machine read_guarded(view: &[u64]) -> i32
 
 machine main() crashes Trap {
     let items: [u64; 4] = [10u64, 20u64, 30u64, 40u64];
-    let view: &[u64] = &items[..];
+    let view: @[u64] = @items[..];
     let res: i32 = read_guarded(view);
     transition res == 0 {
         true -> pass()

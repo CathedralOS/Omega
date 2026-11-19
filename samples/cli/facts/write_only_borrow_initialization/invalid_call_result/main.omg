@@ -10,11 +10,11 @@ data BoxedSlot {
     value: u64 in SlotDomain;
 }
 
-machine initialize_slot(destination: &write BoxedSlot) {
+machine initialize_slot(destination: @write BoxedSlot) {
     destination.value = 99u64;
 }
 
-machine read_slot(slot: &BoxedSlot) -> u64
+machine read_slot(slot: @BoxedSlot) -> u64
 ensures
     result >= 99u64 && result <= 100u64
 {
@@ -23,8 +23,8 @@ ensures
 
 machine probe() -> u64 {
     let mut slot: BoxedSlot = BoxedSlot { value: 99u64 };
-    initialize_slot(&write slot);
-    let extracted: u64 = read_slot(&slot);
+    initialize_slot(@write slot);
+    let extracted: u64 = read_slot(@slot);
     extracted - 100u64
 }
 

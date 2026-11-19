@@ -8,13 +8,13 @@ declares which ones it uses and the build decides what is behind each.
 
 ```omega
 boundary trait Readable {
-    machine read(path: [u8]::Utf8, out: &mut Vec<u8>) -> ReadResult
+    machine read(path: [u8]::Utf8, out: @mut Vec<u8>) -> ReadResult
     reaches Readable
     suspends
     crashes none;
 }
 
-machine read_config(path: [u8]::Utf8, out: &mut Vec<u8>) -> ReadResult
+machine read_config(path: [u8]::Utf8, out: @mut Vec<u8>) -> ReadResult
 reaches Readable
 suspends
 {
@@ -31,7 +31,7 @@ handle to pass around for the service itself. `reaches Readable` on
 The build says what implements each boundary trait:
 
 ```omega
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::select_provider<selected_target::Console, TestConsole>(builder);
 }
 ```
@@ -86,7 +86,7 @@ boundary trait for each:
 boundary trait TimeObservation {}
 
 trait ClockOps<S> {
-    machine now(state: &mut S) -> u64
+    machine now(state: @mut S) -> u64
         reaches TimeObservation
         crashes none;
 }
@@ -98,7 +98,7 @@ boundary trait SteadyClock: ClockOps<NoState> {}
 ```
 
 ```omega
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::select_provider<WallClock, HostWallClock>(builder);
     Build::select_provider<SteadyClock, HostSteadyClock>(builder);
 }
@@ -114,21 +114,21 @@ want to test against a fake takes the clock as a parameter instead:
 ```omega
 data Entry { at: u64; }
 
-machine stamp<S, const C: ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
+machine stamp<S, const C: ClockOps<S>>(clock: @mut S, entry: @mut Entry) {
     entry.at = C::now(clock);
 }
 
 data SimClock { ticks: u64; }
 Simulated satisfies ClockOps<SimClock>
 {
-    machine now(state: &mut SimClock) -> u64 {
+    machine now(state: @mut SimClock) -> u64 {
         state.ticks = state.ticks +% 1;
         state.ticks
     }
 }
 
-stamp<NoState, WallClock>(&mut none, &mut entry);    // the real clock
-stamp<SimClock, Simulated>(&mut sim, &mut entry);    // the fake
+stamp<NoState, WallClock>(@mut none, @mut entry);    // the real clock
+stamp<SimClock, Simulated>(@mut sim, @mut entry);    // the fake
 ```
 
 A boundary trait can be passed wherever an implementation of a trait it

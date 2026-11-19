@@ -126,7 +126,7 @@ class Observation:
             applied = f"<{', '.join(self.render(argument) for argument in arguments)}>" if arguments else ""
             return f"D{row.item}{applied}"
         if kind == "Reference":
-            access = {0: "&", 1: "&mut ", 2: "&write "}[row.access]
+            access = {0: "@", 1: "@mut ", 2: "@write "}[row.access]
             return access + self.render(row.inner)
         if kind == "Array":
             return f"[{self.render(row.inner)}; {self.render(row.length)}]{domain}"
@@ -328,23 +328,23 @@ def nested_machine_cases(program: str) -> None:
     for name, source in (
         ("empty-scalar-result", b"machine f() -> u8 {}"),
         ("empty-generic-result", b"machine f<T>() -> T {}"),
-        ("implicit-unit-after-write", b"machine f(value: &mut u8) -> u8 { value = 7; }"),
+        ("implicit-unit-after-write", b"machine f(value: @mut u8) -> u8 { value = 7; }"),
     ):
         rejected(program, name, source, "TerminalResultMismatch", source)
     source = b"machine f(ready: bool) -> u8 { transition ready { true -> 7 false -> {} } }"
     rejected(program, "unit-arm-cannot-complete-scalar-result", source, "TerminalResultMismatch", b"false -> {}")
 
-    source = b'data Cell { value:u64; } machine observe(cell:&Cell)->u64{cell.value} machine update(cell:&mut Cell,before:u64)->u64{cell.value=73;before} machine forward(cell:&mut Cell)->u64{transition{_->update(cell,observe(cell))}}'
+    source = b'data Cell { value:u64; } machine observe(cell:@Cell)->u64{cell.value} machine update(cell:@mut Cell,before:u64)->u64{cell.value=73;before} machine forward(cell:@mut Cell)->u64{transition{_->update(cell,observe(cell))}}'
     accepted(program, 'shared-reborrow-shared_call', source, (), adaptations=((b'cell!7', "lent"),))
-    source = b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let shared:&Cell=cell; shared.value }'
+    source = b'data Cell { value:u64; } machine read(cell:@mut Cell)->u64 { let shared:@Cell=cell; shared.value }'
     accepted(program, 'shared-reborrow-shared_local', source, (), adaptations=((b'cell!2', "lent"),))
-    source = b'data Cell { value:u64; } machine choose(shared:&Cell, exclusive:&mut Cell, flag:bool)->&Cell { match flag { true->shared false->exclusive } }'
+    source = b'data Cell { value:u64; } machine choose(shared:@Cell, exclusive:@mut Cell, flag:bool)->@Cell { match flag { true->shared false->exclusive } }'
     accepted(program, 'shared-reborrow-shared_join', source, (), adaptations=((b'exclusive!2', "lent"),))
-    source = b'machine length(bytes: &write [u8]) -> u64 { bytes.len } machine view(bytes: &write [u8;4]) -> u64 { length(&write bytes) }'
+    source = b'machine length(bytes: @write [u8]) -> u64 { bytes.len } machine view(bytes: @write [u8;4]) -> u64 { length(@write bytes) }'
     accepted(program, "write-only-array-view-retains-write-only-authority", source, ())
-    source = b'machine observe(bytes:&[u8])->u64{bytes.len} machine read(bytes:&write [u8;4])->u64 { observe(bytes) }'
+    source = b'machine observe(bytes:@[u8])->u64{bytes.len} machine read(bytes:@write [u8;4])->u64 { observe(bytes) }'
     rejected(program, "write-only-array-view-cannot-acquire-read-authority", source, "NoMatchingMachine", b"observe(bytes)")
-    source = b'data Cell { value:u64; } machine read(cell:&mut Cell) { let descriptor:& &mut Cell=cell; }'
+    source = b'data Cell { value:u64; } machine read(cell:@mut Cell) { let descriptor:@ @mut Cell=cell; }'
     rejected(program, "shared-reborrow-does-not-insert-a-fresh-descriptor-borrow", source, "MismatchedTypes", b"cell!2")
 
 
@@ -517,12 +517,12 @@ def main() -> None:
         program,
         "fields-through-references",
         b"data P { x: u32; inner: Q; }\ndata Q { flag: bool; }\n"
-        b"machine f(p: &P, q: &mut Q) -> bool {\n"
+        b"machine f(p: @P, q: @mut Q) -> bool {\n"
         b"    q.flag = p.inner.flag;\n"
         b"    p.x > 3\n"
         b"}",
         (
-            (b"p!2", "&D0"),
+            (b"p!2", "@D0"),
             (b"p.inner", "D1"),
             (b"p.inner.flag", "bool"),
             (b"q.flag", "bool"),
@@ -535,8 +535,8 @@ def main() -> None:
         program,
         "arrays-and-indexing",
         b"data B { bytes: [u8; 4] in Trapping; count: u64; }\n"
-        b"machine f(b: &B, i: u64) -> u8 in Trapping { b.bytes[i] }\n"
-        b"machine g(b: &B) -> u8 in Trapping { b.bytes[2] }",
+        b"machine f(b: @B, i: u64) -> u8 in Trapping { b.bytes[i] }\n"
+        b"machine g(b: @B) -> u8 in Trapping { b.bytes[2] }",
         (
             (b"b.bytes", "[u8; 4] in Trapping"),
             (b"b.bytes[i]", "u8 in Trapping"),
@@ -551,7 +551,7 @@ def main() -> None:
         program,
         "policy-qualified-collections-read-and-store",
         b"data B { counts: [u64; 4] in Trapping; }\n"
-        b"machine f(b: &mut B, value: u64 in Trapping, plain: u64) -> u64 in Trapping {\n"
+        b"machine f(b: @mut B, value: u64 in Trapping, plain: u64) -> u64 in Trapping {\n"
         b"    b.counts[0] = value;\n    b.counts[2] = plain as u64 in Trapping;\n    b.counts[3] = 7;\n"
         b"    b.counts[1] + 1\n"
         b"}",
@@ -561,7 +561,7 @@ def main() -> None:
         program,
         "a-typed-value-keeps-its-policy-at-an-element-store",
         b"data B { counts: [u64; 4] in Trapping; }\n"
-        b"machine f(b: &mut B, plain: u64) { b.counts[0] = plain; }",
+        b"machine f(b: @mut B, plain: u64) { b.counts[0] = plain; }",
         "MismatchedTypes",
         b"plain!2",
     )
@@ -569,7 +569,7 @@ def main() -> None:
         program,
         "wrapping-and-saturating-collections",
         b"data Holder { values: [u32; 1] in Wrapping; }\n"
-        b"machine f(h: &Holder, v: &[u8] in Saturating) -> u32 in Wrapping\n"
+        b"machine f(h: @Holder, v: @[u8] in Saturating) -> u32 in Wrapping\n"
         b"requires v.len > 0\n"
         b"{\n    let s: u8 in Saturating = v[0] + 10u8;\n    h.values[0] + 1u32\n}",
         ((b"h.values", "[u32; 1] in Wrapping"), (b"h.values[0]", "u32 in Wrapping"), (b"v[0]", "u8 in Saturating")),
@@ -577,7 +577,7 @@ def main() -> None:
     accepted(
         program,
         "collection-lengths",
-        b"machine f(view: &[u8], fixed: [u16; 3]) -> bool { view.len == fixed.len }",
+        b"machine f(view: @[u8], fixed: [u16; 3]) -> bool { view.len == fixed.len }",
         ((b"view.len", "u64"), (b"fixed.len", "u64"), (b"view.len == fixed.len", "bool")),
         selections=((b"view.len", "length", 0), (b"fixed.len", "length", 0)),
     )
@@ -595,8 +595,8 @@ def main() -> None:
         program,
         "shared-parameters-lend-implicitly",
         b"data P { x: u32; }\n"
-        b"machine read(p: &P) -> u32 { p.x }\n"
-        b"machine f(p: P, q: &mut P) -> u32 {\n"
+        b"machine read(p: @P) -> u32 { p.x }\n"
+        b"machine f(p: P, q: @mut P) -> u32 {\n"
         b"    let a: u32 = read(p);\n"
         b"    read(q)\n"
         b"}",
@@ -607,9 +607,9 @@ def main() -> None:
         program,
         "borrows-through-references-reborrow-the-referent",
         b"data P { x: u32; }\n"
-        b"machine bump(p: &mut P) { p.x = 1; }\n"
-        b"machine f(q: &mut P) { bump(&mut q); bump(q); }",
-        ((b"&mut q", "&mut D0"),),
+        b"machine bump(p: @mut P) { p.x = 1; }\n"
+        b"machine f(q: @mut P) { bump(@mut q); bump(q); }",
+        ((b"@mut q", "@mut D0"),),
     )
     accepted(
         program,
@@ -633,7 +633,7 @@ def main() -> None:
         program,
         "case-patterns-bind-payload-types",
         b"data S { case Empty; case Full(v: u8, w: bool); }\n"
-        b"machine f(s: &S) -> u8 {\n"
+        b"machine f(s: @S) -> u8 {\n"
         b"    transition s {\n"
         b"        S::Full { v, w: true } -> got(v)\n"
         b"        _ -> got(0)\n"
@@ -679,20 +679,20 @@ def main() -> None:
         "generic-machines-infer-and-apply",
         b"data Box<T> { value: T; }\n"
         b"machine id<T>(x: T) -> T { x }\n"
-        b"machine Box::get<T>(b: &Box<T>) -> T { b.value }\n"
+        b"machine Box::get<T>(b: @Box<T>) -> T { b.value }\n"
         b"machine f(b: Box<u8>) -> u8 {\n"
         b"    let a: u8 = id(5u8);\n"
         b"    let c: u16 = id<u16>(7);\n"
-        b"    Box::get(&b)\n"
+        b"    Box::get(@b)\n"
         b"}",
         (
             (b"b.value", "G2"),
             (b"id(5u8)", "u8"),
             (b"id<u16>(7)", "u16"),
             (b"7", "u16"),
-            (b"Box::get(&b)", "u8"),
+            (b"Box::get(@b)", "u8"),
         ),
-        selections=((b"id(5u8)", "machine", 0), (b"id<u16>(7)", "machine", 0), (b"Box::get(&b)", "machine", 1)),
+        selections=((b"id(5u8)", "machine", 0), (b"id<u16>(7)", "machine", 0), (b"Box::get(@b)", "machine", 1)),
     )
     # A `requires machine` contract types a call through its binder; a static
     # machine argument selects a machine whose signature refines the
@@ -752,8 +752,8 @@ def main() -> None:
         "declared-domains-qualify-their-carrier",
         b"domain u64::Small\nrequires self < 8;\ndomain [u8]::Text\nrequires valid_utf8(self);\n"
         b"machine take(x: u64 in Small) -> u64 { x }\n"
-        b"machine show(text: &[u8] in Text) {}\n"
-        b"machine f(held: u64 in Small, bare: u64, raw: &[u8]) -> u64 {\n"
+        b"machine show(text: @[u8] in Text) {}\n"
+        b"machine f(held: u64 in Small, bare: u64, raw: @[u8]) -> u64 {\n"
         b"    let a: u64 = take(held);\n"
         b"    let b: u64 = take(bare);\n"
         b"    let c: u64 = held;\n"
@@ -769,7 +769,7 @@ def main() -> None:
         b"data Opt<T> { case None; case Some(v: T); }\n"
         b"data Pair<A, B> { first: A; second: B; }\n"
         b"machine make(x: u16) -> Pair<u16, bool> { Pair { first: x, second: true } }\n"
-        b"machine h(o: &Opt<u16>) -> u16 {\n"
+        b"machine h(o: @Opt<u16>) -> u16 {\n"
         b"    transition o {\n"
         b"        Opt::Some { v } -> got(v)\n"
         b"        _ -> got(0)\n"
@@ -867,7 +867,7 @@ def main() -> None:
     rejected(
         program,
         "mutable-loans-are-explicit",
-        b"data P { x: u32; }\nmachine bump(p: &mut P) { p.x = 1; }\nmachine f(p: P) { bump(p); }",
+        b"data P { x: u32; }\nmachine bump(p: @mut P) { p.x = 1; }\nmachine f(p: P) { bump(p); }",
         "NoMatchingMachine",
         b"bump(p)",
     )
@@ -907,39 +907,39 @@ def main() -> None:
         program,
         "recasts-view-scalars-of-one-width",
         b"data M { rate: f32; half: i16; flag: bool; wide: u64; }\n"
-        b"machine f(m: &mut M, r: &u32) -> bool {\n"
-        b"    let bits: &u32 = &m.rate as &u32;\n    let wide: &u16 = &m.half as &u16;\n"
-        b"    let byte: &u8 = &m.flag as &u8;\n    let writable: &mut u32 = &mut m.rate as &mut u32;\n"
-        b"    let signed: &i32 = r as &i32;\n    let narrowed: &f64 = &m.wide as &f64;\n    true\n}",
-        ((b"&m.rate as &u32", "&u32"), (b"&mut m.rate as &mut u32", "&mut u32"), (b"r as &i32", "&i32"), (b"&m.wide as &f64", "&f64")),
+        b"machine f(m: @mut M, r: @u32) -> bool {\n"
+        b"    let bits: @u32 = @m.rate as @u32;\n    let wide: @u16 = @m.half as @u16;\n"
+        b"    let byte: @u8 = @m.flag as @u8;\n    let writable: @mut u32 = @mut m.rate as @mut u32;\n"
+        b"    let signed: @i32 = r as @i32;\n    let narrowed: @f64 = @m.wide as @f64;\n    true\n}",
+        ((b"@m.rate as @u32", "@u32"), (b"@mut m.rate as @mut u32", "@mut u32"), (b"r as @i32", "@i32"), (b"@m.wide as @f64", "@f64")),
     )
     rejected(
         program,
         "a-recast-keeps-the-width",
-        b"data M { rate: f32; }\nmachine f(m: &M) { let bits: &u64 = &m.rate as &u64; }",
+        b"data M { rate: f32; }\nmachine f(m: @M) { let bits: @u64 = @m.rate as @u64; }",
         "InvalidCast",
-        b"&m.rate as &u64",
+        b"@m.rate as @u64",
     )
     rejected(
         program,
         "a-recast-does-not-escalate-access",
-        b"data M { rate: f32; }\nmachine f(m: &M) { let bits: &mut u32 = &m.rate as &mut u32; }",
+        b"data M { rate: f32; }\nmachine f(m: @M) { let bits: @mut u32 = @m.rate as @mut u32; }",
         "InvalidCast",
-        b"&m.rate as &mut u32",
+        b"@m.rate as @mut u32",
     )
     rejected(
         program,
         "a-recast-keeps-its-polarity",
-        b"data M { rate: f32; }\nmachine f(m: &mut M) { let bits: &u32 = &mut m.rate as &u32; }",
+        b"data M { rate: f32; }\nmachine f(m: @mut M) { let bits: @u32 = @mut m.rate as @u32; }",
         "InvalidCast",
-        b"&mut m.rate as &u32",
+        b"@mut m.rate as @u32",
     )
     rejected(
         program,
         "a-recast-needs-a-reference",
-        b"data M { rate: f32; }\nmachine f(m: &M) { let bits: &u32 = m.rate as &u32; }",
+        b"data M { rate: f32; }\nmachine f(m: @M) { let bits: @u32 = m.rate as @u32; }",
         "InvalidCast",
-        b"m.rate as &u32",
+        b"m.rate as @u32",
     )
     rejected(
         program,
@@ -1125,7 +1125,7 @@ def main() -> None:
     accepted(
         program,
         "match-typed-arm-fixes-the-result",
-        b"data K { case A; case B; }\nmachine f(k: &K, x: u8) -> u8 { match k { K::A -> x, K::B -> 9 } }",
+        b"data K { case A; case B; }\nmachine f(k: @K, x: u8) -> u8 { match k { K::A -> x, K::B -> 9 } }",
         ((b"match k { K::A -> x, K::B -> 9 }", "u8"), (b"K::A", "D0"), (b"x!2", "u8"), (b"9", "u8")),
         adaptations=((b"9", "landed"), (b"x!2", "")),
     )
@@ -1333,7 +1333,7 @@ def main() -> None:
     accepted(
         program,
         "assignments-to-writable-places",
-        b"data P { x: u8; }\nmachine f(mut count: u8, p: &mut P, a: &mut [u8; 2]) -> u8 {\n"
+        b"data P { x: u8; }\nmachine f(mut count: u8, p: @mut P, a: @mut [u8; 2]) -> u8 {\n"
         b"    let mut local: P = P { x: 1 };\n    count = 2;\n    local.x = 3;\n    p.x = 4;\n    a[0] = 5;\n    count\n}",
         ((b"count!3", "u8"),),
     )
@@ -1354,7 +1354,7 @@ def main() -> None:
     rejected(
         program,
         "assignment-through-shared-reference",
-        b"data P { x: u8; }\nmachine f(p: &P) -> u8 { p.x = 2; 0 }",
+        b"data P { x: u8; }\nmachine f(p: @P) -> u8 { p.x = 2; 0 }",
         "ImmutablePlace",
         b"p.x",
     )
@@ -1368,45 +1368,45 @@ def main() -> None:
         program,
         "write-only-borrows-form-from-writable-places",
         b"data P { x: u8; }\n"
-        b"machine replace(d: &write u8, v: u8) { d = v; }\n"
-        b"machine f(mut count: u8, p: &mut P, w: &write P) -> u8 {\n"
+        b"machine replace(d: @write u8, v: u8) { d = v; }\n"
+        b"machine f(mut count: u8, p: @mut P, w: @write P) -> u8 {\n"
         b"    let mut local: P = P { x: 1 };\n"
-        b"    replace(&write count, 2);\n    replace(&write local.x, 3);\n    replace(&write p.x, 4);\n"
-        b"    replace(&write w.x, 5);\n    w.x = 6;\n    let whole: &write P = &write local;\n    count\n}",
-        ((b"&write count", "&write u8"), (b"&write p.x", "&write u8"), (b"&write w.x", "&write u8"), (b"&write local!2", "&write D0")),
+        b"    replace(@write count, 2);\n    replace(@write local.x, 3);\n    replace(@write p.x, 4);\n"
+        b"    replace(@write w.x, 5);\n    w.x = 6;\n    let whole: @write P = @write local;\n    count\n}",
+        ((b"@write count", "@write u8"), (b"@write p.x", "@write u8"), (b"@write w.x", "@write u8"), (b"@write local!2", "@write D0")),
     )
     rejected(
         program,
         "write-only-borrow-through-shared-reference",
-        b"data P { x: u8; }\nmachine replace(d: &write u8, v: u8) { d = v; }\nmachine f(p: &P) { replace(&write p.x, 1); }",
+        b"data P { x: u8; }\nmachine replace(d: @write u8, v: u8) { d = v; }\nmachine f(p: @P) { replace(@write p.x, 1); }",
         "ImmutablePlace",
         b"p.x",
     )
     rejected(
         program,
         "write-only-borrow-of-immutable-local",
-        b"machine replace(d: &write u8, v: u8) { d = v; }\nmachine f() { let x: u8 = 0; replace(&write x, 1); }",
+        b"machine replace(d: @write u8, v: u8) { d = v; }\nmachine f() { let x: u8 = 0; replace(@write x, 1); }",
         "ImmutablePlace",
         b"x!2",
     )
     rejected(
         program,
         "a-write-only-destination-needs-a-write-only-borrow",
-        b"machine replace(d: &write u8, v: u8) { d = v; }\nmachine f(m: &mut u8) { replace(&mut m, 1); }",
+        b"machine replace(d: @write u8, v: u8) { d = v; }\nmachine f(m: @mut u8) { replace(@mut m, 1); }",
         "ImplicitAttenuation",
-        b"&mut m",
+        b"@mut m",
     )
     rejected(
         program,
         "a-write-only-reference-forwards-only-by-borrow",
-        b"machine replace(d: &write u8, v: u8) { d = v; }\nmachine f(sink: &write u8) { replace(sink, 1); }",
+        b"machine replace(d: @write u8, v: u8) { d = v; }\nmachine f(sink: @write u8) { replace(sink, 1); }",
         "ImplicitAttenuation",
         b"sink!2",
     )
     rejected(
         program,
         "a-write-only-reference-does-not-read",
-        b"machine f(sink: &write u8) -> u8 { sink }",
+        b"machine f(sink: @write u8) -> u8 { sink }",
         "MismatchedTypes",
         b"sink!2",
     )
@@ -1417,7 +1417,7 @@ def main() -> None:
         b"domain [u8; 2]::Utf8 requires valid_utf8(self);\n"
         b"domain [u8]::Utf8 requires valid_utf8(self);\n"
         b"data M { line: [u8; 2] in Utf8; raw: [u8; 2]; }\n"
-        b"machine f(m: &mut M, view: &[u8] in Utf8) -> bool {\n"
+        b"machine f(m: @mut M, view: @[u8] in Utf8) -> bool {\n"
         b"    m.line = \"ok\";\n    m.raw = \"hi\";\n    let local: [u8; 2] in Utf8 = \"go\";\n"
         b"    m.line == \"ok\" && view == \"ok\" && m.line.len == 2\n}",
         ((b"m.line == \"ok\"", "bool"), (b"m.line.len", "u64")),
@@ -1429,7 +1429,7 @@ def main() -> None:
             "qualified-quoted-width-" + str(len(literal) - 2),
             b"domain [u8; 2]::Utf8 requires valid_utf8(self);\n"
             b"data M { line: [u8; 2] in Utf8; }\n"
-            b"machine f(m: &mut M) { m.line = " + literal + b"; }",
+            b"machine f(m: @mut M) { m.line = " + literal + b"; }",
             "MismatchedTypes",
             literal,
         )
@@ -1486,7 +1486,7 @@ def main() -> None:
     rejected(
         program,
         "a-write-only-reference-is-not-shared",
-        b"machine take(v: &u8) {}\nmachine f(sink: &write u8) { take(sink); }",
+        b"machine take(v: @u8) {}\nmachine f(sink: @write u8) { take(sink); }",
         "NoMatchingMachine",
         b"take(sink)",
     )
@@ -1553,24 +1553,24 @@ def main() -> None:
     # call evaluated between them may change what the later guard reads, so
     # `cell == false` can fail after `cell == true` failed. A pair that
     # finishes before the call, or starts after it, still covers.
-    flip = b"machine flip(value: &mut bool) -> bool { value = false; false }\n"
+    flip = b"machine flip(value: @mut bool) -> bool { value = false; false }\n"
     rejected(
         program,
         "a-call-between-complementary-guards-uncovers-them",
-        flip + b"machine f(value: &mut bool) { transition { value == true -> g() flip(value) == true -> g() value == false -> g() } machine g() {} }",
+        flip + b"machine f(value: @mut bool) { transition { value == true -> g() flip(value) == true -> g() value == false -> g() } machine g() {} }",
         "UncoveredDispatch",
         b"transition { value == true -> g() flip(value) == true -> g() value == false -> g() }",
     )
     accepted(
         program,
         "complementary-guards-before-a-call-cover",
-        flip + b"machine f(value: &mut bool) { transition { value == true -> g() value == false -> g() flip(value) == true -> g() } machine g() {} }",
+        flip + b"machine f(value: @mut bool) { transition { value == true -> g() value == false -> g() flip(value) == true -> g() } machine g() {} }",
         (),
     )
     accepted(
         program,
         "complementary-guards-after-a-call-cover",
-        flip + b"machine f(value: &mut bool) { transition { flip(value) == true -> g() value == true -> g() value == false -> g() } machine g() {} }",
+        flip + b"machine f(value: @mut bool) { transition { flip(value) == true -> g() value == true -> g() value == false -> g() } machine g() {} }",
         (),
     )
     accepted(
@@ -1620,7 +1620,7 @@ def main() -> None:
     accepted(
         program,
         "case-membership",
-        b"data O { case None; case Some(value: u8); }\nmachine f(o: &O) -> bool { o in O::None }",
+        b"data O { case None; case Some(value: u8); }\nmachine f(o: @O) -> bool { o in O::None }",
         ((b"o in O::None", "bool"),),
     )
     accepted(
@@ -1809,14 +1809,14 @@ def main() -> None:
     accepted(
         program,
         "assignment-through-an-exclusive-loan",
-        b"data P { x: u8; }\nmachine set(n: &mut u64, p: &mut P) { n = 99; p = P { x: 1 }; }",
+        b"data P { x: u8; }\nmachine set(n: @mut u64, p: @mut P) { n = 99; p = P { x: 1 }; }",
         ((b"99", "u64"), (b"P { x: 1 }", "D0")),
         adaptations=((b"99", "landed"),),
     )
     rejected(
         program,
         "assignment-through-a-shared-loan",
-        b"machine set(n: &u64) { n = 99; }",
+        b"machine set(n: @u64) { n = 99; }",
         "ImmutablePlace",
         b"n!3",
     )
@@ -1836,10 +1836,10 @@ def main() -> None:
     accepted(
         program,
         "range-slices-are-slice-places",
-        b"machine see(v: &[u8]) {}\nmachine fill(v: &mut [u8]) {}\n"
-        b"machine f(a: &[u8; 8], b: &mut [u8; 8], c: &[u16], i: u32) {\n"
-        b"    see(a[1..3]);\n    fill(&mut b[..2]);\n    let d: &[u16] = &c[i..];\n    see(a[..=5]);\n}",
-        ((b"a[1..3]", "[u8]"), (b"b[..2]", "[u8]"), (b"&mut b[..2]", "&mut [u8]"), (b"c[i..]", "[u16]"),
+        b"machine see(v: @[u8]) {}\nmachine fill(v: @mut [u8]) {}\n"
+        b"machine f(a: @[u8; 8], b: @mut [u8; 8], c: @[u16], i: u32) {\n"
+        b"    see(a[1..3]);\n    fill(@mut b[..2]);\n    let d: @[u16] = @c[i..];\n    see(a[..=5]);\n}",
+        ((b"a[1..3]", "[u8]"), (b"b[..2]", "[u8]"), (b"@mut b[..2]", "@mut [u8]"), (b"c[i..]", "[u16]"),
          (b"1..3", "()"), (b"3!2", "u64"), (b"a[..=5]", "[u8]")),
         adaptations=((b"a[1..3]", "lent"),),
     )
@@ -1848,16 +1848,16 @@ def main() -> None:
     accepted(
         program,
         "range-slice-views-at-any-shared-destination",
-        b"data Sample { bytes: &[u8]; }\n"
-        b"machine f(a: &[u8; 8]) -> u64 {\n"
-        b"    let view: &[u8] = a[1..3];\n    let sample: Sample = Sample { bytes: a[..2] };\n    view.len\n}",
+        b"data Sample { bytes: @[u8]; }\n"
+        b"machine f(a: @[u8; 8]) -> u64 {\n"
+        b"    let view: @[u8] = a[1..3];\n    let sample: Sample = Sample { bytes: a[..2] };\n    view.len\n}",
         ((b"a[1..3]", "[u8]"), (b"a[..2]", "[u8]")),
         adaptations=((b"a[1..3]", "lent"), (b"a[..2]", "lent")),
     )
     rejected(
         program,
         "only-a-range-slice-lends-implicitly",
-        b"machine f(owned: [u8; 8]) -> u64 { let view: &[u8; 8] = owned; 0 }",
+        b"machine f(owned: [u8; 8]) -> u64 { let view: @[u8; 8] = owned; 0 }",
         "MismatchedTypes",
         b"owned!2",
     )
@@ -1885,19 +1885,19 @@ def main() -> None:
     accepted(
         program,
         "reference-reads-its-scalar",
-        b"machine read(value: &u8) -> u8 { value }\n"
-        b"machine bump(count: &mut u64) { count = ((count as u64 in Wrapping) + 1) as u64; }\n"
-        b"machine above(count: &u64) -> bool { count > 3 }\n"
-        b"machine flip(flag: &bool) -> bool { !flag }\n"
-        b"machine pick(items: &[u8; 4], at: &u64) -> u8 { items[at] }",
-        ((b"value!2", "&u8"), (b"count as u64 in Wrapping", "u64 in Wrapping"), (b"count > 3", "bool"),
+        b"machine read(value: @u8) -> u8 { value }\n"
+        b"machine bump(count: @mut u64) { count = ((count as u64 in Wrapping) + 1) as u64; }\n"
+        b"machine above(count: @u64) -> bool { count > 3 }\n"
+        b"machine flip(flag: @bool) -> bool { !flag }\n"
+        b"machine pick(items: @[u8; 4], at: @u64) -> u8 { items[at] }",
+        ((b"value!2", "@u8"), (b"count as u64 in Wrapping", "u64 in Wrapping"), (b"count > 3", "bool"),
          (b"items[at]", "u8")),
         adaptations=((b"value!2", "read"),),
     )
     rejected(
         program,
         "only-a-scalar-reads-through-a-reference",
-        b"data Token { x: u64; }\nmachine f(token: &Token) -> Token { token }",
+        b"data Token { x: u64; }\nmachine f(token: @Token) -> Token { token }",
         "MismatchedTypes",
         b"token!2",
     )
@@ -1908,43 +1908,43 @@ def main() -> None:
     accepted(
         program,
         "array-references-view-as-slices",
-        b"machine see(v: &[u8]) {}\nmachine fill(v: &mut [u8]) {}\n"
-        b"machine f(a: [u8; 4], b: &mut [u8; 4]) {\n"
-        b"    see(&a);\n    fill(b);\n    see(b);\n    let held: &mut [u8] = &mut b[1..3];\n    fill(held);\n}",
-        ((b"&a", "&[u8; 4]"), (b"b[1..3]", "[u8]"), (b"&mut b[1..3]", "&mut [u8]")),
+        b"machine see(v: @[u8]) {}\nmachine fill(v: @mut [u8]) {}\n"
+        b"machine f(a: [u8; 4], b: @mut [u8; 4]) {\n"
+        b"    see(@a);\n    fill(b);\n    see(b);\n    let held: @mut [u8] = @mut b[1..3];\n    fill(held);\n}",
+        ((b"@a", "@[u8; 4]"), (b"b[1..3]", "[u8]"), (b"@mut b[1..3]", "@mut [u8]")),
     )
     rejected(
         program,
         "a-bare-range-never-lends-exclusively",
-        b"machine f(b: &mut [u8; 4]) { let held: &mut [u8] = b[1..3]; }",
+        b"machine f(b: @mut [u8; 4]) { let held: @mut [u8] = b[1..3]; }",
         "MismatchedTypes",
         b"b[1..3]",
     )
     rejected(
         program,
         "a-bare-range-argument-never-lends-exclusively",
-        b"machine fill(v: &mut [u8]) {}\nmachine f(b: &mut [u8; 4]) { fill(b[1..3]); }",
+        b"machine fill(v: @mut [u8]) {}\nmachine f(b: @mut [u8; 4]) { fill(b[1..3]); }",
         "NoMatchingMachine",
         b"fill(b[1..3])",
     )
     rejected(
         program,
         "an-exclusive-slice-needs-an-exclusive-reference",
-        b"machine f(a: &[u8; 4]) { let held: &mut [u8] = &mut a[1..3]; }",
+        b"machine f(a: @[u8; 4]) { let held: @mut [u8] = @mut a[1..3]; }",
         "ImmutablePlace",
         b"a[1..3]",
     )
     rejected(
         program,
         "a-shared-field-is-not-lent-exclusively",
-        b"data H { items: [u8; 4]; }\nmachine fill(v: &mut [u8]) {}\nmachine f(h: &H) { fill(&mut h.items[1..3]); }",
+        b"data H { items: [u8; 4]; }\nmachine fill(v: @mut [u8]) {}\nmachine f(h: @H) { fill(@mut h.items[1..3]); }",
         "ImmutablePlace",
         b"h.items[1..3]",
     )
     rejected(
         program,
         "range-endpoint-is-an-index",
-        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 8]) { see(a[true..]); }",
+        b"machine see(v: @[u8]) {}\nmachine f(a: @[u8; 8]) { see(a[true..]); }",
         "NonIntegerIndex",
         b"true",
     )
@@ -2176,7 +2176,7 @@ def main() -> None:
     nested_machine_cases(program)
     visible_overload_cases(program)
 
-    determinism = b"data P { x: u8; }\nmachine f(p: &P) -> u16 { p.x as u16 + 1 }"
+    determinism = b"data P { x: u8; }\nmachine f(p: @P) -> u16 { p.x as u16 + 1 }"
     first = run(program, determinism)
     second = run(program, determinism)
     assert first == second, "determinism"

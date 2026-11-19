@@ -12,21 +12,21 @@ public data Tokens {
 // Parse only the prefix actually supplied by Console. One line is one request.
 // Grammar: unsigned decimals <=99, separated by ASCII whitespace. Negative,
 // oversized, non-decimal and excess tokens fail before scheduling begins.
-public machine parse(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens) -> bool {
+public machine parse(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens) -> bool {
     tokens.values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     tokens.count = 0;
     transition length >= 0 && length <= 256 {
         true -> scan(text, length, tokens, 0, 0, false)
         _ -> false
     }
-    machine scan(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens,
+    machine scan(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens,
                position: i32 in Wrapping, value: i32 in Wrapping, active: bool) -> bool {
         transition position >= 0 && position < length && position < 256 {
             true -> byte(text, length, tokens, position, value, active)
             _ -> finish(tokens, value, active)
         }
     }
-    machine byte(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens,
+    machine byte(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens,
                position: i32 in Wrapping, value: i32 in Wrapping, active: bool) -> bool {
         let observed: i32 in Wrapping = text.bytes[position] as i32 in Wrapping;
         transition observed >= 48 && observed <= 57 {
@@ -34,14 +34,14 @@ public machine parse(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens)
             _ -> separator(text, length, tokens, position, value, active, observed)
         }
     }
-    machine digit(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens,
+    machine digit(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens,
                 position: i32 in Wrapping, value: i32 in Wrapping) -> bool {
         transition value <= 99 {
             true -> scan(text, length, tokens, position + 1, value, true)
             _ -> false
         }
     }
-    machine separator(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens,
+    machine separator(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens,
                     position: i32 in Wrapping, value: i32 in Wrapping,
                     active: bool, observed: i32 in Wrapping) -> bool {
         transition observed == 32 || observed == 9 || observed == 10 || observed == 13 {
@@ -49,46 +49,46 @@ public machine parse(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens)
             _ -> false
         }
     }
-    machine flush(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens,
+    machine flush(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens,
                 position: i32 in Wrapping, value: i32 in Wrapping, active: bool) -> bool {
         transition active {
             true -> store(text, length, tokens, position, value)
             _ -> scan(text, length, tokens, position + 1, 0, false)
         }
     }
-    machine store(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens,
+    machine store(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens,
                 position: i32 in Wrapping, value: i32 in Wrapping) -> bool {
         transition tokens.count >= 0 && tokens.count < 19 {
             true -> write(text, length, tokens, position, value)
             _ -> false
         }
     }
-    machine write(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens,
+    machine write(text: @Input, length: i32 in Wrapping, tokens: @mut Tokens,
                 position: i32 in Wrapping, value: i32 in Wrapping) -> bool {
         tokens.values[tokens.count] = value;
         tokens.count = tokens.count + 1;
         transition { _ -> scan(text, length, tokens, position + 1, 0, false) }
     }
-    machine finish(tokens: &mut Tokens, value: i32 in Wrapping, active: bool) -> bool {
+    machine finish(tokens: @mut Tokens, value: i32 in Wrapping, active: bool) -> bool {
         transition active {
             true -> last(tokens, value)
             _ -> true
         }
     }
-    machine last(tokens: &mut Tokens, value: i32 in Wrapping) -> bool {
+    machine last(tokens: @mut Tokens, value: i32 in Wrapping) -> bool {
         transition tokens.count >= 0 && tokens.count < 19 {
             true -> last_write(tokens, value)
             _ -> false
         }
     }
-    machine last_write(tokens: &mut Tokens, value: i32 in Wrapping) -> bool {
+    machine last_write(tokens: @mut Tokens, value: i32 in Wrapping) -> bool {
         tokens.values[tokens.count] = value;
         tokens.count = tokens.count + 1;
         transition { _ -> true }
     }
 }
 
-public machine decode(tokens: &Tokens, problem: &mut Problem) -> bool {
+public machine decode(tokens: @Tokens, problem: @mut Problem) -> bool {
     problem.count = tokens.values[0];
     problem.capacity_a = tokens.values[1];
     problem.capacity_b = tokens.values[2];
@@ -102,26 +102,26 @@ public machine decode(tokens: &Tokens, problem: &mut Problem) -> bool {
         true -> size(tokens, problem)
         _ -> false
     }
-    machine size(tokens: &Tokens, problem: &mut Problem) -> bool {
+    machine size(tokens: @Tokens, problem: @mut Problem) -> bool {
         transition tokens.count == 3 + 4 * problem.count {
             true -> task(tokens, problem, 0)
             _ -> false
         }
     }
-    machine task(tokens: &Tokens, problem: &mut Problem, index: i32 in Wrapping) -> bool {
+    machine task(tokens: @Tokens, problem: @mut Problem, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < problem.count && index < 4 {
             true -> position(tokens, problem, index, 3 + 4 * index)
             _ -> true
         }
     }
-    machine position(tokens: &Tokens, problem: &mut Problem, index: i32 in Wrapping,
+    machine position(tokens: @Tokens, problem: @mut Problem, index: i32 in Wrapping,
                    offset: i32 in Wrapping) -> bool {
         transition offset >= 0 && offset < 16 && index >= 0 && index < 4 {
             true -> load(tokens, problem, index, offset)
             _ -> false
         }
     }
-    machine load(tokens: &Tokens, problem: &mut Problem, index: i32 in Wrapping,
+    machine load(tokens: @Tokens, problem: @mut Problem, index: i32 in Wrapping,
                offset: i32 in Wrapping) -> bool {
         problem.durations[index] = tokens.values[offset];
         problem.demand_a[index] = tokens.values[offset + 1];
@@ -135,7 +135,7 @@ public machine decode(tokens: &Tokens, problem: &mut Problem) -> bool {
             _ -> false
         }
     }
-    machine mask(problem: &mut Problem, tokens: &Tokens, index: i32 in Wrapping) -> bool {
+    machine mask(problem: @mut Problem, tokens: @Tokens, index: i32 in Wrapping) -> bool {
         let self_edge: bool = predecessor(problem.predecessors[index], index);
         let count: i32 in Wrapping = problem.count;
         transition self_edge {
@@ -143,14 +143,14 @@ public machine decode(tokens: &Tokens, problem: &mut Problem) -> bool {
             _ -> outside(problem, tokens, index, count)
         }
     }
-    machine outside(problem: &mut Problem, tokens: &Tokens, index: i32 in Wrapping,
+    machine outside(problem: @mut Problem, tokens: @Tokens, index: i32 in Wrapping,
                   other: i32 in Wrapping) -> bool {
         transition other >= 0 && other < 4 && index >= 0 && index < 4 {
             true -> check_bit(problem, tokens, index, other)
             _ -> task(tokens, problem, index + 1)
         }
     }
-    machine check_bit(problem: &mut Problem, tokens: &Tokens, index: i32 in Wrapping,
+    machine check_bit(problem: @mut Problem, tokens: @Tokens, index: i32 in Wrapping,
                     other: i32 in Wrapping) -> bool {
         let exists: bool = predecessor(problem.predecessors[index], other);
         transition exists {

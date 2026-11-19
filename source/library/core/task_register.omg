@@ -8,7 +8,7 @@
 
 public boundary trait TaskRegisterControl {
     machine activate<const Entries: u64>(
-        gdt: &mut [u64; Entries], task_state: &[u8; 104], selector: u16
+        gdt: @mut [u64; Entries], task_state: @[u8; 104], selector: u16
     ) -> bool
     requires Entries >= 2 && Entries <= 8192
     reaches MachineControl
@@ -20,13 +20,13 @@ public boundary trait TaskRegisterControl {
 // Build selects the implementation. This native implementation requires x86-64.
 public X86TaskRegisterControl satisfies TaskRegisterControl {
     machine activate<const Entries: u64>(
-        gdt: &mut [u64; Entries], task_state: &[u8; 104], selector: u16
+        gdt: @mut [u64; Entries], task_state: @[u8; 104], selector: u16
     ) -> bool
     requires Entries >= 2 && Entries <= 8192
     reaches MachineControl
     {
         let mut observed: [u8; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        activate_task_register<Entries>(gdt, task_state, selector, &mut observed) == 1
+        activate_task_register<Entries>(gdt, task_state, selector, @mut observed) == 1
     }
 
     machine selector() -> u16 reaches MachineControl {
@@ -38,8 +38,8 @@ public X86TaskRegisterControl satisfies TaskRegisterControl {
 // correspondence, and executes LTR only on success. False changes neither TR
 // nor the GDT. Scratch is ordinary owned storage, not a supplied CPU snapshot.
 boundary machine activate_task_register<const Entries: u64>(
-    gdt: &mut [u64; Entries], task_state: &[u8; 104], selector: u16,
-    scratch: &mut [u8; 10]
+    gdt: @mut [u64; Entries], task_state: @[u8; 104], selector: u16,
+    scratch: @mut [u8; 10]
 ) -> u8
 reaches MachineControl;
 

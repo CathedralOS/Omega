@@ -1,7 +1,7 @@
 use omega::language::core::DllImport;
 use omega::language::core::ForeignBinding;
 use omega::language::core::ProcessExit;
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::package(builder, "omega_language_std");
     configure_clock(builder);
     configure_filesystem_providers(builder);
@@ -82,7 +82,7 @@ machine build(builder: &mut Build) {
 // say which one backs each requirement on which target. The portable
 // `FilesystemService` sits on the POSIX or Windows raw service, and each
 // POSIX target supplies its own kernel adapters and record layouts.
-machine configure_filesystem_providers(builder: &mut Build) {
+machine configure_filesystem_providers(builder: @mut Build) {
     Build::select_provider<FilesystemService, FilesystemPosixProvider>(builder, linux_x86_64);
     Build::select_provider<FilesystemService, FilesystemPosixProvider>(builder, linux_arm64);
     Build::select_provider<FilesystemService, FilesystemPosixProvider>(builder, macos_arm64);
@@ -100,7 +100,7 @@ machine configure_filesystem_providers(builder: &mut Build) {
 // Package-local raw supply follows the checked provider closure. Applications
 // use Clock without repeating imports or naming the dependency's private seams.
 // Forward the activation's original Build value through this ordinary helper.
-machine configure_clock(builder: &mut Build) {
+machine configure_clock(builder: @mut Build) {
     Build::select_provider<Clock, WindowsX8664Clock>(builder, windows_x86_64);
     Build::bind<WindowsClockWait::sleep>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
@@ -124,7 +124,7 @@ machine configure_clock(builder: &mut Build) {
 
 // TimeHost owns one target-keyed provider map and its package-local raw supply.
 // Ordinary helpers keep the activation's original mutable Build value.
-machine configure_time_host(builder: &mut Build) {
+machine configure_time_host(builder: @mut Build) {
     Build::bind<WindowsTimeRead::query_performance_counter>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "QueryPerformanceCounter"
@@ -175,7 +175,7 @@ machine configure_time_host(builder: &mut Build) {
 // The raw Windows filesystem requirements are backed here; their traits carry
 // every contract, so no forwarding declaration restates one. Several requirements
 // share a DLL function and differ only in the contract they promise.
-machine configure_windows_filesystem(builder: &mut Build) {
+machine configure_windows_filesystem(builder: @mut Build) {
     Build::bind<WindowsFilesystemDirectoryIo::next_name>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "ntdll.dll", export: "NtQueryDirectoryFile"
@@ -350,7 +350,7 @@ machine configure_windows_filesystem(builder: &mut Build) {
 // here; the boundary traits carry every contract, so no forwarding declaration
 // restates one. Darwin's filesystem provider reads `errno` through the same
 // `PosixErrno::slot` row.
-machine configure_posix_canonical(builder: &mut Build) {
+machine configure_posix_canonical(builder: @mut Build) {
     Build::bind<PosixCanonicalLibc::resolve>(builder, linux_x86_64,
         ForeignBinding::DllImport { import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.3"
@@ -381,7 +381,7 @@ machine configure_posix_canonical(builder: &mut Build) {
 // target binds its own system call numbers. Byte-view requirements carry the
 // per-target calling convention in their boundary trait, so the same member
 // names bind different traits on x86_64 and arm64.
-machine configure_posix_filesystem(builder: &mut Build) {
+machine configure_posix_filesystem(builder: @mut Build) {
     Build::bind<PosixFilesystemLinux::openat>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 257 });
     Build::bind<PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
@@ -497,7 +497,7 @@ machine configure_posix_filesystem(builder: &mut Build) {
 
 // The Darwin POSIX filesystem requirements resolve against libSystem; every
 // member shares one install name and keeps its authored Mach-O symbol.
-machine configure_posix_filesystem_darwin(builder: &mut Build) {
+machine configure_posix_filesystem_darwin(builder: @mut Build) {
     Build::bind<PosixFilesystemDarwin::c_open>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_open"
@@ -641,7 +641,7 @@ machine configure_posix_filesystem_darwin(builder: &mut Build) {
 }
 
 // Console providers and raw host bindings are selected for each hosted target.
-machine configure_console(builder: &mut Build) {
+machine configure_console(builder: @mut Build) {
     Build::bind<WindowsConsoleIo::write>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_write"
@@ -688,7 +688,7 @@ machine configure_console(builder: &mut Build) {
 
 // Win32 GUI leaves: window and message pumps on user32, device-context and
 // client-rectangle reads on user32, and bitmap presentation on gdi32.
-machine configure_windows_gui(builder: &mut Build) {
+machine configure_windows_gui(builder: @mut Build) {
     Build::bind<WindowsGuiIo::create_window>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "user32.dll", export: "CreateWindowExA"
@@ -743,7 +743,7 @@ machine configure_windows_gui(builder: &mut Build) {
         } });
 }
 
-machine configure_macos_gui(builder: &mut Build) {
+machine configure_macos_gui(builder: @mut Build) {
     Build::bind<AppKit::load>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/AppKit.framework/AppKit",
@@ -783,7 +783,7 @@ machine configure_macos_gui(builder: &mut Build) {
 
 // Native object storage belongs to the image module; the original Build value
 // records its exact requirements and locators for the macOS deployment target.
-machine configure_macos_image(builder: &mut Build) {
+machine configure_macos_image(builder: @mut Build) {
     Build::bind<MacosImageData::copy>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
@@ -818,7 +818,7 @@ machine configure_macos_image(builder: &mut Build) {
 
 // Select the checked no-return wrapper. Its authenticated core primitive owns
 // full-process completion; selecting it grants no exit authority.
-machine configure_process_exit(builder: &mut Build) {
+machine configure_process_exit(builder: @mut Build) {
     Build::select_provider<ProcessExit, NativeProcessExit>(builder, windows_x86_64);
     Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_x86_64);
     Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_arm64);

@@ -18,20 +18,20 @@ data Main {
     audit: Audit;
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
-    block read(&mut main.input);
-    validate(&mut main.input);
+machine main(main: @mut Main) reaches ProcessExit + Console {
+    block read(@mut main.input);
+    validate(@mut main.input);
     transition main.input.valid {
         true -> calculate(main)
         false -> invalid(main)
     }
-    machine calculate(main: &mut Main) {
-        prepare(&mut main.audit, &main.input);
-        count(&mut main.audit);
-        write(&mut main.audit);
+    machine calculate(main: @mut Main) {
+        prepare(@mut main.audit, @main.input);
+        count(@mut main.audit);
+        write(@mut main.audit);
         ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) {
+    machine invalid(main: @mut Main) {
         Console::write_line("ERROR: expected exponent(1|2) C(1..1000) count(2..16) and count loads(0..9), at most 256 bytes");
         ProcessExit::exit_process(64);
     }
@@ -40,5 +40,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

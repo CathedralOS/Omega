@@ -10,7 +10,7 @@ data BoxedSlot {
     value: u64 in SlotDomain;
 }
 
-machine initialize_slot(destination: &write BoxedSlot) {
+machine initialize_slot(destination: @write BoxedSlot) {
     destination.value = 100u64;
 }
 
@@ -20,7 +20,7 @@ ensures
     forwarded - 100u64
 }
 
-machine forward_slot(slot: &BoxedSlot) -> u64
+machine forward_slot(slot: @BoxedSlot) -> u64
 ensures
     result == 0u64 {
     evaluate_slot(slot.value)
@@ -30,8 +30,8 @@ machine probe() -> u64
 ensures
     result == 0u64 {
     let mut slot: BoxedSlot = BoxedSlot { value: 100u64 };
-    initialize_slot(&write slot);
-    forward_slot(&slot)
+    initialize_slot(@write slot);
+    forward_slot(@slot)
 }
 
 machine main() crashes Trap {

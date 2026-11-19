@@ -3,7 +3,7 @@
 // library, so this artifact cannot terminate cleanly; it is a compile-scope
 // subject measured with --no-run.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "standalone");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

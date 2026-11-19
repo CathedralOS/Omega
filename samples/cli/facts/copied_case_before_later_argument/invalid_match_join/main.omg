@@ -3,7 +3,7 @@
 // Expected exit: 0
 data Slot [copy] { case Absent; case Present(value: u64); }
 
-machine set_to_absent(slot: &mut Slot) -> u64 {
+machine set_to_absent(slot: @mut Slot) -> u64 {
     slot = Slot::Absent {};
     0
 }
@@ -27,7 +27,7 @@ machine exercise(flag: bool) crashes Trap {
         false -> Joined { chosen: Slot::Absent {}, route: 23 }
     };
     let mut chosen: Slot = joined.chosen;
-    let observed: u64 = read_payload(chosen, set_to_absent(&mut chosen));
+    let observed: u64 = read_payload(chosen, set_to_absent(@mut chosen));
     transition observe_replacement(observed, chosen) == 7
         && ((flag == true && joined.route == 17) || (flag == false && joined.route == 23)) {
         true -> done()

@@ -34,7 +34,7 @@ data Main {
 }
 
 // Probe A: i32 slice accumulation.
-machine Walker::sum_ints(walker: &mut Walker, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+machine Walker::sum_ints(walker: @mut Walker, s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
@@ -44,7 +44,7 @@ terminates by s -> Slice::Length
 }
 
 // Probe B: struct slice accumulation using s[0].value.
-machine Walker::sum_entries(walker: &mut Walker, s: &[Entry], acc: i32 in Wrapping) -> i32
+machine Walker::sum_entries(walker: @mut Walker, s: @[Entry], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
@@ -53,7 +53,7 @@ terminates by s -> Slice::Length
     }
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("slice_accum_probe: tail-recursive accumulation over i32 and struct slices");
     main.ints[0] = 8;
     main.ints[1] = 12;
@@ -72,43 +72,43 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     main.entries[6].value = 10;
 
     // Probe A.
-    let si: &[i32 in Wrapping] = &main.ints[..];
-    let a: i32 = Walker::sum_ints(&mut main.walker, si, 0);
+    let si: @[i32 in Wrapping] = @main.ints[..];
+    let a: i32 = Walker::sum_ints(@mut main.walker, si, 0);
 
     // Probe B.
-    let se: &[Entry] = &main.entries[..];
-    let b: i32 = Walker::sum_entries(&mut main.walker, se, 0);
+    let se: @[Entry] = @main.entries[..];
+    let b: i32 = Walker::sum_entries(@mut main.walker, se, 0);
 
     transition a == 70 {
         true -> check_b(main, b)
         _ -> bad_a(main)
     }
 
-    machine bad_a(main: &mut Main) {
+    machine bad_a(main: @mut Main) {
         Console::write_line("FAIL: probe A (i32 slice) sum did not equal 70 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(71);
     }
 
-    machine check_b(main: &mut Main, b: i32) {
+    machine check_b(main: @mut Main, b: i32) {
         transition b == 70 {
             true -> good(main)
             _ -> bad_b(main)
         }
     }
 
-    machine bad_b(main: &mut Main) {
+    machine bad_b(main: @mut Main) {
         Console::write_line("FAIL: probe B (struct slice) sum did not equal 70 (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(72);
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: both slice accumulations summed to 70 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(70);
     }
 }
@@ -116,5 +116,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block Main::main(@mut entry_storage);
 }

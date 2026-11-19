@@ -17,33 +17,33 @@ domain [u8; 4]::Utf8
 requires
     valid_utf8(self);
 
-machine head(bytes: &[u8; 4]) -> u8 {
+machine head(bytes: @[u8; 4]) -> u8 {
     transition { _ -> (bytes[0]) }
 }
 
-machine spells_gate(bytes: &[u8]) -> bool {
+machine spells_gate(bytes: @[u8]) -> bool {
     transition { _ -> (bytes.len == 4 && bytes == "gate") }
 }
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let mut plain: [u8; 4] = "GATE";
     let text: [u8; 4] in Utf8 = "gate";
     let last: u8 = plain[3];
-    let top: u8 = head(&plain);
-    let gate: bool = spells_gate(&text[..]);
+    let top: u8 = head(@plain);
+    let gate: bool = spells_gate(@text[..]);
     transition last == 69 && top == 71 && gate {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

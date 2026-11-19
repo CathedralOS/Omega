@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "qualified_boundary_input");
     Build::select_provider<ByteCount, CountBytes>(builder, windows_x86_64);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

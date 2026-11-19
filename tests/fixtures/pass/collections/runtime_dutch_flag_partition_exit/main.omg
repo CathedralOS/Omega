@@ -40,7 +40,7 @@ requires
     bp: u64;
     t: Color;
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.items[0] = Color::White;
     main.items[1] = Color::Blue;
     main.items[2] = Color::Red;
@@ -52,7 +52,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     // Loop head: partition until the white cursor meets the blue fence.
-    machine head(main: &mut Main) {
+    machine head(main: @mut Main) {
         transition main.w < main.b {
             true -> w_guard(main)
             _ -> check0(main)
@@ -61,14 +61,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 
     // Literal re-guard: dominates every items[main.w] access downstream
     // (classify, red_swap, blue_swap -- no state between rewrites w).
-    machine w_guard(main: &mut Main) {
+    machine w_guard(main: @mut Main) {
         transition main.w < 3 {
             true -> classify(main)
             _ -> confused(main, 96)
         }
     }
 
-    machine classify(main: &mut Main) {
+    machine classify(main: @mut Main) {
         transition main.items[main.w] {
             Color::Red -> r_guard(main)
             Color::White -> w_bump_guard(main)
@@ -76,7 +76,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine r_guard(main: &mut Main) {
+    machine r_guard(main: @mut Main) {
         transition main.r < 3 {
             true -> red_swap(main)
             _ -> confused(main, 97)
@@ -86,7 +86,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     // Red at the cursor: swap it into the red prefix, grow the prefix
     // (`r + 1` proves on the DIRECT edge from r_guard), then join the
     // white path to bump the cursor.
-    machine red_swap(main: &mut Main) {
+    machine red_swap(main: @mut Main) {
         main.t = main.items[main.r];
         main.items[main.r] = main.items[main.w];
         main.items[main.w] = main.t;
@@ -99,21 +99,21 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     // Re-guard before the increment: the bound must sit on the DIRECT edge
     // for the `+ 1` to prove (the bubble_sort `advance` idiom). Both the
     // red and white arms join here.
-    machine w_bump_guard(main: &mut Main) {
+    machine w_bump_guard(main: @mut Main) {
         transition main.w < 3 {
             true -> w_bump(main)
             _ -> confused(main, 95)
         }
     }
 
-    machine w_bump(main: &mut Main) {
+    machine w_bump(main: @mut Main) {
         main.w = main.w + 1;
         transition {
             _ -> head(main)
         }
     }
 
-    machine b_guard(main: &mut Main) {
+    machine b_guard(main: @mut Main) {
         transition main.b > 0 {
             true -> blue_swap(main)
             _ -> confused(main, 98)
@@ -124,7 +124,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     // The decremented fence lands in `bp`, whose DECLARED range [0..=2]
     // carries the index proof (the stored `b` itself would read back at
     // its wider [0..=3] range).
-    machine blue_swap(main: &mut Main) {
+    machine blue_swap(main: @mut Main) {
         main.bp = main.b - 1;
         main.t = main.items[main.w];
         main.items[main.w] = main.items[main.bp];
@@ -136,31 +136,31 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     // Verify [Red, White, Blue] element by element via case dispatch.
-    machine check0(main: &mut Main) {
+    machine check0(main: @mut Main) {
         transition main.items[0] {
             Color::Red -> check1(main)
             _ -> bad(main, 71)
         }
     }
-    machine check1(main: &mut Main) {
+    machine check1(main: @mut Main) {
         transition main.items[1] {
             Color::White -> check2(main)
             _ -> bad(main, 72)
         }
     }
-    machine check2(main: &mut Main) {
+    machine check2(main: @mut Main) {
         transition main.items[2] {
             Color::Blue -> good(main)
             _ -> bad(main, 73)
         }
     }
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         ProcessExit::exit_process(70);
     }
-    machine bad(main: &mut Main, code: i32) {
+    machine bad(main: @mut Main, code: i32) {
         ProcessExit::exit_process(code);
     }
-    machine confused(main: &mut Main, code: i32) {
+    machine confused(main: @mut Main, code: i32) {
         ProcessExit::exit_process(code);
     }
 }
@@ -168,5 +168,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -6,14 +6,14 @@ machine wrap<T>(value: T) -> Envelope<T> {
 }
 machine keep<U>(value: Envelope<U>) -> Envelope<U> { move value }
 machine relay<T>(value: Envelope<T>) -> Envelope<T> { keep<T>(move value) }
-machine inspect<U>(value: &Envelope<U>) -> bool {
+machine inspect<U>(value: @Envelope<U>) -> bool {
     value.before == 19u32 && value.after == 23u32
 }
-machine observe_record<T>(value: &Envelope<T>) {}
+machine observe_record<T>(value: @Envelope<T>) {}
 machine main() crashes Trap {
     let envelope: Envelope<Ticket> = wrap<Ticket>(Ticket { number: 29u64 });
     let wrapped: Envelope<Ticket> = relay<Ticket>(move envelope);
-    let neighbors: bool = inspect<Ticket>(&wrapped);
+    let neighbors: bool = inspect<Ticket>(@wrapped);
     let { before, item, after } = move wrapped;
     let { number } = move item;
     transition neighbors && before == 19u32 && number == 29u64 && after == 23u32 {

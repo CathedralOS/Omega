@@ -7,16 +7,16 @@ data Event {
     case Treasure(gold: u64);
 }
 
-machine tick(count: &mut u64) -> Bonus {
+machine tick(count: @mut u64) -> Bonus {
     count = ((count as u64 in Wrapping) + 1) as u64;
     Bonus { value: count }
 }
 
-machine observe(event: &Event) -> bool {
+machine observe(event: @Event) -> bool {
     event.omitted == 0 && event.details.value == 2
 }
 
-machine selected(enabled: bool, count: &mut u64) -> bool {
+machine selected(enabled: bool, count: @mut u64) -> bool {
     enabled && observe(Event::Treasure {
         gold: tick(count).value,
         details: tick(count)
@@ -25,8 +25,8 @@ machine selected(enabled: bool, count: &mut u64) -> bool {
 
 machine main() crashes Trap {
     let mut count: u64 = 0;
-    let skipped: bool = selected(false, &mut count);
-    let completed: bool = selected(true, &mut count);
+    let skipped: bool = selected(false, @mut count);
+    let completed: bool = selected(true, @mut count);
     transition skipped == false && completed && count == 2 {
         true -> done()
         _ -> bad()

@@ -17,7 +17,7 @@
 data Filter { keep: i32; }
 data Main { items: [i32; 3]; filter: Filter; }
 
-machine tally(buf: &mut [i32; 3], filter: &Filter) -> i32 in Wrapping {
+machine tally(buf: @mut [i32; 3], filter: @Filter) -> i32 in Wrapping {
     buf[2] = filter.keep;
     let a: i32 in Wrapping = buf[0] as i32 in Wrapping;
     let b: i32 in Wrapping = buf[1] as i32 in Wrapping;
@@ -29,11 +29,11 @@ machine consume(items: [i32; 3]) -> i32 {
     items[0]
 }
 
-machine Main::main(main: &mut Main) crashes Trap {
+machine Main::main(main: @mut Main) crashes Trap {
     main.items = [10, 20, 20];
     main.filter.keep = 20;
-    let sum: i32 in Wrapping = tally(&mut main.items, &main.filter);
-    let view: &[i32] = &main.items[..];
+    let sum: i32 in Wrapping = tally(@mut main.items, @main.filter);
+    let view: @[i32] = @main.items[..];
     let copied_first: i32 = consume(main.items);
     let seen: i32 = view[0];
     transition sum == 70 && copied_first == 10 && seen == 10 {
@@ -48,5 +48,5 @@ machine Main::main(main: &mut Main) crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -51,7 +51,7 @@ invokes Console
     machine invalid() { Console::write_line("ERROR numeric output range"); ProcessExit::exit_process(70); }
 }
 
-public machine report(tick: u64, tree: &ReflectionTree)
+public machine report(tick: u64, tree: @ReflectionTree)
 requires tick < 24
 reaches ProcessExit + Console
 invokes Console

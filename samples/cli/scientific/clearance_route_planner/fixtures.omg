@@ -6,7 +6,7 @@ public data Scene {
     obstacle_x: [i64 in Wrapping; 2]; obstacle_y: [i64 in Wrapping; 2];
     obstacle_count: i32 in Wrapping;
 }
-public machine load(scene: &mut Scene, variant: i32 in Wrapping) {
+public machine load(scene: @mut Scene, variant: i32 in Wrapping) {
     scene.x = [0,10,3,7,3,7]; scene.y = [5,5,1,1,9,9];
     scene.obstacle_x = [5,5]; scene.obstacle_y = [5,1];
     scene.obstacle_count = variant + 1;

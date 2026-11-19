@@ -6,24 +6,24 @@ use omega::language::core::CountedQuantity;
 data Units {}
 data Payload {}
 data Region [linear] dropped by cleanup_region { amount: u64; }
-machine cleanup_region(region: &mut Region) {}
+machine cleanup_region(region: @mut Region) {}
 domain Region::Owned;
-machine Owned::content(region: &Region) -> CountedQuantity<Units>
+machine Owned::content(region: @Region) -> CountedQuantity<Units>
 satisfies Content<Region, CountedQuantity<Units>>::project {
     CountedQuantity { magnitude: embed(region.amount) as Nat }
 }
 trait Transfer<T> {
     machine transfer(region: Region in Owned) -> Region in Owned
     ensures core::Identity<CountedQuantity<Units>>(
-        Owned::content(old(&region)),
-        Owned::content(&result)
+        Owned::content(old(@region)),
+        Owned::content(@result)
     );
 }
 ConservingTransfer satisfies Transfer<Payload> {
     machine transfer(region: Region in Owned) -> Region in Owned
     ensures core::Identity<CountedQuantity<Units>>(
-        Owned::content(old(&region)),
-        Owned::content(&result)
+        Owned::content(old(@region)),
+        Owned::content(@result)
     )
     { drop(region); Region { amount: 28 } }
 }

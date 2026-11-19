@@ -3,11 +3,11 @@
 // Expected exit: 0
 
 machine query_size() -> u64 {
-    size_of<&u64>()
+    size_of<@u64>()
 }
 
 machine query_align() -> u64 {
-    align_of<&u64>()
+    align_of<@u64>()
 }
 
 machine main() crashes Trap {

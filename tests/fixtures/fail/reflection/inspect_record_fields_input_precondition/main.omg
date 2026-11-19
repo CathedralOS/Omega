@@ -7,7 +7,7 @@
 use omega::language::core::reflect;
 data Reading { value: u64; flag: bool; }
 data Notes { last: u64; first_seen: bool; }
-machine note<Kind>(notes: &mut Notes, field: &reflect::FieldInfo)
+machine note<Kind>(notes: @mut Notes, field: @reflect::FieldInfo)
 requires Kind == u64 || Kind == bool
 requires field.declaration_position < 32u64
 {
@@ -18,7 +18,7 @@ machine described() -> bool {
     let mut notes: Notes;
     notes.last = 7u64;
     notes.first_seen = false;
-    reflect::inspect_record_fields<Reading, note>(&mut notes);
+    reflect::inspect_record_fields<Reading, note>(@mut notes);
     notes.first_seen && notes.last == 1u64
 }
 machine main() crashes Trap {

@@ -49,16 +49,16 @@ def require_identity(label, data, size, digest):
 # The bound D member identities from omega_compiler.epsilon.sources, in
 # manifest order — the packed closure is their plain concatenation.
 MEMBER_RECORDS = [
-    ("representations.epsilon", 38360,
-     "1342b8282ebb7c5c452593efd64fd1635fa2e514c1037c2d206ae9cd321b5c78"),
+    ("representations.epsilon", 38373,
+     "8adfe00709b6662b5c98fe3f31ca4993f0f14261043a0f14d0b26fac2a2f5fa2"),
     ("request_and_utf8.epsilon", 23678,
      "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5"),
     ("lexical_classification.epsilon", 2520,
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
-    ("lexer.epsilon", 44432,
-     "2a9c30ce9e66959bb33070937aba53e955461686bb221b128ec54801813f4c89"),
-    ("parser.epsilon", 403236,
-     "717b82d31c58deecf1bd300e89abd3e77bf9c85160da0cbab9867200749a17af"),
+    ("lexer.epsilon", 44500,
+     "1c8e22d9df9eda5368db6807a805087e3b22957285e01318d05c7acbaaf587dc"),
+    ("parser.epsilon", 403152,
+     "7810eb604acc117345da99d352c96122e3cf979e8b3877c33d9e0928170b6ac6"),
     ("alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
     ("scalar_compilation.epsilon", 249450,
@@ -71,8 +71,8 @@ MEMBER_RECORDS = [
      "d5327eeb7bb744f40653f17b37ef25505c92b782148070745d554ccb3a6f4329"),
 ]
 
-PACKED_RECORD = (838497,
-                 "5aac4b30bb4c030c1807e03f690e608358414e25b6cffd4a17472121a7c472e2")
+PACKED_RECORD = (838494,
+                 "5047ce234bcf690ca4bbaee1163940d7ad394e1a1d1adac7d739896ddaf16d01")
 
 CUSTOMER_RECORDS = {
     "omega_lexical": (1486,

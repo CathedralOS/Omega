@@ -19,7 +19,7 @@ use domain::report::result;
 
 data Main { }
 
-machine main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: @mut Main) reaches ProcessExit + Console {
     let universe: Parsed = block read_set();
     let query: Parsed = block read_set();
     let first: Parsed = block read_set();
@@ -30,13 +30,13 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
         true -> validate(context, universe, query, first, second, third)
         false -> reject(context)
     }
-    machine validate(context: &mut Main, universe: Parsed, query: Parsed, first: Parsed, second: Parsed, third: Parsed) {
+    machine validate(context: @mut Main, universe: Parsed, query: Parsed, first: Parsed, second: Parsed, third: Parsed) {
         transition universe.mask != 0 && universe.duplicates == 0 && intersection(query.mask, universe.mask) == query.mask && intersection(first.mask, universe.mask) == first.mask && intersection(second.mask, universe.mask) == second.mask && intersection(third.mask, universe.mask) == third.mask {
             true -> analyze(context, universe, query, first, second, third)
             false -> reject(context)
         }
     }
-    machine analyze(context: &mut Main, universe: Parsed, query: Parsed, first: Parsed, second: Parsed, third: Parsed) {
+    machine analyze(context: @mut Main, universe: Parsed, query: Parsed, first: Parsed, second: Parsed, third: Parsed) {
         let total: u64 in Wrapping = size(universe.mask);
         let selected: u64 in Wrapping = size(query.mask);
         let one: Fraction = tail(total, size(first.mask), selected, size(intersection(first.mask, query.mask)));
@@ -57,7 +57,7 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
         result(3, third.mask, intersection(third.mask, query.mask), three, adjusted_three, rank_three);
         ProcessExit::exit_process(0);
     }
-    machine reject(context: &mut Main) { Console::write_line("INVALID_INPUT"); ProcessExit::exit_process(65); }
+    machine reject(context: @mut Main) { Console::write_line("INVALID_INPUT"); ProcessExit::exit_process(65); }
 }
 
 machine ranking(value: Fraction, other: Fraction, last: Fraction, identifier: u64 in Wrapping) -> u64 in Wrapping {
@@ -91,5 +91,5 @@ machine correction(value: Fraction, rank: u64 in Wrapping, other: Fraction, othe
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

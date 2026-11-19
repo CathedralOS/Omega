@@ -1,6 +1,6 @@
 // self_mutation_between_calls build file.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "self_mutation_between_calls");
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../../source/library/std"

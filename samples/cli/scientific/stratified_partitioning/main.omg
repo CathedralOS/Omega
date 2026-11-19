@@ -22,41 +22,41 @@ data Main {
     allocation: Allocation;
     audit: Audit;
 }
-machine main(context: &mut Main) reaches ProcessExit + Console {
-    block tokens_read(&mut context.tokens);
-    load(&mut context.data, &context.tokens);
+machine main(context: @mut Main) reaches ProcessExit + Console {
+    block tokens_read(@mut context.tokens);
+    load(@mut context.data, @context.tokens);
     transition context.data.valid {
         true -> solve(context)
         _ -> invalid(context)
     }
-    machine solve(context: &mut Main) {
-        allocation_solve(&mut context.allocation, &context.data);
+    machine solve(context: @mut Main) {
+        allocation_solve(@mut context.allocation, @context.data);
         transition context.allocation.found {
             true -> audit(context)
             _ -> infeasible(context)
         }
     }
-    machine audit(context: &mut Main) {
-        check(&mut context.audit, &context.data, &context.allocation);
+    machine audit(context: @mut Main) {
+        check(@mut context.audit, @context.data, @context.allocation);
         transition context.audit.valid {
             true -> output(context)
             _ -> corrupt(context)
         }
     }
-    machine corrupt(context: &mut Main) {
+    machine corrupt(context: @mut Main) {
         Console::write_line("ERROR audit_failed");
         ProcessExit::exit_process(66);
     }
-    machine output(context: &mut Main) {
-        report(&context.data, &context.allocation, &context.audit);
+    machine output(context: @mut Main) {
+        report(@context.data, @context.allocation, @context.audit);
         Console::write("leakage "); number(context.audit.leakage); Console::write_line("");
         ProcessExit::exit_process(0);
     }
-    machine invalid(context: &mut Main) {
+    machine invalid(context: @mut Main) {
         Console::write_line("ERROR invalid_input");
         ProcessExit::exit_process(64);
     }
-    machine infeasible(context: &mut Main) {
+    machine infeasible(context: @mut Main) {
         Console::write_line("ERROR indivisible_single_group");
         ProcessExit::exit_process(65);
     }
@@ -65,5 +65,5 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

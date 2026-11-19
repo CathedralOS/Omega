@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "compound_index_guard_target_body_invalid");
 
     Build::select_provider<CheckedIndexStore, IndexedStore>(builder, windows_x86_64);

@@ -61,7 +61,7 @@ fn prepares_x86_memory_fences_as_zero_operand_intrinsics() {
     let source = r#"
         data Main {}
 
-        machine Main::main(main: &mut Main) {
+        machine Main::main(main: @mut Main) {
             asm clobbers none { lfence; sfence; mfence }
         }
         "#;
@@ -88,7 +88,7 @@ fn prepares_x86_interrupt_control_as_zero_operand_intrinsics() {
     let source = r#"
         data Main {}
 
-        machine Main::main(main: &mut Main) reaches MachineControl {
+        machine Main::main(main: @mut Main) reaches MachineControl {
             asm clobbers none { cli; sti }
         }
         "#;
@@ -112,7 +112,7 @@ fn prepares_x86_flags_as_explicit_value_operations() {
     let source = r#"
         data Main { saved: u64; }
 
-        machine Main::main(main: &mut Main) reaches MachineControl {
+        machine Main::main(main: @mut Main) reaches MachineControl {
             asm clobbers r10, r15 {
                 pushfq main.saved;
                 popfq main.saved
@@ -145,7 +145,7 @@ fn prepares_x86_msr_as_structured_value_operations() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(main: &mut Main) reaches MachineControl {
+        machine Main::main(main: @mut Main) reaches MachineControl {
             asm clobbers rax, rcx, rdx, r10, r11, r15 {
                 rdmsr main.value, 3221225600;
                 wrmsr 3221225600, main.value
@@ -178,7 +178,7 @@ fn prepares_x86_control_registers_as_structured_value_operations() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(main: &mut Main) reaches MachineControl {
+        machine Main::main(main: @mut Main) reaches MachineControl {
             asm clobbers rax, r10, r11, r15 {
                 read_cr0 main.value;
                 write_cr0 main.value;
@@ -231,14 +231,14 @@ fn prepares_x86_control_registers_as_structured_value_operations() {
 fn prepares_multi_instruction_asm_in_nested_machines_and_trait_defaults() {
     let source = r#"
         trait Idle<Processor> {
-            machine idle(value: &mut Processor) {
+            machine idle(value: @mut Processor) {
                 asm { hlt; hlt }
             }
         }
 
         data Main {}
 
-        machine Main::main(main: &mut Main) {
+        machine Main::main(main: @mut Main) {
             transition { _ -> next() }
 
             machine next() {
@@ -311,7 +311,7 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
         let source = format!(
             r#"
             data Main {{ value: i32; }}
-            machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
+            machine Main::main(main: @mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
         let error = prepare_source(&source).expect_err("asm instruction should reject");
@@ -331,7 +331,7 @@ fn prepares_register_move_as_an_ordinary_checked_assignment() {
             buffer: [u64; 4];
         }
 
-        machine Main::main(main: &mut Main) {
+        machine Main::main(main: @mut Main) {
             let mut scratch: u64 = 0;
             asm {
                 mov main.value, 3;
@@ -408,7 +408,7 @@ fn prepares_memory_transfers_as_place_assignments() {
             buffer: [u64; 4];
         }
 
-        machine Main::main(main: &mut Main) {
+        machine Main::main(main: @mut Main) {
             asm {
                 str main.value, main.buffer[0];
                 ldr main.value, main.buffer[0]
@@ -442,7 +442,7 @@ fn prepares_memory_transfers_as_place_assignments() {
         let source = format!(
             r#"
             data Main {{ value: u64; buffer: [u64; 4]; }}
-            machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
+            machine Main::main(main: @mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
         let error = prepare_source(&source)
@@ -465,7 +465,7 @@ fn rejects_bracketed_memory_operands_on_register_moves() {
         let source = format!(
             r#"
             data Main {{ value: i32; other: i32; buffer: [u64; 4]; }}
-            machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
+            machine Main::main(main: @mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
         let error = prepare_source(&source).expect_err("bracketed operand should reject");
@@ -486,7 +486,7 @@ fn prepares_exact_asm_clobber_contracts() {
         let source = format!(
             r#"
             data Main {{ port: u16; value: u8; }}
-            machine Main::main(main: &mut Main) {{ {block} }}
+            machine Main::main(main: @mut Main) {{ {block} }}
             "#
         );
         prepare_source(&source).expect("prepare exact assembly clobbers");
@@ -497,7 +497,7 @@ fn prepares_exact_asm_clobber_contracts() {
 fn prepares_asm_requires_facts_at_entry_and_exit() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
-        machine Main::main(main: &mut Main) {
+        machine Main::main(main: @mut Main) {
             asm
                 requires main.ready
                 clobbers rax, rdx, r10, r11, r15
@@ -548,7 +548,7 @@ fn rejects_unknown_asm_mnemonics() {
                 value: i32;
             }}
 
-            machine Main::main(main: &mut Main) {{
+            machine Main::main(main: @mut Main) {{
                 {block}
             }}
             "#
@@ -571,7 +571,7 @@ fn prepares_asm_jmp_block_as_transition_statement() {
             value: i32;
         }
 
-        machine Main::main(main: &mut Main) {
+        machine Main::main(main: @mut Main) {
             asm {
                 jmp other()
             }
@@ -624,7 +624,7 @@ fn prepares_asm_mnemonics_as_intrinsic_calls() {
             port: u16;
         }
 
-        machine Main::main(main: &mut Main) {
+        machine Main::main(main: @mut Main) {
             let mut status: u8 = 0;
             asm { hlt }
             asm { out main.port, status }
@@ -681,7 +681,7 @@ fn refuses_inexact_clobbers_and_control_flow_contracts() {
         ),
     ] {
         let source = format!(
-            "data Main {{ port: u16; value: u8; }} machine Main::main(main: &mut Main) {{ {block} machine done() {{}} }}"
+            "data Main {{ port: u16; value: u8; }} machine Main::main(main: @mut Main) {{ {block} machine done() {{}} }}"
         );
         let errors = prepare_source(&source).expect_err("catalog validation should reject");
         assert!(

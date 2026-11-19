@@ -1,9 +1,9 @@
 data Token dropped by drop_token { value: u64; }
-machine drop_token(token: &mut Token) {}
+machine drop_token(token: @mut Token) {}
 data Choice { case Empty; case Value(token: Token); }
 
 machine observe(choice: Choice) -> u64 { 42 }
-machine peek(choice: &Choice) -> u64 { 31 }
+machine peek(choice: @Choice) -> u64 { 31 }
 machine choose_choice(populated: bool) -> Choice {
     transition populated {
         true -> (Choice::Value { token: Token { value: 7 } })
@@ -12,7 +12,7 @@ machine choose_choice(populated: bool) -> Choice {
 }
 
 data Envelope dropped by drop_envelope { marker: u64; choice: Choice; }
-machine drop_envelope(envelope: &mut Envelope) {
+machine drop_envelope(envelope: @mut Envelope) {
     envelope.marker = 99;
 }
 machine observe_envelope(envelope: Envelope) -> u64 { envelope.marker }
@@ -27,8 +27,8 @@ machine onward(parcel: Parcel) -> u64 {
 machine main() crashes Trap {
     let empty: u64 = observe(Choice::Empty {});
     let populated: u64 = observe(Choice::Value { token: Token { value: 7 } });
-    let temporary: u64 = peek(&choose_choice(true));
-    let temporary_empty: u64 = peek(&choose_choice(false));
+    let temporary: u64 = peek(@choose_choice(true));
+    let temporary_empty: u64 = peek(@choose_choice(false));
     let parent_empty: u64 = observe_envelope(Envelope {
         marker: 11, choice: Choice::Empty {}
     });
