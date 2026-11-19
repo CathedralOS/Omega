@@ -194,7 +194,6 @@ members = [
     "source-rust/subsystems/package-manager/source-acquisition/git/execution",
     "tools/xtask",
     "tools/benchmark",
-    "tools/compiler",
     "samples/cli/scientific/capture-check",
 ]
 resolver = "3"
