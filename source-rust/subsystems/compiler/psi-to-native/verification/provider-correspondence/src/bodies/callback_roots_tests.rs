@@ -154,7 +154,7 @@ fn installed_helpers_rejoin_exact_bodies_and_refuse_missing_or_substituted_evide
         &[machine_id(1), machine_id(2), machine_id(3)]
     );
     let mut missing = module.clone();
-    missing.callback_applications.remove(1);
+    missing.interfaces.callback_applications.remove(1);
     assert!(
         CallbackProviderDeclarations::installed_helper_roots(&missing)[0]
             .1
@@ -185,7 +185,7 @@ fn installed_helpers_rejoin_exact_bodies_and_refuse_missing_or_substituted_evide
     );
     let mut duplicate_registration = module.clone();
     duplicate_registration
-        .installed_interrupt_registrations
+        .interfaces.installed_interrupt_registrations
         .push(module.interfaces.installed_interrupt_registrations[0].clone());
     assert!(
         CallbackProviderDeclarations::installed_helper_roots(&duplicate_registration)[0]

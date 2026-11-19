@@ -2783,10 +2783,10 @@ machine entry() {
         let module = source.module();
         let bytes = terminal_codec::encode_module(module).unwrap();
         let decoded = terminal_codec::decode_module(&bytes).unwrap();
-        assert_eq!(module.types.structural_domains, decoded.structural_domains);
+        assert_eq!(module.types.structural_domains, decoded.types.structural_domains);
         assert_eq!(module.types.structural_domains.len(), 2);
         let mut collapsed = module.clone();
-        collapsed.structural_domains[1].identity = collapsed.structural_domains[0].identity;
+        collapsed.types.structural_domains[1].identity = collapsed.types.structural_domains[0].identity;
         let invalid = terminal_codec::encode_module(&collapsed).unwrap();
         assert!(matches!(
             terminal_codec::decode_module(&invalid),

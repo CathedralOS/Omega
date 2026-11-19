@@ -358,13 +358,13 @@ fn callable_refinement_proves_input_weakening_and_remaps_result_formals() {
         goals.len()
     );
     let mut missing = module.clone();
-    missing.callables.descriptors[0].refinement_evidence.pop();
+    missing.execution.callables.descriptors[0].refinement_evidence.pop();
     assert!(validate_descriptor_refinement_evidence(&missing).is_err());
     let mut aliased = module.clone();
-    aliased.callables.descriptors[0].refinement_obligations[1] = id(100);
+    aliased.execution.callables.descriptors[0].refinement_obligations[1] = id(100);
     assert!(validate_descriptor_refinement_evidence(&aliased).is_err());
     let mut changed = module;
-    changed.callables.contracts[0].proof.requires = vec![at_least(10, 2)];
+    changed.execution.callables.contracts[0].proof.requires = vec![at_least(10, 2)];
     assert!(derive_refinements(&changed).is_err());
     assert!(validate_descriptor_refinement_evidence(&changed).is_err());
 }
@@ -416,7 +416,7 @@ fn checker_refuses_operational_strengthening_before_publication() {
     );
 
     let mut abstract_form = refinement_module();
-    abstract_form.callables.descriptors.clear();
+    abstract_form.execution.callables.descriptors.clear();
     assert!(abstract_form.machines[0].declaration.is_none());
     crate::checking::finalize_callable_refinements(&mut abstract_form, &mut Default::default())
         .unwrap();
@@ -539,15 +539,15 @@ fn runtime_evidence_roster_rejoins_full_meaning_and_exact_subjects() {
     install_roster(&mut module);
     assert!(roster_valid(&module));
     let mut missing = module.clone();
-    missing.evidence_contract_lanes.pop();
+    missing.proofs.evidence_contract_lanes.pop();
     assert!(!roster_valid(&missing));
     let mut duplicate = module.clone();
     duplicate
-        .evidence_contract_lanes
-        .push(duplicate.evidence_contract_lanes[0].clone());
+        .proofs.evidence_contract_lanes
+        .push(duplicate.proofs.evidence_contract_lanes[0].clone());
     assert!(!roster_valid(&duplicate));
     let mut subject = module.clone();
-    subject.evidence_contract_lanes[0].argument_subjects[0] =
+    subject.proofs.evidence_contract_lanes[0].argument_subjects[0] =
         EvidenceArgumentSubject::Parameter(OutcomeSpecificCallArgumentSubstitution {
             argument_position: 0,
             parameter_position: 1,
@@ -555,10 +555,10 @@ fn runtime_evidence_roster_rejoins_full_meaning_and_exact_subjects() {
         });
     assert!(!roster_valid(&subject));
     let mut interface = module.clone();
-    interface.evidence_terms[0].interface.arguments[0] = "u64".into();
+    interface.proofs.evidence_terms[0].interface.arguments[0] = "u64".into();
     assert!(!roster_valid(&interface));
     let mut application = module;
-    application.proposition_applications[0].arguments[0] = "another-formal".into();
+    application.proofs.proposition_applications[0].arguments[0] = "another-formal".into();
     assert!(!roster_valid(&application));
 }
 

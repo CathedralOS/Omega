@@ -254,7 +254,7 @@ use numerics::intrinsics::NumericType;
             for mutation in 0..3 {
                 let mut changed = module.clone();
                 let boundary = changed
-                    .boundary_machines
+                    .interfaces.boundary_machines
                     .iter_mut()
                     .find(|boundary| boundary.id == conversions[0])
                     .unwrap();
@@ -317,15 +317,16 @@ fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
         .unwrap()
         .clone();
     declaration.id = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
-    let module = terminal_psi::TerminalModule {
+    let mut module = terminal_psi::TerminalModule {
         identities: module.identities.clone(),
-        boundary_machines: vec![declaration],
         ..terminal_psi::TerminalModule::declarations()
     };
+    module.interfaces.boundary_machines.push(declaration);
     let baseline = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
     terminal_codec::ClosedTerminalModule::from_semantic_bytes(baseline.semantic_bytes()).unwrap();
     let mut changed = module.clone();
     let boundary = changed
+        .interfaces
         .boundary_machines
         .iter_mut()
         .find(|boundary| boundary.numeric_intrinsic == Some(original))
@@ -423,7 +424,7 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
                 }
                 let mut changed = module.clone();
                 changed
-                    .boundary_machines
+                    .interfaces.boundary_machines
                     .iter_mut()
                     .find(|row| row.id == boundary.id)
                     .unwrap()
@@ -506,16 +507,16 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
                 assert_eq!(boundary.scalar_ensures.len(), 2, "both directions of IEEE result equivalence");
                 terminal_semantics::numeric_primitives::validate_boundary(module, boundary).unwrap();
                 let mut wrong_entry = module.clone();
-                let changed = wrong_entry.boundary_machines.iter_mut().find(|row| row.id == boundary.id).unwrap();
+                let changed = wrong_entry.interfaces.boundary_machines.iter_mut().find(|row| row.id == boundary.id).unwrap();
                 changed.declaration.as_mut().unwrap().source.state = changed.owner.clone();
                 assert_eq!(terminal_semantics::numeric_primitives::validate_boundary(&wrong_entry,
-                    wrong_entry.boundary_machines.iter().find(|row| row.id == boundary.id).unwrap()).unwrap_err(),
+                    wrong_entry.interfaces.boundary_machines.iter().find(|row| row.id == boundary.id).unwrap()).unwrap_err(),
                     "numeric primitive differs from its exact Core declaration and full contract: source entry state");
                 let error = receiving_error(wrong_entry);
                 assert!(error.contains("MalformedStructuralFoundation"), "{error}");
                 for omitted in 0..2 {
                     let mut changed = module.clone();
-                    changed.boundary_machines.iter_mut().find(|row| row.id == boundary.id)
+                    changed.interfaces.boundary_machines.iter_mut().find(|row| row.id == boundary.id)
                         .unwrap().scalar_ensures.remove(omitted);
                     let error = receiving_error(changed);
                     assert!(error.contains("MalformedStructuralFoundation"), "{error}");
@@ -656,7 +657,7 @@ use numerics::intrinsics::PrimitiveFloatBinaryOperation as Operation;
                 .unwrap();
             let mut reversed = module.clone();
             let changed = reversed
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter_mut()
                 .find(|row| row.id == subtract.id)
                 .unwrap();
@@ -1036,7 +1037,7 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
             for altered in 0..2 {
                 let mut changed = module.clone();
                 let row = changed
-                    .boundary_machines
+                    .interfaces.boundary_machines
                     .iter_mut()
                     .find(|row| row.id == boundary.id)
                     .unwrap();
@@ -1244,7 +1245,7 @@ fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
                 for mutation in 0..3 {
                     let mut changed = module.clone();
                     let row = changed
-                        .boundary_machines
+                        .interfaces.boundary_machines
                         .iter_mut()
                         .find(|row| row.id == boundary.id)
                         .unwrap();
@@ -1271,7 +1272,7 @@ fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
                                 terminal_semantics::numeric_primitives::validate_boundary(
                                     &changed,
                                     changed
-                                        .boundary_machines
+                                        .interfaces.boundary_machines
                                         .iter()
                                         .find(|row| row.id == boundary.id)
                                         .unwrap()
@@ -1506,7 +1507,7 @@ use numerics::intrinsics::NumericType;
                     for mutation in 0..3 {
                         let mut changed = module.clone();
                         let row = changed
-                            .boundary_machines
+                            .interfaces.boundary_machines
                             .iter_mut()
                             .find(|row| row.id == boundary.id)
                             .unwrap();
@@ -1547,7 +1548,7 @@ use numerics::intrinsics::NumericType;
                         panic!("singleton policy")
                     };
                     let domain = changed
-                        .scalar_qualifications
+                        .types.scalar_qualifications
                         .domains
                         .iter_mut()
                         .find(|row| row.id == *domain_id)

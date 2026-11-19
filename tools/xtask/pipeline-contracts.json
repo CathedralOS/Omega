@@ -16382,7 +16382,7 @@
       "kind": "test_support",
       "meaning": "Exercise canonical join rejects missing owner template and duplicate coordinate against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "220ba36a9c16e9aa0d00ef135bf48bebd8dc6da7d6e9298deda9de8dc37d49c1"
+      "signature": "a6cc8098d58938d62c1a9b5fad84d3057a2f49f2c63cef924b432e03bf2b6970"
     },
     {
       "consumers": [
@@ -16415,7 +16415,7 @@
       "kind": "test_support",
       "meaning": "Exercise closed invocation headers retain selected eligibility and instance obligations against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "916d291a26101b1a6f7dfe8eeff782331ba2fdedcd4a105f1e9e578b87913324"
+      "signature": "c2d95d9928ce6fbf3ab5e96a59c4e15d576b332ceb00f3a329d1376a424d9d27"
     },
     {
       "consumers": [
@@ -18204,15 +18204,28 @@
     },
     {
       "consumers": [
-        "02 portable publication",
-        "source permission policy capture"
+        "source permission policy capture",
+        "source driver target publication",
+        "native stage 00 provider demand admission"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
       "item": "impl:SourceProviderFacts < SourceProviderDemand >::implementation#1",
       "kind": "definition",
-      "meaning": "Expose authenticated read-only access to the same source-owned logical demand used for publication.",
-      "producer": "01 source provider closure",
-      "signature": "f84ed58e28818fc15138ad3fe1d1057fad42ff9b5ba2fe239be689d00380102a"
+      "meaning": "Authenticate source-owned provider demand for pre-publication permission review and bind issued demand to the completed target publication.",
+      "producer": "stage 07 source provider closure",
+      "signature": "f239364231b63e9524ddce5761811cdb11936c9c43e0a45f83f9fa37fcd19a0d"
+    },
+    {
+      "consumers": [
+        "source driver target publication",
+        "native stage 00 provider demand admission"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
+      "item": "impl:SourceProviderFacts < SourceProviderDemand >::method:for_published_target#1",
+      "kind": "producer",
+      "meaning": "Check the accepted source issuer and selected deployment against the publication. Issue provider demand for that published artifact and target.",
+      "producer": "stage 07 checked source publication",
+      "signature": "8f0ee4dfeaaccc4924f8c7bf29df08bcf9149a697480898f216839ff10ef9218"
     },
     {
       "consumers": [

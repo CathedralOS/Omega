@@ -952,10 +952,10 @@ mod tests {
     #[test]
     fn malformed_canonical_filesystem_labels_do_not_use_legacy_name_matching() {
         let original = canonical_filesystem_module();
-        let service = original.services[2].id;
+        let service = original.interfaces.services[2].id;
         let exact = original
             .identities
-            .text(original.services[2].identity)
+            .text(original.interfaces.services[2].identity)
             .unwrap();
         for text in [
             format!("{exact}trailing"),

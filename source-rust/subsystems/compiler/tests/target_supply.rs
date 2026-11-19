@@ -1654,7 +1654,7 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
     let reached = settled.requirements()[0].reached.boundary;
     let mut missing = accepted.module().clone();
     missing
-        .provider_candidates
+        .interfaces.provider_candidates
         .retain(|candidate| candidate.boundary == reached);
     let refused = settled
         .plans(SupplyPlanning {

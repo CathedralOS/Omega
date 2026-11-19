@@ -128,7 +128,7 @@ fn valid_text_is_stored_and_invalid_bytes_are_rejected() {
         .expect("the complete primitive theory crosses the actual receiving boundary");
     let mut incomplete = module.clone();
     incomplete
-        .structural_domains
+        .types.structural_domains
         .iter_mut()
         .find(|domain| domain.byte_predicate == Some(ByteSequencePredicate::ValidUtf8))
         .expect("the literal retains its exact primitive domain")
@@ -369,7 +369,7 @@ machine build_entry() -> bool {
 
     let mut changed_header = module.clone();
     let callable = changed_header
-        .callables
+        .execution.callables
         .contracts
         .iter_mut()
         .find(|row| row.id == contract)
@@ -389,7 +389,7 @@ machine build_entry() -> bool {
     );
 
     let mut missing_header = module.clone();
-    missing_header.callables.contracts.clear();
+    missing_header.execution.callables.contracts.clear();
     assert!(
         terminal_semantics::byte_sequence_source_predicates(
             &missing_header,
@@ -463,7 +463,7 @@ machine build_entry() {
         .expect("the actual established descriptor crosses receiving validation");
     let mut forged_theory = module.clone();
     let domain = forged_theory
-        .structural_domains
+        .types.structural_domains
         .iter_mut()
         .find(|domain| domain.byte_predicate == Some(terminal_psi::ByteSequencePredicate::NoNul))
         .expect("the source retains its primitive NoNul domain");
@@ -515,7 +515,7 @@ machine build_entry() {
         corrupted, 1,
         "corrupt the actual source of the qualification"
     );
-    forged.unoptimized_behavior = forged
+    forged.execution.unoptimized_behavior = forged
         .machines
         .iter()
         .map(terminal_psi::UnoptimizedMachineBehavior::capture)
@@ -1207,7 +1207,7 @@ machine build_entry() {
     terminal_codec::decode_module(&terminal_codec::encode_module(module).unwrap())
         .expect("the ordinary domain crosses independent artifact validation");
     let mut forged = module.clone();
-    for domain in &mut forged.structural_domains {
+    for domain in &mut forged.types.structural_domains {
         if domain.byte_predicate.is_none()
             && let Some(predicate) = &mut domain.predicate
         {
