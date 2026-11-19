@@ -108,6 +108,7 @@ members = [
     "source-rust/subsystems/compiler/psi/application-identity",
     "source-rust/subsystems/compiler/psi/authorization",
     "source-rust/subsystems/compiler/psi/codec",
+    "source-rust/subsystems/compiler/psi/component-description",
     "source-rust/subsystems/compiler/psi/effect-contracts",
     "source-rust/subsystems/compiler/psi/extent-contracts",
     "source-rust/subsystems/compiler/psi/layout",

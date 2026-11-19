@@ -43,5 +43,5 @@ boundary-applications = { path = "../../../../installation/boundary-applications
 provider-correspondence = { path = "../../../../verification/provider-correspondence" }
 function-identity = { path = "../../function-identity" }
 optimization-selections = { path = "../../../../../foundation/optimization-selections" }
-component-description = { path = "../../../../components/description" }
+component-description = { path = "../../../../../psi/component-description" }
 numerics = { path = "../../../../../psi/semantics/numeric" }

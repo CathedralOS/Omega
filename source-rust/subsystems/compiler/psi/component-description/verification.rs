@@ -1,28 +1,22 @@
-/*
-We implement independent, source-free verification of canonical component
-descriptions (`verify_component`). We re-decode the embedded `CanonicalTerminalArtifact`,
-reconstruct the component subject, check the caller's `ComponentVerificationRequest`
-admission profile, and replay every module-derived entry, export, outgoing
-authority, retained provider plan, service bound, custody constraint, import
-slot, and installation obligation before returning an inert `VerifiedComponent`
-that can join exported realizations to a `ProviderPlan`.
-*/
+//! Check the complete component profile and every retained row against the published artifact.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 
-use effects::provider_plan::{ProviderBinding, ProviderPlan};
-
-use crate::component_description::{
+use crate::inventory::{
+    DerivedInventory, component_description_identity, derive_component_inventory, identity_text,
+    requirement_contract_identity, requirement_export_identity,
+};
+use crate::records::{
     ComponentDescription, ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind,
     DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportSurface, ImportSlot,
     InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
     ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, RetainedProvider,
-    component_description_identity, decode_component_description_with_artifact,
-    derive_component_inventory, hex, identity_text, requirement_contract_identity,
-    requirement_export_identity,
 };
+use crate::retained_plan::{ProviderPlanInput, ProviderPlanInputRow};
+use crate::wire_format::decode_component_description_with_artifact;
+use ::wire::digest_encoder::{self, hex};
 
 const VERIFIED_COMPONENT_CLOSURE_DOMAIN: &[u8] = b"omega-verified-component-closure-v1";
 const VERIFICATION_PROFILE_DOMAIN: &[u8] = b"omega-component-verification-profile-v1";
@@ -52,8 +46,7 @@ pub enum AcceptedComponentAssumptions {
 
 impl ComponentVerificationRequest {
     fn profile_identity(&self, roster: &[[u8; 32]]) -> [u8; 32] {
-        let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(VERIFICATION_PROFILE_DOMAIN);
+        let mut digest = digest_encoder::DomainDigestEncoder::new(VERIFICATION_PROFILE_DOMAIN);
         digest.raw(&self.expected_subject.vocabulary_marker.get().to_le_bytes());
         digest.raw(self.expected_subject.program_fingerprint.as_bytes());
         digest.u64(self.accepted_schemas.len() as u64);
@@ -296,187 +289,23 @@ impl VerifiedComponent {
         self.description.realization_identity.as_ref()
     }
 
-    pub fn realizes_selected_plan(
-        &self,
-        plan: &ProviderPlan,
-    ) -> Result<(), IndependentRealizationMismatch> {
-        self.selected_plan_export_positions(plan).map(|_| ())
-    }
-
-    pub fn selected_plan_export_positions(
-        &self,
-        plan: &ProviderPlan,
-    ) -> Result<Vec<usize>, IndependentRealizationMismatch> {
-        if plan.provider_type.is_empty() {
-            return Err(IndependentRealizationMismatch::EmptyProviderType {
-                plan: plan.name.clone(),
-            });
-        }
-        let coverage = plan.validate_against_schema();
-        if plan.rows.is_empty() || !coverage.is_empty() {
-            return Err(IndependentRealizationMismatch::InvalidPlan {
-                plan: plan.name.clone(),
-                detail: coverage.join("; "),
-            });
-        }
-        for row in &plan.rows {
-            if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
-                return Err(IndependentRealizationMismatch::UncheckedRow {
-                    requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
-                });
-            }
-        }
-        let rows = backend_plan::selected_provider_candidate_rows(plan, self.module()).map_err(
-            |detail| IndependentRealizationMismatch::InvalidPlan {
-                plan: plan.name.clone(),
-                detail,
-            },
-        )?;
-        let mut exports = Vec::new();
-        for projected in rows {
-            if projected.candidate_positions.is_empty() {
-                return Err(IndependentRealizationMismatch::MissingRealization {
-                    requirement_identity: plan
-                        .identity_text(projected.row.requirement_identity)
-                        .to_owned(),
-                });
-            }
-            for position in projected.candidate_positions {
-                let candidate = &self.module().provider_candidates[position];
-                let requirement = identity_text(self.module(), candidate.requirement_identity);
-                let export = requirement_export_identity(
-                    requirement,
-                    identity_text(self.module(), candidate.provider_identity),
-                    identity_text(self.module(), candidate.candidate_identity),
-                );
-                if !self
-                    .description
-                    .exports
-                    .iter()
-                    .any(|surface| surface.identity == export)
-                {
-                    return Err(IndependentRealizationMismatch::MissingExport {
-                        requirement_identity: requirement.to_owned(),
-                    });
-                }
-                exports.push(position);
-            }
-        }
-        let unresolved: Vec<String> = self
-            .module()
-            .root_service_reach
-            .installation_dependencies
+    /// Match a candidate from this module to its verified, fully qualified export.
+    pub fn exports_candidate_at(&self, position: usize) -> bool {
+        let module = self.module();
+        let Some(candidate) = module.provider_candidates.get(position) else {
+            return false;
+        };
+        let export = requirement_export_identity(
+            identity_text(module, candidate.requirement_identity),
+            identity_text(module, candidate.provider_identity),
+            identity_text(module, candidate.candidate_identity),
+        );
+        self.description
+            .exports
             .iter()
-            .map(|dependency| {
-                identity_text(self.module(), dependency.requirement_identity).to_string()
-            })
-            .collect();
-        if !unresolved.is_empty() {
-            return Err(IndependentRealizationMismatch::UnresolvedInstallationRows {
-                requirement_identities: unresolved,
-            });
-        }
-        Ok(exports)
+            .any(|surface| surface.identity == export)
     }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IndependentRealizationMismatch {
-    EmptyProviderType {
-        plan: String,
-    },
-    InvalidPlan {
-        plan: String,
-        detail: String,
-    },
-    UncheckedRow {
-        requirement_identity: String,
-    },
-    MissingRealization {
-        requirement_identity: String,
-    },
-    ProviderTypeMismatch {
-        requirement_identity: String,
-        selected_provider: String,
-    },
-    MachineMismatch {
-        requirement_identity: String,
-        selected_machine: String,
-    },
-    DuplicateRealization {
-        requirement_identity: String,
-    },
-    MissingExport {
-        requirement_identity: String,
-    },
-    UnresolvedInstallationRows {
-        requirement_identities: Vec<String>,
-    },
-}
-
-impl std::fmt::Display for IndependentRealizationMismatch {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::EmptyProviderType { plan } => {
-                write!(formatter, "selected plan `{plan}` names no provider type")
-            }
-            Self::InvalidPlan { plan, detail } => {
-                write!(
-                    formatter,
-                    "selected plan `{plan}` is not a valid selection: {detail}"
-                )
-            }
-            Self::UncheckedRow {
-                requirement_identity,
-            } => write!(
-                formatter,
-                "requirement `{requirement_identity}` is not realized by a checked adapter"
-            ),
-            Self::MissingRealization {
-                requirement_identity,
-            } => write!(
-                formatter,
-                "verified component realizes no candidate for `{requirement_identity}`"
-            ),
-            Self::ProviderTypeMismatch {
-                requirement_identity,
-                selected_provider,
-            } => write!(
-                formatter,
-                "`{requirement_identity}` is not realized by selected provider `{selected_provider}`"
-            ),
-            Self::MachineMismatch {
-                requirement_identity,
-                selected_machine,
-            } => write!(
-                formatter,
-                "`{requirement_identity}` is not realized by selected machine `{selected_machine}`"
-            ),
-            Self::DuplicateRealization {
-                requirement_identity,
-            } => write!(
-                formatter,
-                "`{requirement_identity}` has more than one identical realization"
-            ),
-            Self::MissingExport {
-                requirement_identity,
-            } => write!(
-                formatter,
-                "description exports no realization row for `{requirement_identity}`"
-            ),
-            Self::UnresolvedInstallationRows {
-                requirement_identities,
-            } => write!(
-                formatter,
-                "verified component retains {} unresolved installation-bound requirement row(s) ({}); its service bounds are obligations installation still owes, not resolved reach",
-                requirement_identities.len(),
-                requirement_identities.join(", ")
-            ),
-        }
-    }
-}
-
-impl std::error::Error for IndependentRealizationMismatch {}
 
 pub fn verify_component(
     description_bytes: &[u8],
@@ -534,8 +363,7 @@ pub fn verify_component(
     check_obligations(&description, &inventory)?;
 
     let description_identity = component_description_identity(description_bytes);
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(VERIFIED_COMPONENT_CLOSURE_DOMAIN);
+    let mut digest = digest_encoder::DomainDigestEncoder::new(VERIFIED_COMPONENT_CLOSURE_DOMAIN);
     digest.raw(&description_identity);
     digest.raw(&request.profile_identity(&description.assumptions));
     let closure = digest.finish();
@@ -585,7 +413,7 @@ macro_rules! check_derived_roster {
 
 fn check_entries(
     description: &ComponentDescription,
-    inventory: &crate::component_description::DerivedInventory,
+    inventory: &DerivedInventory,
 ) -> Result<(), ComponentVerificationRejection> {
     check_derived_roster!(
         description,
@@ -599,7 +427,7 @@ fn check_entries(
 
 fn check_exports(
     description: &ComponentDescription,
-    inventory: &crate::component_description::DerivedInventory,
+    inventory: &DerivedInventory,
 ) -> Result<(), ComponentVerificationRejection> {
     let derived: BTreeSet<&str> = inventory
         .export_contracts
@@ -630,7 +458,7 @@ fn check_exports(
 
 fn check_outgoing(
     description: &ComponentDescription,
-    inventory: &crate::component_description::DerivedInventory,
+    inventory: &DerivedInventory,
 ) -> Result<BTreeMap<String, [u8; 32]>, ComponentVerificationRejection> {
     let provider_requirements: BTreeMap<[u8; 32], BTreeSet<&str>> = description
         .providers
@@ -725,7 +553,7 @@ fn check_outgoing(
                                 operation.catalog_tag(),
                             )
                             && assumption
-                                == super::component_description::register_mechanism_assumption(
+                                == crate::inventory::register_mechanism_assumption(
                                     *service, *operation,
                                 )
                     })
@@ -795,7 +623,7 @@ fn check_outgoing(
 fn check_providers(
     description: &ComponentDescription,
     module: &terminal_psi::TerminalModule,
-    inventory: &crate::component_description::DerivedInventory,
+    inventory: &DerivedInventory,
     sealed: &BTreeMap<String, [u8; 32]>,
 ) -> Result<(), ComponentVerificationRejection> {
     let called: BTreeSet<&str> = inventory
@@ -821,11 +649,8 @@ fn check_providers(
                 "a retained provider seals no requirement",
             ));
         }
-        let plan = effects::provider_plan::ProviderPlanInput::read(
-            &provider.plan_input,
-            &provider.plan_digest,
-        )
-        .map_err(ComponentVerificationRejection::InconsistentProviderClosure)?;
+        let plan = ProviderPlanInput::read(&provider.plan_input, &provider.plan_digest)
+            .map_err(ComponentVerificationRejection::InconsistentProviderClosure)?;
         if provider
             .requirement_identities
             .windows(2)
@@ -877,8 +702,8 @@ fn check_providers(
 
 fn is_checked_export(
     module: &terminal_psi::TerminalModule,
-    plan: &effects::provider_plan::ProviderPlanInput<'_>,
-    row: &effects::provider_plan::ProviderPlanInputRow<'_>,
+    plan: &ProviderPlanInput<'_>,
+    row: &ProviderPlanInputRow<'_>,
 ) -> bool {
     let Some((machine, package)) = row.checked_adapter else {
         return false;
@@ -925,7 +750,7 @@ fn is_checked_export(
 
 fn check_custody(
     description: &ComponentDescription,
-    inventory: &crate::component_description::DerivedInventory,
+    inventory: &DerivedInventory,
 ) -> Result<(), ComponentVerificationRejection> {
     check_derived_roster!(
         description,
@@ -939,7 +764,7 @@ fn check_custody(
 
 fn check_service_bounds(
     description: &ComponentDescription,
-    inventory: &crate::component_description::DerivedInventory,
+    inventory: &DerivedInventory,
 ) -> Result<(), ComponentVerificationRejection> {
     let derived: BTreeSet<&InstallationServiceBound> = inventory.service_bounds.iter().collect();
     let declared: BTreeSet<&InstallationServiceBound> = description.service_bounds.iter().collect();
@@ -992,7 +817,7 @@ fn check_imports(description: &ComponentDescription) -> Result<(), ComponentVeri
 
 fn check_obligations(
     description: &ComponentDescription,
-    inventory: &crate::component_description::DerivedInventory,
+    inventory: &DerivedInventory,
 ) -> Result<(), ComponentVerificationRejection> {
     let present: BTreeSet<(u8, &str)> = description
         .obligations

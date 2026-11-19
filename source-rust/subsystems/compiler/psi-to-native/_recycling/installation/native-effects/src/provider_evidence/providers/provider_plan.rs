@@ -10,8 +10,8 @@ classification belong to downstream review receipts.
 mod digest_encoder;
 pub(crate) use digest_encoder::DigestFeed;
 mod evaluated_bindings;
+#[cfg(test)]
 mod retained_inputs;
-pub use retained_inputs::{ProviderPlanInput, ProviderPlanInputRow};
 mod service_schemas;
 
 use declaration_contracts::service_surface::ServiceSynchronousInvocation;

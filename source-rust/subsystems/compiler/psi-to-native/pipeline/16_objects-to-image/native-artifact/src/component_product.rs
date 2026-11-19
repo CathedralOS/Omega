@@ -7,7 +7,9 @@ published `.component` description files and adjacent shared images match the
 admitted compilation outputs without granting `InstalledCode` authority.
 */
 
-use component_description::component_description::StackDemandFacts;
+use crate::component_description::{
+    ComponentDescriptionFacts, StackDemandFacts, publish_component_description,
+};
 use provider_admission::provider_admission::AdmittedNativeCallableAuthority;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -81,18 +83,16 @@ impl NativeComponentProduct {
             image.image().contents(),
             *image.slot_commitment(),
         )?;
-        let (_, description) = component_description::publish_component_description(
-            component_description::ComponentDescriptionFacts {
-                artifact: call.component().artifact(),
-                selected_provider_plans,
-                stack_demand: Some(StackDemandFacts {
-                    entry: demand.entry(),
-                    ceiling_bytes: stack_bytes,
-                    stack_alignment: demand.stack_alignment(),
-                }),
-                realization_identity: Some(*runtime_record.locator().identity_digest()),
-            },
-        )
+        let (_, description) = publish_component_description(ComponentDescriptionFacts {
+            artifact: call.component().artifact(),
+            selected_provider_plans,
+            stack_demand: Some(StackDemandFacts {
+                entry: demand.entry(),
+                ceiling_bytes: stack_bytes,
+                stack_alignment: demand.stack_alignment(),
+            }),
+            realization_identity: Some(*runtime_record.locator().identity_digest()),
+        })
         .map_err(|error| format!("native component description publication: {error}"))?;
         Ok(Self {
             image,
