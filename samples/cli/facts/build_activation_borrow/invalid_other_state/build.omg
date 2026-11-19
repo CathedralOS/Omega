@@ -1,18 +1,18 @@
-data Configuration<'activation, 'storage> { builder: &'activation Build<'storage>; }
-machine wrap<'activation, 'storage>(builder: &'activation mut Build<'storage>) -> Configuration<'activation, 'storage> {
+data Configuration<'activation, 'storage> { builder: @'activation Build<'storage>; }
+machine wrap<'activation, 'storage>(builder: @'activation mut Build<'storage>) -> Configuration<'activation, 'storage> {
     Configuration { builder: builder }
 }
-machine bind_configuration(configuration: &mut Configuration) {
+machine bind_configuration(configuration: @mut Configuration) {
     Build::bind(configuration.builder, linux_x86_64::ProgramEntry, main);
     Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
     Build::bind(configuration.builder, macos_arm64::ProgramEntry, main);
     Build::bind(configuration.builder, windows_x86_64::ProgramEntry, main);
 }
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "build_activation_borrow_other_state");
     transition { _ -> configure(wrap(builder)) }
     machine configure(configuration: Configuration) {
         let mut owned: Configuration = configuration;
-        bind_configuration(&mut owned);
+        bind_configuration(@mut owned);
     }
 }

@@ -16,77 +16,77 @@ use domain::report::report;
 data Main { }
 
 // The entry owns input, private codec storage, decoding and certification.
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: InputBuffer;
-    let success: bool = block read_input(&mut input);
+    let success: bool = block read_input(@mut input);
     transition success && input.length > 0 {
-        true -> dispatch(main, &input)
+        true -> dispatch(main, @input)
         _ -> bad_input(main)
     }
-    machine dispatch(main: &mut Main, input: &InputBuffer) {
+    machine dispatch(main: @mut Main, input: @InputBuffer) {
         transition input.bytes[0] {
             0 -> compress(main, input)
             1 -> decompress(main, input)
             _ -> bad_input(main)
         }
     }
-    machine compress(main: &mut Main, input: &InputBuffer) {
+    machine compress(main: @mut Main, input: @InputBuffer) {
         let mut original: SensorBlock;
-        let parsed: bool = parse_records(input, &mut original);
+        let parsed: bool = parse_records(input, @mut original);
         transition parsed {
-            true -> compression(main, &original)
+            true -> compression(main, @original)
             _ -> bad_input(main)
         }
     }
-    machine compression(main: &mut Main, original: &SensorBlock) {
+    machine compression(main: @mut Main, original: @SensorBlock) {
         let mut stream: SensorStream;
-        let success: bool = encode(original, &mut stream);
+        let success: bool = encode(original, @mut stream);
         transition success {
-            true -> verification(main, original, &stream)
+            true -> verification(main, original, @stream)
             _ -> bad_input(main)
         }
     }
-    machine verification(main: &mut Main, original: &SensorBlock, stream: &SensorStream) {
+    machine verification(main: @mut Main, original: @SensorBlock, stream: @SensorStream) {
         let mut decoded: SensorBlock;
-        let success: bool = decode(stream, &mut decoded);
+        let success: bool = decode(stream, @mut decoded);
         transition success {
-            true -> certificate(main, original, stream, &decoded)
+            true -> certificate(main, original, stream, @decoded)
             _ -> bad_stream(main)
         }
     }
-    machine certificate(main: &mut Main, original: &SensorBlock, stream: &SensorStream, decoded: &SensorBlock) {
+    machine certificate(main: @mut Main, original: @SensorBlock, stream: @SensorStream, decoded: @SensorBlock) {
         let maximum: i32 = certify(original, decoded);
         transition maximum >= 0 {
             true -> output(main, stream, decoded, maximum)
             _ -> bad_certificate(main)
         }
     }
-    machine decompress(main: &mut Main, input: &InputBuffer) {
+    machine decompress(main: @mut Main, input: @InputBuffer) {
         let mut stream: SensorStream;
-        let parsed: bool = parse_stream(input, &mut stream);
+        let parsed: bool = parse_stream(input, @mut stream);
         transition parsed {
-            true -> decoding(main, &stream)
+            true -> decoding(main, @stream)
             _ -> bad_input(main)
         }
     }
-    machine decoding(main: &mut Main, stream: &SensorStream) {
+    machine decoding(main: @mut Main, stream: @SensorStream) {
         let mut decoded: SensorBlock;
-        let success: bool = decode(stream, &mut decoded);
+        let success: bool = decode(stream, @mut decoded);
         transition success {
-            true -> output(main, stream, &decoded, -1)
+            true -> output(main, stream, @decoded, -1)
             _ -> bad_stream(main)
         }
     }
-    machine output(main: &mut Main, stream: &SensorStream, decoded: &SensorBlock, maximum: i32) {
+    machine output(main: @mut Main, stream: @SensorStream, decoded: @SensorBlock, maximum: i32) {
         report(stream, decoded, maximum);
     }
-    machine bad_input(main: &mut Main) { Console::write_line("error: input bounds or syntax"); ProcessExit::exit_process(10); }
-    machine bad_stream(main: &mut Main) { Console::write_line("error: malformed sensor stream"); ProcessExit::exit_process(12); }
-    machine bad_certificate(main: &mut Main) { Console::write_line("error: reconstruction certificate"); ProcessExit::exit_process(13); }
+    machine bad_input(main: @mut Main) { Console::write_line("error: input bounds or syntax"); ProcessExit::exit_process(10); }
+    machine bad_stream(main: @mut Main) { Console::write_line("error: malformed sensor stream"); ProcessExit::exit_process(12); }
+    machine bad_certificate(main: @mut Main) { Console::write_line("error: reconstruction certificate"); ProcessExit::exit_process(13); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

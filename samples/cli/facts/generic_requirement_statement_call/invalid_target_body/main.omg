@@ -4,27 +4,27 @@
 // Place: target_body.
 // Expected exit: 0
 boundary trait Mark {
-    machine record<T>(value: &T, label: u64, hits: &mut u64) reaches crashes none;
+    machine record<T>(value: @T, label: u64, hits: @mut u64) reaches crashes none;
 }
 
 LinuxX8664Counting satisfies Mark {
-    machine record<T>(value: &T, label: u64, hits: &mut u64) { hits = label; }
+    machine record<T>(value: @T, label: u64, hits: @mut u64) { hits = label; }
 }
 
 LinuxArm64Counting satisfies Mark {
-    machine record<T>(subject: &T, mark: u64, cell: &mut u64) { cell = mark; }
+    machine record<T>(subject: @T, mark: u64, cell: @mut u64) { cell = mark; }
 }
 
 MacosArm64Counting satisfies Mark {
-    machine record<T>(item: &T, code: u64, slot: &mut u64) { slot = code; }
+    machine record<T>(item: @T, code: u64, slot: @mut u64) { slot = code; }
 }
 
 WindowsX8664Counting satisfies Mark {
-    machine record<T>(operand: &T, tag: u64, target: &mut u64) { target = tag; }
+    machine record<T>(operand: @T, tag: u64, target: @mut u64) { target = tag; }
 }
 
-machine notify<T>(value: &T, label: u64, hits: &mut u64) {
-    Mark::record<T>(&label, label, hits);
+machine notify<T>(value: @T, label: u64, hits: @mut u64) {
+    Mark::record<T>(@label, label, hits);
 }
 
 machine main() crashes Trap {
@@ -32,8 +32,8 @@ machine main() crashes Trap {
     let other: u8 = 3;
     let mut first: u64 = 0;
     let mut second: u64 = 0;
-    notify<i32>(&subject, 9, &mut first);
-    notify<u8>(&other, 5, &mut second);
+    notify<i32>(@subject, 9, @mut first);
+    notify<u8>(@other, 5, @mut second);
     transition first == 9 && second == 5 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

@@ -644,9 +644,9 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
 /// would be judged, and each selection is then added by hand. Selecting the
 /// defective machine brings it in and the program is rejected. Selecting a
 /// boundary requirement and its trait, as a native binding does, declares
-/// that boundary. Selecting a trait that is no boundary, which the route
-/// cannot judge a provider against, hands the compilation back instead of
-/// leaving the selection unjudged.
+/// that boundary. Selecting a namespace, which supplies no executable
+/// declaration to judge, hands the compilation back instead of leaving the
+/// selection unjudged.
 #[test]
 fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     let _compilation = FIXTURE_COMPILATIONS
@@ -706,11 +706,20 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     // that trait. Neither has a body; each is read as the boundary it is,
     // and the requirement is declared in the accepted module though nothing
     // calls it.
+    // Build and Product load separate declarations of the bundled library.
+    // This Product check must select its own prepared boundary declaration.
     let exit = typed
         .traits()
         .iter()
-        .find(|definition| definition.is_boundary && definition.name.as_str() == "ProcessExit")
-        .expect("the bundled library declares `ProcessExit`");
+        .find(|definition| {
+            definition.is_boundary
+                && definition.name.as_str() == "ProcessExit"
+                && typed.symbols.symbol_is_in_dependency_scope(
+                    definition.symbol,
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                )
+        })
+        .expect("the Product library declares `ProcessExit`");
     let exit_process = typed
         .trait_machine_signatures(exit)
         .first()
@@ -742,13 +751,12 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
             .any(|(_, symbol)| *symbol == exit_process)
     );
 
-    let a_trait = typed
-        .traits()
-        .iter()
-        .find(|definition| !definition.is_boundary)
-        .expect("the bundled library declares a trait that is no boundary")
-        .symbol;
-    let Ok(RouteVerdict::FallBack(refusal)) = verdict_selecting(a_trait) else {
+    let namespace = typed.symbols.get(exit.symbol).parent;
+    assert!(matches!(
+        typed.symbols.get(namespace).kind,
+        symbols::SymbolKind::Module | symbols::SymbolKind::Root
+    ));
+    let Ok(RouteVerdict::FallBack(refusal)) = verdict_selecting(namespace) else {
         panic!("a selection the route cannot judge hands the compilation back");
     };
     assert_eq!(
@@ -1007,7 +1015,7 @@ fn borrowed_generic_schemas_close_only_at_their_selected_callables() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let source = "trait Read<T> { machine read(value: &T) -> u32 ensures result == 1u32; } ReadInt satisfies Read<i32> { machine read(value: &i32) -> u32 { 1u32 } } machine invoke() -> u32 { let value: i32 = 7; ReadInt::read(&value) }";
+    let source = "trait Read<T> { machine read(value: @T) -> u32 ensures result == 1u32; } ReadInt satisfies Read<i32> { machine read(value: @i32) -> u32 { 1u32 } } machine invoke() -> u32 { let value: i32 = 7; ReadInt::read(@value) }";
     let accepted = judged_parts("borrowed_schema_closed_call", source);
     assert!(!accepted.is_empty(), "the source must produce check forms");
     assert!(
@@ -1029,7 +1037,7 @@ fn borrowed_generic_schemas_close_only_at_their_selected_callables() {
     let refused = judged_parts("borrowed_schema_shared_mutation", &mutation);
     assert!(refused.contains(&Verdict::Rejected), "{refused:?}");
 
-    let unproved = "trait Read<T> { machine read(value: &T) -> u32 requires value > 0; }";
+    let unproved = "trait Read<T> { machine read(value: @T) -> u32 requires value > 0; }";
     let refused = judged_parts("borrowed_schema_unproved_referent", unproved);
     assert!(
         refused
@@ -1115,11 +1123,11 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     // Borrow the unused item so the test can check the call's numeric contract.
-    let forward = "machine forward<T>(item: &T, limit: u32) -> u32 \
+    let forward = "machine forward<T>(item: @T, limit: u32) -> u32 \
                    requires limit <= 10 ensures result <= 10 { limit }";
     let relay = |bound: u32| {
         format!(
-            "{forward}\nmachine relay<T>(item: &T, limit: u32) -> u32 \
+            "{forward}\nmachine relay<T>(item: @T, limit: u32) -> u32 \
              requires limit <= 10 ensures result <= {bound} {{ forward<T>(item, limit) + 1 }}"
         )
     };
@@ -1300,26 +1308,26 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 
-    // An unused subject machine still demands the exact library declaration
-    // it calls. The library's data-owned helper breaks the static machine rule.
+    // The checker must follow library calls even from an unused machine.
     let frontier = staged_unused(
         "dependency_call",
         "use omega::language::core::CompactBinary;\n\
          machine spare(word: u64) -> i64 { CompactBinary::signed_from_word(word) }",
     );
-    let violation = rule_violation(&frontier);
-    assert_eq!(
-        violation.statement,
-        "a data declaration cannot own a machine; declare an ordinary static machine \
-         while reading the body of `spare`"
-    );
-    assert_authored_site(
-        &frontier,
-        violation.site,
-        "source/library/core/wire.omg",
-        "public machine CompactBinary::signed_from_word(",
-        "CompactBinary::signed_from_word",
-    );
+    let (_, verdict) = route_verdict(&frontier);
+    let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+        panic!("the checker must accept the library call: {verdict:?}");
+    };
+    assert!(accepted.elaboration.names.iter().any(|(_, names)| {
+        names.machine == "signed_from_word"
+            && names
+                .declared
+                .and_then(|span| frontier.typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.path
+                        .ends_with("source/library/core/compact_binary.omg")
+                })
+    }));
 }
 
 /// A requirement that contradicts a crash route's guard rules the route out,
@@ -1446,9 +1454,9 @@ const WRITTEN_FORMALS: &[(&str, &str)] = &[
     // Lent exclusively, the formal holds whatever the callee stored.
     (
         "mut_scalar_lent",
-        "machine clear(value: &mut u32) { value = 0; }\n\
+        "machine clear(value: @mut u32) { value = 0; }\n\
          machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
-         clear(&mut value);\n    value + 4294967285\n}",
+         clear(@mut value);\n    value + 4294967285\n}",
     ),
     (
         "mut_named_in_ensures",
@@ -1679,7 +1687,7 @@ fn mutable_contract_inputs_keep_crash_guards_and_arrivals_at_their_own_inputs() 
     );
     // Unlike a by-value name, the supplied reference observes its referent
     // at completion. Explicit old keeps the entry observation instead.
-    let borrowed = "machine spare(position: &mut u32) -> u32 ensures result == position { \
+    let borrowed = "machine spare(position: @mut u32) -> u32 ensures result == position { \
                     position = 0; position }";
     assert_eq!(
         verdict_on_unused("borrowed_completion_not_input_snapshot", borrowed),
@@ -1896,9 +1904,9 @@ const EMPTY_RECORDS: &[(&str, &str)] = &[
     ),
     (
         "lent",
-        "data Token {}\nmachine touch(token: &mut Token) {}\n\
+        "data Token {}\nmachine touch(token: @mut Token) {}\n\
          machine spare() -> u32 {\n    let mut token: Token = Token {};\n    \
-         touch(&mut token);\n    0\n}",
+         touch(@mut token);\n    0\n}",
     ),
     (
         "field",
@@ -2032,8 +2040,8 @@ fn a_guarded_array_index_survives_only_writes_to_separate_fields() {
     ] {
         let source = format!(
             "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}\n\
-            machine fetch(input: &mut Input) -> u32 {{ {write} input.values[input.index as -Wrapping] }}\n\
-            public machine spare(input: &mut Input) -> u32 requires true {{\n\
+            machine fetch(input: @mut Input) -> u32 {{ {write} input.values[input.index as -Wrapping] }}\n\
+            public machine spare(input: @mut Input) -> u32 requires true {{\n\
                 transition input.index < 3u32 {{ true -> fetch(input) false -> 0u32 }}\n\
             }}"
         );
@@ -2077,12 +2085,12 @@ fn a_guarded_array_index_survives_a_terminal_call_cycle() {
         ),
     ] {
         let source = format!("data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
-            public machine spare(input: &mut Input) -> u32 requires true {{
+            public machine spare(input: @mut Input) -> u32 requires true {{
                 transition {{ _ -> block test(input) }}
-                machine test(input: &mut Input) -> u32 {{
+                machine test(input: @mut Input) -> u32 {{
                     transition input.index < 3u32 {{ true -> block fetch(input) _ -> {alternative} }}
                 }}
-                machine fetch(input: &mut Input) -> u32 {contract} {{
+                machine fetch(input: @mut Input) -> u32 {contract} {{
                     {write}
                     let found: u32 = input.values[input.index as -Wrapping];
                     input.index = input.index + 1;
@@ -2122,12 +2130,12 @@ fn a_guarded_array_index_survives_a_terminal_call_cycle() {
     ] {
         let source = format!(
             "data Input {{ index: u32 in Wrapping; }}
-            public machine spare(input: &mut Input) -> u32 requires true {{
+            public machine spare(input: @mut Input) -> u32 requires true {{
                 {entry}
-                machine test(input: &mut Input) -> u32 {{
+                machine test(input: @mut Input) -> u32 {{
                     transition input.index < 3u32 {{ true -> block fetch(input) _ -> 0u32 }}
                 }}
-                machine fetch(input: &mut Input) -> u32 {{
+                machine fetch(input: @mut Input) -> u32 {{
                     input.index = input.index + 1;
                     transition input.index == 0u32 {{ true -> 0u32 _ -> block test(input) }}
                 }}

@@ -10,7 +10,7 @@ ensures result == true
     true
 }
 
-machine read_field(place: &Pair) -> i64
+machine read_field(place: @Pair) -> i64
 requires place.kept == 17
 {
     place.kept
@@ -19,10 +19,10 @@ requires place.kept == 17
 machine main() crashes Trap {
     let chosen: Pair = Pair { kept: 17, other: 5 };
     let spare: Pair = Pair { kept: 0, other: 8 };
-    transition { _ -> pick(&chosen, &spare) }
+    transition { _ -> pick(@chosen, @spare) }
 
-    machine pick(chosen: &Pair, spare: &Pair) {
-        let joined: &Pair = match choose() {
+    machine pick(chosen: @Pair, spare: @Pair) {
+        let joined: @Pair = match choose() {
             true -> chosen
             false -> spare
         };

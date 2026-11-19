@@ -76,7 +76,7 @@ conformer describes that conformer and exposes no direct entry.
 
 ```omega
 reflect::field(Controller::status)
-reflect::field(Buffer<u32>::used)
+reflect::field(Buffer::<u32>::used)
 reflect::callable(Controller::update)
 reflect::callable(ControllerWriter::write)
 ```
@@ -209,8 +209,8 @@ runtime interpreter:
 Player { health: u32; speed: f32; }
 
 visit_runtime_fields<Player>(player, visitor):
-    invoke<u32>(visitor, health_description, &player.health)
-    invoke<f32>(visitor, speed_description, &player.speed)
+    invoke<u32>(visitor, health_description, @player.health)
+    invoke<f32>(visitor, speed_description, @player.speed)
 ```
 
 The compiler resolves the member, exact owning application, actual complete field
@@ -279,7 +279,7 @@ For an encoding library, the policy shape is:
 
 ```text
 encoding_policy<Value>(field: FieldInfo,
-                       selection: &mut EncodingSelection<Value>)
+                       selection: @mut EncodingSelection<Value>)
 
     if field is the special timestamp member:
         EncodingSelection::select<UnixTimestampEncoding>(selection)

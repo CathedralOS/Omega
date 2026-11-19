@@ -18,7 +18,7 @@ const INVALID: &str = r#"// A machine value call must prove the public precondit
 // The value argument is 200; it cannot satisfy `value <= 100`.
 
 trait Shrink<T> {
-    machine shrink(scale: &T, value: u64) -> u64
+    machine shrink(scale: @T, value: u64) -> u64
     requires value >= 3 && value <= 100
     ensures result <= value;
 }
@@ -28,7 +28,7 @@ data Scale {
 }
 
 TrimOne satisfies Shrink<Scale> {
-    machine shrink(scale: &Scale, value: u64) -> u64
+    machine shrink(scale: @Scale, value: u64) -> u64
     requires value >= 3 && value <= 100
     ensures result <= value
     {
@@ -38,17 +38,17 @@ TrimOne satisfies Shrink<Scale> {
     }
 }
 
-machine probe(one: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none
+machine probe(one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none
     requires value >= 3 && value <= 100
-    ensures result <= value, scale: &Scale) -> u64 {
+    ensures result <= value, scale: @Scale) -> u64 {
     let first: u64 = one(scale, 200);
     transition {
         _ -> first
     }
 }
 
-machine entry(scale: &Scale) -> u64 {
-    let one: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none
+machine entry(scale: @Scale) -> u64 {
+    let one: machine(scale: @Scale, value: u64) -> u64 reaches none crashes none
     requires value >= 3 && value <= 100
     ensures result <= value = TrimOne::shrink;
     transition {

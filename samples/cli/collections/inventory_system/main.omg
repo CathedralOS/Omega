@@ -47,58 +47,58 @@ data Main {
 }
 
 // Set item at each const index (dispatch-based runtime write).
-machine set_item(inventory: &mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
+machine set_item(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
     transition index == 0 {
         true -> set0(inventory, id, quantity, price)
         _ -> try1(inventory, index, id, quantity, price)
     }
 
-    machine set0(inventory: &mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
+    machine set0(inventory: @mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         inventory.items[0].id = id;
         inventory.items[0].quantity = quantity;
         inventory.items[0].price = price;
     }
 
-    machine try1(inventory: &mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
+    machine try1(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         transition index == 1 {
             true -> set1(inventory, id, quantity, price)
             _ -> try2(inventory, index, id, quantity, price)
         }
     }
 
-    machine set1(inventory: &mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
+    machine set1(inventory: @mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         inventory.items[1].id = id;
         inventory.items[1].quantity = quantity;
         inventory.items[1].price = price;
     }
 
-    machine try2(inventory: &mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
+    machine try2(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         transition index == 2 {
             true -> set2(inventory, id, quantity, price)
             _ -> try3(inventory, index, id, quantity, price)
         }
     }
 
-    machine set2(inventory: &mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
+    machine set2(inventory: @mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         inventory.items[2].id = id;
         inventory.items[2].quantity = quantity;
         inventory.items[2].price = price;
     }
 
-    machine try3(inventory: &mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
+    machine try3(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         transition index == 3 {
             true -> set3(inventory, id, quantity, price)
             _ -> set4(inventory, id, quantity, price)
         }
     }
 
-    machine set3(inventory: &mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
+    machine set3(inventory: @mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         inventory.items[3].id = id;
         inventory.items[3].quantity = quantity;
         inventory.items[3].price = price;
     }
 
-    machine set4(inventory: &mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
+    machine set4(inventory: @mut Inventory, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         inventory.items[4].id = id;
         inventory.items[4].quantity = quantity;
         inventory.items[4].price = price;
@@ -107,12 +107,12 @@ machine set_item(inventory: &mut Inventory, index: i32 in Saturating, id: i32 in
 
 // Find item by id; returns price (0 if not found).
 // Uses index-based looping dispatch through 5 items.
-machine find_price(inventory: &Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
+machine find_price(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
     transition {
         _ -> check0(inventory, target_id)
     }
 
-    machine check0(inventory: &Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
+    machine check0(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price0: i32 in Saturating = inventory.items[0].price;
         transition inventory.items[0].id == target_id {
             true -> (price0)
@@ -120,7 +120,7 @@ machine find_price(inventory: &Inventory, target_id: i32 in Saturating) -> i32 i
         }
     }
 
-    machine check1(inventory: &Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
+    machine check1(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price1: i32 in Saturating = inventory.items[1].price;
         transition inventory.items[1].id == target_id {
             true -> (price1)
@@ -128,7 +128,7 @@ machine find_price(inventory: &Inventory, target_id: i32 in Saturating) -> i32 i
         }
     }
 
-    machine check2(inventory: &Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
+    machine check2(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price2: i32 in Saturating = inventory.items[2].price;
         transition inventory.items[2].id == target_id {
             true -> (price2)
@@ -136,7 +136,7 @@ machine find_price(inventory: &Inventory, target_id: i32 in Saturating) -> i32 i
         }
     }
 
-    machine check3(inventory: &Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
+    machine check3(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price3: i32 in Saturating = inventory.items[3].price;
         transition inventory.items[3].id == target_id {
             true -> (price3)
@@ -144,7 +144,7 @@ machine find_price(inventory: &Inventory, target_id: i32 in Saturating) -> i32 i
         }
     }
 
-    machine check4(inventory: &Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
+    machine check4(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price4: i32 in Saturating = inventory.items[4].price;
         transition inventory.items[4].id == target_id {
             true -> (price4)
@@ -153,7 +153,7 @@ machine find_price(inventory: &Inventory, target_id: i32 in Saturating) -> i32 i
     }
 }
 
-machine compute_total(inventory: &Inventory) -> i32 in Saturating {
+machine compute_total(inventory: @Inventory) -> i32 in Saturating {
     // Sum all item values: quantity*price for each item.
     let value0: i32 in Saturating = inventory.items[0].quantity * inventory.items[0].price;
     let value1: i32 in Saturating = inventory.items[1].quantity * inventory.items[1].price;
@@ -163,32 +163,32 @@ machine compute_total(inventory: &Inventory) -> i32 in Saturating {
     value0 + value1 + value2 + value3 + value4
 }
 
-machine main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: @mut Main) reaches ProcessExit + Console {
     Console::write_line("inventory_system: populating a 5-item table, then searching and totaling it");
     let mut inventory: Inventory;
-    set_item(&mut inventory, 0i32 as +Saturating, 1i32 as +Saturating, 3i32 as +Saturating, 10i32 as +Saturating);
-    set_item(&mut inventory, 1i32 as +Saturating, 2i32 as +Saturating, 5i32 as +Saturating, 6i32 as +Saturating);
-    set_item(&mut inventory, 2i32 as +Saturating, 3i32 as +Saturating, 2i32 as +Saturating, 5i32 as +Saturating);
-    set_item(&mut inventory, 3i32 as +Saturating, 4i32 as +Saturating, 7i32 as +Saturating, 1i32 as +Saturating);
-    set_item(&mut inventory, 4i32 as +Saturating, 5i32 as +Saturating, 1i32 as +Saturating, 70i32 as +Saturating);
+    set_item(@mut inventory, 0i32 as +Saturating, 1i32 as +Saturating, 3i32 as +Saturating, 10i32 as +Saturating);
+    set_item(@mut inventory, 1i32 as +Saturating, 2i32 as +Saturating, 5i32 as +Saturating, 6i32 as +Saturating);
+    set_item(@mut inventory, 2i32 as +Saturating, 3i32 as +Saturating, 2i32 as +Saturating, 5i32 as +Saturating);
+    set_item(@mut inventory, 3i32 as +Saturating, 4i32 as +Saturating, 7i32 as +Saturating, 1i32 as +Saturating);
+    set_item(@mut inventory, 4i32 as +Saturating, 5i32 as +Saturating, 1i32 as +Saturating, 70i32 as +Saturating);
 
-    let total: i32 in Saturating = compute_total(&inventory);
-    let price: i32 in Saturating = find_price(&inventory, 5i32 as +Saturating);
+    let total: i32 in Saturating = compute_total(@inventory);
+    let price: i32 in Saturating = find_price(@inventory, 5i32 as +Saturating);
 
     transition price == 70 {
         true -> block check_total(context, total)
         _ -> block bad_price(context)
     }
 
-    machine bad_price(context: &mut Main) {
+    machine bad_price(context: @mut Main) {
         Console::write_line("FAIL: search returned the wrong price for id 5 (exit 71)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause[..]);
+        _ = block Console::read_line(@mut pause[..]);
         ProcessExit::exit_process(71);
     }
 
-    machine check_total(context: &mut Main, total: i32 in Saturating) {
+    machine check_total(context: @mut Main, total: i32 in Saturating) {
         let adjusted: i32 in Saturating = total - 77;
         transition adjusted == 70 {
             true -> block good(context)
@@ -196,19 +196,19 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine bad_total(context: &mut Main) {
+    machine bad_total(context: @mut Main) {
         Console::write_line("FAIL: wrong inventory total value (exit 72)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause[..]);
+        _ = block Console::read_line(@mut pause[..]);
         ProcessExit::exit_process(72);
     }
 
-    machine good(context: &mut Main) {
+    machine good(context: @mut Main) {
         Console::write_line("PASS: golden item price 70, total value 147 (exit 70)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause[..]);
+        _ = block Console::read_line(@mut pause[..]);
         ProcessExit::exit_process(70);
     }
 }
@@ -216,5 +216,5 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

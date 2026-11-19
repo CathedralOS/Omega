@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 288`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 289`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -5092,10 +5092,9 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 288 retains normal-result membership facts independently of declared
-// result types, including their complete service-contract meaning. Earlier
-// payloads lack these guarantees and reject before decoding.
-pub(crate) const FORMAT_MARKER: u16 = 288;
+// Marker 289 gives service-schema synchronous entries distinct tags for a
+// callable parameter and a named service. Earlier payloads lack those tags.
+pub(crate) const FORMAT_MARKER: u16 = 289;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

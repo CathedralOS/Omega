@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "terminal_project_requests");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
@@ -7,21 +7,21 @@ machine build(builder: &mut Build) {
 }
 
 // Build project requests are effects of the executed branch, including helpers.
-machine project_name() -> &[u8] { "computed_project" }
+machine project_name() -> @[u8] { "computed_project" }
 
-machine selected_dependency(builder: &mut Build) {
+machine selected_dependency(builder: @mut Build) {
     let mut selected_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "selected_source" });
-    dependency::with_alias(&mut selected_dependency, "selected");
+    dependency::with_alias(@mut selected_dependency, "selected");
     let selected_registration: DependencyRegistration = Build::dependency(builder, selected_dependency);
 }
 
-machine unselected_dependency(builder: &mut Build) {
+machine unselected_dependency(builder: @mut Build) {
     let mut unselected_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "unselected_source" });
-    dependency::with_alias(&mut unselected_dependency, "unselected");
+    dependency::with_alias(@mut unselected_dependency, "unselected");
     let unselected_registration: DependencyRegistration = Build::dependency(builder, unselected_dependency);
 }
 
-machine requests(builder: &mut Build) {
+machine requests(builder: @mut Build) {
     Build::application(builder, project_name());
     transition true {
         true -> selected_dependency(builder)

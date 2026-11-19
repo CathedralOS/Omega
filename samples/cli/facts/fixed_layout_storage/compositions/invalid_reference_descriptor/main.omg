@@ -18,7 +18,7 @@ PayloadLayout<const Marker: u64> satisfies FixedLayout<Payload> {
         LayoutPlan { entries: entries, entry_count: 1, size_fixed: extent, size_is_dynamic: false, align: 8 }
     }
 }
-data Envelope<'view, T> [copy] { value: u64; pointer: &'view T; }
+data Envelope<'view, T> [copy] { value: u64; pointer: @'view T; }
 EnvelopeLayout<T> satisfies FixedLayout<Envelope<T> > {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
         let mut entries: [FieldEntry; 64];
@@ -27,7 +27,7 @@ EnvelopeLayout<T> satisfies FixedLayout<Envelope<T> > {
         LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
     }
 }
-machine update<const Marker: u64>(pointer: &LayoutStorage<Payload, PayloadLayout<Marker> >) -> u64 {
+machine update<const Marker: u64>(pointer: @LayoutStorage<Payload, PayloadLayout<Marker> >) -> u64 {
     let mut record: LayoutStorage<Envelope<LayoutStorage<Payload, PayloadLayout<Marker> > >, EnvelopeLayout<LayoutStorage<Payload, PayloadLayout<Marker> > > >;
     record.pointer = pointer;
     record.value = 256u64;
@@ -36,7 +36,7 @@ machine update<const Marker: u64>(pointer: &LayoutStorage<Payload, PayloadLayout
 machine main() crashes Trap {
     let mut pointee: LayoutStorage<Payload, PayloadLayout<7u64> >;
     pointee.value = 43u64;
-    let result: u64 = update<7u64>(&pointee);
+    let result: u64 = update<7u64>(@pointee);
     transition result == 7u64 && pointee.value == 43u64 {
         true -> done()
         _ -> bad()

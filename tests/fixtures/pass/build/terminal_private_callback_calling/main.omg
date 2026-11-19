@@ -47,7 +47,7 @@ public Fixed satisfies FixedLayout<Payload> {
 }
 public Variable satisfies FixedLayout<Payload> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
-        let facts: LayoutTargetFacts = layout_target_facts(&target);
+        let facts: LayoutTargetFacts = layout_target_facts(@target);
         transition facts.profile == "windows_x86_64" {
             true -> place(schema, 24)
             _ -> place(schema, 16)
@@ -98,7 +98,7 @@ public data Envelope {
     after: u64;
 }
 public boundary trait Registrar: Calling<SlotCalling> {
-    machine register<machine First, machine Second, machine Extra2, machine Extra3, machine Extra4, machine Extra5, machine Extra6, machine Extra7, machine Extra8, machine Extra9, machine Extra10, machine Extra11, machine Extra12, machine Extra13, machine Extra14, machine Extra15, machine Extra16, machine Extra17, machine Extra18, machine Extra19, machine Extra20, machine Extra21, machine Extra22, machine Extra23, machine Extra24, machine Extra25, machine Extra26, machine Extra27, machine Extra28, machine Extra29, machine Extra30, machine Extra31, machine Extra32>(envelope: &Envelope) -> u64
+    machine register<machine First, machine Second, machine Extra2, machine Extra3, machine Extra4, machine Extra5, machine Extra6, machine Extra7, machine Extra8, machine Extra9, machine Extra10, machine Extra11, machine Extra12, machine Extra13, machine Extra14, machine Extra15, machine Extra16, machine Extra17, machine Extra18, machine Extra19, machine Extra20, machine Extra21, machine Extra22, machine Extra23, machine Extra24, machine Extra25, machine Extra26, machine Extra27, machine Extra28, machine Extra29, machine Extra30, machine Extra31, machine Extra32>(envelope: @Envelope) -> u64
     requires machine First satisfies FixedCallback::call;
     requires machine Second satisfies VariableCallback::call;
     requires machine Extra2 satisfies FixedCallback::call;
@@ -138,12 +138,12 @@ public boundary trait Registrar: Calling<SlotCalling> {
 // A second stored pointer does not authorize a direct write into its pointee.
 // This declaration still has a pointer ABI, but no inline private destinations.
 public boundary trait IndirectRegistrar: Calling<SlotCalling> {
-    machine register(envelope: & &Envelope) -> u64 reaches crashes none;
+    machine register(envelope: @ @Envelope) -> u64 reaches crashes none;
 }
 machine fixed_callback(value: u64) -> u64 satisfies FixedCallback::call { value ^ 13u64 }
 machine variable_callback(value: u64) -> u64 satisfies VariableCallback::call { value ^ 13u64 }
 RegistrarImpl satisfies Registrar {
-    machine register<machine First, machine Second, machine Extra2, machine Extra3, machine Extra4, machine Extra5, machine Extra6, machine Extra7, machine Extra8, machine Extra9, machine Extra10, machine Extra11, machine Extra12, machine Extra13, machine Extra14, machine Extra15, machine Extra16, machine Extra17, machine Extra18, machine Extra19, machine Extra20, machine Extra21, machine Extra22, machine Extra23, machine Extra24, machine Extra25, machine Extra26, machine Extra27, machine Extra28, machine Extra29, machine Extra30, machine Extra31, machine Extra32>(envelope: &Envelope) -> u64
+    machine register<machine First, machine Second, machine Extra2, machine Extra3, machine Extra4, machine Extra5, machine Extra6, machine Extra7, machine Extra8, machine Extra9, machine Extra10, machine Extra11, machine Extra12, machine Extra13, machine Extra14, machine Extra15, machine Extra16, machine Extra17, machine Extra18, machine Extra19, machine Extra20, machine Extra21, machine Extra22, machine Extra23, machine Extra24, machine Extra25, machine Extra26, machine Extra27, machine Extra28, machine Extra29, machine Extra30, machine Extra31, machine Extra32>(envelope: @Envelope) -> u64
     requires machine First satisfies FixedCallback::call;
     requires machine Second satisfies VariableCallback::call;
     requires machine Extra2 satisfies FixedCallback::call;
@@ -213,7 +213,7 @@ public SlotCalling satisfies CallingPolicy {
             plan.call.result.locations[0] = ValueLocation::Register { register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: 8 };
             plan.call.callback_materialization_count = signature.callback_demand_count;
             // Match exact requirements and give each binder one destination.
-            fill_materializations(&mut plan, &signature, 0, 33);
+            fill_materializations(@mut plan, @signature, 0, 33);
             plan.call.stack_alignment = 16;
             plan.call.entry_control = EntryControl::CallReturn;
             plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
@@ -232,14 +232,14 @@ public SlotCalling satisfies CallingPolicy {
     }
 }
 
-machine fill_materializations(plan: &mut BoundaryEntryPlan, signature: &BoundarySignature, index: u64, remaining: u64)
+machine fill_materializations(plan: @mut BoundaryEntryPlan, signature: @BoundarySignature, index: u64, remaining: u64)
 terminates by remaining
 {
     transition index < 33 && remaining > 0 {
         true -> put(plan, signature, index, remaining)
         _ -> {}
     }
-    machine put(plan: &mut BoundaryEntryPlan, signature: &BoundarySignature, index: u64, remaining: u64)
+    machine put(plan: @mut BoundaryEntryPlan, signature: @BoundarySignature, index: u64, remaining: u64)
     requires index < 33 && remaining > 0 {
         plan.call.callback_materializations[index].binder = slot_binder(signature, index);
         plan.call.callback_materializations[index].destination = signature.callback_demands[index].destination;
@@ -250,7 +250,7 @@ terminates by remaining
 // The roster has one variable contract. Its demand may occur anywhere: swap
 // that binder with the fixed binder at its actual position, leaving all other
 // matching positions alone. Native validation checks every resulting join.
-machine slot_binder(signature: &BoundarySignature, index: u64) -> u64
+machine slot_binder(signature: @BoundarySignature, index: u64) -> u64
 requires index < 33 {
     transition {
         signature.callback_binders[index].requirement == signature.callback_demands[index].requirement -> signature.callback_binders[index].binder
@@ -258,14 +258,14 @@ requires index < 33 {
         _ -> variable_position_binder(signature, 0, 33)
     }
 }
-machine variable_position_binder(signature: &BoundarySignature, index: u64, remaining: u64) -> u64
+machine variable_position_binder(signature: @BoundarySignature, index: u64, remaining: u64) -> u64
 terminates by remaining
 {
     transition index < 33 && remaining > 0 {
         true -> inspect(signature, index, remaining)
         _ -> signature.callback_binders[0].binder
     }
-    machine inspect(signature: &BoundarySignature, index: u64, remaining: u64) -> u64
+    machine inspect(signature: @BoundarySignature, index: u64, remaining: u64) -> u64
     requires index < 33 && remaining > 0 {
         transition signature.callback_demands[index].requirement == signature.callback_binders[1].requirement {
             true -> signature.callback_binders[index].binder
@@ -282,7 +282,7 @@ machine main() reaches Registrar + FixedCallback + VariableCallback invokes Regi
     envelope.slot31.value = 131;
     envelope.slot32.value = 132;
     envelope.after = 203;
-    let answer: u64 = Registrar::register<fixed_callback, variable_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback>(&envelope);
+    let answer: u64 = Registrar::register<fixed_callback, variable_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback>(@envelope);
     transition answer == 167 && envelope.before == 101 && envelope.first.value == 11
         && envelope.second.value == 37
         && envelope.slot31.value == 131

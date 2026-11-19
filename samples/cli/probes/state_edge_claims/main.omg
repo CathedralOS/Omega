@@ -12,7 +12,7 @@
 
 
 data Receipt [linear] dropped by drop_receipt { code: i32; }
-machine drop_receipt(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: @mut Receipt) {}
 
 data Pair { left: Receipt; right: Receipt; }
 
@@ -24,7 +24,7 @@ machine consume(receipt: Receipt) -> i32 {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let receipt: Receipt = Receipt { code: 1 };
     let pair: Pair = Pair { left: receipt, right: Receipt { code: 2 } };
@@ -32,10 +32,10 @@ machine Main::main(main: &mut Main) {
         true -> chosen(main, pair)
         _ -> other(main, pair)
     }
-    machine chosen(main: &mut Main, pair: Pair) {
+    machine chosen(main: @mut Main, pair: Pair) {
         main.hits = (consume(pair.left) as i32 in Wrapping) + (consume(pair.right) as i32 in Wrapping);
     }
-    machine other(main: &mut Main, pair: Pair) {
+    machine other(main: @mut Main, pair: Pair) {
         main.hits = -1;
         drop(pair.left);
         drop(pair.right);
@@ -45,5 +45,5 @@ machine Main::main(main: &mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -62,7 +62,7 @@ data WinHandle {
     value: u64;
 }
 
-machine consume(handle: &CLayout<WinHandle>) {
+machine consume(handle: @CLayout<WinHandle>) {
     inspect_handle(handle);
 }
 ```
@@ -81,14 +81,14 @@ fallible `TryFrom`, never a silent cast.
 const player_bytes: u64 = size_of<Player>();
 const player_alignment: u64 = align_of<Player>();
 
-machine header_is_aligned(packet: &[u8]) -> bool
+machine header_is_aligned(packet: @[u8]) -> bool
 requires packet.len >= 16
 {
     align_of(packet) >= 16          // alignment of this actual location
 }
 
 let code_address: addr = address_of<identity<u32>>();
-let storage_address: addr = address_of(&value);
+let storage_address: addr = address_of(@value);
 ```
 
 An address is a number. Holding one grants no right to read or write it.
@@ -108,7 +108,7 @@ requirements, including `read`.
 
 ```omega
 boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling> {
-    machine read(fd: i32, buffer: &mut [u8]) -> i64 reaches FilesystemContentRead crashes none;
+    machine read(fd: i32, buffer: @mut [u8]) -> i64 reaches FilesystemContentRead crashes none;
 }
 ```
 
@@ -154,9 +154,9 @@ side effects. Such memory is used through a view that allows only the
 operations the hardware supports:
 
 ```omega
-machine send(uart: &mut (UartRegisters in DeviceRegisters), byte: u32) -> u32 {
-    write(&mut uart.transmit, byte);
-    read(&uart.status)
+machine send(uart: @mut (UartRegisters in DeviceRegisters), byte: u32) -> u32 {
+    write(@mut uart.transmit, byte);
+    read(@uart.status)
 }
 ```
 
@@ -180,9 +180,9 @@ See [access plans](../spec/resources/access.md) and
 A recast borrows the same storage as another type:
 
 ```omega
-let read: &u32 = &storage.word as &u32;
-let header: &mut Header = &mut storage.bytes[offset] as &mut Header;
-let words: &mut [u16] = &mut storage.bytes as &mut [u16];
+let read: @u32 = @storage.word as @u32;
+let header: @mut Header = @mut storage.bytes[offset] as @mut Header;
+let words: @mut [u16] = @mut storage.bytes as @mut [u16];
 ```
 
 The compiler checks size, alignment and that every value you could read is
@@ -213,7 +213,7 @@ data CounterDisk {
 
 machine counter_v1_to_v2(
     old: CounterDiskV1,
-    out: &mut CounterDiskV2
+    out: @mut CounterDiskV2
 ) satisfies FormatMigration<
     CounterDisk,
     CounterDiskV1,

@@ -101,8 +101,8 @@ reflection selection contexts because conformance evidence was not a value.
 
 ```omega
 trait Codec<T> {
-    machine encode(value: &T, out: &mut [u8]) -> u64;
-    machine decode(input: &[u8], out: &mut T) -> bool;
+    machine encode(value: @T, out: @mut [u8]) -> u64;
+    machine decode(input: @[u8], out: @mut T) -> bool;
 }
 
 WireCodec satisfies Codec<Message> {
@@ -110,11 +110,11 @@ WireCodec satisfies Codec<Message> {
     Codec::decode = lib_b::decode;
 }
 
-machine save_static<T, const Format: Codec<T>>(value: &T, out: &mut [u8]) -> u64 {
+machine save_static<T, const Format: Codec<T>>(value: @T, out: @mut [u8]) -> u64 {
     Format::encode(value, out)
 }
 
-machine save_dynamic<T>(format: &Codec<T>, value: &T, out: &mut [u8]) -> u64 {
+machine save_dynamic<T>(format: @Codec<T>, value: @T, out: @mut [u8]) -> u64 {
     (format.encode)(value, out)
 }
 ```

@@ -557,26 +557,26 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
 #[test]
 fn actual_governed_reads_and_delegated_writes_execute_and_refuse_denied_axes() {
     let original = include_str!("selected_access_plan_family.omg");
-    let plan = r#"let mut plan: AccessPlan = access::new_plan(&schema,
+    let plan = r#"let mut plan: AccessPlan = access::new_plan(@schema,
             Issuance::Only { routes: [reflect::callable(stamp)] });
-        access::allow_readers(&mut plan,
+        access::allow_readers(@mut plan,
             omega::language::core::AccessRegion::Subject { schema: schema },
             [reflect::callable(number)]);
-        access::allow_writers(&mut plan,
+        access::allow_writers(@mut plan,
             omega::language::core::AccessRegion::Subject { schema: schema },
             [reflect::callable(change)]);
         plan"#;
     let source = original.replacen(
-        "access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(stamp)] })",
+        "access::new_plan(@schema, Issuance::Only { routes: [reflect::callable(stamp)] })",
         plan,
         1,
     ).replace(
         "let observed: i32 = number(stamped(Ticket { number: 4 }));",
-        "let mut ticket: Ticket in Stamped = stamped(Ticket { number: 4 });\n    change(&mut ticket);\n    let observed: i32 = number(ticket);",
+        "let mut ticket: Ticket in Stamped = stamped(Ticket { number: 4 });\n    change(@mut ticket);\n    let observed: i32 = number(ticket);",
     ).replace("observed == 4", "observed == 41") + r#"
 
-machine change(ticket: &mut Ticket in Stamped) { write_number(ticket); }
-machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
+machine change(ticket: @mut Ticket in Stamped) { write_number(ticket); }
+machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
 "#;
     for (source, denied) in [
         (source.clone(), None),
@@ -592,8 +592,8 @@ machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
         // later direct helper call cannot reuse that grant on the same value.
         (
             source.replace(
-                "change(&mut ticket);",
-                "change(&mut ticket);\n    write_number(&mut ticket);",
+                "change(@mut ticket);",
+                "change(@mut ticket);\n    write_number(@mut ticket);",
             ),
             Some("write"),
         ),
@@ -737,9 +737,9 @@ fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
         data Cell { value: u32; }
         machine describe() -> reflect::TypeSchema { reflect::schema<Cell>() }
         machine carry<'text>(schema: reflect::TypeSchema<'text>) -> reflect::TypeSchema<'text> { schema }
-        machine local_escape<'text>() -> &'text [u8] {
+        machine local_escape<'text>() -> @'text [u8] {
             let bytes: [u8; 1] = [7u8];
-            let view: &[u8] = &bytes[..];
+            let view: @[u8] = @bytes[..];
             view
         }
     "#;

@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "core_integer_endpoint_target_body");
     Build::select_provider<EndpointProbe, WindowsEndpointProbe>(builder, windows_x86_64);
     Build::select_provider<EndpointProbe, LinuxX86EndpointProbe>(builder, linux_x86_64);

@@ -3,7 +3,7 @@
 // Expected exit: 0
 data Outcome [copy] { chosen_last: i64; other_last: i64; }
 
-machine choose(counter: &mut u64, flag: bool) -> bool
+machine choose(counter: @mut u64, flag: bool) -> bool
 requires counter == 0
 {
     counter = 1;
@@ -20,9 +20,9 @@ machine store(flag: bool) -> Outcome crashes Trap {
         false -> [0, 0, 0, 0, 0, 0]
     };
     let mut visits: u64 = 0;
-    let selected: &mut [i64] = match choose(&mut visits, flag) {
-        true -> &mut chosen
-        false -> &mut other
+    let selected: @mut [i64] = match choose(@mut visits, flag) {
+        true -> @mut chosen
+        false -> @mut other
     };
     let last: u64 = selected.len - 1;
     selected[last] = 41;

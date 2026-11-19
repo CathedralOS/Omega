@@ -1,0 +1,20 @@
+// Expected exit: 0.
+trait Read<T> {
+    machine read(value: @T) -> u32 ensures result == 1u32;
+}
+
+ReadInt satisfies Read<i32> {
+    machine read(value: @i32) -> u32 { 1u32 }
+}
+
+machine invoke() -> u32 {
+    let value: i32 = 7;
+    ReadInt::read(@value)
+}
+
+machine main() {
+    let observed: u32 = invoke();
+    transition observed == 1u32 { true -> done() false -> wrong() }
+    machine done() { }
+    machine wrong() { crash Trap; }
+}

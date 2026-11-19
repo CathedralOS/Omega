@@ -8,17 +8,17 @@ public data Cell { value: u64 in ResidentValue; }
 public domain Cell::Issued established by mint_cell;
 machine mint_cell(value: u64 in ResidentValue) -> Cell
 ensures result in Cell::Issued { Cell { value: value } }
-machine observe_cell(cell: &Cell in Cell::Issued) -> u64 { cell.value }
-public data Buffer<'cells> [linear] dropped by drop_buffer<'cells> { marker: u64; cells: &'cells mut [Cell in Cell::Issued; 3]; }
-machine drop_buffer<'cells>(buffer: &mut Buffer<'cells>) {}
+machine observe_cell(cell: @Cell in Cell::Issued) -> u64 { cell.value }
+public data Buffer<'cells> [linear] dropped by drop_buffer<'cells> { marker: u64; cells: @'cells mut [Cell in Cell::Issued; 3]; }
+machine drop_buffer<'cells>(buffer: @mut Buffer<'cells>) {}
 public domain Buffer::Owned;
-machine Owned::content<'cells>(buffer: &Buffer<'cells>) -> CountedQuantity<ByteUnit>
+machine Owned::content<'cells>(buffer: @Buffer<'cells>) -> CountedQuantity<ByteUnit>
 satisfies Content<Buffer<'cells>, CountedQuantity<ByteUnit>>::project {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 public data Pending<'source> [linear] { slot: u64; }
 public domain Pending::Retained established by Writer::register;
-machine Retained::content<'source>(pending: &Pending<'source>) -> CountedQuantity<ByteUnit>
+machine Retained::content<'source>(pending: @Pending<'source>) -> CountedQuantity<ByteUnit>
 satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
@@ -26,10 +26,10 @@ public data Capacity [linear] { token: u64; }
 public domain Capacity::Available established by Writer::acquire, Writer::complete;
 public boundary trait Writer {
     machine acquire() -> Capacity reaches ensures result in Capacity::Available crashes Trap;
-    machine register<'cells, 'source>(capacity: Capacity in Capacity::Available, buffer: &'source mut Buffer<'cells> in Buffer::Owned) -> Pending<'source>
+    machine register<'cells, 'source>(capacity: Capacity in Capacity::Available, buffer: @'source mut Buffer<'cells> in Buffer::Owned) -> Pending<'source>
     reaches
     ensures result in Pending::Retained, buffer in Buffer::Owned crashes Trap;
-    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: &mut u64) -> Capacity
+    machine complete<'source>(pending: Pending<'source> in Pending::Retained, observed: @mut u64) -> Capacity
     reaches
     ensures result in Capacity::Available crashes Trap;
     machine release(capacity: Capacity in Capacity::Available) reaches crashes Trap;
@@ -37,24 +37,24 @@ public boundary trait Writer {
 
 data Main {}
 machine observed_gap(value: u64 in ResidentValue) -> u64 { 2147483647 - value }
-machine run_main(main: &mut Main) reaches Writer crashes Trap {
+machine run_main(main: @mut Main) reaches Writer crashes Trap {
     let capacity: Capacity in Capacity::Available = Writer::acquire();
     let mut cells: [Cell in Cell::Issued; 3] = [mint_cell(305419896), mint_cell(37), mint_cell(1515863100)];
     let original: u64 = cells[1].value;
-    let mut buffer: Buffer in Buffer::Owned = Buffer { marker: 91, cells: &mut cells };
-    let pending: Pending = Writer::register(capacity, &mut buffer);
+    let mut buffer: Buffer in Buffer::Owned = Buffer { marker: 91, cells: @mut cells };
+    let pending: Pending = Writer::register(capacity, @mut buffer);
     let routed: Pending in Pending::Retained = forward(pending);
     let mut observed: u64 = 0;
-    let returned: Capacity in Capacity::Available = Writer::complete(routed, &mut observed);
+    let returned: Capacity in Capacity::Available = Writer::complete(routed, @mut observed);
     Writer::release(returned);
-    let issued_value: u64 = observe_cell(&buffer.cells[1]);
+    let issued_value: u64 = observe_cell(@buffer.cells[1]);
     let value: u64 = buffer.cells[1].value;
     let gap: u64 = observed_gap(buffer.cells[1].value);
     let left: u64 = buffer.cells[0].value;
     let right: u64 = buffer.cells[2].value;
     let marker: u64 = buffer.marker;
     drop(buffer);
-    let caller_issued_value: u64 = observe_cell(&cells[1]);
+    let caller_issued_value: u64 = observe_cell(@cells[1]);
     let caller_value: u64 = cells[1].value;
     let caller_left: u64 = cells[0].value;
     let caller_right: u64 = cells[2].value;
@@ -68,5 +68,5 @@ machine run_main(main: &mut Main) reaches Writer crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Writer crashes Trap {
     let mut entry_storage: Main;
-    run_main(&mut entry_storage);
+    run_main(@mut entry_storage);
 }

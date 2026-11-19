@@ -20,7 +20,7 @@ ensures result.value == value
 machine main() crashes Trap {
     let left: lib::ops::Wrapped = produced(250u16);
     let right: lib::ops::Wrapped = produced(10u16);
-    let total: u64 = lib::ops::Wrapped::describe(&left, &right);
+    let total: u64 = lib::ops::Wrapped::describe(@left, @right);
     transition hold(total) && total == 260 {
         true -> done()
         _ -> bad()

@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "unannotated_imported_boundary_call_through_local");
     let support_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../support" }));
     Build::select_provider<support::Mark, MarkerMark>(builder, linux_arm64);

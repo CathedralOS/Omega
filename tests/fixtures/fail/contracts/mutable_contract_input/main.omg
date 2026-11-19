@@ -6,7 +6,7 @@ ensures result == position
     position
 }
 
-machine clear(position: &mut u32) { position = 0; }
+machine clear(position: @mut u32) { position = 0; }
 
 machine through_helper(mut position: u32, step: u32) -> u32
 requires position <= 100 && step <= 100
@@ -14,7 +14,7 @@ ensures embed(result) == embed(position) + embed(step)
 {
     let answer: u32 = position + step;
     position = answer;
-    clear(&mut position);
+    clear(@mut position);
     answer
 }
 

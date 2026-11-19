@@ -20,10 +20,10 @@ use std::process::Command;
 
 const UNPROVED: &str = "may overflow `u64`";
 
-const APP_BUILD: &str = "machine build(builder: &mut Build) {
+const APP_BUILD: &str = "machine build(builder: @mut Build) {
     Build::application(builder, \"acceptance_app\");
     let mut vendor_dependency: DependencyDescription = dependency::from_source(Source::Path { location: \"vendor\" });
-    dependency::with_alias(&mut vendor_dependency, \"vendor\");
+    dependency::with_alias(@mut vendor_dependency, \"vendor\");
     let vendor_registration: DependencyRegistration = Build::dependency(builder, vendor_dependency);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
@@ -34,7 +34,7 @@ machine main() {
 }
 ";
 const VENDOR_BUILD: &str =
-    "machine build(builder: &mut Build) { Build::package(builder, \"acceptance_vendor\"); }\n";
+    "machine build(builder: @mut Build) { Build::package(builder, \"acceptance_vendor\"); }\n";
 const VENDOR_MAIN: &str = "public machine count(value: u64) -> u64 { value }\n";
 
 struct Project {
@@ -172,7 +172,7 @@ fn a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations
     assert_refused_in(&root.join("vendor"), "unrelated");
 
     let reached = Project {
-        vendor_build: "machine build(builder: &mut Build) {
+        vendor_build: "machine build(builder: @mut Build) {
     let size: u64 = grow(3u64);
     Build::package(builder, \"acceptance_vendor\");
 }

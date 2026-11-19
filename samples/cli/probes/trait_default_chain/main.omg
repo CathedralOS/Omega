@@ -16,24 +16,24 @@
 // ledger (count 2, sum 14). Compile-checked only: no standard-library
 // dependency, no ProcessExit provider.
 trait Settable<T> {
-    machine set(subject: &mut T, value: i32);
+    machine set(subject: @mut T, value: i32);
 }
 
 trait Resettable<T>: Settable<T> {
-    machine prepare(subject: &mut T) {
+    machine prepare(subject: @mut T) {
         set(subject, 10);
     }
 
-    machine reset(subject: &mut T) {
+    machine reset(subject: @mut T) {
         prepare(subject);
         set(subject, 30);
     }
 }
 
 trait Store<Container, Item> {
-    machine put(subject: &mut Container, item: Item);
+    machine put(subject: @mut Container, item: Item);
 
-    machine put_twice(subject: &mut Container, item: Item) {
+    machine put_twice(subject: @mut Container, item: Item) {
         put(subject, item);
         put(subject, item);
     }
@@ -45,21 +45,21 @@ data Counter {
 }
 
 CounterResettable satisfies Resettable<Counter> {
-    machine set(subject: &mut Counter, value: i32) { Counter::set(subject, value) }
+    machine set(subject: @mut Counter, value: i32) { Counter::set(subject, value) }
 }
 
-machine Counter::set(counter: &mut Counter, value: i32) {
+machine Counter::set(counter: @mut Counter, value: i32) {
     transition value == 10 {
         true -> prepared(counter)
         _ -> assigned(counter, value)
     }
 
-    machine prepared(counter: &mut Counter) {
+    machine prepared(counter: @mut Counter) {
         counter.prepared = true;
         counter.value = 10;
     }
 
-    machine assigned(counter: &mut Counter, value: i32) {
+    machine assigned(counter: @mut Counter, value: i32) {
         counter.value = value;
     }
 }
@@ -70,17 +70,17 @@ data Ledger {
 }
 
 LedgerStore satisfies Store<Ledger, i32> {
-    machine put(subject: &mut Ledger, item: i32) { Ledger::put(subject, item) }
+    machine put(subject: @mut Ledger, item: i32) { Ledger::put(subject, item) }
 }
 
-machine Ledger::put(ledger: &mut Ledger, item: i32) {
+machine Ledger::put(ledger: @mut Ledger, item: i32) {
     ledger.total = ledger.total + (item as i32 in Wrapping);
     ledger.count = ledger.count + 1;
 }
 
 machine trait_default_chain() {
     let mut counter: Counter = Counter { value: 0, prepared: false };
-    CounterResettable::reset(&mut counter);
+    CounterResettable::reset(@mut counter);
     transition counter.value == 30 && counter.prepared {
         true -> check_ledger()
         _ -> done(71)
@@ -88,7 +88,7 @@ machine trait_default_chain() {
 
     machine check_ledger {
         let mut ledger: Ledger = Ledger { total: 0, count: 0 };
-        LedgerStore::put_twice(&mut ledger, 7);
+        LedgerStore::put_twice(@mut ledger, 7);
         transition ledger.count == 2 && ledger.total == 14 {
             true -> done(70)
             _ -> done(72)

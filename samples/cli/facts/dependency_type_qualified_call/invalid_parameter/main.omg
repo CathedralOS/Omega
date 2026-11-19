@@ -11,7 +11,7 @@ requires total == 260
     true
 }
 
-machine observe(left: &lib::ops::Wrapped, right: &lib::ops::Wrapped) -> u64
+machine observe(left: @lib::ops::Wrapped, right: @lib::ops::Wrapped) -> u64
 requires left.value > 0
 ensures result == (left.value as u64) + (right.value as u64)
 {
@@ -21,7 +21,7 @@ ensures result == (left.value as u64) + (right.value as u64)
 machine main() crashes Trap {
     let left: lib::ops::Wrapped = lib::ops::Wrapped { value: 0u16 };
     let right: lib::ops::Wrapped = lib::ops::Wrapped { value: 260u16 };
-    let total: u64 = observe(&left, &right);
+    let total: u64 = observe(@left, @right);
     transition hold(total) && total == 260 {
         true -> done()
         _ -> bad()

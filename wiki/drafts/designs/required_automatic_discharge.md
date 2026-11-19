@@ -8,7 +8,7 @@ therefore accept different programs with neither being wrong. The spec now
 names a floor every checker discharges unaided:
 
 ```omega
-machine get(items: &[u8], i: u64, n: u64) -> u8
+machine get(items: @[u8], i: u64, n: u64) -> u8
 requires i < n
 requires n <= items.len
 {

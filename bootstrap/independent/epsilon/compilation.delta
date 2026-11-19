@@ -36,13 +36,17 @@
                     ((EpsilonCollectedProgramSyntax program owners machines)
                       (match program
                         ((EpsilonSyntaxProgram start end declarations)
-                          (epsilon_delta_program_result (epsilon_delta_program_runtime declarations)
-                            (epsilon_delta_append (epsilon_delta_type_declarations source declarations)
+                          (let runtime EpsilonDeltaRuntime (epsilon_delta_program_runtime declarations)
+                            (epsilon_delta_program_result runtime
                               (epsilon_delta_append
-                                (epsilon_delta_declarations source catalog declarations locals fields callables control)
-                                (match (epsilon_delta_program_runtime declarations)
-                                  (EpsilonDeltaPureRuntime (EpsilonDeltaCompiled ""))
-                                  (EpsilonDeltaStoredRuntime (epsilon_delta_program_entry source declarations)))))))))))))))))))
+                                (match runtime
+                                  (EpsilonDeltaPureRuntime (epsilon_delta_type_declarations source declarations))
+                                  (EpsilonDeltaStoredRuntime (EpsilonDeltaCompiled "")))
+                                (epsilon_delta_append
+                                  (epsilon_delta_declarations source catalog declarations locals fields callables control runtime)
+                                  (match runtime
+                                    (EpsilonDeltaPureRuntime (EpsilonDeltaCompiled ""))
+                                    (EpsilonDeltaStoredRuntime (epsilon_delta_program_entry source catalog declarations))))))))))))))))))))
 
 (def epsilon_delta_declarations
   ((source EpsilonSourceView) (catalog EpsilonResolutionCatalog)
@@ -50,16 +54,16 @@
    (locals EpsilonResolvedLocalReferenceList)
    (fields EpsilonResolvedFieldReferenceList)
    (callables EpsilonResolvedCallableReferenceList)
-   (control EpsilonControlReferenceLedger)) EpsilonDeltaCompilation
+   (control EpsilonControlReferenceLedger) (runtime EpsilonDeltaRuntime)) EpsilonDeltaCompilation
   (match declarations
     (NoEpsilonDeclarations (EpsilonDeltaCompiled ""))
     ((MoreEpsilonDeclarations declaration rest)
       (match (epsilon_delta_declaration
         (EpsilonDeltaContextAt source catalog locals fields callables control declaration)
-        declaration)
+        declaration runtime)
         ((EpsilonDeltaCompiled text)
           (epsilon_delta_append (EpsilonDeltaCompiled text)
-            (epsilon_delta_declarations source catalog rest locals fields callables control)))
+            (epsilon_delta_declarations source catalog rest locals fields callables control runtime)))
         ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
         ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
         ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
@@ -68,12 +72,12 @@
 ; identities remain in the checked context; uses materialize runtime metadata.
 ; Every machine body, including an unreachable one, must lower successfully.
 (def epsilon_delta_declaration ((context EpsilonDeltaContext)
-  (declaration EpsilonDeclaration)) EpsilonDeltaCompilation
+  (declaration EpsilonDeclaration) (runtime EpsilonDeltaRuntime)) EpsilonDeltaCompilation
   (match declaration
     ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaCompiled ""))
     ((EpsilonDataDeclaration start end name members) (EpsilonDeltaCompiled ""))
     ((EpsilonMachineDeclaration start end name inputs returnType body)
-      (epsilon_delta_machine context name inputs returnType body))))
+      (epsilon_delta_machine context name inputs returnType body runtime))))
 
 (def epsilon_delta_context_source ((context EpsilonDeltaContext)) EpsilonSourceView
   (match context

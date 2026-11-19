@@ -161,6 +161,7 @@ data OmegaPunctuationKind {
     case Semicolon;
     case Slash;
     case Tilde;
+    case At;
 }
 
 data OmegaTokenKind {
@@ -629,6 +630,7 @@ data OmegaTransitionStatementSyntax {
     target_kind: OmegaTransitionTargetKind;
     result_expression: i32;
     target: OmegaRelativeSpan;
+    acknowledgements: i32;
     first_argument: i32;
     argument_count: i32;
     start: i32;
@@ -733,7 +735,6 @@ data OmegaExpressionConsumer {
     case StructFieldValue;
     case TransitionSubject;
     case ExpressionStatement;
-    case TransitionTargetArgument;
     case LocalDataInitialValue;
     case CastValue;
     case IndexedBase;
@@ -802,6 +803,8 @@ data OmegaExpressionSyntax {
 }
 
 data OmegaMachineStateSyntax {
+    // An explicit nested ceiling is independent of the enclosing machine.
+    block_bound: i32;
     name_kind: OmegaMachineStateNameKind;
     name: OmegaRelativeSpan;
     first_parameter: i32;
@@ -941,10 +944,17 @@ data OmegaParserResource {
 
 // Parsing a call argument may enter another ordinary call. Save the enclosing
 // call's own header and pending-argument list, without retaining a host stack.
+data OmegaCallParseContext {
+    case Statement;
+    case Expression;
+    case PromotedExpression;
+    case TransitionTarget;
+}
+
 data OmegaCallParseFrame {
     acknowledgements: i32;
     first_machine_argument: i32;
-    is_expression: i32;
+    context: OmegaCallParseContext;
     result_consumer: OmegaExpressionConsumer;
     first_path_member: i32;
     path_member_count: i32;
@@ -1145,6 +1155,7 @@ data OmegaParser {
     machine_first_clause: i32;
     state_first_parameter: i32;
     state_first_requirement: i32;
+    state_block_bound: i32;
     machine_parameter_has_more: i32;
     machine_path_member_count: i32;
     machine_is_public: i32;
@@ -1183,8 +1194,7 @@ data OmegaParser {
     statement_starts_at_self: i32;
     call_first_machine_argument: i32;
     call_first_argument: i32;
-    // 0 = statement candidate, 1 = expression, 2 = ungrouped terminal.
-    call_is_expression: i32;
+    call_context: OmegaCallParseContext;
     // Completed right-parenthesis end; written after children finish.
     call_end: i32;
     call_result_consumer: OmegaExpressionConsumer;
@@ -1284,6 +1294,7 @@ data OmegaParser {
     transition_target_kind: OmegaTransitionTargetKind;
     transition_result_expression: i32;
     transition_target_start: i32;
+    transition_acknowledgements: i32;
     transition_target_end: i32;
     transition_first_argument: i32;
     expression_frame_value_count: i32;

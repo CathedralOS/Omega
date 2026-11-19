@@ -9,7 +9,7 @@ const LIMIT: u64 = 90;
 
 machine evaluate() -> u64 {
     let window: Window = Window { used: 40 };
-    let view: &Window = &window;
+    let view: @Window = @window;
     let used: u64 = view.used;
     let diff: u64 = LIMIT - used;
     diff

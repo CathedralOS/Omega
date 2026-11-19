@@ -6,7 +6,7 @@ use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
-public machine integer(reader: &mut Reader, value: i32)
+public machine integer(reader: @mut Reader, value: i32)
 reaches Console
 invokes Console
 {
@@ -15,27 +15,27 @@ invokes Console
         true -> negative(reader, widened)
         _ -> digits(reader, widened)
     }
-    machine negative(reader: &mut Reader, value: i64) {
+    machine negative(reader: @mut Reader, value: i64) {
         Console::write_byte(45);
         let absolute: i64 in Wrapping = 0 - (value as i64 in Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
-    machine digits(reader: &mut Reader, value: i64) {
+    machine digits(reader: @mut Reader, value: i64) {
         transition { _ -> seek(reader, value as i64 in Wrapping, 1) }
     }
-    machine seek(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine seek(reader: @mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 && divisor <= value / 10 {
             true -> seek(reader, value, divisor * 10)
             _ -> ready(reader, value, divisor)
         }
     }
-    machine ready(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine ready(reader: @mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
             true -> emit(reader, value, divisor)
             _ -> {}
         }
     }
-    machine emit(reader: &mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
+    machine emit(reader: @mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
@@ -46,7 +46,7 @@ invokes Console
         }
     }
 }
-public machine field(reader: &mut Reader, name: &[u8], value: f64)
+public machine field(reader: @mut Reader, name: @[u8], value: f64)
 reaches Console
 invokes Console
 {

@@ -43,7 +43,7 @@ fn reparse_subtracted_interval_bounds_its_real_field() {
     rest: [u16; 8184];
 }
 
-machine entry(data: &WindowsNativeReparseData, output: &mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> u16
+machine entry(data: @WindowsNativeReparseData, output: @mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> u16
 requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start && position < count {
     let character: u16 = data.rest[start + position];
     character
@@ -111,7 +111,7 @@ fn indexed_buffer(last: u16) -> String {
 data Buffer [copy]
 requires self.words[4095] == {last}
 {{ before: u16; words: [u16; 4096]; after: u16; }}
-machine entry(buffer: &Buffer) -> u16
+machine entry(buffer: @Buffer) -> u16
 {{ buffer.words[4095] + 65535u16 }}
 "#
     )
@@ -139,7 +139,7 @@ fn qualified_array_input(last: u16, body: &str) -> String {
         r#"
 domain [u16; 4096]::Terminated requires self[4095] == {last};
 data Prefix {{ unrelated: u16; }}
-machine entry(before: Prefix, path: &[u16; 4096] in Terminated, after: &[u16; 1]) -> u16
+machine entry(before: Prefix, path: @[u16; 4096] in Terminated, after: @[u16; 1]) -> u16
 {{ {body} + 65535u16 }}
 "#
     )
@@ -186,7 +186,7 @@ fn each_contract_index_is_checked_against_its_own_array() {
 data Buffer [copy]
 requires self.large[4095] == 0 && self.small[2] == 0
 { large: [u16; 4096]; small: [u16; 2]; }
-machine entry(buffer: &Buffer) -> u16 { buffer.large[4095] }
+machine entry(buffer: @Buffer) -> u16 { buffer.large[4095] }
 "#,
         "entry",
     )
@@ -226,12 +226,12 @@ fn indexed_call_contracts_and_mutable_handback_keep_the_exact_leaf() {
 #[test]
 fn an_exclusive_call_does_not_restore_the_caller_record_around_its_argument() {
     let text = NATIVE.replace(
-        "repair(&mut buffer);",
-        "repair(&mut buffer); spoil(&mut buffer.units);",
+        "repair(@mut buffer);",
+        "repair(@mut buffer); spoil(@mut buffer.units);",
     );
     let text = text
         + r#"
-machine spoil(units: &mut [u16; 4096]) { units[4095] = 1; }
+machine spoil(units: @mut [u16; 4096]) { units[4095] = 1; }
 "#;
     let refused = judge(invocation(&text, "main")).unwrap();
     assert!(
@@ -244,8 +244,8 @@ machine spoil(units: &mut [u16; 4096]) { units[4095] = 1; }
 #[test]
 fn repeated_exclusive_calls_create_distinct_versions_of_the_same_leaf() {
     let text = NATIVE.replace(
-        "repair(&mut buffer);",
-        "repair(&mut buffer); repair(&mut buffer);",
+        "repair(@mut buffer);",
+        "repair(@mut buffer); repair(@mut buffer);",
     );
     let elaboration = invocation(&text, "main").unwrap();
     let semantic_vocabulary::TargetMachineCallable::Machine(main) =

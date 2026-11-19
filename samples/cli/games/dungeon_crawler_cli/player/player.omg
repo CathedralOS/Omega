@@ -8,28 +8,28 @@ data PlayerSystem {
 }
 
 machine create(
-    player_system: &mut PlayerSystem,
-    name: &[u8] in Ascii,
-    player: &mut Player
+    player_system: @mut PlayerSystem,
+    name: @[u8] in Ascii,
+    player: @mut Player
 )
 requires name.len <= 16
 {
-    player_name_set(&mut player.name, name);
+    player_name_set(@mut player.name, name);
     player.level = 1;
     player.xp = 0;
     player.max_health = 30;
     player.health = player.max_health;
     player.attack = 4;
     player.defense = 1;
-    clear(&mut player.inventory);
+    clear(@mut player.inventory);
 }
 
-machine heal(player: &mut Player,
+machine heal(player: @mut Player,
     amount: i32 in Wrapping) {
     player.health = min_i32(player.max_health as i32, (player.health + amount) as i32) as i32 in Wrapping;
 }
 
-machine take_damage(player: &mut Player,
+machine take_damage(player: @mut Player,
     amount: i32 in Wrapping) {
     let prevented: i32 in Wrapping = min_i32(amount as i32, player.defense as i32) as i32 in Wrapping;
     let actual: i32 in Wrapping = amount - prevented;
@@ -37,16 +37,16 @@ machine take_damage(player: &mut Player,
 }
 
 machine grant_reward(
-    player_system: &mut PlayerSystem,
-    player: &mut Player,
+    player_system: @mut PlayerSystem,
+    player: @mut Player,
     reward: Reward
 ) {
-    add_reward(&mut player_system.inventory, &mut player.inventory, reward);
+    add_reward(@mut player_system.inventory, @mut player.inventory, reward);
 }
 
 machine grant_xp(
-    player_system: &mut PlayerSystem,
-    player: &mut Player,
+    player_system: @mut PlayerSystem,
+    player: @mut Player,
     amount: u32 in Wrapping
 ) {
     player.xp = player.xp + amount;
@@ -58,8 +58,8 @@ machine grant_xp(
 
 
     machine level_up(
-        player_system: &mut PlayerSystem,
-        player: &mut Player
+        player_system: @mut PlayerSystem,
+        player: @mut Player
     ) {
         player.xp = max_u32(0, (player.xp - (xp_required(player.level) as u32 in Wrapping)) as u32) as u32 in Wrapping;
         player.level = player.level + 1;
@@ -80,12 +80,12 @@ machine xp_required(level: u32 in Wrapping) -> u32 {
     }
 }
 
-machine player_name_copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
+machine player_name_copy(buffer: @mut [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 16, bytes.len <= 16 - start
 ensures buffer in Ascii
 {
     transition { _ -> copying(buffer, bytes, start, 0) }
-    machine copying(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine copying(buffer: @mut [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 16, index <= 16
     ensures buffer in Ascii
     {
@@ -94,7 +94,7 @@ ensures buffer in Ascii
             _ -> done()
         }
     }
-    machine writing(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64, index: u64)
+    machine writing(buffer: @mut [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64, index: u64)
     requires start <= 16, index < 16, index < bytes.len, start + index < 16
     ensures buffer in Ascii
     {
@@ -104,9 +104,9 @@ ensures buffer in Ascii
     machine done() {}
 }
 
-machine player_name_set(buffer: &mut PlayerName, bytes: &[u8] in Ascii)
+machine player_name_set(buffer: @mut PlayerName, bytes: @[u8] in Ascii)
 requires bytes.len <= 16
 {
-    player_name_copy(&mut buffer.storage, bytes, 0);
+    player_name_copy(@mut buffer.storage, bytes, 0);
     buffer.used = bytes.len;
 }

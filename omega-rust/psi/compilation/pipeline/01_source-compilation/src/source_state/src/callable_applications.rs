@@ -3390,9 +3390,13 @@ pub(crate) mod namespaces {
                 .ok_or("named public view lost its complete trait application")?
                 .declaring_scope(self, row.declaring_trait)
                 .ok_or("named public view lost its declaring trait scope")?;
-            if closed.is_some() && !self.requirement_application_matches_scope(requirement, &scope)
-            {
-                return Err("named public view disagrees with its selected trait application");
+            if let Some(closed) = closed {
+                if !self.requirement_application_matches_contract_scope(requirement, &scope) {
+                    return Err("named public view disagrees with its selected trait application");
+                }
+                // The call names this closed signature, including its clause
+                // expressions and any arguments supplied to the requirement.
+                return Ok(Some((selected, row, closed.signature)));
             }
             self.applied_callable_signature(&scope, template)
                 .or_else(|| {

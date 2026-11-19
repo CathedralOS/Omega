@@ -11,7 +11,7 @@ public machine take_value(outcome: Outcome<u32, Never>) -> u32 {
     }
 }
 
-public machine read_value(outcome: &Outcome<u32, Never>) -> u32 {
+public machine read_value(outcome: @Outcome<u32, Never>) -> u32 {
     match outcome {
         Outcome::Ok { value } -> value
     }
@@ -19,7 +19,7 @@ public machine read_value(outcome: &Outcome<u32, Never>) -> u32 {
 
 machine main() crashes Trap {
     let outcome: Outcome<u32, Never> = Outcome::Ok { value: 42u32 };
-    let borrowed: u32 = read_value(&outcome);
+    let borrowed: u32 = read_value(@outcome);
     let owned: u32 = take_value(outcome);
     transition borrowed == 42u32 && owned == 42u32 {
         true -> done()

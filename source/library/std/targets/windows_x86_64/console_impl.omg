@@ -8,13 +8,13 @@ use omega::language::core::widen_u8_to_i32;
 // (`Build::bind<WindowsConsoleIo::...>`). Providers invoke the trait members
 // directly; their raw host dependencies belong to the realization inventory.
 boundary trait WindowsConsoleIo: Calling<WindowsX64ScalarCalling> {
-    machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    machine write(descriptor: i32, buffer: @mut i32, count: u32) -> i32
     requires descriptor == 1 && count <= 4
     reaches Console
     crashes none;
 
     // A console read waits for host input, so the import publishes `blocks`.
-    machine read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
+    machine read(descriptor: i32, buffer: @mut i32, count: u32) -> i32
     requires descriptor == 0 && count <= 4
     reaches Console
     blocks
@@ -42,7 +42,7 @@ crashes Trap
 {
     let mut cell: i32 = 0;
     let mode: i32 = WindowsConsoleIo::set_mode(0, 32768);
-    let count: i32 = block WindowsConsoleIo::read(0, &mut cell, 1);
+    let count: i32 = block WindowsConsoleIo::read(0, @mut cell, 1);
     transition count {
         1 -> byte(cell)
         0 -> end()
@@ -65,7 +65,7 @@ reaches Console
 {
     let mut cell: i32 = byte;
     let mode: i32 = WindowsConsoleIo::set_mode(1, 32768);
-    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+    let written: i32 = WindowsConsoleIo::write(1, @mut cell, 1);
 }
 
 WindowsConsoleBytes satisfies ConsoleByteOperations {

@@ -1364,12 +1364,12 @@ const SYSTEM_REGISTER_WRITE_CLOBBERS: &[&str] = &["x9", "x10", "x11", "x15"];
 const GDTR_STORE_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read_place(
     "destination",
     "r10",
-    "&write [u8; 10]",
+    "@write [u8; 10]",
 )];
 const GDTR_LOAD_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read_place(
     "descriptor",
     "r10",
-    "&[u8; 10]",
+    "@[u8; 10]",
 )];
 const IDT_DESCRIPTOR_OPERANDS: &[AsmOperandConstraint] = &[AsmOperandConstraint::read_place(
     "IDT descriptor",

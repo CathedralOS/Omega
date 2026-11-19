@@ -1,23 +1,23 @@
 // Expected exit: 0. Selected decoders return windows of the caller's packet.
-machine header_window(packet: &[u8]) -> &[u8]
+machine header_window(packet: @[u8]) -> @[u8]
 requires packet.len >= 4 {
     packet[0..2]
 }
 
-machine trailer_window(packet: &[u8]) -> &[u8]
+machine trailer_window(packet: @[u8]) -> @[u8]
 requires packet.len >= 4 {
     packet[2..4]
 }
 
-machine read_first(decoder: machine(packet: &[u8]) -> &[u8] requires packet.len >= 4 reaches none crashes none, packet: &[u8]) -> u8
+machine read_first(decoder: machine(packet: @[u8]) -> @[u8] requires packet.len >= 4 reaches none crashes none, packet: @[u8]) -> u8
 requires packet.len >= 4
 crashes Trap {
-    let bytes: &[u8] = decoder(packet);
+    let bytes: @[u8] = decoder(packet);
     transition bytes.len == 2 {
         true -> read(bytes)
         false -> bad()
     }
-    machine read(bytes: &[u8]) -> u8
+    machine read(bytes: @[u8]) -> u8
     requires bytes.len == 2 {
         bytes[0]
     }
@@ -25,13 +25,13 @@ crashes Trap {
 }
 
 data Main { packet: [u8; 4]; }
-machine run(main: &mut Main) crashes Trap {
+machine run(main: @mut Main) crashes Trap {
     main.packet[0] = 11;
     main.packet[2] = 29;
-    let mut decoder: machine(packet: &[u8]) -> &[u8] requires packet.len >= 4 reaches none crashes none = header_window;
-    let header: u8 = read_first(decoder, &main.packet[..]);
+    let mut decoder: machine(packet: @[u8]) -> @[u8] requires packet.len >= 4 reaches none crashes none = header_window;
+    let header: u8 = read_first(decoder, @main.packet[..]);
     decoder = trailer_window;
-    let trailer: u8 = read_first(decoder, &main.packet[..]);
+    let trailer: u8 = read_first(decoder, @main.packet[..]);
     transition header == 11 && trailer == 29 {
         true -> done()
         false -> bad()
@@ -43,5 +43,5 @@ machine run(main: &mut Main) crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
     let mut entry_storage: Main;
-    run(&mut entry_storage);
+    run(@mut entry_storage);
 }

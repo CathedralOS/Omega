@@ -6,7 +6,7 @@ data Pair {
     right: u64;
 }
 
-machine touch_left(left: &mut u64) {
+machine touch_left(left: @mut u64) {
     left = 999u64;
 }
 
@@ -20,7 +20,7 @@ machine exercise() -> u64
 ensures result <= 75u64
 {
     let mut pair: Pair = produce();
-    touch_left(&mut pair.left);
+    touch_left(@mut pair.left);
     let diff: u64 = 75u64 - pair.right;
     diff
 }

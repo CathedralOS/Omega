@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "inline_member_helper_through_target_body");
     Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
     Build::select_provider<BodyTag, X86Tag>(builder, windows_x86_64);

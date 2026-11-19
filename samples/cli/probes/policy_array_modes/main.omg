@@ -26,14 +26,14 @@ requires
     count: u64;
 }
 
-machine Table::weigh(table: &Table, index: u64 in Trapping) -> u64
+machine Table::weigh(table: @Table, index: u64 in Trapping) -> u64
 crashes Trap
 {
     transition index < table.count {
         true -> classify(table, index)
         _ -> absent()
     }
-    machine classify(table: &Table, index: u64 in Trapping) -> u64 {
+    machine classify(table: @Table, index: u64 in Trapping) -> u64 {
         transition table.modes[index] {
             Mode::Idle -> idle()
             Mode::Busy -> occupied()
@@ -49,23 +49,23 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.table.count = 3;
     main.table.modes[1] = Mode::Busy;
-    let busy: u64 = Table::weigh(&main.table, 1) as u64;
-    let idle: u64 = Table::weigh(&main.table, 2) as u64;
-    let absent: u64 = Table::weigh(&main.table, 3) as u64;
+    let busy: u64 = Table::weigh(@main.table, 1) as u64;
+    let idle: u64 = Table::weigh(@main.table, 2) as u64;
+    let absent: u64 = Table::weigh(@main.table, 3) as u64;
     transition busy == 2 && idle == 1 && absent == 0 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

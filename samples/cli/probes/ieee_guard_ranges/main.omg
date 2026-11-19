@@ -65,18 +65,18 @@ machine refuted_inequality(value: f64) -> f64 {
         requires !(value != 0.5)
     { value }
 }
-machine record_observation(observed: &mut bool) -> bool { observed = true; true }
-machine through_field(reading: &mut Reading) -> f64 {
+machine record_observation(observed: @mut bool) -> bool { observed = true; true }
+machine through_field(reading: @mut Reading) -> f64 {
     transition {
         reading.value >= 0.0 && reading.value <= 1.0
-            && record_observation(&mut reading.observed) -> bounded(reading.value)
+            && record_observation(@mut reading.observed) -> bounded(reading.value)
         _ -> 0.0
     }
     machine bounded(value: f64) -> f64
         requires value >= 0.0 && value <= 1.0
     { value }
 }
-machine indexed(values: &[f64; 2], index: u64) -> f64
+machine indexed(values: @[f64; 2], index: u64) -> f64
     requires index < 2
 {
     transition values[index] >= 0.0 && values[index] <= 1.0 {
@@ -113,9 +113,9 @@ machine main() crashes Trap {
     verify(captured_value(0.5) == 0.5 && refuted_inequality(0.5) == 0.5);
     verify(refuted_inequality(nan) == 0.0);
     let mut reading: Reading = Reading { value: 0.5, observed: false };
-    verify(through_field(&mut reading) == 0.5);
+    verify(through_field(@mut reading) == 0.5);
     verify(reading.observed);
     let values: [f64; 2] = [0.5, 2.0];
-    verify(indexed(&values, 0) == 0.5 && indexed(&values, 1) == 0.0);
+    verify(indexed(@values, 0) == 0.5 && indexed(@values, 1) == 0.0);
     verify(narrow(0.5f32) == 0.5f32 && narrow(-0.0f32) == 0.0f32);
 }

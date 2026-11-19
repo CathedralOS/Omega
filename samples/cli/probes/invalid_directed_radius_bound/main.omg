@@ -7,4 +7,4 @@ requires value == value && value >= 0.0 {
 }
 
 data Control { observed: f64; }
-machine Control::main(control: &mut Control) { control.observed = radius(-1.0); }
+machine Control::main(control: @mut Control) { control.observed = radius(-1.0); }

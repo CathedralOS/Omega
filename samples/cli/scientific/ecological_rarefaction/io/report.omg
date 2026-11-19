@@ -21,25 +21,25 @@ machine decimal(value: u64 in Wrapping) reaches Console {
     }
     machine done() {}
 }
-machine field(name: &[u8], value: u64 in Wrapping) reaches Console {
+machine field(name: @[u8], value: u64 in Wrapping) reaches Console {
     Console::write(name);
     decimal(value);
     Console::write_line("");
 }
-public machine report(community: &Community) reaches Console
+public machine report(community: @Community) reaches Console
 invokes Console
 {
     Console::write_line("ecological_rarefaction");
     field("species=", community.species);
     field("individuals=", community.total);
     transition { _ -> query(community, 0) }
-    machine query(community: &Community, index: u64 in Wrapping) {
+    machine query(community: @Community, index: u64 in Wrapping) {
         transition index < community.queries && index < 16 {
             true -> start(community, index)
             false -> done()
         }
     }
-    machine start(community: &Community, index: u64 in Wrapping)
+    machine start(community: @Community, index: u64 in Wrapping)
     requires index < 16 {
         let depth: u64 in Wrapping = community.depths[index];
         let denominator: u64 in Wrapping = choose(community.total, depth);
@@ -47,7 +47,7 @@ invokes Console
         field("denominator=", denominator);
         transition { _ -> bin(community, index, depth, denominator, 0, 0, 0) }
     }
-    machine bin(community: &Community,
+    machine bin(community: @Community,
                index: u64 in Wrapping, depth: u64 in Wrapping, denominator: u64 in Wrapping,
                richness: u64 in Wrapping, first: u64 in Wrapping, second: u64 in Wrapping) {
         transition richness <= community.species && richness < 13 && depth < 33 {
@@ -55,7 +55,7 @@ invokes Console
             false -> moments(community, index, denominator, first, second)
         }
     }
-    machine value(community: &Community,
+    machine value(community: @Community,
                  index: u64 in Wrapping, depth: u64 in Wrapping, denominator: u64 in Wrapping,
                  richness: u64 in Wrapping, first: u64 in Wrapping, second: u64 in Wrapping)
     requires richness < 13 && depth < 33 {
@@ -68,7 +68,7 @@ invokes Console
         transition { _ -> bin(community, index, depth, denominator, richness+1,
                               first+richness*weight, second+richness*richness*weight) }
     }
-    machine moments(community: &Community,
+    machine moments(community: @Community,
                    index: u64 in Wrapping, denominator: u64 in Wrapping,
                    first: u64 in Wrapping, second: u64 in Wrapping) {
         transition denominator > 0 {
@@ -76,7 +76,7 @@ invokes Console
             false -> done()
         }
     }
-    machine centered(community: &Community,
+    machine centered(community: @Community,
                     index: u64 in Wrapping, denominator: u64 in Wrapping,
                     first: u64 in Wrapping, second: u64 in Wrapping)
     requires denominator > 0 {

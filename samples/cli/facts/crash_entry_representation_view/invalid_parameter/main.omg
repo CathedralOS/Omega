@@ -7,7 +7,7 @@ crashes Trap value == 0
 }
 public machine read_bits(value: u64) -> i64
 {
-    let view: &i64 = &value as &i64;
+    let view: @i64 = @value as @i64;
     maybe_zero(view)
 }
 machine main() crashes Trap {

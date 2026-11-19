@@ -1,0 +1,3 @@
+// Decision 7: in a type, generic arguments are written with a bare `<`.
+machine f(a: Vec::<u8>) {
+}

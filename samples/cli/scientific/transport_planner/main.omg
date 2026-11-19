@@ -15,36 +15,36 @@ use planner::output::emit_integer;
 // One complete line is the transaction. Full input is rejected rather than
 // solving a silently truncated prefix. No external solver or runtime fixture.
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 256];
-    let result: LineReadResult = block Console::read_line(&mut bytes[..]);
+    let result: LineReadResult = block Console::read_line(@mut bytes[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> parse(main, &bytes, count)
-        LineReadResult::EndOfInput { count } -> parse(main, &bytes, count)
+        LineReadResult::LineComplete { count } -> parse(main, @bytes, count)
+        LineReadResult::EndOfInput { count } -> parse(main, @bytes, count)
         _ -> malformed(main)
     }
-    machine parse(main: &mut Main, bytes: &[u8; 256], count: u64) {
+    machine parse(main: @mut Main, bytes: @[u8; 256], count: u64) {
         transition count < bytes.len {
             true -> decode(main, bytes[..count])
             false -> malformed(main)
         }
     }
-    machine decode(main: &mut Main, bytes: &[u8]) {
+    machine decode(main: @mut Main, bytes: @[u8]) {
         let mut input: TransportInput;
-        let valid: bool = parse_transport(bytes, &mut input);
+        let valid: bool = parse_transport(bytes, @mut input);
         transition valid {
-            true -> margins(main, &input)
+            true -> margins(main, @input)
             false -> malformed(main)
         }
     }
-    machine margins(main: &mut Main, input: &TransportInput) {
+    machine margins(main: @mut Main, input: @TransportInput) {
         let valid: bool = valid_margins(input);
         transition valid {
             true -> balanced(main, input)
             false -> malformed(main)
         }
     }
-    machine balanced(main: &mut Main, input: &TransportInput) {
+    machine balanced(main: @mut Main, input: @TransportInput) {
         let supply: i32 in Wrapping = (input.values[0] as i32 in Wrapping)
             + (input.values[1] as i32 in Wrapping) + (input.values[2] as i32 in Wrapping);
         let demand: i32 in Wrapping = (input.values[3] as i32 in Wrapping)
@@ -54,19 +54,19 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             false -> infeasible(main, supply, demand)
         }
     }
-    machine optimize(main: &mut Main, input: &TransportInput) {
+    machine optimize(main: @mut Main, input: @TransportInput) {
         let mut plan: TransportPlan;
-        let found: bool = solve_transport(input, &mut plan);
+        let found: bool = solve_transport(input, @mut plan);
         transition found {
-            true -> emit(main, &plan)
+            true -> emit(main, @plan)
             false -> internal_error(main)
         }
     }
-    machine emit(main: &mut Main, plan: &TransportPlan) {
+    machine emit(main: @mut Main, plan: @TransportPlan) {
         emit_plan(plan);
         ProcessExit::exit_process(0);
     }
-    machine infeasible(main: &mut Main, supply: i32 in Wrapping, demand: i32 in Wrapping) {
+    machine infeasible(main: @mut Main, supply: i32 in Wrapping, demand: i32 in Wrapping) {
         Console::write_line("INFEASIBLE: unequal totals");
         Console::write("supply ");
         emit_integer(supply);
@@ -74,11 +74,11 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         emit_integer(demand);
         ProcessExit::exit_process(3);
     }
-    machine malformed(main: &mut Main) {
+    machine malformed(main: @mut Main) {
         Console::write_line("INVALID: expected 15 integers; margins 0..9, costs -99..99; one line below 256 bytes");
         ProcessExit::exit_process(2);
     }
-    machine internal_error(main: &mut Main) {
+    machine internal_error(main: @mut Main) {
         Console::write_line("ERROR: balanced complete transport has no plan");
         ProcessExit::exit_process(4);
     }
@@ -87,5 +87,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

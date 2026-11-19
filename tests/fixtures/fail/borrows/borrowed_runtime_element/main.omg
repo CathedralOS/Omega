@@ -4,21 +4,21 @@
 // view reads, and the program is refused.
 data Grid { cells: [u64; 4]; total: u64; }
 
-machine observe(value: &u64) -> u64 { value }
+machine observe(value: @u64) -> u64 { value }
 
-machine fill(grid: &mut Grid) -> u64 {
+machine fill(grid: @mut Grid) -> u64 {
     transition { _ -> check(grid, 0) }
 
-    machine check(grid: &mut Grid, at: u64) -> u64 {
+    machine check(grid: @mut Grid, at: u64) -> u64 {
         transition at < 4 {
             true -> write(grid, at)
             _ -> grid.cells[3]
         }
     }
 
-    machine write(grid: &mut Grid, at: u64) -> u64
+    machine write(grid: @mut Grid, at: u64) -> u64
     requires at < 4 {
-        let view: &u64 = &grid.cells[0];
+        let view: @u64 = @grid.cells[0];
         grid.cells[at] = 9;
         let seen: u64 = observe(view);
         transition seen == 9 {
@@ -30,7 +30,7 @@ machine fill(grid: &mut Grid) -> u64 {
 
 machine main() crashes Trap {
     let mut grid: Grid = Grid { cells: [0, 0, 0, 0], total: 9 };
-    let last: u64 = fill(&mut grid);
+    let last: u64 = fill(@mut grid);
     transition last == 9 && grid.cells[0] == 9 {
         true -> good()
         false -> bad()

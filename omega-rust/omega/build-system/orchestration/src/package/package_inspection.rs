@@ -98,7 +98,7 @@ mod tests {
     fn inspection_checks_receipt_roster_and_final_file_identity() {
         let project = TemporaryDirectory::create("audit-transaction", false).unwrap();
         std::fs::write(project.path().join("build.omg"),
-            "machine build(builder: &mut Build) { Build::application(builder, \"audit_transaction\"); }\n").unwrap();
+            "machine build(builder: @mut Build) { Build::application(builder, \"audit_transaction\"); }\n").unwrap();
         std::fs::write(
             project.path().join("main.omg"),
             "machine main() -> u32 { 0u32 }\n",

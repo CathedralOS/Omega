@@ -9,23 +9,23 @@ inherits an ordinary trait can now be used as a static implementation of it:
 
 ```omega
 trait ClockOps<S> {
-    machine now(state: &mut S) -> u64
+    machine now(state: @mut S) -> u64
         reaches TimeObservation
         crashes none;
 }
 
 // before: a bridge that only forwards
 FromWallClock satisfies ClockOps<NoState> {
-    machine now(state: &mut NoState) -> u64 { WallClock::now() }
+    machine now(state: @mut NoState) -> u64 { WallClock::now() }
 }
-stamp<NoState, FromWallClock>(&mut none, &mut entry);
+stamp<NoState, FromWallClock>(@mut none, @mut entry);
 
 // after: the slot itself
 boundary trait WallClock: ClockOps<NoState> {}
-stamp<NoState, WallClock>(&mut none, &mut entry);
+stamp<NoState, WallClock>(@mut none, @mut entry);
 
 const RealClock: ClockOps<NoState> = WallClock;
-stamp<NoState, RealClock>(&mut none, &mut entry);
+stamp<NoState, RealClock>(@mut none, @mut entry);
 ```
 
 The normative owner is

@@ -16,7 +16,7 @@ data Main {
     count: u64 in Wrapping;
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     main.count = 4;
     let total: u64 in Wrapping = gauss_sum(main.count, 0);
     transition total == 10 {
@@ -24,11 +24,11 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> bad(main)
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         ProcessExit::exit_process(70);
     }
 
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         ProcessExit::exit_process(71);
     }
 }
@@ -47,5 +47,5 @@ ensures
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

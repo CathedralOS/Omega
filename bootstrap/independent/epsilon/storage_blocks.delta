@@ -38,12 +38,12 @@
         ((EpsilonPostfixStatement start end expression) (epsilon_emit_generated "block" start))
         ((EpsilonAssertStatement start end expression) (epsilon_emit_generated "block" start))))))
 
-(def epsilon_delta_stored_block_call ((source EpsilonSourceView)
+(def epsilon_delta_stored_block_call ((context EpsilonDeltaContext)
   (names EpsilonNameList) (statements EpsilonStatementList) (terminalIdentity Int)
   (store Bytes) (output Bytes)) Bytes
   (epsilon_emit_call (epsilon_delta_stored_block_name statements terminalIdentity)
-    (epsilon_emit_spaced "ep_receiver ep_floor"
-      (epsilon_emit_spaced (epsilon_delta_stored_capture_values source names)
+    (epsilon_emit_spaced (epsilon_delta_receiver_text context "ep_receiver ep_floor" "ep_floor")
+      (epsilon_emit_spaced (epsilon_delta_stored_capture_values (epsilon_delta_context_source context) names)
         (epsilon_emit_spaced store output)))))
 
 (def epsilon_delta_stored_following_names ((names EpsilonNameList)
@@ -61,7 +61,7 @@
     (NoEpsilonStatements (epsilon_delta_stored_terminal context terminal "ep_store" "ep_output"))
     ((MoreEpsilonStatements statement rest)
       (let coordinate Int (epsilon_delta_stored_statement_coordinate statement)
-        (let successor Bytes (epsilon_delta_stored_block_call (epsilon_delta_context_source context)
+        (let successor Bytes (epsilon_delta_stored_block_call context
           (epsilon_delta_stored_following_names names statement) rest terminalIdentity
           (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate))
           (epsilon_delta_stored_statement context statement successor "ep_store" "ep_output"))))))
@@ -71,7 +71,7 @@
   (terminal EpsilonOptionalTerminal) (terminalIdentity Int)) EpsilonDeltaCompilation
   (match (epsilon_delta_stored_block_body context names statements terminal terminalIdentity)
     ((EpsilonDeltaCompiled body)
-      (let signature Bytes (epsilon_emit_spaced "(ep_receiver EpsilonRuntimePlace) (ep_floor Int)"
+      (let signature Bytes (epsilon_emit_spaced (epsilon_delta_receiver_text context "(ep_receiver EpsilonRuntimePlace) (ep_floor Int)" "(ep_floor Int)")
         (epsilon_emit_spaced
           (epsilon_delta_stored_capture_signature (epsilon_delta_context_source context) names)
           "(ep_store EpsilonRuntimeStore) (ep_output Bytes)"))

@@ -2,16 +2,16 @@
 // compilation. The diagnostic must name bad_sibling — the divergent
 // occurrence — and not contaminate the convergent siblings around it.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "invalid_divergent_sibling");
     let mut a_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../sibling_a" });
-    dependency::with_alias(&mut a_dependency, "a");
+    dependency::with_alias(@mut a_dependency, "a");
     let a_registration: DependencyRegistration = Build::dependency(builder, a_dependency);
     let mut bad_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "bad_sibling" });
-    dependency::with_alias(&mut bad_dependency, "bad");
+    dependency::with_alias(@mut bad_dependency, "bad");
     let bad_registration: DependencyRegistration = Build::dependency(builder, bad_dependency);
     let mut c_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../sibling_c" });
-    dependency::with_alias(&mut c_dependency, "c");
+    dependency::with_alias(@mut c_dependency, "c");
     let c_registration: DependencyRegistration = Build::dependency(builder, c_dependency);
     builder.freestanding = true;
 }

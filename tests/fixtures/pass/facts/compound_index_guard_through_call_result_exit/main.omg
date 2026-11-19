@@ -10,19 +10,19 @@ machine coordinate(a: i32 in Wrapping) -> i32 in Wrapping
 ensures result == a
 { a }
 // Preserve the original setup before code checked for unrestricted Main.
-machine run_main(main: &mut Main) crashes Trap {
+machine run_main(main: @mut Main) crashes Trap {
     main.hits = 0i32 as +Wrapping;
     main.a = 15i32 as +Wrapping;
     main.b = 3i32 as +Wrapping;
     guarded_store(main);
 }
 
-machine guarded_store(main: &mut Main) crashes Trap {
+machine guarded_store(main: @mut Main) crashes Trap {
     transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
         true -> put(main)
         _ -> done(main)
     }
-    machine put(main: &mut Main) {
+    machine put(main: @mut Main) {
         let a: i32 in Wrapping = coordinate(main.a);
         main.grid[main.b * 20 + a] = 7i32 as +Wrapping;
         main.hits = 1i32 as +Wrapping;
@@ -31,15 +31,15 @@ machine guarded_store(main: &mut Main) crashes Trap {
             _ -> fail(main)
         }
     }
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
         main.hits = (-1i32) as +Wrapping;
         transition false {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) {}
-    machine fail(main: &mut Main) { crash Trap; }
+    machine pass(main: @mut Main) {}
+    machine fail(main: @mut Main) { crash Trap; }
 }
 
 // Caller-owned initialized storage makes original-address writeback observable.
@@ -59,7 +59,7 @@ machine entry_start() crashes Trap {
             0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping, 0i32 as +Wrapping
         ]
     };
-    run_main(&mut entry_storage);
+    run_main(@mut entry_storage);
     transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
         && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
         true -> observed()

@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Rebinding a shared byte-view parameter retains its declared descriptor identity and observes replacement backing without mutating either backing.
-machine identity<'storage>(view: &'storage [u8]) -> &'storage [u8] requires view.len == 1 ensures result.len == 1 { view }
+machine identity<'storage>(view: @'storage [u8]) -> @'storage [u8] requires view.len == 1 ensures result.len == 1 { view }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }
@@ -22,12 +22,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedReplace {
-    machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
+    machine replace(mut selected: @[u8], replacement: @[u8]) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.len == 1 && replacement.len == 1;
 }
 
 X86Replace satisfies SelectedReplace {
-    machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
+    machine replace(mut selected: @[u8], replacement: @[u8]) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.len == 1 && replacement.len == 1
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -38,7 +38,7 @@ X86Replace satisfies SelectedReplace {
 }
 
 ArmReplace satisfies SelectedReplace {
-    machine replace(mut selected: &[u8], replacement: &[u8]) -> u8
+    machine replace(mut selected: @[u8], replacement: @[u8]) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected.len == 1 && replacement.len == 1
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -49,7 +49,7 @@ ArmReplace satisfies SelectedReplace {
 }
 
 
-machine finish(observed: u8, original: &[u8], replacement: &[u8]) crashes Trap
+machine finish(observed: u8, original: @[u8], replacement: @[u8]) crashes Trap
 requires original.len == 1 && replacement.len == 1 {
     transition observed == 29 && original[0] == 5 && replacement[0] == 29 {
         true -> done()
@@ -61,8 +61,8 @@ requires original.len == 1 && replacement.len == 1 {
 machine main() crashes Trap {
     let original: [u8; 1] = [5];
     let replacement: [u8; 1] = [29];
-    let observed: u8 = SelectedReplace::replace(&original[..], &replacement[..]);
-    finish(observed, &original[..], &replacement[..]);
+    let observed: u8 = SelectedReplace::replace(@original[..], @replacement[..]);
+    finish(observed, @original[..], @replacement[..]);
 }
 machine x86_entry() crashes Trap {
     SelectedBodyCheck::require_tag(17u64);

@@ -8,16 +8,16 @@ crashes Trap value == false
 }
 public data Byte requires value >= 0 && value <= 1 { value: u8; }
 public data Packet { flag: Byte; marker: u64; }
-public machine read_flag(packet: &Packet) -> bool
+public machine read_flag(packet: @Packet) -> bool
 requires packet.flag.value == 1
 {
-    let view: &bool = &packet.flag.value as &bool;
+    let view: @bool = @packet.flag.value as @bool;
     let observed: bool = view;
     maybe_clear(observed)
 }
 machine main() crashes Trap {
     let packet: Packet = Packet { flag: Byte { value: 1 }, marker: 11 };
-    let observed: bool = read_flag(&packet);
+    let observed: bool = read_flag(@packet);
     transition observed == true { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

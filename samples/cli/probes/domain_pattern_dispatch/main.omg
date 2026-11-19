@@ -44,7 +44,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.player = Player { health: 5 };
     main.gauge = Gauge { level: 7 };
     transition main.player {
@@ -57,20 +57,20 @@ machine Main::main(main: &mut Main) {
     main.hits = main.hits + (main.gauge.level as i32 in Wrapping);
 }
 
-machine Main::alive(main: &mut Main) {
+machine Main::alive(main: @mut Main) {
     main.hits = 1;
 }
 
-machine Main::dead(main: &mut Main) {
+machine Main::dead(main: @mut Main) {
     main.hits = 2;
 }
 
-machine Main::other(main: &mut Main) {
+machine Main::other(main: @mut Main) {
     main.hits = 3;
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

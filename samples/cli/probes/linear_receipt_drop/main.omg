@@ -17,20 +17,20 @@ data Receipt [linear] dropped by drop_receipt {
     code: i32;
 }
 
-machine drop_receipt(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: @mut Receipt) {}
 
 machine issue(code: i32) -> Receipt {
     let issued: Receipt = Receipt { code: code };
     issued
 }
 
-machine observe(receipt: &Receipt) -> i32 {
+machine observe(receipt: @Receipt) -> i32 {
     receipt.code
 }
 
 machine linear_receipt_drop() {
     let receipt: Receipt = issue(70);
-    let observed: i32 = observe(&receipt);
+    let observed: i32 = observe(@receipt);
     drop(receipt);
     transition observed == 70 {
         true -> done(70)

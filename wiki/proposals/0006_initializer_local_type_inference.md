@@ -29,7 +29,7 @@ or top-level mathematical definitions. Those surfaces retain their contracts.
 ```omega
 let message = "hello";        // &[u8], not implicitly Utf8-qualified.
 let count = 5u64;             // u64; the suffix chooses its carrier.
-let middle = &mut view[2..4];  // &mut [u8], given view: &mut [u8].
+let middle = @mut view[2..4];  // &mut [u8], given view: &mut [u8].
 let mut next = 0u64;          // Mutable local, fixed u64 type.
 ```
 
@@ -63,7 +63,7 @@ does ordinary typing determine one complete type without the local annotation?
 let count = 5;                // Proposed rejection: no selected carrier.
 let ratio = 7 / 2;            // Proposed rejection: still anonymous numeric.
 let storage;                  // Rejection: neither type nor initializer.
-let mutable: &mut [u8] = view[2..4]; // Rejection under the accepted range rule.
+let mutable: @mut [u8] = view[2..4]; // Rejection under the accepted range rule.
 ```
 
 No default integer width or float format is introduced. Unsuffixed numbers can

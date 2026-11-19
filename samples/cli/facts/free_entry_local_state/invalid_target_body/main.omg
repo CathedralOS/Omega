@@ -1,11 +1,11 @@
 // A free entry owns and cleans an ordinary local tally of 7, and the hosted contract supplies no provisioned ZII context.
 // Place: target_body.
 data Tally { total: u64; }
-data Mark<'view> dropped by drop_mark { slot: &'view mut Tally; code: u64; }
-machine drop_mark(mark: &mut Mark) requires mark.code == 7 {
+data Mark<'view> dropped by drop_mark { slot: @'view mut Tally; code: u64; }
+machine drop_mark(mark: @mut Mark) requires mark.code == 7 {
     mark.slot.total = mark.code;
 }
-machine settle(mark: &Mark) {}
+machine settle(mark: @Mark) {}
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }
@@ -27,16 +27,16 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedFinish {
-    machine finish(tally: &mut Tally, code: u64)
+    machine finish(tally: @mut Tally, code: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires code == 7;
 }
 
 X86Finish satisfies SelectedFinish {
-    machine finish(tally: &mut Tally, code: u64)
+    machine finish(tally: @mut Tally, code: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires code == 7
     {
         SelectedBodyCheck::require_tag(17u64);
-        settle(&Mark { slot: tally, code: code });
+        settle(@Mark { slot: tally, code: code });
         transition tally.total == 7 { true -> done() _ -> bad() }
         machine done() {}
         machine bad() { crash Trap; }
@@ -44,11 +44,11 @@ X86Finish satisfies SelectedFinish {
 }
 
 ArmFinish satisfies SelectedFinish {
-    machine finish(tally: &mut Tally, code: u64)
+    machine finish(tally: @mut Tally, code: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires code == 7
     {
         SelectedBodyCheck::require_tag(29u64);
-        settle(&Mark { slot: tally, code: code });
+        settle(@Mark { slot: tally, code: code });
         transition tally.total == 7 { true -> done() _ -> bad() }
         machine done() {}
         machine bad() { crash Trap; }
@@ -58,16 +58,16 @@ ArmFinish satisfies SelectedFinish {
 
 machine start() crashes Trap {
     let mut tally: Tally = Tally { total: 0 };
-    SelectedFinish::finish(&mut tally, 7);
+    SelectedFinish::finish(@mut tally, 7);
 }
 
 // A hosted shape alone cannot establish this ordinary mutable argument.
 data Unprovided { byte: u8; }
-machine x86_entry(unprovided: &mut Unprovided) crashes Trap {
+machine x86_entry(unprovided: @mut Unprovided) crashes Trap {
     SelectedBodyCheck::require_tag(17u64);
     start();
 }
-machine arm_entry(unprovided: &mut Unprovided) crashes Trap {
+machine arm_entry(unprovided: @mut Unprovided) crashes Trap {
     SelectedBodyCheck::require_tag(29u64);
     start();
 }

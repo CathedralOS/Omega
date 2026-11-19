@@ -133,24 +133,25 @@ impl<'module> AcceptedDeclarations<'module> {
             .is_ok()
     }
 
+    fn source_service(&self, service: ServiceId) -> Result<&TraitDefinition, Vec<Diagnostic>> {
+        let index = self
+            .service_origins
+            .binary_search_by_key(&service, |(id, _)| *id)
+            .map_err(|_| unavailable("the selected service's exact source"))?;
+        self.accepted
+            .source()
+            .trait_definition_by_symbol(self.service_origins[index].1)
+            .ok_or_else(|| unavailable("the selected service's authored name"))
+    }
+
     fn source_service_names<'source, Name: Ord>(
         &'source self,
         services: &[ServiceId],
         name: impl Fn(&'source TraitDefinition) -> Name,
     ) -> Result<Vec<Name>, Vec<Diagnostic>> {
-        let source = self.accepted.source();
         let mut names = services
             .iter()
-            .map(|service| {
-                let index = self
-                    .service_origins
-                    .binary_search_by_key(service, |(id, _)| *id)
-                    .map_err(|_| unavailable("the selected service's exact source"))?;
-                source
-                    .trait_definition_by_symbol(self.service_origins[index].1)
-                    .map(&name)
-                    .ok_or_else(|| unavailable("the selected service's authored name"))
-            })
+            .map(|service| self.source_service(*service).map(&name))
             .collect::<Result<Vec<_>, _>>()?;
         names.sort_unstable();
         Ok(names)
@@ -972,11 +973,33 @@ impl PolicySource<'_> {
             .source_service_names(&reach, |declaration| declaration.name.as_str())?
             .into_iter()
             .eq(method.service_reach.iter().map(String::as_str));
-        let invocations = &boundary.published_synchronous_entries;
+        use declaration_contracts::service_surface::ServiceSynchronousInvocation;
+        use terminal_psi::TerminalCallableInvocation;
         let source = declarations.accepted.source();
-        let invocations_match = declarations.source_service_names(invocations, |declaration| {
-            source.trait_declaration_path(declaration)
-        })? == method.synchronous_invocations;
+        let invocation_contract = declarations
+            .accepted
+            .module()
+            .callables
+            .boundary_envelope(boundary.id)
+            .ok_or_else(|| unavailable("the selected requirement's invocation contract"))?;
+        let mut invocations = invocation_contract
+            .invocations
+            .iter()
+            .map(|entry| match entry {
+                TerminalCallableInvocation::Parameter(position) => {
+                    Ok(ServiceSynchronousInvocation::Parameter(*position))
+                }
+                TerminalCallableInvocation::Service(service) => {
+                    declarations.source_service(*service).map(|declaration| {
+                        ServiceSynchronousInvocation::Service(
+                            source.trait_declaration_path(declaration),
+                        )
+                    })
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        invocations.sort_unstable();
+        let invocations_match = invocations == method.synchronous_invocations;
         if method.completion != boundary.completion
             || method.terminates_guarantee != boundary.unconditional_termination
             || !ceiling_matches

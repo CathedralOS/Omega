@@ -17,10 +17,10 @@
 // ProcessExit provider.
 
 trait Resettable<T> {
-    machine set(subject: &mut T, value: i32);
+    machine set(subject: @mut T, value: i32);
 
-    machine reset(subject: &mut T) {
-        set(&mut subject, 30);
+    machine reset(subject: @mut T) {
+        set(@mut subject, 30);
     }
 }
 
@@ -31,33 +31,33 @@ data Counter {
     value: i32;
 }
 
-machine Counter::set(counter: &mut Counter, value: i32) satisfies Resettable<Counter>::set {
+machine Counter::set(counter: @mut Counter, value: i32) satisfies Resettable<Counter>::set {
     counter.value = value;
 }
-machine Counter::reset(counter: &mut Counter) satisfies Resettable<Counter>::reset {
+machine Counter::reset(counter: @mut Counter) satisfies Resettable<Counter>::reset {
     counter.value = 30;
 }
 
 CounterImpl satisfies RequiredCounter<Counter> {
-    machine set(subject: &mut Counter, value: i32) { Counter::set(subject, value) }
-    machine reset(subject: &mut Counter) { Counter::reset(subject) }
+    machine set(subject: @mut Counter, value: i32) { Counter::set(subject, value) }
+    machine reset(subject: @mut Counter) { Counter::reset(subject) }
 }
 
 data Main { counter: Counter; hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
-    Counter::reset(&mut main.counter);
+    Counter::reset(@mut main.counter);
     transition main.counter.value == 30 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

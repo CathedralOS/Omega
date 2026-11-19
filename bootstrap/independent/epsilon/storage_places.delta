@@ -13,21 +13,39 @@
       (epsilon_emit_call "EpsilonIntegerSpan"
         (epsilon_emit_spaced (epsilon_delta_span start end) (epsilon_emit_decimal value))))))
 
-(def epsilon_delta_type_descriptor ((typeValue EpsilonType)) Bytes
+; Every use of a named type in a compiled runtime descriptor identifies the
+; same authored name. Its diagnostic coordinates still describe the use.
+(def epsilon_delta_type_owner_name ((declaration EpsilonDeclaration)
+  (fallback EpsilonName)) EpsilonName
+  (match declaration
+    ((EpsilonDataDeclaration start end name members) name)
+    ((EpsilonBoundaryDeclaration start end name members) name)
+    ((EpsilonMachineDeclaration start end name inputs returnType body) fallback)))
+
+(def epsilon_delta_canonical_type_name ((source EpsilonSourceView)
+  (catalog EpsilonResolutionCatalog) (name EpsilonName)) EpsilonName
+  (match catalog
+    ((EpsilonResolutionCatalogSyntax rows)
+      (match (epsilon_catalog_find_owner source name rows)
+        (NoEpsilonCatalogOwner name)
+        ((OneEpsilonCatalogBoundaryOwner owner) (epsilon_delta_type_owner_name owner name))
+        ((OneEpsilonCatalogDataOwner owner shape) (epsilon_delta_type_owner_name owner name))))))
+
+(def epsilon_delta_type_descriptor ((source EpsilonSourceView) (catalog EpsilonResolutionCatalog) (typeValue EpsilonType)) Bytes
   (match typeValue
     ((EpsilonI32Type start end) (epsilon_emit_call "EpsilonI32Type" (epsilon_delta_span start end)))
     ((EpsilonU8Type start end) (epsilon_emit_call "EpsilonU8Type" (epsilon_delta_span start end)))
     ((EpsilonNeverType start end) (epsilon_emit_call "EpsilonNeverType" (epsilon_delta_span start end)))
     ((EpsilonNamedType start end name)
       (epsilon_emit_call "EpsilonNamedType" (epsilon_emit_spaced
-        (epsilon_delta_span start end) (epsilon_delta_name_descriptor name))))
+        (epsilon_delta_span start end) (epsilon_delta_name_descriptor (epsilon_delta_canonical_type_name source catalog name)))))
     ((EpsilonArrayType start end element extent)
       (epsilon_emit_call "EpsilonArrayType" (epsilon_emit_spaced
         (epsilon_delta_span start end) (epsilon_emit_spaced
-          (epsilon_delta_type_descriptor element) (epsilon_delta_literal_descriptor extent)))))
+          (epsilon_delta_type_descriptor source catalog element) (epsilon_delta_literal_descriptor extent)))))
     ((EpsilonViewType start end element)
       (epsilon_emit_call "EpsilonViewType" (epsilon_emit_spaced
-        (epsilon_delta_span start end) (epsilon_delta_type_descriptor element))))))
+        (epsilon_delta_span start end) (epsilon_delta_type_descriptor source catalog element))))))
 
 (def epsilon_delta_stored_local_place ((context EpsilonDeltaContext)
   (expression EpsilonExpression)) EpsilonDeltaPlaceCompilation
@@ -40,30 +58,30 @@
           (match binding
             ((EpsilonReceiverLocal name typeValue) (EpsilonDeltaPlaceCompiled typeValue "ep_receiver"))
             ((EpsilonMachineParameterLocal parameter)
-              (epsilon_delta_stored_parameter_place source parameter))
+              (epsilon_delta_stored_parameter_place source catalog parameter))
             ((EpsilonStateParameterLocal parameter)
-              (epsilon_delta_stored_parameter_place source parameter))
+              (epsilon_delta_stored_parameter_place source catalog parameter))
             ((EpsilonLetLocal name typeValue statement)
-              (EpsilonDeltaPlaceCompiled typeValue (epsilon_delta_home_place source name typeValue)))
+              (EpsilonDeltaPlaceCompiled typeValue (epsilon_delta_home_place source catalog name typeValue)))
             ((EpsilonTransitionBinderLocal pattern name)
               (EpsilonDeltaPlaceUnsupported (epsilon_expression_start expression)))))))))
 
 (def epsilon_delta_home_name ((source EpsilonSourceView) (name EpsilonName)) Bytes
   (bytes_concat "home_" (epsilon_compiled_parameter_name source name)))
 
-(def epsilon_delta_home_place ((source EpsilonSourceView) (name EpsilonName)
+(def epsilon_delta_home_place ((source EpsilonSourceView) (catalog EpsilonResolutionCatalog) (name EpsilonName)
   (typeValue EpsilonType)) Bytes
   (epsilon_emit_call "EpsilonRuntimePlaceAt" (epsilon_emit_spaced
     (epsilon_delta_home_name source name)
-    (epsilon_emit_spaced "NoEpsilonRuntimePath" (epsilon_delta_type_descriptor typeValue)))))
+    (epsilon_emit_spaced "NoEpsilonRuntimePath" (epsilon_delta_type_descriptor source catalog typeValue)))))
 
-(def epsilon_delta_stored_parameter_place ((source EpsilonSourceView)
+(def epsilon_delta_stored_parameter_place ((source EpsilonSourceView) (catalog EpsilonResolutionCatalog)
   (parameter EpsilonParameter)) EpsilonDeltaPlaceCompilation
   (match parameter
     ((EpsilonParameterSyntax start end name typeValue)
-      (EpsilonDeltaPlaceCompiled typeValue (epsilon_delta_home_place source name typeValue)))))
+      (EpsilonDeltaPlaceCompiled typeValue (epsilon_delta_home_place source catalog name typeValue)))))
 
-(def epsilon_delta_stored_project ((owner EpsilonDeclaration)
+(def epsilon_delta_stored_project ((source EpsilonSourceView) (catalog EpsilonResolutionCatalog) (owner EpsilonDeclaration)
   (field EpsilonDataMember) (base EpsilonDeltaPlaceCompilation)) EpsilonDeltaPlaceCompilation
   (match base
     ((EpsilonDeltaPlaceUnsupported offset) base)
@@ -73,7 +91,7 @@
         ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
           (match field
             ((EpsilonFieldMember start end name typeValue)
-              (let descriptor Bytes (epsilon_delta_type_descriptor typeValue)
+              (let descriptor Bytes (epsilon_delta_type_descriptor source catalog typeValue)
                 (let identity Bytes (epsilon_emit_spaced (epsilon_delta_span ownerStart ownerEnd)
                   (epsilon_delta_span start end))
                   (let projection Bytes (epsilon_emit_call "EpsilonRuntimeField"
@@ -93,7 +111,7 @@
         (NoEpsilonResolvedFieldReference
           (EpsilonDeltaPlaceUnsupported (epsilon_expression_start expression)))
         ((OneEpsilonResolvedFieldReference owner field)
-          (epsilon_delta_stored_project owner field (epsilon_delta_stored_place context base)))))))
+          (epsilon_delta_stored_project source catalog owner field (epsilon_delta_stored_place context base)))))))
 
 ; Only total receiver/field paths are admitted initially. Indexes, views,
 ; temporaries and local homes require their own implemented place transport.

@@ -20,7 +20,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("direction_command: dispatch the command \"north\" by its first byte");
 
     main.command = "north";
@@ -30,44 +30,44 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         _ -> try_south(main)
     }
 
-    machine try_south(main: &mut Main) {
+    machine try_south(main: @mut Main) {
         transition main.command[0] == 115 { true -> go_south(main) _ -> try_east(main) }
     }
-    machine try_east(main: &mut Main) {
+    machine try_east(main: @mut Main) {
         transition main.command[0] == 101 { true -> go_east(main) _ -> try_west(main) }
     }
-    machine try_west(main: &mut Main) {
+    machine try_west(main: @mut Main) {
         transition main.command[0] == 119 { true -> go_west(main) _ -> unknown(main) }
     }
 
-    machine go_north(main: &mut Main) {
+    machine go_north(main: @mut Main) {
         Console::write_line("PASS: first byte 'n' classified as north (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(1);
     }
-    machine go_south(main: &mut Main) {
+    machine go_south(main: @mut Main) {
         Console::write_line("FAIL: classified as south -- expected north for \"north\" (exit 2)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(2);
     }
-    machine go_east(main: &mut Main) {
+    machine go_east(main: @mut Main) {
         Console::write_line("FAIL: classified as east -- expected north for \"north\" (exit 3)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(3);
     }
-    machine go_west(main: &mut Main) {
+    machine go_west(main: @mut Main) {
         Console::write_line("FAIL: classified as west -- expected north for \"north\" (exit 4)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(4);
     }
-    machine unknown(main: &mut Main) {
+    machine unknown(main: @mut Main) {
         Console::write_line("FAIL: first byte matched no direction -- expected 'n' (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(0);
     }
 }
@@ -75,5 +75,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block Main::main(@mut entry_storage);
 }

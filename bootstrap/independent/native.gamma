@@ -12,12 +12,13 @@
 (def n_load_b ((s Int) (reg Int)) Int (n_register s 10390345 reg)) ; 49 8b 9e
 (def n_store ((s Int) (reg Int)) Int (n_register s 8816969 reg)) ; 49 89 86
 
-; movabs rax,address; call rax (ff d0) or jmp rax (ff e0).
-(def n_jump ((s Int) (label Int) (call Int)) Int
-  (let target Int (i_address (i_field s 2 47176) label) ; 48 b8
-    (i_field target 2 (if call 53503 57599))))
-(def i_jmp ((s Int) (label Int)) Int (n_jump s label 0))
-(def i_call ((s Int) (label Int)) Int (n_jump s label 1))
+; x86 adds the signed displacement to the address after its four-byte field.
+; The target's suffix and the bytes following the field share the same code end.
+; The entire emitted image fits in 128 MiB, inside signed rel32 reach.
+(def i_target_width () Int 4)
+(def i_target_value ((size Int) (following Int) (suffix Int)) Int (- following suffix))
+(def i_jmp ((s Int) (label Int)) Int (i_address (i_field s 1 233) label)) ; e9 rel32
+(def i_call ((s Int) (label Int)) Int (i_address (i_field s 1 232) label)) ; e8 rel32
 (def i_ret ((s Int)) Int (i_field s 1 195)) ; c3
 
 ; read(0,rsp,1); EOF yields -1; OS read failure exits3.
@@ -81,20 +82,19 @@
 (def i_store ((s Int) (addr Int) (src Int)) Int
   (i_field (n_load_a (n_load_b s addr) src) 4 520390985)) ; 49 89 04 1f
 
-; After test rax,rax or cmp rax,rbx, the inverse short branch skips
-; the twelve-byte absolute jump. Labels are resolved at publication.
+; Branch directly on the flags from test rax,rax or cmp rax,rbx.
 (def n_test_zero ((s Int) (reg Int)) Int
   (i_field (n_load_a s reg) 3 12617032)) ; 48 85 c0
 (def n_compare ((s Int) (a Int) (b Int)) Int
   (i_field (n_operands s a b) 3 14170440)) ; 48 39 d8
 (def i_jz ((s Int) (reg Int) (label Int)) Int
-  (i_jmp (i_field (n_test_zero s reg) 2 3189) label)) ; 75 0c
+  (i_address (i_field (n_test_zero s reg) 2 33807) label)) ; 0f 84 rel32
 (def i_jnz ((s Int) (reg Int) (label Int)) Int
-  (i_jmp (i_field (n_test_zero s reg) 2 3188) label)) ; 74 0c
+  (i_address (i_field (n_test_zero s reg) 2 34063) label)) ; 0f 85 rel32
 (def i_jlt ((s Int) (a Int) (b Int) (label Int)) Int
-  (i_jmp (i_field (n_compare s a b) 2 3197) label)) ; 7d 0c
+  (i_address (i_field (n_compare s a b) 2 35855) label)) ; 0f 8c rel32
 (def i_jeq ((s Int) (a Int) (b Int) (label Int)) Int
-  (i_jmp (i_field (n_compare s a b) 2 3189) label)) ; 75 0c
+  (i_address (i_field (n_compare s a b) 2 33807) label)) ; 0f 84 rel32
 
 ; Reserve/zero register slots; mmap 128 GiB; fail with status3 on mmap error.
 (def n_start () Int
@@ -139,6 +139,5 @@
 (def i_publish ((fields Int) (size Int) (labels Int)) Int
   (if (lt size (i_limit))
     (let ((header Int (n_header size)) (startup Int (n_start)))
-      ; Code follows the 128-byte ELF header and the 88-byte startup.
-      (i_output fields size labels (+ (+ 4194304 216) size)))
+      (i_output fields size labels size))
     (pair 254 0)))

@@ -290,6 +290,188 @@ mod bound_fact_index {
     }
 
     #[test]
+    fn mathematical_address_images_keep_the_declared_carrier() {
+        let address = IntegerType::supported_address_representation();
+        let id = ValueId::new(41).unwrap();
+        let count = ValueId::new(42).unwrap();
+        let values = IdTable::from_rows([
+            (
+                id,
+                ValueRow {
+                    scalar_type: ScalarType::Integer(address),
+                    origin: ValueOrigin::MachineParameter { position: 0 },
+                    rigid: None,
+                },
+            ),
+            (
+                count,
+                ValueRow {
+                    scalar_type: ScalarType::Integer(integer()),
+                    origin: ValueOrigin::MachineParameter { position: 1 },
+                    rigid: None,
+                },
+            ),
+        ])
+        .unwrap();
+        let context = context(&values);
+        let subject = IntegerMathTerm::MathValue {
+            source_type: address,
+            value: id,
+        };
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &[], &[], &values, &mut activity);
+        for direction in [Direction::Lower, Direction::Upper] {
+            let proof = prover.arithmetic_image(&subject, direction).unwrap();
+            proof_admission::accept_certificate(&context, &proof.conclusion, &[], &[], &proof)
+                .unwrap();
+        }
+        let count = IntegerMathTerm::MathValue {
+            source_type: integer(),
+            value: count,
+        };
+        let sum = IntegerMathTerm::Add(Box::new(subject.clone()), Box::new(count));
+        let order = Proposition::IntegerMathLessOrEqual(subject.clone(), sum);
+        let proof = prover.prove(&order).unwrap();
+        proof_admission::accept_certificate(&context, &order, &[], &[], &proof).unwrap();
+        let decreasing = IntegerMathTerm::Add(
+            Box::new(subject.clone()),
+            Box::new(IntegerMathTerm::literal(IntegerValue::Signed(-1))),
+        );
+        assert!(
+            prover
+                .prove(&Proposition::IntegerMathLessOrEqual(
+                    subject.clone(),
+                    decreasing
+                ))
+                .is_err()
+        );
+        // A count at the same width supplies no evidence for an address, and
+        // the address's carrier does not imply a narrower arbitrary limit.
+        let wrong = IntegerMathTerm::MathValue {
+            source_type: integer(),
+            value: id,
+        };
+        assert!(prover.arithmetic_image(&wrong, Direction::Lower).is_err());
+        assert!(
+            prover
+                .prove(&Proposition::IntegerMathLessOrEqual(
+                    subject,
+                    IntegerMathTerm::literal(IntegerValue::Unsigned(7)),
+                ))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn mathematical_sum_bounds_follow_a_smaller_count_without_changing_carriers() {
+        let address = IntegerType::supported_address_representation();
+        let ids = [41, 42, 43, 44, 45].map(|raw| ValueId::new(raw).unwrap());
+        let values = IdTable::from_rows(ids.into_iter().enumerate().map(|(position, id)| {
+            (
+                id,
+                ValueRow {
+                    scalar_type: ScalarType::Integer(if position == 0 || position == 3 {
+                        address
+                    } else {
+                        integer()
+                    }),
+                    origin: ValueOrigin::MachineParameter {
+                        position: position as u32,
+                    },
+                    rigid: None,
+                },
+            )
+        }))
+        .unwrap();
+        let context = context(&values);
+        let math = |position| IntegerMathTerm::MathValue {
+            source_type: if position == 0 || position == 3 {
+                address
+            } else {
+                integer()
+            },
+            value: ids[position],
+        };
+        let add = |a, b| IntegerMathTerm::Add(Box::new(a), Box::new(b));
+        let bound = add(
+            IntegerMathTerm::carrier_maximum(address),
+            IntegerMathTerm::literal(IntegerValue::Unsigned(1)),
+        );
+        let whole = add(math(0), math(1));
+        let requested = add(math(0), math(2));
+        let goal = Proposition::IntegerMathLessOrEqual(
+            requested.clone(),
+            IntegerMathTerm::carrier_maximum(address),
+        );
+        let mut observed_cases = Vec::new();
+        for (strict_extent, strict_count, accepted) in [
+            (false, true, true),
+            (true, false, true),
+            (false, false, false),
+        ] {
+            let extent = if strict_extent {
+                Proposition::IntegerMathLessThan(whole.clone(), bound.clone())
+            } else {
+                Proposition::IntegerMathLessOrEqual(whole.clone(), bound.clone())
+            };
+            let count = if strict_count {
+                Proposition::LessThan(value(ids[2]), value(ids[1]))
+            } else {
+                Proposition::LessOrEqual(value(ids[2]), value(ids[1]))
+            };
+            let assumptions = [extent, count];
+            let mut activity = ProofSearchActivity::default();
+            let observed =
+                Prover::new(&context, &assumptions, &[], &values, &mut activity).prove(&goal);
+            observed_cases.push((strict_extent, strict_count, accepted, assumptions, observed));
+        }
+        for (strict_extent, strict_count, accepted, assumptions, observed) in observed_cases {
+            assert_eq!(
+                observed.is_ok(),
+                accepted,
+                "strict extent={strict_extent}, strict count={strict_count}: {observed:?}"
+            );
+            if let Ok(proof) = observed {
+                proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
+                    .unwrap();
+            }
+        }
+        let assumptions = [
+            Proposition::IntegerMathLessOrEqual(whole.clone(), bound.clone()),
+            Proposition::LessThan(value(ids[2]), value(ids[4])),
+        ];
+        let alias_base = ScalarTerm::value(ids[3], ScalarType::Integer(address));
+        let original_base = ScalarTerm::value(ids[0], ScalarType::Integer(address));
+        let axioms = [
+            Proposition::Equal(alias_base, original_base),
+            Proposition::Equal(value(ids[4]), value(ids[1])),
+        ];
+        let alias_sum = add(
+            IntegerMathTerm::MathValue {
+                source_type: address,
+                value: ids[3],
+            },
+            math(2),
+        );
+        let alias_goal = Proposition::IntegerMathLessOrEqual(
+            alias_sum,
+            IntegerMathTerm::carrier_maximum(address),
+        );
+        let mut activity = ProofSearchActivity::default();
+        assert!(
+            Prover::new(&context, &assumptions, &[], &values, &mut activity)
+                .prove(&alias_goal)
+                .is_err(),
+            "a missing stored-value equality must not transfer the bound"
+        );
+        let proof = Prover::new(&context, &assumptions, &axioms, &values, &mut activity)
+            .prove(&alias_goal)
+            .unwrap();
+        proof_admission::accept_certificate(&context, &alias_goal, &assumptions, &axioms, &proof)
+            .unwrap();
+    }
+
+    #[test]
     fn scalar_compound_and_mathematical_bounds_keep_their_evidence() {
         let values = inputs(41, 1);
         let id = values.identity_at(0).unwrap();
@@ -926,6 +1108,80 @@ fn wrapping_headroom_reuses_a_completed_bound_without_assuming_its_goal() {
 }
 
 #[test]
+fn sibling_disjunctions_in_one_premise_remain_separate_cuts() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let values = IdTable::from_rows((1..=2).map(|raw| {
+        (
+            ValueId::new(raw).unwrap(),
+            ValueRow {
+                scalar_type: scalar,
+                origin: ValueOrigin::MachineParameter {
+                    position: u32::try_from(raw - 1).unwrap(),
+                },
+                rigid: None,
+            },
+        )
+    }))
+    .unwrap();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let terms: Vec<_> = values
+        .keys()
+        .map(|id| ScalarTerm::value(id, scalar))
+        .collect();
+    let cuts: Vec<_> = terms
+        .iter()
+        .map(|term| {
+            Proposition::Disjunction(
+                [1, 2]
+                    .into_iter()
+                    .map(|limit| {
+                        Proposition::LessOrEqual(
+                            term.clone(),
+                            ScalarTerm::integer(integer, IntegerValue::Unsigned(limit)).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
+        })
+        .collect();
+    let goal = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(
+            Box::new(IntegerMathTerm::embed(terms[0].clone()).unwrap()),
+            Box::new(IntegerMathTerm::embed(terms[1].clone()).unwrap()),
+        ),
+        IntegerMathTerm::literal(IntegerValue::Unsigned(4)),
+    );
+    let assumptions = [Proposition::Conjunction(cuts.clone())];
+    let proof = Prover::new(
+        &context,
+        &assumptions,
+        &[],
+        &values,
+        &mut ProofSearchActivity::default(),
+    )
+    .prove(&goal)
+    .unwrap();
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+    for omitted in 0..cuts.len() {
+        let assumptions = [cuts[1 - omitted].clone()];
+        assert!(
+            Prover::new(
+                &context,
+                &assumptions,
+                &[],
+                &values,
+                &mut ProofSearchActivity::default(),
+            )
+            .prove(&goal)
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar_type = ScalarType::Integer(integer);
@@ -962,7 +1218,10 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
 
     let mut activity = ProofSearchActivity::default();
     let mut active = Prover::new(&context, &assumptions, &[], &values, &mut activity);
-    active.active_cuts.push(cut);
+    active.active_cuts.push(ActiveCut {
+        proposition: cut.clone(),
+        origin: None,
+    });
     assert!(active.split(&Proposition::Truth).is_none());
     assert_eq!(active.activity.disjunction_materializations, 0);
     assert_eq!(active.activity.started, 1);
@@ -971,6 +1230,46 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let unknown = Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(7));
     assert!(failed.split(&unknown).is_none());
     assert_eq!(failed.activity.disjunction_materializations, 0);
+
+    let Proposition::Disjunction(parts) = cut else {
+        unreachable!("the test premise is a disjunction");
+    };
+    let mut values = values.clone();
+    let flag = values.push(ValueRow {
+        scalar_type: ScalarType::Boolean,
+        origin: ValueOrigin::Operation(OperationId::new(1).unwrap()),
+        rigid: None,
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let definition = Proposition::Equal(
+        ScalarTerm::value(flag, ScalarType::Boolean),
+        ScalarTerm::Boolean(true),
+    );
+    let wrapped = Proposition::Disjunction(vec![
+        Proposition::Conjunction(vec![parts[0].clone(), definition.clone()]),
+        parts[1].clone(),
+    ]);
+    let assumptions = [wrapped.clone()];
+    let axioms = [definition];
+    let mut activity = ProofSearchActivity::default();
+    let mut active = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+    assert!(active.facts.iter().any(|fact| {
+        matches!(fact.proposition, Proposition::Disjunction(_)) && fact.proposition != wrapped
+    }));
+    let original = active
+        .facts
+        .iter()
+        .find(|fact| fact.proposition == wrapped)
+        .unwrap();
+    active.active_cuts.push(ActiveCut {
+        proposition: wrapped,
+        origin: original.disjunction_origin(&active.facts),
+    });
+    assert!(active.split(&Proposition::Truth).is_none());
+    assert_eq!(active.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert_eq!(active.activity.disjunction_materializations, 0);
 }
 
 #[test]

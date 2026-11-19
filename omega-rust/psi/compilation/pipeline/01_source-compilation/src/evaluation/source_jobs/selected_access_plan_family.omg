@@ -7,7 +7,7 @@ use omega::language::core::access;
 
 StampAccess satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(stamp)] })
+        access::new_plan(@schema, Issuance::Only { routes: [reflect::callable(stamp)] })
     }
 }
 
@@ -26,5 +26,5 @@ machine main() crashes Trap {
 machine describe_ticket() -> TypeSchema { reflect::schema<Ticket>() }
 
 machine construct_direct_plan(schema: TypeSchema) -> AccessPlan {
-    access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(stamp)] })
+    access::new_plan(@schema, Issuance::Only { routes: [reflect::callable(stamp)] })
 }

@@ -12,20 +12,20 @@ data Main {
     sets: DisjointSet;
 }
 
-machine find(sets: &mut DisjointSet, element: u64) -> u64
+machine find(sets: @mut DisjointSet, element: u64) -> u64
 requires element < 64
 ensures result < 64
 {
     sets.parent[element]
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
-    let invalid_rep: u64 = find(&mut main.sets, 64);
+machine main(main: @mut Main) reaches ProcessExit + Console {
+    let invalid_rep: u64 = find(@mut main.sets, 64);
     ProcessExit::exit_process(invalid_rep as i32);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

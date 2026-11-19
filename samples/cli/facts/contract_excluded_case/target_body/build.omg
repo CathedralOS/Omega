@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "contract_excluded_case_target_body");
     Build::select_provider<Consume, Selected>(builder, windows_x86_64);
     Build::select_provider<Consume, Selected>(builder, linux_x86_64);

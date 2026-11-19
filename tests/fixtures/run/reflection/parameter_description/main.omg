@@ -8,7 +8,7 @@ use omega::language::core::reflect::FieldInfo;
 
 data Table { padding: u64; invoke: addr; }
 boundary trait Query {
-    machine invoke(seed: u64, table: &Table) -> u64 reaches none crashes none;
+    machine invoke(seed: u64, table: @Table) -> u64 reaches none crashes none;
 }
 machine complete() { }
 machine fail() crashes Trap { crash Trap; }

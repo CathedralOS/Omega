@@ -16,30 +16,30 @@ use domain::model::Solution;
 use domain::solver;
 use domain::solver::solve;
 data Main { input: Input; output: Output; truss: Truss; result: Solution; }
-machine main(main: &mut Main) reaches ProcessExit + Console {
-    block read_input(&mut main.input);
+machine main(main: @mut Main) reaches ProcessExit + Console {
+    block read_input(@mut main.input);
     transition main.input.valid { true -> decode_input(main) false -> invalid(main) }
-    machine decode_input(main: &mut Main) {
-        decode(&main.input, &mut main.truss);
+    machine decode_input(main: @mut Main) {
+        decode(@main.input, @mut main.truss);
         transition main.truss.valid && main.truss.nodes <= 8 && main.truss.bars <= 16 { true -> compute(main) false -> invalid(main) }
     }
-    machine compute(main: &mut Main) requires main.truss.nodes <= 8 requires main.truss.bars <= 16 {
-        solve(&main.truss, &mut main.result);
+    machine compute(main: @mut Main) requires main.truss.nodes <= 8 requires main.truss.bars <= 16 {
+        solve(@main.truss, @mut main.result);
         transition main.result.valid { true -> output(main) false -> failure(main) }
     }
-    machine output(main: &mut Main) {
-        report(&mut main.output, &main.truss, &main.result);
+    machine output(main: @mut Main) {
+        report(@mut main.output, @main.truss, @main.result);
         ProcessExit::exit_process(0);
     }
-    machine failure(main: &mut Main) {
+    machine failure(main: @mut Main) {
         transition main.result.status == 65 { true -> mechanism(main) false -> invalid(main) }
     }
-    machine mechanism(main: &mut Main) { Console::write_line("MECHANISM: singular or numerically unresolved stiffness"); ProcessExit::exit_process(65); }
-    machine invalid(main: &mut Main) { Console::write_line("INVALID: bounded integers, dimensions, indices, flags, positive EA or nonzero length required"); ProcessExit::exit_process(64); }
+    machine mechanism(main: @mut Main) { Console::write_line("MECHANISM: singular or numerically unresolved stiffness"); ProcessExit::exit_process(65); }
+    machine invalid(main: @mut Main) { Console::write_line("INVALID: bounded integers, dimensions, indices, flags, positive EA or nonzero length required"); ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

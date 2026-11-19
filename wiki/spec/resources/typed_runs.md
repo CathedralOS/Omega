@@ -112,9 +112,9 @@ They need no supply-selecting wrapper.
 For example, splitting and rejoining transfers the original ownership throughout:
 
 ```omega
-let parts: RunParts<P, T> = Run::split<P, T>(run, cut);
+let parts: RunParts<P, T> = Run::split::<P, T>(run, cut);
 let whole: Run<P, T> in Live<P, T> =
-    Run::merge<P, T>(parts.left, parts.right);
+    Run::merge::<P, T>(parts.left, parts.right);
 ```
 
 At each call, the consumed inputs become unavailable. The compiler tracks the
@@ -130,7 +130,7 @@ cells. Equal addresses never substitute for this ordered transfer.
 
 ## Views, mutation and release
 
-Ordinary native placement over suitable Stable RAM admits `&[T]` and `&mut [T]`
+Ordinary native placement over suitable Stable RAM admits `@[T]` and `@mut [T]`
 over the live cells, with the same bounds, authority and loan obligations as
 array views. Encoded, device or otherwise incompatible placement instead uses
 its permitted per-cell access operations; it cannot fabricate a native slice.
@@ -142,7 +142,7 @@ with an unaccounted hole. Dense `remove`/`swap_remove` repair the live prefix an
 reduce its count. Persistent holes require an explicit representation such as
 `Optional<T>`, not hidden run liveness flags.
 
-A shared view `&[f32 in Km]` may be read as `&[f32]` under the existing recast
+A shared view `@[f32 in Km]` may be read as `@[f32]` under the existing recast
 rules. The removal is written, not implied; its spelling for a domain on the
 element type is [left open](../../drafts/designs/named_domain_casts.md#left-open).
 A mutable view may omit only element domains the lender could add again under

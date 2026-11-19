@@ -29,7 +29,7 @@ machine produce() -> LayoutStorage<Pair, PairLayout> { make() }
 machine main() crashes Trap {
     let value: LayoutStorage<Pair, PairLayout> = produce();
     let difference: u64 = (value.lo as -Delivered) - 42u64;
-    let bytes: &[u8; 16] = &value as &[u8; 16];
+    let bytes: @[u8; 16] = @value as @[u8; 16];
     transition difference == 0u64 && value.hi == 9u64 && bytes[8] == 42u8 && bytes[0] == 9u8 {
         true -> done()
         _ -> bad()

@@ -146,8 +146,8 @@ pub(crate) fn parse_cast_suffix<'tokens, 'source>(
         return parse_cast_entries(syntax_trees, expression, input, false);
     }
     let mut form = language_core::cast_form::CastForm::Value;
-    if input.at_punctuation(PunctuationKind::Ampersand) {
-        input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
+    if input.at_punctuation(PunctuationKind::At) {
+        input = input.take_punctuation(PunctuationKind::At, "@")?;
         let access = if input.at_contextual("mut") {
             input = input.take_contextual("mut")?;
             language_core::ReferenceAccess::Mutable
@@ -592,7 +592,7 @@ fn try_parse_static_argument<'tokens, 'source>(
     let authored = input;
     let argument_checkpoint = syntax_trees.append_checkpoint();
     if input.at_punctuation(PunctuationKind::LeftBracket)
-        || input.at_punctuation(PunctuationKind::Ampersand)
+        || input.at_punctuation(PunctuationKind::At)
     {
         return parse_static_type_argument(syntax_trees, input).map(Some);
     }

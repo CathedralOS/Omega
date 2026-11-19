@@ -5,7 +5,7 @@
 use omega::language::core::ProcessExit;
 
 trait Shape<T> {
-    machine code(subject: &mut T) -> i32;
+    machine code(subject: @mut T) -> i32;
 }
 
 data Item {
@@ -13,7 +13,7 @@ data Item {
 }
 
 CircleShape satisfies Shape<Item> {
-    machine code(subject: &mut Item) -> i32 {
+    machine code(subject: @mut Item) -> i32 {
         transition {
             _ -> 9
         }
@@ -21,7 +21,7 @@ CircleShape satisfies Shape<Item> {
 }
 
 SquareShape satisfies Shape<Item> {
-    machine code(subject: &mut Item) -> i32 {
+    machine code(subject: @mut Item) -> i32 {
         transition {
             _ -> subject.sides
         }
@@ -32,31 +32,31 @@ data Main {
     item: Item;
 }
 
-machine run(main: &mut Main) reaches ProcessExit {
+machine run(main: @mut Main) reaches ProcessExit {
     main.item.sides = 4;
-    let a: i32 = dispatch(CircleShape::code, &mut main.item);
-    let b: i32 = dispatch(SquareShape::code, &mut main.item);
+    let a: i32 = dispatch(CircleShape::code, @mut main.item);
+    let b: i32 = dispatch(SquareShape::code, @mut main.item);
     let n: i32 in Wrapping = (a as i32 in Wrapping) * 10 + (b as i32 in Wrapping);
     transition n == 94 {
         true -> good(main)
         _ -> bad(main)
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         ProcessExit::exit_process(70);
     }
 
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         ProcessExit::exit_process(71);
     }
 }
 
-machine dispatch(abs: machine(subject: &mut Item) -> i32 reaches none crashes none, item: &mut Item) -> i32 {
+machine dispatch(abs: machine(subject: @mut Item) -> i32 reaches none crashes none, item: @mut Item) -> i32 {
     abs(item)
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit {
     let mut entry_storage: Main;
-    run(&mut entry_storage);
+    run(@mut entry_storage);
 }

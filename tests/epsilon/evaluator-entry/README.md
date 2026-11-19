@@ -2,17 +2,17 @@
 
 `sh tests/epsilon/evaluator-entry/run.sh` reconstructs the canonical
 section-11 evaluator edge and executes its request boundary: the packed
-`epsilon_compiler.delta.sources` closure (617,419 bytes, SHA-256
-`63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63`) plus the
+`epsilon_compiler.delta.sources` closure (616,939 bytes, SHA-256
+`a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c`) plus the
 canonical entry
 [`evaluator_entry.delta`](evaluator_entry.delta), compiled with the bound
 Delta support section through the bound Delta compiler (`DCREQ`, profile 1,
 `ConformanceBytesV1`), on the bound Gamma evaluator tape.
 
-The entry source is bound: 10,558 bytes, SHA-256
-`718417f256271d2de5c7b06e0e5f4824abb5993c2a115a69ac81bb1df9072daa`. The
-reconstructed canonical evaluator receipt is bound: 728,066 bytes,
-SHA-256 `92962050ff52d6dc6cdda1ae0dcd4002389da61c0979a2353db41b4b52a4afb7`. Both identities are pinned in
+The entry source is bound: 10,563 bytes, SHA-256
+`ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79`. The
+reconstructed canonical evaluator receipt is bound: 726,601 bytes,
+SHA-256 `1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af`. Both identities are pinned in
 [`tools/bootstrap/epsilon/evaluator_env.sh`](../../../tools/bootstrap/epsilon/evaluator_env.sh)
 and recorded in
 [`bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md`](../../../bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md),
@@ -90,3 +90,6 @@ refusal path.
 
 On macOS arm64 the receipt reconstruction and controls took 266.7 seconds at
 the measured revision; that is a host measurement, not a profile bound.
+
+The [whole-source input experiment](LARGE_INPUT.md) measures the frozen Omega
+compiler request at the published 4 MiB limit and a source-built 8 MiB limit.

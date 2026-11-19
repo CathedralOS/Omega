@@ -6,7 +6,7 @@ data EventRuntime {
 }
 
 machine describe(room: Room,
-    out_line: &mut TextBuffer)
+    out_line: @mut TextBuffer)
 {
     transition {
         room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line)
@@ -17,48 +17,48 @@ machine describe(room: Room,
     }
 
 
-    machine describe_fountain(out_line: &mut TextBuffer) {
+    machine describe_fountain(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "A fountain of life glows here. Type use to drink.");
     }
 
-    machine describe_treasure(out_line: &mut TextBuffer) {
+    machine describe_treasure(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
     }
 
-    machine describe_gold(out_line: &mut TextBuffer) {
+    machine describe_gold(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
     }
 
     machine describe_enemy(enemy: Enemy,
-        out_line: &mut TextBuffer) {
-        join(out_line, enemy_name_live(&enemy.name), " blocks the way. Type fight.");
+        out_line: @mut TextBuffer) {
+        join(out_line, enemy_name_live(@enemy.name), " blocks the way. Type fight.");
     }
 
-    machine quiet_room(out_line: &mut TextBuffer) {
+    machine quiet_room(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "The room is quiet.");
     }
 }
 
 machine event_runtime_use_event(
-    event_runtime: &mut EventRuntime,
-    player: &mut Player,
-    room: &mut Room,
-    out_line: &mut TextBuffer
+    event_runtime: @mut EventRuntime,
+    player: @mut Player,
+    room: @mut Room,
+    out_line: @mut TextBuffer
 )
 {
     transition {
-        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> use_fountain(event_runtime, player, &mut room.event, out_line)
-        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> use_reward(event_runtime, player, &mut room.event, out_line)
-        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> use_reward(event_runtime, player, &mut room.event, out_line)
+        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> use_fountain(event_runtime, player, @mut room.event, out_line)
+        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> use_reward(event_runtime, player, @mut room.event, out_line)
+        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> use_reward(event_runtime, player, @mut room.event, out_line)
         _ -> no_usable_event(out_line)
     }
 
 
     machine use_fountain(
-        event_runtime: &mut EventRuntime,
-        player: &mut Player,
-        event: &mut RoomEvent,
-        out_line: &mut TextBuffer
+        event_runtime: @mut EventRuntime,
+        player: @mut Player,
+        event: @mut RoomEvent,
+        out_line: @mut TextBuffer
     ) {
         heal(player, 12);
         event.consumed = true;
@@ -66,28 +66,28 @@ machine event_runtime_use_event(
     }
 
     machine use_reward(
-        event_runtime: &mut EventRuntime,
-        player: &mut Player,
-        event: &mut RoomEvent,
-        out_line: &mut TextBuffer
+        event_runtime: @mut EventRuntime,
+        player: @mut Player,
+        event: @mut RoomEvent,
+        out_line: @mut TextBuffer
     ) {
-        grant_reward(&mut event_runtime.player_system, player, event.reward);
+        grant_reward(@mut event_runtime.player_system, player, event.reward);
         event.consumed = true;
         text_buffer_set(out_line, "You take the treasure.");
     }
 
-    machine no_usable_event(out_line: &mut TextBuffer) {
+    machine no_usable_event(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "There is nothing here to use.");
     }
 }
 
 machine fight_event(
-    event_runtime: &mut EventRuntime,
-    player: &mut Player,
-    room: &mut Room,
-    random: &mut RandomState,
-    round: &mut CombatRound,
-    out_line: &mut TextBuffer
+    event_runtime: @mut EventRuntime,
+    player: @mut Player,
+    room: @mut Room,
+    random: @mut RandomState,
+    round: @mut CombatRound,
+    out_line: @mut TextBuffer
 )
 {
     transition {
@@ -97,14 +97,14 @@ machine fight_event(
 
 
     machine fight_enemy_event(
-        event_runtime: &mut EventRuntime,
-        player: &mut Player,
-        room: &mut Room,
-        random: &mut RandomState,
-        round: &mut CombatRound,
-        out_line: &mut TextBuffer
+        event_runtime: @mut EventRuntime,
+        player: @mut Player,
+        room: @mut Room,
+        random: @mut RandomState,
+        round: @mut CombatRound,
+        out_line: @mut TextBuffer
     ) {
-        combat_system_fight(&mut event_runtime.combat, player, &mut room.event, random, round);
+        combat_system_fight(@mut event_runtime.combat, player, @mut room.event, random, round);
         text_buffer_set(out_line, "You trade blows with the monster.");
 
         transition {
@@ -114,16 +114,16 @@ machine fight_event(
         }
     }
 
-    machine no_enemy(out_line: &mut TextBuffer) {
+    machine no_enemy(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "There is no enemy here.");
     }
 
-    machine player_died(out_line: &mut TextBuffer) {
+    machine player_died(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "You fall in the dark.");
     }
 
     machine enemy_died(reward: Reward,
-        out_line: &mut TextBuffer) {
+        out_line: @mut TextBuffer) {
         transition {
             reward.gold >= 20 -> rich_reward(out_line)
             reward.gold > 0 -> small_reward(out_line)
@@ -131,20 +131,20 @@ machine fight_event(
         }
     }
 
-    machine rich_reward(out_line: &mut TextBuffer) {
+    machine rich_reward(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "The enemy collapses. You scoop up a serious pile of gold.");
     }
 
-    machine small_reward(out_line: &mut TextBuffer) {
+    machine small_reward(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "The enemy collapses. You find a little gold.");
     }
 
-    machine empty_reward(out_line: &mut TextBuffer) {
+    machine empty_reward(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "The enemy collapses. Nothing useful remains.");
     }
 
-    machine exchange_blows(round: &CombatRound,
-        out_line: &mut TextBuffer) {
+    machine exchange_blows(round: @CombatRound,
+        out_line: @mut TextBuffer) {
         transition {
             round.player_damage > 10 -> heavy_exchange(out_line)
             round.enemy_damage == 0 -> clean_hit(out_line)
@@ -153,19 +153,19 @@ machine fight_event(
         }
     }
 
-    machine heavy_exchange(out_line: &mut TextBuffer) {
+    machine heavy_exchange(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "You deal more than 10 damage, but the enemy keeps moving.");
     }
 
-    machine clean_hit(out_line: &mut TextBuffer) {
+    machine clean_hit(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "You hit cleanly and avoid the counterattack.");
     }
 
-    machine painful_exchange(out_line: &mut TextBuffer) {
+    machine painful_exchange(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "You trade blows and take 5 or more damage.");
     }
 
-    machine glancing_exchange(out_line: &mut TextBuffer) {
+    machine glancing_exchange(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "Steel scrapes in the dark as you exchange blows.");
     }
 }

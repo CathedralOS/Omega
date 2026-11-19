@@ -42,13 +42,13 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::apply(main: &mut Main, post: Post) -> i32 in Wrapping {
+machine Main::apply(main: @mut Main, post: Post) -> i32 in Wrapping {
     transition post {
         Post::Deposit { index, amount } -> deposit(main, index, amount)
         Post::Withdraw { index, amount } -> withdraw(main, index, amount)
         Post::Freeze { index } -> freeze(main, index)
     }
-    machine deposit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    machine deposit(main: @mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.hits = main.hits + 1;
@@ -57,13 +57,13 @@ machine Main::apply(main: &mut Main, post: Post) -> i32 in Wrapping {
             _ -> (main.accounts[index].balance)
         }
     }
-    machine credit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    machine credit(main: @mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.accounts[index].balance = main.accounts[index].balance + amount;
         main.accounts[index].balance
     }
-    machine withdraw(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    machine withdraw(main: @mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.hits = main.hits + 1;
@@ -72,13 +72,13 @@ machine Main::apply(main: &mut Main, post: Post) -> i32 in Wrapping {
             _ -> (main.accounts[index].balance)
         }
     }
-    machine debit(main: &mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
+    machine debit(main: @mut Main, index: i32, amount: i32 in Wrapping) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.accounts[index].balance = main.accounts[index].balance - amount;
         main.accounts[index].balance
     }
-    machine freeze(main: &mut Main, index: i32) -> i32 in Wrapping
+    machine freeze(main: @mut Main, index: i32) -> i32 in Wrapping
     requires 0 <= index && index < 4
     {
         main.hits = main.hits + 10;
@@ -87,53 +87,53 @@ machine Main::apply(main: &mut Main, post: Post) -> i32 in Wrapping {
     }
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     let first: i32 in Wrapping = Main::apply(main, Post::Deposit { index: 0, amount: 100 });
     transition first == 100 && main.hits == 1 && main.accounts[0].balance == 100 {
         true -> second(main)
         _ -> bad(main, 71)
     }
-    machine second(main: &mut Main) {
+    machine second(main: @mut Main) {
         let value: i32 in Wrapping = Main::apply(main, Post::Deposit { index: 1, amount: 40 });
         transition value == 40 && main.hits == 2 && main.accounts[1].balance == 40 {
             true -> frozen(main)
             _ -> bad(main, 72)
         }
     }
-    machine frozen(main: &mut Main) {
+    machine frozen(main: @mut Main) {
         let value: i32 in Wrapping = Main::apply(main, Post::Freeze { index: 0 });
         transition value == 0 && main.hits == 12 && main.accounts[0].frozen == 1 {
             true -> skipped(main)
             _ -> bad(main, 73)
         }
     }
-    machine skipped(main: &mut Main) {
+    machine skipped(main: @mut Main) {
         let value: i32 in Wrapping = Main::apply(main, Post::Deposit { index: 0, amount: 5 });
         transition value == 100 && main.hits == 13 && main.accounts[0].balance == 100 {
             true -> withdrawn(main)
             _ -> bad(main, 74)
         }
     }
-    machine withdrawn(main: &mut Main) {
+    machine withdrawn(main: @mut Main) {
         let value: i32 in Wrapping = Main::apply(main, Post::Withdraw { index: 1, amount: 10 });
         transition value == 30 && main.hits == 14 {
             true -> finals(main)
             _ -> bad(main, 75)
         }
     }
-    machine finals(main: &mut Main) {
+    machine finals(main: @mut Main) {
         transition main.accounts[0].balance == 100 && main.accounts[1].balance == 30
             && main.accounts[2].balance == 0 && main.accounts[3].balance == 0 {
             true -> good(main)
             _ -> bad(main, 76)
         }
     }
-    machine good(main: &mut Main) { ProcessExit::exit_process(70); }
-    machine bad(main: &mut Main, code: i32) { ProcessExit::exit_process(code); }
+    machine good(main: @mut Main) { ProcessExit::exit_process(70); }
+    machine bad(main: @mut Main, code: i32) { ProcessExit::exit_process(code); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

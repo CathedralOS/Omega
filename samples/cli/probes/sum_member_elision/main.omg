@@ -25,7 +25,7 @@ data Snapshot {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let snapshot: Snapshot = Snapshot {};
     let partial: Snapshot = Snapshot { region_count: 4 };
@@ -34,18 +34,18 @@ machine Main::main(main: &mut Main) {
         RegionAlignment::Unaligned { offset } -> check(main, counted)
         _ -> fail(main)
     }
-    machine check(main: &mut Main, counted: u32) {
+    machine check(main: @mut Main, counted: u32) {
         transition counted == 4 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

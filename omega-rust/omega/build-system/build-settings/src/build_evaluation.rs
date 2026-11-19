@@ -68,7 +68,7 @@ pub struct BuildStageRequest<'request> {
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
 }
 
-pub use products::EvaluatedBuild;
+pub use products::{BuildSubjectValidation, EvaluatedBuild};
 
 pub struct PreparedBuildEvaluation {
     execution: PreparedBuildExecution,
@@ -77,7 +77,7 @@ pub struct PreparedBuildEvaluation {
     constants: products::BuildConstants,
     source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
-    dependency_activation: bool,
+    subject_validation: BuildSubjectValidation,
 }
 
 impl PreparedBuildEvaluation {
@@ -118,7 +118,7 @@ impl PreparedBuildEvaluation {
                 selected_machine,
                 package_inputs,
                 anonymous_source,
-                self.dependency_activation,
+                self.subject_validation == BuildSubjectValidation::Checked,
                 timings,
             )
             .map_err(|failure| {
@@ -232,7 +232,7 @@ impl PreparedBuildEvaluation {
             constants,
             source_completion_accounting,
             restricted_build_grants,
-            dependency_activation: _,
+            subject_validation,
         } = self;
         let failure = |diagnostics| {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
@@ -249,6 +249,7 @@ impl PreparedBuildEvaluation {
             restricted_build_requests,
             base_source_consumption_commitment,
             constants,
+            subject_validation,
             source_completion_accounting,
         })
     }
@@ -318,13 +319,21 @@ pub fn prepare_build_evaluation(
             "Build execution requires its source-owned selection",
         )]
     })?;
+    let subject_validation = if dependency_activation {
+        BuildSubjectValidation::EntryOnly
+    } else if anonymous_source.is_some() && !build_source.is_default() {
+        // The root gets its declaration owner after the admitted Build runs.
+        BuildSubjectValidation::AwaitingOwner
+    } else {
+        BuildSubjectValidation::Checked
+    };
     let (prepared, providers, constants, source_completion_accounting) =
         crate::admission::checking::prepare_admitted_build(
             typed,
             selected_machine,
             package_inputs,
             anonymous_source,
-            dependency_activation,
+            subject_validation == BuildSubjectValidation::Checked,
             timings,
         )?;
     let result = (|| {
@@ -369,7 +378,7 @@ pub fn prepare_build_evaluation(
             constants,
             source_completion_accounting: source_completion_accounting.clone(),
             restricted_build_grants,
-            dependency_activation,
+            subject_validation,
         })
     })();
     result.map_err(|failure: CompileFailure| {

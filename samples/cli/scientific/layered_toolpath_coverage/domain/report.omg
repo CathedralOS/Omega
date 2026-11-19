@@ -29,7 +29,7 @@ public machine segment(kind: bool, x: i32 in Wrapping, y: i32 in Wrapping, z: i3
         coordinate(x, y, z); Console::write(" "); coordinate(end_x, end_y, end_z); Console::write_line("");
     }
 }
-public machine audit(job: &Job) reaches Console {
+public machine audit(job: @Job) reaches Console {
     Console::write("AUDIT region="); number(job.region);
     Console::write(" covered="); number(job.covered_count);
     Console::write(" missed="); number(job.missed);

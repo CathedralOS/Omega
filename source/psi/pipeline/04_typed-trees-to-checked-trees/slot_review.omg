@@ -5,21 +5,21 @@
 
 public data SlotReview {}
 
-public machine prepare(review: &mut SlotReview) {}
+public machine prepare(review: @mut SlotReview) {}
 
-public machine admits(review: &SlotReview, checks: &Checks) -> bool
+public machine admits(review: @SlotReview, checks: @Checks) -> bool
 crashes Trap
 {
     transition { _ -> origins(review, checks, 0) }
 
-    machine origins(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+    machine origins(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         transition index < checks.slot_origin_count && index < 64 {
             true -> origin(review, checks, index)
             _ -> qualifications(review, checks, 0)
         }
     }
 
-    machine origin(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+    machine origin(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         let row: SlotReturnedBorrowOrigin = slot_origin(checks, index);
         transition row.kind == SlotOriginKind::Parameter {
             true -> origin_index(review, checks, index, row.parameter_index)
@@ -28,8 +28,8 @@ crashes Trap
     }
 
     machine origin_index(
-        review: &SlotReview,
-        checks: &Checks,
+        review: @SlotReview,
+        checks: @Checks,
         index: u64 in Trapping,
         parameter_index: u64 in Trapping
     ) -> bool {
@@ -39,14 +39,14 @@ crashes Trap
         }
     }
 
-    machine qualifications(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+    machine qualifications(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         transition index < checks.slot_qualification_count && index < 64 {
             true -> qualification(review, checks, index)
             _ -> paired(review, checks)
         }
     }
 
-    machine qualification(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+    machine qualification(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         let row: SlotParameterQualification = slot_qualification(checks, index);
         transition row.domain_item < 1024 && row.parameter_index < 1024 {
             true -> qualifications(review, checks, index + 1)
@@ -54,14 +54,14 @@ crashes Trap
         }
     }
 
-    machine paired(review: &SlotReview, checks: &Checks) -> bool {
+    machine paired(review: @SlotReview, checks: @Checks) -> bool {
         transition checks.slot_qualification_count > 0 && checks.slot_origin_count > 0 {
             true -> seek(review, checks, 0)
             _ -> admit()
         }
     }
 
-    machine seek(review: &SlotReview, checks: &Checks, index: u64 in Trapping) -> bool {
+    machine seek(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         transition index < checks.slot_qualification_count {
             true -> find(review, checks, index, 0)
             _ -> admit()
@@ -69,8 +69,8 @@ crashes Trap
     }
 
     machine find(
-        review: &SlotReview,
-        checks: &Checks,
+        review: @SlotReview,
+        checks: @Checks,
         index: u64 in Trapping,
         origin_index: u64 in Trapping
     ) -> bool {
@@ -81,8 +81,8 @@ crashes Trap
     }
 
     machine compare(
-        review: &SlotReview,
-        checks: &Checks,
+        review: @SlotReview,
+        checks: @Checks,
         index: u64 in Trapping,
         origin_index: u64 in Trapping
     ) -> bool {

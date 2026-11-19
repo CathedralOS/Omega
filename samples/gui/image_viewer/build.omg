@@ -1,6 +1,6 @@
 // image_viewer is a REAL windowed application: the GUI subsystem keeps Windows
 // from attaching a console box (PE Subsystem 2).
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "image_viewer");
     builder.identifier = "com.omega.image-viewer";
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {

@@ -3,7 +3,7 @@
 public boundary trait Scheduler { machine park() reaches suspends crashes none; }
 public Immediate satisfies Scheduler { machine park() {} }
 data Cell [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { value: i32; }
-data Message<'view> { left: i32; body: &'view Cell; right: i32; }
+data Message<'view> { left: i32; body: @'view Cell; right: i32; }
 // The canaries beside the transported descriptor must survive with it.
 machine read(message: Message) -> i32 {
     transition message.left == 5 && message.right == 9 { true -> message.body.value _ -> 0 }
@@ -12,7 +12,7 @@ machine read(message: Message) -> i32 {
 machine pick(flag: bool) -> i32 suspends reaches Scheduler {
     let first: Cell = Cell { value: 73 };
     let second: Cell = Cell { value: 11 };
-    let reference: &Cell = match flag { true -> &first _ -> &second };
+    let reference: @Cell = match flag { true -> @first _ -> @second };
     let message: Message = Message { left: 5, body: reference, right: 9 };
     suspend Scheduler::park();
     read(message)

@@ -1426,7 +1426,7 @@ mod tests {
     #[test]
     fn compiler_queries_resolve_to_declarations_without_stealing_authored_calls() {
         let text = "machine chosen() -> u32 { 1 }\n\
-                    machine expose(value: &u32) -> addr { address_of(value) }\n\
+                    machine expose(value: @u32) -> addr { address_of(value) }\n\
                     machine describe() { let layout: CodeLayout = code_layout<chosen>(); }";
         for query in ["address_of", "code_layout"] {
             let call = resolved_call(text, query);

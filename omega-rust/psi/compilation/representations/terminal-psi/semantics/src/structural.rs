@@ -2585,7 +2585,10 @@ pub(crate) mod primitive_place {
     // Path identity and read typing must recognize the same primitive leaves.
     // Atomic and byte storage use their own operations rather than this reader.
     fn primitive_read_scalar_field(field: &StructuralFieldType) -> Option<ScalarType> {
-        plain_scalar_field(field).or_else(|| integer_or_boolean_field(field))
+        match field {
+            StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_) => None,
+            _ => field.scalar_type(),
+        }
     }
 
     /// A contract reads the declared scalar at an exact canonical path. Inline

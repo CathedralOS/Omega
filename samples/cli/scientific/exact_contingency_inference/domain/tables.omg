@@ -20,7 +20,7 @@ public data Inference [copy] {
     score: u64 in Wrapping;
     denominator: u64 in Wrapping;
 }
-public machine margins_valid(model: &Model) -> bool {
+public machine margins_valid(model: @Model) -> bool {
     model.rows[0] > 0 && model.rows[1] > 0 &&
     model.columns[0] > 0 && model.columns[1] > 0 && model.columns[2] > 0 &&
     model.rows[0] + model.rows[1] <= 8 &&
@@ -28,7 +28,7 @@ public machine margins_valid(model: &Model) -> bool {
     model.zeros[0] <= 1 && model.zeros[1] <= 1 && model.zeros[2] <= 1 &&
     model.zeros[3] <= 1 && model.zeros[4] <= 1 && model.zeros[5] <= 1
 }
-public machine table_valid(model: &Model, table: &Table) -> bool {
+public machine table_valid(model: @Model, table: @Table) -> bool {
     table.cells[0] + table.cells[1] + table.cells[2] == model.rows[0] &&
     table.cells[3] + table.cells[4] + table.cells[5] == model.rows[1] &&
     table.cells[0] + table.cells[3] == model.columns[0] &&

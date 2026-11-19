@@ -19,7 +19,7 @@ public data CountedQuantity<Unit> {
 }
 
 public trait Content<Owner, A> {
-    machine project(subject: &Owner) -> A;
+    machine project(subject: @Owner) -> A;
 }
 
 // Conservation contracts call the exact owner projection above around the

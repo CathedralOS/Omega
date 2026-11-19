@@ -253,7 +253,7 @@ fn core_policy_casts_of_imported_call_results_retain_the_subtraction_signature()
         r#"
 use omega::language::core::narrow_i64_to_u64_wrapping;
 data Time [copy] { seconds: i64; }
-machine difference(time: &Time, earlier: Time) -> u64 in Wrapping {
+machine difference(time: @Time, earlier: Time) -> u64 in Wrapping {
     let seconds: u64 in Wrapping =
         (narrow_i64_to_u64_wrapping(time.seconds) as u64 in Wrapping)
         - (narrow_i64_to_u64_wrapping(earlier.seconds) as u64 in Wrapping);
@@ -338,16 +338,16 @@ fn core_policy_comparisons_read_selected_collection_lengths() {
         31,
         "lengths.omg",
         r#"
-machine equal_length(items: &[u8], count: u64 in Trapping) -> bool {
+machine equal_length(items: @[u8], count: u64 in Trapping) -> bool {
     count == items.len
 }
-machine bounded_length(items: &[u8], count: u64 in Trapping) -> bool
+machine bounded_length(items: @[u8], count: u64 in Trapping) -> bool
     requires count < items.len
 { true }
-machine reversed_length(items: &[u8], count: u64 in Trapping) -> bool {
+machine reversed_length(items: @[u8], count: u64 in Trapping) -> bool {
     items.len > count
 }
-machine fixed_length(items: &[u8; 4], count: u64 in Trapping) -> bool {
+machine fixed_length(items: @[u8; 4], count: u64 in Trapping) -> bool {
     count <= items.len
 }
 "#,
@@ -441,8 +441,8 @@ fn collection_length_type_queries_use_the_retained_selection() {
         "members.omg",
         r#"
 data Row [copy] { len: u16 in Wrapping; }
-machine selected(items: &[u8]) -> u64 { items.len }
-machine field(row: &Row) -> u16 in Wrapping { row.len }
+machine selected(items: @[u8]) -> u64 { items.len }
+machine field(row: @Row) -> u16 in Wrapping { row.len }
 "#,
     )]);
     for (name, atom, policy) in [

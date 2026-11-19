@@ -12,7 +12,7 @@
     ((EpsilonRuntimeInteger actual) (eq actual expected))
     ((EpsilonRuntimeAggregate typeValue children) 0)
     ((EpsilonRuntimeViewValue view) 0)
-    ((EpsilonRuntimeSumValue owner caseValue payloads) 0)))
+    ((EpsilonRuntimeSumValue caseValue payloads) 0)))
 
 (def array_storage_absent ((result EpsilonRuntimeValueLookup)) Int
   (match result
@@ -168,14 +168,26 @@
         (EpsilonRuntimeAggregate (EpsilonNamedType 0 1 (EpsilonNameSpan 0 1))
           children)))))
 
+; The checked owner contains the case at 2..3. A different declaration may
+; use the same case spelling, but its distinct source span cannot match.
+(def array_storage_sum_case ((start Int) (end Int)) Int
+  (array_storage_absent
+    (epsilon_runtime_normalize_sum (epsilon_source_whole (bytes_single 120))
+      (array_storage_sum_owner)
+      (EpsilonRuntimeSumValue
+        (EpsilonResolvedSumCaseSyntax start end (EpsilonNameSpan 0 1) NoEpsilonParameters)
+        NoEpsilonRuntimePayloads))))
+
 (def array_storage_sums () Bytes
   (bytes_concat
     (array_storage_sum_rejected
       (EpsilonRuntimeRecordChildren NoEpsilonRuntimeFieldChildren))
-    (array_storage_sum_rejected
-      (EpsilonRuntimeIndexedChildren 5 EmptyEpsilonRuntimeArrayTree))))
+    (bytes_concat (array_storage_sum_rejected
+      (EpsilonRuntimeIndexedChildren 5 EmptyEpsilonRuntimeArrayTree))
+      (bytes_concat (bytes_single (eq (array_storage_sum_case 2 3) 0))
+        (bytes_single (array_storage_sum_case 6 7))))))
 
-; Order: 22 corruptions, 3 defaults, 8 snapshots, 3 maximum, 2 family, 2 sum.
+; Order: 22 corruptions, 3 defaults, 8 snapshots, 3 maximum, 2 family, 4 sum.
 (def main ((input Bytes)) Bytes
   (bytes_concat (array_storage_corruptions)
     (bytes_concat (array_storage_defaults)

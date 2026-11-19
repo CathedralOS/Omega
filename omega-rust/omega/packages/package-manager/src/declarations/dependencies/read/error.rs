@@ -60,10 +60,10 @@ impl fmt::Display for DependencyProjectionError {
                 formatter.write_str("package build machine has no callable entry")
             }
             Self::InvalidBuildParameter => formatter.write_str(
-                "package build machine's first parameter must be `builder: &mut Build`",
+                "package build machine's first parameter must be `builder: @mut Build`",
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
-                "automatic dependency editing requires unconditional direct `_ = Build::dependency(builder, dependency::from_source(Source::...));` registrations, or a `let mut name: DependencyDescription = dependency::from_source(Source::...);` local directly followed by `dependency::with_alias(&mut name, \"alias\");` and `_ = Build::dependency(builder, name);`, in the root build entry; dependency helpers, conditional registrations, state transitions, and reused descriptions are not editable dependency declaration forms",
+                "automatic dependency editing requires unconditional direct `_ = Build::dependency(builder, dependency::from_source(Source::...));` registrations, or a `let mut name: DependencyDescription = dependency::from_source(Source::...);` local directly followed by `dependency::with_alias(@mut name, \"alias\");` and `_ = Build::dependency(builder, name);`, in the root build entry; dependency helpers, conditional registrations, state transitions, and reused descriptions are not editable dependency declaration forms",
             ),
             Self::WrongDependencyReceiver => formatter.write_str(
                 "dependency request must use a static Build call with the root build machine's first parameter as its first operand",

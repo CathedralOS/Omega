@@ -2,6 +2,6 @@
 data Table {
     moment: [f64; 2];
 }
-machine read(table: &Table) -> f64 {
+machine read(table: @Table) -> f64 {
     table.moment[2]
 }

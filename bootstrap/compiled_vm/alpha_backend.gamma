@@ -33,6 +33,10 @@
 (def i_call ((s Int) (label Int)) Int (i_address (i_field s 1 19) label))
 (def i_ret ((s Int)) Int (i_field s 1 20))
 
+; Alpha jumps and calls carry an absolute byte offset from the first opcode.
+(def i_target_width () Int 8)
+(def i_target_value ((size Int) (following Int) (suffix Int)) Int (- size suffix))
+
 ; The audited seed hole holds at most 16 MiB minus its four-byte length.
 (def i_limit () Int 16777213)
 (def i_publish ((fields Int) (size Int) (labels Int)) Int

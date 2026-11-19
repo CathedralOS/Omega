@@ -690,7 +690,7 @@ mod compiler_machine_tests {
 
     #[test]
     fn byte_observation_header_checker_refuses_each_changed_admission_axis() {
-        const HEADER: &str = "public machine valid_utf8<'input>(bytes: &'input [u8]) -> bool reaches none crashes none terminates;";
+        const HEADER: &str = "public machine valid_utf8<'input>(bytes: @'input [u8]) -> bool reaches none crashes none terminates;";
         let check = |text: &str| {
             // Directly exercise shape checking; these edited bytes receive
             // no catalog custody, as the separate source-origin test pins.
@@ -710,8 +710,8 @@ mod compiler_machine_tests {
         check(HEADER).expect("the exact pure header");
         for changed in [
             HEADER.replace("public machine", "machine"),
-            HEADER.replace("&'input [u8]", "&'input mut [u8]"),
-            HEADER.replace("&'input [u8]", "&[u8]"),
+            HEADER.replace("@'input [u8]", "@'input mut [u8]"),
+            HEADER.replace("@'input [u8]", "@[u8]"),
             HEADER.replace("[u8]", "[u16]"),
             HEADER.replace("-> bool", "-> u64"),
             HEADER.replace("<'input>", "<'input, 'other>"),
@@ -719,7 +719,7 @@ mod compiler_machine_tests {
             HEADER.replace("crashes none ", ""),
             HEADER.replace("terminates;", ";"),
             HEADER.replace("terminates;", "terminates requires true;"),
-            HEADER.replace("bytes: &'input [u8]", "bytes: &'input [u8], extra: u64"),
+            HEADER.replace("bytes: @'input [u8]", "bytes: @'input [u8], extra: u64"),
         ] {
             assert!(
                 check(&changed).is_err(),

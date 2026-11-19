@@ -68,7 +68,7 @@ impl fmt::Display for BuildDeclarationError {
             Self::ScopedBuildMachine { scope } => {
                 write!(
                     formatter,
-                    "selected build.omg must declare the free `machine build(builder: &mut Build)` entry; `{scope}::build` is an ordinary scoped machine and cannot be selected"
+                    "selected build.omg must declare the free `machine build(builder: @mut Build)` entry; `{scope}::build` is an ordinary scoped machine and cannot be selected"
                 )
             }
             Self::DuplicateBuildMachines { count } => {
@@ -81,7 +81,7 @@ impl fmt::Display for BuildDeclarationError {
                 formatter.write_str("package build machine has no callable entry")
             }
             Self::InvalidBuildParameter => formatter.write_str(
-                "package build machine must have exactly one parameter: `builder: &mut Build`",
+                "package build machine must have exactly one parameter: `builder: @mut Build`",
             ),
             Self::UnsupportedPackageShape => formatter.write_str(
                 "package declaration must be one direct canonical `Build::package(builder, \"kebab_name\")` statement in the root build entry",

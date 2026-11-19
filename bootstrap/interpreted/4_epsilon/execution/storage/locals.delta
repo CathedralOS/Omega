@@ -53,7 +53,7 @@
           (EpsilonEvaluatorValue value NoEpsilonRuntimePlace store output))
         ((EpsilonRuntimeInteger integer)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
-        ((EpsilonRuntimeSumValue owner caseValue payload)
+        ((EpsilonRuntimeSumValue caseValue payload)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
         ((EpsilonRuntimeAggregate typeValue children)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))))))

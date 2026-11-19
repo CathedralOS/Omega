@@ -4,39 +4,54 @@
 construct the Omega compiler from its declared auditable seed and then use that
 compiler to rebuild itself reproducibly. No path is selected during exploration.
 
-```text
-bootstrap/
-  interpreted/   existing interpreter-based chain and its language sources
-  compiled_vm/   source-compiled Gamma route to independent Alpha tapes
-  independent/   native Linux compiler construction
-  linux_x86_64/  offline binary construction of native Gamma, Delta and their successors
-  proofs/        optional research outside construction acceptance
-```
+All routes start with the audited Alpha VM and a separately admitted Beta
+compiler tape. Running it on Beta's own source reproduces the tape byte for
+byte. Rebuilt Beta then compiles the Beta-written Gamma evaluator to Alpha. On compiled routes this evaluator constructs the
+first Gamma compiler. [Alpha seed](interpreted/0_alpha/README.md) · [Beta tape audit](interpreted/1_beta/AUDIT.md)
 
-The [interpreted path](interpreted/README.md) contains the existing numbered
-rungs. The [compiled VM path](compiled_vm/README.md) currently reuses their seed
-and successor sources and owns its Gamma compiler. The native path shares that
-frontend and emits Linux executables. One Linux x86-64 command constructs
-the native Gamma compiler from its predecessors, rebuilds it twice, and
-can deliver the native Delta compiler from the distributed Gamma source.
-Given the Epsilon evaluator's Delta compilation request, the same command
-produces a native Epsilon evaluator.
-[Native path](independent/README.md) · [Offline command](linux_x86_64/README.md)
+**Alpha** means tape executed by the seed VM. **Native** means a Linux
+x86-64 executable. The Delta compiler is written in Gamma and emits Gamma
+on every route.
 
-The Omega-written product lives in [`source/psi`](../source/psi) and
-[`source/omega`](../source/omega), outside any bootstrap variant. Its construction
-can advance through either bootstrap or the [Rust comparator](../omega-rust).
-Keep its implementation within a deliberate subset of the language it implements
-where that simplifies the complete bootstrap, while preserving specified source
-semantics and explicit refusals. Rust-assisted results remain identified as such.
+| Route | Delta compiler runs on | Epsilon implementation | Demonstrated workload |
+| --- | --- | --- | --- |
+| [Original interpreter](interpreted/README.md) | Gamma evaluator on Alpha | Epsilon evaluator, interpreted by Gamma | The bootstrap compiler emits Alpha tape for supported Omega programs. |
+| [Gamma compiled to Alpha](compiled_vm/README.md) | Alpha | Epsilon evaluator on Alpha | Same Omega programs. |
+| [Gamma compiled to native](independent/README.md) | Native | Native Epsilon evaluator | Same Omega programs. |
+| [Epsilon compiled to Delta, Alpha target](independent/README.md#calling-the-numeric-lexer-with-a-stored-enum) | Alpha | Epsilon-to-Delta compiler on Alpha | Numeric lexer on Alpha. |
+| [Epsilon compiled to Delta, native target](independent/README.md#checked-epsilon-compilation) | Native | Native Epsilon-to-Delta compiler | Numeric lexer on Linux. |
 
-Construction and reproducible self-compilation of the full Omega compiler remain
-open. The working stages have executed Omega programs and rebuilt the Gamma
-compiler.
+The first three use one Delta-written evaluator to interpret the Epsilon-written
+[bootstrap compiler](interpreted/5_omega/README.md)
+(D in older records). The last two use a Delta-written compiler to translate Epsilon
+into Delta modules. Adding a runtime and entry point lets the Delta and Gamma
+compilers build an executable.
+
+Native can lead back to Alpha. Compile the Gamma-to-Alpha compiler for Linux
+and it emits tape for the original VM. Native-hosted and Alpha-hosted compilers
+produced identical numeric lexer tapes. The tape and Linux executable agreed
+on all thirteen inputs. [Cross-compilation](independent/README.md#construction-and-acceptance) · [Lexer comparison](independent/README.md#calling-the-numeric-lexer-with-a-stored-enum)
+
+From the repository root on Linux x86-64, run
+`bootstrap/linux_x86_64/bootstrap . /tmp/omega-gamma` with a new output
+directory to build the native Gamma compiler offline. Put `--alpha` before
+`.` to build the Alpha-tape compiler. Both commands rebuild the Gamma compiler
+twice. The same entry accepts the Delta compiler source and an Epsilon evaluator
+compilation request. [Offline commands and inputs](linux_x86_64/README.md)
+
+The bootstrap compiler's job is to build the **Omega compiler** (C in older
+records), the product written in Omega.
+Construction of the full product and its reproducible self-build remain open.
+The product uses a deliberate subset of Omega while preserving the language's
+semantics and explicit refusals. [Product Psi](../source/psi) · [Product Omega](../source/omega)
+
+A host Rust toolchain builds the Rust comparator, which can compile Omega
+sources during development. Record that dependency when reporting a
+Rust-assisted build. [Rust comparator](../omega-rust)
 
 Each path owns its source, invocation and construction evidence. Retain only
 machinery needed by real successors or necessary validation. Record seed/trust
 assumptions, actual cold runs, development acceleration and failed experiments.
-The existing [edge contracts](CONTRACT.md) describe the retained language edges;
-they do not fix the architecture of new paths. Scripts locate retained sources
-through [`tools/bootstrap/paths.sh`](../tools/bootstrap/paths.sh).
+The [edge contracts](CONTRACT.md) describe the retained language edges.
+Scripts locate their sources through [`tools/bootstrap/paths.sh`](../tools/bootstrap/paths.sh).
+[Proof research](proofs/README.md) is optional for construction.

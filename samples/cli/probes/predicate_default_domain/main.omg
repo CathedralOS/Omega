@@ -12,27 +12,27 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-machine cells_valid(cells: &[i32; 4]) -> bool {
+machine cells_valid(cells: @[i32; 4]) -> bool {
     transition cells[0] == 0 || cells[0] == 1 {
         true -> at_1(cells)
         _ -> (false)
     }
 
-    machine at_1(cells: &[i32; 4]) -> bool {
+    machine at_1(cells: @[i32; 4]) -> bool {
         transition cells[1] == 0 || cells[1] == 1 {
             true -> at_2(cells)
             _ -> (false)
         }
     }
 
-    machine at_2(cells: &[i32; 4]) -> bool {
+    machine at_2(cells: @[i32; 4]) -> bool {
         transition cells[2] == 0 || cells[2] == 1 {
             true -> at_3(cells)
             _ -> (false)
         }
     }
 
-    machine at_3(cells: &[i32; 4]) -> bool {
+    machine at_3(cells: @[i32; 4]) -> bool {
         transition cells[3] == 0 || cells[3] == 1 {
             true -> (true)
             _ -> (false)
@@ -40,7 +40,7 @@ machine cells_valid(cells: &[i32; 4]) -> bool {
     }
 }
 
-data Grid requires cells_valid(&board) == true {
+data Grid requires cells_valid(@board) == true {
     board: [i32; 4];
 }
 
@@ -49,12 +49,12 @@ data Main {
     seen: i32;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.seen = main.grid.board[2];
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

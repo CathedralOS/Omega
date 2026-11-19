@@ -1,0 +1,4 @@
+error UnexpectedToken at 4:5 bytes 120..125
+  found: other
+  expected: `;`
+  expected `;`

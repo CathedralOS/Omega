@@ -7,7 +7,7 @@ data Counter [copy] requires used <= 81u64 {
 
 machine mutate_and_return() -> Counter {
     let mut c: Counter = Counter { used: 0u64, limit: 80u64 };
-    let r: &mut Counter = &mut c;
+    let r: @mut Counter = @mut c;
     r.used = 81u64;
     c
 }

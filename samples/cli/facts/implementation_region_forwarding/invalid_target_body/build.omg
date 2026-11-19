@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::select_provider<SelectedInspect, LinuxX8664Inspect>(builder, linux_x86_64);
     Build::select_provider<SelectedInspect, LinuxArm64Inspect>(builder, linux_arm64);
     Build::select_provider<SelectedInspect, MacosArm64Inspect>(builder, macos_arm64);

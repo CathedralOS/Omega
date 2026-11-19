@@ -183,10 +183,10 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 12,100 lines / 617,419 bytes, SHA-256
-`63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63`.
+The packed evaluator is 12,096 lines / 616,939 bytes, SHA-256
+`a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c`.
 The manifest itself is 16,779 bytes, SHA-256
-`4e55fe3a1e911f92acf03bac2a75561ece46006a94d6d3a71c2668471f2f8918`;
+`d8e2b9c0ef64c1be8a2b5b1582a4bde4cdba7f5d790cf95f2de0642b7bc69cc7`;
 `tools/bootstrap/epsilon/evaluator_env.sh` checks both identities against every
 materialization and `tests/bootstrap/epsilon-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being evaluated, not a proof that
@@ -199,8 +199,8 @@ is 2,150 bytes, SHA-256
 cross-rung consumer appends it after the packed evaluator to form the DCREQ
 subject. Compiling the bound evaluator, driver, and Delta support section
 through the bound Delta compiler reconstructs exactly one evaluator receipt:
-720,476 bytes, SHA-256
-`c51a0a8a7d5425edc769d5e3684b587d9b05f280850c795ca2919d11a809d460`.
+719,006 bytes, SHA-256
+`f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340`.
 `tools/bootstrap/epsilon/evaluator_env.sh` binds both identities, and
 `tests/bootstrap/epsilon-identity.sh` covers the refusals and checks every
 consuming gate's record. The receipt identity is an obligation on the

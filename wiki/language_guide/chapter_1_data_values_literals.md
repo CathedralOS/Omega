@@ -17,7 +17,7 @@ A project's `build.omg` names the application and says which machine is its
 entry:
 
 ```omega
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "hello");
     Build::bind(builder, windows_x86_64::ProgramEntry, start);
 }
@@ -40,7 +40,7 @@ data Player {
     armor: i32;
 }
 
-machine take_damage(player: &mut Player, amount: i32)
+machine take_damage(player: @mut Player, amount: i32)
 requires amount >= 0
 requires player.health >= amount
 {
@@ -219,7 +219,7 @@ record, not only a scalar, and it is not mutable storage. See
 ## Strings are bytes
 
 ```omega
-let greeting: &[u8] = "Hello, Omega.";
+let greeting: @[u8] = "Hello, Omega.";
 public const DLL_NAME: [u8; 12] = "kernel32.dll";
 ```
 

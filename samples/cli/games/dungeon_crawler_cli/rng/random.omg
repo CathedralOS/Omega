@@ -4,12 +4,12 @@ data Random {
 }
 
 machine seed(value: u64 in Wrapping,
-    state: &mut RandomState) {
+    state: @mut RandomState) {
     state.seed = value;
     state.calls = 0;
 }
 
-machine next_u32(state: &mut RandomState) -> u32 {
+machine next_u32(state: @mut RandomState) -> u32 {
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
 
@@ -19,8 +19,8 @@ machine next_u32(state: &mut RandomState) -> u32 {
 }
 
 machine range(
-    random: &mut Random,
-    state: &mut RandomState,
+    random: @mut Random,
+    state: @mut RandomState,
     exclusive_max: u32 in Wrapping
     ) -> u32
 requires exclusive_max > 0
@@ -34,8 +34,8 @@ ensures result < exclusive_max
 }
 
 machine chance(
-    random: &mut Random,
-    state: &mut RandomState,
+    random: @mut Random,
+    state: @mut RandomState,
     numerator: u32 in Wrapping,
     denominator: u32 in Wrapping
     ) -> bool

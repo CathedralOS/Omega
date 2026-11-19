@@ -23,16 +23,16 @@ data Matrices {
     b: [[i32 in Wrapping; 3]; 3];
     c: [[i32 in Wrapping; 3]; 3];
 }
-machine main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: @mut Main) reaches ProcessExit + Console {
     let mut matrices: Matrices;
     matrices.a = [[1i32 as +Wrapping, 2i32 as +Wrapping, 3i32 as +Wrapping], [4i32 as +Wrapping, 5i32 as +Wrapping, 6i32 as +Wrapping], [7i32 as +Wrapping, 8i32 as +Wrapping, 9i32 as +Wrapping]];
     matrices.b = [[9i32 as +Wrapping, 8i32 as +Wrapping, 7i32 as +Wrapping], [6i32 as +Wrapping, 5i32 as +Wrapping, 4i32 as +Wrapping], [3i32 as +Wrapping, 2i32 as +Wrapping, 1i32 as +Wrapping]];
-    transition { _ -> col(context, &mut matrices, 0, 0) }
-    machine col(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64)
+    transition { _ -> col(context, @mut matrices, 0, 0) }
+    machine col(context: @mut Main, matrices: @mut Matrices, i: u64, j: u64)
     requires i <= 2 requires j <= 2 {
         transition { _ -> dot(context, matrices, i, j, 0, 0i32 as +Wrapping) }
     }
-    machine dot(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
+    machine dot(context: @mut Main, matrices: @mut Matrices, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
     requires i <= 2
     requires j <= 2
     requires k <= 2 {
@@ -43,7 +43,7 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
             false -> store(context, matrices, i, j, accumulated)
         }
     }
-    machine store(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64, acc: i32 in Wrapping)
+    machine store(context: @mut Main, matrices: @mut Matrices, i: u64, j: u64, acc: i32 in Wrapping)
     requires i <= 2
     requires j <= 2 {
         matrices.c[i][j] = acc;
@@ -53,14 +53,14 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
             false -> row_step(context, matrices, i)
         }
     }
-    machine row_step(context: &mut Main, matrices: &mut Matrices, i: u64) requires i <= 2 {
+    machine row_step(context: @mut Main, matrices: @mut Matrices, i: u64) requires i <= 2 {
         let next_i: u64 = i + 1;
         transition next_i <= 2 {
             true -> col(context, matrices, next_i, 0)
             false -> checksum(context, matrices)
         }
     }
-    machine checksum(context: &mut Main, matrices: &Matrices) {
+    machine checksum(context: @mut Main, matrices: @Matrices) {
         let total: i32 in Wrapping = matrices.c[0][0] + matrices.c[1][1] + matrices.c[2][2];
         let code: i32 in Wrapping = total % 256;
         ProcessExit::exit_process(code as i32);
@@ -70,5 +70,5 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

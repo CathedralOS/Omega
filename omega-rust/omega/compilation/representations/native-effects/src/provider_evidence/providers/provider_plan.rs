@@ -14,6 +14,8 @@ mod retained_inputs;
 pub use retained_inputs::{ProviderPlanInput, ProviderPlanInputRow};
 mod service_schemas;
 
+use declaration_contracts::service_surface::ServiceSynchronousInvocation;
+
 pub use declaration_contracts::service_surface::identities::ProviderIdentityId;
 pub use declaration_contracts::service_surface::identities::ProviderIdentityTable;
 pub use evaluated_bindings::{
@@ -342,7 +344,16 @@ impl ProviderPlan {
                 method.parameter_count,
                 method.has_result,
                 method.service_reach.join("+"),
-                method.synchronous_invocations.join("+"),
+                method
+                    .synchronous_invocations
+                    .iter()
+                    .map(|entry| match entry {
+                        ServiceSynchronousInvocation::Parameter(position) =>
+                            format!("parameter {position}"),
+                        ServiceSynchronousInvocation::Service(name) => name.clone(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join("+"),
                 method.may_suspend,
                 method.may_block,
                 method.terminates_guarantee,
@@ -818,26 +829,19 @@ impl ProviderPlan {
                     ));
                 }
             }
-            for (axis, identities) in [
-                ("service-reach", method.service_reach.as_slice()),
-                (
-                    "synchronous-invocation",
-                    method.synchronous_invocations.as_slice(),
-                ),
-            ] {
-                for (index, identity) in identities.iter().enumerate() {
-                    if identity.is_empty() {
-                        errors.push(format!(
-                            "{} {axis} identity at index {index} is empty",
-                            context()
-                        ));
-                    }
-                }
-                for (index, pair) in identities.windows(2).enumerate() {
-                    if pair[0] >= pair[1] {
-                        errors.push(format!("{} {axis} identities are not strictly increasing at indexes {index} and {}", context(), index + 1));
-                    }
-                }
+            if method.service_reach.iter().any(|name| name.is_empty())
+                || method
+                    .service_reach
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+            {
+                errors.push(format!("{} has an invalid service-reach row", context()));
+            }
+            if let Err(reason) = ServiceSynchronousInvocation::validate_entries(
+                &method.synchronous_invocations,
+                method.parameter_count,
+            ) {
+                errors.push(format!("{}: {reason}", context()));
             }
         }
         let mut selected_requirements = self

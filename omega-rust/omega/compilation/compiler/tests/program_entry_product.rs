@@ -26,7 +26,7 @@ fn declaration_only_checking_preserves_role_and_requires_an_entry_for_execution(
         std::fs::write(
             root.join("build.omg"),
             format!(
-                "machine build(builder: &mut Build) {{ Build::{operation}(builder, \"entryless\"); }}\n"
+                "machine build(builder: @mut Build) {{ Build::{operation}(builder, \"entryless\"); }}\n"
             ),
         )
         .unwrap();
@@ -199,7 +199,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
     // unchanged and select its entry explicitly for each hosted target.
     std::fs::write(
         workspace.join("build.omg"),
-        r#"machine build(builder: &mut Build) {
+        r#"machine build(builder: @mut Build) {
     Build::application(builder, "selected_entry_receipt");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

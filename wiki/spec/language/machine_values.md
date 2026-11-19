@@ -17,15 +17,15 @@ value:
 ```omega
 data Counter { value: u64; }
 data CounterOps {
-    clear: machine(counter: &mut Counter) reaches none crashes none terminates;
-    value: machine(counter: &Counter) -> u64 reaches none crashes none terminates;
+    clear: machine(counter: @mut Counter) reaches none crashes none terminates;
+    value: machine(counter: @Counter) -> u64 reaches none crashes none terminates;
 }
 
-machine clear(counter: &mut Counter) terminates { counter.value = 0; }
-machine value(counter: &Counter) -> u64 terminates { counter.value }
+machine clear(counter: @mut Counter) terminates { counter.value = 0; }
+machine value(counter: @Counter) -> u64 terminates { counter.value }
 
 let operations = CounterOps { clear: clear, value: value };
-let current: u64 = (operations.value)(&counter);
+let current: u64 = (operations.value)(@counter);
 ```
 
 The same type form is usable for locals, parameters, results, fields, arrays and

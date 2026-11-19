@@ -147,19 +147,19 @@ fn an_attenuated_successor_still_conflicts_with_an_exclusive_sibling() {
 #[test]
 fn loop_element_reborrows_keep_distinct_incoming_backing() {
     let program = r#"
-        machine update(left: &mut u32, right: &mut u32) {
+        machine update(left: @mut u32, right: @mut u32) {
             left = 1u32;
             right = 2u32;
         }
-        machine walk(items: &mut [u32], other: &mut [u32], index: u64) {
+        machine walk(items: @mut [u32], other: @mut [u32], index: u64) {
             transition index < 4u64 && index < items.len && index < other.len {
                 true -> step(items, other, index)
                 false -> done()
             }
-            machine step(items: &mut [u32], other: &mut [u32], index: u64)
+            machine step(items: @mut [u32], other: @mut [u32], index: u64)
             requires index < 4u64 && index < items.len && index < other.len
             {
-                update(&mut items[index], &mut other[index]);
+                update(@mut items[index], @mut other[index]);
                 transition { _ -> walk(items, other, index + 1u64) }
             }
             machine done() { }
@@ -168,7 +168,7 @@ fn loop_element_reborrows_keep_distinct_incoming_backing() {
     for (program, accepts) in [
         (program.to_owned(), true),
         (
-            program.replace("&mut other[index]", "&mut items[index]"),
+            program.replace("@mut other[index]", "@mut items[index]"),
             false,
         ),
     ] {
@@ -208,8 +208,8 @@ fn shared_array_views_keep_their_backing_when_sliced() {
             r#"
 machine entry() -> u8 {{
     let bytes: [u8; 3] = [17, 42, 99];
-    let view: &[u8] = &bytes[..];
-    let suffix: &[u8] = view[{start}..];
+    let view: @[u8] = @bytes[..];
+    let suffix: @[u8] = view[{start}..];
     suffix[0]
 }}
 "#
@@ -237,10 +237,10 @@ fn cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view() {
     let typed = super::boundary_calls::typed(
         r#"
 data Packet { before: u8; bytes: [u8; 3]; after: u8; }
-machine inspect(bytes: &[u8]) -> bool { bytes.len == 3 }
+machine inspect(bytes: @[u8]) -> bool { bytes.len == 3 }
 machine entry(first: bool) -> bool {
     let packet: Packet = Packet { before: 11, bytes: [17, 42, 99], after: 97 };
-    let view: &[u8] = &packet.bytes[..];
+    let view: @[u8] = @packet.bytes[..];
     first && inspect(view) && packet.before == 11 && packet.after == 97
 }
 "#,
@@ -341,7 +341,7 @@ fn successor_capture_precedes_disposal_of_its_owned_backing() {
     right: u8;
 }
 
-machine read_value(packet: &Packet) -> u8 {
+machine read_value(packet: @Packet) -> u8 {
     packet.value
 }
 
@@ -356,10 +356,10 @@ machine main() crashes Trap {
             value: expected,
             right: 99u8
         };
-        transition { _ -> block visit(second, expected, &packet) }
+        transition { _ -> block visit(second, expected, @packet) }
     }
 
-    machine visit(second: bool, expected: u8, packet: &Packet) {
+    machine visit(second: bool, expected: u8, packet: @Packet) {
         let actual: u8 = read_value(packet);
         transition actual == expected && packet.left == 11u8 && packet.right == 99u8 {
             true -> block next(second)
@@ -406,8 +406,8 @@ machine main() crashes Trap {
     let direct_field = source.replace("read_value(packet);", "packet.value;");
     let forwarding_cycle = source
         .replace(
-            "block visit(second, expected, &packet)",
-            "block forward(second, expected, &packet)",
+            "block visit(second, expected, @packet)",
+            "block forward(second, expected, @packet)",
         )
         .replace(
             "    machine visit(",
@@ -415,7 +415,7 @@ machine main() crashes Trap {
         expected
     }
 
-    machine forward(second: bool, expected: u8, packet: &Packet) {
+    machine forward(second: bool, expected: u8, packet: @Packet) {
         let next_expected: u8 = copy_expected(expected);
         transition second {
             true -> block visit(true, next_expected, packet)
@@ -605,8 +605,8 @@ machine main() crashes Trap {
 fn an_empty_shared_payload_keeps_its_owned_permission_at_a_call() {
     let typed = super::boundary_calls::typed(
         r#"
-data Holder<'held> { bytes: &'held [u8]; }
-machine inspect<'a>(value: &'a [u8]) -> u64 { value.len }
+data Holder<'held> { bytes: @'held [u8]; }
+machine inspect<'a>(value: @'a [u8]) -> u64 { value.len }
 machine entry() -> u64 {
     let mut holder: Holder;
     inspect(holder.bytes)
@@ -789,7 +789,7 @@ fn permission_inputs(text: &str) -> crate::lowering::Elaboration {
 fn incoming_permission_query_keeps_different_inputs_and_leaves_ambiguous() {
     use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
     use terminal_semantics::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
-    let input = permission_inputs("machine entry(first: &[u8], second: &[u8]) {}");
+    let input = permission_inputs("machine entry(first: @[u8], second: @[u8]) {}");
     let machine = &input.module.machines[0];
     let origins = machine
         .structural_parameters
@@ -821,8 +821,8 @@ fn incoming_permission_query_keeps_different_inputs_and_leaves_ambiguous() {
 
     let input = permission_inputs(
         r#"
-data Pair<'held> { first: &'held [u8]; second: &'held [u8]; }
-machine entry<'a>(pair: &Pair<'a>) {}
+data Pair<'held> { first: @'held [u8]; second: @'held [u8]; }
+machine entry<'a>(pair: @Pair<'a>) {}
 "#,
     );
     let machine = &input.module.machines[0];
@@ -875,16 +875,16 @@ fn indexed_successors_keep_their_original_incoming_loan() {
     // Keep this real cycle so the test exercises captured storage on arrivals.
     const SOURCE: &str = r#"
 data Shape [copy] { value: u64; }
-machine entry(shapes: &[Shape; 2], sibling: &[Shape; 2], index: u64, again: bool) -> u64
+machine entry(shapes: @[Shape; 2], sibling: @[Shape; 2], index: u64, again: bool) -> u64
 requires index < 2 {
-    transition { _ -> selected(shapes, sibling, index, again, &shapes[index]) }
-    machine selected(shapes: &[Shape; 2], sibling: &[Shape; 2], index: u64,
-        again: bool, shape: &Shape) -> u64
+    transition { _ -> selected(shapes, sibling, index, again, @shapes[index]) }
+    machine selected(shapes: @[Shape; 2], sibling: @[Shape; 2], index: u64,
+        again: bool, shape: @Shape) -> u64
     requires index < 2 {
         transition { _ -> forwarded(shapes, sibling, index, again, shape) }
     }
-    machine forwarded(shapes: &[Shape; 2], sibling: &[Shape; 2], index: u64,
-        again: bool, shape: &Shape) -> u64
+    machine forwarded(shapes: @[Shape; 2], sibling: @[Shape; 2], index: u64,
+        again: bool, shape: @Shape) -> u64
     requires index < 2 {
         transition again {
             true -> entry(shapes, sibling, index, false)

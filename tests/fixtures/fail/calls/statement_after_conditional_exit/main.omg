@@ -13,12 +13,12 @@ machine leave_unless_zero(status: i32) reaches ProcessExit {
     }
 }
 
-machine main(root: &mut Main) reaches ProcessExit {
+machine main(root: @mut Main) reaches ProcessExit {
     leave_unless_zero(root.status);
     let next: i32 = root.count + 1;
 }
 
 machine entry_start() reaches ProcessExit {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

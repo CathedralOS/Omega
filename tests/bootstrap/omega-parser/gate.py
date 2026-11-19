@@ -52,16 +52,16 @@ def main():
     # These are whole source closures and an unchanged ordinary Delta adapter.
     # The host frames and compares bytes; the lower chain checks and runs D.
     epsilon = (directory / "epsilon_compiler.delta").read_bytes()
-    require_identity("Epsilon", epsilon, 617419,
-                     "63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63")
+    require_identity("Epsilon", epsilon, 616939,
+                     "a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c")
     require_identity("execution adapter", adapter, 2150,
                      "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 839579,
-                     "d07d617005694d37c29e31b74a035ce29aef969e9b161295ae840763564d4f3c")
+    require_identity("D", compiler, 838494,
+                     "5047ce234bcf690ca4bbaee1163940d7ad394e1a1d1adac7d739896ddaf16d01")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("parser customer entry", entry, 59962,
-                     "857fa18ffc214176022d57c2c5d6d5a506b86a4a25c9540460e4a70e73f603c2")
+                     "c8f76fd58ff8a5f0bceac25848b57217d0f9942146243b51bd6893b79db18544")
     customer = compiler + entry
     expected = bytes.fromhex((gate / "expected.hex").read_text(encoding="ascii"))
     print(f"Complete D customer: {len(customer)} bytes, "
@@ -84,8 +84,8 @@ def main():
     receipt_timeout = env_seconds("OMEGA_PARSER_RECEIPT_SECONDS", "1800")
     receipt = evaluate(directory, delta_compiler,
                        request, receipt_timeout, "Epsilon receipt reconstruction")
-    require_identity("Epsilon execution receipt", receipt, 720476,
-                     "c51a0a8a7d5425edc769d5e3684b587d9b05f280850c795ca2919d11a809d460")
+    require_identity("Epsilon execution receipt", receipt, 719006,
+                     "f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340")
 
     observation = evaluate(directory, receipt,
                            struct.pack("<I", len(customer)) + customer,

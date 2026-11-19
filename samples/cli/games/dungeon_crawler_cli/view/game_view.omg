@@ -19,20 +19,20 @@ machine render_commands() reaches Console {
 }
 
 machine render_room(
-    game_view: &mut GameView,
+    game_view: @mut GameView,
     level: Level,
     cell: CellId,
     treasure_taken: bool,
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    line: &mut TextBuffer
+    line: @mut TextBuffer
 )
 reaches Console
 {
     write_current_cell(level, cell, line);
     Console::write_line(text_buffer_live(line));
-    write_room_info(&mut game_view.formatter, level, cell, line);
+    write_room_info(@mut game_view.formatter, level, cell, line);
     Console::write_line(text_buffer_live(line));
     write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
     Console::write_line(text_buffer_live(line));
@@ -41,28 +41,28 @@ reaches Console
 }
 
 machine render_look(
-    game_view: &mut GameView,
+    game_view: @mut GameView,
     level: Level,
     cell: CellId,
     treasure_taken: bool,
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    line: &mut TextBuffer
+    line: @mut TextBuffer
 )
 reaches Console
 {
-    write_room_info(&mut game_view.formatter, level, cell, line);
+    write_room_info(@mut game_view.formatter, level, cell, line);
     Console::write_line(text_buffer_live(line));
     write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
     Console::write_line(text_buffer_live(line));
 }
 
 machine render_exits(
-    game_view: &mut GameView,
+    game_view: @mut GameView,
     level: Level,
     cell: CellId,
-    line: &mut TextBuffer
+    line: @mut TextBuffer
 )
 reaches Console
 {
@@ -77,7 +77,7 @@ machine write_cell_event(cell: CellId,
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    out_line: &mut TextBuffer)
+    out_line: @mut TextBuffer)
 {
     transition cell {
         CellId::R02 -> maybe_treasure_event(treasure_taken, out_line)
@@ -88,7 +88,7 @@ machine write_cell_event(cell: CellId,
     }
 
     machine maybe_treasure_event(treasure_taken: bool,
-        out_line: &mut TextBuffer) {
+        out_line: @mut TextBuffer) {
         transition treasure_taken {
             false -> treasure_event(out_line)
             true -> quiet_event(out_line)
@@ -96,7 +96,7 @@ machine write_cell_event(cell: CellId,
     }
 
     machine maybe_enemy_event(enemy_defeated: bool,
-        out_line: &mut TextBuffer) {
+        out_line: @mut TextBuffer) {
         transition enemy_defeated {
             false -> enemy_event(out_line)
             true -> quiet_event(out_line)
@@ -104,7 +104,7 @@ machine write_cell_event(cell: CellId,
     }
 
     machine maybe_fountain_event(fountain_used: bool,
-        out_line: &mut TextBuffer) {
+        out_line: @mut TextBuffer) {
         transition fountain_used {
             false -> fountain_event(out_line)
             true -> quiet_event(out_line)
@@ -112,36 +112,36 @@ machine write_cell_event(cell: CellId,
     }
 
     machine maybe_gold_event(gold_taken: bool,
-        out_line: &mut TextBuffer) {
+        out_line: @mut TextBuffer) {
         transition gold_taken {
             false -> gold_event(out_line)
             true -> quiet_event(out_line)
         }
     }
 
-    machine treasure_event(out_line: &mut TextBuffer) {
+    machine treasure_event(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
     }
 
-    machine enemy_event(out_line: &mut TextBuffer) {
+    machine enemy_event(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "A dungeon bat blocks the way. Type fight.");
     }
 
-    machine fountain_event(out_line: &mut TextBuffer) {
+    machine fountain_event(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "A fountain of life glows here. Type use to drink.");
     }
 
-    machine gold_event(out_line: &mut TextBuffer) {
+    machine gold_event(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
     }
 
-    machine quiet_event(out_line: &mut TextBuffer) {
+    machine quiet_event(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "The room is quiet.");
     }
 }
 
 machine write_cell_paths(cell: CellId,
-    out_line: &mut TextBuffer)
+    out_line: @mut TextBuffer)
 {
     transition cell {
         CellId::R00 -> gate_paths(out_line)
@@ -155,43 +155,43 @@ machine write_cell_paths(cell: CellId,
         _ -> no_paths(out_line)
     }
 
-    machine gate_paths(out_line: &mut TextBuffer) {
+    machine gate_paths(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "[Paths] north");
     }
 
-    machine room_one_paths(out_line: &mut TextBuffer) {
+    machine room_one_paths(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "[Paths] south | north | east");
     }
 
-    machine room_two_paths(out_line: &mut TextBuffer) {
+    machine room_two_paths(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "[Paths] south | north | west");
     }
 
-    machine room_three_paths(out_line: &mut TextBuffer) {
+    machine room_three_paths(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "[Paths] south | north | east");
     }
 
-    machine room_four_paths(out_line: &mut TextBuffer) {
+    machine room_four_paths(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "[Paths] south");
     }
 
-    machine side_west_paths(out_line: &mut TextBuffer) {
+    machine side_west_paths(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "[Paths] west");
     }
 
-    machine side_east_paths(out_line: &mut TextBuffer) {
+    machine side_east_paths(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "[Paths] east");
     }
 
-    machine no_paths(out_line: &mut TextBuffer) {
+    machine no_paths(out_line: @mut TextBuffer) {
         text_buffer_set(out_line, "[Paths] none");
     }
 }
 
 machine render_inventory(
-    game_view: &mut GameView,
+    game_view: @mut GameView,
     player: Player,
-    line: &mut TextBuffer
+    line: @mut TextBuffer
 )
 reaches Console
 {
@@ -200,9 +200,9 @@ reaches Console
 }
 
 machine render_character(
-    game_view: &mut GameView,
+    game_view: @mut GameView,
     player: Player,
-    line: &mut TextBuffer
+    line: @mut TextBuffer
 )
 reaches Console
 {
@@ -214,7 +214,7 @@ machine render_prompt() reaches Console {
     Console::write("> ");
 }
 
-machine render_line(line: &TextBuffer) reaches Console {
+machine render_line(line: @TextBuffer) reaches Console {
     Console::write_line(text_buffer_live(line));
 }
 

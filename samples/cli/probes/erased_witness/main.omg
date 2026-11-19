@@ -36,7 +36,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     Main::record(3, 10);
     main.record = Certified::Proven { value: 70 };
@@ -44,18 +44,18 @@ machine Main::main(main: &mut Main) {
         Certified::Proven { value, proof as _ } -> good(main, value)
         Certified::Pending -> bad(main)
     }
-    machine good(main: &mut Main, value: i32) {
+    machine good(main: @mut Main, value: i32) {
         transition value == 70 {
             true -> pass(main)
             _ -> bad(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine bad(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine bad(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

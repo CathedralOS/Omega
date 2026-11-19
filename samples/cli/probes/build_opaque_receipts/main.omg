@@ -19,7 +19,7 @@ machine Main::reseal(input: Seal) -> Seal {
     input
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let token_value: Token;
     main.held = Main::relay(token_value);

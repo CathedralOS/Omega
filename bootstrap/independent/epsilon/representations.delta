@@ -23,7 +23,8 @@
   (EpsilonDeltaShortOnFalse))
 
 ; The module names its runtime requirement separately from expression fragments.
-; Pure arithmetic/cases keep the small ABI; receiver effects use the shared store.
+; Pure modules keep direct arithmetic and named cases. Storage modules share
+; the value/store/output calling convention across machines.
 (data EpsilonDeltaRuntime
   (EpsilonDeltaPureRuntime)
   (EpsilonDeltaStoredRuntime))
@@ -41,8 +42,7 @@
   (EpsilonDeltaPlaceInternal Int))
 
 (data EpsilonDeltaStoredCallTarget
-  (EpsilonDeltaStoredPureCall Bytes)
-  (EpsilonDeltaStoredReceiverCall Bytes Bytes)
+  (EpsilonDeltaStoredMachineCall Bytes Bytes)
   (EpsilonDeltaStoredStateCall Bytes Bytes Bytes Bytes)
   (EpsilonDeltaStoredReadByte)
   (EpsilonDeltaStoredWriteByte)

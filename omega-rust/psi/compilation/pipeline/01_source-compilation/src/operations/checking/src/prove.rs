@@ -773,6 +773,12 @@ impl ProofSearchActivity {
     }
 }
 
+#[derive(Clone, Debug)]
+struct ActiveCut {
+    proposition: Proposition,
+    origin: Option<crate::checking::known::DisjunctionOrigin>,
+}
+
 pub(crate) struct Prover<'a> {
     activity: &'a mut ProofSearchActivity,
     context: &'a PropositionContext,
@@ -807,7 +813,7 @@ pub(crate) struct Prover<'a> {
     remaining_case_branches: usize,
     /// A branch already assumes one alternative of each cut on this path.
     /// Splitting that exact predicate again supplies no new information.
-    active_cuts: Vec<Proposition>,
+    active_cuts: Vec<ActiveCut>,
     /// An auxiliary sign query can revisit its parent through contradiction
     /// search. The same goal under these unchanged premises supplies no proof.
     active_goals: Vec<Proposition>,
@@ -1148,7 +1154,14 @@ impl<'a> Prover<'a> {
             self.reflexive(target.clone())
                 .or_else(|| self.closed(target.clone()))
                 .or_else(|| self.sum_order(&target))
-                .or_else(|| self.multiple_remainder(&target))?
+                .or_else(|| self.multiple_remainder(&target))
+                // An exact copied value may expose an open relation. Reuse
+                // ordinary proof rules only when its denotation has changed.
+                .or_else(|| {
+                    (target != *goal)
+                        .then(|| self.prove_direct_subgoal(&target).ok())
+                        .flatten()
+                })?
         };
         Some(node(
             goal.clone(),
@@ -1635,11 +1648,20 @@ impl<'a> Prover<'a> {
             let Proposition::Disjunction(parts) = &fact.proposition else {
                 continue;
             };
-            if self.active_cuts.contains(&fact.proposition) {
+            let origin = fact.disjunction_origin(&self.facts);
+            if self.active_cuts.iter().any(|active| {
+                active.proposition == fact.proposition
+                    || origin
+                        .as_ref()
+                        .is_some_and(|origin| active.origin.as_ref() == Some(origin))
+            }) {
                 continue;
             }
             let parts = parts.clone();
-            self.active_cuts.push(fact.proposition.clone());
+            self.active_cuts.push(ActiveCut {
+                proposition: fact.proposition.clone(),
+                origin,
+            });
             let mut branches = Vec::with_capacity(parts.len());
             for part in &parts {
                 let Some(branch) = self.branch(part, goal) else {
@@ -4438,6 +4460,7 @@ impl<'a> Prover<'a> {
             return interval;
         }
         self.correlated_subtract(left, right)
+            .or_else(|| self.mathematical_offset_order(left, right))
             .ok_or(interval.err().unwrap_or("no bound"))
     }
 
@@ -4713,14 +4736,24 @@ impl<'a> Prover<'a> {
     /// capacity. Offer the retained relations and their exact definitions to the
     /// existing affine checker; it alone decides which bound follows.
     fn related_image(
-        &self,
+        &mut self,
         target: Option<&ScalarTerm>,
         term: &IntegerMathTerm,
         direction: Direction,
         preferred: Option<&IntegerMathTerm>,
     ) -> Option<ProofNode> {
         let Some(target) = target else {
-            return self.mathematical_relation_image(term, direction, preferred);
+            let direct = self.mathematical_relation_image(term, direction, preferred);
+            if direct.as_ref().is_some_and(|image| {
+                preferred.is_none_or(|limit| {
+                    mathematical_bounds::image_satisfies(image, limit, direction)
+                })
+            }) {
+                return direct;
+            }
+            return self
+                .mathematical_composed_image(term, direction, preferred)
+                .or(direct);
         };
         let exchanged = match target {
             ScalarTerm::ExactIntegerAdd {
@@ -4896,7 +4929,9 @@ impl<'a> Prover<'a> {
         }) {
             return mathematical;
         }
-        fallback.or(mathematical)
+        self.mathematical_composed_image(term, direction, preferred)
+            .or(fallback)
+            .or(mathematical)
     }
 
     /// A normalized guard may spell the constant or conversion where the

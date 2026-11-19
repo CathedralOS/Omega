@@ -34,8 +34,8 @@ ArmProbe satisfies SelectedProbe {
     {
         SelectedBodyCheck::require_tag(29u64);
         let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
-        let first: Region in Owned = carve(&mut strategy, 48, 17);
-        let second: Region in Owned = carve(&mut strategy, 32, 8);
+        let first: Region in Owned = carve(@mut strategy, 48, 17);
+        let second: Region in Owned = carve(@mut strategy, 32, 8);
         finish(strategy, first, second)
     }
 }
@@ -46,8 +46,8 @@ X86Probe satisfies SelectedProbe {
     {
         SelectedBodyCheck::require_tag(17u64);
         let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
-        let first: Region in Owned = carve(&mut strategy, 48, 16);
-        let second: Region in Owned = carve(&mut strategy, 32, 8);
+        let first: Region in Owned = carve(@mut strategy, 48, 16);
+        let second: Region in Owned = carve(@mut strategy, 32, 8);
         finish(strategy, first, second)
     }
 }
@@ -58,8 +58,8 @@ ArmProbe2 satisfies SelectedProbe {
     {
         SelectedBodyCheck::require_tag(29u64);
         let mut strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
-        let first: Region in Owned = carve(&mut strategy, 48, 16);
-        let second: Region in Owned = carve(&mut strategy, 32, 8);
+        let first: Region in Owned = carve(@mut strategy, 48, 16);
+        let second: Region in Owned = carve(@mut strategy, 32, 8);
         finish(strategy, first, second)
     }
 }

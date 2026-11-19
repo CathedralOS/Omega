@@ -14,15 +14,15 @@ public machine distance_squared(x: i32 in Wrapping, y: i32 in Wrapping,
     horizontal * horizontal + vertical * vertical
 }
 
-public machine feasible(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping) -> bool {
+public machine feasible(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping) -> bool {
     transition { _ -> observation(problem, x, y, 0) }
-    machine observation(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool {
+    machine observation(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool {
         transition index < 3 {
             true -> inspect(problem, x, y, index)
             false -> (true)
         }
     }
-    machine inspect(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool
+    machine inspect(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool
     requires index < 3
     {
         let offset: u64 = 5 + index * 4;
@@ -36,7 +36,7 @@ public machine feasible(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrappin
     }
 }
 
-public machine degenerate(problem: &Problem) -> bool {
+public machine degenerate(problem: @Problem) -> bool {
     problem.values[5] == problem.values[9] && problem.values[9] == problem.values[13]
         && problem.values[6] == problem.values[10] && problem.values[10] == problem.values[14]
 }

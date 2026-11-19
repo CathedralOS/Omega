@@ -13,7 +13,7 @@ public data Process {
     degraded_repairs: u64 in Wrapping;
     degraded_stays: u64 in Wrapping;
 }
-machine initialize(process: &mut Process, variant: u64 in Wrapping) {
+machine initialize(process: @mut Process, variant: u64 in Wrapping) {
     process.healthy = 1;
     process.degraded = 0;
     process.failed = 0;
@@ -31,31 +31,31 @@ machine initialize(process: &mut Process, variant: u64 in Wrapping) {
         5 -> degraded(process)
         _ -> done()
     }
-    machine repair(process: &mut Process) {
+    machine repair(process: @mut Process) {
         process.degraded_repairs = 1;
     }
-    machine unreachable(process: &mut Process) {
+    machine unreachable(process: @mut Process) {
         process.healthy_stays = 3;
         process.healthy_degrades = 1;
         process.degraded_repairs = 1;
         process.degraded_stays = 3;
     }
-    machine absorbed(process: &mut Process) {
+    machine absorbed(process: @mut Process) {
         process.healthy = 0;
         process.failed = 1;
     }
-    machine deterministic(process: &mut Process) {
+    machine deterministic(process: @mut Process) {
         process.healthy_stays = 0;
         process.healthy_degrades = 4;
         process.degraded_stays = 0;
     }
-    machine degraded(process: &mut Process) {
+    machine degraded(process: @mut Process) {
         process.healthy = 0;
         process.degraded = 1;
     }
     machine done() { }
 }
-machine advance(process: &mut Process) {
+machine advance(process: @mut Process) {
     let healthy: u64 in Wrapping = process.healthy * process.healthy_stays + process.degraded * process.degraded_repairs;
     let degraded: u64 in Wrapping = process.healthy * process.healthy_degrades + process.degraded * process.degraded_stays;
     let failed: u64 in Wrapping = process.failed * 4 + process.healthy * (4 - process.healthy_stays - process.healthy_degrades) + process.degraded * (4 - process.degraded_repairs - process.degraded_stays);

@@ -27,7 +27,7 @@ Other satisfies Service { machine value() -> u64 { 8 } }
 machine main() reaches Service { let seen: u64 = Service::value(); }
 ";
 
-const HELPER: &str = "machine configure<const Flag: bool, const Tag: u64>(builder: &mut Build)
+const HELPER: &str = "machine configure<const Flag: bool, const Tag: u64>(builder: @mut Build)
 requires Tag == 17u64
 {
     Build::select_provider<Service, Provider>(builder, linux_x86_64);
@@ -47,7 +47,7 @@ fn check(name: &str, body: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{
+            "machine build(builder: @mut Build) {{
     Build::application(builder, \"configured\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {body}}}

@@ -638,7 +638,14 @@ fn selected_affine_provider_reopens_with_its_published_authority() {
         method.service_reach(),
         ["AffineObservation", "AffineTransforms"]
     );
-    assert_eq!(method.synchronous_invocations(), ["AffineTransforms"]);
+    assert_eq!(
+        method.synchronous_invocations(),
+        [
+            declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+                "AffineTransforms".into(),
+            )
+        ]
+    );
     let [invocation] = method.authority().synchronous_invocations() else {
         panic!("the selected requirement publishes one synchronous entry");
     };
@@ -1457,7 +1464,7 @@ fn rootless_package_reviews_its_explicit_provider_without_an_entry() {
     .unwrap();
     std::fs::write(
         source.path().join("build.omg"),
-        "machine build(builder: &mut Build) {\n\
+        "machine build(builder: @mut Build) {\n\
          Build::package(builder, \"rootless_selected\");\n\
          Build::select_provider<Answer, SelectedAnswer>(builder, uefi_x86_64);\n\
          }\n",
@@ -1487,7 +1494,7 @@ fn numeric_library_review_does_not_deploy_unused_calls() {
     .unwrap();
     std::fs::write(
         source.path().join("build.omg"),
-        "machine build(builder: &mut Build) { Build::package(builder, \"unused_numeric\"); }\n",
+        "machine build(builder: @mut Build) { Build::package(builder, \"unused_numeric\"); }\n",
     )
     .unwrap();
     let recovered = reviewed_and_recovered(&source.path().join("main.omg"), "uefi_x86_64");
@@ -1741,7 +1748,7 @@ machine entry_start() crashes Trap {
     .unwrap();
     std::fs::write(root.with_file_name("build.omg"), r###"use omega::language::core::DllImport;
 use omega::language::core::ForeignBinding;
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "closed_requirement_bindings");
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
@@ -2897,7 +2904,7 @@ fn build_constant_captured_invalid_twin_rejects_its_original_call_obligation() {
 }
 
 const REVIEW_BUILD_SOURCE: &str = r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "accepted_package_review");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
@@ -3167,16 +3174,16 @@ fn accepted_package_review_keeps_public_data_lifetime_bindings() {
     .unwrap();
     let project = workspace.path().join("project");
     let original = r#"
-public data Text<'view> [copy] { bytes: &'view [u8]; }
+public data Text<'view> [copy] { bytes: @'view [u8]; }
 public data Message<'first, 'second> [copy] {
-    left: Text<'first>; right: &'second [u8];
+    left: Text<'first>; right: @'second [u8];
 }
 machine main() {}
 "#;
     let renamed = original
         .replace("'first", "'alpha")
         .replace("'second", "'beta");
-    let rebound = renamed.replace("right: &'beta", "right: &'alpha");
+    let rebound = renamed.replace("right: @'beta", "right: @'alpha");
     let mut package = None;
     let mut shapes = Vec::new();
     for (ordinal, source) in [original, renamed.as_str(), rebound.as_str()]
@@ -3432,7 +3439,7 @@ ensures result == value
 { value }
 public machine quiet() {}
 public data Pair { changed: u64; untouched: u64; }
-public machine update(marker: u64, value: &mut Pair) { value.changed = marker; }
+public machine update(marker: u64, value: @mut Pair) { value.changed = marker; }
 machine main() {}
 "#;
     let (workspace, mut session, checked) =
@@ -3512,9 +3519,9 @@ fn ordinary_public_requirement_review_keeps_lifetimes_domains_and_open_ceilings(
     use review_evidence::record::PackagePolicyBaseline;
     const SOURCE: &str = r#"
 use omega::language::core::byte_observation;
-public domain [u8]::Utf8 requires byte_observation::valid_utf8(&self[..]);
+public domain [u8]::Utf8 requires byte_observation::valid_utf8(@self[..]);
 public trait Window {
-    machine view<'input>(packet: &'input [u8] in Utf8) -> &'input [u8] in Utf8;
+    machine view<'input>(packet: @'input [u8] in Utf8) -> @'input [u8] in Utf8;
 }
 machine main() {}
 "#;

@@ -2,7 +2,7 @@
 // it, and an ordinary silent logger that only publishes a broad Sink
 // allowance (wiki/spec/build/behavior_exclusions.md, Console rows).
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::package(builder, "logger_kit");
     Build::select_provider<Sink, QuietSinkProvider>(builder, linux_arm64);
     Build::select_provider<Sink, QuietSinkProvider>(builder, linux_x86_64);

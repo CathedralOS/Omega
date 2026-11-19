@@ -54,7 +54,7 @@ machine WordPlacement::plan(schema: Schema) -> AccessPlan {
 }
 
 MemorySupply satisfies ResourceProfileSupply<TestMemory> {
-    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+    machine profile(storage: @Extent in Granted) -> ResourceProfile {
         let services: [u64; 32];
         let mut regions: [ResourceRegion; 32];
         regions[0] = ResourceRegion {
@@ -79,8 +79,8 @@ TestVacant satisfies VacantContentTransfer {
     machine transfer(storage: Extent in Granted) -> Extent
         ensures result in Granted,
             core::Identity<IntervalSet<Nat>>(
-                Granted::content(old(&storage)),
-                Granted::content(&result)
+                Granted::content(old(@storage)),
+                Granted::content(@result)
             )
     { storage as Extent }
 }
@@ -129,9 +129,9 @@ machine exercise(vacant: Extent in Granted & Vacant) -> Extent in Granted & Vaca
 
     machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>) -> Extent in Granted & Vacant {
         let mut retained: Extent in Granted & Resident<WordPlacement, Word> = storage;
-        let view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut retained);
-        let before: u64 = read(&view.value);
-        write(&mut view.value, 29u64);
+        let view: @mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(@mut retained);
+        let before: u64 = read(@view.value);
+        write(@mut view.value, 29u64);
         transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(retained) {
             AccessExtraction::Moved { storage, value } -> finish(storage, value, before)
         }

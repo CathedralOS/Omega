@@ -1,7 +1,7 @@
 data Choice { case First; case Second; }
 data Table { before: u64; choices: [Choice; 2]; after: u64; }
 
-machine selected(table: &Table, index: u64) -> u64
+machine selected(table: @Table, index: u64) -> u64
 requires index < 2
 {
     match table.choices[index] {
@@ -16,8 +16,8 @@ machine main() crashes Trap {
     table.choices[0] = Choice::First;
     table.choices[1] = Choice::Second;
     table.after = 37;
-    let first: u64 = selected(&table, 0);
-    let second: u64 = selected(&table, 1);
+    let first: u64 = selected(@table, 0);
+    let second: u64 = selected(@table, 1);
     transition first == 17 && second == 29 && table.before == 11 && table.after == 37 {
         true -> done()
         false -> bad()

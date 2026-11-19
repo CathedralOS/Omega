@@ -27,8 +27,8 @@ def write_json(path, value):
 
 def frame(directory, source, stdin):
     receipt = (directory / 'canonical-receipt.gamma').read_bytes()
-    assert identity(receipt) == {'bytes': 728066, 'sha256':
-        '92962050ff52d6dc6cdda1ae0dcd4002389da61c0979a2353db41b4b52a4afb7'}
+    assert identity(receipt) == {'bytes': 726601, 'sha256':
+        '1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af'}
     closure = (directory / 'epsilon_compiler.delta').read_bytes()
     sealed = (b'EEREQ\x01\x00\x00' + struct.pack('<III', 1, len(source), len(stdin))
               + hashlib.sha256(closure).digest() + source + stdin)
@@ -144,14 +144,14 @@ def selfcheck(directory):
  machine exit_process(value: i32) -> never;
  machine read_byte() -> i32;
  machine write_byte(value: i32);
- machine write_line(text: &[u8]);
+ machine write_line(text: @[u8]);
 }
 data Main { console: Console; }
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
  let first: i32 = self.console.read_byte();
  self.console.write_byte(76);
  self.console.write_byte(48);
- let unrelated: &[u8] = "L0";
+ let unrelated: @[u8] = "L0";
  let second: i32 = self.console.read_byte();
  let third: i32 = self.console.read_byte();
  self.console.write_byte(first);
@@ -179,10 +179,10 @@ def array_window_selfcheck(directory):
  machine exit_process(value: i32) -> never;
  machine read_byte() -> i32;
  machine write_byte(value: i32);
- machine write_line(text: &[u8]);
+ machine write_line(text: @[u8]);
 }
 data ViewLeaf { accepted: i32; }
-machine ViewLeaf::verify(&mut self, source: &[u8]) {
+machine ViewLeaf::verify(@mut self, source: @[u8]) {
  self.accepted = 0;
  transition source.len == 20511 { true -> read() _ -> return }
  state read() {
@@ -192,11 +192,11 @@ machine ViewLeaf::verify(&mut self, source: &[u8]) {
  state accept() { self.accepted = 1; }
 }
 data ViewForwarder { leaf: ViewLeaf; }
-machine ViewForwarder::forward(&mut self, source: &[u8]) {
+machine ViewForwarder::forward(@mut self, source: @[u8]) {
  self.leaf.verify(source);
 }
 data WindowProbe { accepted: i32; child: ViewForwarder; }
-machine WindowProbe::verify(&mut self, source: &[u8]) {
+machine WindowProbe::verify(@mut self, source: @[u8]) {
  self.accepted = 0;
  transition source.len == 131072 { true -> read() _ -> return }
  state read() {
@@ -209,7 +209,7 @@ machine WindowProbe::verify(&mut self, source: &[u8]) {
  }
  state accept() { self.accepted = 1; }
 }
-machine WindowProbe::verify_partial(&mut self, source: &[u8]) {
+machine WindowProbe::verify_partial(@mut self, source: @[u8]) {
  self.accepted = 0;
  self.child.forward(source);
  self.accepted = self.child.leaf.accepted;
@@ -218,7 +218,7 @@ data Main {
  console: Console; probe: WindowProbe; source: [u8; 131072];
  length: i32;
 }
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
  transition true { true -> step(254) }
  state step(index: i32) {
   transition index < 258 { true -> fill(index) _ -> bounds() }
@@ -261,8 +261,8 @@ def main():
         request += source + (directory / 'support.bin').read_bytes()
         compiler = (directory / 'delta_compiler.gamma').read_bytes()
         receipt = observe(directory, 'receipt', struct.pack('<I', len(compiler)) + compiler + request, 1800)
-        assert identity(receipt) == {'bytes': 728066, 'sha256':
-            '92962050ff52d6dc6cdda1ae0dcd4002389da61c0979a2353db41b4b52a4afb7'}
+        assert identity(receipt) == {'bytes': 726601, 'sha256':
+            '1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af'}
         (directory / 'canonical-receipt.gamma').write_bytes(receipt)
     elif command == 'selfcheck':
         selfcheck(directory)

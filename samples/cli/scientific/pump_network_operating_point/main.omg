@@ -12,9 +12,9 @@ use omega_language_std::Console;
 
 // Explicit build entry; EOF is a valid record terminator. No pause prompt.
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: Input;
-    _ = block read(&mut input);
+    _ = block read(@mut input);
     transition input.accepted {
         true -> model(input)
         false -> invalid()
@@ -25,7 +25,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             d: input.values[3], r1: input.values[4], r2: input.values[5],
             elevation: input.values[6], maximum: input.values[7], demand: input.values[8]
         };
-        transition valid(&network) {
+        transition valid(@network) {
             true -> operating(network)
             false -> invalid()
         }
@@ -33,7 +33,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine operating(network: Network) {
         let mut solver: Solver;
         solver.network = network;
-        solve(&mut solver);
+        solve(@mut solver);
         transition solver.feasible > 0 {
             true -> success()
             false -> infeasible()
@@ -47,5 +47,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

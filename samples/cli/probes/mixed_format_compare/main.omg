@@ -25,7 +25,7 @@ machine widen(value: f32) -> f64 { value as f64 }
 
 machine identity(value: f32) -> f32 { value }
 
-machine compare(calls: &mut u64) -> Observations {
+machine compare(calls: @mut u64) -> Observations {
     calls = ((calls as u64 in Wrapping) + 1) as u64;
     Observations {
         widened: widen(1.5f32) == 1.5,
@@ -35,20 +35,20 @@ machine compare(calls: &mut u64) -> Observations {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let mut calls: u64 = 0;
-    let seen: Observations = compare(&mut calls);
+    let seen: Observations = compare(@mut calls);
     transition seen.widened && !seen.rounded && calls == 1 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -42,7 +42,7 @@ fn check(name: &str, declarations: &str, held: &str) -> (bool, String) {
         root.join("build.omg"),
         format!(
             "{declarations}
-machine build(builder: &mut Build) {{
+machine build(builder: @mut Build) {{
     Build::application(builder, \"computed\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     let held: {held};
@@ -74,12 +74,12 @@ machine outer() -> u64 {{
     let buffer: Buffer<leaf()>;
     leaf()
 }}
-machine four(buffer: &Buffer<4>) -> u64 {{ 4 }}"
+machine four(buffer: @Buffer<4>) -> u64 {{ 4 }}"
     )
 }
 
 const LEND: &str = "ComputedStorage;
-    let seen: u64 = four(&held.buffer)";
+    let seen: u64 = four(@held.buffer)";
 
 #[test]
 fn a_type_applied_at_a_call_is_the_type_applied_at_the_call_s_value() {

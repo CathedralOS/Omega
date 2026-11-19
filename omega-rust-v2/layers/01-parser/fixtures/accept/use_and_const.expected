@@ -1,0 +1,52 @@
+File
+  Use
+    'use'
+    Path 'topology'
+    ';'
+  Use
+    'use'
+    Path 'ui_policy' '::' 'screen' '::' 'Point' '::' 'OnScreen'
+    ';'
+  Const
+    'const'
+    Path 'LIMIT'
+    ':'
+    PathType 'u32'
+    '='
+    Literal '64'
+    ';'
+  Const
+    'const'
+    Path 'EfiStatus' '::' 'SUCCESS'
+    ':'
+    PathType 'EfiStatus'
+    '='
+    Literal '0'
+    ';'
+  Const
+    'public'
+    'const'
+    Path 'clear_a'
+    '='
+    Selection
+      '('
+      Path 'clear'
+      'satisfies'
+      PathType 'A' '::' 'clear'
+      ')'
+    ';'
+  Const
+    'const'
+    Path 'mask'
+    '='
+    Binary
+      Literal '0xFF'
+      '&'
+      Paren
+        '('
+        Binary
+          Literal '1'
+          '<<'
+          Literal '3'
+        ')'
+    ';'

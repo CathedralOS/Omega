@@ -23,29 +23,29 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedReplace {
-    machine replace(values: &mut [Cell], first_index: u64, second_index: u64)
+    machine replace(values: @mut [Cell], first_index: u64, second_index: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.len == 2, first_index < values.len, second_index < values.len, distinct(first_index, second_index) == true;
 }
 
 X86Replace satisfies SelectedReplace {
-    machine replace(values: &mut [Cell], first_index: u64, second_index: u64)
+    machine replace(values: @mut [Cell], first_index: u64, second_index: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.len == 2, first_index < values.len, second_index < values.len, distinct(first_index, second_index) == true
     {
         SelectedBodyCheck::require_tag(17u64);
-        let first: &mut Cell = &mut values[first_index];
-        let second: &mut Cell = &mut values[second_index];
+        let first: @mut Cell = @mut values[first_index];
+        let second: @mut Cell = @mut values[second_index];
         first = Cell { value: 17 };
         second = Cell { value: 53 };
     }
 }
 
 ArmReplace satisfies SelectedReplace {
-    machine replace(values: &mut [Cell], first_index: u64, second_index: u64)
+    machine replace(values: @mut [Cell], first_index: u64, second_index: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires values.len == 2, first_index < values.len, second_index < values.len, distinct(first_index, second_index) == true
     {
         SelectedBodyCheck::require_tag(29u64);
-        let first: &mut Cell = &mut values[first_index];
-        let second: &mut Cell = &mut values[second_index];
+        let first: @mut Cell = @mut values[first_index];
+        let second: @mut Cell = @mut values[second_index];
         first = Cell { value: 17 };
         second = Cell { value: 53 };
     }
@@ -54,7 +54,7 @@ ArmReplace satisfies SelectedReplace {
 
 machine main() crashes Trap {
     let mut values: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
-    SelectedReplace::replace(&mut values[..], 0, 1);
+    SelectedReplace::replace(@mut values[..], 0, 1);
     transition values[0].value == 17 && values[1].value == 53 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }

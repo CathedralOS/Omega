@@ -2,14 +2,14 @@
 // An additional Before input qualification permits writing 73 without promising Before on return.
 data Cell { value: u32; }
 domain Cell::Before requires self.value == 0;
-machine overwrite(cell: &write Cell in Before)
+machine overwrite(cell: @write Cell in Before)
 ensures cell in Before {
     cell.value = 73;
 }
 const INITIAL: u32 = 0;
 machine observed_exit() -> u32 {
     let mut cell: Cell = Cell { value: INITIAL };
-    overwrite(&write cell);
+    overwrite(@write cell);
     transition cell.value == 73 { true -> 0 _ -> 1 }
 }
 machine main() crashes Trap {

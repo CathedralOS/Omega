@@ -51,49 +51,49 @@ data Main {
 }
 
 // Inner dispatcher: interpret op code on accumulator with value n.
-machine Main::apply_op(main: &mut Main, op: i32 in Saturating, n: i32 in Saturating) {
+machine Main::apply_op(main: @mut Main, op: i32 in Saturating, n: i32 in Saturating) {
     transition op == 0 {
         true -> do_add(main, n)
         _ -> try_sub(main, op, n)
     }
 
-    machine do_add(main: &mut Main, n: i32 in Saturating) {
+    machine do_add(main: @mut Main, n: i32 in Saturating) {
         main.st.acc = main.st.acc + n;
     }
 
-    machine try_sub(main: &mut Main, op: i32 in Saturating, n: i32 in Saturating) {
+    machine try_sub(main: @mut Main, op: i32 in Saturating, n: i32 in Saturating) {
         transition op == 1 {
             true -> do_sub(main, n)
             _ -> do_scale(main, n)
         }
     }
 
-    machine do_sub(main: &mut Main, n: i32 in Saturating) {
+    machine do_sub(main: @mut Main, n: i32 in Saturating) {
         main.st.acc = main.st.acc - n;
     }
 
-    machine do_scale(main: &mut Main, n: i32 in Saturating) {
+    machine do_scale(main: @mut Main, n: i32 in Saturating) {
         main.st.acc = main.st.acc * n;
     }
 }
 
 // Outer dispatcher: unwrap Command case, then invoke inner dispatch.
-machine Main::apply_command(main: &mut Main, cmd: Command) {
+machine Main::apply_command(main: @mut Main, cmd: Command) {
     transition cmd {
         Command::Run { op, n } -> do_run(main, op, n)
         Command::Noop -> done(main)
         _ -> done(main)
     }
 
-    machine do_run(main: &mut Main, op: i32 in Saturating, n: i32 in Saturating) {
+    machine do_run(main: @mut Main, op: i32 in Saturating, n: i32 in Saturating) {
         // Second-level dispatch: interpret the operation.
         Main::apply_op(main, op, n);
     }
 
-    machine done(main: &mut Main) {}
+    machine done(main: @mut Main) {}
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("nested_case_payload: case-payload commands feeding a nested integer dispatch");
     Main::apply_command(main, Command::Run { op: 0, n: 10 });
     Main::apply_command(main, Command::Noop);
@@ -109,17 +109,17 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         _ -> bad(main)
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: accumulator reached 70 after 8 commands (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(70);
     }
 
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("FAIL: wrong accumulator value (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(71);
     }
 }
@@ -127,5 +127,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block Main::main(@mut entry_storage);
 }

@@ -58,7 +58,7 @@ pub fn settle_rejoined_build_slice(
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
-    dependency_activation: bool,
+    subject_validation: products::BuildSubjectValidation,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<source_compiler::evaluation::SourceCompletionAccounting, products::CompileFailure> {
     if constants.folded_under_providers {
@@ -66,7 +66,9 @@ pub fn settle_rejoined_build_slice(
             "no product route yet: Build admission folded a constant under its provider plans, and settling it on a Product frontier typed after Build ran requires the constant evaluator",
         )].into());
     }
-    if constants.read.is_empty() {
+    if constants.read.is_empty()
+        && subject_validation != products::BuildSubjectValidation::AwaitingOwner
+    {
         return Ok(Default::default());
     }
     let refusals = constants.read.iter().filter(|read| read.declaration.is_none() || read.value.is_none()).map(|read| {
@@ -84,7 +86,7 @@ pub fn settle_rejoined_build_slice(
         entry,
         packages,
         anonymous_source,
-        dependency_activation,
+        subject_validation != products::BuildSubjectValidation::EntryOnly,
         timings,
     )?;
     let result = compare_rejoined_constants(constants, &current, accepted.source());
@@ -167,7 +169,7 @@ pub(crate) fn prepare_admitted_build(
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
-    dependency_activation: bool,
+    check_subject: bool,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<
     (
@@ -185,11 +187,7 @@ pub(crate) fn prepare_admitted_build(
                 "Build scope cannot combine anonymous source custody with supplied package inputs",
             )]);
         }
-        // A dependency's Build executed for its consumer checks what its entry
-        // reaches and never promotes the dependency to a subject
-        // (`wiki/spec/build/validation_subjects.md`, "Orchestration").
-        let subject =
-            (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
+        let subject = check_subject.then(|| packages.map(PackageCompilationInputs::root));
         let (accepted, read) = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
             let compilation = source_compiler::TerminalSourceCompilation {
                 declaration_metadata: &[],
@@ -261,7 +259,7 @@ mod tests {
             symbols::SymbolHandle::invalid(),
             None,
             None,
-            false,
+            products::BuildSubjectValidation::Checked,
             &mut artifacts::compile_timings::CompileTimings::default(),
         )
         .map(|_| ())
@@ -429,7 +427,7 @@ mod tests {
                 entry,
                 None,
                 None,
-                false,
+                products::BuildSubjectValidation::Checked,
                 &mut artifacts::compile_timings::CompileTimings::default(),
             )
             .unwrap();

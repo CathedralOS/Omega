@@ -19,22 +19,22 @@ use output::report::number;
 // These are squared-distance units, not radial error. Search is deterministic,
 // ordered by y then x, and retains no candidate storage or hidden truncation.
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 128];
     let mut problem: Problem;
-    let observed: LineReadResult = block Console::read_line(&mut bytes[..]);
+    let observed: LineReadResult = block Console::read_line(@mut bytes[..]);
     transition observed {
-        LineReadResult::EndOfInput { count } -> input(&bytes, count, &mut problem)
-        LineReadResult::LineComplete { count } -> input(&bytes, count, &mut problem)
+        LineReadResult::EndOfInput { count } -> input(@bytes, count, @mut problem)
+        LineReadResult::LineComplete { count } -> input(@bytes, count, @mut problem)
         _ -> invalid()
     }
-    machine input(bytes: &[u8], count: u64, problem: &mut Problem) {
+    machine input(bytes: @[u8], count: u64, problem: @mut Problem) {
         transition count <= bytes.len {
             true -> admitted(bytes, count, problem)
             false -> invalid()
         }
     }
-    machine admitted(bytes: &[u8], count: u64, problem: &mut Problem)
+    machine admitted(bytes: @[u8], count: u64, problem: @mut Problem)
     requires count <= bytes.len
     {
         transition count == 0 {
@@ -42,7 +42,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             false -> decode(bytes[..count], problem)
         }
     }
-    machine demo(problem: &mut Problem) {
+    machine demo(problem: @mut Problem) {
         // Three exact circles through (3,4): radii 5,5,3.
         problem.values[0] = -8; problem.values[1] = 8;
         problem.values[2] = -8; problem.values[3] = 8;
@@ -55,40 +55,40 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         problem.values[15] = 3; problem.values[16] = 3;
         transition { _ -> search(problem, problem.values[0], problem.values[2], 0) }
     }
-    machine decode(bytes: &[u8], problem: &mut Problem) {
+    machine decode(bytes: @[u8], problem: @mut Problem) {
         let parsed: bool = parse(bytes, problem);
         transition parsed {
             true -> validate(problem)
             false -> invalid()
         }
     }
-    machine validate(problem: &Problem) {
+    machine validate(problem: @Problem) {
         transition valid(problem) {
             true -> search(problem, problem.values[0], problem.values[2], 0)
             false -> invalid()
         }
     }
-    machine search(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
+    machine search(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         transition feasible(problem, x, y) {
             true -> candidate(problem, x, y, count)
             false -> advance(problem, x, y, count)
         }
     }
-    machine candidate(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
+    machine candidate(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         Console::write("candidate "); number(x); Console::write(" "); number(y);
         Console::write(" residual2");
         residuals(problem, x, y, 0);
         Console::write_line("");
         transition { _ -> advance(problem, x, y, count + 1) }
     }
-    machine advance(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
+    machine advance(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         transition {
             x < problem.values[1] -> search(problem, x + 1, y, count)
             y < problem.values[3] -> search(problem, problem.values[0], y + 1, count)
             _ -> summary(problem, count)
         }
     }
-    machine summary(problem: &Problem, count: i32 in Wrapping) {
+    machine summary(problem: @Problem, count: i32 in Wrapping) {
         Console::write("count "); number(count); Console::write_line("");
         transition {
             count == 0 -> inconsistent()
@@ -104,13 +104,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine invalid() { Console::write_line("error invalid input"); ProcessExit::exit_process(64); }
 }
 
-machine residuals(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
+machine residuals(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
 reaches Console {
     transition index < 3 {
         true -> emit(problem, x, y, index)
         false -> done()
     }
-    machine emit(problem: &Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
+    machine emit(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
     requires index < 3
     {
         let offset: u64 = 5 + index * 4;
@@ -125,5 +125,5 @@ reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

@@ -31,7 +31,7 @@ ensures
     player
 }
 
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
 requires
     main.player in Player::Alive
 {
@@ -41,9 +41,9 @@ requires
 
 machine entry() crashes Trap {
     let mut a: Main = Main { player: Player { health: 42 }, observed: 0 };
-    Main::main(&mut a);
+    Main::main(@mut a);
     let mut b: Main = Main { player: Player { health: 1 }, observed: 0 };
-    Main::main(&mut b);
+    Main::main(@mut b);
     transition a.observed == 42 && b.observed == 1 {
         true -> done()
         _ -> bad()

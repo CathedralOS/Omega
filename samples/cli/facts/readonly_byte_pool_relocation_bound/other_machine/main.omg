@@ -2,7 +2,7 @@
 // Place: another machine. A separate forwarding machine evaluates the slice literal.
 // Expected exit: 0
 
-machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap
+machine inspect_bytes(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {
@@ -20,7 +20,7 @@ ensures result == 0u64
     }
 }
 
-machine forward(bytes: &[u8]) -> u64 crashes Trap
+machine forward(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {
@@ -30,7 +30,7 @@ ensures result == 0u64
 machine probe() -> u64 crashes Trap
 ensures result == 0u64
 {
-    let bytes: &[u8] = "omega";
+    let bytes: @[u8] = "omega";
     forward(bytes)
 }
 

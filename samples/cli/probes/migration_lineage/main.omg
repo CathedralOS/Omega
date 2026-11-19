@@ -33,7 +33,7 @@ data Counter {
 
 machine counter_v1_to_current(
     old: CounterV1,
-    out: &mut Counter
+    out: @mut Counter
 ) satisfies FormatMigration<CounterDisk, CounterV1, Counter>::migrate {
     out.counter = old.counter;
     out.timestamp = 0;
@@ -41,7 +41,7 @@ machine counter_v1_to_current(
 
 machine network_counter_v1_to_current(
     old: CounterV1,
-    out: &mut Counter
+    out: @mut Counter
 ) satisfies FormatMigration<CounterNetwork, CounterV1, Counter>::migrate {
     out.counter = old.counter;
     out.timestamp = 1;
@@ -49,21 +49,21 @@ machine network_counter_v1_to_current(
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let old: CounterV1 = CounterV1 { counter: 9 };
     let mut migrated: Counter;
-    counter_v1_to_current(old, &mut migrated);
+    counter_v1_to_current(old, @mut migrated);
     transition migrated.counter == 9 && migrated.timestamp == 0 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -441,7 +441,7 @@ fn parses_explicit_parameter_with_named_carrier_type() {
         data Main {
         }
 
-        machine Main::main(main: &mut Main) {}
+        machine Main::main(main: @mut Main) {}
         "#;
 
     let parsed = crate::tests::parse_source(source, "parse should succeed");
@@ -474,12 +474,12 @@ fn parses_explicit_parameter_with_named_carrier_type() {
 #[test]
 fn parses_explicit_write_only_borrow_with_exact_access_mode() {
     let source = r#"
-        machine fill(destination: &write bool, value: bool) {
+        machine fill(destination: @write bool, value: bool) {
             destination = value;
         }
 
-        machine caller(destination: &mut bool) {
-            fill(&write destination, true);
+        machine caller(destination: @mut bool) {
+            fill(@write destination, true);
         }
     "#;
 
@@ -491,17 +491,17 @@ fn parses_explicit_write_only_borrow_with_exact_access_mode() {
     assert_eq!(borrow.access, ReferenceAccess::WriteOnly);
     assert_eq!(
         parsed.display_expression_name(argument),
-        "&write destination"
+        "@write destination"
     );
 }
 
 #[test]
 fn parses_explicit_shared_borrow_with_exact_access_mode() {
     let source = r#"
-        machine observe(value: &bool) {}
+        machine observe(value: @bool) {}
 
-        machine caller(source: &bool) {
-            observe(&source);
+        machine caller(source: @bool) {
+            observe(@source);
         }
     "#;
 
@@ -511,7 +511,7 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
         panic!("argument should retain one closed shared-borrow expression node");
     };
     assert_eq!(borrow.access, ReferenceAccess::Shared);
-    assert_eq!(parsed.display_expression_name(argument), "&source");
+    assert_eq!(parsed.display_expression_name(argument), "@source");
 }
 
 #[test]
@@ -577,7 +577,7 @@ fn parses_explicit_parameter_use_as_ordinary_name() {
         data Main {
         }
 
-        machine Main::main(main: &mut Main) {
+        machine Main::main(main: @mut Main) {
             main;
         }
         "#;
@@ -622,7 +622,7 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
             xp_table: Player;
         }
 
-        machine Main::main(main: &mut Main, player: &mut Player) {
+        machine Main::main(main: @mut Main, player: @mut Player) {
             player.xp = max(0, player.xp - xp_required(player.level));
 
             machine xp_required(level: i32) -> i32 {
@@ -865,13 +865,49 @@ fn typed_callable_delimiters_preserve_nested_signatures_and_regular_fact_lists()
 }
 
 #[test]
+fn parses_a_callable_argument_before_the_enclosing_parenthesis() {
+    let source = r#"
+        machine retain(
+            chosen: machine(value: u32) -> u32 reaches none crashes none
+                requires value >= 3u32 ensures result <= value
+        ) -> machine(value: u32) -> u32 reaches none crashes none
+            requires value >= 3u32 ensures result <= value
+        {
+            chosen
+        }
+    "#;
+    let parsed = crate::tests::parse_source(source, "both callable contracts should parse");
+    let machine = crate::tests::root_machine(&parsed, "retain");
+    let state = crate::tests::entry_state(&parsed, machine);
+    let [parameter] = parsed.items.state_parameters(state.parameters) else {
+        panic!("retain takes one parameter");
+    };
+    let parameter = parsed.items.state_parameter(*parameter);
+    for reference in [parameter.type_reference, state.return_type] {
+        let TypeReferenceNode::Callable { signature } =
+            parsed.type_references.type_reference(reference)
+        else {
+            panic!("the input and result are both callable types");
+        };
+        let signature = parsed.items.state_signature(*signature);
+        assert_eq!(parsed.items.state_parameters(signature.parameters).len(), 1);
+        assert_eq!(
+            parsed.items.capability_contracts(signature.contracts).len(),
+            2
+        );
+        assert_eq!(signature.service_reach_keyword_source_spans.len(), 1);
+        assert!(signature.declares_no_crash_route);
+    }
+}
+
+#[test]
 fn parses_machine_parameter_with_mandatory_contract() {
     let source = r#"
         data Card {}
         data Deck {}
 
-        machine Deck::best<machine Key>(deck: &Deck, card: &Card) -> u64
-        requires machine Key(value: &Card) -> u64
+        machine Deck::best<machine Key>(deck: @Deck, card: @Card) -> u64
+        requires machine Key(value: @Card) -> u64
         reaches Console
         requires value in Card::Scorable;
         {
@@ -1022,9 +1058,9 @@ fn parses_structural_and_nominal_machine_parameter_contracts_together() {
 fn retains_nominal_machine_parameter_trait_application() {
     let source = r#"
         trait Visitor<Context> {
-            machine visit(context: &mut Context);
+            machine visit(context: @mut Context);
         }
-        machine walk<Context, machine Step>(context: &mut Context)
+        machine walk<Context, machine Step>(context: @mut Context)
         requires machine Step satisfies Visitor<Context>::visit;
         {
             Step(context);
@@ -1100,8 +1136,8 @@ fn rejects_one_off_machine_member_requirements_instead_of_discarding_them() {
     let source = r#"
         data Device {}
 
-        machine poll_once<T>(device: &mut T)
-        requires machine T::poll(value: &mut T)
+        machine poll_once<T>(device: @mut T)
+        requires machine T::poll(value: @mut T)
         {
         }
         "#;
@@ -1268,12 +1304,12 @@ fn parses_static_machine_symbol_call_argument() {
     let source = r#"
         data Card {}
 
-        machine map<T, machine F>(value: &T)
-        requires machine F(value: &T);
+        machine map<T, machine F>(value: @T)
+        requires machine F(value: @T);
         {
         }
 
-        machine caller(card: &Card) {
+        machine caller(card: @Card) {
             map<Card::power>(card);
         }
     "#;

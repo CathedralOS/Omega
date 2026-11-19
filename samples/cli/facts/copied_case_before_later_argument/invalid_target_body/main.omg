@@ -3,7 +3,7 @@
 // Expected exit: 0
 data Slot [copy] { case Absent; case Present(value: u64); }
 
-machine set_to_absent(slot: &mut Slot) -> u64 {
+machine set_to_absent(slot: @mut Slot) -> u64 {
     slot = Slot::Absent {};
     0
 }
@@ -22,7 +22,7 @@ SelectedCopiedCaseApply satisfies CopiedCaseApply {
     machine apply(mut chosen: Slot) -> u64
     requires chosen in Slot::Present
     {
-    let observed: u64 = read_payload(chosen, set_to_absent(&mut chosen));
+    let observed: u64 = read_payload(chosen, set_to_absent(@mut chosen));
     observe_replacement(observed, chosen)
 }
 }

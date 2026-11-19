@@ -1,4 +1,4 @@
-; Checked nominal parameter types lower to the same named target enum type in
+; In a pure module, checked nominal parameters use the same named target enum in
 ; machine and lifted-state signatures. Unused parameters still need that ABI.
 (def epsilon_delta_parameters ((context EpsilonDeltaContext)
   (parameters EpsilonParameterList)) EpsilonDeltaCompilation
@@ -20,9 +20,9 @@
             ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
             ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))))
 
-; The current result ABI is scalar/resultless/trap/internal. A nominal result
-; needs its own implemented transport; parameter support cannot imply it.
-(def epsilon_delta_return_type ((returnType EpsilonOptionalType)) EpsilonDeltaCompilation
+; Pure functions return scalar outcomes. Stored functions return immutable
+; runtime values after the language checker has excluded escaping views.
+(def epsilon_delta_pure_return_type ((returnType EpsilonOptionalType)) EpsilonDeltaCompilation
   (match returnType
     (NoEpsilonType (EpsilonDeltaCompiled ""))
     ((SomeEpsilonType start end typeValue)
@@ -92,13 +92,13 @@
 
 (def epsilon_delta_machine ((context EpsilonDeltaContext)
   (name EpsilonQualifiedName) (inputs EpsilonMachineInputs)
-  (returnType EpsilonOptionalType) (body EpsilonMachineBody)) EpsilonDeltaCompilation
-  (match (epsilon_delta_return_type returnType)
-    ((EpsilonDeltaCompiled unused)
-      (match (epsilon_delta_machine_runtime inputs body)
-        (EpsilonDeltaPureRuntime
+  (returnType EpsilonOptionalType) (body EpsilonMachineBody) (runtime EpsilonDeltaRuntime)) EpsilonDeltaCompilation
+  (match runtime
+    (EpsilonDeltaPureRuntime
+      (match (epsilon_delta_pure_return_type returnType)
+        ((EpsilonDeltaCompiled unused)
           (epsilon_delta_plain_machine context name (epsilon_machine_input_parameters inputs) body))
-        (EpsilonDeltaStoredRuntime (epsilon_delta_stored_machine context name inputs body))))
-    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
-    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
-    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+    (EpsilonDeltaStoredRuntime (epsilon_delta_stored_machine context name inputs body))))

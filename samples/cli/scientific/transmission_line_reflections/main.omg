@@ -17,7 +17,7 @@ use io::report;
 use io::report::report;
 
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let request: Request = block read_request();
     transition request.valid {
         true -> start(request.identifier, request.horizon)
@@ -27,15 +27,15 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         let model: LineModel = preset(identifier as u64);
         let mut tree: ReflectionTree;
         Console::write_line("transmission_line_reflections v1 micro-units");
-        transition { _ -> simulate(&mut tree, &model, 0, horizon) }
+        transition { _ -> simulate(@mut tree, @model, 0, horizon) }
     }
-    machine simulate(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating) {
+    machine simulate(tree: @mut ReflectionTree, model: @LineModel, tick: u64 in Saturating, horizon: u64 in Saturating) {
         transition tick < horizon && tick < 24 {
             true -> step(tree, model, tick, horizon)
             false -> finish()
         }
     }
-    machine step(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
+    machine step(tree: @mut ReflectionTree, model: @LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
     requires tick < 24
     {
         let okay: bool = propagate(tree, model, tick as u64);
@@ -44,7 +44,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             false -> failed()
         }
     }
-    machine emit(tree: &mut ReflectionTree, model: &LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
+    machine emit(tree: @mut ReflectionTree, model: @LineModel, tick: u64 in Saturating, horizon: u64 in Saturating)
     requires tick < 24
     {
         report(tick as u64, tree);
@@ -62,5 +62,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

@@ -27,15 +27,15 @@ Other satisfies Family {
 }
 machine row16(selected: dyn Family, value: Prepared<16>) -> Prepared<16> { Family::row<16>(selected, value) }
 machine row32(selected: dyn Family, value: Prepared<32>) -> Prepared<32> { Family::row<32>(selected, value) }
-machine input16(value: Prepared<16>, calls: &mut [u64; 1]) -> Prepared<16> {
+machine input16(value: Prepared<16>, calls: @mut [u64; 1]) -> Prepared<16> {
     calls[0] = ((calls[0] as u64 in Wrapping) + 1) as u64;
     value
 }
-machine input32(value: Prepared<32>, calls: &mut [u64; 1]) -> Prepared<32> {
+machine input32(value: Prepared<32>, calls: @mut [u64; 1]) -> Prepared<32> {
     calls[0] = ((calls[0] as u64 in Wrapping) + 1) as u64;
     value
 }
-machine escape(input: InlineInput, calls: &mut [u64; 1]) -> Escaped {
+machine escape(input: InlineInput, calls: @mut [u64; 1]) -> Escaped {
     transition input {
         InlineInput::Narrow { value } -> Escaped::Narrow { value: Family::row<16>(Selected as dyn Family, input16(value, calls)) }
         InlineInput::Wide { value } -> Escaped::Wide { value: Family::row<32>(Other as dyn Family, input32(value, calls)) }
@@ -70,9 +70,9 @@ machine check_wide(returned: Escaped, expected_marker: u8) crashes Trap {
 }
 machine check(first: Prepared<16>, second: Prepared<32>, expected_marker: u8) crashes Trap {
     let mut calls: [u64; 1] = [0];
-    let a: StoredResult = StoredResult { returned: escape(InlineInput::Narrow { value: first }, &mut calls) };
+    let a: StoredResult = StoredResult { returned: escape(InlineInput::Narrow { value: first }, @mut calls) };
     let after_first: u64 = calls[0];
-    let b: StoredResult = StoredResult { returned: escape(InlineInput::Wide { value: second }, &mut calls) };
+    let b: StoredResult = StoredResult { returned: escape(InlineInput::Wide { value: second }, @mut calls) };
     let a_result: Escaped = forward_returned(a.returned);
     let b_result: Escaped = forward_returned(b.returned);
     transition after_first == 1 && calls[0] == 2 {

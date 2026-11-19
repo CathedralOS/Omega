@@ -1536,8 +1536,8 @@ mod type_alias_tests {
         let rule = "type alias `View` names the lifetime `'capture`, which it does not \
                         declare: undeclared lifetime tags reject";
         for source in [
-            "data View = &'capture [u8]; machine build_entry(view: View) { }",
-            "data View = &'capture [u8]; machine build_entry<'capture>(view: View) { }",
+            "data View = @'capture [u8]; machine build_entry(view: View) { }",
+            "data View = @'capture [u8]; machine build_entry<'capture>(view: View) { }",
         ] {
             let errors = normalized(source).unwrap_err();
             assert_eq!(
@@ -1552,7 +1552,7 @@ mod type_alias_tests {
             assert_eq!(&source[span.start..span.end], "capture", "{source}");
         }
         normalized(
-            "data View<'capture> = &'capture [u8]; \
+            "data View<'capture> = @'capture [u8]; \
                  machine build_entry<'storage>(view: View<'storage>) { }",
         )
         .unwrap();

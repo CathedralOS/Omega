@@ -5,11 +5,11 @@ use omega::language::core::ProcessExit;
 
 use omega_language_std::Console;
 
-machine sorted(values: &[i32; 16]) -> bool {
+machine sorted(values: @[i32; 16]) -> bool {
     check_sorted(values, 15)
 }
 
-machine check_sorted(values: &[i32; 16], remaining: u64) -> bool
+machine check_sorted(values: @[i32; 16], remaining: u64) -> bool
 requires remaining <= 15
 terminates
 terminates by remaining in 0..=15
@@ -18,7 +18,7 @@ terminates by remaining in 0..=15
         true -> inspect(values, remaining)
         false -> (true)
     }
-    machine inspect(values: &[i32; 16], remaining: u64) -> bool
+    machine inspect(values: @[i32; 16], remaining: u64) -> bool
         requires remaining >= 1
         requires remaining <= 15
     {
@@ -30,7 +30,7 @@ terminates by remaining in 0..=15
     }
 }
 
-machine search(values: &[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
+machine search(values: @[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
 requires lo <= hi
 requires hi <= 16
 requires width == hi - lo
@@ -47,18 +47,18 @@ terminates by width -> Nat::Descending in 0..=16
 
 data Main { values: [i32; 16]; }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     main.values[0] = 3;
-    let p: u64 = search(&main.values, 0, 1, 1, 2);
+    let p: u64 = search(@main.values, 0, 1, 1, 2);
     transition p == 0 {
         true -> good(main)
         _ -> good(main)
     }
-    machine good(main: &mut Main) { ProcessExit::exit_process(0); }
+    machine good(main: @mut Main) { ProcessExit::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

@@ -3,23 +3,23 @@
 // Place: parameter.
 
 data Blob<'view> {
-    #0 bytes: &'view [u8];
+    #0 bytes: @'view [u8];
 }
 
-machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
+machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
         true -> chosen
         _ -> other
     }
 }
 
-machine probe(chosen: &mut u64, other: &mut u64, items: &[u8; 4]) -> u8
+machine probe(chosen: @mut u64, other: @mut u64, items: @[u8; 4]) -> u8
 requires chosen < 4 && other < 4
 {
     let source: [u8; 4] = [72, 105, 0, 0];
     let mut buffer: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let sample: Blob = Blob { bytes: source[0..2] };
-    Blob::encode(&sample, &mut buffer, choose(chosen, other, false));
+    Blob::encode(@sample, @mut buffer, choose(chosen, other, false));
     let index: u64 = other;
     transition items[index] == 7 {
         true -> (items[index])
@@ -31,7 +31,7 @@ machine main() crashes Trap {
     let mut chosen: u64 = 0;
     let mut other: u64 = 1;
     let items: [u8; 4] = [4, 7, 8, 9];
-    let found: u8 = probe(&mut chosen, &mut other, &items);
+    let found: u8 = probe(@mut chosen, @mut other, @items);
     transition found == 7 && chosen == 5 {
         true -> done()
         _ -> bad()

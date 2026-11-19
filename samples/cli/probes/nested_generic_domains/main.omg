@@ -37,7 +37,7 @@ machine Main::accept(scalar: u64 in Nested, bounded: u64 in Below<5>,
         record: Packet in SmallCount) {
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     // SCALAR/RECORD literals re-prove their nested requires; Below<5>
     // needs an explicit `as` grant (literal/const args can't prove it).
@@ -48,5 +48,5 @@ machine Main::main(main: &mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

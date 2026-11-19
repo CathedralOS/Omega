@@ -8,7 +8,7 @@ data DestinationSlot {
     written: u64 in WrittenBound;
 }
 
-machine initialize_destination(destination: &write DestinationSlot) {
+machine initialize_destination(destination: @write DestinationSlot) {
     destination.written = 35u64;
 }
 
@@ -18,7 +18,7 @@ ensures
     95u64 - forwarded
 }
 
-machine forward_destination(slot: &DestinationSlot) -> u64
+machine forward_destination(slot: @DestinationSlot) -> u64
 ensures
     result <= 95u64 {
     evaluate_destination(slot.written)
@@ -28,8 +28,8 @@ machine probe() -> u64
 ensures
     result <= 95u64 {
     let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
-    initialize_destination(&write slot);
-    forward_destination(&slot)
+    initialize_destination(@write slot);
+    forward_destination(@slot)
 }
 
 machine main() crashes Trap {

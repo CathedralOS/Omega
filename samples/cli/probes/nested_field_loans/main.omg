@@ -19,23 +19,23 @@ data Outer {
     extra: u64;
 }
 
-machine Inner::inspect(inner: &Inner) -> u64 in Wrapping {
+machine Inner::inspect(inner: @Inner) -> u64 in Wrapping {
     inner.value as u64 in Wrapping
 }
 
-machine Inner::read_value(inner: &Inner) -> &u64 {
-    &inner.value
+machine Inner::read_value(inner: @Inner) -> @u64 {
+    @inner.value
 }
 
-machine probe(outer: &Outer) -> u64 {
-    let via_machine: u64 in Wrapping = Inner::inspect(&outer.inner);
-    let via_ref: &u64 = Inner::read_value(&outer.inner);
+machine probe(outer: @Outer) -> u64 {
+    let via_machine: u64 in Wrapping = Inner::inspect(@outer.inner);
+    let via_ref: @u64 = Inner::read_value(@outer.inner);
     transition (via_machine + (via_ref as u64 in Wrapping)) as u64 == 14 {
         true -> finish(outer)
         _ -> finish(outer)
     }
-    machine finish(forwarded: &Outer) -> u64 {
-        (Inner::inspect(&forwarded.inner) + (forwarded.extra as u64 in Wrapping)) as u64
+    machine finish(forwarded: @Outer) -> u64 {
+        (Inner::inspect(@forwarded.inner) + (forwarded.extra as u64 in Wrapping)) as u64
     }
 }
 
@@ -43,20 +43,20 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let outer: Outer = Outer { inner: Inner { value: 7 }, extra: 10 };
-    let answer: u64 = probe(&outer);
+    let answer: u64 = probe(@outer);
     transition answer == 17 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

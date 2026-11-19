@@ -5,8 +5,8 @@
 machine measure_subslice() -> u64
 ensures result == 10u64
 {
-    let bytes: &[u8] = "0123456789ABCD";
-    let window: &[u8] = bytes[2u64..12u64];
+    let bytes: @[u8] = "0123456789ABCD";
+    let window: @[u8] = bytes[2u64..12u64];
     window.len
 }
 

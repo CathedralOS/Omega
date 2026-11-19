@@ -46,14 +46,14 @@ fn verdict(text: &str) -> String {
 
 const RETURNED_VIEW: &str = r#"
 data Token { id: u64; }
-boundary trait Fs { machine required_path(output: &Token) -> &[u8] reaches none crashes none; }
-machine path(output: &Token) -> &[u8] reaches Fs invokes Fs { Fs::required_path(output) }
-machine see(bytes: &[u8]) { }
+boundary trait Fs { machine required_path(output: @Token) -> @[u8] reaches none crashes none; }
+machine path(output: @Token) -> @[u8] reaches Fs invokes Fs { Fs::required_path(output) }
+machine see(bytes: @[u8]) { }
 machine entry() reaches Fs invokes Fs {
     let name: [u8; 4] = [1, 2, 3, 4];
     let token: Token = Token { id: 1 };
-    see(&name[..]);
-    see(path(&token));
+    see(@name[..]);
+    see(path(@token));
 }
 "#;
 
@@ -68,22 +68,22 @@ fn a_view_a_boundary_returned_is_handed_on_by_a_machine() {
 fn a_provider_view_keeps_its_input_loan_without_borrowing_independent_storage() {
     let source = r#"
 data Token { id: u64; }
-boundary trait Fs { machine path(source: &Token) -> &[u8] reaches none crashes none; }
-machine helper(source: &Token) -> &[u8] reaches Fs invokes Fs { Fs::path(source) }
-machine see(bytes: &[u8]) {}
-machine use_path(other: &mut Token, bytes: &[u8]) { see(bytes); other.id = 4; }
+boundary trait Fs { machine path(source: @Token) -> @[u8] reaches none crashes none; }
+machine helper(source: @Token) -> @[u8] reaches Fs invokes Fs { Fs::path(source) }
+machine see(bytes: @[u8]) {}
+machine use_path(other: @mut Token, bytes: @[u8]) { see(bytes); other.id = 4; }
 machine entry() reaches Fs invokes Fs {
     let mut source: Token = Token { id: 1 };
     let mut other: Token = Token { id: 2 };
-    let bytes: &[u8] = helper(&source);
-    use_path(&mut other, bytes);
+    let bytes: @[u8] = helper(@source);
+    use_path(@mut other, bytes);
     source.id = 9;
 }
 "#;
     assert_eq!(verdict(source), "accepted");
     let invalid = source.replace(
-        "use_path(&mut other, bytes)",
-        "use_path(&mut source, bytes)",
+        "use_path(@mut other, bytes)",
+        "use_path(@mut source, bytes)",
     );
     assert_ne!(source, invalid);
     let rejected = crate::checking::judge(elaborate(&invalid));
@@ -157,12 +157,12 @@ fn provider_permission_cannot_be_claimed_as_owned_storage(source: &str) {
 fn provider_indexed_view_payloads_keep_their_actual_lender() {
     let program = r#"
 data Token { id: u64; }
-boundary trait Fs { machine path(token: &Token) -> &[u8] ensures result.len > 0u64 reaches none crashes none; }
-machine see(value: &u8) {}
+boundary trait Fs { machine path(token: @Token) -> @[u8] ensures result.len > 0u64 reaches none crashes none; }
+machine see(value: @u8) {}
 machine entry() reaches Fs invokes Fs {
     let token: Token = Token { id: 1 };
-    let view: &[u8] = Fs::path(&token);
-    see(&view[0]);
+    let view: @[u8] = Fs::path(@token);
+    see(@view[0]);
 }
 "#;
     let source = program;
@@ -232,12 +232,12 @@ fn a_view_of_unknown_origin_keeps_what_the_call_was_given() {
     let program = |before: &str, after: &str| {
         format!(
             r#"
-boundary trait Fs {{ machine echo(bytes: &[u8]) -> &[u8] reaches none crashes none; }}
-machine pass(bytes: &[u8]) -> &[u8] reaches Fs invokes Fs {{ Fs::echo(bytes) }}
-machine see(bytes: &[u8]) {{ }}
+boundary trait Fs {{ machine echo(bytes: @[u8]) -> @[u8] reaches none crashes none; }}
+machine pass(bytes: @[u8]) -> @[u8] reaches Fs invokes Fs {{ Fs::echo(bytes) }}
+machine see(bytes: @[u8]) {{ }}
 machine entry() reaches Fs invokes Fs {{
     let mut name: [u8; 4] = [1, 2, 3, 4];
-    let rest: &[u8] = pass(&name[..]);
+    let rest: @[u8] = pass(@name[..]);
     {before}
     see(rest);
     {after}
@@ -256,23 +256,23 @@ machine entry() reaches Fs invokes Fs {{
 #[test]
 fn a_stored_callable_keeps_its_first_inputs_returned_view() {
     let source = r#"
-machine first_view<'first, 'second>(first: &'first [u8], second: &'second [u8]) -> &'first [u8] {
+machine first_view<'first, 'second>(first: @'first [u8], second: @'second [u8]) -> @'first [u8] {
     first
 }
-machine second_view<'first, 'second>(first: &'first [u8], second: &'second [u8]) -> &'second [u8] {
+machine second_view<'first, 'second>(first: @'first [u8], second: @'second [u8]) -> @'second [u8] {
     second
 }
-machine see(bytes: &[u8]) {}
+machine see(bytes: @[u8]) {}
 machine use_selected(
-    select: machine<'left, 'right>(left: &'left [u8], right: &'right [u8]) -> &'left [u8]
+    select: machine<'left, 'right>(left: @'left [u8], right: @'right [u8]) -> @'left [u8]
         reaches none crashes none,
-    first: &[u8], second: &[u8]
+    first: @[u8], second: @[u8]
 ) {
-    let view: &[u8] = select(first, second);
+    let view: @[u8] = select(first, second);
     see(view);
 }
 machine entry() {
-    let select: machine<'left, 'right>(left: &'left [u8], right: &'right [u8]) -> &'left [u8]
+    let select: machine<'left, 'right>(left: @'left [u8], right: @'right [u8]) -> @'left [u8]
         reaches none crashes none = first_view;
     use_selected(select, "first", "second");
 }
@@ -296,12 +296,12 @@ fn a_boundary_view_keeps_its_declared_input_loan() {
         format!(
             r#"
 data Token {{ id: u64; }}
-boundary trait Fs {{ machine path(hint: u64, token: &Token) -> &[u8] reaches none crashes none; }}
-machine see(bytes: &[u8]) {{ }}
+boundary trait Fs {{ machine path(hint: u64, token: @Token) -> @[u8] reaches none crashes none; }}
+machine see(bytes: @[u8]) {{ }}
 machine eat(token: Token) {{ }}
 machine entry() reaches Fs invokes Fs {{
     let token: Token = Token {{ id: 1 }};
-    let path: &[u8] = Fs::path(7, &token);
+    let path: @[u8] = Fs::path(7, @token);
     {before}
     see(path);
     {after}
@@ -315,9 +315,9 @@ machine entry() reaches Fs invokes Fs {{
             if forwarded {
                 text.replace(
                     "machine see(",
-                    "machine forward<'a>(token: &'a Token) -> &'a [u8] reaches Fs invokes Fs { Fs::path(7, token) }\nmachine see(",
+                    "machine forward<'a>(token: @'a Token) -> @'a [u8] reaches Fs invokes Fs { Fs::path(7, token) }\nmachine see(",
                 )
-                .replace("Fs::path(7, &token);", "forward(&token);")
+                .replace("Fs::path(7, @token);", "forward(@token);")
             } else {
                 text
             }
@@ -332,15 +332,15 @@ fn a_boundary_view_does_not_lend_unrelated_storage() {
     let source = r#"
 data Token { id: u64; }
 boundary trait Fs {
-    machine path(token: &Token) -> &[u8]
+    machine path(token: @Token) -> @[u8]
         reaches none crashes none;
 }
-machine see(bytes: &[u8]) { }
+machine see(bytes: @[u8]) { }
 machine eat(token: Token) { }
 machine entry() reaches Fs invokes Fs {
     let token: Token = Token { id: 1 };
     let other: Token = Token { id: 2 };
-    let path: &[u8] = Fs::path(&token);
+    let path: @[u8] = Fs::path(@token);
     eat(other);
     see(path);
     eat(token);
@@ -358,33 +358,33 @@ machine entry() reaches Fs invokes Fs {
 
 const PROVIDER_VIEW: &str = r#"
 data Token { id: u64; }
-boundary trait Fs { machine path(hint: u64, token: &Token) -> &[u8] reaches none crashes none; }
-machine see(bytes: &[u8]) { }
+boundary trait Fs { machine path(hint: u64, token: @Token) -> @[u8] reaches none crashes none; }
+machine see(bytes: @[u8]) { }
 machine entry() reaches Fs invokes Fs {
     let token: Token = Token { id: 1 };
-    let path: &[u8] = Fs::path(7, &token);
+    let path: @[u8] = Fs::path(7, @token);
     see(path);
 }
 "#;
 
 const PROVIDER_REFERENCE: &str = r#"
-boundary trait Source { machine slot() -> &i32 reaches none crashes none; }
-machine read(slot: &i32) -> i32 { slot }
+boundary trait Source { machine slot() -> @i32 reaches none crashes none; }
+machine read(slot: @i32) -> i32 { slot }
 machine entry() -> i32 reaches Source invokes Source { read(Source::slot()) }
 "#;
 
 const PROVIDER_RECORD_REFERENCE: &str = r#"
 data Pair { left: i32; right: i32; }
-boundary trait Source { machine cell() -> &Pair reaches none crashes none; }
-machine read(pair: &Pair) -> i32 { pair.left }
+boundary trait Source { machine cell() -> @Pair reaches none crashes none; }
+machine read(pair: @Pair) -> i32 { pair.left }
 machine entry() -> i32 reaches Source invokes Source { read(Source::cell()) }
 "#;
 
 const PROVIDER_NESTED_RECORD_REFERENCE: &str = r#"
 data Values { left: i32; right: i32; }
 data Pair { values: Values; other: i32; }
-boundary trait Source { machine cell() -> &Pair reaches none crashes none; }
-machine read(pair: &Pair) -> i32 { pair.values.left }
+boundary trait Source { machine cell() -> @Pair reaches none crashes none; }
+machine read(pair: @Pair) -> i32 { pair.values.left }
 machine entry() -> i32 reaches Source invokes Source { read(Source::cell()) }
 "#;
 
@@ -548,12 +548,12 @@ fn boundary_reference_completion_cannot_claim_owned_backing() {
 fn boundary_reference_completion_keeps_its_logical_input_loan() {
     let source = r#"
 data Token { id: u64; }
-boundary trait Source { machine slot(token: &Token) -> &i32 reaches none crashes none; }
-machine read(slot: &i32) -> i32 { slot }
+boundary trait Source { machine slot(token: @Token) -> @i32 reaches none crashes none; }
+machine read(slot: @i32) -> i32 { slot }
 machine eat(token: Token) {}
 machine entry() -> i32 reaches Source invokes Source {
     let token: Token = Token { id: 1 };
-    let slot: &i32 = Source::slot(&token);
+    let slot: @i32 = Source::slot(@token);
     let value: i32 = read(slot);
     eat(token);
     value
@@ -782,12 +782,12 @@ fn boundary_result_lifetime_metadata_is_independently_validated() {
 fn a_caller_chosen_boundary_view_has_no_input_loan() {
     let source = r#"
 data Token { id: u64; }
-boundary trait Fs { machine path(hint: u64) -> &[u8] reaches none crashes none; }
-machine see(bytes: &[u8]) { }
+boundary trait Fs { machine path(hint: u64) -> @[u8] reaches none crashes none; }
+machine see(bytes: @[u8]) { }
 machine eat(token: Token) { }
 machine entry() reaches Fs invokes Fs {
     let token: Token = Token { id: 1 };
-    let path: &[u8] = Fs::path(7);
+    let path: @[u8] = Fs::path(7);
     eat(token);
     see(path);
 }
@@ -858,14 +858,14 @@ fn a_dynamic_view_without_declared_logical_lifetimes_is_refused() {
 fn a_nested_boundary_view_keeps_its_input_loan() {
     let source = r#"
 data Token { id: u64; }
-data Path<'a> { bytes: &'a [u8]; }
-boundary trait Fs { machine path(token: &Token) -> Path reaches none crashes none; }
-machine forward(token: &Token) -> Path reaches Fs invokes Fs { Fs::path(token) }
-machine see(bytes: &[u8]) { }
+data Path<'a> { bytes: @'a [u8]; }
+boundary trait Fs { machine path(token: @Token) -> Path reaches none crashes none; }
+machine forward(token: @Token) -> Path reaches Fs invokes Fs { Fs::path(token) }
+machine see(bytes: @[u8]) { }
 machine eat(token: Token) { }
 machine entry() reaches Fs invokes Fs {
     let token: Token = Token { id: 1 };
-    let path: Path = forward(&token);
+    let path: Path = forward(@token);
     see(path.bytes);
     eat(token);
 }
@@ -948,13 +948,13 @@ machine entry() reaches Fs invokes Fs {
 #[test]
 fn a_boundary_view_keeps_the_backing_of_a_stored_input_view() {
     let source = r#"
-data View<'a> { bytes: &'a [u8]; }
-boundary trait Fs { machine path(view: View) -> &[u8] reaches none crashes none; }
-machine see(bytes: &[u8]) { }
+data View<'a> { bytes: @'a [u8]; }
+boundary trait Fs { machine path(view: View) -> @[u8] reaches none crashes none; }
+machine see(bytes: @[u8]) { }
 machine entry() reaches Fs invokes Fs {
     let mut name: [u8; 4] = [1, 2, 3, 4];
-    let view: View = View { bytes: &name[..] };
-    let path: &[u8] = Fs::path(view);
+    let view: View = View { bytes: @name[..] };
+    let path: @[u8] = Fs::path(view);
     see(path);
     name[0] = 9;
 }
@@ -971,11 +971,11 @@ machine entry() reaches Fs invokes Fs {
 #[test]
 fn indexed_view_payloads_keep_their_actual_lender() {
     let source = r#"
-machine see(value: &u8) {}
+machine see(value: @u8) {}
 machine entry() {
     let values: [u8; 2] = [1, 2];
-    let view: &[u8] = &values[..];
-    see(&view[0]);
+    let view: @[u8] = @values[..];
+    see(@view[0]);
 }
 "#;
     use terminal_check_tables::bindings::{PlaceOrigin, Segment};
@@ -993,7 +993,7 @@ machine entry() {
             if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::OperationSafety { .. }))),
         "the borrowed element still owes its own live bound: {unbounded:?}"
     );
-    let wrong_type = source.replace("value: &u8", "value: &u16");
+    let wrong_type = source.replace("value: @u8", "value: @u16");
     let mismatch = elaborate(&wrong_type);
     assert!(
         matches!(&mismatch, Err(Refusal { reason: RefusalReason::Violation, detail, .. })

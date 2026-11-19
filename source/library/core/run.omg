@@ -46,7 +46,7 @@ requires self.count == 1;
 public machine Run::initialize_cell<P, T, Role>(
     storage: Extent in Granted & Vacant, value: T
 ) -> AccessOutcome<
-    Run<P, T> in Live<P, T> & Singleton<P, T>,
+    Run<P, T> in Live<P, T> @ Singleton<P, T>,
     AccessReturn<Extent in Granted & Vacant, T>,
     AccessInitializationFailure
 >
@@ -58,9 +58,9 @@ ensures (match result {
 })
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
-        &storage as &Extent in Granted
+        @storage as @Extent in Granted
     );
-    Run::initialize_from_profile<P, T, Role>(storage, value, &profile)
+    Run::initialize_from_profile<P, T, Role>(storage, value, @profile)
 }
 
 public machine Run::extract_cell<P, T, Role>(run: Run<P, T> in Live<P, T>)
@@ -72,23 +72,23 @@ ensures (match result {
     AccessExtraction::Moved { storage, value } -> storage.base == run.storage.base && storage.length == run.storage.length,
 })
 {
-    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(&run.storage);
-    Run::extract_from_profile<P, T, Role>(run, &profile)
+    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(@run.storage);
+    Run::extract_from_profile<P, T, Role>(run, @profile)
 }
 
 // The compiler realizes these exact declarations. The ordinary wrappers select
 // supply; the primitive must bind that completed call, actual backing, typed
 // cell geometry and transferred custody before publishing a successful result.
 boundary machine Run::initialize_from_profile<P, T, Role>(
-    storage: Extent in Granted & Vacant, value: T, profile: &ResourceProfile
+    storage: Extent in Granted & Vacant, value: T, profile: @ResourceProfile
 ) -> AccessOutcome<
-    Run<P, T> in Live<P, T> & Singleton<P, T>,
+    Run<P, T> in Live<P, T> @ Singleton<P, T>,
     AccessReturn<Extent in Granted & Vacant, T>,
     AccessInitializationFailure
 >;
 
 boundary machine Run::extract_from_profile<P, T, Role>(
-    run: Run<P, T> in Live<P, T>, profile: &ResourceProfile
+    run: Run<P, T> in Live<P, T>, profile: @ResourceProfile
 ) -> AccessExtraction<Extent in Granted & Vacant, T>
 requires run.count == 1;
 
@@ -119,12 +119,12 @@ ensures (match result {
         returned.custody.base == destination.base && returned.custody.length == destination.length,
 })
 {
-    let source_profile: ResourceProfile = ResourceProfileSupply<SourceRole>::profile(&run.storage);
+    let source_profile: ResourceProfile = ResourceProfileSupply<SourceRole>::profile(@run.storage);
     let destination_profile: ResourceProfile = ResourceProfileSupply<DestinationRole>::profile(
-        &destination as &Extent in Granted
+        @destination as @Extent in Granted
     );
     Run::relocate_from_profiles<P, T, SourceRole, DestinationRole>(
-        run, destination, &source_profile, &destination_profile
+        run, destination, @source_profile, @destination_profile
     )
 }
 
@@ -133,7 +133,7 @@ ensures (match result {
 // equal geometry or a copied descriptor is not evidence of that transfer.
 boundary machine Run::relocate_from_profiles<P, T, SourceRole, DestinationRole>(
     run: Run<P, T> in Live<P, T>, destination: Extent in Granted & Vacant,
-    source_profile: &ResourceProfile, destination_profile: &ResourceProfile
+    source_profile: @ResourceProfile, destination_profile: @ResourceProfile
 ) -> AccessOutcome<
     RunRelocation<P, T>,
     AccessReturn<Run<P, T> in Live<P, T>, Extent in Granted & Vacant>,

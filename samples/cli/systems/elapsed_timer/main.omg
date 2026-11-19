@@ -29,7 +29,7 @@ use omega_language_std::sleep_for;
 data Main {
 }
 
-machine main(context: &mut Main) reaches ProcessExit + Console + TimeHost {
+machine main(context: @mut Main) reaches ProcessExit + Console + TimeHost {
     Console::write_line("elapsed_timer: times a 50ms workload with std::time");
     let start: Instant = instant_now();
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
@@ -38,15 +38,15 @@ machine main(context: &mut Main) reaches ProcessExit + Console + TimeHost {
         true -> read_elapsed(context, start)
         false -> fail_request(context)
     }
-    machine read_elapsed(context: &mut Main, start: Instant) {
+    machine read_elapsed(context: @mut Main, start: Instant) {
         let elapsed: Duration = elapsed_since(start);
-        let total_result: TotalResult = duration_checked_as_milliseconds(&elapsed);
+        let total_result: TotalResult = duration_checked_as_milliseconds(@elapsed);
         transition total_result {
             TotalResult::Ok { total } -> render(context, total)
             TotalResult::Overflow -> fail_overflow(context)
         }
     }
-    machine render(context: &mut Main, milliseconds: u64) {
+    machine render(context: @mut Main, milliseconds: u64) {
         let digits: [u8; 10] = "0123456789";
         let mut line: [u8; 27] = "elapsed milliseconds: 00000";
         let ten_thousands: u64 = (milliseconds / 10000) % 10;
@@ -59,20 +59,20 @@ machine main(context: &mut Main) reaches ProcessExit + Console + TimeHost {
         line[24] = digits[hundreds];
         line[25] = digits[tens];
         line[26] = digits[ones];
-        Console::write_line(&line[..]);
+        Console::write_line(@line[..]);
         transition milliseconds >= 50 {
             true -> good(context)
             false -> fail_elapsed(context)
         }
     }
-    machine good(context: &mut Main) { ProcessExit::exit_process(70); }
-    machine fail_request(context: &mut Main) { ProcessExit::exit_process(1); }
-    machine fail_elapsed(context: &mut Main) { ProcessExit::exit_process(2); }
-    machine fail_overflow(context: &mut Main) { ProcessExit::exit_process(3); }
+    machine good(context: @mut Main) { ProcessExit::exit_process(70); }
+    machine fail_request(context: @mut Main) { ProcessExit::exit_process(1); }
+    machine fail_elapsed(context: @mut Main) { ProcessExit::exit_process(2); }
+    machine fail_overflow(context: @mut Main) { ProcessExit::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console + TimeHost {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

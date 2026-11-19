@@ -179,7 +179,7 @@ fn returned_fields_and_collection_measures_keep_their_exact_roles() {
         r#"
 data Counter { len: u64 }
 machine counter() -> Counter ensures result.len == 3 { Counter { len: 3 } }
-machine same<'backing>(items: &'backing [u8]) -> &'backing [u8]
+machine same<'backing>(items: @'backing [u8]) -> @'backing [u8]
 ensures result.len == items.len { items }
 "#,
         source_admission::SourceOrigin::User,
@@ -293,7 +293,7 @@ fn selected_byte_observation_executes_the_existing_operation_and_proves_equivale
     let verdicts = observed_program(
         r#"
 use omega::language::core::byte_observation;
-public machine checked<'input>(bytes: &'input [u8]) -> bool
+public machine checked<'input>(bytes: @'input [u8]) -> bool
 reaches none crashes none terminates
 ensures result == byte_observation::ascii_only(bytes)
 { byte_observation::ascii_only(bytes) }
@@ -326,7 +326,7 @@ fn a_constant_byte_wrapper_cannot_claim_the_observers_equivalence() {
     for result in ["true", "false"] {
         let source = format!(
             r#"
-public machine checked<'input>(bytes: &'input [u8]) -> bool
+public machine checked<'input>(bytes: @'input [u8]) -> bool
 reaches none crashes none terminates
 ensures result == byte_observation::ascii_only(bytes)
 {{ {result} }}
@@ -439,7 +439,7 @@ machine main() { let valid: bool = byte_observation::ascii_only("Room A1"); }
 
 #[test]
 fn byte_domains_form_an_explicit_shared_whole_observation_of_self() {
-    for (argument, accepted) in [("&self[..]", true), ("self", false)] {
+    for (argument, accepted) in [("@self[..]", true), ("self", false)] {
         let text = format!(
             r#"
 domain [u8; 2]::Ascii requires byte_observation::ascii_only({argument});
@@ -463,12 +463,12 @@ fn a_utf8_array_element_write_must_preserve_the_whole_sequence() {
     // Both starting arrays are UTF-8. The identical write keeps AB valid,
     // but turns C3 A9 into 41 A9, whose continuation byte has no lead.
     let positive_source = r#"
-domain [u8; 2]::Utf8 requires byte_observation::valid_utf8(&self[..]);
+domain [u8; 2]::Utf8 requires byte_observation::valid_utf8(@self[..]);
 machine main() crashes Trap {
     let plain: [u8; 2] = [65u8, 66u8];
     let mut bytes: [u8; 2] in Utf8 = plain as +Utf8;
     bytes[0] = 65u8;
-    let valid: bool = byte_observation::valid_utf8(&bytes[..]);
+    let valid: bool = byte_observation::valid_utf8(@bytes[..]);
     transition valid { true -> {} false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
@@ -537,14 +537,14 @@ machine main() crashes Trap {
 #[test]
 fn a_qualified_window_proves_its_domain_without_qualifying_the_raw_subslice() {
     let program = r#"
-domain [u8]::Utf8 requires byte_observation::valid_utf8(&self[..]);
-machine whole<'bytes>(bytes: &'bytes [u8] in Utf8) -> &'bytes [u8] in Utf8
+domain [u8]::Utf8 requires byte_observation::valid_utf8(@self[..]);
+machine whole<'bytes>(bytes: @'bytes [u8] in Utf8) -> @'bytes [u8] in Utf8
 requires bytes.len >= 1
 {
-    &bytes[..]
+    @bytes[..]
 }
 machine main() crashes Trap {
-    let bytes: &[u8] in Utf8 = whole("é" as +Utf8);
+    let bytes: @[u8] in Utf8 = whole("é" as +Utf8);
     transition bytes.len == 2 { true -> {} false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
@@ -571,7 +571,7 @@ machine main() crashes Trap {
         }
         execute_observed(accepted);
     }
-    let partial = program.replace("&bytes[..]", "&bytes[1..]");
+    let partial = program.replace("@bytes[..]", "@bytes[1..]");
     let refused = observed_program(&partial);
     assert!(
         refused.iter().any(|verdict| matches!(verdict,
@@ -659,13 +659,13 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
 #[test]
 fn an_indexed_store_proves_both_prior_and_replacement_byte_contents() {
     let positive = r#"
-domain [u8; 2]::Ascii requires byte_observation::ascii_only(&self[..]);
-machine put(bytes: &mut [u8; 2] in Ascii, index: u64, value: u8)
+domain [u8; 2]::Ascii requires byte_observation::ascii_only(@self[..]);
+machine put(bytes: @mut [u8; 2] in Ascii, index: u64, value: u8)
 requires index < 2, value <= 127u8
 { bytes[index] = value; }
 machine main() crashes Trap {
     let mut bytes: [u8; 2] in Ascii = [65u8, 90u8] as +Ascii;
-    put(&mut bytes, 1, 66u8);
+    put(@mut bytes, 1, 66u8);
     transition bytes[0] == 65u8 && bytes[1] == 66u8 {
         true -> {} false -> bad()
     }

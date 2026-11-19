@@ -77,7 +77,7 @@ def source_unit_customer():
  let id:SourceId=SourceId{value:77 as u32 +Trapping};
  unit.length=19; unit.last_retained=false;
  unit.bytes[0]=42;
- source_unit_clear(&mut unit,id);
+ source_unit_clear(@mut unit,id);
  transition (unit.id.value as -Trapping)==(id.value as -Trapping)
   && unit.length==0 && unit.last_retained
   && unit.bytes[0]==42 { true->42 false->1 }
@@ -143,8 +143,8 @@ def domain_cast_cases():
         ('implicit-declared-erasure', b'domain u8::Small requires self<100; machine chosen(x:u8 in Small)->u8{x}'),
         ('qualified-collection-needs-selected-operator', b'machine chosen()->u8 { let mut x:[u8;1] in Trapping; x[0]=42; 0 }'),
         ('qualified-index-needs-selected-operator', b'machine chosen()->u8 { let mut x:[u8;1]; let i:u8 in Trapping=0 as u8 +Trapping; x[i]=42; 0 }'),
-        ('qualified-range-start-needs-selected-operator', b'machine chosen()->u8 { let x:[u8;1]; let i:u8 in Trapping=0 as u8 +Trapping; let view:&[u8]=&x[i..1]; 0 }'),
-        ('qualified-range-end-needs-selected-operator', b'machine chosen()->u8 { let x:[u8;1]; let i:u8 in Trapping=1 as u8 +Trapping; let view:&[u8]=&x[0..i]; 0 }'),
+        ('qualified-range-start-needs-selected-operator', b'machine chosen()->u8 { let x:[u8;1]; let i:u8 in Trapping=0 as u8 +Trapping; let view:@[u8]=@x[i..1]; 0 }'),
+        ('qualified-range-end-needs-selected-operator', b'machine chosen()->u8 { let x:[u8;1]; let i:u8 in Trapping=1 as u8 +Trapping; let view:@[u8]=@x[0..i]; 0 }'),
         ('policy-peer-cannot-land-out-of-range', b'machine chosen()->u8{((1 as u8 +Wrapping)+256) as -Wrapping}'),
         ('policy-peer-keeps-fractional-history', b'machine chosen()->u8{((1 as u8 +Wrapping)+((5/2)*2)) as -Wrapping}'),
         ('policy-arithmetic-cannot-mix-policies', b'machine chosen()->u8{((1 as u8 +Wrapping)+(1 as u8 +Trapping)) as -Wrapping}'),
@@ -155,11 +155,11 @@ def domain_cast_cases():
         ('policy-unary-needs-selected-operator', b'machine chosen()->u8{(~(1 as u8 +Wrapping)) as -Wrapping}'),
         ('policy-shift-needs-selected-operator', b'machine chosen()->u8{((1 as u8 +Wrapping)<<1) as -Wrapping}'),
         ('policy-bitwise-needs-selected-operator', b'machine chosen()->u8{((1 as u8 +Wrapping)&1) as -Wrapping}'),
-        ('write-only-policy-reference-cannot-compare', b'machine chosen(view:&write u8 in Wrapping)->bool{view==0}'),
-        ('write-only-policy-reference-cannot-compute', b'machine chosen(view:&write u8 in Wrapping)->u8{(view+1) as -Wrapping}'),
-        ('write-only-policy-peer-cannot-compare', b'machine chosen(view:&write u8 in Wrapping)->bool{(1 as u8 +Wrapping)==view}'),
-        ('nested-write-only-policy-reference-cannot-compare', b'machine chosen(view:& &write u8 in Wrapping)->bool{view==0}'),
-        ('nested-write-only-reference-cannot-read', b'machine chosen(view:& &write u8)->u8{view}'),
+        ('write-only-policy-reference-cannot-compare', b'machine chosen(view:@write u8 in Wrapping)->bool{view==0}'),
+        ('write-only-policy-reference-cannot-compute', b'machine chosen(view:@write u8 in Wrapping)->u8{(view+1) as -Wrapping}'),
+        ('write-only-policy-peer-cannot-compare', b'machine chosen(view:@write u8 in Wrapping)->bool{(1 as u8 +Wrapping)==view}'),
+        ('nested-write-only-policy-reference-cannot-compare', b'machine chosen(view:@ @write u8 in Wrapping)->bool{view==0}'),
+        ('nested-write-only-reference-cannot-read', b'machine chosen(view:@ @write u8)->u8{view}'),
         ('qualified-byte-elements-need-equality-operator', b'machine chosen()->u8{let x:[u8 in Wrapping;1];let same:bool=x==x;42}'),
     ):
         refused(name, source, 249)
@@ -173,9 +173,9 @@ def domain_cast_cases():
     refused('plain-integer-comparison-keeps-mixed-carriers',
             b'machine chosen()->u8 ensures (-1 as i8)<(10 as u8){42}', 246)
     refused('shared-policy-reference-keeps-scalar-read',
-            b'machine chosen()->u8{let x:u8 in Wrapping=41 as u8 +Wrapping;((&x)+1) as -Wrapping}', 246)
+            b'machine chosen()->u8{let x:u8 in Wrapping=41 as u8 +Wrapping;((@x)+1) as -Wrapping}', 246)
     refused('mutable-policy-reference-keeps-scalar-read',
-            b'machine chosen()->u8{let mut x:u8 in Wrapping=41 as u8 +Wrapping;((&mut x)+1) as -Wrapping}', 246)
+            b'machine chosen()->u8{let mut x:u8 in Wrapping=41 as u8 +Wrapping;((@mut x)+1) as -Wrapping}', 246)
     for policy, expected in ((b'Wrapping', b'0'), (b'Saturating', b'255')):
         source = (b'machine chosen()->u8 ensures (((255 as u8 +' + policy
                   + b')+1) as -' + policy + b')==' + expected + b'{42}')
@@ -188,82 +188,82 @@ def domain_cast_cases():
             source_unit.replace(b'[0]=42', b'[131072]=42'), 247, 1)
     refused('SourceUnit-view-keeps-shared-access',
             source_unit.replace(b'unit.bytes[0]=42',
-                                b'(&unit.bytes)[0]=42'), 249, 1)
+                                b'(@unit.bytes)[0]=42'), 249, 1)
     refused('shared-reference-binding-does-not-make-referent-mutable',
-            b'machine chosen()->u8{let mut bytes:[u8;1];let mut view:&[u8;1]=&bytes;view[0]=42;0}', 249)
+            b'machine chosen()->u8{let mut bytes:[u8;1];let mut view:@[u8;1]=@bytes;view[0]=42;0}', 249)
     refused('chained-view-keeps-call-argument-loan', b"""
-machine write(a:&mut [u8;1],b:&mut [u8;1]) { a[0]=1; b[0]=2; }
+machine write(a:@mut [u8;1],b:@mut [u8;1]) { a[0]=1; b[0]=2; }
 machine chosen()->u8 {
  let mut bytes:[u8;1] in Trapping;
- write(((&mut bytes as -Trapping) as +Trapping) as -Trapping, &mut bytes as -Trapping);
+ write(((@mut bytes as -Trapping) as +Trapping) as -Trapping, @mut bytes as -Trapping);
  0
 }""", 247)
     refused('chained-view-keeps-held-local-loan', b"""
 machine chosen()->u8 {
  let mut bytes:[u8;1] in Trapping;
- let view:&mut [u8;1]=((&mut bytes as -Trapping) as +Trapping) as -Trapping;
- (&mut bytes as -Trapping)[0]=1;
+ let view:@mut [u8;1]=((@mut bytes as -Trapping) as +Trapping) as -Trapping;
+ (@mut bytes as -Trapping)[0]=1;
  view[0]=2;
  0
 }""", 247)
     refused('chained-view-cannot-escape-owned-local', b"""
-machine escaped()->&[u8;1] {
+machine escaped()->@[u8;1] {
  let bytes:[u8;1] in Trapping;
- ((&bytes as -Trapping) as +Trapping) as -Trapping
+ ((@bytes as -Trapping) as +Trapping) as -Trapping
 }
 machine chosen()->u8 { 42 }
 """, 247)
     for name, source, status in (
         ('single-view-owned-local',
-         b'machine escaped()->&[u8;1]{let bytes:[u8;1] in Trapping;&bytes as -Trapping}', 247),
+         b'machine escaped()->@[u8;1]{let bytes:[u8;1] in Trapping;@bytes as -Trapping}', 247),
         ('chained-view-local-holder',
-         b'machine escaped()->&[u8;1]{let bytes:[u8;1] in Trapping;'
-         b'let view:&[u8;1]=((&bytes as -Trapping) as +Trapping) as -Trapping;view}', 247),
+         b'machine escaped()->@[u8;1]{let bytes:[u8;1] in Trapping;'
+         b'let view:@[u8;1]=((@bytes as -Trapping) as +Trapping) as -Trapping;view}', 247),
         ('chained-view-owned-parameter',
-         b'machine escaped(bytes:[u8;1] in Trapping)->&[u8;1]{'
-         b'((&bytes as -Trapping) as +Trapping) as -Trapping}', 247),
+         b'machine escaped(bytes:[u8;1] in Trapping)->@[u8;1]{'
+         b'((@bytes as -Trapping) as +Trapping) as -Trapping}', 247),
         ('chained-view-reference-parameter',
-         b'machine escaped(bytes:&[u8;1] in Trapping)->&[u8;1]{'
+         b'machine escaped(bytes:@[u8;1] in Trapping)->@[u8;1]{'
          b'((bytes as -Trapping) as +Trapping) as -Trapping}', 246),
         ('chained-view-reference-holder',
-         b'machine escaped(bytes:&[u8;1] in Trapping)->&[u8;1]{'
-         b'let view:&[u8;1]=((bytes as -Trapping) as +Trapping) as -Trapping;view}', 246),
+         b'machine escaped(bytes:@[u8;1] in Trapping)->@[u8;1]{'
+         b'let view:@[u8;1]=((bytes as -Trapping) as +Trapping) as -Trapping;view}', 246),
     ):
         refused(name, source + b' machine chosen()->u8{42}', status)
     # Array policy casts transport values and their captured loans. These
     # positives reach the backend's explicit aggregate/signature boundary;
     # the matched ownership violations must fail in checking first.
     refused('aggregate-cast-keeps-parameter-backed-loan', b"""
-machine forward(value:&u8)->[&u8;1] in Trapping {
- let refs:[&u8;1]=[value];
- let viewed:[&u8;1] in Trapping=refs as +Trapping as =Trapping;
+machine forward(value:@u8)->[@u8;1] in Trapping {
+ let refs:[@u8;1]=[value];
+ let viewed:[@u8;1] in Trapping=refs as +Trapping as =Trapping;
  viewed
 }
 """, 246)
     refused('aggregate-cast-cannot-return-local-backed-loan', b"""
-machine leak()->[&u8;1] in Trapping {
+machine leak()->[@u8;1] in Trapping {
  let value:u8=42;
- let refs:[&u8;1]=[&value];
+ let refs:[@u8;1]=[@value];
  refs as +Trapping
 }
 """, 247)
     refused('aggregate-cast-copied-holder-cannot-escape', b"""
-machine leak()->[&u8;1] in Trapping {
+machine leak()->[@u8;1] in Trapping {
  let value:u8=42;
- let refs:[&u8;1]=[&value];
- let viewed:[&u8;1] in Trapping=refs as +Trapping as =Trapping;
+ let refs:[@u8;1]=[@value];
+ let viewed:[@u8;1] in Trapping=refs as +Trapping as =Trapping;
  viewed
 }
 """, 247)
     # Keep the returned reference parameter-backed so removal of just the
     # conflicting write produces a valid checker path, without a local escape.
     held_cast = b"""
-machine kept(result:&u8)->[&u8;1] {
+machine kept(result:@u8)->[@u8;1] {
  let mut value:u8=42;
- let refs:[&u8;1]=[&value];
- let viewed:[&u8;1] in Trapping=refs as +Trapping;
+ let refs:[@u8;1]=[@value];
+ let viewed:[@u8;1] in Trapping=refs as +Trapping;
  value=7;
- let plain:[&u8;1]=viewed as -Trapping;
+ let plain:[@u8;1]=viewed as -Trapping;
  [result]
 }
 """
@@ -311,7 +311,7 @@ machine chosen()->u8 {
 }
 """, 247)
     refused('numeric-cast-read-does-not-move-reference', b"""
-machine observe(value:&mut u8)->u8 {
+machine observe(value:@mut u8)->u8 {
  let copy:u8=value as u8;
  value=7;
  copy
@@ -339,7 +339,7 @@ def storage_cases():
             source.replace(b'[0]=42', b'[131072]=42'), 247, 1)
     refused('actual-SourceUnit-shared-view-cannot-store',
             source.replace(b'unit.bytes[0]=42',
-                           b'(&unit.bytes)[0]=42'), 249, 1)
+                           b'(@unit.bytes)[0]=42'), 249, 1)
 
     accepted('packed-field-stores-retain-siblings', b'''
 data Packet [copy] { first:u8; half:u16; word:u32; last:u8; }
@@ -386,11 +386,11 @@ machine chosen()->u8 {
 data Pair [copy] { first:u8; second:u8; }
 machine chosen()->u8 {
  let mut pair:Pair=Pair{first:42,second:19};
- let before:u8=take(pair,change(&mut pair));
+ let before:u8=take(pair,change(@mut pair));
  transition before==42 && pair.first==7 && pair.second==19 {true->42 false->1}
 }
 machine take(before:Pair,ignored:u8)->u8 {before.first}
-machine change(pair:&mut Pair)->u8 {pair.first=7;0}
+machine change(pair:@mut Pair)->u8 {pair.first=7;0}
 ''', 42)
     accepted('constructor-evaluates-before-overwriting-target', b'''
 data Pair [copy] { first:u8; second:u8; }
@@ -401,29 +401,29 @@ machine chosen()->u8 {
 }
 ''', 42)
     accepted('terminal-call-retains-borrowed-caller-local', b'''
-machine chosen()->u8 {let value:u8=42;transition {_ -> read(&value)}}
-machine read(value:&u8)->u8 {value}
+machine chosen()->u8 {let value:u8=42;transition {_ -> read(@value)}}
+machine read(value:@u8)->u8 {value}
 ''', 42)
     accepted('terminal-call-writes-borrowed-caller-local', b'''
-machine chosen()->u8 {let mut value:u8=1;transition {_ -> replace(&mut value)}}
-machine replace(value:&mut u8)->u8 {value=42;value}
+machine chosen()->u8 {let mut value:u8=1;transition {_ -> replace(@mut value)}}
+machine replace(value:@mut u8)->u8 {value=42;value}
 ''', 42)
     accepted('short-circuit-skips-complete-call-effects', b'''
 machine chosen()->u8 {
  let mut value:u8=0;
- let left:bool=false && change(&mut value);
- let right:bool=true || change(&mut value);
+ let left:bool=false && change(@mut value);
+ let right:bool=true || change(@mut value);
  transition value==0 && !left && right {true->42 false->1}
 }
-machine change(value:&mut u8)->bool {value=7;true}
+machine change(value:@mut u8)->bool {value=7;true}
 ''', 42)
     accepted('short-circuit-executes-selected-call-effects', b'''
 machine chosen()->u8 {
  let mut value:u8=0;
- let result:bool=true && change(&mut value);
+ let result:bool=true && change(@mut value);
  transition value==7 && result {true->42 false->1}
 }
-machine change(value:&mut u8)->bool {value=7;true}
+machine change(value:@mut u8)->bool {value=7;true}
 ''', 42)
     accepted('nested-calls-preserve-all-staged-arguments', b'''
 machine chosen()->u8 {outer(one(),inner(twenty(),twenty_one()))}
@@ -459,25 +459,25 @@ machine make()->Pair {Pair{value:42}}
     refused('nested-reference-projection-needs-dereference-path', b'''
 data Word [copy] {value:u8;}
 machine chosen()->u8 {42}
-machine read(view:& &Word)->u8 {view.value}
+machine read(view:@ @Word)->u8 {view.value}
 ''', 246)
     refused('stored-reference-fields-remain-explicit-coverage', b'''
-data View [copy] {value:&u8;}
-machine chosen()->u8 {let value:u8=42;let view:View=View{value:&value};42}
+data View [copy] {value:@u8;}
+machine chosen()->u8 {let value:u8=42;let view:View=View{value:@value};42}
 ''', 246)
     refused('storage-call-keeps-exclusive-argument-obligations', b'''
-machine chosen()->u8 {let mut value:u8=0;write(&mut value,&mut value);42}
-machine write(left:&mut u8,right:&mut u8) {left=1;right=2;}
+machine chosen()->u8 {let mut value:u8=0;write(@mut value,@mut value);42}
+machine write(left:@mut u8,right:@mut u8) {left=1;right=2;}
 ''', 247)
     refused('storage-call-keeps-local-reference-escape-check', b'''
 machine chosen()->u8 {42}
-machine escaped()->&u8 {let value:u8=42;&value}
+machine escaped()->@u8 {let value:u8=42;@value}
 ''', 247)
     refused('computed-reference-target-needs-descriptor-place', b'''
 machine chosen()->u8 {
  let mut value:u8=17;
  let mut other:u8=42;
- (&mut value)=&mut other;
+ (@mut value)=@mut other;
  value
 }
 ''', 246)

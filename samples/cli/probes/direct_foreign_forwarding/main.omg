@@ -8,11 +8,11 @@ data NativeUnused {}
 // Checked source may retain a table declaration beyond this target's native
 // record-layout envelope when no executed call demands its realization.
 data UnusedWideTable { padding: [u8; 65536]; invoke: addr; }
-boundary trait UnusedWideCall { machine invoke(table: &UnusedWideTable) -> u32 reaches crashes none; }
-windows_x86_64 machine UnusedWideTable::invoke(table: &UnusedWideTable) -> u32
+boundary trait UnusedWideCall { machine invoke(table: @UnusedWideTable) -> u32 reaches crashes none; }
+windows_x86_64 machine UnusedWideTable::invoke(table: @UnusedWideTable) -> u32
 satisfies UnusedWideCall::invoke via ForeignBinding::TableFunction(invoke);
 UnusedWideProvider satisfies UnusedWideCall {
-    machine invoke(table: &UnusedWideTable) -> u32 { 0 }
+    machine invoke(table: @UnusedWideTable) -> u32 { 0 }
 }
 machine windows_process_binding() -> ForeignBinding<12, 19, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName {

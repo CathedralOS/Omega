@@ -75,6 +75,22 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Callable analysis loses arguments passed to checked providers
+
+- Category: Re-deriving.
+- Where: [Native callable preparation](omega-rust/omega/compilation/pipeline/03_native-program-planning/src/preparation/callable_invocations.rs) and [Psi execution checks](omega-rust/psi/interpreter/src/engine_execution.rs).
+- Saw: Target lowering and the interpreter each know which checked body the boundary call will enter. Their callable analysis still treats that call as opaque, so it never passes the caller's actual machine value to the provider.
+- Cost: The Build-selected dispatch example passes source checking. Native stack planning cannot bound the indirect call, and Psi's execution check cannot establish how it reaches the provider's body.
+- Reported: 2026-11-18, Codex, while migrating Build-selected dispatch to machine values.
+
+### Invocation inference loses the parameter behind a callable alias
+
+- Category: One idea, several implementations.
+- Where: [Source inference](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/services.rs#L471) and [callable origin checking](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/ceilings.rs#L479).
+- Saw: Source inference adds a callable parameter to the invocation ceiling when the call targets the parameter slot directly. The checker follows the callable through a local copy and recovers the parameter even when the call targets another slot.
+- Cost: The inferred ceiling is empty for `let alias = selected; alias(...)`, so checking rejects a valid call. Inference and checking need the same callable origin information.
+- Reported: 2026-11-18, Codex, while migrating the local runtime selection sample.
+
 ### Package review recovery cannot verify structural parameter indices
 
 - Category: A verdict with nothing behind it.

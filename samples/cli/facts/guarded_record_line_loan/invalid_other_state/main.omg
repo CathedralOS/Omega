@@ -11,26 +11,26 @@ data ReadOutcome {
     case End(count: u64);
     case Full(count: u64);
 }
-machine receive(line: &mut [u8; 64], end: bool) -> ReadOutcome {
+machine receive(line: @mut [u8; 64], end: bool) -> ReadOutcome {
     line[0] = 37;
     match end { true -> ReadOutcome::End { count: 5 }, false -> ReadOutcome::Complete { count: 5 } }
 }
-machine exercise(application: &Application, end: bool) -> bool {
+machine exercise(application: @Application, end: bool) -> bool {
     transition { _ -> read(application, end) }
-    machine read(application: &Application, end: bool) -> bool {
+    machine read(application: @Application, end: bool) -> bool {
         let mut line: [u8; 64];
-        let result: ReadOutcome = receive(&mut line, end);
+        let result: ReadOutcome = receive(@mut line, end);
         transition result {
-            ReadOutcome::Complete { count } -> relay(application, &line, count)
-            ReadOutcome::End { count } -> relay(application, &line, count)
+            ReadOutcome::Complete { count } -> relay(application, @line, count)
+            ReadOutcome::End { count } -> relay(application, @line, count)
             ReadOutcome::Full { count } -> (false)
             ReadOutcome::Invalid -> (false)
         }
     }
-    machine relay(application: &Application, line: &[u8; 64], count: u64) -> bool {
+    machine relay(application: @Application, line: @[u8; 64], count: u64) -> bool {
         transition { _ -> observe(application, line, count) }
     }
-    machine observe(application: &Application, line: &[u8; 64], count: u64) -> bool {
+    machine observe(application: @Application, line: @[u8; 64], count: u64) -> bool {
         application.ledger.count = count as u64 in Wrapping;
         ((line[0] as u64 in Wrapping) + application.ledger.count) == 42
     }
@@ -38,10 +38,10 @@ machine exercise(application: &Application, end: bool) -> bool {
 machine main() crashes Trap {
     let mut application: Application;
     application.ledger.count = 99;
-    let complete: bool = exercise(&application, false);
+    let complete: bool = exercise(@application, false);
     let completed_count: u64 in Wrapping = application.ledger.count;
     application.ledger.count = 99;
-    let ended: bool = exercise(&application, true);
+    let ended: bool = exercise(@application, true);
     transition complete && completed_count == 5 && ended && application.ledger.count == 5 {
         true -> done()
         false -> wrong()

@@ -9,7 +9,7 @@ data DestinationSlot {
     written: u64 in WrittenBound;
 }
 
-machine initialize_destination(destination: &write DestinationSlot) {
+machine initialize_destination(destination: @write DestinationSlot) {
     destination.written = 35u64;
 }
 
@@ -19,7 +19,7 @@ machine probe() -> u64
 ensures
     result <= 95u64 {
     let mut slot: DestinationSlot = DestinationSlot { written: 0u64 };
-    initialize_destination(&write slot);
+    initialize_destination(@write slot);
     SUBTRAHEND_CEILING - slot.written
 }
 

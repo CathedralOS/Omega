@@ -8,12 +8,12 @@ capability. Every plan now states its issuance when it is built:
 
 ```omega
 // before: the second line is forgettable
-let mut plan: AccessPlan = AccessPlan::new(&schema);
-AccessPlan::establish(&mut plan, [reflect::callable(choose_folder)]);
+let mut plan: AccessPlan = AccessPlan::new(@schema);
+AccessPlan::establish(@mut plan, [reflect::callable(choose_folder)]);
 
 // after: no plan exists without the choice
 let plan: AccessPlan = AccessPlan::new(
-    &schema,
+    @schema,
     Issuance::Only { routes: [reflect::callable(choose_folder)] }
 );
 

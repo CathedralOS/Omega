@@ -5,11 +5,11 @@ use omega::language::core::ScalarBound;
 use omega::language::core::reflect;
 data First { #0 counter: u32; }
 data Second { #0 counter: u32; #1 timestamp: u32; }
-machine inspect(bound: &mut ScalarBound) { reflect::inspect_record_fields<Second, CompactBinary::max_scalar_field>(bound); }
+machine inspect(bound: @mut ScalarBound) { reflect::inspect_record_fields<Second, CompactBinary::max_scalar_field>(bound); }
 const BOUND: ScalarBound = CompactBinary::scalar_bound<inspect>();
-machine accept(bound: &ScalarBound) requires bound.valid && bound.bytes == 7u64 {}
+machine accept(bound: @ScalarBound) requires bound.valid && bound.bytes == 7u64 {}
 machine main() crashes Trap {
-    accept(&BOUND);
+    accept(@BOUND);
     transition BOUND.valid && BOUND.bytes == 7u64 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

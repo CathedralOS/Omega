@@ -7,12 +7,12 @@
 data Record { written: u64; }
 
 boundary trait TargetConstants {
-    machine record(into: &mut Record) -> u64 reaches none crashes none;
+    machine record(into: @mut Record) -> u64 reaches none crashes none;
     machine no_follow_flag() -> u64 reaches none crashes none;
 }
 
 // A selection row names an ordinary machine that satisfies one member.
-machine windows_record(into: &mut Record) -> u64 satisfies TargetConstants::record {
+machine windows_record(into: @mut Record) -> u64 satisfies TargetConstants::record {
     into.written = 3;
     256
 }
@@ -25,21 +25,21 @@ WindowsConstants satisfies TargetConstants {
 
 // Inline members declare the machines in the map itself.
 LinuxConstants satisfies TargetConstants {
-    machine record(into: &mut Record) -> u64 { into.written = 3; 256 }
+    machine record(into: @mut Record) -> u64 { into.written = 3; 256 }
     machine no_follow_flag() -> u64 { 256 }
 }
 
 MacosConstants satisfies TargetConstants {
-    machine record(into: &mut Record) -> u64 { into.written = 3; 512 }
+    machine record(into: @mut Record) -> u64 { into.written = 3; 512 }
     machine no_follow_flag() -> u64 { 512 }
 }
 
 // An ordinary helper calls the requirement; the Build row decides the body.
-machine record_through(into: &mut Record) -> u64 { TargetConstants::record(into) }
+machine record_through(into: @mut Record) -> u64 { TargetConstants::record(into) }
 
 machine main() crashes Trap {
     let mut record: Record = Record { written: 0 };
-    let recorded: u64 = record_through(&mut record);
+    let recorded: u64 = record_through(@mut record);
     let flag: u64 = TargetConstants::no_follow_flag();
     transition record.written == 3 && recorded == flag {
         true -> accepted()

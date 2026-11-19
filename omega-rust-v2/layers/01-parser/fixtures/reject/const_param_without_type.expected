@@ -1,0 +1,4 @@
+error UnexpectedToken at 1:18 bytes 17..18
+  found: >
+  expected: `:`
+  expected `:`

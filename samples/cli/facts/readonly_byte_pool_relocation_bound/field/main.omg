@@ -3,10 +3,10 @@
 // Expected exit: 0
 
 data Held<'view> {
-    bytes: &'view [u8];
+    bytes: @'view [u8];
 }
 
-machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap
+machine inspect_bytes(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {

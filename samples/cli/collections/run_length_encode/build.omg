@@ -1,7 +1,7 @@
 // run_length_encode build sketch -- console-only subject; cross-platform providers map
 // stdout/exit to OS calls on each hosted target.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "run_length_encode");
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../../../source/library/std"

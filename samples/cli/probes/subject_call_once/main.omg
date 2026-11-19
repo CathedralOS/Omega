@@ -15,33 +15,33 @@
 
 data Tally { calls: u64; }
 
-machine Main::roll(tally: &mut Tally) -> bool {
+machine Main::roll(tally: @mut Tally) -> bool {
     tally.calls = ((tally.calls as u64 in Wrapping) + 1) as u64;
     transition { _ -> false }
 }
 
 data Main { tally: Tally; hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.tally.calls = 40;
-    transition Main::roll(&mut main.tally) {
+    transition Main::roll(@mut main.tally) {
         true -> first(main)
         false -> second(main)
     }
-    machine first(main: &mut Main) { main.hits = 1; }
-    machine second(main: &mut Main) {
+    machine first(main: @mut Main) { main.hits = 1; }
+    machine second(main: @mut Main) {
         transition main.tally.calls == 41 {
             true -> good(main)
             _ -> bad(main)
         }
     }
-    machine good(main: &mut Main) { main.hits = 2; }
-    machine bad(main: &mut Main) { main.hits = -1; }
+    machine good(main: @mut Main) { main.hits = 2; }
+    machine bad(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

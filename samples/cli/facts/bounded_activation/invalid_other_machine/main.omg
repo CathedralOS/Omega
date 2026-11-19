@@ -7,12 +7,12 @@ use omega::language::core::ActivationClaim::release;
 use omega::language::core::ActivationClaimAttempt;
 
 data Accessor {}
-machine Accessor::write_read(bytes: &mut [u8]) -> u8 {
+machine Accessor::write_read(bytes: @mut [u8]) -> u8 {
     transition bytes.len >= 3 {
         true -> access(bytes)
         false -> (0u8)
     }
-    machine access(bytes: &mut [u8]) -> u8
+    machine access(bytes: @mut [u8]) -> u8
     requires bytes.len >= 3 {
         bytes[2] = 37u8;
         bytes[2]
@@ -26,7 +26,7 @@ machine main() crashes Trap {
     }
     machine established(claim: ActivationClaim) {
         let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
+        let bytes: @mut [u8] = ActivationClaim::bytes(@mut live);
         let observed: u8 = Accessor::write_read(bytes);
         ActivationClaim::release(live);
         let length: u64 = bytes.len;

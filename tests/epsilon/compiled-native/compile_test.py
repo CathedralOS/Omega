@@ -15,19 +15,19 @@ import traceback
 
 ROOT = Path(__file__).resolve().parents[3]
 COMPILER = ROOT / 'bootstrap/independent/epsilon'
-SPEC = importlib.util.spec_from_file_location('epsilon_composition', COMPILER / 'composition.py')
+FIXTURES = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location('epsilon_composition', FIXTURES / 'composition.py')
 composition = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(composition)
-FIXTURES = Path(__file__).resolve().parent
 CONSOLE = b'''boundary trait Console {
  machine exit_process(return_code: i32) -> never;
  machine write_byte(value: i32);
  machine read_byte() -> i32;
- machine write_line(text: &[u8]);
+ machine write_line(text: @[u8]);
 }
 data Main { console: Console; }
 '''
-EMPTY_MAIN = b'machine Main::main(&mut self) {}\n'
+EMPTY_MAIN = b'machine Main::main(@mut self) {}\n'
 CONTROLS = [
     ('count', '5', 5), ('call', '5', 6),
     ('add_overflow', '', ('trap', 1)),
@@ -51,17 +51,81 @@ def identity(data):
     return {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
 
 
+def digit_scanner(base, boundary, program, observe, reference, compiler):
+    lexer = (base / 'lexer.epsilon').read_bytes()
+
+    def methods(first, after):
+        return lexer[lexer.index(b'machine OmegaLexScan::' + first + b'('):
+                     lexer.index(b'machine OmegaLexScan::' + after + b'(')]
+
+    source = ((base / 'representations.epsilon').read_bytes()
+              + (base / 'lexical_classification.epsilon').read_bytes()
+              + lexer[:lexer.index(b'machine OmegaLexScan::reject(')]
+              + methods(b'emit', b'span_equals') + methods(b'consume_digits', b'set_punctuation')
+              + boundary + (FIXTURES / 'lexer_digits_main.epsilon').read_bytes())
+
+    def owner_span(name):
+        start = source.index(b'data ' + name + b' {') + len(b'data ')
+        return start, start + len(name)
+
+    def case_span(owner, name):
+        low, _ = owner_span(owner)
+        member = b'case ' + name + b';'
+        start = source.index(member, low, source.index(b'}', low))
+        return start, start + len(member)
+
+    main_low, main_high = owner_span(b'Main')
+    main_type = f'(EpsilonNamedType 0 0 (EpsilonNameSpan {main_low} {main_high}))'
+    entry = ((FIXTURES / 'lexer_digits_driver.delta').read_bytes()
+             + f'(def main ((input Bytes)) Bytes (test_digits_entry {main_type} input))\n'.encode())
+    target, report = program(source, 'lexer-digits', entry)
+    expected = b'\0' + struct.pack('<i', 42)
+    assert observe(target) == reference(source, b'', 'lexer-digits-source') == expected
+
+    # The same spelling in a foreign owner fails checking at the authored call.
+    call = b'omega_digit_in_base(49, copy[0])'
+    offset = source.index(call)
+    invalid = source.replace(call, b'omega_digit_in_base(49, self.other)', 1)
+    assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
+    assert reference(invalid, b'', 'lexer-digits-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
+
+    # Bypass the Epsilon checker at the target interface to exercise states
+    # impossible in valid source. A wildcard may only accept a known member.
+    number = b'OmegaNumericBase'
+    owner = owner_span(number)
+    owner_end = source.index(b'}', owner[0]) + 1
+    internal = b'\xffEEOUT\1\0' + bytes((3, 2, 0, 0)) + struct.pack('<IQQQ', 1, owner_end, 0, 0)
+    binary = case_span(number, b'Binary')
+    cases = [
+        ('binary', 0, binary, b'\0'), ('octal', 0, case_span(number, b'Octal'), b'\1'),
+        ('decimal', 0, case_span(number, b'Decimal'), b'\1'), ('default-binary', 1, owner, b'\0'),
+        ('foreign-case', 0, case_span(b'OtherBase', b'Binary'), internal),
+        ('foreign-default', 1, owner_span(b'OtherBase'), internal),
+        ('wrong-end', 0, (binary[0], binary[1] - 1), internal),
+        ('wrong-start', 0, (binary[0] + 1, binary[1]), internal),
+        ('supplied-payload', 2, binary, internal), ('declared-payload', 3, binary, internal),
+        ('record-children', 4, owner, internal), ('indexed-children', 5, owner, internal),
+        ('scalar', 6, owner, internal),
+    ]
+    report['cases'] = []
+    for label, kind, span, expected in cases:
+        actual = observe(target, struct.pack('<BII', kind, *span))
+        assert actual == expected, (label, actual, expected)
+        report['cases'].append({'name': label, 'output': identity(actual)})
+    return report
+
+
 def stored_customers(work, observe, compile_delta, reference, compiler):
     boundary = CONSOLE[:CONSOLE.index(b'data Main')]
     driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
 
-    def program(source, name):
+    def program(source, name, entry=driver):
         (work / f'{name}.epsilon').write_bytes(source)
         observation = observe(compiler, source)
         (work / f'{name}.observation').write_bytes(observation)
         generated, runtime = composition.decode_module(observation)
         assert runtime == 'storage', observation[:80]
-        target = composition.program_source(generated, driver, runtime)
+        target = composition.program_source(generated, entry, runtime)
         executable = compile_delta(target, name)
         return executable, {'source': identity(source), 'generated': identity(generated),
                             'target': identity(target), 'image': identity(executable.read_bytes())}
@@ -92,21 +156,65 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
             assert fields[12] == 0 and fields[13] == 0, fields
         request_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
 
-    # Keep the complete production reset, fail_stage and reject machines.
+    # The production keyword classifier compares its actual literal views.
     lexer = (base / 'lexer.epsilon').read_bytes()
     source = ((base / 'representations.epsilon').read_bytes()
-              + lexer[:lexer.index(b'machine OmegaLexScan::emit(')] + boundary
+              + lexer[:lexer.index(b'machine OmegaLexScan::scan_whitespace(')] + boundary
               + (FIXTURES / 'lexer_diagnostic_main.epsilon').read_bytes())
-    executable, diagnostic_report = program(source, 'lexer-diagnostic')
-    output = observe(executable)
-    assert output == reference(source, b'', 'lexer-diagnostic-reference') == b'\0' + struct.pack('<i', 42)
-    diagnostic_report['output'] = identity(output)
+    main_start = source.index(b'Main::main(')
+    span = f'{main_start} {main_start + len("Main")}'
+    main_type = f'(EpsilonNamedType {span} (EpsilonNameSpan {span}))'
+    entry = ((FIXTURES / 'lexer_case_driver.delta').read_bytes()
+             + f'(def main ((input Bytes)) Bytes (test_lexer_entry {main_type} input))\n'.encode())
+    executable, diagnostic_report = program(source, 'lexer-diagnostic', entry)
+
+    def case_span(owner, name):
+        owner_start = source.index(b'data ' + owner + b' {')
+        owner_end = source.index(b'}', owner_start)
+        declaration = b'case ' + name + b';'
+        start = source.index(declaration, owner_start, owner_end)
+        return struct.pack('<II', start, start + len(declaration))
+
+    expected_exit = b'\0' + struct.pack('<i', 42)
+    diagnostic_report['cases'] = []
+    keyword = case_span(b'OmegaTokenKind', b'Keyword')
+    identifier = case_span(b'OmegaTokenKind', b'Identifier')
+    for label, word, observed_cases in [
+            ('empty', b'', b''), ('as', b'as', keyword + case_span(b'OmegaKeywordKind', b'As')),
+            ('copy', b'copy', keyword + case_span(b'OmegaKeywordKind', b'Copy')),
+            ('identifier', b'aside', identifier),
+            ('bounds', b'\xff', identifier)]:
+        expected = b'\x01\x06' if label == 'bounds' else expected_exit
+        assert reference(source, word, f'lexer-diagnostic-{label}') == expected
+        output = observe(executable, word)
+        # The token after a refused empty span and the keyword of an identifier
+        # are unspecified. Only check fields committed by the lexer.
+        required = expected + keyword + observed_cases
+        assert output.startswith(required) and len(output) - len(expected) in (8, 16, 24), (label, output)
+        diagnostic_report['cases'].append({'input': identity(word), 'output': identity(output)})
+
+    malformed = source.replace(br'\x00\t', br'\x0g\t', 1)
+    offset = malformed.index(br'\x0g')
+    assert observe(compiler, malformed) == b'rejected 5 ' + str(offset).encode()
+    assert reference(malformed, b'', 'lexer-invalid-string') == b'\x02\x05' + struct.pack('<I', offset)
 
     # Substitute a different sum owner at the same call and check its exact diagnostic.
     offset = source.index(b'self.scanner.reject(self.diagnostic,')
     invalid = source.replace(b'reject(self.diagnostic,', b'reject(self.scanner.token_kind,', 1)
     assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
     assert reference(invalid, b'', 'lexer-diagnostic-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
+
+    offset = source.index(b'self.scanner.set_keyword(OmegaKeywordKind::As)')
+    invalid = source.replace(b'self.scanner.set_keyword(OmegaKeywordKind::As)',
+                             b'self.scanner.set_keyword(OtherKeyword::As)', 1)
+    assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
+    assert reference(invalid, b'', 'stored-case-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
+
+    payload = source + (b'\ndata Number { case Box(value: i32); }\n'
+                        b'machine Main::save_number(@mut self) { let number: Number = Number::Box(7); }\n')
+    offset = payload.index(b'Number::Box(7)')
+    assert observe(compiler, payload) == b'unsupported ' + str(offset).encode()
+    assert reference(payload, b'', 'stored-case-payload') == expected_exit
 
     source = boundary + (FIXTURES / 'storage_main.epsilon').read_bytes()
     executable, storage_report = program(source, 'storage-target')
@@ -123,13 +231,25 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     assert actual == b'\0' + struct.pack('<i', 42) + b'A', actual
     storage_report['native_state_transfers'] = 300000
 
-    # A free function can take a literal enum. Reading a live parameter for
-    # that ABI needs a conversion before the compiler can emit a module.
+    # The live value is Marker::Clear. The original literal is Marker::Set.
     offset = source.index(b'Marker::Set) == 1')
     live = source[:offset] + source[offset:].replace(b'Marker::Set', b'tag', 1)
-    assert observe(compiler, live) == b'unsupported ' + str(offset).encode()
-    assert reference(live, b'\2', 'stored-pure-argument') == b'\1\10'
-    return {'request': request_report, 'lexer_diagnostic': diagnostic_report, 'storage': storage_report}
+    executable, _ = program(live, 'stored-free-argument')
+    assert observe(executable, b'\2') == reference(live, b'\2', 'stored-free-reference') == b'\1\10'
+    digits = digit_scanner(base, boundary, program, observe, reference, compiler)
+    # Echo all decoded octets from one source literal, crossing each control,
+    # delimiter and non-ASCII byte as data in the generated Delta program.
+    octets = bytes(range(256))
+    encoded = b''.join(f'\\x{byte:02x}'.encode() for byte in octets)
+    fixture = (FIXTURES / 'literal_bytes_main.epsilon').read_bytes()
+    assert fixture.count(b'"test bytes"') == 1
+    source = CONSOLE + fixture.replace(b'"test bytes"', b'"' + encoded + b'"')
+    executable, literal_report = program(source, 'literal-bytes')
+    expected = expected_exit + octets
+    assert observe(executable) == reference(source, b'', 'literal-bytes-reference') == expected
+    literal_report['output'] = identity(expected)
+    return {'request': request_report, 'lexer_diagnostic': diagnostic_report,
+            'storage': storage_report, 'literal_bytes': literal_report, 'lexer_digits': digits}
 
 
 def run(work, vm, producer, realize, seconds):
@@ -234,7 +354,7 @@ def run(work, vm, producer, realize, seconds):
         scalar_observations = []
         for name, argument, value in CONTROLS:
             call = f'ep_test_{name}({argument})'.encode()
-            main = b'machine Main::main(&mut self) { let value: i32 = ' + call + b''';
+            main = b'machine Main::main(@mut self) { let value: i32 = ' + call + b''';
  self.console.write_byte(value & 255);
  self.console.write_byte((value >> 8) & 255);
  self.console.write_byte((value >> 16) & 255);
@@ -259,7 +379,7 @@ def run(work, vm, producer, realize, seconds):
         # Unsupported Console text output and a payload parameter remain valid
         # Epsilon source. Neither may publish a previously emitted prefix.
         for name, suffix in (
-            ('effect', b'machine Main::unused_write(&mut self) { self.console.write_line("text"); }\n'),
+            ('effect', b'machine Main::unused_write(@mut self) { self.console.write_line("text"); }\n'),
             ('nominal', b'data Color { case Red(value: i32); case Blue; }\nmachine nominal(value: Color) -> i32 { return 0; }\n'),
         ):
             request = source + suffix

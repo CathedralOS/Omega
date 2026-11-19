@@ -7,7 +7,7 @@ fn numbered_declarations_share_ordinary_data_and_source_identity() {
         "data Message<T> { #7 value: T; retired #8; }",
         "data Message [copy] { #7 value: u32; retired #8; }",
         "data Message requires value <= 10 { #7 value: u32; retired #8; }",
-        "data Message<'scope> { #7 value: &'scope u32; retired #8; }",
+        "data Message<'scope> { #7 value: @'scope u32; retired #8; }",
         "data Message { #7 value: u32; #9 case Ready; }",
     ] {
         let parsed = crate::tests::parse_source_verbose(

@@ -44,7 +44,7 @@ fn an_unused_owned_parameter_keeps_its_possible_linear_debt() {
 
 #[test]
 fn a_borrowed_parameter_retains_unknown_contents_without_owning_them() {
-    let form = parameter_form("machine entry<T>(value: &T) {}");
+    let form = parameter_form("machine entry<T>(value: @T) {}");
     assert_eq!(form.generic_storage.len(), 1);
     let storage = form.generic_storage[0].storage;
     let claims =
@@ -61,7 +61,7 @@ fn a_borrowed_parameter_retains_unknown_contents_without_owning_them() {
 #[test]
 fn parameter_storage_cannot_drop_or_change_its_source_bound() {
     for change in 0..3 {
-        let mut form = parameter_form("machine entry<T>(value: &T) {}");
+        let mut form = parameter_form("machine entry<T>(value: @T) {}");
         let storage = form.generic_storage[0].storage;
         match change {
             0 => form.generic_storage.clear(),
@@ -95,8 +95,8 @@ fn parameter_storage_cannot_drop_or_change_its_source_bound() {
 #[test]
 fn generic_borrowed_callbacks_keep_their_carrier_and_access() {
     for (reference, result, body) in [
-        ("&T", " -> u32", "let first: u32 = Next(value); Next(value)"),
-        ("&mut T", "", "Next(value); Next(value);"),
+        ("@T", " -> u32", "let first: u32 = Next(value); Next(value)"),
+        ("@mut T", "", "Next(value); Next(value);"),
     ] {
         let form = parameter_form(&format!(
             r#"
@@ -120,8 +120,8 @@ fn an_unknown_payload_write_preserves_unexposed_local_storage() {
     let form = parameter_form(
         r#"
         data Local [copy] { value: u32; }
-        machine entry<T, machine Next>(value: &mut T) -> u32
-        requires machine Next(value: &mut T) reaches none crashes none;
+        machine entry<T, machine Next>(value: @mut T) -> u32
+        requires machine Next(value: @mut T) reaches none crashes none;
         ensures result == 9u32
         reaches none
         crashes none
@@ -142,9 +142,9 @@ fn an_optional_view_keeps_its_ordinary_borrowed_result_account() {
         r#"
         data Choice<'a> {
             case Missing;
-            case Present(value: &'a [u8]);
+            case Present(value: @'a [u8]);
         }
-        machine choose<'a>(bytes: &'a [u8], take: bool) -> Choice<'a> {
+        machine choose<'a>(bytes: @'a [u8], take: bool) -> Choice<'a> {
             transition take {
                 true -> Choice::Present { value: bytes }
                 false -> Choice::Missing
@@ -188,7 +188,7 @@ fn a_generic_call_transfers_the_same_unknown_contents_packet() {
 
 #[test]
 fn unknown_contents_keep_their_exact_declared_binder() {
-    let mut form = parameter_form("machine entry<T, U>(left: &T, right: &U) {}");
+    let mut form = parameter_form("machine entry<T, U>(left: @T, right: @U) {}");
     assert_eq!(form.generic_storage.len(), 2);
     form.generic_storage[0].parameter = form.generic_storage[1].parameter;
     let refusal = judge(Ok(form)).unwrap_err();
@@ -203,11 +203,11 @@ fn unknown_contents_keep_their_exact_declared_binder() {
 fn an_unknown_carrier_cannot_upgrade_a_shared_argument() {
     let source = super::boundary_calls::typed(
         r#"
-        machine entry<T, machine Next>(value: &T)
-        requires machine Next(value: &mut T) reaches none crashes none;
+        machine entry<T, machine Next>(value: @T)
+        requires machine Next(value: @mut T) reaches none crashes none;
         reaches none
         crashes none
-        { Next(&value); }
+        { Next(@value); }
     "#,
     );
     let verdict = judge(crate::lowering::elaborate_generic(
@@ -224,7 +224,7 @@ fn an_unknown_carrier_cannot_upgrade_a_shared_argument() {
 
 #[test]
 fn a_copy_bound_keeps_unknown_loans_and_pending_cleanup() {
-    let form = parameter_form("machine entry<T [copy]>(value: &T) {}");
+    let form = parameter_form("machine entry<T [copy]>(value: @T) {}");
     let storage = form.generic_storage[0].storage;
     let row = form.module.structural_type(storage).unwrap();
     assert!(row.is_copyable());
@@ -753,9 +753,9 @@ fn generic_calls_without_borrowed_results_keep_their_public_storage_contract() {
     let source = super::boundary_calls::typed(
         r#"
         data Choice [copy] { selected: bool; }
-        machine length<T>(bytes: &[u8]) -> u64 { bytes.len }
+        machine length<T>(bytes: @[u8]) -> u64 { bytes.len }
         machine choose<T>() -> Choice { Choice { selected: true } }
-        machine entry<T>(bytes: &[u8]) -> u64 {
+        machine entry<T>(bytes: @[u8]) -> u64 {
             let choice: Choice = choose<T>();
             length<T>(bytes)
         }
@@ -966,8 +966,8 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
     for promised in [1, 0] {
         let source = super::boundary_calls::typed(&format!(
             r#"
-            machine update<T>(value: &mut u32) ensures value == 1u32 {{ value = 1u32; }}
-            machine entry<T>(value: &mut u32) requires value == 0u32
+            machine update<T>(value: @mut u32) ensures value == 1u32 {{ value = 1u32; }}
+            machine entry<T>(value: @mut u32) requires value == 0u32
                 ensures value == {promised}u32 {{ update<T>(value); }}
         "#
         ));
@@ -1006,11 +1006,11 @@ fn mixed_type_and_const_calls_keep_the_complete_tuple_and_contract() {
     for count in [0, 3] {
         let text = format!(
             r#"
-            machine keep<T, const Count: u64>(value: &T) -> u64
+            machine keep<T, const Count: u64>(value: @T) -> u64
             requires Count > 0u64
             ensures result == Count
             {{ Count }}
-            machine entry<T>(value: &T) -> u64 {{ keep<T, {count}u64>(value) }}
+            machine entry<T>(value: @T) -> u64 {{ keep<T, {count}u64>(value) }}
         "#
         );
         let form = parameter_form(&text);
@@ -1074,11 +1074,11 @@ fn a_guard_after_a_callback_proves_the_call_until_storage_changes() {
     // The extra operand writes count after the guard observes it.
     let invalid = source.replace(
         "transition context.valid && context.count <= context.storage.len {",
-        "transition context.valid && context.count <= context.storage.len && overwrite(&mut context) {",
+        "transition context.valid && context.count <= context.storage.len && overwrite(@mut context) {",
     );
     assert_ne!(source, invalid);
     let rejected = judge(&format!(
-        "{invalid}\nmachine overwrite<'input>(context: &mut Context<'input>) -> bool {{ context.count = 4u64; true }}"
+        "{invalid}\nmachine overwrite<'input>(context: @mut Context<'input>) -> bool {{ context.count = 4u64; true }}"
     ));
     assert!(rejected.iter().any(|verdict| matches!(
         verdict,
@@ -1094,13 +1094,13 @@ fn specialized_calls_keep_independent_input_and_result_lifetimes() {
         let source = format!(
             r#"
             machine choose<'source, 'other, const Count: u64>(
-                value: &'source [u8], other: &'other [u8], spare: &[u8]
-            ) -> &'source [u8]
+                value: @'source [u8], other: @'other [u8], spare: @[u8]
+            ) -> @'source [u8]
             requires Count > 0u64
             {{ value }}
             machine entry<'left, 'right, 'spare>(
-                value: &'left [u8], other: &'right [u8], spare: &'spare [u8]
-            ) -> &'left [u8] {{ choose<3u64>({arguments}, spare) }}
+                value: @'left [u8], other: @'right [u8], spare: @'spare [u8]
+            ) -> @'left [u8] {{ choose<3u64>({arguments}, spare) }}
         "#
         );
         let (typed, _) = crate::preparation::prepare_typed_trees(
@@ -1142,16 +1142,16 @@ fn specialized_calls_keep_independent_input_and_result_lifetimes() {
 
 #[test]
 fn generic_callback_applications_keep_the_selected_contract() {
-    for reference in ["&T", "&mut T"] {
+    for reference in ["@T", "@mut T"] {
         let text = format!(
             r#"
             machine measure<T>(value: {reference}) -> u64 {{ 41u64 }}
-            machine invoke<T, const Step: machine(value: &T) -> u64>(value: &T) -> u64 {{ Step(value) }}
-            machine entry<T>(value: &T) -> u64 {{ invoke<T, measure<T>>(value) }}
+            machine invoke<T, const Step: machine(value: @T) -> u64>(value: @T) -> u64 {{ Step(value) }}
+            machine entry<T>(value: @T) -> u64 {{ invoke<T, measure<T>>(value) }}
         "#
         );
         let form = callback_form(&text);
-        if reference == "&T" {
+        if reference == "@T" {
             let prepared = form.as_ref().expect("the callback call must lower");
             assert!(
                 prepared.undeclared.is_empty(),
@@ -1168,7 +1168,7 @@ fn generic_callback_applications_keep_the_selected_contract() {
             );
         }
         let verdict = judge(form);
-        if reference == "&T" {
+        if reference == "@T" {
             assert!(
                 matches!(verdict, Ok(RouteVerdict::Accepted(_))),
                 "{verdict:?}"
@@ -1189,7 +1189,7 @@ fn an_open_record_header_retains_its_actual_field_binder() {
     let form = parameter_form(
         r#"
         data Envelope<T> { value: T; }
-        machine entry<T>(value: &Envelope<T>) {}
+        machine entry<T>(value: @Envelope<T>) {}
     "#,
     );
     assert_eq!(form.generic_storage.len(), 1);
@@ -1202,8 +1202,8 @@ fn a_forwarded_open_record_uses_the_callers_actual_type() {
     let form = parameter_form(
         r#"
         data Envelope<T> { value: T; }
-        machine keep<U>(value: &Envelope<U>) {}
-        machine entry<T>(value: &Envelope<T>) { keep<T>(value); }
+        machine keep<U>(value: @Envelope<U>) {}
+        machine entry<T>(value: @Envelope<T>) { keep<T>(value); }
     "#,
     );
     assert_eq!(form.generic_storage.len(), 1);
@@ -1233,8 +1233,8 @@ fn forwarded_open_records_cannot_change_their_argument() {
     let source = super::boundary_calls::typed(
         r#"
         data Envelope<T> { value: T; }
-        machine keep<U>(value: &Envelope<U>) {}
-        machine entry<T, U>(left: &Envelope<T>, right: &Envelope<U>) { keep<T>(right); }
+        machine keep<U>(value: @Envelope<U>) {}
+        machine entry<T, U>(left: @Envelope<T>, right: @Envelope<U>) { keep<T>(right); }
     "#,
     );
     let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source));
@@ -1265,8 +1265,8 @@ fn an_open_record_call_requires_its_actual_source_owner() {
     let mut source = super::boundary_calls::typed(
         r#"
         data Envelope<T> { value: T; }
-        machine keep<U>(value: &Envelope<U>) {}
-        machine entry<T>(value: &Envelope<T>) { keep<T>(value); }
+        machine keep<U>(value: @Envelope<U>) {}
+        machine entry<T>(value: @Envelope<T>) { keep<T>(value); }
     "#,
     );
     let entry = super::boundary_calls::entry(&source);
@@ -1478,10 +1478,10 @@ fn callback_form(text: &str) -> Checked<crate::lowering::Elaboration> {
 
 const CALLBACK_REACH: &str = r#"
     boundary trait Output {}
-    machine measure<T>(value: &T) -> u64 { 41u64 }
-    machine invoke<T, const Step: machine(value: &T) -> u64>(value: &T) -> u64 { Step(value) }
-    machine relay<T>(value: &T) -> u64 { invoke<T, measure<T>>(value) }
-    machine entry<T>(value: &T) -> u64 reaches none { relay<T>(value) }
+    machine measure<T>(value: @T) -> u64 { 41u64 }
+    machine invoke<T, const Step: machine(value: @T) -> u64>(value: @T) -> u64 { Step(value) }
+    machine relay<T>(value: @T) -> u64 { invoke<T, measure<T>>(value) }
+    machine entry<T>(value: @T) -> u64 reaches none { relay<T>(value) }
 "#;
 
 #[test]
@@ -1489,8 +1489,8 @@ fn a_static_callback_uses_its_published_reach_at_the_call() {
     for reaches_output in [false, true] {
         let text = if reaches_output {
             CALLBACK_REACH.replace(
-                "machine measure<T>(value: &T) -> u64",
-                "machine measure<T>(value: &T) -> u64 reaches Output",
+                "machine measure<T>(value: @T) -> u64",
+                "machine measure<T>(value: @T) -> u64 reaches Output",
             )
         } else {
             CALLBACK_REACH.to_owned()
@@ -1520,7 +1520,7 @@ fn a_static_callback_uses_its_published_reach_at_the_call() {
 fn an_unselected_callback_cannot_prove_an_empty_reach_ceiling() {
     let verdict = judge(callback_form(
         r#"
-        machine entry<T, const Step: machine(value: &T) -> u64>(value: &T) -> u64
+        machine entry<T, const Step: machine(value: @T) -> u64>(value: @T) -> u64
         reaches none { Step(value) }
     "#,
     ))
@@ -1856,7 +1856,7 @@ fn a_nominal_const_extent_keeps_its_checking_input() {
     let form = parameter_form(
         r#"
         data Buffer<const Count: u64> { bytes: [u8; Count]; }
-        machine entry<const N: u64>(value: &Buffer<N>) -> u64 { N }
+        machine entry<const N: u64>(value: @Buffer<N>) -> u64 { N }
     "#,
     );
     let verdict = judge(Ok(form)).unwrap();
@@ -1866,7 +1866,7 @@ fn a_nominal_const_extent_keeps_its_checking_input() {
 #[test]
 fn a_finite_family_keeps_the_runtime_conjunct_of_its_requirement() {
     let program = r#"
-        machine entry<Element>(items: &[Element], limit: u64) -> u64
+        machine entry<Element>(items: @[Element], limit: u64) -> u64
         requires limit <= 10u64 && (Element == u32 || Element == bool)
         ensures result <= 10u64
         {
@@ -2268,12 +2268,12 @@ requires self.count <= self.limit
     count: u32;
     limit: u32;
 }
-machine remaining(value: &Bounded<Ticket>) -> u32 requires true { value.limit - value.count }
+machine remaining(value: @Bounded<Ticket>) -> u32 requires true { value.limit - value.count }
 machine entry() -> u32 {
     let packet: Bounded<Ticket> = Bounded {
         payload: Ticket { id: 41u32 }, count: 3u32, limit: 7u32,
     };
-    let distance: u32 = remaining(&packet);
+    let distance: u32 = remaining(@packet);
     let { payload, count as _, limit as _ } = move packet;
     let { id as number } = move payload;
     match number == 41u32 && distance == 4u32 { true -> 0u32, false -> 1u32 }
@@ -2359,12 +2359,12 @@ fn generic_fields_form_their_qualifications_without_assuming_the_predicate() {
 // A generic record retains the predicate on its qualified field.
 domain u32::Small requires self <= 10;
 data Envelope<T> { payload: T; count: u32 in Small; }
-machine remaining(value: &Envelope<u32>) -> u32 requires true {
+machine remaining(value: @Envelope<u32>) -> u32 requires true {
     10u32 - (value.count as -Small)
 }
 machine main() crashes Trap {
     let packet: Envelope<u32> = Envelope { payload: 41u32, count: 7u32 as +Small };
-    transition remaining(&packet) == 3u32 && packet.payload == 41u32 {
+    transition remaining(@packet) == 3u32 && packet.payload == 41u32 {
         true -> done()
         false -> bad()
     }
@@ -2426,22 +2426,22 @@ machine main() crashes Trap {
 fn a_const_generic_call_keeps_the_guard_on_its_actual_record_fields() {
     let source = r#"// Expected exit: 0. A guarded field fact survives a const-generic borrowed call.
 data Buffer<Element, const N: u64> { before: u64; items: [Element; N]; length: u64; after: u64; }
-machine inspect<Element, const N: u64>(value: &Buffer<Element, N>) -> u64
+machine inspect<Element, const N: u64>(value: @Buffer<Element, N>) -> u64
 requires Element == u8 || Element == u16
 {
     transition value.length <= value.items.len {
         true -> live(value)
         false -> 0u64
     }
-    machine live(value: &Buffer<Element, N>) -> u64
+    machine live(value: @Buffer<Element, N>) -> u64
     requires (Element == u8 || Element == u16) && value.length <= value.items.len
     { value.length }
 }
 machine main() crashes Trap {
     let live: Buffer<u8, 4> = Buffer { before: 17u64, items: [1u8, 2u8, 3u8, 4u8], length: 2u64, after: 91u64 };
     let invalid: Buffer<u8, 4> = Buffer { before: 19u64, items: [5u8, 6u8, 7u8, 8u8], length: 5u64, after: 93u64 };
-    let a: u64 = inspect<u8, 4>(&live);
-    let b: u64 = inspect<u8, 4>(&invalid);
+    let a: u64 = inspect<u8, 4>(@live);
+    let b: u64 = inspect<u8, 4>(@invalid);
     transition a == 2u64 && b == 0u64
         && live.before == 17u64 && live.after == 91u64 && invalid.before == 19u64 && invalid.after == 93u64 {
         true -> done()

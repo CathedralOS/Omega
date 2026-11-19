@@ -7,13 +7,13 @@ fn program(valid: u64, receiver: &str, body: &str, effects: &str) -> String {
     format!(
         r#"
 data Counter {{ value: u64; }}
-data Resource<'view> dropped by dispose {{ dropped: &'view mut Counter; valid: u64; value: u64; }}
+data Resource<'view> dropped by dispose {{ dropped: @'view mut Counter; valid: u64; value: u64; }}
 machine dispose(resource: {receiver})
 requires resource.valid == 1u64
 requires resource.value <= 30u64
 {effects}
 {{ {body} }}
-machine caller(counter: &mut Counter) -> u64
+machine caller(counter: @mut Counter) -> u64
 ensures result <= 50u64
 {{
     let resource: Resource = Resource {{ dropped: counter, valid: {valid}u64, value: 30u64 }};
@@ -131,12 +131,12 @@ fn owned_cleanup_requires_are_proved_at_the_exact_action() {
 fn ordinary_inferred_bindings_keep_the_parent_values_reference_region() {
     let text = r#"
 data Counter { value: u64; }
-data Held<'view> { target: &'view mut Counter; value: u64; }
+data Held<'view> { target: @'view mut Counter; value: u64; }
 machine consume(held: Held) {
     let { target, value } = move held;
     target.value = value;
 }
-machine caller(counter: &mut Counter) {
+machine caller(counter: @mut Counter) {
     let held: Held = Held { target: counter, value: 1u64 };
     consume(held);
 }
@@ -241,7 +241,7 @@ fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
 fn undecomposed_recursive_or_abnormal_consumers_never_gain_a_disposition() {
     for (receiver, body, effects, expected) in [
         ("Resource", "", "", "recursive generated cleanup"),
-        ("&mut Resource", "", "", "incompatible value parameter"),
+        ("@mut Resource", "", "", "incompatible value parameter"),
         (
             "Resource",
             "let { dropped, valid, value as _ } = move resource; dropped.value = valid; crash Trap;",

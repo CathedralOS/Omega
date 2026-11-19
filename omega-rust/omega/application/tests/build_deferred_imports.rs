@@ -46,14 +46,14 @@ fn check(name: &str, imports: &str, body: &str, product: &str) -> (bool, String)
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "{imports}machine build(builder: &mut Build) {{
+            "{imports}machine build(builder: @mut Build) {{
     Build::application(builder, \"deferred\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     let mut kit_request: DependencyDescription = dependency::from_source(Source::Path {{ location: \"dep\" }});
-    dependency::with_alias(&mut kit_request, \"kit\");
+    dependency::with_alias(@mut kit_request, \"kit\");
     let kit_registered: DependencyRegistration = Build::build_dependency(builder, kit_request);
     let mut lib_request: DependencyDescription = dependency::from_source(Source::Path {{ location: \"dep\" }});
-    dependency::with_alias(&mut lib_request, \"lib\");
+    dependency::with_alias(@mut lib_request, \"lib\");
     let lib_registered: DependencyRegistration = Build::dependency(builder, lib_request);
 {body}}}
 "
@@ -62,7 +62,7 @@ fn check(name: &str, imports: &str, body: &str, product: &str) -> (bool, String)
     .expect("staged Build");
     std::fs::write(
         root.join("dep/build.omg"),
-        "machine build(builder: &mut Build) {
+        "machine build(builder: @mut Build) {
     Build::package(builder, \"kit_package\");
 }
 ",

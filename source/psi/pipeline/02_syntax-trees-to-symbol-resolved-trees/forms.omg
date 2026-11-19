@@ -20,19 +20,19 @@
 // domain), equality's (the sealed `Equatable` route) and the collection
 // tokens `[]` and `[..]` reject at the token. `satisfies` and `terminates`
 // clauses bind in clauses.omg.
-public machine check_declaration_forms(resolver: &mut Resolver, syntax: &SyntaxTrees)
+public machine check_declaration_forms(resolver: @mut Resolver, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> root(resolver, syntax, 0) }
 
-    machine root(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine root(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.root_count && resolver.output.accepted {
             true -> root_kind(resolver, syntax, index)
             _ -> machine_at(resolver, syntax, 0)
         }
     }
 
-    machine root_kind(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine root_kind(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: RootItem = root_item(syntax, index);
         transition item.kind {
             RootItemKind::Definition -> reject(resolver, ResolveDiagnosticCode::UnsupportedDeclaration, item.source_span)
@@ -45,31 +45,31 @@ crashes Trap
         }
     }
 
-    machine data_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: RootItem) {
+    machine data_binders(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: DataItem = syntax_trees_data_item(syntax, item.item_index);
         check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, false);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
-    machine conformance_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: RootItem) {
+    machine conformance_binders(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: ConformanceItem = conformance_item(syntax, item.item_index);
         check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, false);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
-    machine domain_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: RootItem) {
+    machine domain_binders(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: DomainItem = syntax_trees_domain_item(syntax, item.item_index);
         check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, false);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
-    machine proposition_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: RootItem) {
+    machine proposition_binders(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: PropositionItem = proposition_item(syntax, item.item_index);
         check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, false);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
-    machine trait_root(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: RootItem) {
+    machine trait_root(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: TraitItem = trait_item(syntax, item.item_index);
         transition declared.is_refinement {
             true -> reject(resolver, ResolveDiagnosticCode::UnsupportedDeclaration, item.source_span)
@@ -77,38 +77,38 @@ crashes Trap
         }
     }
 
-    machine trait_contracts(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, declared: TraitItem) {
+    machine trait_contracts(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, declared: TraitItem) {
         transition declared.contract_count == 0 {
             true -> trait_binders(resolver, syntax, index, declared)
             _ -> trait_contract(resolver, syntax, declared)
         }
     }
 
-    machine trait_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, declared: TraitItem) {
+    machine trait_binders(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, declared: TraitItem) {
         check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, true);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
-    machine trait_contract(resolver: &mut Resolver, syntax: &SyntaxTrees, declared: TraitItem) {
+    machine trait_contract(resolver: @mut Resolver, syntax: @SyntaxTrees, declared: TraitItem) {
         let first: Contract = syntax_trees_contract(syntax, declared.first_contract);
         transition { _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedMachineContract, first.source_span) }
     }
 
-    machine machine_at(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine machine_at(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
             true -> machine_forms(resolver, syntax, index)
             _ -> done()
         }
     }
 
-    machine machine_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine machine_forms(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         check_machine_forms(resolver, syntax, item);
         transition { _ -> machine_at(resolver, syntax, index + 1) }
     }
 
-    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
-        name_resolution_reject(&mut resolver.output, code, source_span);
+    machine reject(resolver: @mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+        name_resolution_reject(@mut resolver.output, code, source_span);
     }
 
     machine done() {}
@@ -116,19 +116,19 @@ crashes Trap
 
 // A declaration's proposition binder rejects at that binder. An evidence
 // binder rejects unless `admit_evidence` (a trait telescope) keeps it.
-machine check_binder_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool)
+machine check_binder_forms(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool)
 crashes Trap
 {
     transition { _ -> next(resolver, syntax, first, count, admit_evidence, 0) }
 
-    machine next(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping) {
+    machine next(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping) {
         transition offset < count {
             true -> binder(resolver, syntax, first, count, admit_evidence, offset)
             _ -> done()
         }
     }
 
-    machine binder(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping) {
+    machine binder(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
         transition parameter.kind {
             GenericParameterKind::Proposition -> reject(resolver, parameter.source_span)
@@ -137,22 +137,22 @@ crashes Trap
         }
     }
 
-    machine evidence(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping, source_span: SourceSpan) {
+    machine evidence(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping, source_span: SourceSpan) {
         transition admit_evidence {
             true -> next(resolver, syntax, first, count, admit_evidence, offset + 1)
             _ -> reject(resolver, source_span)
         }
     }
 
-    machine reject(resolver: &mut Resolver, source_span: SourceSpan) {
-        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::UnsupportedGenericParameter, source_span);
+    machine reject(resolver: @mut Resolver, source_span: SourceSpan) {
+        name_resolution_reject(@mut resolver.output, ResolveDiagnosticCode::UnsupportedGenericParameter, source_span);
     }
 
     machine done() {}
 }
 
 // One machine's forms, in authored order.
-public machine check_machine_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem)
+public machine check_machine_forms(resolver: @mut Resolver, syntax: @SyntaxTrees, item: MachineItem)
 crashes Trap
 {
     let bindable: bool = bindable_token(item.operator);
@@ -167,18 +167,18 @@ crashes Trap
     // contract, and `reaches` or `invokes` clauses reject as
     // unsupported (wiki/spec/language/generics.md, Static machine binder
     // categories).
-    machine contracts(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem) {
+    machine contracts(resolver: @mut Resolver, syntax: @SyntaxTrees, item: MachineItem) {
         transition { _ -> contract(resolver, syntax, item, 0) }
     }
 
-    machine contract(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+    machine contract(resolver: @mut Resolver, syntax: @SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && resolver.output.accepted {
             true -> shaped(resolver, syntax, item, offset)
             _ -> generic(resolver, syntax, item, 0)
         }
     }
 
-    machine shaped(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+    machine shaped(resolver: @mut Resolver, syntax: @SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         let written: Contract = syntax_trees_contract(syntax, item.first_contract + offset);
         let clauses: bool = callable_contract_clauses(syntax, written.first_clause, written.clause_count);
         transition written.kind == ContractKind::Machine && written.generic_parameter_count == 0 && written.contract_count == 0 && clauses {
@@ -187,14 +187,14 @@ crashes Trap
         }
     }
 
-    machine generic(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+    machine generic(resolver: @mut Resolver, syntax: @SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.generic_parameter_count {
             true -> generic_kind(resolver, syntax, item, offset)
             _ -> done()
         }
     }
 
-    machine generic_kind(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+    machine generic_kind(resolver: @mut Resolver, syntax: @SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, item.first_generic_parameter + offset);
         transition parameter.kind {
             GenericParameterKind::Proposition -> reject(resolver, ResolveDiagnosticCode::UnsupportedGenericParameter, parameter.source_span)
@@ -203,8 +203,8 @@ crashes Trap
         }
     }
 
-    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
-        name_resolution_reject(&mut resolver.output, code, source_span);
+    machine reject(resolver: @mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+        name_resolution_reject(@mut resolver.output, code, source_span);
     }
 
     machine done() {}
@@ -212,19 +212,19 @@ crashes Trap
 
 // Whether a structural contract's clauses are ones this resolver binds:
 // `requires`/`ensures` facts and the operational `crashes`, `suspends` and `blocks`.
-machine callable_contract_clauses(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
+machine callable_contract_clauses(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(syntax, first, first + count) }
 
-    machine next(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
+    machine next(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
         transition index < end {
             true -> clause(syntax, index, end)
             _ -> admitted()
         }
     }
 
-    machine clause(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
+    machine clause(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
         let written: Clause = syntax_trees_clause(syntax, index);
         transition written.kind {
             ClauseKind::Requires -> next(syntax, index + 1, end)

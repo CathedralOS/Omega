@@ -31,7 +31,7 @@ data Main {
 }
 
 // Looping value-returning machine: acc + s[0] at each step, recurse on s[1..].
-machine walk(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+machine walk(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
@@ -40,7 +40,7 @@ terminates by s -> Slice::Length
     }
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
     // Initialize the array.
     main.arr[0] = 3i32 as +Wrapping;
@@ -51,7 +51,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     main.arr[5] = 25i32 as +Wrapping;
 
     // Sum all 6 elements via shrinking-window recursion: 3+7+12+18+5+25 = 70.
-    let s: &[i32 in Wrapping] = &main.arr[..];
+    let s: @[i32 in Wrapping] = @main.arr[..];
     let t: i32 = walk(s, 0i32 as +Wrapping);
 
     transition t == 70 {
@@ -59,17 +59,17 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block bad(main)
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: the six elements summed to 70 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("FAIL: the recursive sum did not equal 70 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -77,5 +77,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

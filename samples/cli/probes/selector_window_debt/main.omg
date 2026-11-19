@@ -12,17 +12,17 @@
 // ProcessExit provider.
 
 data Token dropped by drop_token { byte: i32; }
-machine drop_token(token: &mut Token) { token.byte = 0; }
+machine drop_token(token: @mut Token) { token.byte = 0; }
 
-machine reset(index: &mut u64) { index = 0; }
+machine reset(index: @mut u64) { index = 0; }
 
-machine rotate(tokens: &mut [Token], initial: u64)
+machine rotate(tokens: @mut [Token], initial: u64)
 requires tokens.len >= 2, initial < 2
 {
     let mut at: u64 = initial;
     let mut unrelated: u64 = initial;
     let first: Token = tokens[at];
-    reset(&mut unrelated);
+    reset(@mut unrelated);
     tokens[at] = Token { byte: 19 };
     tokens[1] = first;
     at = 2;
@@ -30,10 +30,10 @@ requires tokens.len >= 2, initial < 2
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let mut tokens: [Token; 3] = [Token { byte: 7 }, Token { byte: 8 }, Token { byte: 9 }];
-    let view: &mut [Token] = &mut tokens[..];
+    let view: @mut [Token] = @mut tokens[..];
     rotate(view, 1);
     let a: i32 = tokens[0].byte;
     let b: i32 = tokens[1].byte;
@@ -45,12 +45,12 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

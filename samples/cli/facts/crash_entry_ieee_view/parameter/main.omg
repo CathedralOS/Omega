@@ -9,7 +9,7 @@ crashes Trap value == 0.0
 public machine read_bits(value: i32) -> f32
 requires value == 1065353216
 {
-    let view: &f32 = &value as &f32;
+    let view: @f32 = @value as @f32;
     maybe_zero(view)
 }
 machine main() crashes Trap {

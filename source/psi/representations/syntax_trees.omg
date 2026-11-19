@@ -1044,7 +1044,7 @@ requires
     accepted: bool;
 }
 
-public machine syntax_trees_clear(syntax_trees: &mut SyntaxTrees, source: SourceId) {
+public machine syntax_trees_clear(syntax_trees: @mut SyntaxTrees, source: SourceId) {
     syntax_trees.root_count = 0;
     syntax_trees.use_count = 0;
     syntax_trees.member_count = 0;
@@ -1087,7 +1087,7 @@ public machine syntax_trees_clear(syntax_trees: &mut SyntaxTrees, source: Source
 }
 
 public machine syntax_trees_reject(
-    syntax_trees: &mut SyntaxTrees,
+    syntax_trees: @mut SyntaxTrees,
     code: ParseDiagnosticCode,
     source: SourceId,
     start: u64 in Trapping,
@@ -1103,7 +1103,7 @@ public machine syntax_trees_reject(
 // Table reads by handle. The parser stores only handles inside its tables, so
 // a handle at or past a table's count is a violated producer invariant: the
 // read crashes rather than returning another declaration's row.
-public machine root_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RootItem
+public machine root_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> RootItem
 crashes Trap
 {
     transition handle < syntax_trees.root_count {
@@ -1111,7 +1111,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RootItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> RootItem {
         syntax_trees.roots[handle]
     }
 
@@ -1120,7 +1120,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_data_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataItem
+public machine syntax_trees_data_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataItem
 crashes Trap
 {
     transition handle < syntax_trees.data_count {
@@ -1128,7 +1128,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataItem {
         syntax_trees.data_items[handle]
     }
 
@@ -1137,7 +1137,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_data_member(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataMember
+public machine syntax_trees_data_member(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataMember
 crashes Trap
 {
     transition handle < syntax_trees.data_member_count {
@@ -1145,7 +1145,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataMember {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataMember {
         syntax_trees.data_members[handle]
     }
 
@@ -1154,7 +1154,7 @@ crashes Trap
     }
 }
 
-public machine retired_identity(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RetiredIdentity
+public machine retired_identity(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> RetiredIdentity
 crashes Trap
 {
     transition handle < syntax_trees.retired_identity_count {
@@ -1162,7 +1162,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> RetiredIdentity {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> RetiredIdentity {
         syntax_trees.retired_identities[handle]
     }
 
@@ -1171,7 +1171,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField
+public machine syntax_trees_field(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataField
 crashes Trap
 {
     transition handle < syntax_trees.field_count {
@@ -1179,7 +1179,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataField {
         syntax_trees.fields[handle]
     }
 
@@ -1188,7 +1188,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_data_case(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataCase
+public machine syntax_trees_data_case(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataCase
 crashes Trap
 {
     transition handle < syntax_trees.case_count {
@@ -1196,7 +1196,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataCase {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataCase {
         syntax_trees.cases[handle]
     }
 
@@ -1205,7 +1205,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_payload_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField
+public machine syntax_trees_payload_field(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataField
 crashes Trap
 {
     transition handle < syntax_trees.payload_field_count {
@@ -1213,7 +1213,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DataField {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataField {
         syntax_trees.payload_fields[handle]
     }
 
@@ -1222,7 +1222,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_generic_parameter(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> GenericParameter
+public machine syntax_trees_generic_parameter(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> GenericParameter
 crashes Trap
 {
     transition handle < syntax_trees.generic_parameter_count {
@@ -1230,7 +1230,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> GenericParameter {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> GenericParameter {
         syntax_trees.generic_parameters[handle]
     }
 
@@ -1259,7 +1259,7 @@ public machine qualifier_span(reference: TypeReference) -> SourceSpan {
     }
 }
 
-public machine syntax_trees_type_reference(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TypeReference
+public machine syntax_trees_type_reference(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TypeReference
 crashes Trap
 {
     transition handle < syntax_trees.type_reference_count {
@@ -1267,7 +1267,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TypeReference {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TypeReference {
         syntax_trees.type_references[handle]
     }
 
@@ -1277,7 +1277,7 @@ crashes Trap
 }
 
 // The type row of one static argument, by its index in `type_arguments`.
-public machine type_argument(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping
+public machine type_argument(syntax_trees: @SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < syntax_trees.type_argument_count {
@@ -1285,7 +1285,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(syntax_trees: @SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping {
         syntax_trees.type_arguments[index] as u64 in Trapping
     }
 
@@ -1294,7 +1294,7 @@ crashes Trap
     }
 }
 
-public machine machine_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> MachineItem
+public machine machine_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> MachineItem
 crashes Trap
 {
     transition handle < syntax_trees.machine_count {
@@ -1302,7 +1302,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> MachineItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> MachineItem {
         syntax_trees.machines[handle]
     }
 
@@ -1311,7 +1311,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_parameter(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Parameter
+public machine syntax_trees_parameter(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Parameter
 crashes Trap
 {
     transition handle < syntax_trees.parameter_count {
@@ -1319,7 +1319,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Parameter {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Parameter {
         syntax_trees.parameters[handle]
     }
 
@@ -1328,7 +1328,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_expression(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Expression
+public machine syntax_trees_expression(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Expression
 crashes Trap
 {
     transition handle < syntax_trees.expression_count {
@@ -1336,7 +1336,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Expression {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Expression {
         syntax_trees.expressions[handle]
     }
 
@@ -1345,7 +1345,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_integer_literal(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IntegerLiteral
+public machine syntax_trees_integer_literal(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> IntegerLiteral
 crashes Trap
 {
     transition handle < syntax_trees.integer_literal_count {
@@ -1353,7 +1353,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IntegerLiteral {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> IntegerLiteral {
         syntax_trees.integer_literals[handle]
     }
 
@@ -1362,7 +1362,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_construct_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstructField
+public machine syntax_trees_construct_field(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> ConstructField
 crashes Trap
 {
     transition handle < syntax_trees.construct_field_count {
@@ -1370,7 +1370,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstructField {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> ConstructField {
         syntax_trees.construct_fields[handle]
     }
 
@@ -1379,7 +1379,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_use_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> UseItem
+public machine syntax_trees_use_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> UseItem
 crashes Trap
 {
     transition handle < syntax_trees.use_count {
@@ -1387,7 +1387,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> UseItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> UseItem {
         syntax_trees.uses[handle]
     }
 
@@ -1397,7 +1397,7 @@ crashes Trap
 }
 
 // One member of a path or member list in `SyntaxTrees::members`.
-public machine syntax_trees_member(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan
+public machine syntax_trees_member(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan
 crashes Trap
 {
     transition handle < syntax_trees.member_count {
@@ -1405,7 +1405,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan {
         syntax_trees.members[handle]
     }
 
@@ -1414,7 +1414,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_statement(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Statement
+public machine syntax_trees_statement(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Statement
 crashes Trap
 {
     transition handle < syntax_trees.statement_count {
@@ -1422,7 +1422,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Statement {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Statement {
         syntax_trees.statements[handle]
     }
 
@@ -1431,7 +1431,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_argument(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+public machine syntax_trees_argument(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition handle < syntax_trees.argument_count {
@@ -1439,7 +1439,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
         syntax_trees.arguments[handle]
     }
 
@@ -1448,7 +1448,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
+public machine syntax_trees_arm(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
 crashes Trap
 {
     transition handle < syntax_trees.arm_count {
@@ -1456,7 +1456,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
         syntax_trees.arms[handle]
     }
 
@@ -1480,7 +1480,7 @@ public machine joined_values(expression: Expression) -> JoinedValues {
 }
 
 // The value `offset` of a join: an arm's value or an element.
-public machine joined_value(syntax_trees: &SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping
+public machine joined_value(syntax_trees: @SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition values.arms {
@@ -1488,12 +1488,12 @@ crashes Trap
         _ -> element(syntax_trees, values.first + offset)
     }
 
-    machine arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+    machine arm(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
         let arm: TransitionArm = syntax_trees_match_arm(syntax_trees, handle);
         arm.target
     }
 
-    machine element(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+    machine element(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
         let value: u64 in Trapping = syntax_trees_argument(syntax_trees, handle);
         value
     }
@@ -1508,7 +1508,7 @@ public data ArmRange [copy] {
 }
 
 // The arm `offset` of a dispatch's range.
-public machine range_arm(syntax_trees: &SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> TransitionArm
+public machine range_arm(syntax_trees: @SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> TransitionArm
 crashes Trap
 {
     transition range.matched {
@@ -1516,12 +1516,12 @@ crashes Trap
         _ -> transitioned(syntax_trees, range.first + offset)
     }
 
-    machine matched(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
+    machine matched(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
         let arm: TransitionArm = syntax_trees_match_arm(syntax_trees, handle);
         arm
     }
 
-    machine transitioned(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
+    machine transitioned(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
         let arm: TransitionArm = syntax_trees_arm(syntax_trees, handle);
         arm
     }
@@ -1531,7 +1531,7 @@ crashes Trap
 // value pattern whose `Value` target is the arm's value. Match arms keep
 // their own table, so a match nested in a transition arm never splits that
 // transition's contiguous arm range.
-public machine syntax_trees_match_arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
+public machine syntax_trees_match_arm(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
 crashes Trap
 {
     transition handle < syntax_trees.match_arm_count {
@@ -1539,7 +1539,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TransitionArm {
         syntax_trees.match_arms[handle]
     }
 
@@ -1548,7 +1548,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_pattern_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PatternField
+public machine syntax_trees_pattern_field(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> PatternField
 crashes Trap
 {
     transition handle < syntax_trees.pattern_field_count {
@@ -1556,7 +1556,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PatternField {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> PatternField {
         syntax_trees.pattern_fields[handle]
     }
 
@@ -1565,7 +1565,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_clause(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Clause
+public machine syntax_trees_clause(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Clause
 crashes Trap
 {
     transition handle < syntax_trees.clause_count {
@@ -1573,7 +1573,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Clause {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Clause {
         syntax_trees.clauses[handle]
     }
 
@@ -1582,7 +1582,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_name_path(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> NamePath
+public machine syntax_trees_name_path(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> NamePath
 crashes Trap
 {
     transition handle < syntax_trees.name_path_count {
@@ -1590,7 +1590,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> NamePath {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> NamePath {
         syntax_trees.name_paths[handle]
     }
 
@@ -1599,7 +1599,7 @@ crashes Trap
     }
 }
 
-public machine trait_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TraitItem
+public machine trait_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TraitItem
 crashes Trap
 {
     transition handle < syntax_trees.trait_count {
@@ -1607,7 +1607,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TraitItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> TraitItem {
         syntax_trees.traits[handle]
     }
 
@@ -1616,7 +1616,7 @@ crashes Trap
     }
 }
 
-public machine conformance_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConformanceItem
+public machine conformance_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> ConformanceItem
 crashes Trap
 {
     transition handle < syntax_trees.conformance_count {
@@ -1624,7 +1624,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConformanceItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> ConformanceItem {
         syntax_trees.conformances[handle]
     }
 
@@ -1633,7 +1633,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_domain_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DomainItem
+public machine syntax_trees_domain_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DomainItem
 crashes Trap
 {
     transition handle < syntax_trees.domain_count {
@@ -1641,7 +1641,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DomainItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DomainItem {
         syntax_trees.domains[handle]
     }
 
@@ -1650,7 +1650,7 @@ crashes Trap
     }
 }
 
-public machine constant_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstantItem
+public machine constant_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> ConstantItem
 crashes Trap
 {
     transition handle < syntax_trees.constant_count {
@@ -1658,7 +1658,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> ConstantItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> ConstantItem {
         syntax_trees.constants[handle]
     }
 
@@ -1667,7 +1667,7 @@ crashes Trap
     }
 }
 
-public machine proposition_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PropositionItem
+public machine proposition_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> PropositionItem
 crashes Trap
 {
     transition handle < syntax_trees.proposition_count {
@@ -1675,7 +1675,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PropositionItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> PropositionItem {
         syntax_trees.propositions[handle]
     }
 
@@ -1684,7 +1684,7 @@ crashes Trap
     }
 }
 
-public machine syntax_trees_contract(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Contract
+public machine syntax_trees_contract(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Contract
 crashes Trap
 {
     transition handle < syntax_trees.contract_count {
@@ -1692,7 +1692,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Contract {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> Contract {
         syntax_trees.contracts[handle]
     }
 
@@ -1701,7 +1701,7 @@ crashes Trap
     }
 }
 
-public machine definition_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DefinitionItem
+public machine definition_item(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DefinitionItem
 crashes Trap
 {
     transition handle < syntax_trees.definition_count {
@@ -1709,7 +1709,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DefinitionItem {
+    machine read(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DefinitionItem {
         syntax_trees.definitions[handle]
     }
 
@@ -1719,7 +1719,7 @@ crashes Trap
 }
 
 // The type row of one trait parent, by its index in `trait_parents`.
-public machine trait_parent(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping
+public machine trait_parent(syntax_trees: @SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < syntax_trees.trait_parent_count {
@@ -1727,7 +1727,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(syntax_trees: @SyntaxTrees, index: u64 in Trapping) -> u64 in Trapping {
         syntax_trees.trait_parents[index] as u64 in Trapping
     }
 
@@ -1737,7 +1737,7 @@ crashes Trap
 }
 
 // The authored name of a data member: a direct field's name or a case's name.
-public machine member_name(syntax_trees: &SyntaxTrees, member: DataMember) -> IdentifierSpan
+public machine member_name(syntax_trees: @SyntaxTrees, member: DataMember) -> IdentifierSpan
 crashes Trap
 {
     transition member.kind {
@@ -1745,19 +1745,19 @@ crashes Trap
         DataMemberKind::Case -> case_name(syntax_trees, member.item_index)
     }
 
-    machine field_name(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan {
+    machine field_name(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan {
         let field: DataField = syntax_trees_field(syntax_trees, handle);
         field.name
     }
 
-    machine case_name(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan {
+    machine case_name(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> IdentifierSpan {
         let data_case: DataCase = syntax_trees_data_case(syntax_trees, handle);
         data_case.name
     }
 }
 
 // The erased binding at `index`.
-public machine erased_binding(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> ErasedBinding
+public machine erased_binding(syntax_trees: @SyntaxTrees, index: u64 in Trapping) -> ErasedBinding
 crashes Trap
 {
     transition index < syntax_trees.erased_binding_count && index < 1024 {
@@ -1765,7 +1765,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> ErasedBinding {
+    machine read(syntax_trees: @SyntaxTrees, index: u64 in Trapping) -> ErasedBinding {
         syntax_trees.erased_bindings[index]
     }
 
@@ -1775,7 +1775,7 @@ crashes Trap
 }
 
 // The lifetime argument at `index` in `type_lifetimes`.
-public machine type_lifetime(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> IdentifierSpan
+public machine type_lifetime(syntax_trees: @SyntaxTrees, index: u64 in Trapping) -> IdentifierSpan
 crashes Trap
 {
     transition index < syntax_trees.type_lifetime_count && index < 1024 {
@@ -1783,7 +1783,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(syntax_trees: &SyntaxTrees, index: u64 in Trapping) -> IdentifierSpan
+    machine read(syntax_trees: @SyntaxTrees, index: u64 in Trapping) -> IdentifierSpan
     requires index < 1024
     {
         syntax_trees.type_lifetimes[index]

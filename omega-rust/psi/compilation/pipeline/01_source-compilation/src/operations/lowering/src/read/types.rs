@@ -881,6 +881,15 @@ impl Program<'_> {
         id: MachineId,
         scalar: ScalarType,
     ) -> Checked<semantic_vocabulary::StructuralTypeId> {
+        let reference = self.plain_scalar_reference(id, scalar)?;
+        self.storage_type(id, reference, ValueType::plain(scalar))
+    }
+
+    pub(super) fn plain_scalar_reference(
+        &self,
+        id: MachineId,
+        scalar: ScalarType,
+    ) -> Checked<TypeReferenceHandle> {
         let atom = scalar_atom(scalar, id)?;
         let symbol = self
             .typed
@@ -893,8 +902,7 @@ impl Program<'_> {
                     Unserved::Type("scalar lender has no registered builtin"),
                 )
             })?;
-        let reference = self
-            .typed
+        self.typed
             .type_reference_table
             .find_arithmetic_result_type_reference(
                 symbol,
@@ -906,8 +914,7 @@ impl Program<'_> {
                     Construct::Machine,
                     Unserved::Type("scalar lender has no registered type occurrence"),
                 )
-            })?;
-        self.storage_type(id, reference, ValueType::plain(scalar))
+            })
     }
 
     /// A formal's, local's, result's or field's type: a record when the

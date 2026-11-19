@@ -2,10 +2,10 @@
 // An atomic value operand is checked once against the cell's `u32` carrier: a `u32` operand exchanges the resident, and an operand of another carrier reports one implicit conversion.
 data Cell { value: AtomicU32; }
 boundary trait HostedExchange {
-    machine perform(cell: &Cell, expected: u32, select: bool) -> u32 reaches crashes none;
+    machine perform(cell: @Cell, expected: u32, select: bool) -> u32 reaches crashes none;
 }
 HostedExchangeBody satisfies HostedExchange {
-    machine perform(cell: &Cell, expected: u32, select: bool) -> u32 {
+    machine perform(cell: @Cell, expected: u32, select: bool) -> u32 {
         let proposed: u32 = match select { true -> 7 false -> 9 };
         let prior: u32 = cell.value.compare_exchange(expected, proposed, NoOrdering, NoOrdering);
         prior
@@ -14,8 +14,8 @@ HostedExchangeBody satisfies HostedExchange {
 machine main() crashes Trap {
     let cell: Cell;
     cell.value.store(3, NoOrdering);
-    let first: u32 = HostedExchange::perform(&cell, 3, true);
-    let second: u32 = HostedExchange::perform(&cell, 3, false);
+    let first: u32 = HostedExchange::perform(@cell, 3, true);
+    let second: u32 = HostedExchange::perform(@cell, 3, false);
     let observed: u32 = cell.value.load(NoOrdering);
     transition first == 3 && second == 7 && observed == 7 { true -> done() _ -> bad() }
     machine done() {}

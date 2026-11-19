@@ -212,7 +212,7 @@ requires
     accepted: bool;
 }
 
-public machine typing_reject(typing: &mut Typing, code: TypeDiagnosticCode, source_span: SourceSpan) {
+public machine typing_reject(typing: @mut Typing, code: TypeDiagnosticCode, source_span: SourceSpan) {
     typing.accepted = false;
     typing.diagnostic.code = code;
     typing.diagnostic.source_span = source_span;
@@ -221,7 +221,7 @@ public machine typing_reject(typing: &mut Typing, code: TypeDiagnosticCode, sour
 // Guarded table access. Every index typing uses is a syntax handle below its
 // table's count, so an index at or past it is a violated producer invariant:
 // the access crashes rather than reading another row.
-public machine reference_type(typing: &Typing, row: u64 in Trapping) -> u64 in Trapping
+public machine reference_type(typing: @Typing, row: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition row < typing.reference_count {
@@ -229,7 +229,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, row: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: @Typing, row: u64 in Trapping) -> u64 in Trapping {
         typing.reference_types[row] as u64 in Trapping
     }
 
@@ -238,7 +238,7 @@ crashes Trap
     }
 }
 
-public machine set_reference_type(typing: &mut Typing, row: u64 in Trapping, handle: u64 in Trapping)
+public machine set_reference_type(typing: @mut Typing, row: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition row < typing.reference_count {
@@ -246,7 +246,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, row: u64 in Trapping, handle: u64 in Trapping) {
+    machine write(typing: @mut Typing, row: u64 in Trapping, handle: u64 in Trapping) {
         typing.reference_types[row] = handle as u64;
     }
 
@@ -255,7 +255,7 @@ crashes Trap
     }
 }
 
-public machine typing_expression_type(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
+public machine typing_expression_type(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -263,7 +263,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
         typing.expression_types[index] as u64 in Trapping
     }
 
@@ -272,7 +272,7 @@ crashes Trap
     }
 }
 
-public machine set_expression_type(typing: &mut Typing, index: u64 in Trapping, handle: u64 in Trapping)
+public machine set_expression_type(typing: @mut Typing, index: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -280,7 +280,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, index: u64 in Trapping, handle: u64 in Trapping) {
+    machine write(typing: @mut Typing, index: u64 in Trapping, handle: u64 in Trapping) {
         typing.expression_types[index] = handle as u64;
     }
 
@@ -289,7 +289,7 @@ crashes Trap
     }
 }
 
-public machine typing_selection(typing: &Typing, index: u64 in Trapping) -> Selection
+public machine typing_selection(typing: @Typing, index: u64 in Trapping) -> Selection
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -297,7 +297,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, index: u64 in Trapping) -> Selection {
+    machine read(typing: @Typing, index: u64 in Trapping) -> Selection {
         typing.selections[index]
     }
 
@@ -306,7 +306,7 @@ crashes Trap
     }
 }
 
-public machine set_selection(typing: &mut Typing, index: u64 in Trapping, selection: Selection)
+public machine set_selection(typing: @mut Typing, index: u64 in Trapping, selection: Selection)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -314,7 +314,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, index: u64 in Trapping, selection: Selection) {
+    machine write(typing: @mut Typing, index: u64 in Trapping, selection: Selection) {
         typing.selections[index] = selection;
     }
 
@@ -323,7 +323,7 @@ crashes Trap
     }
 }
 
-public machine typing_adaptation(typing: &Typing, index: u64 in Trapping) -> Adaptation
+public machine typing_adaptation(typing: @Typing, index: u64 in Trapping) -> Adaptation
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -331,7 +331,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, index: u64 in Trapping) -> Adaptation {
+    machine read(typing: @Typing, index: u64 in Trapping) -> Adaptation {
         typing.adaptations[index]
     }
 
@@ -340,7 +340,7 @@ crashes Trap
     }
 }
 
-public machine set_adaptation(typing: &mut Typing, index: u64 in Trapping, adaptation: Adaptation)
+public machine set_adaptation(typing: @mut Typing, index: u64 in Trapping, adaptation: Adaptation)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -348,7 +348,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, index: u64 in Trapping, adaptation: Adaptation) {
+    machine write(typing: @mut Typing, index: u64 in Trapping, adaptation: Adaptation) {
         typing.adaptations[index] = adaptation;
     }
 
@@ -357,7 +357,7 @@ crashes Trap
     }
 }
 
-public machine typing_value(typing: &Typing, index: u64 in Trapping) -> ExactInteger
+public machine typing_value(typing: @Typing, index: u64 in Trapping) -> ExactInteger
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -365,7 +365,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, index: u64 in Trapping) -> ExactInteger {
+    machine read(typing: @Typing, index: u64 in Trapping) -> ExactInteger {
         typing.values[index]
     }
 
@@ -378,7 +378,7 @@ crashes Trap
 // landing. Runtime typed operations never acquire this annotation. Consumers
 // use its completed integral value rather than imposing runtime carrier rules
 // on its anonymous intermediates; destination qualification remains separate.
-public machine typing_landed_integer(typing: &Typing, handle: u64 in Trapping, expression: Expression) -> bool
+public machine typing_landed_integer(typing: @Typing, handle: u64 in Trapping, expression: Expression) -> bool
 crashes Trap
 {
     let selection: Selection = typing_selection(typing, handle);
@@ -386,10 +386,10 @@ crashes Trap
         Selection::None -> classified(typing, handle, expression)
         _ -> no()
     }
-    machine classified(typing: &Typing, handle: u64 in Trapping, expression: Expression) -> bool {
+    machine classified(typing: @Typing, handle: u64 in Trapping, expression: Expression) -> bool {
         let adaptation: Adaptation = typing_adaptation(typing, handle);
         let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        let row: TypeRow = type_table_row(@typing.types, type_handle);
         let numeric: bool = expression.kind == ExpressionKind::Integer
             || expression.kind == ExpressionKind::Unary || expression.kind == ExpressionKind::Binary;
         typing.accepted && adaptation == Adaptation::Landed && numeric
@@ -400,7 +400,7 @@ crashes Trap
 }
 
 // An anonymous expression's exact rational: its value over its denominator.
-public machine rational(typing: &Typing, index: u64 in Trapping) -> Rational
+public machine rational(typing: @Typing, index: u64 in Trapping) -> Rational
 crashes Trap
 {
     let numerator: ExactInteger = typing_value(typing, index);
@@ -410,7 +410,7 @@ crashes Trap
 
 // A quoted literal's predicate roster (`rosters`); zero for any other
 // expression.
-public machine typing_roster(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
+public machine typing_roster(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -418,7 +418,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
         let stored: u64 = typing.rosters[index];
         stored as u64 in Trapping
     }
@@ -428,7 +428,7 @@ crashes Trap
     }
 }
 
-public machine set_roster(typing: &mut Typing, index: u64 in Trapping, roster: u64 in Trapping)
+public machine set_roster(typing: @mut Typing, index: u64 in Trapping, roster: u64 in Trapping)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -436,7 +436,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, index: u64 in Trapping, roster: u64 in Trapping) {
+    machine write(typing: @mut Typing, index: u64 in Trapping, roster: u64 in Trapping) {
         typing.rosters[index] = roster as u64;
     }
 
@@ -446,7 +446,7 @@ crashes Trap
 }
 
 // The denominator of an anonymous expression's value, at least one.
-public machine typing_denominator(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
+public machine typing_denominator(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -454,7 +454,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
         let stored: u64 = typing.denominators[index];
         transition stored > 1 {
             true -> fraction(stored)
@@ -476,20 +476,20 @@ crashes Trap
 }
 
 // Fractional history is independent of the simplified final denominator.
-public machine typing_fractional_origin(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
+public machine typing_fractional_origin(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < typing.expression_count {
         true -> read(typing, index)
         _ -> invalid()
     }
-    machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: @Typing, index: u64 in Trapping) -> u64 in Trapping {
         typing.fractional_origins[index] as u64 in Trapping
     }
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
 
-public machine set_rational(typing: &mut Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping)
+public machine set_rational(typing: @mut Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -497,7 +497,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping) {
+    machine write(typing: @mut Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping) {
         typing.values[index] = value.numerator;
         typing.denominators[index] = value.denominator as u64;
         transition origin > 0 || value.denominator <= 1 {
@@ -506,11 +506,11 @@ crashes Trap
         }
     }
 
-    machine inherited(typing: &mut Typing, index: u64 in Trapping, origin: u64 in Trapping) {
+    machine inherited(typing: @mut Typing, index: u64 in Trapping, origin: u64 in Trapping) {
         typing.fractional_origins[index] = origin as u64;
     }
 
-    machine fractional(typing: &mut Typing, index: u64 in Trapping) {
+    machine fractional(typing: @mut Typing, index: u64 in Trapping) {
         typing.fractional_origins[index] = (index + 1) as u64;
     }
 
@@ -519,7 +519,7 @@ crashes Trap
     }
 }
 
-public machine typing_set_value(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger)
+public machine typing_set_value(typing: @mut Typing, index: u64 in Trapping, value: ExactInteger)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -527,7 +527,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger) {
+    machine write(typing: @mut Typing, index: u64 in Trapping, value: ExactInteger) {
         typing.values[index] = value;
         typing.denominators[index] = 0;
         typing.fractional_origins[index] = 0;
@@ -538,7 +538,7 @@ crashes Trap
     }
 }
 
-public machine construct_target(typing: &Typing, field: u64 in Trapping) -> MemberTarget
+public machine construct_target(typing: @Typing, field: u64 in Trapping) -> MemberTarget
 crashes Trap
 {
     transition field < typing.construct_count {
@@ -546,7 +546,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
+    machine read(typing: @Typing, field: u64 in Trapping) -> MemberTarget {
         typing.construct_targets[field]
     }
 
@@ -555,7 +555,7 @@ crashes Trap
     }
 }
 
-public machine set_construct_target(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget)
+public machine set_construct_target(typing: @mut Typing, field: u64 in Trapping, target: MemberTarget)
 crashes Trap
 {
     transition field < typing.construct_count {
@@ -563,7 +563,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
+    machine write(typing: @mut Typing, field: u64 in Trapping, target: MemberTarget) {
         typing.construct_targets[field] = target;
     }
 
@@ -572,7 +572,7 @@ crashes Trap
     }
 }
 
-public machine binder_member(typing: &Typing, field: u64 in Trapping) -> MemberTarget
+public machine binder_member(typing: @Typing, field: u64 in Trapping) -> MemberTarget
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -580,7 +580,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, field: u64 in Trapping) -> MemberTarget {
+    machine read(typing: @Typing, field: u64 in Trapping) -> MemberTarget {
         typing.binder_members[field]
     }
 
@@ -589,7 +589,7 @@ crashes Trap
     }
 }
 
-public machine set_binder_member(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget)
+public machine set_binder_member(typing: @mut Typing, field: u64 in Trapping, target: MemberTarget)
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -597,7 +597,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, field: u64 in Trapping, target: MemberTarget) {
+    machine write(typing: @mut Typing, field: u64 in Trapping, target: MemberTarget) {
         typing.binder_members[field] = target;
     }
 
@@ -606,7 +606,7 @@ crashes Trap
     }
 }
 
-public machine binder_type(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping
+public machine binder_type(typing: @Typing, field: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -614,7 +614,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping {
+    machine read(typing: @Typing, field: u64 in Trapping) -> u64 in Trapping {
         typing.binder_types[field] as u64 in Trapping
     }
 
@@ -623,7 +623,7 @@ crashes Trap
     }
 }
 
-public machine set_binder_type(typing: &mut Typing, field: u64 in Trapping, handle: u64 in Trapping)
+public machine set_binder_type(typing: @mut Typing, field: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition field < typing.binder_count {
@@ -631,7 +631,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, field: u64 in Trapping, handle: u64 in Trapping) {
+    machine write(typing: @mut Typing, field: u64 in Trapping, handle: u64 in Trapping) {
         typing.binder_types[field] = handle as u64;
     }
 
@@ -656,7 +656,7 @@ public machine type_row_of(kind: TypeKind) -> TypeRow {
     }
 }
 
-public machine type_table_row(table: &TypeTable, handle: u64 in Trapping) -> TypeRow
+public machine type_table_row(table: @TypeTable, handle: u64 in Trapping) -> TypeRow
 crashes Trap
 {
     transition handle < table.row_count {
@@ -664,7 +664,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(table: &TypeTable, handle: u64 in Trapping) -> TypeRow {
+    machine read(table: @TypeTable, handle: u64 in Trapping) -> TypeRow {
         table.rows[handle]
     }
 
@@ -673,7 +673,7 @@ crashes Trap
     }
 }
 
-public machine type_table_argument(table: &TypeTable, index: u64 in Trapping) -> u64 in Trapping
+public machine type_table_argument(table: @TypeTable, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < table.argument_count {
@@ -681,7 +681,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(table: &TypeTable, index: u64 in Trapping) -> u64 in Trapping {
+    machine read(table: @TypeTable, index: u64 in Trapping) -> u64 in Trapping {
         table.arguments[index] as u64 in Trapping
     }
 
@@ -692,7 +692,7 @@ crashes Trap
 
 // Append one argument to the tentative run at the arguments tail; false when
 // the table is full.
-public machine type_table_push_argument(table: &mut TypeTable, argument: u64 in Trapping) -> bool
+public machine type_table_push_argument(table: @mut TypeTable, argument: u64 in Trapping) -> bool
 crashes Trap
 {
     transition table.argument_count < 4096 {
@@ -700,7 +700,7 @@ crashes Trap
         _ -> full()
     }
 
-    machine push(table: &mut TypeTable, argument: u64 in Trapping) -> bool {
+    machine push(table: @mut TypeTable, argument: u64 in Trapping) -> bool {
         table.arguments[table.argument_count] = argument as u64;
         table.argument_count = table.argument_count + 1;
         true
@@ -714,19 +714,19 @@ crashes Trap
 // Intern `row`. An argument run must be the tentative run the caller just
 // appended at the arguments tail: an equal existing row releases it. Zero
 // when the table is full.
-public machine type_table_intern(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping
+public machine type_table_intern(table: @mut TypeTable, row: TypeRow) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> scan(table, row, 1) }
 
-    machine scan(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
+    machine scan(table: @mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         transition index < table.row_count {
             true -> compare(table, row, index)
             _ -> append(table, row)
         }
     }
 
-    machine compare(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
+    machine compare(table: @mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         let existing: TypeRow = type_table_row(table, index);
         let same: bool = same_row(table, existing, row);
         transition same {
@@ -737,28 +737,28 @@ crashes Trap
 
     // The tentative run ends the argument table, so releasing it moves the
     // count back to where the run starts.
-    machine found(table: &mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
+    machine found(table: @mut TypeTable, row: TypeRow, index: u64 in Trapping) -> u64 in Trapping {
         transition row.argument_count > 0 && row.first_argument <= table.argument_count {
             true -> release(table, row.first_argument, index)
             _ -> result(index)
         }
     }
 
-    machine release(table: &mut TypeTable, first_argument: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
+    machine release(table: @mut TypeTable, first_argument: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires first_argument <= 4096
     {
         table.argument_count = first_argument as u64;
         transition { _ -> result(index) }
     }
 
-    machine append(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping {
+    machine append(table: @mut TypeTable, row: TypeRow) -> u64 in Trapping {
         transition table.row_count < 8192 {
             true -> store(table, row)
             _ -> full()
         }
     }
 
-    machine store(table: &mut TypeTable, row: TypeRow) -> u64 in Trapping {
+    machine store(table: @mut TypeTable, row: TypeRow) -> u64 in Trapping {
         let handle: u64 in Trapping = table.row_count as u64 in Trapping;
         table.rows[handle] = row;
         table.row_count = table.row_count + 1;
@@ -775,7 +775,7 @@ crashes Trap
 }
 
 // Whether two rows denote one type: equal fields and equal argument runs.
-machine same_row(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool
+machine same_row(table: @TypeTable, left: TypeRow, right: TypeRow) -> bool
 crashes Trap
 {
     transition left.kind == right.kind
@@ -791,14 +791,14 @@ crashes Trap
         _ -> different()
     }
 
-    machine arguments(table: &TypeTable, left: TypeRow, right: TypeRow, offset: u64 in Trapping) -> bool {
+    machine arguments(table: @TypeTable, left: TypeRow, right: TypeRow, offset: u64 in Trapping) -> bool {
         transition offset < left.argument_count {
             true -> argument(table, left, right, offset)
             _ -> same()
         }
     }
 
-    machine argument(table: &TypeTable, left: TypeRow, right: TypeRow, offset: u64 in Trapping) -> bool {
+    machine argument(table: @TypeTable, left: TypeRow, right: TypeRow, offset: u64 in Trapping) -> bool {
         let left_argument: u64 in Trapping = type_table_argument(table, left.first_argument + offset);
         let right_argument: u64 in Trapping = type_table_argument(table, right.first_argument + offset);
         transition left_argument == right_argument {
@@ -829,17 +829,17 @@ public machine type_row_carrier(row: TypeRow) -> TypeRow {
 // slice it refers to).
 // The type a reference row's referent has, through every reference layer;
 // any other type itself.
-public machine referent_of(typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine referent_of(typing: @Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let row: TypeRow = type_table_row(&typing.types, handle);
+    let row: TypeRow = type_table_row(@typing.types, handle);
     transition row.kind == TypeKind::Reference {
         true -> inner(typing, row.inner, 0)
         _ -> result(handle)
     }
 
-    machine inner(typing: &Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        let row: TypeRow = type_table_row(&typing.types, handle);
+    machine inner(typing: @Typing, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let row: TypeRow = type_table_row(@typing.types, handle);
         transition row.kind == TypeKind::Reference && depth < 16 {
             true -> inner(typing, row.inner, depth + 1)
             _ -> result(handle)
@@ -851,7 +851,7 @@ crashes Trap
     }
 }
 
-public machine same_carrier(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool
+public machine same_carrier(table: @TypeTable, left: TypeRow, right: TypeRow) -> bool
 crashes Trap
 {
     transition left.kind == TypeKind::Reference && right.kind == TypeKind::Reference {
@@ -859,7 +859,7 @@ crashes Trap
         _ -> rows(table, left, right)
     }
 
-    machine referents(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
+    machine referents(table: @TypeTable, left: TypeRow, right: TypeRow) -> bool {
         let left_referent: TypeRow = type_table_row(table, left.inner);
         let right_referent: TypeRow = type_table_row(table, right.inner);
         transition left.access == right.access {
@@ -868,7 +868,7 @@ crashes Trap
         }
     }
 
-    machine rows(table: &TypeTable, left: TypeRow, right: TypeRow) -> bool {
+    machine rows(table: @TypeTable, left: TypeRow, right: TypeRow) -> bool {
         let left_carrier: TypeRow = type_row_carrier(left);
         let right_carrier: TypeRow = type_row_carrier(right);
         let same: bool = same_row(table, left_carrier, right_carrier);
@@ -882,7 +882,7 @@ crashes Trap
 
 // The row a type's domain qualifier sits on: its own, or a reference's
 // referent's.
-public machine qualified_row(table: &TypeTable, row: TypeRow) -> TypeRow
+public machine qualified_row(table: @TypeTable, row: TypeRow) -> TypeRow
 crashes Trap
 {
     transition row.kind == TypeKind::Reference {
@@ -890,7 +890,7 @@ crashes Trap
         _ -> own(row)
     }
 
-    machine referent(table: &TypeTable, inner: u64 in Trapping) -> TypeRow {
+    machine referent(table: @TypeTable, inner: u64 in Trapping) -> TypeRow {
         let referent_row: TypeRow = type_table_row(table, inner);
         referent_row
     }
@@ -935,20 +935,20 @@ public machine carrier_width(row: TypeRow) -> u64 in Trapping {
 // operand chain to name the original borrow or reference value,
 // including a cast applied to another cast. Syntax children precede parents;
 // an impossible nondecreasing edge fails rather than erasing a loan.
-public machine reference_cast_source(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine reference_cast_source(syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> next(syntax, typing, handle) }
-    machine next(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping {
+    machine next(syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> u64 in Trapping {
         let expression: Expression = syntax_trees_expression(syntax, handle);
         let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        let row: TypeRow = type_table_row(@typing.types, type_handle);
         transition expression.kind == ExpressionKind::Cast && row.kind == TypeKind::Reference {
             true -> child(syntax, typing, handle, expression.left)
             _ -> result(handle)
         }
     }
-    machine child(syntax: &SyntaxTrees, typing: &Typing, parent: u64 in Trapping, operand: u64 in Trapping) -> u64 in Trapping {
+    machine child(syntax: @SyntaxTrees, typing: @Typing, parent: u64 in Trapping, operand: u64 in Trapping) -> u64 in Trapping {
         transition operand < parent {
             true -> next(syntax, typing, operand)
             _ -> invalid()

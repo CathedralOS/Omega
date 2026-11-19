@@ -130,7 +130,7 @@ public boundary trait BlockingExecutor {
     // refused submission is returned whole inside `Rejected`.
     machine submit<T, Arguments, const N: u64>(
         submission: Submission<T, Arguments>,
-        executor: &mut Executor<T, Arguments, N>
+        executor: @mut Executor<T, Arguments, N>
     ) -> SubmitOutcome<T, Arguments> reaches none
         crashes Trap crashes Abort;
 
@@ -139,7 +139,7 @@ public boundary trait BlockingExecutor {
     // point, so the park is declared at the boundary, not invented inside.
     // The returned submission's custody moves to the worker.
     machine take_one<T, Arguments, const N: u64>(
-        executor: &mut Executor<T, Arguments, N>
+        executor: @mut Executor<T, Arguments, N>
     ) -> Submission<T, Arguments>
     reaches none
     requires
@@ -156,7 +156,7 @@ public boundary trait BlockingExecutor {
     // consume the claim. A worker that ignores the request and never reports
     // an outcome is the hung case; recovery from it is the
     // `IsolatedWorkerProvider` contract above.
-    machine request_cancel<T>(ticket: &Ticket<T>) reaches none crashes Trap crashes Abort;
+    machine request_cancel<T>(ticket: @Ticket<T>) reaches none crashes Trap crashes Abort;
 
     // Terminally consume this claim against the executor that vended it;
     // blocks until the worker reports a lifecycle outcome. Same shape as
@@ -166,7 +166,7 @@ public boundary trait BlockingExecutor {
     // `close`'s provable zero-claims obligation unreachable.
     machine settle<T, Arguments, const N: u64>(
         ticket: Ticket<T>,
-        executor: &mut Executor<T, Arguments, N>
+        executor: @mut Executor<T, Arguments, N>
     ) -> ExecutorOutcome<T>
     reaches none
     suspends

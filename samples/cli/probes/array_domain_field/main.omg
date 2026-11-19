@@ -19,30 +19,30 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition { _ -> fill(main) }
-    machine fill(main: &mut Main) {
+    machine fill(main: @mut Main) {
         main.label = "abc";
         transition { _ -> stamp(main) }
     }
-    machine stamp(main: &mut Main) {
+    machine stamp(main: @mut Main) {
         main.label[0] = 66;
         transition { _ -> read(main) }
     }
-    machine read(main: &mut Main) {
+    machine read(main: @mut Main) {
         transition main.label.len == 3 && main.label[0] == 66
             && main.label[1] == 98 && main.label[2] == 99 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

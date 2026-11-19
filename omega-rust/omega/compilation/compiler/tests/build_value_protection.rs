@@ -1,5 +1,5 @@
 //! A Build script cannot make, keep or take apart the compiler-owned `Build`
-//! value. The toolchain hands the script one `&mut Build` and afterwards
+//! value. The toolchain hands the script one `@mut Build` and afterwards
 //! decodes what the script left in it, so a `Build` that source produced
 //! itself would be read as if the toolchain had issued it.
 //!
@@ -16,7 +16,7 @@ static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// The Build script every program here shares: it only uses the `Build` it
 /// was lent.
 const BUILD: &str = "\
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, \"sealed\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
@@ -77,12 +77,12 @@ fn the_host_does_not_supply_a_build_to_a_shared_borrow_or_another_type() {
     for (name, build, expected) in [
         (
             "shared_receiver",
-            "machine build(builder: &Build) { }",
+            "machine build(builder: @Build) { }",
             "executable mutable borrow of Build",
         ),
         (
             "other_receiver",
-            "data Other { }\nmachine build(builder: &mut Other) { }",
+            "data Other { }\nmachine build(builder: @mut Other) { }",
             "exact toolchain Build type",
         ),
     ] {
@@ -191,12 +191,12 @@ fn taking_the_seal_out_of_the_lent_build_is_not_accepted() {
     // only value that fits the vacant place is another issued seal.
     rejected_with(
         "moved_out",
-        "machine wrong(builder: &mut Build) -> BuildSeal in Issued {\n    builder.seal\n}\n",
+        "machine wrong(builder: @mut Build) -> BuildSeal in Issued {\n    builder.seal\n}\n",
         "the place does not hold a value again where the machine returns the borrow",
     );
     refused_with(
         "copied_out",
-        "machine wrong(builder: &Build) {\n    let seal: BuildSeal in Issued = builder.seal;\n}\n",
+        "machine wrong(builder: @Build) {\n    let seal: BuildSeal in Issued = builder.seal;\n}\n",
         "owned extraction from borrowed storage",
     );
 }
@@ -205,7 +205,7 @@ fn taking_the_seal_out_of_the_lent_build_is_not_accepted() {
 fn replacing_the_seal_is_rejected() {
     rejected_with(
         "replaced",
-        "machine wrong(builder: &mut Build) {\n    builder.seal = BuildSeal { };\n}\n",
+        "machine wrong(builder: @mut Build) {\n    builder.seal = BuildSeal { };\n}\n",
         "this value's type carries no domain and the place it is assigned to declares \
          `BuildSeal::Issued`",
     );
@@ -216,9 +216,9 @@ fn replacing_the_seal_is_rejected() {
 fn lending_the_seal_as_its_plain_carrier_is_rejected() {
     rejected_with(
         "lent",
-        "machine peek(seal: &BuildSeal) { }
-machine wrong(builder: &Build) {
-    peek(&builder.seal)
+        "machine peek(seal: @BuildSeal) { }
+machine wrong(builder: @Build) {
+    peek(@builder.seal)
 }
 ",
         "this value's type carries `BuildSeal::Issued` and the parameter it is passed for \
@@ -235,7 +235,7 @@ fn storing_or_returning_the_lent_build_is_not_accepted() {
         "data Kept<'storage> {
     build: Build<'storage>;
 }
-machine wrong(builder: &mut Build) {
+machine wrong(builder: @mut Build) {
     let kept: Kept = Kept { build: builder };
 }
 ",
@@ -245,20 +245,20 @@ machine wrong(builder: &mut Build) {
     // itself, not an unrelated region, that is refused.
     rejected_with(
         "returned",
-        "machine wrong<'storage>(builder: &mut Build<'storage>) -> Build<'storage> {\n    builder\n}\n",
+        "machine wrong<'storage>(builder: @mut Build<'storage>) -> Build<'storage> {\n    builder\n}\n",
         "an owned value was moved out of borrowed storage, and the place does not hold a value again",
     );
 }
 
 /// What a borrowed Build may be kept in: a record holding the lent
-/// `&mut Build`, with every lifetime the field names stated
+/// `@mut Build`, with every lifetime the field names stated
 /// (`wiki/spec/language/lifetimes.md`: a named data application must "match
 /// the declaration's lifetime arity"). A borrow is not a copy, so the seal
 /// stays where the toolchain issued it, and the Build can be driven through
 /// the record as through the parameter.
 const CONFIGURATION: &str = "\
-data Configuration<'activation, 'storage> { builder: &'activation mut Build<'storage>; }
-machine wrap<'activation, 'storage>(builder: &'activation mut Build<'storage>) -> Configuration<'activation, 'storage> {
+data Configuration<'activation, 'storage> { builder: @'activation mut Build<'storage>; }
+machine wrap<'activation, 'storage>(builder: @'activation mut Build<'storage>) -> Configuration<'activation, 'storage> {
     Configuration { builder: builder }
 }
 ";
@@ -266,11 +266,11 @@ machine wrap<'activation, 'storage>(builder: &'activation mut Build<'storage>) -
 #[test]
 fn a_record_holding_the_lent_build_drives_it() {
     let machines = format!(
-        "{CONFIGURATION}machine configure(builder: &mut Build) {{
+        "{CONFIGURATION}machine configure(builder: @mut Build) {{
     let mut configuration: Configuration = wrap(builder);
-    bind_through(&mut configuration);
+    bind_through(@mut configuration);
 }}
-machine bind_through(configuration: &mut Configuration) {{
+machine bind_through(configuration: @mut Configuration) {{
     Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
 }}
 "
@@ -286,8 +286,8 @@ machine bind_through(configuration: &mut Configuration) {{
 fn a_record_holding_shared_access_to_the_build_cannot_write_it() {
     rejected_with(
         "held_shared",
-        "data Viewed<'activation, 'storage> { builder: &'activation Build<'storage>; }
-machine wrong(viewed: &mut Viewed) {
+        "data Viewed<'activation, 'storage> { builder: @'activation Build<'storage>; }
+machine wrong(viewed: @mut Viewed) {
     Build::application(viewed.builder, \"renamed\");
 }
 ",
@@ -301,8 +301,8 @@ machine wrong(viewed: &mut Viewed) {
 fn a_record_eliding_the_builds_lifetime_is_refused_by_name() {
     refused_with(
         "held_elided",
-        "data Configuration<'activation> { builder: &'activation mut Build; }
-machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'activation> {
+        "data Configuration<'activation> { builder: @'activation mut Build; }
+machine wrap<'activation>(builder: @'activation mut Build) -> Configuration<'activation> {
     Configuration { builder: builder }
 }
 ",
@@ -319,7 +319,7 @@ machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'act
 fn binding_an_entry_needs_the_mutable_build_value() {
     let helper = |access: &str, argument: &str| {
         format!(
-            "machine helper(builder: &{access}Build) {{
+            "machine helper(builder: @{access}Build) {{
     Build::bind({argument}, linux_arm64::ProgramEntry, main);
 }}
 "
@@ -330,7 +330,7 @@ fn binding_an_entry_needs_the_mutable_build_value() {
         Vec::<String>::new()
     );
     assert_eq!(
-        refusals("bind-explicit-mutable", &helper("mut ", "&mut builder")),
+        refusals("bind-explicit-mutable", &helper("mut ", "@mut builder")),
         Vec::<String>::new()
     );
     rejected_with(
@@ -340,43 +340,43 @@ fn binding_an_entry_needs_the_mutable_build_value() {
     );
     rejected_with(
         "bind-mutable-through-shared",
-        &helper("", "&mut builder"),
+        &helper("", "@mut builder"),
         "as mutable through a shared reference, which grants no mutation",
     );
     rejected_with(
         "bind-explicit-shared",
-        &helper("mut ", "&builder"),
+        &helper("mut ", "@builder"),
         "the caller lends only immutable access to this argument",
     );
     rejected_with(
         "bind-explicit-write-only",
-        &helper("mut ", "&write builder"),
+        &helper("mut ", "@write builder"),
         "the caller lends write-only access to this argument",
     );
 }
 
 /// The same rule through a record that keeps the Build it was lent
 /// (`samples/cli/facts/build_activation_borrow`): binding through a stored
-/// `&mut Build` is the activation's mutable value forwarded, and through a
+/// `@mut Build` is the activation's mutable value forwarded, and through a
 /// stored `&Build` it is not, whether the record was built from the formal
 /// or from a local that held the exclusive reference first.
 #[test]
 fn binding_through_a_stored_build_reference_needs_it_stored_mutable() {
     let holder = |access: &str, construction: &str| {
         format!(
-            "data Configuration<'activation, 'storage> {{ builder: &'activation {access}Build<'storage>; }}
-machine bind_configuration(configuration: &mut Configuration) {{
+            "data Configuration<'activation, 'storage> {{ builder: @'activation {access}Build<'storage>; }}
+machine bind_configuration(configuration: @mut Configuration) {{
     Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
 }}
-machine helper(builder: &mut Build) {{
+machine helper(builder: @mut Build) {{
     {construction}
-    bind_configuration(&mut configuration);
+    bind_configuration(@mut configuration);
 }}
 "
         )
     };
     let direct = "let mut configuration: Configuration = Configuration { builder: builder };";
-    let through_local = "let view: &mut Build = builder;
+    let through_local = "let view: @mut Build = builder;
     let mut configuration: Configuration = Configuration { builder: view };";
     assert_eq!(
         refusals("stored-mutable", &holder("mut ", direct)),
@@ -402,9 +402,9 @@ machine helper(builder: &mut Build) {{
 fn binding_requires_the_shared_cohort_to_end_before_exclusive_access() {
     let helper = |operations: &str| {
         format!(
-            "machine observe(builder: &Build) -> bool {{ builder.tests.disabled }}
-machine helper(builder: &mut Build) -> bool {{
-    let view: &Build = builder;
+            "machine observe(builder: @Build) -> bool {{ builder.tests.disabled }}
+machine helper(builder: @mut Build) -> bool {{
+    let view: @Build = builder;
     {operations}
 }}
 "
@@ -430,10 +430,10 @@ machine helper(builder: &mut Build) -> bool {{
 fn an_explicit_exclusive_argument_to_a_shared_formal_requires_the_cohort_to_end() {
     let helper = |operations: &str| {
         format!(
-            "machine observe(builder: &Build) -> bool {{ builder.tests.disabled }}
-machine observe_both(left: &Build, right: &Build) -> bool {{ left.tests.disabled && right.tests.disabled }}
-machine helper(builder: &mut Build) -> bool {{
-    let view: &Build = builder;
+            "machine observe(builder: @Build) -> bool {{ builder.tests.disabled }}
+machine observe_both(left: @Build, right: @Build) -> bool {{ left.tests.disabled && right.tests.disabled }}
+machine helper(builder: @mut Build) -> bool {{
+    let view: @Build = builder;
     {operations}
 }}
 "
@@ -443,7 +443,7 @@ machine helper(builder: &mut Build) -> bool {{
         refusals(
             "ordinary-exclusive-after-cohort",
             &helper(
-                "let observed: bool = observe(view); let exclusive: bool = observe(&mut builder); observed && exclusive"
+                "let observed: bool = observe(view); let exclusive: bool = observe(@mut builder); observed && exclusive"
             ),
         ),
         Vec::<String>::new()
@@ -457,13 +457,13 @@ machine helper(builder: &mut Build) -> bool {{
     );
     rejected_with(
         "ordinary-exclusive-during-cohort",
-        &helper("let exclusive: bool = observe(&mut builder); observe(view) && exclusive"),
+        &helper("let exclusive: bool = observe(@mut builder); observe(view) && exclusive"),
         "conflicting loans",
     );
     rejected_with(
         "ordinary-exclusive-beside-shared",
         &helper(
-            "let observed: bool = observe(view); observe_both(&mut builder, builder) && observed",
+            "let observed: bool = observe(view); observe_both(@mut builder, builder) && observed",
         ),
         "conflicting loans",
     );

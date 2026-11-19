@@ -2,7 +2,7 @@
 // Expected exit: 0
 // Place: target_body.
 data Gate<const Number: u64> requires Number == 0 { code: u8; }
-machine Gate::read<const Selected: u64>(gate: &Gate<Selected>) -> u8 { gate.code }
+machine Gate::read<const Selected: u64>(gate: @Gate<Selected>) -> u8 { gate.code }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }
@@ -24,12 +24,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedRead {
-    machine read(value: &Gate<2>) -> u8
+    machine read(value: @Gate<2>) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Read satisfies SelectedRead {
-    machine read(value: &Gate<2>) -> u8
+    machine read(value: @Gate<2>) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -38,7 +38,7 @@ X86Read satisfies SelectedRead {
 }
 
 ArmRead satisfies SelectedRead {
-    machine read(value: &Gate<2>) -> u8
+    machine read(value: @Gate<2>) -> u8
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -49,7 +49,7 @@ ArmRead satisfies SelectedRead {
 
 machine start() crashes Trap {
     let value: Gate<2>;
-    let code: u8 = SelectedRead::read(&value);
+    let code: u8 = SelectedRead::read(@value);
     transition code == 0u8 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

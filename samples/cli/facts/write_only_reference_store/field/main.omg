@@ -4,15 +4,15 @@
 // Place: field. The write-only slot arrives through a record field.
 // Expected exit: 0
 data Cell { value: i64; }
-data Held<'view> { target: &'view Cell; stamp: i64; }
-data Carrier<'view> { slot: &'view write Held<'view>; }
+data Held<'view> { target: @'view Cell; stamp: i64; }
+data Carrier<'view> { slot: @'view write Held<'view>; }
 
 machine main() crashes Trap {
     let left: Cell = Cell { value: 11 };
     let right: Cell = Cell { value: 85 };
-    let mut held: Held = Held { target: &left, stamp: 17 };
-    let mut carrier: Carrier = Carrier { slot: &write held };
-    carrier.slot.target = &right;
+    let mut held: Held = Held { target: @left, stamp: 17 };
+    let mut carrier: Carrier = Carrier { slot: @write held };
+    carrier.slot.target = @right;
     transition held.target.value == 85 && held.stamp == 17 && left.value == 11 {
         true -> done()
         _ -> bad()

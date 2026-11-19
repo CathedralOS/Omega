@@ -225,7 +225,7 @@ contract as an ordinary machine; a library iterator needs no asm-only variant.
 That composition neither injects source instructions nor guarantees inlining
 or compile-time unrolling.
 
-Ordinary `&[T]` and `&mut [T]` parameters retain length, backing, lifetime and
+Ordinary `@[T]` and `@mut [T]` parameters retain length, backing, lifetime and
 access obligations in assembly. A native boundary policy must explicitly admit
 their foreign shape or use a checked pointer/length adapter; that ABI restriction
 does not prohibit slices under Omega's internal convention.

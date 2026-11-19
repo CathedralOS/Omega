@@ -1,11 +1,11 @@
 // Breaking the carried readiness fact must reject normal cleanup.
 data Seed [copy] { ready: bool; }
 data Token dropped by drop_token { ready: bool; value: u64; }
-machine drop_token(token: &mut Token)
+machine drop_token(token: @mut Token)
 requires token.ready { token.ready = false; }
-machine make_token(seed: &Seed) -> Token
+machine make_token(seed: @Seed) -> Token
 ensures result.ready == seed.ready { Token { ready: seed.ready, value: 7 } }
-machine read(token: &Token) -> u64 { token.value }
+machine read(token: @Token) -> u64 { token.value }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }
@@ -36,7 +36,7 @@ X86Across satisfies SelectedAcross {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     let seed: Seed = Seed { ready: false }; read(&make_token(&seed)) 
+     let seed: Seed = Seed { ready: false }; read(@make_token(@seed))
     }
 }
 
@@ -45,7 +45,7 @@ ArmAcross satisfies SelectedAcross {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     let seed: Seed = Seed { ready: false }; read(&make_token(&seed)) 
+     let seed: Seed = Seed { ready: false }; read(@make_token(@seed))
     }
 }
 

@@ -23,12 +23,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedAdvance {
-    machine advance(counter: &mut Counter, amount: u64)
+    machine advance(counter: @mut Counter, amount: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires amount <= 320 - counter.total;
 }
 
 X86Advance satisfies SelectedAdvance {
-    machine advance(counter: &mut Counter, amount: u64)
+    machine advance(counter: @mut Counter, amount: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires amount <= 320 - counter.total
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -37,7 +37,7 @@ X86Advance satisfies SelectedAdvance {
 }
 
 ArmAdvance satisfies SelectedAdvance {
-    machine advance(counter: &mut Counter, amount: u64)
+    machine advance(counter: @mut Counter, amount: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires amount <= 320 - counter.total
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -51,10 +51,10 @@ machine main() crashes Trap {
     let mut endpoint: Counter = Counter { total: 300 };
     let mut unchanged: Counter = Counter { total: 320 };
     let mut full: Counter = Counter { total: 0 };
-    SelectedAdvance::advance(&mut interior, 40);
-    SelectedAdvance::advance(&mut endpoint, 20);
-    SelectedAdvance::advance(&mut unchanged, 0);
-    SelectedAdvance::advance(&mut full, 320);
+    SelectedAdvance::advance(@mut interior, 40);
+    SelectedAdvance::advance(@mut endpoint, 20);
+    SelectedAdvance::advance(@mut unchanged, 0);
+    SelectedAdvance::advance(@mut full, 320);
     transition interior.total == 70 && endpoint.total == 320
         && unchanged.total == 320 && full.total == 320 {
         true -> done()

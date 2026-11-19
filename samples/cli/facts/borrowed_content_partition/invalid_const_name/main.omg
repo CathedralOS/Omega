@@ -8,8 +8,8 @@ const FIRST: u64 = 17;
 const SECOND: u64 = 8;
 machine exercise(select: bool) -> bool {
     let mut strategy: Strategy = Strategy { tail: issue(), remaining: CAPACITY };
-    let first: Region in Owned = carve(&mut strategy, CAPACITY, FIRST);
-    let second: Region in Owned = carve(&mut strategy, CAPACITY - FIRST, SECOND);
+    let first: Region in Owned = carve(@mut strategy, CAPACITY, FIRST);
+    let second: Region in Owned = carve(@mut strategy, CAPACITY - FIRST, SECOND);
     finish(strategy, first, second)
 }
 

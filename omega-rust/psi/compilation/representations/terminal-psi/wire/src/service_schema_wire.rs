@@ -20,12 +20,12 @@ use declaration_contracts::service_surface::ServiceProgressPremise;
 use declaration_contracts::service_surface::ServiceProgressSubject;
 use declaration_contracts::service_surface::ServiceReceiverApplication;
 use declaration_contracts::service_surface::ServiceResultClaim;
-use declaration_contracts::service_surface::ServiceSurface;
 use declaration_contracts::service_surface::identities::ProviderIdentityId;
 use declaration_contracts::service_surface::identities::ProviderIdentityTable;
 use declaration_contracts::service_surface::{
     ServiceNormalResultMembership, ServiceResultProjection,
 };
+use declaration_contracts::service_surface::{ServiceSurface, ServiceSynchronousInvocation};
 use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
 use std::sync::Arc;
 use terminal_psi::{
@@ -111,6 +111,10 @@ wire_enum! {
         2 => Case(name: Text),
         3 => FixedIndex(index: crate::wire_fields::U64),
     }
+    SynchronousInvocation: ServiceSynchronousInvocation, "ServiceSynchronousInvocation" {
+        1 => Parameter(position: crate::wire_fields::U32),
+        2 => Service(name: Text),
+    }
     ProgressSubject: ServiceProgressSubject, "ServiceProgressSubject" {
         1 => Parameter(index: Count),
     }
@@ -163,7 +167,7 @@ wire_record! {
         result_claims: List<ResultClaim>,
         normal_result_memberships: List<NormalMembership>,
         service_reach: List<Text>,
-        synchronous_invocations: List<Text>,
+        synchronous_invocations: List<SynchronousInvocation>,
         may_suspend: Flag,
         may_block: Flag,
         terminates_guarantee: Flag,
@@ -270,7 +274,10 @@ mod tests {
                     effective_carry: CarryPolicy::STRICT,
                 }],
                 service_reach: vec!["Console".into()],
-                synchronous_invocations: vec!["Other::call".into()],
+                synchronous_invocations: vec![
+                    ServiceSynchronousInvocation::Parameter(0),
+                    ServiceSynchronousInvocation::Service("Other::call".into()),
+                ],
                 may_suspend: true,
                 may_block: false,
                 terminates_guarantee: true,
@@ -336,6 +343,15 @@ mod tests {
         assert!(module.service_schema(declaration, application).is_ok());
         module.service_schemas.push(decoded);
         assert!(module.service_schema(declaration, application).is_err());
+        module.service_schemas.pop();
+        Arc::make_mut(&mut module.service_schemas[0].surface).methods[0].synchronous_invocations
+            [0] = ServiceSynchronousInvocation::Parameter(1);
+        assert!(
+            module
+                .service_schema(declaration, application)
+                .unwrap_err()
+                .contains("parameter outside the signature")
+        );
         let mut no_result = schema.clone();
         let surface = Arc::make_mut(&mut no_result.surface);
         surface.methods[0].has_result = false;

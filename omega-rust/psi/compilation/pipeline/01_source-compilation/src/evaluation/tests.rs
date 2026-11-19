@@ -481,7 +481,7 @@ fn an_unselected_applied_collection_read_does_not_stop_the_entry() {
             "library.omg",
             r#"
 data Shelf<T> { stored: [T; 2]; }
-machine unread(shelf: &Shelf<u64>, index: u64) -> u64
+machine unread(shelf: @Shelf<u64>, index: u64) -> u64
 requires index < 2
 { shelf.stored[index] + 0 }
 "#,
@@ -715,7 +715,7 @@ fn indexed_assignment_literals_retain_the_receivers_actual_type_application() {
         r#"
 data Cell<T> { value: T; }
 data Store { small: [Cell<u32>; 2]; large: [Cell<u64>; 2]; }
-machine fill(store: &mut Store) {
+machine fill(store: @mut Store) {
     store.small[0] = Cell { value: 7 };
     store.large[1] = Cell { value: 4294967296 };
 }
@@ -2026,7 +2026,7 @@ fn const_argument_program(declarations: &str, leaf: &str, argument: &str) -> Str
         {declarations}
         machine leaf() -> u64 {{ {leaf} }}
         machine outer() -> u64 {{ let buffer: Buffer<leaf()>; leaf() }}
-        machine demanded(storage: &Storage) -> u64 {{ 0u64 }}
+        machine demanded(storage: @Storage) -> u64 {{ 0u64 }}
         machine main() -> u64 {{ 0u64 }}"
     )
 }
@@ -2158,7 +2158,7 @@ fn a_closed_array_extent_uses_its_checked_value_when_demanded() {
 
     let source = "machine extent() -> u64 { 4u64 }
         data Packet { bytes: [u8; extent()]; }
-        machine reader(packet: &Packet) -> u64 { 0u64 }
+        machine reader(packet: @Packet) -> u64 { 0u64 }
         machine unrelated() -> u64 { 0u64 }";
     for (entry, expected_calls) in [("reader", 1), ("unrelated", 0)] {
         let (program, accounting, result) = evaluate_const_arguments_of(source, entry);
@@ -2204,7 +2204,7 @@ fn a_closed_array_extent_uses_its_checked_value_when_demanded() {
 fn an_evaluated_array_extent_must_be_a_nonnegative_length() {
     let source = "machine extent() -> i64 { 0i64 - 1i64 }
         data Packet { bytes: [u8; extent()]; }
-        machine reader(packet: &Packet) -> u64 { 0u64 }";
+        machine reader(packet: @Packet) -> u64 { 0u64 }";
     let (_, accounting, result) = evaluate_const_arguments_of(source, "reader");
     let errors = result.expect_err("the evaluated extent is negative");
     assert_eq!(accounting.receipts().len(), 1);
@@ -2246,7 +2246,7 @@ fn a_const_argument_call_that_cannot_be_an_argument_is_an_error_at_the_call() {
             "data Signed<const Capacity: i64> { slots: [u8; Capacity]; }
              data Below { buffer: Signed<below()>; }
              machine below() -> i64 { 0i64 - 1i64 }
-             machine reads(below: &Below) -> u64 { 0u64 }",
+             machine reads(below: @Below) -> u64 { 0u64 }",
             "outer()",
             &["an applied array length is not a closed nonnegative integer"][..],
         ),
@@ -2254,14 +2254,14 @@ fn a_const_argument_call_that_cannot_be_an_argument_is_an_error_at_the_call() {
         (
             "boundary trait Clock { machine now() -> u64 reaches none crashes none; }
              machine observed() -> u64 reaches Clock { Clock::now() }
-             machine reads(storage: &Storage) -> u64 { 0u64 }",
+             machine reads(storage: @Storage) -> u64 { 0u64 }",
             "observed()",
             &["target", "service", "reach"][..],
         ),
         // A value computed through the type it is an argument of.
         (
             "machine own() -> u64 { let buffer: Buffer<own()>; 4u64 }
-             machine reads(storage: &Storage) -> u64 { own() }",
+             machine reads(storage: @Storage) -> u64 { own() }",
             "outer()",
             &["has no first step"][..],
         ),

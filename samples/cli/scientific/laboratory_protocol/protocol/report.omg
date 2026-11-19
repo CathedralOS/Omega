@@ -5,7 +5,7 @@ use protocol::model;
 
 public data Report { }
 
-public machine row(laboratory: &protocol::model::Laboratory, decision: i32) reaches Console
+public machine row(laboratory: @protocol::model::Laboratory, decision: i32) reaches Console
 invokes Console
 {
     decision(decision);

@@ -1,7 +1,7 @@
 // A shared element loan into an owned byte array exports the whole original array through the thin foreign ABI, so the foreign reader sees every sibling byte and no byte changes.
 // Expected exit: 0
 public boundary trait Text {
-    machine length(text: &u8) -> u64 reaches crashes none;
+    machine length(text: @u8) -> u64 reaches crashes none;
 }
 machine demand(result: bool) crashes Trap {
     transition result { true -> done() false -> bad() }
@@ -15,10 +15,10 @@ machine through(choice: bool) -> u64 crashes Trap {
         false -> "ps\0yzwxy"
     };
     let mut text: [u8; 8] = joined;
-    let selected: &u8 = &text[0];
+    let selected: @u8 = @text[0];
     text[0] = 0;
     let measured: u64 = Text::length(selected);
-    let rest: u64 = Text::length(&text[2]);
+    let rest: u64 = Text::length(@text[2]);
     demand(text[6] == 120 && text[7] == 121);
     transition measured < 16 && rest < 16 { true -> (measured * 16 + rest) _ -> (0) }
 }

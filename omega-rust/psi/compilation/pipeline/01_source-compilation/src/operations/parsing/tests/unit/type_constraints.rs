@@ -112,7 +112,7 @@ fn proof_fact_array_values_remain_value_expressions() {
         "[1, 2] == [1, 2]",
         "([[1, 2], [3, 4]] == [[1, 2], [3, 4]])",
         "[match 1 { 1 -> 2, _ -> 3 }] == [2]",
-        "&[1, 2] == &[1, 2]",
+        "@[1, 2] == @[1, 2]",
     ] {
         let source = format!("data Buffer requires {equation} {{ storage: u64; }}");
         let parsed = crate::tests::parse_source_verbose(
@@ -143,7 +143,7 @@ fn reference_operands_retain_access_and_element_type_role_through_copy() {
         ("write ", language_core::ReferenceAccess::WriteOnly),
     ] {
         let source = format!(
-            "data Buffer<Backing, Element, const Count: u64> requires Backing == (&{access}[&Element; Count]) {{ storage: Backing; }}"
+            "data Buffer<Backing, Element, const Count: u64> requires Backing == (@{access}[@Element; Count]) {{ storage: Backing; }}"
         );
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let parsed = parse_syntax_trees(&tokens).expect("reference around a type-role operand");
@@ -189,7 +189,14 @@ fn reference_operands_retain_access_and_element_type_role_through_copy() {
 
 #[test]
 fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() {
-    let tokens = Lexer::new("data Buffer requires &left == &right { storage: u64; }")
+    for legacy in [
+        "machine observe(value: &u64) {}",
+        "machine observe(value: u64) { &value; }",
+    ] {
+        let tokens = Lexer::new(legacy).tokenize().unwrap();
+        parse_syntax_trees(&tokens).expect_err("legacy borrow spelling must reject");
+    }
+    let tokens = Lexer::new("data Buffer requires @left == @right { storage: u64; }")
         .tokenize()
         .unwrap();
     let parsed = parse_syntax_trees(&tokens).unwrap();
@@ -199,9 +206,9 @@ fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() 
             .iter_expressions()
             .any(|(_, expression)| matches!(expression, ExpressionNode::TypeExpression(_)))
     );
-    for target in ["&u8", "& &u8", "&mut &write u8"] {
+    for target in ["@u8", "@ @u8", "@mut @write u8"] {
         let source =
-            format!("machine view(value: &u64) -> &u8 {{ value as {target} in Wrapping }}");
+            format!("machine view(value: @u64) -> @u8 {{ value as {target} in Wrapping }}");
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let error = parse_syntax_trees(&tokens).expect_err("recast policy must reject");
         assert!(
@@ -337,7 +344,7 @@ fn fixed_array_type_operand_is_not_runtime_value_syntax() {
 #[test]
 fn comma_constraint_slots_inside_type_brackets_reject() {
     for source in [
-        "data Main { value: &[u8, [non_empty]]; }",
+        "data Main { value: @[u8, [non_empty]]; }",
         "data Main { value: [u8, x <= 10]; }",
         "data Main { value: [i32, 0..=10]; }",
         "machine m(x: [u8, nonzero]) { }",

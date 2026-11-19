@@ -25,12 +25,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedExtent {
-    machine extent(view: &[Entry]) -> u64
+    machine extent(view: @[Entry]) -> u64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires view.len == 4;
 }
 
 X86Extent satisfies SelectedExtent {
-    machine extent(view: &[Entry]) -> u64
+    machine extent(view: @[Entry]) -> u64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires view.len == 4
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -39,7 +39,7 @@ X86Extent satisfies SelectedExtent {
 }
 
 ArmExtent satisfies SelectedExtent {
-    machine extent(view: &[Entry]) -> u64
+    machine extent(view: @[Entry]) -> u64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires view.len == 4
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -50,7 +50,7 @@ ArmExtent satisfies SelectedExtent {
 
 machine main() crashes Trap {
     let entries: [Entry; 4] = [Entry { value: 7 }, Entry { value: 8 }, Entry { value: 9 }, Entry { value: 10 }];
-    transition SelectedExtent::extent(&entries[..]) == 4 { true -> done() _ -> bad() }
+    transition SelectedExtent::extent(@entries[..]) == 4 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

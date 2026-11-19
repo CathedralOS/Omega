@@ -10,7 +10,7 @@ data BoxedSlot {
     value: u64 in SlotDomain;
 }
 
-machine initialize_slot(destination: &write BoxedSlot) {
+machine initialize_slot(destination: @write BoxedSlot) {
     destination.value = 99u64;
 }
 
@@ -45,7 +45,7 @@ X86Probe satisfies SelectedProbe {
     {
         SelectedBodyCheck::require_tag(17u64);
         let mut slot: BoxedSlot = BoxedSlot { value: 99u64 };
-        initialize_slot(&write slot);
+        initialize_slot(@write slot);
         slot.value - 100u64
     }
 }
@@ -56,7 +56,7 @@ ArmProbe satisfies SelectedProbe {
     {
         SelectedBodyCheck::require_tag(29u64);
         let mut slot: BoxedSlot = BoxedSlot { value: 99u64 };
-        initialize_slot(&write slot);
+        initialize_slot(@write slot);
         slot.value - 100u64
     }
 }

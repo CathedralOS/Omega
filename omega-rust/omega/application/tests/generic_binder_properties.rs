@@ -42,7 +42,7 @@ machine main() crashes Trap {
 }
 ";
 
-const BUILD: &str = "machine build(builder: &mut Build) {
+const BUILD: &str = "machine build(builder: @mut Build) {
     Build::application(builder, \"binder_properties\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

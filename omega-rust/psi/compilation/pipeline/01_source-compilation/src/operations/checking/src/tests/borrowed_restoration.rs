@@ -59,7 +59,7 @@ fn a_whole_local_owned_home_is_repaired_before_its_reference_ends() {
         format!(
             "machine take(value: Inner, next: Inner) -> Inner {{\n\
              let mut owner: Inner = value;\n\
-             let local: &mut Inner = &mut owner;\n\
+             let local: @mut Inner = @mut owner;\n\
              let taken: Inner = move local;\n\
              {during}\n\
              {repair}\n\
@@ -82,7 +82,7 @@ fn missing_whole_local_repair() -> terminal_check_tables::program::Elaboration {
     let source = format!(
         "{DATA}machine take(value: Inner, next: Inner) -> Inner {{\n\
          let mut owner: Inner = value;\n\
-         let local: &mut Inner = &mut owner;\n\
+         let local: @mut Inner = @mut owner;\n\
          let taken: Inner = move local;\n\
          taken\n}}\n"
     );
@@ -224,7 +224,7 @@ fn a_whole_local_repair_must_fill_the_captured_home() {
         "machine take(value: Inner, other: Inner, next: Inner) -> Inner {\n\
          let mut owner: Inner = value;\n\
          let mut unrelated: Inner = other;\n\
-         let local: &mut Inner = &mut owner;\n\
+         let local: @mut Inner = @mut owner;\n\
          let taken: Inner = move local;\n\
          unrelated = next;\n\
          taken\n}\n",
@@ -238,9 +238,9 @@ fn a_whole_owned_home_remains_captured_when_its_reference_moves() {
         format!(
             "machine take(value: Inner, next: Inner) -> Inner {{\n\
              let mut owner: Inner = value;\n\
-             let local: &mut Inner = &mut owner;\n\
+             let local: @mut Inner = @mut owner;\n\
              let taken: Inner = move local;\n\
-             let retained: &mut Inner = move local;\n\
+             let retained: @mut Inner = move local;\n\
              {repair}\n\
              taken\n}}\n"
         )
@@ -265,7 +265,7 @@ fn a_whole_qualified_owned_origin_remains_explicitly_unsupported() {
          machine stamp(value: Inner) -> Inner in Stamped { value as +Stamped }\n\
          machine take(value: Inner in Stamped, next: Inner in Stamped) -> Inner in Stamped {\n\
          let mut owner: Inner in Stamped = value;\n\
-         let local: &mut Inner in Stamped = &mut owner;\n\
+         let local: @mut Inner in Stamped = @mut owner;\n\
          let taken: Inner in Stamped = move local;\n\
          local = next;\n\
          taken\n}\n";
@@ -284,7 +284,7 @@ fn a_local_owned_field_is_restored_before_its_reference_is_released() {
         format!(
             "machine take(value: Holder, next: Inner) -> Inner {{\n\
          let mut owner: Holder = value;\n\
-         let local: &mut Holder = &mut owner;\n\
+         let local: @mut Holder = @mut owner;\n\
          let taken: Inner = move local.inner;\n\
          {restore}\n\
          taken\n}}\n"
@@ -314,7 +314,7 @@ fn a_local_window_restores_only_the_storage_its_reference_captured() {
             "data Separate {{ lent: Holder; other: Inner; }}\n\
          machine take(value: Separate, next: Inner) -> Inner {{\n\
          let mut owner: Separate = value;\n\
-         let local: &mut Holder = &mut owner.lent;\n\
+         let local: @mut Holder = @mut owner.lent;\n\
          let taken: Inner = move local.inner;\n\
          let detached: Inner = move owner.other;\n\
          {restore}\n\
@@ -329,9 +329,9 @@ fn a_local_window_restores_only_the_storage_its_reference_captured() {
 fn a_dead_shared_reference_is_released_before_parent_write_on_a_crashing_path() {
     let program = |before: &str, after: &str| {
         format!(
-            "machine observe(value: &u32) {{ }}\n\
-         machine stop(owner: &mut Inner) crashes Trap {{\n\
-         let held: &u32 = &owner.value;\n\
+            "machine observe(value: @u32) {{ }}\n\
+         machine stop(owner: @mut Inner) crashes Trap {{\n\
+         let held: @u32 = @owner.value;\n\
          {before}\n\
          owner.value = 7;\n\
          {after}\n\
@@ -346,8 +346,8 @@ fn a_dead_shared_reference_is_released_before_parent_write_on_a_crashing_path() 
 fn an_unselected_sum_payload_is_never_released_as_a_live_reference() {
     let program = format!(
         "{DATA}data Either<'storage> {{\n\
-         case Left(item: &'storage Inner);\n\
-         case Right(item: &'storage Inner);\n\
+         case Left(item: @'storage Inner);\n\
+         case Right(item: @'storage Inner);\n\
          }}\n\
          machine idle(value: Either, flag: bool) -> bool {{ !flag }}\n"
     );
@@ -368,9 +368,9 @@ fn an_owned_field_window_keeps_its_loan_after_the_carrier_moves() {
         format!(
             "machine take(value: Holder, next: Inner) -> Inner {{\n\
          let mut owner: Holder = value;\n\
-         let local: &mut Holder = &mut owner;\n\
+         let local: @mut Holder = @mut owner;\n\
          let taken: Inner = move local.inner;\n\
-         let repair: &mut Holder = move local;\n\
+         let repair: @mut Holder = move local;\n\
          {restore}\n\
          taken\n}}\n"
         )
@@ -385,10 +385,10 @@ fn an_owned_field_window_keeps_its_loan_after_the_carrier_moves() {
 #[test]
 fn a_field_replacement_keeps_the_old_loan_during_rhs_evaluation() {
     rejected(
-        "data Held<'storage> { item: &'storage mut Inner; }\n\
-         machine replace(owner: &mut Inner) {\n\
-             let mut held: Held = Held { item: &mut owner };\n\
-             held.item = &mut owner;\n\
+        "data Held<'storage> { item: @'storage mut Inner; }\n\
+         machine replace(owner: @mut Inner) {\n\
+             let mut held: Held = Held { item: @mut owner };\n\
+             held.item = @mut owner;\n\
          }\n",
         "TwiceExclusive",
     );
@@ -399,7 +399,7 @@ fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
     let source = format!(
         "{DATA}machine read(value: Holder, next: Inner) -> u32 {{\n\
          let mut owner: Holder = value;\n\
-         let local: &mut Holder = &mut owner;\n\
+         let local: @mut Holder = @mut owner;\n\
          let taken: Inner = move local.inner;\n\
          local.inner = next;\n\
          owner.tag\n}}\n"
@@ -482,7 +482,7 @@ fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
 fn a_moved_field_must_hold_a_value_again_when_the_machine_returns() {
     let program = |restore: &str| {
         format!(
-            "machine swap(holder: &mut Holder, next: Inner) -> Inner {{\n    \
+            "machine swap(holder: @mut Holder, next: Inner) -> Inner {{\n    \
              let taken: Inner = holder.inner;\n    {restore}\n    taken\n}}\n"
         )
     };
@@ -498,10 +498,10 @@ fn a_moved_field_must_hold_a_value_again_when_the_machine_returns() {
 fn the_lent_value_is_not_handed_to_another_state_while_a_field_is_vacant() {
     let program = |before: &str, after: &str| {
         format!(
-            "machine swap(holder: &mut Holder, next: Inner, last: Inner, go: bool) {{\n    \
+            "machine swap(holder: @mut Holder, next: Inner, last: Inner, go: bool) {{\n    \
              let taken: Inner = holder.inner;\n    {before}\n    \
              transition go {{\n        true -> finish(holder, last)\n        _ -> finish(holder, last)\n    }}\n    \
-             machine finish(holder: &mut Holder, last: Inner) {{\n        {after}\n    }}\n}}\n"
+             machine finish(holder: @mut Holder, last: Inner) {{\n        {after}\n    }}\n}}\n"
         )
     };
     accepted(&program("holder.inner = next;", "holder.inner = last;"));
@@ -519,7 +519,7 @@ fn the_lent_value_is_not_handed_to_another_state_while_a_field_is_vacant() {
 fn a_vacant_field_is_not_read_before_it_is_restored() {
     let program = |between: &str| {
         format!(
-            "machine swap(holder: &mut Holder, next: Inner) -> Inner {{\n    \
+            "machine swap(holder: @mut Holder, next: Inner) -> Inner {{\n    \
              let taken: Inner = holder.inner;\n    {between}\n    \
              holder.inner = next;\n    taken\n}}\n"
         )
@@ -535,8 +535,8 @@ fn a_vacant_field_is_not_read_before_it_is_restored() {
 fn the_lent_value_is_not_passed_on_while_a_field_is_vacant() {
     let program = |first: &str, second: &str| {
         format!(
-            "machine observe(holder: &Holder) {{ }}\n\
-             machine swap(holder: &mut Holder, next: Inner) -> Inner {{\n    \
+            "machine observe(holder: @Holder) {{ }}\n\
+             machine swap(holder: @mut Holder, next: Inner) -> Inner {{\n    \
              let taken: Inner = holder.inner;\n    {first}\n    {second}\n    taken\n}}\n"
         )
     };
@@ -552,7 +552,7 @@ fn the_lent_value_is_not_passed_on_while_a_field_is_vacant() {
 #[test]
 fn an_owned_move_through_a_shared_reference_is_not_accepted() {
     let outcome = verdict(
-        "machine take(holder: &Holder) -> Inner {\n    let taken: Inner = holder.inner;\n    taken\n}\n",
+        "machine take(holder: @Holder) -> Inner {\n    let taken: Inner = holder.inner;\n    taken\n}\n",
     );
     assert_ne!(outcome, Err("accepted".into()));
 }
@@ -564,7 +564,7 @@ fn an_owned_move_through_a_shared_reference_is_not_accepted() {
 fn a_moved_whole_referent_must_be_repaired_before_normal_handback() {
     let program = |restore: &str| {
         format!(
-            "machine swap(holder: &mut Inner, next: Inner) -> Inner {{\n    \
+            "machine swap(holder: @mut Inner, next: Inner) -> Inner {{\n    \
              let taken: Inner = move holder;\n    {restore}\n    taken\n}}\n"
         )
     };
@@ -575,7 +575,7 @@ fn a_moved_whole_referent_must_be_repaired_before_normal_handback() {
 #[test]
 fn a_whole_borrowed_hole_cannot_be_moved_a_second_time() {
     rejected(
-        "machine swap(holder: &mut Inner, next: Inner) -> Inner {\n    \
+        "machine swap(holder: @mut Inner, next: Inner) -> Inner {\n    \
          let taken: Inner = move holder;\n    \
          let again: Inner = move holder;\n    \
          holder = next;\n    taken\n}\n",
@@ -586,7 +586,7 @@ fn a_whole_borrowed_hole_cannot_be_moved_a_second_time() {
 #[test]
 fn replacing_another_root_does_not_repair_the_borrowed_referent() {
     rejected(
-        "machine swap(holder: &mut Inner, other: &mut Inner, next: Inner) -> Inner {\n    \
+        "machine swap(holder: @mut Inner, other: @mut Inner, next: Inner) -> Inner {\n    \
          let taken: Inner = move holder;\n    \
          other = next;\n    taken\n}\n",
         NOT_RESTORED,
@@ -597,9 +597,9 @@ fn replacing_another_root_does_not_repair_the_borrowed_referent() {
 fn taking_a_whole_referent_requires_its_child_loan_to_have_ended() {
     let program = |before: &str, during: &str| {
         format!(
-            "machine observe(value: &u32) {{ }}\n\
-             machine swap(holder: &mut Inner, next: Inner) -> Inner {{\n    \
-             let held: &u32 = &holder.value;\n    {before}\n    \
+            "machine observe(value: @u32) {{ }}\n\
+             machine swap(holder: @mut Inner, next: Inner) -> Inner {{\n    \
+             let held: @u32 = @holder.value;\n    {before}\n    \
              let taken: Inner = move holder;\n    {during}\n    \
              holder = next;\n    taken\n}}\n"
         )
@@ -612,7 +612,7 @@ fn taking_a_whole_referent_requires_its_child_loan_to_have_ended() {
 fn an_owned_whole_referent_cannot_be_taken_through_a_shared_loan() {
     assert_ne!(
         verdict(
-            "machine take(holder: &Inner) -> Inner {\n    \
+            "machine take(holder: @Inner) -> Inner {\n    \
              let taken: Inner = move holder;\n    taken\n}\n"
         ),
         Err("accepted".into())
@@ -675,7 +675,7 @@ fn a_borrowed_field_window_publishes_and_executes_the_original_storage() {
             "data Item { value: u32; }",
             "data Item { value: u32; }\ndata Box { item: Item; }",
         )
-        .replace("owner: &mut Item", "owner: &mut Box")
+        .replace("owner: @mut Item", "owner: @mut Box")
         .replace("move owner;", "move owner.item;")
         .replace("owner = next;", "owner.item = next;")
         .replace("second: Item", "second: Box")
@@ -691,7 +691,7 @@ fn a_borrowed_field_window_publishes_and_executes_the_original_storage() {
 fn an_untracked_copyable_carrier_does_not_erase_an_explicit_window() {
     let verdict = super::entryless::judged(
         "data CopyValue [copy] { value: u32; }\n\
-         machine take(value: &mut CopyValue) -> CopyValue { value }\n",
+         machine take(value: @mut CopyValue) -> CopyValue { value }\n",
         false,
     );
     let RouteVerdict::Accepted(accepted) = verdict else {
@@ -731,8 +731,8 @@ fn an_untracked_copyable_carrier_does_not_erase_an_explicit_window() {
 fn an_exclusive_local_can_open_and_repair_its_captured_parameter_window() {
     let program = |restore: &str| {
         format!(
-            "machine swap(holder: &mut Inner, next: Inner) -> Inner {{\n    \
-             let local: &mut Inner = &mut holder;\n    \
+            "machine swap(holder: @mut Inner, next: Inner) -> Inner {{\n    \
+             let local: @mut Inner = @mut holder;\n    \
              let taken: Inner = move local;\n    {restore}\n    taken\n}}\n"
         )
     };
@@ -753,9 +753,9 @@ const RETAINED_ROOT_RESTORATION: &str = include_str!(concat!(
 #[test]
 fn a_local_reference_to_another_parameter_does_not_repair_a_window() {
     rejected(
-        "machine swap(holder: &mut Inner, other: &mut Inner, next: Inner) -> Inner {\n    \
-         let local: &mut Inner = &mut holder;\n    \
-         let another: &mut Inner = &mut other;\n    \
+        "machine swap(holder: @mut Inner, other: @mut Inner, next: Inner) -> Inner {\n    \
+         let local: @mut Inner = @mut holder;\n    \
+         let another: @mut Inner = @mut other;\n    \
          let taken: Inner = move local;\n    another = next;\n    taken\n}\n",
         NOT_RESTORED,
     );
@@ -764,8 +764,8 @@ fn a_local_reference_to_another_parameter_does_not_repair_a_window() {
 #[test]
 fn a_local_reference_cannot_extract_the_same_borrowed_value_twice() {
     rejected(
-        "machine swap(holder: &mut Inner, next: Inner) -> Inner {\n    \
-         let local: &mut Inner = &mut holder;\n    \
+        "machine swap(holder: @mut Inner, next: Inner) -> Inner {\n    \
+         let local: @mut Inner = @mut holder;\n    \
          let taken: Inner = move local;\n    let twice: Inner = move local;\n    \
          local = next;\n    taken\n}\n",
         USED_VACANT,
@@ -776,8 +776,8 @@ fn a_local_reference_cannot_extract_the_same_borrowed_value_twice() {
 fn a_shared_local_reference_does_not_acquire_an_owned_window() {
     assert_ne!(
         verdict(
-            "machine take(holder: &Inner) -> Inner {\n    \
-             let local: &Inner = &holder;\n    let taken: Inner = move local;\n    taken\n}\n"
+            "machine take(holder: @Inner) -> Inner {\n    \
+             let local: @Inner = @holder;\n    let taken: Inner = move local;\n    taken\n}\n"
         ),
         Err("accepted".into())
     );
@@ -787,9 +787,9 @@ fn a_shared_local_reference_does_not_acquire_an_owned_window() {
 fn a_window_through_exclusive_descendants_keeps_the_original_parameter() {
     let program = |restore: &str| {
         format!(
-            "machine swap(holder: &mut Inner, next: Inner) -> Inner {{\n    \
-             let parent: &mut Inner = &mut holder;\n    \
-             let local: &mut Inner = &mut parent;\n    \
+            "machine swap(holder: @mut Inner, next: Inner) -> Inner {{\n    \
+             let parent: @mut Inner = @mut holder;\n    \
+             let local: @mut Inner = @mut parent;\n    \
              let taken: Inner = move local;\n    {restore}\n    taken\n}}\n"
         )
     };
@@ -801,10 +801,10 @@ fn a_window_through_exclusive_descendants_keeps_the_original_parameter() {
 fn a_retained_window_cannot_bypass_a_live_descendant_loan() {
     let program = |before: &str, during: &str| {
         format!(
-            "machine observe(value: &u32) {{ }}\n\
-             machine swap(holder: &mut Inner, next: Inner) -> Inner {{\n    \
-             let local: &mut Inner = &mut holder;\n    \
-             let child: &u32 = &local.value;\n    {before}\n    \
+            "machine observe(value: @u32) {{ }}\n\
+             machine swap(holder: @mut Inner, next: Inner) -> Inner {{\n    \
+             let local: @mut Inner = @mut holder;\n    \
+             let child: @u32 = @local.value;\n    {before}\n    \
              let taken: Inner = move local;\n    {during}\n    \
              local = next;\n    taken\n}}\n"
         )
@@ -818,18 +818,18 @@ fn an_exclusive_reference_field_opens_the_same_captured_window() {
     let source = RETAINED_ROOT_RESTORATION
         .replace(
             "data Item { value: u32; }",
-            "data Item { value: u32; }\ndata Loan<'storage> { item: &'storage mut Item; }",
+            "data Item { value: u32; }\ndata Loan<'storage> { item: @'storage mut Item; }",
         )
         .replace(
-            "let local: &mut Item = &mut owner;",
-            "let local: Loan = Loan { item: &mut owner };",
+            "let local: @mut Item = @mut owner;",
+            "let local: Loan = Loan { item: @mut owner };",
         )
         .replace("move local;", "move local.item;")
         // Assigning the field replaces its descriptor. Transfer that same
         // permission to a local before repairing through its referent.
         .replace(
             "local = next;",
-            "let repair: &mut Item = local.item;\n    repair = next;",
+            "let repair: @mut Item = local.item;\n    repair = next;",
         );
     execute_restoration(&source);
 }
@@ -841,7 +841,7 @@ fn a_dead_borrowed_block_address_still_owes_its_missing_field() {
         format!(
             r#"
         {DATA}
-        machine take(holder: &mut Holder, next: Inner, again: bool) -> Inner
+        machine take(holder: @mut Holder, next: Inner, again: bool) -> Inner
         requires true
         {{
             let taken: Inner = move holder.inner;

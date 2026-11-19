@@ -17,45 +17,45 @@
 data Pair requires left <= right, { left: u64; right: u64; }
 data Storage { pair: Pair; }
 
-machine Storage::walk(storage: &mut Storage, choose_left: bool) {
+machine Storage::walk(storage: @mut Storage, choose_left: bool) {
     transition choose_left {
         true -> seed_left(storage)
         false -> seed_right(storage)
     }
-    machine first(storage: &mut Storage) {
+    machine first(storage: @mut Storage) {
         transition true { true -> second(storage) false -> done(storage) }
     }
-    machine second(storage: &mut Storage) {
+    machine second(storage: @mut Storage) {
         transition true { true -> first(storage) false -> done(storage) }
     }
-    machine seed_left(storage: &mut Storage) {
+    machine seed_left(storage: @mut Storage) {
         storage.pair = Pair { left: 1, right: 2 };
         transition true { true -> first(storage) false -> first(storage) }
     }
-    machine seed_right(storage: &mut Storage) {
+    machine seed_right(storage: @mut Storage) {
         storage.pair = Pair { right: 2, left: 1 };
         transition true { true -> second(storage) false -> second(storage) }
     }
-    machine done(storage: &mut Storage) {
+    machine done(storage: @mut Storage) {
         storage.pair.left = 2;
     }
 }
 
 data Main { storage: Storage; hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
-    Storage::walk(&mut main.storage, true);
+    Storage::walk(@mut main.storage, true);
     transition main.storage.pair.left == 2 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

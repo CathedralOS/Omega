@@ -70,14 +70,14 @@ machine make() -> LayoutStorage<PackedFlags, CompactBits> {
     value.code = 10u64;
     value
 }
-machine first(marker: &mut u64) -> LayoutStorage<PackedFlags, CompactBits> { marker = 17u64; make() }
-machine second(marker: &mut u64) -> LayoutStorage<PackedFlags, CompactBits> { marker = 29u64; make() }
-machine choose(flag: bool, marker: &mut u64) -> LayoutStorage<PackedFlags, CompactBits> { match flag { true -> first(marker), false -> second(marker) } }
+machine first(marker: @mut u64) -> LayoutStorage<PackedFlags, CompactBits> { marker = 17u64; make() }
+machine second(marker: @mut u64) -> LayoutStorage<PackedFlags, CompactBits> { marker = 29u64; make() }
+machine choose(flag: bool, marker: @mut u64) -> LayoutStorage<PackedFlags, CompactBits> { match flag { true -> first(marker), false -> second(marker) } }
 machine exercise(flag: bool, expected_marker: u64) crashes Trap {
     let mut marker: u64 = 0u64;
-    let value: LayoutStorage<PackedFlags, CompactBits> = choose(flag, &mut marker);
+    let value: LayoutStorage<PackedFlags, CompactBits> = choose(flag, @mut marker);
     let difference: u64 = value.mode - 5u64;
-    let bytes: &[u8; 1] = &value as &[u8; 1];
+    let bytes: @[u8; 1] = @value as @[u8; 1];
     transition marker == expected_marker && difference == 0u64 && value.code == 10u64 && bytes[0] == 171u8 {
         true -> done()
         _ -> bad()

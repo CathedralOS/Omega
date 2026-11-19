@@ -18,29 +18,29 @@ ArmBodyCheck satisfies SelectedBodyCheck {
     }
 }
 boundary trait SelectedLendWrite {
-    machine lend_write(destination: &write i32) -> &write i32
+    machine lend_write(destination: @write i32) -> @write i32
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 X86LendWrite satisfies SelectedLendWrite {
-    machine lend_write(destination: &write i32) -> &write i32
+    machine lend_write(destination: @write i32) -> @write i32
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        &write destination
+        @write destination
     }
 }
 ArmLendWrite satisfies SelectedLendWrite {
-    machine lend_write(destination: &write i32) -> &write i32
+    machine lend_write(destination: @write i32) -> @write i32
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        &write destination
+        @write destination
     }
 }
 machine main() crashes Trap {
  let mut value: i32 = 7;
  let neighbor: i32 = 19;
- let destination: &write i32 = SelectedLendWrite::lend_write(&write value);
+ let destination: @write i32 = SelectedLendWrite::lend_write(@write value);
  destination = destination;
  transition value == 42 && neighbor == 19 { true -> done() false -> wrong() }
  machine done() {} machine wrong() { crash Trap; }

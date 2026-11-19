@@ -23,10 +23,10 @@ no observation can produce.
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
 | Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a` |
-| packed Epsilon evaluator closure | 617,419 | `63129889be3d31962fbb1363bf96a17ddc1c5844834fd4e22e4826f84216fd63` |
-| canonical entry `evaluator_entry.delta` | 10,558 | `718417f256271d2de5c7b06e0e5f4824abb5993c2a115a69ac81bb1df9072daa` |
+| packed Epsilon evaluator closure | 616,939 | `a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c` |
+| canonical entry `evaluator_entry.delta` | 10,563 | `ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79` |
 | Delta support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
-| canonical evaluator receipt | 728,066 | `92962050ff52d6dc6cdda1ae0dcd4002389da61c0979a2353db41b4b52a4afb7` |
+| canonical evaluator receipt | 726,601 | `1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af` |
 
 The canonical entry source is
 [`tests/epsilon/evaluator-entry/evaluator_entry.delta`](../../../tests/epsilon/evaluator-entry/evaluator_entry.delta).
@@ -47,7 +47,7 @@ The edge consumes one Gamma evaluator request whose sealed input is the
 complete EREQ envelope:
 
 ```text
-0..4    little-endian u32 receipt length = 728,066
+0..4    little-endian u32 receipt length = 726,601
 4..     exact canonical receipt bytes
 ...     sealed input = the EREQ v1 envelope:
 

@@ -6,7 +6,7 @@ const EXPECTED_MISMATCH: u32 = 9;
 const REPLACEMENT: u32 = 99;
 const SIBLING_INIT: u32 = 17;
 data Cells { selected: AtomicU32; untouched: AtomicU32; }
-machine probe(cells: &Cells) -> bool {
+machine probe(cells: @Cells) -> bool {
     cells.selected.store(EXPECTED_MATCH, NoOrdering);
     cells.untouched.store(SIBLING_INIT, NoOrdering);
     let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(EXPECTED_MATCH, REPLACEMENT, ReceivePublish, Receive);
@@ -16,7 +16,7 @@ machine probe(cells: &Cells) -> bool {
         AtomicCompareExchangeOnceOutcome::Uncommitted { observed } -> (observed == EXPECTED_MATCH && cells.selected.load(NoOrdering) == EXPECTED_MATCH && cells.untouched.load(NoOrdering) == SIBLING_INIT)
     }
 }
-machine mismatch(cells: &Cells) -> bool {
+machine mismatch(cells: @Cells) -> bool {
     cells.selected.store(EXPECTED_MATCH, NoOrdering);
     cells.untouched.store(SIBLING_INIT, NoOrdering);
     let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(EXPECTED_MISMATCH, REPLACEMENT, ReceivePublish, Receive);
@@ -28,7 +28,7 @@ machine mismatch(cells: &Cells) -> bool {
 }
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(&cells) && mismatch(&cells) { true -> done() _ -> bad() }
+    transition probe(@cells) && mismatch(@cells) { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

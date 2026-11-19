@@ -5,6 +5,7 @@ use crate::record::package::callable_policy::validation::nominal_set;
 use crate::record::package::callable_policy::validation::signature::owned_pair;
 use crate::record::validation::ordered;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewSynchronousInvocation};
+use declaration_contracts::service_surface::ServiceSynchronousInvocation;
 use effects::provider_plan::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -50,6 +51,27 @@ impl super::PackagePolicyServiceMethod {
         ordered(&authority.service_reach)?;
         ordered(&authority.synchronous_invocations)?;
         ordered(&authority.progress_premises)?;
+        ServiceSynchronousInvocation::validate_entries(
+            &self.synchronous_invocations,
+            self.parameter_count,
+        )?;
+        let declared_parameters =
+            self.synchronous_invocations
+                .iter()
+                .filter_map(|entry| match entry {
+                    ServiceSynchronousInvocation::Parameter(position) => Some(position),
+                    ServiceSynchronousInvocation::Service(_) => None,
+                });
+        let authority_parameters = authority
+            .synchronous_invocations
+            .iter()
+            .filter_map(|entry| match entry {
+                PackageReviewSynchronousInvocation::Parameter(position) => Some(position),
+                PackageReviewSynchronousInvocation::Service(_) => None,
+            });
+        if !declared_parameters.eq(authority_parameters) {
+            return Err("provider authority differs from its declared invocation parameters");
+        }
         if (!self.terminates_guarantee && !authority.progress_premises.is_empty())
             || authority.progress_premises.len() != self.termination_premises.len()
         {

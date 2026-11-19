@@ -12,17 +12,17 @@ machine payload(formed: Value<bool>) -> bool {
         Value::Boolean { value } -> value
     }
 }
-machine fill_true(slot: &mut Value<bool>) {
+machine fill_true(slot: @mut Value<bool>) {
     slot = Value::Boolean { value: true };
 }
-machine fill_false(slot: &mut Value<bool>) {
+machine fill_false(slot: @mut Value<bool>) {
     slot = Value::Boolean { value: false };
 }
 machine main() crashes Trap {
     let mut formed: Value<bool> = Value::Boolean { value: false };
     let mut other: Value<bool> = Value::Boolean { value: true };
-    fill_true(&mut formed);
-    fill_false(&mut other);
+    fill_true(@mut formed);
+    fill_false(@mut other);
     transition payload(formed) == true && payload(other) == false {
         true -> done()
         _ -> bad()

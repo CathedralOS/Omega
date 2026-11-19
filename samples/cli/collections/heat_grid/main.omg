@@ -26,21 +26,21 @@ data Grid requires 0 <= max_y, max_y <= 2, 0 <= max_x, max_x <= 3 {
     max_x: u32;
 }
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut grid: Grid;
     grid.max_y = 2;
     grid.max_x = 3;
     grid.cells[11] = 40;
-    transition { _ -> row(&mut grid, 0, 0) }
+    transition { _ -> row(@mut grid, 0, 0) }
 
     // Walk rows; each row walks its cells. Every hop's proof is the arm's
     // own guard relating the next coordinate to the bound field.
-    machine row(grid: &mut Grid, y: u32, hottest: u32)
+    machine row(grid: @mut Grid, y: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y
     {
         transition { _ -> cell(grid, y, 0, hottest) }
     }
-    machine cell(grid: &mut Grid, y: u32, x: u32, hottest: u32)
+    machine cell(grid: @mut Grid, y: u32, x: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         let bump: u8 =
@@ -55,7 +55,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             _ -> step(grid, y, x, hottest)
         }
     }
-    machine step(grid: &mut Grid, y: u32, x: u32, hottest: u32)
+    machine step(grid: @mut Grid, y: u32, x: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         transition x + 1 <= grid.max_x {
@@ -63,7 +63,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             _ -> next_row(grid, y, hottest)
         }
     }
-    machine next_row(grid: &mut Grid, y: u32, hottest: u32)
+    machine next_row(grid: @mut Grid, y: u32, hottest: u32)
         requires 0 <= y && y <= grid.max_y
     {
         transition y + 1 <= grid.max_y {
@@ -80,5 +80,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

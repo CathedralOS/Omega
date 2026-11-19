@@ -13,7 +13,7 @@ data Parts {
     rest: Tail in Tracked & Partitionable;
 }
 data Issued { strategy: Strategy; allocation: Tail; }
-machine check_length(tail: &Tail, expected: u64)
+machine check_length(tail: @Tail, expected: u64)
 requires tail.length == expected
 {}
 machine split(whole: Tail in Tracked & Partitionable, length: u64) -> Parts
@@ -33,7 +33,7 @@ machine allocate(strategy: Strategy, length: u64, select: bool) -> Issued
 requires length <= strategy.remaining
 {
     let parts: Parts = split(retain(strategy.tail), length);
-    check_length(&parts.taken, length);
+    check_length(@parts.taken, length);
     Issued {
         strategy: Strategy { tail: parts.rest, remaining: strategy.remaining - length },
         allocation: parts.taken,

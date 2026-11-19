@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,626 lines / 839,579 bytes with SHA-256
-`d07d617005694d37c29e31b74a035ce29aef969e9b161295ae840763564d4f3c`.
+manifest materializes 22,593 lines / 838,494 bytes with SHA-256
+`5047ce234bcf690ca4bbaee1163940d7ad394e1a1d1adac7d739896ddaf16d01`.
 The manifest itself is 1,674 bytes, SHA-256
-`f3a5797dedaca00c159f07d96732737631804ed2a82e1f119b85eeb7778794e8`;
+`af5adc6e0999e82d52b82592b4de5c9078b02be0ce3bd93ca6d23a8c7b5fbaa2`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -102,6 +102,10 @@ resolved ordinary free calls, nested argument calls, scalar comparisons,
 short-circuit Boolean operations, and parameterized same-owner tail transfers.
 Boolean transition subjects may depend on runtime values, with Boolean or
 wildcard guards and either a machine transfer or a direct Boolean result.
+An operand of a transition subject may use a local with a keyword spelling,
+including `target`. The ordinary name resolver checks that binding.
+Boolean literals and `self` retain their expression roles. Match expressions
+and the type spelling `Self` remain outside this transition-subject slice.
 Constant transition subjects retain their specialized code path.
 
 Nullary `[copy]` sums retain declaration identity through local, field, parameter,
@@ -189,18 +193,28 @@ the selected entry. A forbidden unconditional first crash in an unconstrained
 entry rejects. Possible routes needing a path proof still return Incomplete,
 as do guarded clauses and Abort. Full product effect admission remains open.
 [Effect admission](../../../wiki/spec/language/effects.md)
-A bare `blocks` or `blocks true` publishes a possible block. Public machines
-with an omitted bound and machines declaring `blocks false` promise that
-their bodies cannot block. Private machines infer an omitted bound. The
-compiler follows ordinary calls from all bodies to derive these envelopes.
-Each call to a possibly blocking callee needs its own `block` acknowledgement,
-including calls nested in arguments. A redundant acknowledgement on a
-nonblocking call preserves its caller's bound. The marker changes no Alpha
-instructions. A possibly blocking machine with nested states stays Incomplete
-until the compiler can check the envelope of each transfer. Suspension,
-host services and their operational contracts
-remain outside this executable slice.
+A bare `blocks` or `blocks true` publishes a possible block on the machine
+that declares it. A public machine with an omitted bound and any machine
+declaring `blocks false` promise that their bodies cannot block. Private
+machines, including nested helpers, infer an omitted bound. The compiler
+propagates published ceilings back through ordinary calls and same-owner
+terminal transfers until it reaches every caller, including transfer cycles.
+An unentered nested helper contributes nothing to its owner's bound. Its own
+body must still satisfy its contract.
+
+The incoming-edge table reserves 49,152 rows with four 32-bit integers
+apiece, or 786,432 logical payload bytes. Three 4,096-entry integer arrays
+hold the incoming list heads, blocking states and work queue, totaling
+49,152 more logical bytes. Evaluator memory measurements include its
+representation of these tables and the rest of the compiler.
+
+Every call to a possibly blocking callee needs its own `block` acknowledgement,
+including a call in an argument or a transfer in an unselected arm.
+Redundant acknowledgements preserve the caller's bound. The existing Alpha
+calls and jumps implement both forms. Global terminal calls, suspension and
+host service admission remain outside this executable slice.
 [Call-site acknowledgements](../../../wiki/spec/language/effects.md#call-site-acknowledgements)
+and [terminal calls](../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
 
 Visibility uses canonical `public`; retired `pub` is an ordinary identifier,
 not a declaration modifier.
@@ -472,11 +486,11 @@ named state. Arms also retain bare name paths and qualified two-member case
 paths with optional braces. Braced case patterns own a contiguous field ledger
 over shorthand bindings and fixed path-expression matches, preserving the
 distinction between `Type::Case` and `Type::Case {}` plus exact binding and
-field spelling for later resolution. Current named targets own a contiguous
-argument-expression span
-over self/name/member paths, booleans, unsuffixed nonnegative decimal integers,
-strings, shallow struct literals, and path bases followed by one or more path
-or decimal indexes. An index may instead use any canonical bound-presence/inclusivity
+field spelling for later resolution. A named terminal target uses the ordinary call-argument parser. Its argument
+span is contiguous even when a nested call publishes argument rows first.
+Operands share precedence, grouping, casts, short-circuit expressions, ordinary
+calls, references, shallow struct literals and the existing indexed paths.
+An index may instead use any canonical bound-presence/inclusivity
 shape (`..`, `..end`, `..=end`, `start..`, `start..end`, or `start..=end`)
 over those retained bounds. It is represented by a separate range expression
 rather than folded into the indexed node. Target argument lists retain an
@@ -500,11 +514,10 @@ and delimiter parser but own a distinct expression row with an explicit
 optional receiver handle. Call arguments retain the existing primary slice and
 reuse the same reducer.
 Path-valued casts reuse the same expression and type engines in assignments,
-locals, ordinary call arguments, and transition-target arguments. They retain
-the value and target-type handles, exact cast span, and an optional single-name
-`in Domain` suffix. Ordinary assignment, local, and call-argument casts may
-also wrap a completed grouped primary and then continue through the shared
-binary tail. Richer postfix values, recasts, domain arguments, arbitrary bound
+locals and both kinds of call argument. They retain the value and target-type
+handles, exact cast span, and an optional single-name `in Domain` suffix.
+These casts may also wrap a completed grouped primary and then continue
+through the shared binary tail. Richer postfix values, recasts, domain arguments, arbitrary bound
 expressions, and other richer initializers remain implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
@@ -746,3 +759,44 @@ returned `Incomplete` at packed byte 2,571 / unit byte 2,441. On line 71,
 That transfer needs its own checked envelope. Both observations ended at the
 refusal coordinate. The source graph has yet to reach checking of the
 `ByteRead` payload and the Console and ProcessExit services.
+
+With per-state blocking checks, the independent model ran the frozen
+`b95769558667` graph above and the 284-unit graph at `2486977ecd06`
+(3,822,983 source bytes, request
+`8f3357f02c77d9c2700ba3343d65d62ed24cf7424a4a23e9e65615b5e1714506`).
+Both runs parsed the marked `rows` target and returned `Incomplete` at
+the multiplication in its third argument, `input.package_count as u64 * 3`.
+The refusal is at line 71, column 65, packed byte 2,613 / unit byte 2,483.
+The production entry emitted the nine-byte observation
+`0002000000350a0000` on each input. Full-graph semantic checking and
+production of the Omega compiler binary remain open.
+
+The 284-unit product at `1cc98ba38f97` captures the row count before lending
+the input to `rows`. Its request contains 3,823,097 source bytes, SHA-256
+`828343948802ab708fc629de2156dfc933ad05bd41d65202fb8eced22e9c6528`.
+With per-state blocking checks alone, the independent Epsilon model returned
+`Incomplete` at the `+` in `rows(input, index + 1, count)`, line 88,
+column 51. With shared terminal-call argument parsing, the same production
+entry crossed that call and the rest of `read_input`. It returned
+`00020000005a1e0000` at `target` in
+`requester < input.package_count && target < input.package_count`,
+line 209, column 55, packed byte 7,770 / unit byte 7,640.
+On the original frozen `b95769558667` graph, the identical compiler and
+construction entry passed the cast and multiplication in the earlier row-count
+calculation. They reached the same `target` token at line 206, column 55,
+packed byte 7,656 / unit byte 7,526, observation `0002000000e81d0000`.
+The `2486977ecd06` graph and the frozen single-unit row-count projection
+(`3c7966ee415014061465b97e08418728241b29144fa9069243f9ebb30372304e`)
+reproduced the unmodified and published coordinates respectively. Each of
+the four observations contains only the refusal coordinate.
+
+With keyword-spelled transition operands, the model ran the unchanged
+284-unit product from `6be46283b514` above. It completed parsing
+`application/construction/main.omg` and reached
+`compilation/00_scalar_operations_to_alpha.omg`. In `alpha_new_mark`,
+`mark as u64 +Trapping` returned `Incomplete` at the plus, line 131,
+column 21, packed byte 18,143 / unit byte 4,389. The nine-byte observation
+was `0002000000df460000`.
+The frozen `b95769558667` input reached the same source unit and local
+coordinate, packed byte 18,029, observation `00020000006d460000`.
+Neither run reached semantic checking of the entire source graph.

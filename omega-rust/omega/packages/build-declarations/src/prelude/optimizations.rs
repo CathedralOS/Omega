@@ -52,12 +52,12 @@ fn enable_machine() -> String {
         ));
     }
     text.push_str(
-        "    }\n}\npublic machine enable(optimizations: &mut Optimizations, optimization: Optimization) {\n    let slot: u64 = optimization_selection_slot(optimization);\n    optimizations.selected[slot] = optimizations.selected[slot] + 1;\n}\n",
+        "    }\n}\npublic machine enable(optimizations: @mut Optimizations, optimization: Optimization) {\n    let slot: u64 = optimization_selection_slot(optimization);\n    optimizations.selected[slot] = optimizations.selected[slot] + 1;\n}\n",
     );
     text
 }
 
-const REPORT_MACHINE: &str = r#"public machine emit_report(optimizations: &mut Optimizations) {
+const REPORT_MACHINE: &str = r#"public machine emit_report(optimizations: @mut Optimizations) {
     optimizations.human_report = optimizations.human_report + 1;
 }
 "#;

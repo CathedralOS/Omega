@@ -14,8 +14,8 @@ type object.
 
 ```omega
 data Reader<'a, some S> {
-    state: &'a mut S;
-    read: machine(state: &mut S, output: &mut [u8]) -> u64
+    state: @'a mut S;
+    read: machine(state: @mut S, output: @mut [u8]) -> u64
         ensures result <= output.len
         reaches none
         crashes none;
@@ -37,13 +37,13 @@ nested type declares.
 An ordinary record literal constructs the package:
 
 ```omega
-let reader: Reader = Reader { state: &mut file, read: read_file };
+let reader: Reader = Reader { state: @mut file, read: read_file };
 ```
 
 Construction infers one concrete witness for each `some` binder from the field
 initializers and checks all related fields against that same choice, including
 callable contracts and the data invariant. Unresolved or inconsistent witnesses
-reject. A machine accepting `Socket` cannot accompany `&mut File`. Witnesses
+reject. A machine accepting `Socket` cannot accompany `@mut File`. Witnesses
 remain checking evidence, not runtime source-level type values. A generic helper
 may construct a package using its ordinary static type argument as the witness,
 and an [opened abstract witness](#owned-state-through-uniform-carriers) may do
@@ -67,7 +67,7 @@ the same stable opening share that type. The rule is independent of expression
 spelling; it does not recognize a special `reader.read(reader.state)` idiom.
 
 ```omega
-machine read_one(reader: &mut Reader, output: &mut [u8]) -> u64
+machine read_one(reader: @mut Reader, output: @mut [u8]) -> u64
 ensures result <= output.len
 {
     (reader.read)(reader.state, output)
@@ -114,8 +114,8 @@ not synthesize missing implementations or runtime dictionaries.
 
 A result or retained field whose type contains the opened witness cannot escape
 its scope. A helper may return a complete `Reader` package, or another properly
-constructed package, but cannot expose `reader.state` as an unbound `&S`. A
-concrete result such as `&[u8]` may escape under its checked input-relative lifetime
+constructed package, but cannot expose `reader.state` as an unbound `@S`. A
+concrete result such as `@[u8]` may escape under its checked input-relative lifetime
 and custody contract. Borrowing, packing and opening never extend that lifetime.
 Existing access policies and reflection authority still apply; `some` adds no
 private fields, privileged consumer or dynamic downcast route.
@@ -151,9 +151,9 @@ returns to its provider; an allocator family wraps it with its return handle
 where one is needed, and two owners of the same payload from different providers
 keep distinct return paths. Packing allocates nothing: it moves an established
 owner into the record. Stored operations take the owner, by reference or by
-value, rather than `&mut S`, so the consumer never specializes over the hidden
+value, rather than `@mut S`, so the consumer never specializes over the hidden
 type. Opening pairs `state` with its operations as above, while
-`&mut package.state` remains an ordinary field borrow.
+`@mut package.state` remains an ordinary field borrow.
 
 Each stored operation keeps its own
 [callable contract](machine_values.md#callable-types-and-construction), and

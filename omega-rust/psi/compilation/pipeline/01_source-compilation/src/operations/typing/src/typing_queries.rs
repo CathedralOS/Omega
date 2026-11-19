@@ -2170,7 +2170,7 @@ mod tests {
             r#"
             data Buffer<T> { storage: [T; 4]; }
             data Foreign { storage: [u8; 4]; }
-            machine bytes(buffer: &Buffer<u8>) -> u8 { buffer.storage[0u64] }
+            machine bytes(buffer: @Buffer<u8>) -> u8 { buffer.storage[0u64] }
         "#,
         )])
         .unwrap();
@@ -2315,7 +2315,7 @@ mod tests {
         }
 
         let program = typed(
-            "use omega::language::core::byte_observation;\npublic domain [u8]::Path requires byte_observation::no_nul(&self[..]);\ndomain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);",
+            "use omega::language::core::byte_observation;\npublic domain [u8]::Path requires byte_observation::no_nul(@self[..]);\ndomain [u8]::Ascii requires byte_observation::ascii_only(@self[..]);",
             true,
         );
         let domain = &program.domain_definitions()[0];
@@ -2522,7 +2522,7 @@ mod tests {
             vec![(bare_domain, DeferredRequest::UndeclaredCallName)]
         );
         let ordinary = typed(
-            "machine no_nul(value: &[u8]) -> bool { true }\ndomain [u8]::Path requires no_nul(&self[..]);",
+            "machine no_nul(value: @[u8]) -> bool { true }\ndomain [u8]::Path requires no_nul(@self[..]);",
             false,
         );
         let ordinary_domain = ordinary.domain_definitions()[0].symbol;
