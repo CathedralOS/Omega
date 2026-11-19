@@ -199,13 +199,19 @@ impl RetainedProviderSelection {
                 &mut provider_identity,
             )?;
         }
-        form(
+        let selection = form(
             ProviderPlanningContext::new(program, scope),
             subject_identity,
             provider_identity,
             self.origin.clone(),
             Some(self.target),
             self.composition_mode,
-        )
+        )?;
+        if matches!(selection.subject, ProviderSelectionSubject::BoundaryOperatorFamily(_)) {
+            return Err(Diagnostic::error(
+                "retained provider choice has no complete boundary-operator family declaration",
+            ));
+        }
+        Ok(selection)
     }
 }

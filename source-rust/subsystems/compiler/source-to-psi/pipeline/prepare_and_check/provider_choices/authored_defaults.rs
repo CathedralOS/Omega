@@ -1,11 +1,8 @@
 //! Read provider default declarations while their exact typed source is available.
-use crate::declaration_selection::BuildSelectionOrigin;
-use crate::provider_choice_inputs::{
-    ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject, TargetProviderDefaults,
-};
+use crate::provider_choice_inputs::{ProviderSelection, TargetProviderDefaults};
 use crate::source_state::provider_declarations::ProviderPlanningContext;
 use diagnostics::Diagnostic;
-use semantic_vocabulary::source_selections::{CompositionMode, ProductTarget};
+use semantic_vocabulary::source_selections::CompositionMode;
 
 /// "The selected target package supplies ordinary named default provider
 /// implementations" (`wiki/spec/build/provider_selection.md`,
@@ -49,14 +46,11 @@ pub fn retain_provider_defaults(
 
 /// Reads the selections one `provider_defaults` machine declares.
 ///
-/// Only the forms the reader states are harvested. Anything else in such
-/// a machine is refused by name rather than skipped: a statement that is
-/// not a selection, an explicit composition mode, a slot or provider
-/// applied to static arguments, and a boundary-operator family as the
-/// slot. A skipped statement would be a default the Product silently
-/// does without.
+/// Every statement must form a selection. Report an explicit composition
+/// mode or an applied slot or provider at its authored occurrence.
 mod defaults {
-    use super::{CompositionMode, ProviderPlanningContext, ProviderSelection, form, identity};
+    use super::{CompositionMode, ProviderPlanningContext, ProviderSelection};
+    use crate::evaluation::provider_declarations::{form, identity};
     use crate::source_state::expression::{ExpressionNode, StaticMachineArgument};
     use crate::source_state::machine::Machine;
     use crate::source_state::product_operand::{ProductOperandKind, resolve_product_operand};
@@ -224,146 +218,4 @@ mod defaults {
         }
         Ok(selections)
     }
-}
-
-pub(crate) fn identity(
-    context: ProviderPlanningContext<'_>,
-    symbol: symbols::SymbolHandle,
-    authored_path: &str,
-) -> ProviderSelectionIdentity {
-    let symbols = &context.typed.symbols;
-    ProviderSelectionIdentity {
-        symbol,
-        application: Default::default(),
-        applied: false,
-        application_identity: None,
-        package: symbols.symbol_package_identity(symbol),
-        canonical_path: symbols.display_path(symbol, "::"),
-        authored_path: authored_path.to_owned(),
-    }
-}
-
-/// Classifies the slot and checks the supported static declaration form.
-/// Defaults, explicit Build choices and retained dependency choices share
-/// this validation; a default's namespace grants no provider value.
-pub(crate) fn form(
-    context: ProviderPlanningContext<'_>,
-    slot: ProviderSelectionIdentity,
-    provider: ProviderSelectionIdentity,
-    origin: BuildSelectionOrigin,
-    target: Option<ProductTarget>,
-    composition_mode: CompositionMode,
-) -> Result<ProviderSelection, Diagnostic> {
-    use symbols::SymbolKind;
-    let typed = context.typed;
-    if !slot.symbol.is_valid() || !provider.symbol.is_valid() {
-        return Err(Diagnostic::error(format!(
-            "provider selection `{}` for `{}` does not resolve to declarations",
-            provider.authored_path, slot.authored_path
-        )));
-    }
-    if !context.contains(slot.symbol) || !context.contains(provider.symbol) {
-        return Err(Diagnostic::error(format!(
-            "provider selection subject or provider is outside the {:?} planning context",
-            context.scope
-        )));
-    }
-    let slot_kind = typed.symbols.get(slot.symbol).kind;
-    // A slot or provider with parameters is selected only as one
-    // closed application of them, which its identity then states.
-    if slot.application_identity.is_none()
-        && typed
-            .trait_definition_by_symbol(slot.symbol)
-            .is_some_and(|definition| !definition.type_parameters.is_empty())
-    {
-        return Err(Diagnostic::error(format!(
-            "no product route yet: provider slot `{}` requires its complete static application",
-            slot.authored_path,
-        )));
-    }
-    let subject = if slot_kind == SymbolKind::Trait
-        && typed
-            .traits()
-            .iter()
-            .any(|definition| definition.symbol == slot.symbol && definition.is_boundary)
-    {
-        ProviderSelectionSubject::BoundaryTrait(slot)
-    } else if slot_kind == SymbolKind::Machine
-        && typed.machines().iter().any(|requirement| {
-            requirement.symbol == slot.symbol
-                && requirement.spelling.is_none()
-                && requirement.supply_mode
-                    == source_declarations::MachineSupplyMode::TopLevelRequirement
-        })
-    {
-        ProviderSelectionSubject::BoundaryRequirement(slot)
-    } else if slot_kind == SymbolKind::Operator
-        || typed
-            .machine_token_bindings()
-            .iter()
-            .any(|binding| binding.is_boundary && binding.symbol == slot.symbol)
-    {
-        return Err(Diagnostic::error(format!(
-            "no product route yet: source provider defaults: slot `{}` is a boundary-operator family",
-            slot.authored_path
-        )));
-    } else {
-        return Err(Diagnostic::error(format!(
-            "provider selection subject `{}` does not resolve to an exact boundary trait, top-level boundary requirement, or boundary-operator family",
-            slot.authored_path
-        )));
-    };
-    let implementation = typed
-        .conformances()
-        .iter()
-        .find(|definition| definition.symbol == provider.symbol);
-    if implementation.is_none() {
-        return Err(Diagnostic::error(format!(
-            "provider selection `{}` is not a static operation record from a named implementation; a data type is not a provider value",
-            provider.authored_path
-        )));
-    }
-    if provider.application_identity.is_none()
-        && implementation.is_some_and(|implementation| !implementation.type_parameters.is_empty())
-    {
-        return Err(Diagnostic::error(format!(
-            "no product route yet: provider `{}` requires its complete static application",
-            provider.authored_path,
-        )));
-    }
-    // A named implementation with lifetime parameters provides a
-    // requirement its parent trait declares only when the parent's
-    // lifetimes are spelled by the implementation's own.
-    if let Some(implementation) =
-        implementation.filter(|definition| definition.type_parameters.is_empty())
-    {
-        let root = typed.trait_definition_by_symbol(implementation.trait_symbol);
-        let arguments = implementation.trait_lifetime_arguments.as_slice();
-        let own = implementation.lifetime_parameters.len();
-        let spelled = root.is_some_and(|root| {
-            arguments.len() == root.lifetime_parameters.len()
-                && arguments
-                    .iter()
-                    .all(|ordinal| usize::try_from(*ordinal).is_ok_and(|ordinal| ordinal < own))
-        });
-        for row in &implementation.rows {
-            let inherited_without_lifetimes = typed
-                .trait_definition_by_symbol(row.declaring_trait)
-                .is_some_and(|declaring| declaring.lifetime_parameters.is_empty());
-            let direct = root.is_some_and(|root| root.symbol == row.declaring_trait);
-            if !spelled || !(direct || inherited_without_lifetimes) {
-                return Err(Diagnostic::error(format!(
-                    "named provider `{}` requires an unsupported inherited declaring-trait lifetime application for `{}`; the exact parent substitution is not retained",
-                    provider.authored_path, row.requirement_name,
-                )));
-            }
-        }
-    }
-    Ok(ProviderSelection {
-        target,
-        subject,
-        provider_type: provider,
-        composition_mode,
-        origin,
-    })
 }

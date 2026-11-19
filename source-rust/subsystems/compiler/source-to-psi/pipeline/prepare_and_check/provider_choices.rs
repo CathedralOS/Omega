@@ -3,7 +3,7 @@
 //! ordinary lowered judgment. No native/ABI ProviderPlan is fabricated here.
 
 #[path = "provider_choices/authored_defaults.rs"]
-pub(crate) mod authored_defaults;
+mod authored_defaults;
 pub use authored_defaults::retain_provider_defaults;
 
 use crate::provider_choice_inputs::{
