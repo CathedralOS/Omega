@@ -1,0 +1,4 @@
+error UnexpectedToken at 4:1 bytes 133..134
+  found: {
+  expected: a clause or `;`
+  expected a clause or `;`

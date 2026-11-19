@@ -1,0 +1,6 @@
+# Keep every text file as LF on every host, as Omega V1 does. The spec's examples and the
+# lexer's inputs are byte-sensitive, and a Windows checkout must not turn them into CRLF.
+* text=auto eol=lf
+
+# Fixtures are compared byte for byte, so git must never rewrite them at all.
+layers/**/fixtures/** -text

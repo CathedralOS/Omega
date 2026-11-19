@@ -1,0 +1,23 @@
+// GRAMMAR.md: types.
+machine types(
+    a: u32,
+    b: core::Level,
+    c: Outcome<u32, Never>,
+    d: Vec<Vec<u8>>,
+    e: Envelope<u32>::Body,
+    f: @u8,
+    g: @mut [u8],
+    h: @'a mut S,
+    i: [u8; 38],
+    j: [[u8; 4]; N * 2],
+    k: machine(value: u32) -> u32,
+    l: machine<T>(value: T) reaches none,
+    m: A -> B,
+    n: i32 in Km & Positive,
+    o: ByteBuffer<64>,
+    p: Buffer<N + 1, (M)>,
+    q: @mut,
+    r: machine,
+) -> @'a [u8] in NonEmpty {
+    a
+}

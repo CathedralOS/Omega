@@ -1,0 +1,4 @@
+error UnexpectedToken at 2:15 bytes 34..35
+  found: ;
+  expected: `,` or `)`
+  expected `,` or `)`

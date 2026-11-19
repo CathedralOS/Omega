@@ -1,0 +1,4 @@
+error UnexpectedToken at 2:19 bytes 32..33
+  found: ,
+  expected: `}` after `..`
+  expected `}` after `..`

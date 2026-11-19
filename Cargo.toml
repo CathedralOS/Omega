@@ -1,0 +1,17 @@
+[workspace]
+resolver = "3"
+members = [
+    "application",
+    "layers/00-lexer",
+    "layers/01-parser",
+    "layers/02-resolver",
+    "tools/compare-builds",
+    "tools/golden",
+    "tools/measure",
+    "tools/spec-corpus",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false

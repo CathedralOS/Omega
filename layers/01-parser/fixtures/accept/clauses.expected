@@ -1,0 +1,219 @@
+File
+  Machine
+    'machine'
+    Path 'every_clause'
+    Params
+      '('
+      Param
+        'n'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'limit'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Requires
+      'requires'
+      Binary
+        PathExpression 'n'
+        '>'
+        Literal '0'
+    Requires
+      'requires'
+      Binary
+        PathExpression 'n'
+        '<'
+        PathExpression 'limit'
+    Ensures
+      'ensures'
+      Binary
+        PathExpression 'result'
+        '>='
+        PathExpression 'n'
+    Reaches
+      'reaches'
+      PathType
+        'Outcome'
+        TypeArgs
+          '<'
+          PathType 'u32'
+          '>'
+    Crashes
+      'crashes'
+      PathType 'none'
+    Blocks 'blocks'
+    Suspends 'suspends' 'false'
+    Terminates
+      'terminates'
+      'by'
+      Binary
+        PathExpression 'limit'
+        '-'
+        PathExpression 'n'
+      '->'
+      PathExpression 'Nat' '::' 'Descending'
+      'in'
+      Range
+        Literal '0'
+        '..='
+        PathExpression 'limit'
+    Invokes
+      'invokes'
+      PathType 'Logger' '::' 'write'
+    Satisfies
+      'satisfies'
+      PathType 'Pure'
+    Body
+      '{'
+      Tail
+        PathExpression 'n'
+      '}'
+  Machine
+    'machine'
+    Path 'other_terminations'
+    Params '(' ')'
+    Terminates 'terminates'
+    Body '{' '}'
+  Machine
+    'machine'
+    Path 'measured'
+    Params
+      '('
+      Param
+        'items'
+        ':'
+        ReferenceType
+          '@'
+          SliceType
+            '['
+            PathType 'u8'
+            ']'
+      ')'
+    Terminates
+      'terminates'
+      'by'
+      PathExpression 'items'
+      '->'
+      PathExpression 'Slice' '::' 'Length'
+    Body '{' '}'
+  Machine
+    'machine'
+    Path 'bounded'
+    Params
+      '('
+      Param
+        'n'
+        ':'
+        PathType 'u32'
+      ')'
+    Terminates
+      'terminates'
+      'by'
+      PathExpression 'n'
+      'in'
+      PathExpression 'limit'
+    Body '{' '}'
+  Machine
+    'boundary'
+    'machine'
+    Path 'bodyless'
+    Params
+      '('
+      Param
+        'n'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Requires
+      'requires'
+      Binary
+        PathExpression 'n'
+        '>'
+        Literal '0'
+    Ensures
+      'ensures'
+      Binary
+        PathExpression 'result'
+        '>'
+        PathExpression 'n'
+    ';'
+  Machine
+    'machine'
+    Path 'names'
+    Params
+      '('
+      Param
+        'reaches'
+        ':'
+        PathType 'u32'
+      ','
+      Param
+        'ensures_more'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Requires
+      'requires'
+      Binary
+        PathExpression 'reaches'
+        '<'
+        PathExpression 'ensures_more'
+    Requires
+      'requires'
+      Call
+        PathExpression 'ensures_more'
+        Args '(' ')'
+    Ensures
+      'ensures'
+      Binary
+        PathExpression 'reaches'
+        '=='
+        PathExpression 'result'
+    Body
+      '{'
+      Tail
+        PathExpression 'reaches'
+      '}'
+  Machine
+    'machine'
+    Path 'guarded'
+    Params
+      '('
+      Param
+        'p'
+        ':'
+        PathType 'Point'
+      ')'
+    Requires
+      'requires'
+      Binary
+        PathExpression 'p'
+        '=='
+        Paren
+          '('
+          RecordLiteral
+            PathExpression 'Point'
+            '{'
+            FieldInit
+              'x'
+              ':'
+              Literal '0'
+            ','
+            FieldInit
+              'y'
+              ':'
+              Literal '0'
+            '}'
+          ')'
+    Body '{' '}'

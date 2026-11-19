@@ -1,0 +1,336 @@
+File
+  Machine
+    'machine'
+    Path 'arguments'
+    Params
+      '('
+      Param
+        'a'
+        ':'
+        PathType
+          'Outcome'
+          TypeArgs
+            '<'
+            PathType 'u32'
+            ','
+            PathType 'Never'
+            '>'
+      ','
+      Param
+        'b'
+        ':'
+        PathType
+          'ByteBuffer'
+          TypeArgs
+            '<'
+            Literal '64'
+            '>'
+      ','
+      Param
+        'c'
+        ':'
+        PathType
+          'Buffer'
+          TypeArgs
+            '<'
+            PathType 'N'
+            '>'
+      ','
+      Param
+        'd'
+        ':'
+        PathType
+          'Buffer'
+          TypeArgs
+            '<'
+            Binary
+              PathExpression 'N'
+              '*'
+              Literal '2'
+            '>'
+      ','
+      Param
+        'e'
+        ':'
+        PathType
+          'Buffer'
+          TypeArgs
+            '<'
+            Paren
+              '('
+              Binary
+                PathExpression
+                  'Other'
+                  ExpressionArgs
+                    '::'
+                    '<'
+                    PathType 'T'
+                    '>'
+                  '::'
+                  'SIZE'
+                '+'
+                Literal '1'
+              ')'
+            '>'
+      ','
+      Param
+        'f'
+        ':'
+        PathType
+          'Wrapper'
+          TypeArgs
+            '<'
+            ReferenceType
+              '@'
+              PathType 'u8'
+            ','
+            SliceType
+              '['
+              PathType 'u8'
+              ']'
+            ','
+            ArrayType
+              '['
+              PathType 'u8'
+              ';'
+              Literal '4'
+              ']'
+            ','
+            ArrayType
+              '['
+              ArrayType
+                '['
+                PathType 'u8'
+                ';'
+                Literal '2'
+                ']'
+              ';'
+              Literal '2'
+              ']'
+            '>'
+      ','
+      Param
+        'g'
+        ':'
+        PathType
+          'Routes'
+          TypeArgs
+            '<'
+            Literal '2'
+            ','
+            ArrayLiteral
+              '['
+              Call
+                PathExpression 'open_file'
+                Args '(' ')'
+              ','
+              Call
+                PathExpression 'open_dir'
+                Args '(' ')'
+              ']'
+            '>'
+      ','
+      Param
+        'h'
+        ':'
+        PathType
+          'Routes'
+          TypeArgs
+            '<'
+            Literal '1'
+            ','
+            ArrayLiteral
+              '['
+              Paren
+                '('
+                PathExpression 'open_file'
+                ')'
+              ']'
+            '>'
+      ','
+      Param
+        'i'
+        ':'
+        PathType
+          'Table'
+          TypeArgs
+            '<'
+            ArrayLiteral
+              '['
+              PathExpression 'a'
+              ','
+              PathExpression 'b'
+              ']'
+            '>'
+      ','
+      Param
+        'j'
+        ':'
+        PathType
+          'Callback'
+          TypeArgs
+            '<'
+            MachineType
+              'machine'
+              Params
+                '('
+                Param
+                  'value'
+                  ':'
+                  PathType 'u32'
+                ')'
+              Result
+                '->'
+                PathType 'u32'
+            ','
+            FunctionType
+              PathType 'A'
+              '->'
+              PathType 'B'
+            '>'
+      ','
+      Param
+        'k'
+        ':'
+        PathType
+          'Holder'
+          TypeArgs
+            '<'
+            Lifetime ''' 'a'
+            ','
+            PathType 'core' '::' 'Level'
+            '>'
+      ','
+      Param
+        'l'
+        ':'
+        PathType
+          'Chosen'
+          TypeArgs
+            '<'
+            Selection
+              '('
+              Path 'clear'
+              'satisfies'
+              PathType 'A' '::' 'clear'
+              ')'
+            '>'
+      ','
+      Param
+        'm'
+        ':'
+        PathType
+          'Signed'
+          TypeArgs
+            '<'
+            Unary
+              '-'
+              Literal '1'
+            ','
+            Unary
+              '!'
+              PathExpression 'flag'
+            '>'
+      ','
+      ')'
+    Body
+      '{'
+      Discard
+        '_'
+        '='
+        Call
+          PathExpression
+            'apply'
+            ExpressionArgs
+              '::'
+              '<'
+              PathType 'set_time'
+              '>'
+          Args
+            '('
+            Borrow
+              '@'
+              'mut'
+              PathExpression 'e'
+            ','
+            Literal '5'
+            ')'
+        ';'
+      Discard
+        '_'
+        '='
+        Call
+          PathExpression
+            'integer'
+            '::'
+            'max'
+            ExpressionArgs
+              '::'
+              '<'
+              PathType 'i32'
+              '>'
+          Args '(' ')'
+        ';'
+      Discard
+        '_'
+        '='
+        Call
+          PathExpression
+            'Sensor'
+            ExpressionArgs
+              '::'
+              '<'
+              Literal '29u64'
+              '>'
+            '::'
+            'read'
+          Args '(' ')'
+        ';'
+      Discard
+        '_'
+        '='
+        Call
+          PathExpression
+            'convert'
+            ExpressionArgs
+              '::'
+              '<'
+              PathType
+                'Outcome'
+                TypeArgs
+                  '<'
+                  PathType 'u32'
+                  ','
+                  PathType 'Never'
+                  '>'
+              ','
+              Literal '64'
+              '>'
+          Args
+            '('
+            PathExpression 'a'
+            ')'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          PathExpression 'a'
+          '<'
+          PathExpression 'b'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            PathExpression 'a'
+            '<'
+            PathExpression 'b'
+          '&&'
+          Binary
+            PathExpression 'c'
+            '>'
+            PathExpression 'd'
+        ';'
+      '}'

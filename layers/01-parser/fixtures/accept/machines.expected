@@ -1,0 +1,390 @@
+File
+  Machine
+    'machine'
+    Path 'main'
+    Params '(' ')'
+    Body '{' '}'
+  Machine
+    'public'
+    'machine'
+    Path 'EchoSupplier' '::' 'supply'
+    Params
+      '('
+      Param
+        'self'
+        ':'
+        ReferenceType
+          '@'
+          'mut'
+          PathType 'EchoSupplier'
+      ','
+      Param
+        'value'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Tail
+        PathExpression 'value'
+      '}'
+  Machine
+    'boundary'
+    'machine'
+    Path 'platform_write'
+    Params
+      '('
+      Param
+        'bytes'
+        ':'
+        ReferenceType
+          '@'
+          SliceType
+            '['
+            PathType 'u8'
+            ']'
+      ')'
+    Result
+      '->'
+      PathType 'u64'
+    ';'
+  Machine
+    'machine'
+    OperatorToken '+'
+    Path 'add'
+    Params
+      '('
+      Param
+        'left'
+        ':'
+        PathType 'Metres'
+      ','
+      Param
+        'right'
+        ':'
+        PathType 'Metres'
+      ')'
+    Result
+      '->'
+      PathType 'Metres'
+    Body
+      '{'
+      Tail
+        PathExpression 'left'
+      '}'
+  Machine
+    'machine'
+    OperatorToken '>'
+    Path 'Small' '::' 'greater'
+    Params
+      '('
+      Param
+        'left'
+        ':'
+        QualifiedType
+          PathType 'u16'
+          'in'
+          PathType 'Small'
+      ','
+      Param
+        'right'
+        ':'
+        PathType 'u16'
+      ')'
+    Result
+      '->'
+      PathType 'bool'
+    Body
+      '{'
+      Tail
+        Binary
+          Paren
+            '('
+            Cast
+              PathExpression 'left'
+              'as'
+              CastEntry
+                '-'
+                PathType 'Small'
+            ')'
+          '>'
+          PathExpression 'right'
+      '}'
+  Machine
+    'machine'
+    OperatorToken '[' ']'
+    Path 'read'
+    GenericParams
+      '<'
+      TypeParam
+        'Element'
+        Attributes
+          '['
+          Attribute 'copy'
+          ']'
+      '>'
+    Params
+      '('
+      Param
+        'view'
+        ':'
+        ReferenceType
+          '@'
+          SliceType
+            '['
+            PathType 'Element'
+            ']'
+      ','
+      Param
+        'index'
+        ':'
+        PathType 'u64'
+      ')'
+    Result
+      '->'
+      PathType 'Element'
+    Body
+      '{'
+      Tail
+        Index
+          PathExpression 'view'
+          '['
+          PathExpression 'index'
+          ']'
+      '}'
+  Machine
+    'machine'
+    OperatorToken '[' '..' ']'
+    Path 'view'
+    GenericParams
+      '<'
+      TypeParam 'Element'
+      '>'
+    Params
+      '('
+      Param
+        'view'
+        ':'
+        ReferenceType
+          '@'
+          SliceType
+            '['
+            PathType 'Element'
+            ']'
+      ','
+      Param
+        'from'
+        ':'
+        PathType 'u64'
+      ','
+      Param
+        'to'
+        ':'
+        PathType 'u64'
+      ')'
+    Result
+      '->'
+      ReferenceType
+        '@'
+        SliceType
+          '['
+          PathType 'Element'
+          ']'
+    Body
+      '{'
+      Tail
+        Index
+          PathExpression 'view'
+          '['
+          Range
+            PathExpression 'from'
+            '..'
+            PathExpression 'to'
+          ']'
+      '}'
+  Machine
+    'machine'
+    Path 'outer'
+    Params
+      '('
+      Param
+        'count'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Let
+        'let'
+        BindingPattern 'doubled'
+        '='
+        Call
+          PathExpression 'twice'
+          Args
+            '('
+            PathExpression 'count'
+            ')'
+        ';'
+      Tail
+        PathExpression 'doubled'
+      Machine
+        'machine'
+        Path 'twice'
+        Params
+          '('
+          Param
+            'value'
+            ':'
+            PathType 'u32'
+          ')'
+        Result
+          '->'
+          PathType 'u32'
+        Body
+          '{'
+          Tail
+            Binary
+              PathExpression 'value'
+              '*'
+              Literal '2'
+          '}'
+      Machine
+        'machine'
+        Path 'unused'
+        Params '(' ')'
+        Body '{' '}'
+      '}'
+  Machine
+    'machine'
+    Path 'apply'
+    Params
+      '('
+      Param
+        'step'
+        ':'
+        MachineType
+          'machine'
+          Params
+            '('
+            Param
+              'value'
+              ':'
+              PathType 'u32'
+            ')'
+          Result
+            '->'
+            PathType 'u32'
+          Reaches
+            'reaches'
+            PathType 'none'
+      ','
+      Param
+        'start'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Tail
+        Call
+          PathExpression 'step'
+          Args
+            '('
+            PathExpression 'start'
+            ')'
+      '}'
+  Machine
+    'machine'
+    Path 'existence_follows'
+    GenericParams
+      '<'
+      TypeParam 'A'
+      ','
+      MachineParam 'machine' 'Step'
+      '>'
+    Params
+      '('
+      Param
+        'P'
+        ':'
+        FunctionType
+          PathType 'A'
+          '->'
+          PathType
+            'core'
+            '::'
+            'Strict'
+            TypeArgs
+              '<'
+              PathType 'v'
+              '>'
+      ','
+      Param
+        'present'
+        ':'
+        PathType 'A'
+      ')'
+    Hypothesis
+      'requires'
+      'machine'
+      'Step'
+      Params
+        '('
+        Param
+          'value'
+          ':'
+          PathType 'A'
+        ')'
+      Requires
+        'requires'
+        Call
+          PathExpression 'P'
+          Args
+            '('
+            PathExpression 'value'
+            ')'
+      Ensures
+        'ensures'
+        Call
+          PathExpression 'Q'
+          Args
+            '('
+            PathExpression 'value'
+            ')'
+      ';'
+    Ensures
+      'ensures'
+      PathExpression
+        'core'
+        '::'
+        'Squash'
+        ExpressionArgs
+          '::'
+          '<'
+          PathType
+            'Witness'
+            TypeArgs
+              '<'
+              PathType 'u'
+              ','
+              PathType 'w'
+              ','
+              PathType 'A'
+              ','
+              PathType 'Q'
+              '>'
+          '>'
+    Body
+      '{'
+      Tail
+        PathExpression 'present'
+      '}'

@@ -1,0 +1,4 @@
+/target
+
+# Local agent worktrees are repository-local and never versioned.
+.agents/worktree/

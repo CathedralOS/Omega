@@ -1,0 +1,5 @@
+// A requirement in a trait is a signature and ends in `;`.
+trait Runs {
+    machine run() {
+    }
+}

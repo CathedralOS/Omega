@@ -1,0 +1,326 @@
+# Build configuration and target selection
+
+[Declarations](declarations.md) establish project identity and dependencies;
+[execution](execution.md) admits build work. This contract separates activation
+authority from durable selections and exact-target results.
+
+## Activation filesystem scope
+
+Build receives one immutable source root for the exact package occurrence and
+one fresh writable staging root for the build occurrence. Sponsored operations
+use compiler-owned facets, not the runtime filesystem services. Roots, handles, and
+rooted paths expire with the activation and cannot enter runtime data or the
+durable build result.
+
+[Snapshot and staging semantics](scoped_execution.md#snapshot-and-staging-protocol)
+require an explicit captured inventory, deterministic logical observations, and
+append-and-seal files. Extra captured inputs have separately scoped roots; no
+ambient consumer tree or live-host authority follows from a dependency. Existing
+live-filesystem modes must be explicitly admitted and identified as transitional,
+not represented as snapshot-isolated execution or silently cached as such.
+
+A facet binds canonical relative bytes to an exact root occurrence. An erased
+qualification over bare bytes cannot replace that identity. Reject absolute
+input, traversal outside the root, ambiguous membership, and symlink escape
+before host access. Authorized path-returning operations, including
+canonicalization, preserve the same root or reject. `read_link` returns inert
+target bytes; following them requires new checked resolution. An outside link
+may be inspected but not traversed by the grant.
+
+Staging a write does not include it in compilation. Explicit handoff follows
+successful evaluation and evidence custody; failure discards the staging
+occurrence. Evidence paths such as `/source/assets/font.bin` and `/output/font.bin`
+are serialization spellings, not prefixes that can mint authority. Identity
+retains root role/occurrence and relative bytes, never a host path or working
+directory.
+
+## Durable result
+
+Normalized Build carries pipeline-consumed target, dependency, root, provider,
+test-group, behavior-exclusion, optimization, proof-work, and output selections.
+It does not serialize source/staging roots, handles, or admitted host-service authority. Image/application facts remain
+build-owned; signing-affecting versus publication-only metadata follows
+[application publication](macos_application.md).
+
+Optimizations form an exact, empty-by-default set of individually named,
+semantics-preserving families. During the experimental phase only the root's
+authoritative `build.omg` enables them, not dependency metadata or embedding
+defaults. Selection is independent of target, debug data, diagnostics, assertions,
+and packaging. There are no debug/release or O1/O2/O3 optimization categories.
+[Optimization phases](optimizations.md#phase-and-product-boundaries)
+owns phase vocabulary, canonical selection, and fail-closed execution.
+
+Hosted/freestanding environment, default providers, fault and resource supply
+belong to the selected target profile, independent of mutable Build flags.
+The compiler realizes the requirement's [calling convention](calling_plans.md#default-calling-convention)
+for that target. An unannotated requirement with no inherited policy uses
+Omega's convention. Project role, roots, dependencies, outputs, image intent,
+and provider selection remain build facts. Target-qualified bindings select facts;
+they do not redefine target policy. The compiler checks
+[hardware authority](permissions.md#where-the-operation-can-run) separately for
+each selected output. A firmware binding cannot grant machine ownership to a
+hosted output in the same build.
+
+## Proof-work policy
+
+Ratified 2026-11-06 with
+[stable index identity and compatibility](../proofs/contracts.md#licensed-normalization).
+
+The authoritative root `build.omg` may configure
+`builder.proof.index_expansion_terms`, a positive `u64` with default `64`.
+For example, an ordinary Build entry may contain:
+
+```omega
+builder.proof.index_expansion_terms = 128;
+```
+
+The [required automatic discharge](../proofs/contracts.md#required-automatic-discharge)
+is outside this policy: it has no allowance and cannot be configured smaller.
+
+This is ordinary Build data, not a generic argument, source annotation, or
+language keyword. It limits resulting summands per attempted automatic
+compatibility-proof product expansion, not normalization steps, integer
+magnitude, or total proof cost. Other sponsor-controlled work/storage ceilings
+remain independent. Zero is rejected rather than treated as unlimited.
+
+Only the root may select or raise the effective allowance. Dependencies may
+publish expected discovery cost and mathematical claims, but cannot increase the
+root's grant. Normalize and retain the effective value even when defaulted.
+Product discovery uses the admitted policy; preflight or Build-stage checking
+uses its already granted policy, never a later setting to justify its own
+admission. Record the effective policy at each sponsored proof-discovery request
+under the [staged execution rules](execution.md#admission-before-execution).
+
+Policy provenance binds the root/scope, limit, search algorithm/accounting
+version, attempted measure, consumption and outcome. Retain the applicable
+usage receipt or certified resource bound under
+[proof-work accounting](../resources/logical_work.md#proof-discovery-and-evidence-checking).
+Host speed, scheduling and elapsed time cannot choose semantic outcomes.
+Exhaustion leaves an unproved obligation and a resource diagnostic; it grants
+no equality, inequality, implementation selection or runtime fallback.
+
+Increasing this allowance under the same source, operations, assumptions and
+otherwise sufficient resource policy must preserve smaller-allowance successes.
+Use an extensible search schedule or equivalent preservation of established
+derivations, not a budget-dependent strategy that abandons previously successful
+proofs. Larger discovery can establish more compatibility; it cannot rename
+types, merge declarations, alter canonical matching, or change specialization
+keys. The resulting proof record and artifact bytes need not be identical.
+
+Published compatibility judgments retain their exact subjects and dependencies.
+Under [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption),
+a host-authorized consumer reuses judgments from the trusted producer's exact
+artifact without rediscovering them. A smaller discovery allowance cannot invalidate
+that reuse. Loading and preparation have separate resource limits; exhaustion
+there reports resource refusal rather than failed theorem discovery. Local cached
+search follows ordinary usage-receipt accounting.
+
+## ELF executable loader selection
+
+The `elf-interpreter-declaration-surface` decision uses ordinary build-owned
+output configuration, not new language syntax or a deployment framework.
+For a dynamically linked Linux ELF executable, `build.omg` may select the
+exact interpreter pathname per output and target. An explicit selection
+overrides a default declared by the selected target/toolchain environment.
+An architecture alone does not imply glibc, musl, or a loader pathname.
+The ordinary Build field is `builder.elf_interpreter.<target>`: one byte-string
+row per canonical ELF target name (`linux_arm64`, `linux_x86_64`), where an
+empty row keeps the declared default.
+
+Retain the effective path and target in normalized output configuration and
+the corresponding artifact/review inputs, including when a declared default
+supplies the path. The backend validates a nonempty absolute target pathname
+without embedded NUL bytes and emits it in `PT_INTERP`. Do not probe the build
+host, require that path to exist on the build host, or silently choose its
+loader during cross-compilation. If a dynamic executable requires an
+interpreter and neither an explicit selection nor a declared default supplies
+one, reject with a missing-output-configuration diagnostic.
+
+A statically linked executable needs no interpreter pathname and emits no
+`PT_INTERP`; Linux output does not inherently require dynamic linking. A
+loader path alone neither requests dynamic linking nor makes foreign imports
+compatible. The selected runtime and imported libraries must still match the
+target deployment.
+
+This path describes what the executable asks its runtime environment to load.
+It does not authenticate the file installed at that path or grant installation
+or execution authority. Those remain subject to
+[receiver admission](permissions.md#artifact-production-versus-receiver-admission).
+
+## ELF load segment alignment
+
+A Linux ELF executable must load on every page size its target's kernels may
+use, not only on the build host's. `linux_arm64` kernels run with 4 KiB,
+16 KiB or 64 KiB pages, and the x86-64 psABI allows pages up to 64 KiB. Every
+`PT_LOAD` segment of a static or dynamically linked executable therefore
+declares `p_align` equal to 64 KiB, starts at a file offset and virtual address
+that are both multiples of 64 KiB, and never shares a 64 KiB page with another
+load segment. A segment that shares a page with its neighbour makes the kernel
+refuse the mapping or replace the earlier one.
+
+## Test groups
+
+[Requirement-based tests](testing.md) register exact product machine requirements
+through `builder.tests.group<Requirement>()`. Each enabled group collects its
+package-local concrete satisfiers for Psi execution before successful
+publication. Groups own provider configuration, not new authority. Root grants
+can only be attenuated; selecting a real provider cannot escape virtual backing.
+The group and global `disabled` fields default to false. No registered groups
+means no automatic tests, not an implicit core/std dependency or hidden group.
+Group selection belongs to evaluated build configuration; it does not change
+the target-independent dependency-request and final-join rules.
+
+## Behavior exclusions
+
+The root may require the selected product to exclude exact crash causes, abstract
+boundary services, or existing physical authority classes. These are additional
+admission requirements, empty by default, independent of provider permission and
+ordinary callable contracts. Repeated exclusions combine monotonically by union.
+They are evaluated product selections, not dependency requests.
+
+[Behavior exclusions](behavior_exclusions.md) defines the complete execution scope,
+evidence, failure outcomes, and installation obligations. A verified selected
+composition can satisfy a stronger exclusion than its broad public declarations
+promise without changing those declarations or making them satisfy narrower
+callable requirements. Source checking still enforces every ordinary contract.
+No debug/release mode, assertion primitive, or new crash cause is implied.
+
+## Exact target requests
+
+An absent selection realizes every deployable target profile the toolchain
+closure provides. An explicit selection accepts one exact profile or a
+caller-supplied nonempty set, normalized to canonical order with duplicates
+removed; it narrows realization, never checking. Reject `all`, `*`, empty
+explicit sets, and inference from source or dependencies. The catalog's
+abstract/local modes and inactive bindings cannot define deployment intent and
+realize only when selected explicitly.
+Authored target-policy/activation declarations are not admitted source syntax
+and do not define a support matrix.
+
+A CLI Host convenience selects the realization set before semantic
+evaluation; Host is not artifact identity. The Build does not observe a
+selected target: target-dependent selections are rows keyed by target, and
+dependency requests cannot branch on a target. Target schemas and
+observation vocabulary are closed and toolchain-owned; concrete profiles come
+from validated target packages in the selected toolchain closure, not authored
+reinterpretation or a forever-fixed compiler enum. Use exact canonical spellings,
+not extra aliases such as `windows_x64` for `windows_x86_64`.
+
+Admissibility depends on product role and output mode: an executable application
+needs its selected ProgramEntry; an explicitly artifact-only application requires
+completed artifacts and rejects executable root/provider selections. A component
+closes declared slots; a library or target-neutral artifact does not acquire a
+native entry merely to pass checking. Artifact-only mode still binds an explicit
+target and does not imply target-neutral identity. Target
+semantics, ABI/layout, resources, and reach must validate. This is mechanical
+closure, not a claim of human testing. Target assumptions must be checked facts.
+
+### Target recognition and implementation availability
+
+Recognizing a profile and its slot identities does not require implementing its
+checking or artifact backend. An inactive binding to a recognized profile does
+not require that profile's backend; unknown profile names still reject rather
+than silently becoming inactive. Selected requests require the implementation
+of the requested operation. An unavailable operation reports a target/product
+not-implemented diagnostic, not successful checking or a fallback artifact.
+
+This applies to `alpha_bootstrap`: the Rust reference compiler recognizes its
+inactive bindings when compiling the Omega-written compiler for a native target,
+but may report Alpha compilation as not implemented when selected. The bootstrap
+does not require a Rust Alpha backend. Profile and slot identity remain
+target-package facts; do not create a parallel bootstrap selection mechanism or
+infer support from the mere presence of those declarations.
+
+## Multi-target compilation
+
+One compilation serves every provided target. Psi runs once: source loading,
+parsing, resolution, typing, checking, proof, and Terminal Psi production do
+not observe a selected target. Every supplied named implementation is resolved,
+typed, checked, and published under its ordinary declaration identity, including
+implementations not selected for realization. A Windows realization therefore
+does not hide a source error in a supplied macOS implementation. Target-prefixed
+machine declarations and implicit same-path target-body families are retired;
+targets are Build/toolchain data, not source declaration modifiers.
+
+Universal source checking does not instantiate every unused target layout.
+[Demand-driven layout formation](../layouts/plans.md#layout-demand-and-validation)
+evaluates concrete geometry only for its actual consumers, entries and selected
+Build-row closures. A declared row for a target outside the realization set
+still demands its applicable layouts; a body reached by no row or entry does
+not acquire every supplied target merely because it was source-checked.
+Any later consumer must validate the exact application before use.
+
+Build evaluation runs once for the whole compilation. It does not observe a
+single selected target and cannot branch on one; target-dependent selections
+(provider plans, program entry, subsystem, application intent, opaque
+representation, grants, behavior exclusions) are rows keyed by target in the
+one evaluated Build. A row for a target outside the realization set is checked
+and retained, not realized.
+
+A constant that folds through a provider (a const application of a boundary
+operator or requirement whose selected realization is a checked body) is part
+of the one checked program, so its value cannot vary by target. Every realized
+target's row must select the same provider for such an application; Psi folds
+it once through that provider. Rows that disagree reject the application and
+name the diverging targets. A compilation realizing one target, or a Build
+that selects one provider for all targets, satisfies the rule trivially.
+
+Realization is per target. The realization set defaults to every deployable
+target profile the toolchain closure provides; an explicit `--target` selection
+narrows realization only and never narrows checking. Omega selects each
+required provider from the exact Build row for the target it realizes. Its
+selected transitive closure must satisfy the requirement and the target's ABI,
+import, layout, and ISA constraints. A missing, ambiguous, or incompatible row
+rejects that realization; it does not invalidate the portable semantics or another target's
+realization. Return one outcome per realized target; one realization's failure
+cannot suppress another's. An aggregate exit code or human summary is
+orchestration, not support, audit, or completeness evidence.
+
+A fat/universal artifact is a separate explicit envelope over independently
+committed realizations. CI may cross-compile several targets on one host or
+check without physical realization; neither activity creates a language
+support set.
+
+Target-prefixed source declarations and their declaration-graph family metadata
+do not authorize executable body selection. Portable artifacts contain no
+executable family catalog or synthesized family head. Explicit requirements and
+named implementations use Build-owned selection. Callers must
+use the requirement's public contract, never a selected implementation's private
+guarantees or a synthesized intersection of alternate bodies.
+
+The compiler executes Build and completes source typing once within one
+`CompileRequest`; checking and Terminal production remain inside the per-target
+route, with provider settlement before checking. Completing the single Psi
+artifact and source-free per-target settlement remains work on the same board.
+No documentation change here establishes those implementation results.
+
+## Directional wire compatibility
+
+The authoritative Build may request
+`Build::require_wire_compatibility<Edge, Lineage, Local, Peer, ...>(builder);`.
+The explicit argument must borrow that activation's original Build. Requests
+are collected when executed, including through ordinary helper machines; an
+unexecuted call contributes no demand. The receiver-call spelling is retired.
+Only the directional facts named after the first four type arguments are required.
+Evaluate them against published schema, codec, unknown-member, canonicalization,
+and `FormatMigration` evidence; report every fact and reject unmet requests.
+This is channel/store deployment policy, not intrinsic version metadata on the
+two data types.
+
+The first four arguments identify the edge, lineage, local schema, and peer
+schema. Remaining arguments come from the closed vocabulary:
+
+| Fact | Demand |
+| --- | --- |
+| `Readable` | The local decoder accepts every peer value. |
+| `Writable` | The peer decoder accepts every local value. |
+| `PreserveUnknown` | Unknown information is preserved for relay. |
+| `Canonical` | The selected encoding produces canonical bytes. |
+| `CompleteMigration` | Selected `FormatMigration<Lineage, Old, New>` conformances provide the required peer-to-local migration route. |
+
+Omitted facts remain reported but cannot reject the build. The wire report
+retains schema/codec identities, numbered and retired members, accepted
+historical shapes, migration routes, unknown-member behavior, canonicalization,
+and derived/admitted realization provenance. `04_wire_protocols.txt` reports
+every directional fact and its explanation before unmet requested facts reject.
+Strict decoding cannot satisfy preservation merely by validating known fields.

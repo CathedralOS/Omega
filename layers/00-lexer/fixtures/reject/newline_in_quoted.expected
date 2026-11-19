@@ -1,0 +1,3 @@
+error NewlineInQuoted at 1:13 bytes 12..13
+  text: \x{0a}
+  a quoted literal cannot contain a raw line break; write \n or \r

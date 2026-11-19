@@ -1,0 +1,2 @@
+// A mathematical `let` takes no visibility in this grammar.
+public let double(value: u32): u32 = value * 2;

@@ -1,0 +1,4 @@
+error UnexpectedToken at 1:12 bytes 11..18
+  found: dropped
+  expected: `{` or `=`
+  expected `{` or `=`
