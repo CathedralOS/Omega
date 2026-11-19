@@ -1,0 +1,11 @@
+boundary trait Distance {
+    machine absolute(value: i32) -> i32 reaches Distance crashes none;
+}
+
+FixedDistance satisfies Distance {
+    machine absolute(value: i32) -> i32 reaches Distance { 7 }
+}
+
+machine entry() -> i32 {
+    0
+}

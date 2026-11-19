@@ -1,3 +1,0 @@
-// Expected rejection: index 8 is outside an eight-layer array.
-data Stack { indices: [f64; 8]; }
-machine invalid(stack: &Stack) -> f64 { transition { _ -> (stack.indices[8]) } }

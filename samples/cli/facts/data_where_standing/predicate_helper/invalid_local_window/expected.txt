@@ -1,2 +1,0 @@
-machine `produce` cannot lend restricted field `value`
-normal-return guarantees do not preserve the field's standing predicate

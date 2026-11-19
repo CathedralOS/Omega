@@ -1,0 +1,1 @@
+local storage cannot establish that promise, even for an empty view

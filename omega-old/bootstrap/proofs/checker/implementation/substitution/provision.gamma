@@ -1,0 +1,13 @@
+(def substitution_provision ((session Int) (left Int) (right Int) (function Int)
+  (clause Int) (matched Int) (coordinate Int)) Int
+  (let table Int (+ clause 8)
+    (let reserved Int (comparison_reserve session (+ (layout_word table) 1) coordinate)
+      (if (eq (first reserved) 6)
+        (let latest Int (comparison_session (second reserved))
+          (let context Int
+            (substitution_context (comparison_context latest) (formation_index table)
+              left function matched)
+            (substitution_visit context
+              (layout_word (- (formation_record_next clause) 4)) right 0 0
+              (comparison_empty (comparison_context latest)) latest coordinate)))
+        reserved))))

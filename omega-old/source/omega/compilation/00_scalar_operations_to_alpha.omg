@@ -1,0 +1,674 @@
+use psi::ScalarMachine;
+use psi::ScalarOperation;
+use psi::ScalarOperationKind;
+use psi::ScalarProgram;
+use psi::ScalarStatus;
+use psi::ScalarLayout;
+use psi::ScalarLayoutKind;
+use psi::ScalarParameter;
+
+// Realize the checked scalar lowering slice on Alpha. Each call owns a frame
+// of value slots; physical registers never carry values across a call. Layout
+// and emission use the same traversal, so forward calls need no patch table.
+// Tape bytes and physical positions are plain carriers. The byte writer
+// captures and bounds its position before either layout or publication.
+public data AlphaEmitter {
+    bytes: [u8; 2097152];
+    length: u64;
+    labels: [u64; 10240];
+    operation_labels: [u64; 16384];
+    // Local branches in emitted copies, zeroing and comparisons share the
+    // same two-pass address authority instead of guessed byte displacements.
+    marks: [u64; 65536];
+    mark_count: u64;
+    trap: u64;
+    layout: bool;
+    complete: bool;
+}
+
+machine alpha_byte(emitter: &mut AlphaEmitter, value: u8)
+crashes Trap
+{
+    let offset: u64 = emitter.length;
+    transition offset < 2097152 {
+        true -> append(emitter, value, offset)
+        _ -> full(emitter)
+    }
+    machine append(emitter: &mut AlphaEmitter, value: u8, offset: u64) {
+        transition emitter.layout {
+            true -> advance(emitter, offset)
+            _ -> write(emitter, value, offset)
+        }
+    }
+    machine write(emitter: &mut AlphaEmitter, value: u8, offset: u64) {
+        emitter.bytes[offset] = value;
+        transition { _ -> advance(emitter, offset) }
+    }
+    machine advance(emitter: &mut AlphaEmitter, offset: u64) { emitter.length = offset + 1; }
+    machine full(emitter: &mut AlphaEmitter) { emitter.complete = false; }
+}
+
+machine alpha_word(emitter: &mut AlphaEmitter, value: u64)
+crashes Trap
+{
+    transition { _ -> next(emitter, value, 8) }
+    machine next(emitter: &mut AlphaEmitter, value: u64, remaining: u64) {
+        transition remaining > 0 {
+            true -> byte(emitter, value, remaining)
+            _ -> done()
+        }
+    }
+    machine byte(emitter: &mut AlphaEmitter, value: u64, remaining: u64) {
+        alpha_byte(emitter, (value % 256) as u8);
+        transition { _ -> next(emitter, value / 256, remaining - 1) }
+    }
+    machine done() {}
+}
+
+machine alpha_registers(emitter: &mut AlphaEmitter, opcode: u8, first: u8, second: u8)
+crashes Trap
+{
+    alpha_byte(emitter, opcode);
+    alpha_byte(emitter, first);
+    alpha_byte(emitter, second);
+}
+
+machine alpha_immediate(emitter: &mut AlphaEmitter, register: u8, value: u64 in Trapping)
+crashes Trap
+{
+    alpha_byte(emitter, 1);
+    alpha_byte(emitter, register);
+    alpha_word(emitter, value as -Trapping);
+}
+
+machine alpha_call(emitter: &mut AlphaEmitter, callee: u64 in Trapping)
+crashes Trap
+{
+    transition emitter.layout {
+        true -> address(emitter, 0)
+        _ -> bounded(emitter, callee)
+    }
+    machine bounded(emitter: &mut AlphaEmitter, callee: u64 in Trapping) {
+        transition callee < 10240 {
+            true -> known(emitter, callee)
+            _ -> invalid()
+        }
+    }
+    machine known(emitter: &mut AlphaEmitter, callee: u64 in Trapping) {
+        let target: u64 = emitter.labels[callee as -Trapping];
+        transition { _ -> address(emitter, target) }
+    }
+    machine invalid() { crash Trap; }
+    machine address(emitter: &mut AlphaEmitter, target: u64) {
+        alpha_byte(emitter, 19);
+        alpha_word(emitter, target);
+    }
+}
+
+machine alpha_slot(emitter: &mut AlphaEmitter, offset: u64 in Trapping, register: u8, store: bool)
+crashes Trap
+{
+    alpha_immediate(emitter, 2, offset * 8);
+    alpha_registers(emitter, 3, 2, 251);
+    transition store {
+        true -> write(emitter, register)
+        _ -> read(emitter, register)
+    }
+    machine write(emitter: &mut AlphaEmitter, register: u8) { alpha_registers(emitter, 11, 2, register); }
+    machine read(emitter: &mut AlphaEmitter, register: u8) { alpha_registers(emitter, 10, register, 2); }
+}
+
+machine alpha_new_mark(emitter: &mut AlphaEmitter) -> u64 in Trapping
+crashes Trap
+{
+    let mark: u64 = emitter.mark_count;
+    transition mark < 65536 {
+        true -> allocated(emitter, mark)
+        _ -> full(emitter)
+    }
+    machine allocated(emitter: &mut AlphaEmitter, mark: u64) -> u64 in Trapping {
+        emitter.mark_count = mark + 1;
+        mark as u64 +Trapping
+    }
+    machine full(emitter: &mut AlphaEmitter) -> u64 in Trapping {
+        emitter.complete = false;
+        0 as u64 +Trapping
+    }
+}
+
+machine alpha_bind_mark(emitter: &mut AlphaEmitter, mark: u64 in Trapping)
+crashes Trap
+{
+    transition mark < 65536 {
+        true -> bounded(emitter, mark)
+        _ -> full(emitter)
+    }
+    machine bounded(emitter: &mut AlphaEmitter, mark: u64 in Trapping) {
+        transition emitter.layout {
+            true -> bind(emitter, mark)
+            _ -> done()
+        }
+    }
+    machine bind(emitter: &mut AlphaEmitter, mark: u64 in Trapping) { emitter.marks[mark as -Trapping] = emitter.length; }
+    machine full(emitter: &mut AlphaEmitter) { emitter.complete = false; }
+    machine done() {}
+}
+
+machine alpha_mark_target(emitter: &mut AlphaEmitter, mark: u64 in Trapping)
+crashes Trap
+{
+    transition emitter.layout {
+        true -> layout(emitter)
+        _ -> bounded(emitter, mark)
+    }
+    machine layout(emitter: &mut AlphaEmitter) { alpha_word(emitter, 0); }
+    machine bounded(emitter: &mut AlphaEmitter, mark: u64 in Trapping) {
+        transition mark < 65536 {
+            true -> known(emitter, mark)
+            _ -> invalid()
+        }
+    }
+    machine known(emitter: &mut AlphaEmitter, mark: u64 in Trapping) {
+        let target: u64 = emitter.marks[mark as -Trapping];
+        alpha_word(emitter, target);
+    }
+    machine invalid() { crash Trap; }
+}
+
+machine alpha_jump(emitter: &mut AlphaEmitter, mark: u64 in Trapping)
+crashes Trap
+{
+    alpha_byte(emitter, 12);
+    alpha_mark_target(emitter, mark);
+}
+
+machine alpha_test(emitter: &mut AlphaEmitter, opcode: u8, register: u8, mark: u64 in Trapping)
+crashes Trap
+{
+    alpha_byte(emitter, opcode);
+    alpha_byte(emitter, register);
+    alpha_mark_target(emitter, mark);
+}
+
+machine alpha_compare_jump(emitter: &mut AlphaEmitter, opcode: u8, left: u8, right: u8, mark: u64 in Trapping)
+crashes Trap
+{
+    alpha_registers(emitter, opcode, left, right);
+    alpha_mark_target(emitter, mark);
+}
+
+machine alpha_owned_address(emitter: &mut AlphaEmitter, body: ScalarMachine, offset: u64 in Trapping, register: u8)
+crashes Trap
+{
+    alpha_immediate(emitter, register, body.count * 8 + offset);
+    alpha_registers(emitter, 3, register, 251);
+}
+
+// The address is R0 and the result is R0. Narrow reads issue only byte loads;
+// masking a word after an eight-byte load would already cross a short field
+// or allocation boundary. No emitted helper call consumes return-stack space.
+machine alpha_load_width(emitter: &mut AlphaEmitter, width: u64 in Trapping)
+crashes Trap
+{
+    transition width {
+        1 -> byte(emitter)
+        2 -> narrow(emitter, 2)
+        4 -> narrow(emitter, 4)
+        8 -> word(emitter)
+        _ -> invalid()
+    }
+    machine byte(emitter: &mut AlphaEmitter) { alpha_registers(emitter, 8, 0, 0); }
+    machine word(emitter: &mut AlphaEmitter) { alpha_registers(emitter, 10, 0, 0); }
+    machine narrow(emitter: &mut AlphaEmitter, width: u64) {
+        alpha_registers(emitter, 2, 2, 0);
+        alpha_immediate(emitter, 0, 0 as u64 +Trapping);
+        transition { _ -> next(emitter, width, 1) }
+    }
+    machine next(emitter: &mut AlphaEmitter, remaining: u64, factor: u64) {
+        transition remaining > 0 {
+            true -> bounded(emitter, remaining, factor)
+            _ -> done()
+        }
+    }
+    machine bounded(emitter: &mut AlphaEmitter, remaining: u64, factor: u64) {
+        transition factor <= 16777216 {
+            true -> loaded(emitter, remaining, factor)
+            _ -> invalid()
+        }
+    }
+    machine loaded(emitter: &mut AlphaEmitter, remaining: u64, factor: u64) {
+        alpha_registers(emitter, 8, 3, 2);
+        alpha_immediate(emitter, 4, factor as u64 +Trapping);
+        alpha_registers(emitter, 5, 3, 4);
+        alpha_registers(emitter, 3, 0, 3);
+        alpha_immediate(emitter, 4, 1 as u64 +Trapping);
+        alpha_registers(emitter, 3, 2, 4);
+        transition { _ -> next(emitter, remaining - 1, factor * 256) }
+    }
+    machine invalid() { crash Trap; }
+    machine done() {}
+}
+
+// R0 holds the checked scalar payload, R1 its destination. Values stored in
+// two or four bytes are nonnegative u16/u32, so Alpha's signed division by
+// 256 has the required meaning. Full-width payloads use one exact word store.
+machine alpha_store_width(emitter: &mut AlphaEmitter, width: u64 in Trapping)
+crashes Trap
+{
+    transition width {
+        1 -> byte(emitter)
+        2 -> narrow(emitter, 2)
+        4 -> narrow(emitter, 4)
+        8 -> word(emitter)
+        _ -> invalid()
+    }
+    machine byte(emitter: &mut AlphaEmitter) { alpha_registers(emitter, 9, 1, 0); }
+    machine word(emitter: &mut AlphaEmitter) { alpha_registers(emitter, 11, 1, 0); }
+    machine narrow(emitter: &mut AlphaEmitter, width: u64) {
+        alpha_registers(emitter, 2, 2, 0);
+        transition { _ -> next(emitter, width) }
+    }
+    machine next(emitter: &mut AlphaEmitter, remaining: u64) {
+        transition remaining > 0 { true -> stored(emitter, remaining) _ -> done() }
+    }
+    machine stored(emitter: &mut AlphaEmitter, remaining: u64) {
+        alpha_registers(emitter, 9, 1, 2);
+        alpha_immediate(emitter, 3, 256 as u64 +Trapping);
+        alpha_registers(emitter, 6, 2, 3);
+        alpha_immediate(emitter, 3, 1 as u64 +Trapping);
+        alpha_registers(emitter, 3, 1, 3);
+        transition { _ -> next(emitter, remaining - 1) }
+    }
+    machine invalid() { crash Trap; }
+    machine done() {}
+}
+
+// Copies have a fresh value source or distinct activation storage. Their
+// zero-size case branches before any load/store or countdown subtraction.
+machine alpha_copy_bytes(emitter: &mut AlphaEmitter, size: u64 in Trapping)
+crashes Trap
+{
+    let start: u64 in Trapping = alpha_new_mark(emitter);
+    let done: u64 in Trapping = alpha_new_mark(emitter);
+    alpha_immediate(emitter, 2, size);
+    alpha_immediate(emitter, 4, 1 as u64 +Trapping);
+    alpha_bind_mark(emitter, start);
+    alpha_test(emitter, 13, 2, done);
+    alpha_registers(emitter, 8, 3, 0);
+    alpha_registers(emitter, 9, 1, 3);
+    alpha_registers(emitter, 3, 0, 4);
+    alpha_registers(emitter, 3, 1, 4);
+    alpha_registers(emitter, 4, 2, 4);
+    alpha_jump(emitter, start);
+    alpha_bind_mark(emitter, done);
+}
+
+machine alpha_zero_bytes(emitter: &mut AlphaEmitter, size: u64 in Trapping)
+crashes Trap
+{
+    let start: u64 in Trapping = alpha_new_mark(emitter);
+    let done: u64 in Trapping = alpha_new_mark(emitter);
+    alpha_immediate(emitter, 1, size);
+    alpha_immediate(emitter, 2, 0 as u64 +Trapping);
+    alpha_immediate(emitter, 3, 1 as u64 +Trapping);
+    alpha_bind_mark(emitter, start);
+    alpha_test(emitter, 13, 1, done);
+    alpha_registers(emitter, 9, 0, 2);
+    alpha_registers(emitter, 3, 0, 3);
+    alpha_registers(emitter, 4, 1, 3);
+    alpha_jump(emitter, start);
+    alpha_bind_mark(emitter, done);
+}
+
+machine alpha_equal(emitter: &mut AlphaEmitter)
+crashes Trap
+{
+    let equal: u64 in Trapping = alpha_new_mark(emitter);
+    let done: u64 in Trapping = alpha_new_mark(emitter);
+    alpha_compare_jump(emitter, 16, 0, 1, equal);
+    alpha_immediate(emitter, 0, 0 as u64 +Trapping);
+    alpha_jump(emitter, done);
+    alpha_bind_mark(emitter, equal);
+    alpha_immediate(emitter, 0, 1 as u64 +Trapping);
+    alpha_bind_mark(emitter, done);
+}
+
+// Alpha's jlt is signed. Split at the high bit before using it: unsigned
+// ordering agrees with signed ordering exactly when both signs agree.
+machine alpha_unsigned_less(emitter: &mut AlphaEmitter)
+crashes Trap
+{
+    let negative: u64 in Trapping = alpha_new_mark(emitter);
+    let compare: u64 in Trapping = alpha_new_mark(emitter);
+    let yes: u64 in Trapping = alpha_new_mark(emitter);
+    let no: u64 in Trapping = alpha_new_mark(emitter);
+    let done: u64 in Trapping = alpha_new_mark(emitter);
+    alpha_immediate(emitter, 2, 0 as u64 +Trapping);
+    alpha_compare_jump(emitter, 15, 0, 2, negative);
+    alpha_compare_jump(emitter, 15, 1, 2, yes);
+    alpha_jump(emitter, compare);
+    alpha_bind_mark(emitter, negative);
+    alpha_compare_jump(emitter, 15, 1, 2, compare);
+    alpha_jump(emitter, no);
+    alpha_bind_mark(emitter, compare);
+    alpha_compare_jump(emitter, 15, 0, 1, yes);
+    alpha_bind_mark(emitter, no);
+    alpha_immediate(emitter, 0, 0 as u64 +Trapping);
+    alpha_jump(emitter, done);
+    alpha_bind_mark(emitter, yes);
+    alpha_immediate(emitter, 0, 1 as u64 +Trapping);
+    alpha_bind_mark(emitter, done);
+}
+
+public machine alpha_emit(emitter: &mut AlphaEmitter, program: &ScalarProgram)
+crashes Trap
+{
+    emitter.complete = false;
+    emitter.length = 0;
+    emitter.trap = 0;
+    transition program.status {
+        ScalarStatus::Complete -> begin(emitter, program)
+        _ -> done()
+    }
+    machine begin(emitter: &mut AlphaEmitter, program: &ScalarProgram) {
+        emitter.complete = true;
+        emitter.layout = true;
+        alpha_pass(emitter, program);
+        transition emitter.complete {
+            true -> write(emitter, program)
+            _ -> done()
+        }
+    }
+    machine write(emitter: &mut AlphaEmitter, program: &ScalarProgram) {
+        emitter.layout = false;
+        emitter.length = 0;
+        alpha_pass(emitter, program);
+    }
+    machine done() {}
+}
+
+machine alpha_pass(emitter: &mut AlphaEmitter, program: &ScalarProgram)
+crashes Trap
+{
+    // Tape occupies at most 2 MiB; activation frames occupy [32,64) MiB.
+    // Each complete machine has a return/control operation, so the saved
+    // pointer plus operation slots consume at least 16 bytes per frame.
+    // Acyclic calls keep their callers alive; even a full arena implies at
+    // most 16 MiB of return addresses below Alpha's 256 MiB initial stack.
+    // Memory/compare helpers emit inline loops and add no hidden calls.
+    emitter.mark_count = 0;
+    alpha_immediate(emitter, 250, 33554432 as u64 +Trapping);
+    alpha_immediate(emitter, 251, 0 as u64 +Trapping);
+    alpha_immediate(emitter, 249, 0 as u64 +Trapping);
+    alpha_call(emitter, program.entry);
+    alpha_byte(emitter, 0);
+    alpha_byte(emitter, 0);
+    transition { _ -> next(emitter, program, 0 as u64 +Trapping) }
+    machine next(emitter: &mut AlphaEmitter, program: &ScalarProgram, index: u64 in Trapping) {
+        transition index < program.machine_count && index < 10240 && emitter.complete {
+            true -> body(emitter, program, index)
+            _ -> trap(emitter)
+        }
+    }
+    machine body(emitter: &mut AlphaEmitter, program: &ScalarProgram, index: u64 in Trapping) {
+        let body: ScalarMachine = psi::scalar_machine_at(program, index);
+        emitter.labels[index as -Trapping] = emitter.length;
+        // Preflight slots, owned bytes and argument scratch together before
+        // the first frame write. The maximum components are all bounded by
+        // lowering, so this addition itself cannot wrap the VM address word.
+        let size: u64 in Trapping = 8 + body.count * 8 + body.storage_size + body.argument_capacity * 8;
+        alpha_immediate(emitter, 2, size);
+        alpha_registers(emitter, 3, 2, 250);
+        alpha_immediate(emitter, 3, 67108864 as u64 +Trapping);
+        alpha_registers(emitter, 15, 3, 2);
+        let trap: u64 = emitter.trap;
+        alpha_word(emitter, trap);
+        alpha_registers(emitter, 11, 250, 251);
+        alpha_immediate(emitter, 3, 8 as u64 +Trapping);
+        alpha_registers(emitter, 3, 250, 3);
+        alpha_registers(emitter, 2, 251, 250);
+        alpha_registers(emitter, 2, 250, 2);
+        alpha_parameters(emitter, program, body);
+        transition { _ -> operations(emitter, program, index, body, 0 as u64 +Trapping) }
+    }
+    machine operations(emitter: &mut AlphaEmitter, program: &ScalarProgram, index: u64 in Trapping, body: ScalarMachine, offset: u64 in Trapping) {
+        transition offset < body.count && emitter.complete {
+            true -> operation(emitter, program, index, body, offset)
+            _ -> ended(emitter, program, index)
+        }
+    }
+    machine operation(emitter: &mut AlphaEmitter, program: &ScalarProgram, index: u64 in Trapping, body: ScalarMachine, offset: u64 in Trapping) {
+        let handle: u64 in Trapping = body.first + offset;
+        transition handle < 16384 {
+            true -> instruction(emitter, program, index, body, offset, handle)
+            _ -> full(emitter)
+        }
+    }
+    machine instruction(emitter: &mut AlphaEmitter, program: &ScalarProgram, index: u64 in Trapping, body: ScalarMachine, offset: u64 in Trapping, handle: u64 in Trapping) {
+        emitter.operation_labels[handle as -Trapping] = emitter.length;
+        let operation: ScalarOperation = psi::scalar_operation(program, handle);
+        alpha_operation(emitter, program, operation, body);
+        let value: bool = alpha_keeps_value(operation.kind);
+        transition value {
+            true -> stored(emitter, program, index, body, offset)
+            _ -> operations(emitter, program, index, body, offset + 1)
+        }
+    }
+    machine stored(emitter: &mut AlphaEmitter, program: &ScalarProgram, index: u64 in Trapping, body: ScalarMachine, offset: u64 in Trapping) {
+        alpha_slot(emitter, offset, 0, true);
+        transition { _ -> operations(emitter, program, index, body, offset + 1) }
+    }
+    machine ended(emitter: &mut AlphaEmitter, program: &ScalarProgram, index: u64 in Trapping) {
+        // No complete control path falls through into the following machine.
+        alpha_byte(emitter, 255);
+        transition { _ -> next(emitter, program, index + 1) }
+    }
+    machine trap(emitter: &mut AlphaEmitter) {
+        emitter.trap = emitter.length;
+        alpha_byte(emitter, 255);
+    }
+    machine full(emitter: &mut AlphaEmitter) { emitter.complete = false; }
+}
+
+machine alpha_parameters(emitter: &mut AlphaEmitter, program: &ScalarProgram, body: ScalarMachine)
+crashes Trap
+{
+    transition { _ -> next(emitter, program, body, 0 as u64 +Trapping) }
+    machine next(emitter: &mut AlphaEmitter, program: &ScalarProgram, body: ScalarMachine, offset: u64 in Trapping) {
+        transition offset < body.parameter_count && emitter.complete {
+            true -> parameter(emitter, program, body, offset)
+            _ -> done()
+        }
+    }
+    machine parameter(emitter: &mut AlphaEmitter, program: &ScalarProgram, body: ScalarMachine, offset: u64 in Trapping) {
+        let parameter: ScalarParameter = psi::scalar_parameter_at(program, body.first_parameter + offset);
+        let layout: ScalarLayout = psi::scalar_layout_at(program, parameter.type_handle);
+        alpha_immediate(emitter, 0, offset * 8);
+        alpha_registers(emitter, 3, 0, 249);
+        alpha_registers(emitter, 10, 0, 0);
+        alpha_owned_address(emitter, body, parameter.offset, 1);
+        transition layout.kind {
+            ScalarLayoutKind::Record -> copied(emitter, program, body, offset, layout.size)
+            ScalarLayoutKind::Array -> copied(emitter, program, body, offset, layout.size)
+            ScalarLayoutKind::Unit -> next(emitter, program, body, offset + 1)
+            _ -> stored(emitter, program, body, offset, layout.size)
+        }
+    }
+    machine copied(emitter: &mut AlphaEmitter, program: &ScalarProgram, body: ScalarMachine, offset: u64 in Trapping, size: u64 in Trapping) {
+        alpha_copy_bytes(emitter, size);
+        transition { _ -> next(emitter, program, body, offset + 1) }
+    }
+    machine stored(emitter: &mut AlphaEmitter, program: &ScalarProgram, body: ScalarMachine, offset: u64 in Trapping, size: u64 in Trapping) {
+        alpha_store_width(emitter, size);
+        transition { _ -> next(emitter, program, body, offset + 1) }
+    }
+    machine done() {}
+}
+
+machine alpha_call_arguments(emitter: &mut AlphaEmitter, program: &ScalarProgram, body: ScalarMachine, operation: ScalarOperation)
+crashes Trap
+{
+    // Argument expressions have already produced stable slots or fresh
+    // aggregate snapshots. Only now fill this frame's scratch, then call
+    // immediately. A nested call during argument evaluation used its own
+    // frame and cannot overwrite these retained operand identities.
+    alpha_owned_address(emitter, body, body.storage_size, 249);
+    transition { _ -> next(emitter, program, body, operation, 0 as u64 +Trapping) }
+    machine next(emitter: &mut AlphaEmitter, program: &ScalarProgram, body: ScalarMachine, operation: ScalarOperation, offset: u64 in Trapping) {
+        transition offset < operation.extra {
+            true -> argument(emitter, program, body, operation, offset)
+            _ -> call(emitter, operation.left)
+        }
+    }
+    machine argument(emitter: &mut AlphaEmitter, program: &ScalarProgram, body: ScalarMachine, operation: ScalarOperation, offset: u64 in Trapping) {
+        let value: u64 in Trapping = psi::scalar_argument_at(program, operation.right + offset);
+        alpha_slot(emitter, value - body.first, 0, false);
+        alpha_immediate(emitter, 1, offset * 8);
+        alpha_registers(emitter, 3, 1, 249);
+        alpha_registers(emitter, 11, 1, 0);
+        transition { _ -> next(emitter, program, body, operation, offset + 1) }
+    }
+    machine call(emitter: &mut AlphaEmitter, callee: u64 in Trapping) { alpha_call(emitter, callee); }
+}
+
+machine alpha_return(emitter: &mut AlphaEmitter)
+crashes Trap
+{
+    alpha_registers(emitter, 2, 250, 251);
+    alpha_immediate(emitter, 2, 8 as u64 +Trapping);
+    alpha_registers(emitter, 4, 250, 2);
+    alpha_registers(emitter, 10, 251, 250);
+    alpha_byte(emitter, 20);
+}
+
+machine alpha_keeps_value(kind: ScalarOperationKind) -> bool {
+    transition kind {
+        ScalarOperationKind::IntegerConstant -> yes()
+        ScalarOperationKind::ExactIntegerAdd -> yes()
+        ScalarOperationKind::ExactIntegerSubtract -> yes()
+        ScalarOperationKind::ExactIntegerMultiply -> yes()
+        ScalarOperationKind::ExactIntegerDivide -> yes()
+        ScalarOperationKind::ExactIntegerRemainder -> yes()
+        ScalarOperationKind::Call -> yes()
+        ScalarOperationKind::FrameAddress -> yes()
+        ScalarOperationKind::AddressOffset -> yes()
+        ScalarOperationKind::AddressIndex -> yes()
+        ScalarOperationKind::Load -> yes()
+        ScalarOperationKind::IntegerEqual -> yes()
+        ScalarOperationKind::UnsignedLess -> yes()
+        ScalarOperationKind::BooleanNot -> yes()
+        _ -> no()
+    }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
+}
+
+machine alpha_operation(emitter: &mut AlphaEmitter, program: &ScalarProgram, operation: ScalarOperation, body: ScalarMachine)
+crashes Trap
+{
+    transition operation.kind {
+        ScalarOperationKind::IntegerConstant -> constant(emitter, operation.left)
+        ScalarOperationKind::Call -> call(emitter, program, body, operation)
+        ScalarOperationKind::FrameAddress -> address(emitter, body, operation.left)
+        ScalarOperationKind::AddressOffset -> offset(emitter, body, operation)
+        ScalarOperationKind::AddressIndex -> index(emitter, body, operation)
+        ScalarOperationKind::Load -> load(emitter, body, operation)
+        ScalarOperationKind::Store -> store(emitter, body, operation)
+        ScalarOperationKind::Copy -> copy(emitter, body, operation)
+        ScalarOperationKind::Zero -> zero(emitter, body, operation)
+        ScalarOperationKind::BooleanNot -> not(emitter, body, operation)
+        ScalarOperationKind::BranchZero -> branch(emitter, body, operation, 13)
+        ScalarOperationKind::BranchNonzero -> branch(emitter, body, operation, 14)
+        ScalarOperationKind::ReturnValue -> result(emitter, body, operation.left)
+        ScalarOperationKind::ReturnUnit -> unit(emitter)
+        ScalarOperationKind::Label -> done()
+        ScalarOperationKind::Trap -> trap(emitter)
+        _ -> operands(emitter, body, operation)
+    }
+    machine constant(emitter: &mut AlphaEmitter, value: u64 in Trapping) { alpha_immediate(emitter, 0, value); }
+    machine call(emitter: &mut AlphaEmitter, program: &ScalarProgram, body: ScalarMachine, operation: ScalarOperation) { alpha_call_arguments(emitter, program, body, operation); }
+    machine address(emitter: &mut AlphaEmitter, body: ScalarMachine, offset: u64 in Trapping) { alpha_owned_address(emitter, body, offset, 0); }
+    machine offset(emitter: &mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+        alpha_slot(emitter, operation.left - body.first, 0, false);
+        alpha_immediate(emitter, 1, operation.right);
+        alpha_registers(emitter, 3, 0, 1);
+    }
+    machine index(emitter: &mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+        alpha_slot(emitter, operation.left - body.first, 0, false);
+        alpha_slot(emitter, operation.right - body.first, 1, false);
+        alpha_immediate(emitter, 2, operation.extra);
+        alpha_registers(emitter, 5, 1, 2);
+        alpha_registers(emitter, 3, 0, 1);
+    }
+    machine load(emitter: &mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+        alpha_slot(emitter, operation.left - body.first, 0, false);
+        alpha_load_width(emitter, operation.right);
+    }
+    machine store(emitter: &mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+        alpha_slot(emitter, operation.left - body.first, 1, false);
+        alpha_slot(emitter, operation.right - body.first, 0, false);
+        alpha_store_width(emitter, operation.extra);
+    }
+    machine copy(emitter: &mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+        alpha_slot(emitter, operation.left - body.first, 1, false);
+        alpha_slot(emitter, operation.right - body.first, 0, false);
+        alpha_copy_bytes(emitter, operation.extra);
+    }
+    machine zero(emitter: &mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+        alpha_slot(emitter, operation.left - body.first, 0, false);
+        alpha_zero_bytes(emitter, operation.right);
+    }
+    machine not(emitter: &mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+        alpha_slot(emitter, operation.left - body.first, 0, false);
+        alpha_immediate(emitter, 1, 0 as u64 +Trapping);
+        alpha_equal(emitter);
+    }
+    machine branch(emitter: &mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation, opcode: u8) {
+        alpha_slot(emitter, operation.left - body.first, 0, false);
+        alpha_byte(emitter, opcode);
+        alpha_byte(emitter, 0);
+        transition emitter.layout {
+            true -> unknown_target(emitter)
+            _ -> branch_target(emitter, operation.right)
+        }
+    }
+    machine unknown_target(emitter: &mut AlphaEmitter) { alpha_word(emitter, 0); }
+    machine branch_target(emitter: &mut AlphaEmitter, target: u64 in Trapping) {
+        transition target < 16384 {
+            true -> known_target(emitter, target)
+            _ -> invalid()
+        }
+    }
+    machine known_target(emitter: &mut AlphaEmitter, target: u64 in Trapping) {
+        let position: u64 = emitter.operation_labels[target as -Trapping];
+        alpha_word(emitter, position);
+    }
+    machine result(emitter: &mut AlphaEmitter, body: ScalarMachine, value: u64 in Trapping) {
+        alpha_slot(emitter, value - body.first, 0, false);
+        alpha_return(emitter);
+    }
+    machine unit(emitter: &mut AlphaEmitter) {
+        alpha_immediate(emitter, 0, 0 as u64 +Trapping);
+        alpha_return(emitter);
+    }
+    machine operands(emitter: &mut AlphaEmitter, body: ScalarMachine, operation: ScalarOperation) {
+        alpha_slot(emitter, operation.left - body.first, 0, false);
+        alpha_slot(emitter, operation.right - body.first, 1, false);
+        transition operation.kind {
+            ScalarOperationKind::ExactIntegerAdd -> binary(emitter, 3)
+            ScalarOperationKind::ExactIntegerSubtract -> binary(emitter, 4)
+            ScalarOperationKind::ExactIntegerMultiply -> binary(emitter, 5)
+            ScalarOperationKind::ExactIntegerDivide -> binary(emitter, 6)
+            ScalarOperationKind::ExactIntegerRemainder -> binary(emitter, 7)
+            ScalarOperationKind::IntegerEqual -> equal(emitter)
+            ScalarOperationKind::UnsignedLess -> less(emitter)
+            _ -> invalid()
+        }
+    }
+    machine binary(emitter: &mut AlphaEmitter, opcode: u8) { alpha_registers(emitter, opcode, 0, 1); }
+    machine equal(emitter: &mut AlphaEmitter) { alpha_equal(emitter); }
+    machine less(emitter: &mut AlphaEmitter) { alpha_unsigned_less(emitter); }
+    machine trap(emitter: &mut AlphaEmitter) { alpha_byte(emitter, 255); }
+    machine invalid() { crash Trap; }
+    machine done() {}
+}

@@ -1,0 +1,93 @@
+use omega::language::core::ProcessExit;
+// Expected exit: 64.
+// Expected output contains: INVALID:
+// The sample harness supplies EOF; positive design cases use data/*.stdin.
+// One finite request: treatments,subjects,carryover-cap,forbidden-edge + LF.
+// Every result is an actual allocation or exhaustive bounded infeasibility.
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
+use omega::language::core::widen_u8_to_i32;
+use design::model;
+use design::model::Request;
+use design::model::Allocation;
+use design::search;
+use design::search::solve;
+use design::certificate;
+use design::certificate::certify;
+use design::output;
+use design::output::emit;
+
+data Main { }
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let mut input: [u8; 16];
+    let observed: LineReadResult = block Console::read_line(&mut input[..]);
+    transition observed {
+        LineReadResult::LineComplete { count } -> length(&input, count)
+        _ -> invalid()
+    }
+    machine length(input: &[u8; 16], count: u64) {
+        transition count == 8 {
+            true -> syntax(input)
+            false -> invalid()
+        }
+    }
+    machine syntax(input: &[u8; 16]) {
+        transition input[1] == 44 && input[3] == 44 && input[5] == 44 && input[7] == 10
+            && input[0] >= 48 && input[0] <= 57 && input[2] >= 48 && input[2] <= 57
+            && input[4] >= 48 && input[4] <= 57 && input[6] >= 48 && input[6] <= 57 {
+            true -> parse(input)
+            false -> invalid()
+        }
+    }
+    machine parse(input: &[u8; 16]) {
+        let mut request: Request;
+        request.treatments = (widen_u8_to_i32(input[0]) as i32 in Wrapping) - 48;
+        request.subjects = (widen_u8_to_i32(input[2]) as i32 in Wrapping) - 48;
+        request.cap = (widen_u8_to_i32(input[4]) as i32 in Wrapping) - 48;
+        request.forbidden = (widen_u8_to_i32(input[6]) as i32 in Wrapping) - 48;
+        transition (request.treatments == 2 || request.treatments == 3)
+            && request.subjects >= 1 && request.subjects <= 6 && request.cap <= 6
+            && request.forbidden <= 6
+            && (request.treatments == 3 || request.forbidden == 0 || request.forbidden == 1 || request.forbidden == 3) {
+            true -> search(&request)
+            false -> invalid()
+        }
+    }
+    machine search(request: &Request) {
+        let mut allocation: Allocation;
+        let found: bool = solve(request, &mut allocation);
+        transition found {
+            true -> verify(request, &mut allocation)
+            false -> infeasible()
+        }
+    }
+    machine verify(request: &Request, allocation: &mut Allocation) {
+        let verified: bool = certify(request, allocation);
+        transition verified {
+            true -> report(request, allocation)
+            false -> defect()
+        }
+    }
+    machine report(request: &Request, allocation: &Allocation) {
+        emit(request, allocation);
+        ProcessExit::exit_process(0);
+    }
+    machine infeasible() {
+        Console::write_line("INFEASIBLE: all subject-sequence multisets exhausted");
+        ProcessExit::exit_process(2);
+    }
+    machine invalid() {
+        Console::write_line("INVALID: expected T,N,C,F followed by LF; T=2..3 N=1..6 C=0..6 F=0..6");
+        ProcessExit::exit_process(64);
+    }
+    machine defect() {
+        Console::write_line("DEFECT: selected allocation failed recount");
+        ProcessExit::exit_process(70);
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

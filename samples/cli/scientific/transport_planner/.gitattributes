@@ -1,2 +1,0 @@
-# Frozen malformed inputs deliberately preserve trailing and capacity-filling spaces.
-data/invalid_*.txt whitespace=-blank-at-eol

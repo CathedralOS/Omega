@@ -1,6 +1,0 @@
-public data Cell [copy] { value: i32; }
-public data Envelope [copy] requires self.cell.value <= 60 { cell: Cell; }
-public machine corrupt(envelope: &write Envelope) {
-    envelope.cell.value = 61;
-}
-machine main() {}

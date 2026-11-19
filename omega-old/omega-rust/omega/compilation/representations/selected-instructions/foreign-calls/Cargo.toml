@@ -1,0 +1,33 @@
+[package]
+name = "normalized-foreign-call-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "normalized_foreign_call_plan"
+path = "src/lib.rs"
+
+[features]
+test-support = [
+    "dep:layout-plans",
+    "dep:calling-conventions",
+    "dep:function-identity",
+    "dep:native-vocabulary",
+    "dep:task-plans",
+    "dep:target-vocabulary",
+    "dep:terminal-psi",
+]
+
+[dependencies]
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout", optional = true }
+register-model = { path = "../../../target-description/register-model" }
+selected-instructions = { path = ".." }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
+target = { path = "../../../target-description/target" }
+calling-conventions = { path = "../../../target-description/calling-conventions", optional = true }
+function-identity = { path = "../../function-identity", optional = true }
+native-vocabulary = { path = "../../native-vocabulary", optional = true }
+task-plans = { path = "../../task-plans", optional = true }
+target-vocabulary = { path = "../../target-operations/target-vocabulary", optional = true }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi", optional = true }

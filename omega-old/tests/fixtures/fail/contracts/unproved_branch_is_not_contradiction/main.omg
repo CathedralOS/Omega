@@ -1,0 +1,11 @@
+// `count >= 10` and `count < 50` are consistent: failing to prove
+// `count >= 100` on that branch is not evidence the branch is impossible.
+machine pick(count: u64) -> u64
+requires count >= 10
+{
+    transition count < 50 {
+        true -> (count - 100u64)
+        false -> (count - 10u64)
+    }
+}
+machine main() {}

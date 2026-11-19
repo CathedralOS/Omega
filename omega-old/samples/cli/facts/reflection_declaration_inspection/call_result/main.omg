@@ -1,0 +1,34 @@
+// Fact: Authorized declaration inspection describes every field, including erased bindings, with its exact type and owner application while borrowing its context once.
+// Expected exit: 0
+use omega::language::core::reflect;
+data Subject { first: u64; second: bool; proof[erased]: u64; }
+data Counts [copy] { fields: u64; erased: u64; order: u64; evaluations: u64; valid: bool; }
+machine once<'input>(counts: &'input mut Counts) -> &'input mut Counts {
+    counts.evaluations = ((counts.evaluations as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+    counts
+}
+machine describe<Kind>(counts: &mut Counts, field: &reflect::FieldInfo)
+requires Kind == u64 || Kind == bool
+{
+    counts.fields = ((counts.fields as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+    counts.order = ((counts.order as u64 in Wrapping) * (131u64 as u64 in Wrapping) + ((field.declaration_position as u64 in Wrapping) + (1u64 as u64 in Wrapping))) as u64;
+    counts.valid = counts.valid && field.owner_identity.len > 0u64 && field.owner_application.len > 0u64
+        && field.member_identity.len > 0u64 && field.qualified_type.len > 0u64 && field.name.len > 0u64;
+    transition field.is_erased { true -> erased(counts) false -> done() }
+    machine erased(counts: &mut Counts) {
+        counts.erased = ((counts.erased as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+    }
+    machine done() {}
+}
+machine valid(counts: &Counts) -> bool {
+    counts.fields == 3u64 && counts.erased == 1u64 && counts.order == 17426u64
+        && counts.evaluations == 1u64 && counts.valid
+}
+machine forwarded<'input>(counts: &'input mut Counts) -> &'input mut Counts { counts }
+machine main() crashes Trap {
+    let mut counts: Counts = Counts { fields: 0u64, erased: 0u64, order: 0u64, evaluations: 0u64, valid: true };
+    reflect::inspect_record_fields<Subject, describe>(once(forwarded(&mut counts)));
+    transition valid(&counts) { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

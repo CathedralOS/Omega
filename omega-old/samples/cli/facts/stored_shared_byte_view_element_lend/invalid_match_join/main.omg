@@ -1,0 +1,34 @@
+// An element of a fixed array of two shared byte windows keeps its backing and one-byte extent when
+// lent to a callee, so the callee reads byte 11 from the first window and byte 29 from the second.
+// Place: match_join.
+// Expected exit: 0
+machine read(bytes: &[u8]) -> u8
+requires bytes.len == 1
+{
+    bytes[0]
+}
+
+data Flag { value: bool; }
+machine settle(flag: &mut Flag) { flag.value = true; }
+
+machine main() crashes Trap {
+    let packet: [u8; 4] = [11, 23, 29, 31];
+    let windows: [&[u8]; 2] = [&packet[0..1], &packet[2..3]];
+    let other: [&[u8]; 2] = [&packet[1..3], &packet[3..4]];
+    let mut flag: Flag = Flag { value: false };
+    settle(&mut flag);
+    let selected: [&[u8]; 2] = match flag.value {
+        true -> windows
+        false -> other
+    };
+    let first: &[u8] = selected[0];
+    let a: u8 = read(first);
+    let b: u8 = read(selected[1]);
+    let observed: bool = a == 11 && b == 29;
+    transition observed {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

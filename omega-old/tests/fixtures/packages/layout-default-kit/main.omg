@@ -1,0 +1,59 @@
+// `PairMeasure` stores a Pair whose authored layout puts `lo` at byte 8 and
+// `hi` at byte 0, and returns byte 8, so the result is 42 only when the policy
+// ran for the target that chose it. `OverlappingMeasure` uses a policy that
+// places both fields at offset 0, which layout validation refuses.
+module main;
+
+use omega::language::core::FieldEntry;
+use omega::language::core::FieldPlan;
+use omega::language::core::FixedLayout;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutStorage;
+use omega::language::core::LayoutTarget;
+use omega::language::core::Schema;
+
+public boundary trait Measure {
+    machine measure() -> u8 reaches none crashes none;
+}
+
+public data Pair [copy] { lo: u64; hi: u64; }
+
+PairLayout satisfies FixedLayout<Pair> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 8 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 0 } };
+        LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+    }
+}
+
+public data Overlapping [copy] { lo: u64; hi: u64; }
+
+OverlappingLayout satisfies FixedLayout<Overlapping> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 0 } };
+        LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+    }
+}
+
+public PairMeasure satisfies Measure {
+    machine measure() -> u8 {
+        let mut value: LayoutStorage<Pair, PairLayout>;
+        value.lo = 42u64;
+        value.hi = 9u64;
+        let bytes: &[u8; 16] = &value as &[u8; 16];
+        bytes[8]
+    }
+}
+
+public OverlappingMeasure satisfies Measure {
+    machine measure() -> u8 {
+        let mut value: LayoutStorage<Overlapping, OverlappingLayout>;
+        value.lo = 42u64;
+        value.hi = 9u64;
+        let bytes: &[u8; 16] = &value as &[u8; 16];
+        bytes[8]
+    }
+}

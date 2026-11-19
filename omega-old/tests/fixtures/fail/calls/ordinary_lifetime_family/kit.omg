@@ -1,0 +1,14 @@
+module kit;
+
+public data Message<'text> [copy] { text: &'text [u8]; }
+
+machine make<'text>() -> Message<'text> { Message { text: "bound" } }
+machine roundtrip<'text>(value: Message<'text>) -> Message<'text> { value }
+
+machine pick<'text>(value: Message<'text>) -> u32 {
+    match value.text.len == 5u64 {
+        true -> value.text[0] as u32
+        false -> 0u32
+    }
+}
+machine pick(value: u64) -> u64 { 64u64 }

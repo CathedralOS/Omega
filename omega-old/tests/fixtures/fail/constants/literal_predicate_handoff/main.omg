@@ -1,0 +1,11 @@
+machine valid(value: u64) -> bool reaches none crashes none { value <= 2u64 }
+data Index [copy] requires valid(value) { value: u64; }
+const UNUSED: Index = Index { value: 3u64 };
+machine make() -> Index { Index { value: 2u64 } }
+const COMPUTED: Index = make();
+machine main() crashes Trap {
+    let item: Index = Index { value: 1u64 };
+    transition item.value == 1u64 && COMPUTED.value == 2u64 { true -> complete() _ -> fail() }
+}
+machine complete() {}
+machine fail() crashes Trap { crash Trap; }

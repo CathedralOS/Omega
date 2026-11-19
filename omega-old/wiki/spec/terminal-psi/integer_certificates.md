@@ -1,0 +1,339 @@
+# Integer goals and certificates
+
+Checking reconstructs a fixed question from each operation under the
+[fact-validity rules](fact_validity.md).
+A producer proves it using available premises; it cannot substitute a sufficient
+but different question. Representability uses
+[mathematical terms](mathematical_values.md#integer-terms).
+
+## Comparison denotations
+
+[Width-indexed carriers](../language/numeric_values.md#width-indexed-integers)
+retain arbitrary positive static widths throughout goal construction, exact
+constants, evidence and execution. A host `i64`/`u64`/`i128` limit is not a proof
+rule: endpoints, masks and arithmetic must not truncate wider questions.
+Check resource demands before materializing huge constants or limb storage.
+Wrapping is modulo `2^N`; wrapping shift counts are modulo N, not a hardware
+register mask. Literal and rule formation at width one must not assume that
+positive one or negative two is representable in `i1`.
+
+Builtin fixed-integer comparisons, including mixed widths and signedness, denote
+the [exact mathematical relation](../language/numeric_values.md#integer-equality-and-order)
+between the original operands. Reconstruction retains both source carriers,
+exact value identities, the selected comparison and branch polarity. It must
+not reinterpret a negative operand as unsigned or truncate a wider operand.
+
+Any normalization into narrower operation forms must preserve that denotation
+with checked subject correspondence and valid conversion premises; a producer
+cannot merely relabel operands to satisfy a same-carrier schema. The individual
+certificate rules below retain their declared premise restrictions. Their
+same-carrier restrictions do not impose a same-carrier source-language rule.
+Mathematical embeddings retain each source's exact range and identity.
+
+A mixed signed-index/unsigned-length upper-bound branch supplies no implicit
+nonnegativity fact. Bounds and later arithmetic safety still need their exact
+independent premises; optimization cannot obtain them from unsigned promotion.
+
+## Bounded wrapping equality
+
+The reference primitive decision can establish equality of polynomials over
+one fixed wrapping carrier by reconstructing their difference modulo
+`2^width`. Every value, literal, and wrapping addition, subtraction, or
+multiplication retains that exact carrier. The bounded decision accepts only
+a zero polynomial; a nonzero form establishes neither disequality nor order.
+It cannot erase a policy, cancel a nonunit coefficient, or supply a ranking
+argument. Its independently re-decided conclusion uses the existing primitive
+decision bridge into the mathematical core; wrapping operations retain their
+policy-specific denotation.
+
+## Canonical scalar goals
+
+Let `n` be the dividend, `d` the divisor, and `MIN` the carrier minimum.
+Conjunction/disjunction ordering below is canonical.
+
+| Goal | Canonical question |
+| --- | --- |
+| Unsigned nonzero divisor or exact division definedness | `1 <= d`. |
+| Signed nonzero divisor | `(d <= -1) OR (1 <= d)`. |
+| Signed exact division/remainder definedness | `(d <= -2) OR (1 <= d) OR ((d <= -1) AND (MIN + 1 <= n))`. |
+| Signed one-bit nonzero divisor | `d <= -1`. |
+| Signed one-bit exact division/remainder definedness | `(d <= -1) AND (0 <= n)`; `-2` and `+1` do not inhabit this carrier. |
+| Exact shift count | `0 <= count < value_width`. |
+| Exact cast/add/subtract/multiply/left-shift representability | The operation's mathematical expression lies in the destination/result carrier. |
+
+Exact subtraction also admits `addr - u64 -> addr` and same-model
+`addr - addr -> u64`. Each operand retains its carrier; equal widths do not
+permit a count/address conversion. The canonical mathematical difference must
+be nonnegative and fit the result carrier. Address distances retain the upper
+count bound because address width need not equal count width. A nonliteral
+address subtraction cannot become a fixed-integer wrapping operation.
+
+Wrapping and saturating divide/remainder still require a nonzero divisor.
+Exact division additionally excludes signed `MIN / -1`.
+
+Closed shift counts reduce to truth or falsehood. Symbolic signed counts retain
+both needed bounds in canonical proposition order: the value-leading upper
+bound precedes the literal-leading lower bound. Unsigned counts omit the
+carrier-implied lower bound.
+A count carrier may imply the whole goal. For these shift goals, address carriers
+and mismatched operand types reject.
+
+Branch facts retain the selected Boolean/integer predicate polarity. Integer
+order complements reverse endpoints; integer disequality retains both possible
+orders. Literal adjacency is checked, so unsigned `d != 0` gives `1 <= d`,
+while signed nonzero gives the ordered two-sign disjunction. These are branch
+consequences, not arithmetic search or alternative operation goals. They obey
+successor substitution and all-path premise availability. Integer complement
+laws do not apply to IEEE comparisons.
+
+A strict branch order `left < right` between fixed-integer SSA values of the
+same carrier also excludes its endpoints: `left <= MAX - 1` and
+`MIN + 1 <= right`. The verifier derives these consequences from the selected
+predicate and declared carrier, with checked endpoint arithmetic. They supply
+neither a relation for another value nor a fact on a different arrival. Existing
+endpoint certificates can then prove a one-step increment or decrement safe.
+
+## Elementary certificate rules
+
+Every child proof is checked independently. Typed identities and unchanged
+endpoints below are exact, not matched by spelling. The
+[required automatic discharge](../proofs/contracts.md#required-automatic-discharge)
+names the goals every checker must find such proofs for.
+
+| Rule | Permitted conclusion |
+| --- | --- |
+| `DisjunctionElimination` | From a checked disjunction and one ordered proof per arm, conclude the same goal in every arm. Each branch adds only its own alternative to ambient assumptions; discharged alternatives are not ambient requirements. |
+| `EqualitySymmetry` | Reverse one proved scalar equality, retaining its child citation. |
+| `IntegerOrderWeakening` | Integer equality or strict order implies `<=` over the same ordered endpoints. No Boolean-to-integer order or reversal. |
+| `IntegerOrderSubstitution` | Replace one endpoint of `<` or `<=` through a proved integer equality in either orientation. Preserve the other endpoint and relation kind. |
+| `IntegerMathOrderTranslation` | From mathematical `a <= b`, conclude exactly `a + t <= b + t` for one well-formed mathematical integer term `t`. The child remains independently checked, all embedded value identities and carriers remain scoped, and no finite arithmetic or overflow authority is introduced. Strict premises are outside this certificate rule. |
+| `IntegerOrderAntisymmetry` | From independently proved `a <= b` and `b <= a`, conclude `a == b`. Both endpoints retain the same fixed non-address integer carrier and exact identities; strict, missing, or mismatched premises reject. |
+| `IntegerStrictOrderTransitivity` | Compose `a < b` with `b <= c`, `a <= b` with `b < c`, or two strict orders to conclude `a < c`. The shared middle and ordered endpoints are exact. Both children and conclusion use the same scalar integer type, including carrier, signedness, and width, or all use mathematical integers; no mixed domains or IEEE relations. |
+| `IntegerOrderDiscreteness` | Three forms. Outward: replace one literal endpoint of fixed-integer `<=` with its immediate outward neighbor to obtain `<`, such as `1 <= length` to `0 < length`. Inward: replace one literal endpoint of fixed-integer `<` with its immediate inward neighbor to obtain `<=`, such as `length < 8` to `length <= 7`. Both check adjacency inside the shared carrier; no wrap or address carrier. Open: from `a < b`, mathematical or a fixed-integer relation read mathematically, conclude mathematical `a + 1 <= b` with the same `a` and `b`; no literal or carrier check is needed because mathematical integers are unbounded. Only the outward form has a mathematical-core derivation; the core judges the inward and open forms as named rule instances. |
+| `IntegerCarrierBound` | Exactly `MIN <= value` or `value <= MAX` for a declared fixed-integer SSA value of the matching signed width. Its mathematical form bounds `MathValue` by the exact retained carrier endpoints, including an address model's width; it grants no conversion or storage authority. For an address model's `MathValue` it also accepts the strict upper bound `value < R` when `R` normalizes to exactly `MAX + 1`, such as `value < 2^64` for a 64-bit address; `R` may be compound or open if its ring normalization equals that constant. No other strict, compound, or narrower bound. |
+| `IntegerSubtractOrder` | From exact fixed-integer `result = original - decrement` and `0 < decrement`, conclude `result < original`. Match all operand identities/types; wrapping subtraction and nonstrict positivity do not qualify. |
+| `IntegerAddOrder` | From exact fixed-integer `result = original + increment` and `0 < increment`, conclude `original < result`. Match all operand identities/types; wrapping or saturating addition and nonstrict positivity do not qualify. |
+| `IntegerSubtractAntitone` | From exact fixed-integer `smaller = minuend - large`, `larger = minuend - small` and `small < large`, conclude `smaller < larger`. Both differences name one exact minuend term and carrier; each subtrahend matches its order endpoint exactly. |
+
+Reflexive integer order can use reflexive equality and weakening. Closed strict
+comparisons use the closed-integer primitive; relating an evaluated operand
+identity requires explicit equality substitution, not trusted constant folding.
+The same primitive also accepts an open relation whose two sides differ by a
+constant after ring normalization over the same atoms, such as `x < x + 1` or
+`a * (b + c) == a * b + a * c`, and a fixed-integer equality whose sides agree
+modulo `2^width` after normalizing [wrapping arithmetic](#bounded-wrapping-equality).
+It reads exact add, subtract, multiply and shift-left and total widening as
+their mathematical results. That reading is the one
+[total arithmetic](../proofs/contracts.md#total-arithmetic) fixes: an exact
+term forms only after its representability is discharged, so `x < x +! 1` over
+`u8` holds at every point where `x +! 1` exists, and says nothing about
+`x == 255`, where that term cannot be formed.
+
+Closed, same-carrier fixed-integer literal equality and order also have exact
+`Truth` or `Falsehood` predicate denotations. This conversion uses the primitive
+judgment's literal comparison, including signedness and full carrier width;
+it evaluates no open storage observation, arithmetic expression, or IEEE relation.
+For example, checked transitivity of `3 <= counter` and `counter < 3` yields
+`3 < 3`, whose `PredicateDenotation` is `Falsehood`. Existing conversion of
+`Falsehood` to `Falsehood AND goal`, followed by conjunction elimination,
+then closes an impossible arrival without pruning that arrival or adding an
+integer-contradiction rule. Both bound citations remain dependencies, and a
+conditional bound is available only within its checked implication/case scope.
+This is the constructive rule ratified by
+[scoped contradiction elimination](../proofs/classicality.md#contradiction-elimination),
+not classical proof by contradiction. Code pruning and
+[unreachable-branch warnings](../language/state_contracts.md#unreachable-branches)
+are independent of accepting that derivation.
+
+## Ordered endpoint certificates
+
+### IntegerAffineBound
+
+Despite its historical name, this rule checks ordered endpoint transformations,
+not just a closed-form affine map. Its child proves the exact starting bound.
+Its witness binds root, target, source-ordered definition indices, and an aligned
+optional literal-landing index for each definition.
+
+A selected non-chain literal is either embedded with its exact type or established
+by a strictly earlier, exact same-carrier equality. Each cited landing enters
+premise closure before its definition. Missing, late, unused, ambiguous,
+redirected, or mistyped landings reject.
+
+The checker replays exact add, subtract, multiply, divide, remainder, and
+left/right shifts in definition order. It independently checks continuity,
+carrier/operand identity, count bounds, and endpoint arithmetic. Zero divisors,
+signed exceptional division, mixed carriers, non-landed runtime counts,
+negative/out-of-width counts, stale/reordered definitions, and target drift reject.
+Checked arithmetic failure is rejection, not wrapped witness arithmetic.
+
+The checker also replays a same-carrier bitwise and/or step whose other
+operand is a literal, embedded or fixed by a cited landing. `x & m` with a
+literal `m >= 0` has the image `0..=m` whatever `x` is, so a `Truth` child
+suffices. `x | c` with a literal `c >= 0` keeps the lower endpoint, and its
+upper endpoint is the smallest all-ones value covering both the root's
+nonnegative upper endpoint and `c` (`-1` when that endpoint is negative); it
+needs a real root bound. A negative literal operand rejects. An operand that
+no literal or landing fixes rejects, even when an earlier axiom bounds it:
+the step must not use an axiom its witness does not cite.
+
+Unsigned wrapping remainder also admits the nonzero-divisor remainder step.
+Its upper endpoint intersects the proved dividend upper bound with `divisor - 1`;
+the unconditional remainder image remains a valid certificate conclusion.
+A direct exact remainder expression with an exact literal divisor can use the
+same endpoint rule without an invented value definition. Zero divisors reject;
+the direct signed form also rejects `-1`, since type validity alone does not
+establish the signed-minimum exclusion.
+
+For a runtime unsigned fixed-carrier divisor, the witness may instead root at
+that exact divisor and retain the remainder expression or one canonical
+`result = remainder(dividend, divisor)` definition. An independently checked
+`0 < divisor` or `1 <= divisor` child then establishes `result < divisor`.
+Exact, Wrapping, and Saturating unsigned remainder share this bound. The
+dividend retains its declared carrier and identity; the cited definition stays
+in premise closure. A `Truth` child, an unrelated positive value, or a signed
+carrier cannot establish this relational form. Formation of the remainder and
+availability of its result remain separate verifier obligations.
+
+For an exact remainder whose divisor is a value that no literal or landing
+fixes, the witness may root at the dividend and cite the one canonical
+`result = remainder(dividend, divisor)` definition with no landing. Its child
+is the conjunction of one nonstrict literal bound on the dividend and one
+divisor premise, in that order: `0 < divisor`, or `divisor < -1` on a signed
+carrier. The conclusion is `result <= max(U, 0)` from `dividend <= U`, or
+`min(L, 0) <= result` from `L <= dividend`: a truncating remainder is zero
+or has its dividend's sign and is no larger in magnitude. It holds for
+signed and unsigned fixed carriers of any width, and its endpoints are the
+dividend's or zero, so no endpoint arithmetic can overflow. The divisor
+premise excludes a zero divisor and every divisor of minus one, and with
+that signed `MIN % -1`. A strict dividend bound, `0 <= divisor`,
+`divisor < 0`, `divisor <= -1`, a premise about another value, a `Truth`
+child, a Wrapping or Saturating remainder, or a dividend equal to the divisor
+or the result rejects. An acceptance records this form as
+`IntegerRemainderWithinDividend`, a
+provisional row of the [certificate rules](../proofs/classicality.md), not as
+`IntegerAffineBound`.
+
+The same witness over an exact quotient, `result = divide(dividend, divisor)`
+with a divisor that is a value, establishes the relation `result <= dividend`.
+Its child is the conjunction, in this order, of `L <= dividend` for a
+literal `L >= 0` of the carrier and `0 < divisor`. A nonnegative integer
+divided by a positive one, truncating, lies between zero and the dividend.
+The dividend premise is required on unsigned carriers too, where the carrier
+bound supplies it; on a signed carrier it excludes negative dividends, whose
+quotient can exceed them. The divisor premise excludes a zero divisor and
+every negative one, and with them signed `MIN / -1`. The conclusion relates
+two values of one fixed carrier at any width and computes no endpoint. A
+strict or negative dividend bound, `0 <= divisor`, a premise about another
+value, the premises in the other order, a `Truth` child, a strict or reversed
+conclusion, or a Wrapping quotient rejects. An acceptance records this form as
+`IntegerQuotientAtMostDividend`, also a provisional row.
+
+For an exact remainder by a nonzero literal divisor (or an SSA value fixed to
+one by a cited earlier equality) on a fixed non-address carrier, excluding
+signed `-1`, a witness with `root == target` (either the direct remainder
+expression or its one canonical result value) establishes `0 <= target` and
+`target <= 0` when the dividend expands over exact add, subtract, multiply,
+widen and exact cast into a polynomial whose every integer coefficient is
+divisible by the divisor. Steps unfolded through cited earlier
+`definition_axioms` already completed in their carrier and enter premise
+closure; any inline partial exact operation inside the dividend owes its exact
+carrier lower and upper bounds in `root_bound` (`Truth` only when no inline
+partial operation occurs). Zero divisors, signed `-1`, non-multiple
+coefficients, wrapping or saturating arithmetic, unused or reordered
+definitions, and missing inline carrier bounds reject. An acceptance records
+this form as `IntegerMultipleRemainder`, a provisional row of the
+[certificate rules](../proofs/classicality.md).
+
+An additive translation word also admits a relative comparison with its own
+root. Its child proves `root <= root` together with every independently
+reconstructed no-wrap condition for the word’s Wrapping steps. The checked
+net displacement determines `target < root` when negative and `root < target`
+when positive; zero displacement supplies no strict relation. Each intermediate
+step retains its exact subject and carrier. A condition only on the final
+result cannot replace a missing intermediate condition. Saturating and
+non-additive steps do not qualify. The mathematical-core bridge re-decides the
+same conditional mapping and retains its definition, literal and bound
+premises under the existing rule-instance decision contract.
+
+For affine maps, positive coefficients preserve bound orientation and negative
+coefficients reverse it. A zero coefficient retains the cited orientation and
+maps to the constant offset. Mapped endpoints must inhabit the checked carrier.
+
+A `Truth` child is permitted only when the checker derives the total image
+from the carrier and literal: multiply by zero, remainder, full-carrier-safe
+division, right shift, or zero-count left shift. It is not an assertion that an
+arbitrary endpoint is safe.
+
+Direct exact arithmetic forms cite independently proved operand endpoints.
+Multiplication uses four ordered endpoints and recomputes the four unbounded
+corner products. Correlated forms retain the authored factor-sign and
+carrier-endpoint quotient comparison, with an earlier literal landing when the
+endpoint is an SSA value. Exact add/subtract may use an independently established
+complementary endpoint equation. No form may cite the operation's own future
+result equation to establish its safety.
+
+### IntegerCastBound
+
+The witness binds a nonempty, source-ordered, contiguous conversion word to its
+root, target, and complete fixed-native carrier sequence. Each exact semantic
+equality has canonical result orientation and exact adjacent identity.
+
+Validator-legal partial exact casts and strict widening identity edges are
+replayed. The surviving root interval is the intersection of every carrier;
+a narrowing/cross-sign cast is not claimed total or lossy. Stale, reversed,
+discontinuous, cyclic, unsupported, or redirected words reject.
+
+A checked root-bound child maps the same mathematical endpoint into the final
+carrier, with every definition recorded in premise closure. A `Truth` child is
+allowed only for an exact endpoint of the independently checked carrier
+intersection. Wrong orientation, target, or mapped endpoint rejects.
+
+The root may be an admitted integer expression, not only a named SSA value.
+The first cast equation must retain that exact expression and validate all of
+its nested identities and types. No cast output may occur inside the root.
+This transports independently proved bounds; it does not authorize formation
+of a partial operation inside the expression.
+
+A strict or inclusive mathematical comparison may also retain a live opposite
+endpoint while the checked word replaces the root with its target. Strictness,
+endpoint side, and the entire opposite term stay unchanged. Mixed source
+carriers retain their mathematical comparison; transport does not introduce a
+common carrier or justify a partial cast's formation. Replay derives this step
+from cast identities and order substitution without a per-instance rule axiom.
+
+### Correlated forbidden roots
+
+`IntegerCorrelatedForbiddenRoots` handles exact signed division/remainder with
+two nonempty, disjoint, source-ordered affine definition branches sharing one
+direct fixed-native signed machine parameter. Exact prior literal landings and
+nonzero checked coefficients are required.
+
+The checker replays both branches and independently selects the tightest unary
+signature bounds strictly inside the carrier limits, retaining the first equal
+bound in ledger order. It binds their exact identities and solves integer-lattice
+roots for divisor zero and `-1`. A `-1` root is forbidden only where the
+dividend evaluates to `MIN`. The witness boundary must equal the reconstructed
+semantic-axiom count; the root must be a verifier-supplied machine parameter.
+
+Only an empty checked forbidden-root set proves the unchanged
+`ExactDivisionDefined` goal. Partial safety, nonempty forbidden roots,
+branch/order/carrier drift, changed bounds, nonparameter roots, arithmetic failure,
+or a forged conclusion reject. Definition/landing premises and requirement-bound
+premises remain separately recorded.
+
+## Witnesses are not proofs by themselves
+
+Producer-visible affine, cast, shift, and forbidden-root checkers validate
+normalization and identity. Their outputs alone establish no root premise,
+machine-parameter custody, surrounding arithmetic, or operation safety.
+
+An exact-shift word retains each direction, count, operation index, and any
+strictly earlier count-landing index. Counts satisfy `0 <= count < width`;
+operation indices strictly increase. Mixed left/right shifts remain ordered,
+not a cumulative-count summary. Their validity does not by itself prove
+left-shift representability.
+
+A witness gains proof authority only through its specified certificate rule and
+independently checked premises. Producer search frontiers, indexes, candidate
+preferences, and module organization are implementation details, not additional
+proof rules or changes to the canonical goal.

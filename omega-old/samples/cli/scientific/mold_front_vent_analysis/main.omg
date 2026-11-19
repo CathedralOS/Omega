@@ -1,0 +1,74 @@
+use omega::language::core::ProcessExit;
+// A complete runtime-input model; there is no baked expected map in this entry.
+// Closed stdin is an invalid request; native fixture runs supply data/*.in.
+// Expected exit: 64.
+// Expected output contains: INVALID_INPUT
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
+use model::fill;
+use model::fill::Cavity;
+use model::fill::valid;
+use model::fill::cavity_simulate;
+use model::fill::balanced;
+use model::fill::arrival_row_holds;
+use input::parse;
+use input::parse::parse_input;
+use report::output;
+use report::output::report;
+
+data Main { }
+
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let mut input: [u8; 32];
+    let result: LineReadResult = block Console::read_line(&mut input[..]);
+    transition result {
+        LineReadResult::LineComplete { count } -> prefix(main, &input, count)
+        LineReadResult::EndOfInput { count } -> prefix(main, &input, count)
+        _ -> invalid(main)
+    }
+    machine prefix(main: &mut Main, input: &[u8; 32], count: u64) {
+        transition count <= 32 {
+            true -> parse(main, &input[0..count])
+            _ -> invalid(main)
+        }
+    }
+    machine parse(main: &mut Main, text: &[u8]) {
+        let mut cavity: Cavity;
+        let valid: bool = parse_input(text, &mut cavity);
+        transition valid {
+            true -> simulate(main, &mut cavity)
+            _ -> invalid(main)
+        }
+    }
+    machine simulate(main: &mut Main, cavity: &mut Cavity) {
+        transition arrival_row_holds() {
+            true -> advance(main, cavity)
+            _ -> unbalanced(main)
+        }
+    }
+    machine advance(main: &mut Main, cavity: &mut Cavity) {
+        cavity_simulate(cavity);
+        transition balanced(cavity) {
+            true -> publish(main, cavity)
+            _ -> unbalanced(main)
+        }
+    }
+    machine publish(main: &mut Main, cavity: &Cavity) {
+        report(cavity);
+        ProcessExit::exit_process(0);
+    }
+    machine invalid(main: &mut Main) {
+        Console::write_line("INVALID_INPUT");
+        ProcessExit::exit_process(64);
+    }
+    machine unbalanced(main: &mut Main) {
+        Console::write_line("INTERNAL_BALANCE_ERROR");
+        ProcessExit::exit_process(70);
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

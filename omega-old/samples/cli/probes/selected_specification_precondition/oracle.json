@@ -1,0 +1,19 @@
+{
+  "expected_native_exit": 70,
+  "expected_terminal_exit": 70,
+  "identities": [
+    {
+      "selected_machine": "zero_modulus",
+      "subject": "Nat::Zero",
+      "selected_result": "Nat::Zero",
+      "saturating_sub_result": "Nat::Zero",
+      "identity_result": "Nat::Zero"
+    }
+  ],
+  "reject": [
+    "missing_premise",
+    "wrong_machine",
+    "wrong_subject",
+    "false_result"
+  ]
+}

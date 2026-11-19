@@ -1,0 +1,459 @@
+// Portable filesystem values and one routed service slot. Target adapters own
+// raw descriptors, flags, foreign record layouts and operation scratch.
+// Complete target adapters cover both Linux architectures, macos_arm64 and
+// windows_x86_64. Runtime acceptance is recorded per host, not inferred from
+// the availability of a provider or a foreign-target image.
+
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
+
+public data File [copy] {
+    handle: u64;
+}
+
+public data ErrorKind [copy] {
+    case Other;
+    case NotFound;
+    case PermissionDenied;
+    case AlreadyExists;
+    case BadDescriptor;
+    case IsADirectory;
+    case WouldBlock;
+    case Unsupported;
+    case InvalidInput;
+    case WriteZero;
+}
+
+machine error_kind_reconstruct(error_kind: &ErrorKind) -> ErrorKind {
+    transition error_kind {
+        ErrorKind::Other -> ErrorKind::Other
+        ErrorKind::NotFound -> ErrorKind::NotFound
+        ErrorKind::PermissionDenied -> ErrorKind::PermissionDenied
+        ErrorKind::AlreadyExists -> ErrorKind::AlreadyExists
+        ErrorKind::BadDescriptor -> ErrorKind::BadDescriptor
+        ErrorKind::IsADirectory -> ErrorKind::IsADirectory
+        ErrorKind::WouldBlock -> ErrorKind::WouldBlock
+        ErrorKind::Unsupported -> ErrorKind::Unsupported
+        ErrorKind::InvalidInput -> ErrorKind::InvalidInput
+        ErrorKind::WriteZero -> ErrorKind::WriteZero
+    }
+}
+
+public data OpenResult {
+    case Error(kind: ErrorKind);
+    case Ok(file: File);
+}
+public data IoResult {
+    case Error(kind: ErrorKind);
+    case Ok(count: u64);
+}
+
+public data DirStats [copy] {
+    entries: u64;
+    subdirs: u64;
+    files: u64;
+}
+public data DirStatsResult {
+    case Error(kind: ErrorKind);
+    case Ok(stats: DirStats);
+}
+
+public data DirEntry [copy] {
+    name: [u8; 256];
+    name_len: u64;
+    is_dir: bool;
+    is_file: bool;
+}
+
+public data DirEntryResult {
+    case Error(kind: ErrorKind);
+    case End;
+    case Ok(entry: DirEntry);
+}
+
+public data EmptyResult {
+    case Error(kind: ErrorKind);
+    case Empty;
+    case NonEmpty;
+}
+public data UnitResult {
+    case Error(kind: ErrorKind);
+    case Ok;
+}
+
+public data ExistsResult {
+    case Error(kind: ErrorKind);
+    case No;
+    case Yes;
+}
+
+public data TryLockResult {
+    case Error(kind: ErrorKind);
+    case WouldBlock;
+    case Unsupported;
+    case InvalidInput;
+    case WriteZero;
+    case Acquired;
+}
+
+public data OpenOptions [copy] {
+    read: bool;
+    write: bool;
+    append: bool;
+    truncate: bool;
+
+    create: bool;
+    create_new: bool;
+}
+
+// Every target refuses truncation it cannot carry out as a random-access write.
+// Truncation needs write access; append-only access cannot satisfy it and is
+// never upgraded to make the combination fit. Each family's open_with checks
+// this before it reaches the OS, so a refused request leaves the file intact.
+machine open_options_truncate_conflict(options: OpenOptions) -> bool {
+    options.truncate && (!options.write || options.append) && !options.create_new
+}
+
+// Zero makes the file writable, the same request as `Readonly { value: false }`
+// on every target: it keeps the file's other permission bits. Readonly is a
+// portable request; a numeric POSIX mode is explicitly an OS-family extension,
+// not a fictional Windows ACL or an encoding of its read-only attribute.
+public data Permissions [copy] {
+    case Default;
+    case Readonly(value: bool);
+    case Posix(mode: u32);
+}
+
+public machine permissions_readonly(permissions: &Permissions) -> bool {
+    transition permissions {
+        Permissions::Default -> false
+        Permissions::Readonly { value } -> (value)
+        Permissions::Posix { mode } -> ((mode & 146) == 0)
+    }
+}
+
+public machine permissions_set_readonly(permissions: &mut Permissions, readonly: bool) {
+    transition permissions {
+        Permissions::Posix { mode } -> posix(permissions, mode, readonly)
+        _ -> portable(permissions, readonly)
+    }
+    machine posix(permissions: &mut Permissions, mode: u32, readonly: bool) {
+        let updated: u32 = posix_mode_with_readonly(mode, readonly);
+        permissions = Permissions::Posix { mode: updated };
+    }
+    machine portable(permissions: &mut Permissions, readonly: bool) {
+        permissions = Permissions::Readonly { value: readonly };
+    }
+}
+
+// Change only write bits, retaining sticky/set-ID and other mode bits. The
+// POSIX adapter uses the same operation for a portable read-only request.
+machine posix_mode_with_readonly(mode: u32, readonly: bool) -> u32 {
+    transition readonly { true -> (mode & 4294967149) false -> (mode | 146) }
+}
+
+// Not every native metadata record contains a creation timestamp. Keep that
+// absence distinct from the Unix epoch and from a failed metadata query.
+public data TimestampResult [copy] {
+    case Error(kind: ErrorKind);
+    case Ok(seconds: i64);
+}
+
+public data FileKind [copy] {
+    case Other;
+    case File;
+    case Directory;
+    case Symlink;
+    case CharacterDevice;
+    case BlockDevice;
+    case Fifo;
+    case Socket;
+}
+
+// POSIX identities and allocation geometry are not universal file properties.
+// Keep genuine zero values (including UID/GID 0 and inline allocation) distinct
+// from unavailable information. Windows cannot manufacture these as zero or
+// truncate a native 128-bit file identifier into the POSIX inode field.
+public data PosixMetadata [copy] {
+    mode: u32;
+    ino: u64;
+    dev: u64;
+    uid: u32;
+    gid: u32;
+    rdev: u64;
+    blocks: u64;
+    blksize: u64;
+}
+public data PosixMetadataResult [copy] {
+    case Error(kind: ErrorKind);
+    case Ok(details: PosixMetadata);
+}
+
+public data Metadata [copy] {
+    len: i64;
+    kind: FileKind;
+    permissions: Permissions;
+    nlink: u64;
+    posix: PosixMetadataResult;
+    modified_secs: i64;
+    accessed_secs: i64;
+    creation_time: TimestampResult;
+    changed_secs: i64;
+}
+
+public machine metadata_is_file(metadata: &Metadata) -> bool {
+    transition metadata.kind { FileKind::File -> true _ -> false }
+}
+public machine metadata_is_dir(metadata: &Metadata) -> bool {
+    transition metadata.kind { FileKind::Directory -> true _ -> false }
+}
+public machine metadata_is_symlink(metadata: &Metadata) -> bool {
+    transition metadata.kind { FileKind::Symlink -> true _ -> false }
+}
+
+public machine metadata_is_char_device(metadata: &Metadata) -> bool {
+    transition metadata.kind { FileKind::CharacterDevice -> true _ -> false }
+}
+public machine metadata_is_block_device(metadata: &Metadata) -> bool {
+    transition metadata.kind { FileKind::BlockDevice -> true _ -> false }
+}
+public machine metadata_is_fifo(metadata: &Metadata) -> bool {
+    transition metadata.kind { FileKind::Fifo -> true _ -> false }
+}
+public machine metadata_is_socket(metadata: &Metadata) -> bool {
+    transition metadata.kind { FileKind::Socket -> true _ -> false }
+}
+
+public machine metadata_readonly(metadata: &Metadata) -> bool {
+    permissions_readonly(&metadata.permissions)
+}
+
+public machine metadata_permissions(metadata: &Metadata) -> Permissions {
+    metadata.permissions
+}
+
+public machine metadata_nlink(metadata: &Metadata) -> u64 {
+    metadata.nlink
+}
+
+public machine metadata_posix(metadata: &Metadata) -> PosixMetadataResult {
+    metadata.posix
+}
+
+public machine metadata_changed(metadata: &Metadata) -> i64 {
+    metadata.changed_secs
+}
+
+public machine metadata_modified(metadata: &Metadata) -> i64 {
+    metadata.modified_secs
+}
+
+public machine metadata_accessed(metadata: &Metadata) -> i64 {
+    metadata.accessed_secs
+}
+
+public machine metadata_created(metadata: &Metadata) -> TimestampResult {
+    metadata.creation_time
+}
+public data MetadataResult {
+    case Error(kind: ErrorKind);
+    case Ok(meta: Metadata);
+}
+
+// Default selection belongs to the portable slot. Each target contributes its
+// complete implementation without importing another OS family's adapter.
+
+// Native filesystem operations may occupy the caller's worker. This ceiling
+// stays identical on every target; a nonblocking implementation may fit it but
+// cannot remove the caller's acknowledgement of the portable requirement.
+public boundary trait FilesystemService {
+    machine create(path: &[u8] in Path) -> OpenResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
+    machine create_new(path: &[u8] in Path) -> OpenResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
+    machine open(path: &[u8] in Path) -> OpenResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
+    machine append(path: &[u8] in Path) -> OpenResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
+    machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+    blocks
+    reaches FilesystemContentRead
+    crashes none;
+    machine write(file: File, bytes: &[u8]) -> IoResult
+    blocks
+    reaches FilesystemContentWrite
+    crashes none;
+    machine close(file: File) -> UnitResult
+    reaches none
+    blocks
+    crashes none;
+    machine write_all(path: &[u8] in Path, bytes: &[u8]) -> UnitResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
+    machine read_all(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
+    machine copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+    crashes none;
+    machine exists(path: &[u8] in Path) -> bool
+    blocks
+    reaches FilesystemMetadataQuery
+    crashes none;
+    machine try_exists(path: &[u8] in Path) -> ExistsResult
+    blocks
+    reaches FilesystemMetadataQuery
+    crashes none;
+    machine metadata_path(path: &[u8] in Path) -> MetadataResult
+    blocks
+    reaches FilesystemMetadataQuery
+    crashes none;
+    machine symlink_metadata(path: &[u8] in Path) -> MetadataResult
+    blocks
+    reaches FilesystemMetadataQuery
+    crashes none;
+    machine remove(path: &[u8] in Path) -> UnitResult
+    blocks
+    reaches FilesystemNamespaceMutation
+    crashes none;
+    machine create_dir(path: &[u8] in Path) -> UnitResult
+    blocks
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
+    machine remove_dir(path: &[u8] in Path) -> UnitResult
+    blocks
+    reaches FilesystemNamespaceMutation
+    crashes none;
+    machine create_dir_all(path: &[u8] in Path) -> UnitResult
+    blocks
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+    crashes none;
+    machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+    crashes none;
+    machine set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
+    blocks
+        reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+    crashes none;
+    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+    blocks
+    reaches FilesystemNamespaceMutation
+    crashes none;
+    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+    blocks
+    reaches FilesystemMetadataQuery
+    crashes none;
+    machine set_file_permissions(file: File, perms: Permissions) -> UnitResult
+    blocks
+        reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+    crashes none;
+    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
+    blocks
+    reaches FilesystemNamespaceMutation
+    crashes none;
+    machine set_len(file: File, length: i64) -> UnitResult
+    blocks
+    reaches FilesystemContentWrite + FilesystemMetadataMutation
+    crashes none;
+    machine sync(file: File) -> UnitResult
+    reaches none
+    blocks
+    crashes none;
+    machine sync_data(file: File) -> UnitResult
+    reaches none
+    blocks
+    crashes none;
+    machine try_clone(file: File) -> OpenResult
+    reaches none
+    blocks
+    crashes none;
+    machine set_owner(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    blocks
+    reaches FilesystemMetadataMutation
+    crashes none;
+    machine set_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    blocks
+    reaches FilesystemMetadataMutation
+    crashes none;
+    machine set_file_owner(file: File, uid: i32, gid: i32) -> UnitResult
+    blocks
+    reaches FilesystemMetadataMutation
+    crashes none;
+    machine metadata(file: File) -> MetadataResult
+    blocks
+    reaches FilesystemMetadataQuery
+    crashes none;
+    machine open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
+    machine read_dir_count(path: &[u8] in Path) -> IoResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    crashes none;
+    machine read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+    crashes none;
+    machine remove_dir_all(path: &[u8] in Path) -> UnitResult
+    blocks
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+    crashes none;
+    machine read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+    blocks
+    reaches FilesystemContentRead
+    crashes none;
+    machine write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
+    blocks
+    reaches FilesystemContentWrite
+    crashes none;
+    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+    blocks
+    reaches FilesystemNamespaceMutation
+    crashes none;
+    machine set_times(file: File, accessed: i64, modified: i64) -> UnitResult
+    blocks
+    reaches FilesystemMetadataMutation
+    crashes none;
+    machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+    blocks
+    reaches FilesystemMetadataQuery
+    crashes none;
+    machine lock(file: File) -> UnitResult
+    reaches none
+    blocks
+    crashes none;
+    machine lock_shared(file: File) -> UnitResult
+    reaches none
+    blocks
+    crashes none;
+    machine try_lock(file: File) -> TryLockResult
+    reaches none
+    blocks
+    crashes none;
+    machine try_lock_shared(file: File) -> TryLockResult
+    reaches none
+    blocks
+    crashes none;
+    machine unlock(file: File) -> UnitResult
+    reaches none
+    blocks
+    crashes none;
+}
+

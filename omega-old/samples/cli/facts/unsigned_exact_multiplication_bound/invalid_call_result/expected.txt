@@ -1,0 +1,1 @@
+cannot prove ensures contract for exit from compute_product at statement 0: result >= 30 && result <= 80

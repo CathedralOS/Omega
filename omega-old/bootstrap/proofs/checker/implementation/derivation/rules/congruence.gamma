@@ -1,0 +1,37 @@
+(def derivation_congruence ((record Int) (identity Int) (left Int) (right Int)
+  (context Int) (session Int)) Int
+  (if (eq (layout_word (+ left 4)) (layout_word (+ right 4)))
+    (if (eq (layout_word (+ left 8)) (layout_word (+ right 8)))
+      (if (eq (layout_word (+ record 16)) (layout_word (+ left 12)))
+        (derivation_congruence_arguments (+ record 20) (+ left 16) (+ right 16)
+          (layout_word (+ record 16)) identity context session)
+        (admission_rejected 12 (+ record 16)))
+      (admission_rejected 12 (+ record 12)))
+    (admission_rejected 12 (+ record 12))))
+
+(def derivation_congruence_arguments ((cursor Int) (left Int) (right Int)
+  (remaining Int) (identity Int) (context Int) (session Int)) Int
+  (if (eq remaining 0)
+    (comparison_finish 1 (comparison_context session)
+      (comparison_memo session) (comparison_steps session))
+    (let reserved Int (comparison_reserve session 1 cursor)
+      (if (eq (first reserved) 6)
+        (let checked Int
+          (derivation_congruence_premise cursor left right identity context
+            (comparison_session (second reserved)))
+          (if (eq (first checked) 6)
+            (derivation_congruence_arguments (+ cursor 4) (+ left 4) (+ right 4)
+              (- remaining 1) identity context (comparison_session (second checked)))
+            checked))
+        reserved))))
+
+(def derivation_congruence_premise ((cursor Int) (left Int) (right Int)
+  (identity Int) (context Int) (session Int)) Int
+  (let premise Int (derivation_premise context identity cursor)
+    (if (eq premise 0) (admission_rejected 12 cursor)
+      (let checked Int
+        (derivation_require session (layout_word left) (layout_word (+ premise 8)) cursor)
+        (if (eq (first checked) 6)
+          (derivation_require (comparison_session (second checked))
+            (layout_word right) (layout_word (+ premise 12)) cursor)
+          checked)))))

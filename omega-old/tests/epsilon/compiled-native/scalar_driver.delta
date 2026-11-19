@@ -1,0 +1,14 @@
+(def ep_test_word ((value Int) (remaining Int)) Bytes
+  (if (eq remaining 0) ""
+    (bytes_concat (bytes_single (% value 256))
+      (ep_test_word (/ value 256) (- remaining 1)))))
+
+(def ep_test_wire ((outcome EpsilonCompiledOutcome)) Bytes
+  (match outcome
+    ((EpsilonCompiledScalar value)
+      (bytes_concat (bytes_single 0)
+        (ep_test_word (if (lt value 0) (+ value 4294967296) value) 4)))
+    (EpsilonCompiledResultless (bytes_single 1))
+    ((EpsilonCompiledTrap kind)
+      (bytes_concat (bytes_single 2) (bytes_single kind)))
+    ((EpsilonCompiledInternal offset) (bytes_single 3))))

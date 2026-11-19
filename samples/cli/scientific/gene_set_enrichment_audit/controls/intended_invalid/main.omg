@@ -1,4 +1,0 @@
-data Main { values: [u64; 3]; }
-machine main(context: &mut Main) {
-    let invalid: u64 = context.values[3];
-}

@@ -1,1 +1,0 @@
-mutates `pair.chosen` while local borrow `selected` is still active

@@ -1,9 +1,0 @@
-[package]
-name = "layout-planning"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[dependencies]
-layout-plans = { path = "../representations/storage-layout" }
-semantic-vocabulary = { path = "../representations/semantic-vocabulary" }

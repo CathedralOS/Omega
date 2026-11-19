@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "pkga");
-    let mut b_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../b" });
-    dependency::with_alias(&mut b_dependency, "b");
-    let b_registration: DependencyRegistration = Build::dependency(builder, b_dependency);
-}

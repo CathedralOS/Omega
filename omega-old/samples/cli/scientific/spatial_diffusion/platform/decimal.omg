@@ -1,0 +1,63 @@
+module platform::decimal;
+use omega_language_std::Console;
+
+// Decimal output keeps its own bounded divisor loop; no formatter package.
+public machine number(value: i64 in Wrapping)
+reaches Console
+invokes Console
+{
+    transition value < 0 {
+        true -> negative(value)
+        false -> digits(value, 1000000000000000000, false)
+    }
+    machine negative(value: i64 in Wrapping) {
+        Console::write("-");
+        transition { _ -> digits(-value, 1000000000000000000, false) }
+    }
+    machine digits(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
+    requires divisor >= 1
+    {
+        let digit: i64 in Wrapping = value / divisor;
+        transition digit != 0 || started || divisor == 1 {
+            true -> emit(value, divisor, digit)
+            false -> advance(value, divisor, false)
+        }
+    }
+    machine emit(value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
+    requires divisor >= 1
+    {
+        decimal_digit(digit);
+        transition { _ -> advance(value % divisor, divisor, true) }
+    }
+    machine advance(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
+        transition divisor >= 10 {
+            true -> digits(value, divisor / 10, started)
+            false -> done()
+        }
+    }
+    machine done() { Console::write(" "); }
+}
+machine decimal_digit(digit: i64 in Wrapping) reaches Console {
+    transition digit {
+        0 -> zero()
+        1 -> one()
+        2 -> two()
+        3 -> three()
+        4 -> four()
+        5 -> five()
+        6 -> six()
+        7 -> seven()
+        8 -> eight()
+        _ -> nine()
+    }
+    machine zero() { Console::write("0"); }
+    machine one() { Console::write("1"); }
+    machine two() { Console::write("2"); }
+    machine three() { Console::write("3"); }
+    machine four() { Console::write("4"); }
+    machine five() { Console::write("5"); }
+    machine six() { Console::write("6"); }
+    machine seven() { Console::write("7"); }
+    machine eight() { Console::write("8"); }
+    machine nine() { Console::write("9"); }
+}

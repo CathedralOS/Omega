@@ -1,3 +1,0 @@
-// Intended invalid: standard index eight is outside the eight-element carrier.
-data Standards { copies: [f64; 8]; }
-machine invalid(standards: &Standards) -> f64 { standards.copies[8] }

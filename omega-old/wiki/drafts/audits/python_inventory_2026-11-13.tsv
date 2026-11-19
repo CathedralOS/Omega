@@ -1,0 +1,432 @@
+path	class	evidence	group
+.agents/skills/typesafe-experiments/scripts/claim_checks.py	LIVE-OTHER	.agents/skills/typesafe-experiments/SKILL.md:148	citation-claim-checks
+bootstrap/compiled_vm/gamma.py	LIVE-OTHER	bootstrap/compiled_vm/README.md:81	bootstrap-accelerators
+bootstrap/compiled_vm/source_test.py	LIVE-OTHER	bootstrap/compiled_vm/README.md:39	bootstrap-accelerators
+bootstrap/compiled_vm/test.py	LIVE-OTHER	bootstrap/compiled_vm/README.md:48	bootstrap-accelerators
+bootstrap/independent/epsilon/compile_test.py	LIVE-OTHER	bootstrap/independent/successor_test.py:126 <- bootstrap/independent/README.md:236	bootstrap-accelerators
+bootstrap/independent/epsilon/composition.py	LIVE-OTHER	bootstrap/independent/epsilon/compile_test.py:16 <- bootstrap/independent/README.md:236	bootstrap-accelerators
+bootstrap/independent/epsilon/enum_test.py	LIVE-OTHER	bootstrap/independent/epsilon/compile_test.py:250 <- bootstrap/independent/README.md:236	bootstrap-accelerators
+bootstrap/independent/epsilon/literal_controls.py	LIVE-OTHER	bootstrap/independent/successor_test.py:110 <- bootstrap/independent/README.md:204	bootstrap-accelerators
+bootstrap/independent/source_test.py	LIVE-OTHER	bootstrap/independent/README.md:30	bootstrap-accelerators
+bootstrap/independent/successor_test.py	LIVE-OTHER	bootstrap/compiled_vm/README.md:627	bootstrap-accelerators
+omega-rust/omega/compilation/compiler/tests/support/git_source_proxy.py	LIVE-XTASK	omega-rust/omega/compilation/compiler/examples/executed_git_source.rs:110	rust-example-git-proxy
+samples/cli/audio/test_verify_wav.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/audio/verify_wav.py	UNCERTAIN	samples/cli/audio/scale_melody/README.md:30	sample-readme-oracle
+samples/cli/facts/foreign_nested_record_backing/fixture/prepare.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/facts/foreign_retained_mutable_borrow/fixture/prepare.py	UNCERTAIN	samples/cli/facts/foreign_retained_mutable_borrow/README.md:64	sample-readme-oracle
+samples/cli/facts/foreign_retained_shared_borrow/fixture/prepare.py	UNCERTAIN	samples/cli/facts/foreign_retained_shared_borrow/README.md:44	sample-readme-oracle
+samples/cli/facts/foreign_scalar_record_result/arrays/fixture/prepare.py	UNCERTAIN	samples/cli/facts/foreign_scalar_record_result/arrays/README.md:51	sample-readme-oracle
+samples/cli/facts/foreign_scalar_record_result/nested/fixture/prepare.py	UNCERTAIN	samples/cli/facts/foreign_scalar_record_result/nested/README.md:61	sample-readme-oracle
+samples/cli/facts/recorded_build_role/git_review.py	UNCERTAIN	samples/cli/facts/recorded_build_role/README.md:84	sample-readme-oracle
+samples/cli/facts/structural_issuer_forwarding/validate.py	UNCERTAIN	samples/cli/facts/structural_issuer_forwarding/README.md:35	sample-readme-oracle
+samples/cli/probes/placed_scalar_ram/validate.py	UNCERTAIN	samples/cli/probes/placed_scalar_ram/README.md:9	sample-readme-oracle
+samples/cli/probes/quotient_runtime_carrier/reference.py	UNCERTAIN	samples/cli/probes/quotient_runtime_carrier/README.md:15	sample-readme-oracle
+samples/cli/probes/runtime_indexed_carrier/validation/controls.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/probes/runtime_indexed_carrier/validation/native.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/probes/runtime_indexed_carrier/validation/oracle.py	UNCERTAIN	samples/cli/probes/runtime_indexed_carrier/README.md:10	sample-readme-oracle
+samples/cli/probes/runtime_indexed_carrier/validation/run.py	UNCERTAIN	samples/cli/probes/runtime_indexed_carrier/README.md:11	sample-readme-oracle
+samples/cli/probes/selected_specification_precondition/validate.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/absorbing_reliability/reference.py	UNCERTAIN	samples/cli/scientific/absorbing_reliability/README.md:14	sample-readme-oracle
+samples/cli/scientific/absorbing_reliability/validate.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/acid_base_titration/validation/producer_receipt.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/acid_base_titration/validation/reference.py	UNCERTAIN	samples/cli/scientific/acid_base_titration/validation/validate.py:11	sample-readme-oracle
+samples/cli/scientific/acid_base_titration/validation/terminal_validate.py	UNCERTAIN	samples/cli/scientific/acid_base_titration/README.md:69	sample-readme-oracle
+samples/cli/scientific/acid_base_titration/validation/validate.py	UNCERTAIN	samples/cli/scientific/acid_base_titration/README.md:46	sample-readme-oracle
+samples/cli/scientific/acoustic_thickness_echoes/reference.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/acoustic_thickness_echoes/validate.py	UNCERTAIN	samples/cli/scientific/acoustic_thickness_echoes/README.md:75	sample-readme-oracle
+samples/cli/scientific/adc_quantization/reference.py	UNCERTAIN	samples/cli/scientific/adc_quantization/README.md:72	sample-readme-oracle
+samples/cli/scientific/adc_quantization/validate.py	UNCERTAIN	samples/cli/scientific/adc_quantization/README.md:90	sample-readme-oracle
+samples/cli/scientific/age_structured_population/reference.py	UNCERTAIN	samples/cli/scientific/age_structured_population/FREEZE.md:11	sample-readme-oracle
+samples/cli/scientific/age_structured_population/validate.py	UNCERTAIN	samples/cli/scientific/age_structured_population/README.md:50	sample-readme-oracle
+samples/cli/scientific/antenna_array_pattern/reference.py	UNCERTAIN	samples/cli/scientific/antenna_array_pattern/README.md:40	sample-readme-oracle
+samples/cli/scientific/antenna_array_pattern/validate.py	UNCERTAIN	samples/cli/scientific/antenna_array_pattern/README.md:77	sample-readme-oracle
+samples/cli/scientific/blackbody_band_radiometry/validation/check_output.py	UNCERTAIN	samples/cli/scientific/blackbody_band_radiometry/validation/check_source.py:9	sample-readme-oracle
+samples/cli/scientific/blackbody_band_radiometry/validation/check_source.py	UNCERTAIN	samples/cli/scientific/blackbody_band_radiometry/README.md:53	sample-readme-oracle
+samples/cli/scientific/blackbody_band_radiometry/validation/reference.py	UNCERTAIN	samples/cli/scientific/blackbody_band_radiometry/README.md:41	sample-readme-oracle
+samples/cli/scientific/blackbody_band_radiometry/validation/run.py	UNCERTAIN	samples/cli/scientific/blackbody_band_radiometry/README.md:57	sample-readme-oracle
+samples/cli/scientific/bounded_hoist_planner/data/reference.py	UNCERTAIN	samples/cli/scientific/bounded_hoist_planner/validate.py:28	sample-readme-oracle
+samples/cli/scientific/bounded_hoist_planner/validate.py	UNCERTAIN	samples/cli/scientific/bounded_hoist_planner/README.md:67	sample-readme-oracle
+samples/cli/scientific/bounded_sensor_compression/reference.py	UNCERTAIN	samples/cli/scientific/bounded_sensor_compression/README.md:35	sample-readme-oracle
+samples/cli/scientific/bounded_sensor_compression/validate.py	UNCERTAIN	samples/cli/scientific/bounded_sensor_compression/README.md:73	sample-readme-oracle
+samples/cli/scientific/bounded_sensor_compression/validate_invalid.py	UNCERTAIN	samples/cli/scientific/bounded_sensor_compression/VALIDATION.md:64	sample-readme-oracle
+samples/cli/scientific/bounded_sequence_alignment/reference.py	UNCERTAIN	samples/cli/scientific/bounded_sequence_alignment/README.md:47	sample-readme-oracle
+samples/cli/scientific/bounded_state_estimation/reference.py	UNCERTAIN	samples/cli/scientific/bounded_state_estimation/README.md:76	sample-readme-oracle
+samples/cli/scientific/bounded_state_estimation/validate.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/censored_survival_analysis/validation/extra_reference.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/censored_survival_analysis/validation/link_terminal.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/censored_survival_analysis/validation/reference.py	UNCERTAIN	samples/cli/scientific/censored_survival_analysis/README.md:35	sample-readme-oracle
+samples/cli/scientific/censored_survival_analysis/validation/validate.py	UNCERTAIN	samples/cli/scientific/censored_survival_analysis/README.md:40	sample-readme-oracle
+samples/cli/scientific/chromatogram_component_fit/validation/reference.py	UNCERTAIN	samples/cli/scientific/chromatogram_component_fit/README.md:42	sample-readme-oracle
+samples/cli/scientific/chromatogram_component_fit/validation/validate.py	UNCERTAIN	samples/cli/scientific/chromatogram_component_fit/README.md:83	sample-readme-oracle
+samples/cli/scientific/clearance_route_planner/reference.py	DEAD	samples/cli/scientific/clearance_route_planner/validate.py:36	dead-sibling
+samples/cli/scientific/clearance_route_planner/validate.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/clearance_route_planner/validation/build_runtime.py	DEAD	samples/cli/scientific/clearance_route_planner/validate.py:32	dead-sibling
+samples/cli/scientific/conservative_advection/reference.py	UNCERTAIN	samples/cli/scientific/conservative_advection/README.md:41	sample-readme-oracle
+samples/cli/scientific/conservative_advection/supplemental_reference.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/conservative_advection/validate.py	UNCERTAIN	samples/cli/scientific/conservative_advection/README.md:47	sample-readme-oracle
+samples/cli/scientific/constrained_pendulum_motion/reference.py	UNCERTAIN	samples/cli/scientific/constrained_pendulum_motion/README.md:42	sample-readme-oracle
+samples/cli/scientific/constrained_pendulum_motion/validate.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/correlated_fault_tree_audit/reference.py	UNCERTAIN	samples/cli/scientific/correlated_fault_tree_audit/README.md:40	sample-readme-oracle
+samples/cli/scientific/correlated_fault_tree_audit/validate.py	UNCERTAIN	samples/cli/scientific/correlated_fault_tree_audit/README.md:77	sample-readme-oracle
+samples/cli/scientific/crossed_gauge_study/reference.py	UNCERTAIN	samples/cli/scientific/crossed_gauge_study/EVIDENCE.md:42	sample-readme-oracle
+samples/cli/scientific/crossed_gauge_study/validate.py	UNCERTAIN	samples/cli/scientific/crossed_gauge_study/EVIDENCE.md:111	sample-readme-oracle
+samples/cli/scientific/crossover_experiment_design/reference.py	UNCERTAIN	samples/cli/scientific/crossover_experiment_design/README.md:46	sample-readme-oracle
+samples/cli/scientific/crossover_experiment_design/validate.py	UNCERTAIN	samples/cli/scientific/crossover_experiment_design/README.md:57	sample-readme-oracle
+samples/cli/scientific/cutting_stock_orders/reference.py	UNCERTAIN	samples/cli/scientific/cutting_stock_orders/README.md:58	sample-readme-oracle
+samples/cli/scientific/cutting_stock_orders/validate.py	UNCERTAIN	samples/cli/scientific/cutting_stock_orders/README.md:88	sample-readme-oracle
+samples/cli/scientific/d_optimal_calibration_design/reference.py	UNCERTAIN	samples/cli/scientific/d_optimal_calibration_design/EVIDENCE.md:24	sample-readme-oracle
+samples/cli/scientific/d_optimal_calibration_design/validate.py	UNCERTAIN	samples/cli/scientific/d_optimal_calibration_design/EVIDENCE.md:67	sample-readme-oracle
+samples/cli/scientific/differential_expression/validation/check_deseq2.py	UNCERTAIN	samples/cli/scientific/differential_expression/README.md:67	sample-readme-oracle
+samples/cli/scientific/differential_expression/validation/check_observed.py	UNCERTAIN	samples/cli/scientific/differential_expression/README.md:91	sample-readme-oracle
+samples/cli/scientific/differential_expression/validation/check_output.py	UNCERTAIN	samples/cli/scientific/differential_expression/validation/check_observed.py:4	sample-readme-oracle
+samples/cli/scientific/differential_expression/validation/reference.py	UNCERTAIN	samples/cli/scientific/differential_expression/README.md:57	sample-readme-oracle
+samples/cli/scientific/differential_expression/validation/run.py	UNCERTAIN	samples/cli/scientific/differential_expression/README.md:89	sample-readme-oracle
+samples/cli/scientific/dimensional_stack_audit/check_invalid.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/dimensional_stack_audit/reference.py	UNCERTAIN	samples/cli/scientific/dimensional_stack_audit/README.md:79	sample-readme-oracle
+samples/cli/scientific/dimensional_stack_audit/validate.py	UNCERTAIN	samples/cli/scientific/dimensional_stack_audit/README.md:83	sample-readme-oracle
+samples/cli/scientific/disk_collision_lab/run_validation.py	UNCERTAIN	samples/cli/scientific/disk_collision_lab/README.md:89	sample-readme-oracle
+samples/cli/scientific/disk_collision_lab/validate.py	UNCERTAIN	samples/cli/scientific/disk_collision_lab/README.md:51	sample-readme-oracle
+samples/cli/scientific/dose_response_fit/validation/producer_receipt.py	UNCERTAIN	samples/cli/scientific/dose_response_fit/README.md:84	sample-readme-oracle
+samples/cli/scientific/dose_response_fit/validation/reference.py	UNCERTAIN	samples/cli/scientific/dose_response_fit/README.md:68	sample-readme-oracle
+samples/cli/scientific/dose_response_fit/validation/reference_groups.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/dose_response_fit/validation/terminal_validate.py	UNCERTAIN	samples/cli/scientific/dose_response_fit/README.md:88	sample-readme-oracle
+samples/cli/scientific/dose_response_fit/validation/validate.py	UNCERTAIN	samples/cli/scientific/dose_response_fit/README.md:69	sample-readme-oracle
+samples/cli/scientific/ecological_rarefaction/reference.py	UNCERTAIN	samples/cli/scientific/ecological_rarefaction/README.md:60	sample-readme-oracle
+samples/cli/scientific/ecological_rarefaction/validate.py	UNCERTAIN	samples/cli/scientific/ecological_rarefaction/README.md:50	sample-readme-oracle
+samples/cli/scientific/error_correcting_telemetry/reference.py	UNCERTAIN	samples/cli/scientific/error_correcting_telemetry/README.md:34	sample-readme-oracle
+samples/cli/scientific/error_correcting_telemetry/validate.py	UNCERTAIN	samples/cli/scientific/error_correcting_telemetry/README.md:62	sample-readme-oracle
+samples/cli/scientific/error_correcting_telemetry/validate_terminal.py	UNCERTAIN	samples/cli/scientific/error_correcting_telemetry/README.md:65	sample-readme-oracle
+samples/cli/scientific/exact_contingency_inference/reference.py	UNCERTAIN	samples/cli/scientific/exact_contingency_inference/README.md:63	sample-readme-oracle
+samples/cli/scientific/exact_contingency_inference/validate.py	UNCERTAIN	samples/cli/scientific/exact_contingency_inference/evidence/VALIDATION.md:95	sample-readme-oracle
+samples/cli/scientific/fatigue_cycle_audit/reference.py	UNCERTAIN	samples/cli/scientific/fatigue_cycle_audit/README.md:64	sample-readme-oracle
+samples/cli/scientific/fatigue_cycle_audit/validate.py	UNCERTAIN	samples/cli/scientific/fatigue_cycle_audit/README.md:65	sample-readme-oracle
+samples/cli/scientific/finite_horizon_controller/reference.py	UNCERTAIN	samples/cli/scientific/finite_horizon_controller/README.md:41	sample-readme-oracle
+samples/cli/scientific/finite_horizon_controller/validate.py	UNCERTAIN	samples/cli/scientific/finite_horizon_controller/README.md:59	sample-readme-oracle
+samples/cli/scientific/force_plate_balance/data/reference.py	UNCERTAIN	samples/cli/scientific/force_plate_balance/README.md:59	sample-readme-oracle
+samples/cli/scientific/force_plate_balance/validate.py	UNCERTAIN	samples/cli/scientific/force_plate_balance/VALIDATION.md:64	sample-readme-oracle
+samples/cli/scientific/gene_set_enrichment_audit/reference.py	UNCERTAIN	samples/cli/scientific/gene_set_enrichment_audit/README.md:53	sample-readme-oracle
+samples/cli/scientific/gene_set_enrichment_audit/validate.py	UNCERTAIN	samples/cli/scientific/gene_set_enrichment_audit/README.md:54	sample-readme-oracle
+samples/cli/scientific/germination_probability_inference/validation/freeze_producer.py	UNCERTAIN	samples/cli/scientific/germination_probability_inference/README.md:105	sample-readme-oracle
+samples/cli/scientific/germination_probability_inference/validation/reference.py	UNCERTAIN	samples/cli/scientific/germination_probability_inference/README.md:49	sample-readme-oracle
+samples/cli/scientific/germination_probability_inference/validation/validate.py	UNCERTAIN	samples/cli/scientific/germination_probability_inference/README.md:67	sample-readme-oracle
+samples/cli/scientific/gravimetric_mixture/reference.py	UNCERTAIN	samples/cli/scientific/gravimetric_mixture/README.md:63	sample-readme-oracle
+samples/cli/scientific/gravimetric_mixture/render_domain_checks.py	UNCERTAIN	samples/cli/scientific/gravimetric_mixture/README.md:83	sample-readme-oracle
+samples/cli/scientific/gravimetric_mixture/validate.py	UNCERTAIN	samples/cli/scientific/gravimetric_mixture/README.md:21	sample-readme-oracle
+samples/cli/scientific/heat_exchanger_balances/reference.py	UNCERTAIN	samples/cli/scientific/heat_exchanger_balances/README.md:43	sample-readme-oracle
+samples/cli/scientific/heat_exchanger_balances/supplemental_reference.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/heat_exchanger_balances/validate.py	UNCERTAIN	samples/cli/scientific/heat_exchanger_balances/README.md:86	sample-readme-oracle
+samples/cli/scientific/hidden_markov_inference/reference.py	UNCERTAIN	samples/cli/scientific/hidden_markov_inference/README.md:31	sample-readme-oracle
+samples/cli/scientific/hidden_markov_inference/validate.py	UNCERTAIN	samples/cli/scientific/hidden_markov_inference/README.md:53	sample-readme-oracle
+samples/cli/scientific/hydrostatic_gate_loading/validation/reference.py	UNCERTAIN	samples/cli/scientific/hydrostatic_gate_loading/README.md:75	sample-readme-oracle
+samples/cli/scientific/hydrostatic_gate_loading/validation/run.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/hydrostatic_gate_loading/validation/verify.py	UNCERTAIN	samples/cli/scientific/hydrostatic_gate_loading/README.md:84	sample-readme-oracle
+samples/cli/scientific/instrument_hysteresis/reference.py	UNCERTAIN	samples/cli/scientific/instrument_hysteresis/README.md:34	sample-readme-oracle
+samples/cli/scientific/instrument_hysteresis/terminal_validate.py	UNCERTAIN	samples/cli/scientific/instrument_hysteresis/README.md:73	sample-readme-oracle
+samples/cli/scientific/instrument_hysteresis/validate.py	UNCERTAIN	samples/cli/scientific/instrument_hysteresis/README.md:65	sample-readme-oracle
+samples/cli/scientific/laboratory_protocol/reference.py	UNCERTAIN	samples/cli/scientific/laboratory_protocol/README.md:51	sample-readme-oracle
+samples/cli/scientific/laboratory_protocol/validate.py	UNCERTAIN	samples/cli/scientific/laboratory_protocol/README.md:74	sample-readme-oracle
+samples/cli/scientific/laminate_stiffness_response/reference.py	UNCERTAIN	samples/cli/scientific/laminate_stiffness_response/README.md:83	sample-readme-oracle
+samples/cli/scientific/laminate_stiffness_response/validate.py	UNCERTAIN	samples/cli/scientific/laminate_stiffness_response/VALIDATION.md:9	sample-readme-oracle
+samples/cli/scientific/landcover_area_resampling/data/reference.py	UNCERTAIN	samples/cli/scientific/landcover_area_resampling/README.md:37	sample-readme-oracle
+samples/cli/scientific/landcover_area_resampling/validate.py	UNCERTAIN	samples/cli/scientific/landcover_area_resampling/README.md:58	sample-readme-oracle
+samples/cli/scientific/landcover_area_resampling/validate_terminal.py	UNCERTAIN	samples/cli/scientific/landcover_area_resampling/README.md:60	sample-readme-oracle
+samples/cli/scientific/layered_particle_settling/data/reference.py	UNCERTAIN	samples/cli/scientific/layered_particle_settling/README.md:55	sample-readme-oracle
+samples/cli/scientific/layered_particle_settling/validate.py	UNCERTAIN	samples/cli/scientific/layered_particle_settling/README.md:81	sample-readme-oracle
+samples/cli/scientific/layered_seismic_refraction/validation/build_terminal.py	UNCERTAIN	samples/cli/scientific/layered_seismic_refraction/README.md:89	sample-readme-oracle
+samples/cli/scientific/layered_seismic_refraction/validation/check_output.py	UNCERTAIN	samples/cli/scientific/layered_seismic_refraction/README.md:96	sample-readme-oracle
+samples/cli/scientific/layered_seismic_refraction/validation/reference.py	UNCERTAIN	samples/cli/scientific/layered_seismic_refraction/README.md:61	sample-readme-oracle
+samples/cli/scientific/layered_seismic_refraction/validation/run.py	UNCERTAIN	samples/cli/scientific/layered_seismic_refraction/README.md:86	sample-readme-oracle
+samples/cli/scientific/layered_toolpath_coverage/reference.py	UNCERTAIN	samples/cli/scientific/layered_toolpath_coverage/README.md:46	sample-readme-oracle
+samples/cli/scientific/logic_hazard_timing/reference.py	UNCERTAIN	samples/cli/scientific/logic_hazard_timing/README.md:31	sample-readme-oracle
+samples/cli/scientific/logic_hazard_timing/validate.py	UNCERTAIN	samples/cli/scientific/logic_hazard_timing/README.md:48	sample-readme-oracle
+samples/cli/scientific/metabolic_flux_analysis/validation/reference.py	UNCERTAIN	samples/cli/scientific/metabolic_flux_analysis/validation/validate.py:5	sample-readme-oracle
+samples/cli/scientific/metabolic_flux_analysis/validation/validate.py	UNCERTAIN	samples/cli/scientific/metabolic_flux_analysis/README.md:73	sample-readme-oracle
+samples/cli/scientific/micrograph_regions/reference.py	UNCERTAIN	samples/cli/scientific/micrograph_regions/README.md:80	sample-readme-oracle
+samples/cli/scientific/micrograph_regions/validate.py	UNCERTAIN	samples/cli/scientific/micrograph_regions/README.md:82	sample-readme-oracle
+samples/cli/scientific/microphone_delay_beamforming/reference.py	UNCERTAIN	samples/cli/scientific/microphone_delay_beamforming/README.md:36	sample-readme-oracle
+samples/cli/scientific/microphone_delay_beamforming/validate.py	UNCERTAIN	samples/cli/scientific/microphone_delay_beamforming/README.md:39	sample-readme-oracle
+samples/cli/scientific/mold_front_vent_analysis/validation/freeze_tiny.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/mold_front_vent_analysis/validation/reference.py	UNCERTAIN	samples/cli/scientific/mold_front_vent_analysis/README.md:58	sample-readme-oracle
+samples/cli/scientific/mold_front_vent_analysis/validation/validate.py	UNCERTAIN	samples/cli/scientific/mold_front_vent_analysis/README.md:101	sample-readme-oracle
+samples/cli/scientific/molecular_pair_distribution/reference.py	UNCERTAIN	samples/cli/scientific/molecular_pair_distribution/README.md:55	sample-readme-oracle
+samples/cli/scientific/molecular_pair_distribution/validate.py	UNCERTAIN	samples/cli/scientific/molecular_pair_distribution/README.md:51	sample-readme-oracle
+samples/cli/scientific/molecular_pair_distribution/validation/link_terminal.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/nonlinear_diode_sweep/validation/check_output.py	UNCERTAIN	samples/cli/scientific/nonlinear_diode_sweep/validation/run.py:10	sample-readme-oracle
+samples/cli/scientific/nonlinear_diode_sweep/validation/check_terminal.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/nonlinear_diode_sweep/validation/reference.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/nonlinear_diode_sweep/validation/run.py	UNCERTAIN	samples/cli/scientific/nonlinear_diode_sweep/README.md:123	sample-readme-oracle
+samples/cli/scientific/operating_envelope/evidence/allocator_diagnosis/audit.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/operating_envelope/reference.py	UNCERTAIN	samples/cli/scientific/operating_envelope/README.md:50	sample-readme-oracle
+samples/cli/scientific/operating_envelope/validate.py	UNCERTAIN	samples/cli/scientific/operating_envelope/README.md:15	sample-readme-oracle
+samples/cli/scientific/orbital_dynamics/validation/check_output.py	UNCERTAIN	samples/cli/scientific/orbital_dynamics/validation/EVIDENCE.md:14	sample-readme-oracle
+samples/cli/scientific/orbital_dynamics/validation/link_terminal.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/orbital_dynamics/validation/reference.py	UNCERTAIN	samples/cli/scientific/orbital_dynamics/README.md:50	sample-readme-oracle
+samples/cli/scientific/orbital_dynamics/validation/reference_extra.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/orbital_dynamics/validation/reference_parser.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/orbital_dynamics/validation/run_native.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/ordinary_kriging/validation/link_terminal.py	UNCERTAIN	samples/cli/scientific/ordinary_kriging/validation/validate.py:67	sample-readme-oracle
+samples/cli/scientific/ordinary_kriging/validation/oracle.py	UNCERTAIN	samples/cli/scientific/ordinary_kriging/README.md:81	sample-readme-oracle
+samples/cli/scientific/ordinary_kriging/validation/validate.py	UNCERTAIN	samples/cli/scientific/ordinary_kriging/README.md:64	sample-readme-oracle
+samples/cli/scientific/pareto_experiment_selection/reference.py	UNCERTAIN	samples/cli/scientific/pareto_experiment_selection/README.md:49	sample-readme-oracle
+samples/cli/scientific/pareto_experiment_selection/validate.py	UNCERTAIN	samples/cli/scientific/pareto_experiment_selection/README.md:80	sample-readme-oracle
+samples/cli/scientific/pedigree_allele_constraints/validation/control.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/pedigree_allele_constraints/validation/oracle.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/pedigree_allele_constraints/validation/terminal.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/pedigree_allele_constraints/validation/verify.py	UNCERTAIN	samples/cli/scientific/pedigree_allele_constraints/README.md:63	sample-readme-oracle
+samples/cli/scientific/phase_change_calorimetry/validation/reference.py	UNCERTAIN	samples/cli/scientific/phase_change_calorimetry/README.md:56	sample-readme-oracle
+samples/cli/scientific/phase_change_calorimetry/validation/supplement_reference.py	UNCERTAIN	samples/cli/scientific/phase_change_calorimetry/README.md:108	sample-readme-oracle
+samples/cli/scientific/phase_change_calorimetry/validation/validate.py	UNCERTAIN	samples/cli/scientific/phase_change_calorimetry/README.md:78	sample-readme-oracle
+samples/cli/scientific/piston_cycle_work/validation/build_terminal.py	UNCERTAIN	samples/cli/scientific/piston_cycle_work/README.md:15	sample-readme-oracle
+samples/cli/scientific/piston_cycle_work/validation/oracle.py	UNCERTAIN	samples/cli/scientific/piston_cycle_work/README.md:52	sample-readme-oracle
+samples/cli/scientific/piston_cycle_work/validation/run_native.py	UNCERTAIN	samples/cli/scientific/piston_cycle_work/validation/RESULTS.md:177	sample-readme-oracle
+samples/cli/scientific/piston_cycle_work/validation/verify.py	UNCERTAIN	samples/cli/scientific/piston_cycle_work/README.md:54	sample-readme-oracle
+samples/cli/scientific/planar_truss_elasticity/validation/build_terminal.py	UNCERTAIN	samples/cli/scientific/planar_truss_elasticity/README.md:87	sample-readme-oracle
+samples/cli/scientific/planar_truss_elasticity/validation/freeze.py	UNCERTAIN	samples/cli/scientific/planar_truss_elasticity/README.md:64	sample-readme-oracle
+samples/cli/scientific/planar_truss_elasticity/validation/reference.py	UNCERTAIN	samples/cli/scientific/planar_truss_elasticity/README.md:34	sample-readme-oracle
+samples/cli/scientific/planar_truss_elasticity/validation/verify.py	UNCERTAIN	samples/cli/scientific/planar_truss_elasticity/README.md:65	sample-readme-oracle
+samples/cli/scientific/powder_diffraction_indexing/validation/freeze_reference.py	UNCERTAIN	samples/cli/scientific/powder_diffraction_indexing/README.md:52	sample-readme-oracle
+samples/cli/scientific/powder_diffraction_indexing/validation/validate.py	UNCERTAIN	samples/cli/scientific/powder_diffraction_indexing/README.md:42	sample-readme-oracle
+samples/cli/scientific/principal_component_analysis/validation/link_terminal.py	UNCERTAIN	samples/cli/scientific/principal_component_analysis/README.md:81	sample-readme-oracle
+samples/cli/scientific/principal_component_analysis/validation/oracle.py	UNCERTAIN	samples/cli/scientific/principal_component_analysis/README.md:65	sample-readme-oracle
+samples/cli/scientific/principal_component_analysis/validation/verify.py	UNCERTAIN	samples/cli/scientific/principal_component_analysis/README.md:44	sample-readme-oracle
+samples/cli/scientific/pump_network_operating_point/data/freeze.py	UNCERTAIN	samples/cli/scientific/pump_network_operating_point/README.md:76	sample-readme-oracle
+samples/cli/scientific/pump_network_operating_point/terminal_matrix.py	UNCERTAIN	samples/cli/scientific/pump_network_operating_point/README.md:99	sample-readme-oracle
+samples/cli/scientific/pump_network_operating_point/validate.py	UNCERTAIN	samples/cli/scientific/pump_network_operating_point/README.md:79	sample-readme-oracle
+samples/cli/scientific/qpcr_standard_curve/validation/reference.py	UNCERTAIN	samples/cli/scientific/qpcr_standard_curve/validation/validate.py:11	sample-readme-oracle
+samples/cli/scientific/qpcr_standard_curve/validation/validate.py	UNCERTAIN	samples/cli/scientific/qpcr_standard_curve/README.md:39	sample-readme-oracle
+samples/cli/scientific/quantum_wavepacket_evolution/reference.py	UNCERTAIN	samples/cli/scientific/quantum_wavepacket_evolution/README.md:66	sample-readme-oracle
+samples/cli/scientific/quantum_wavepacket_evolution/validate.py	UNCERTAIN	samples/cli/scientific/quantum_wavepacket_evolution/README.md:63	sample-readme-oracle
+samples/cli/scientific/quantum_wavepacket_evolution/validation/link_terminal.py	UNCERTAIN	samples/cli/scientific/quantum_wavepacket_evolution/README.md:89	sample-readme-oracle
+samples/cli/scientific/rail_limited_amplifier/reference.py	UNCERTAIN	samples/cli/scientific/rail_limited_amplifier/README.md:79	sample-readme-oracle
+samples/cli/scientific/rail_limited_amplifier/validation/build_driver.py	UNCERTAIN	samples/cli/scientific/rail_limited_amplifier/VALIDATION.md:147	sample-readme-oracle
+samples/cli/scientific/rail_limited_amplifier/validation/check_control.py	UNCERTAIN	samples/cli/scientific/rail_limited_amplifier/VALIDATION.md:150	sample-readme-oracle
+samples/cli/scientific/rail_limited_amplifier/validation/run.py	UNCERTAIN	samples/cli/scientific/rail_limited_amplifier/README.md:118	sample-readme-oracle
+samples/cli/scientific/range_only_localization/reference.py	UNCERTAIN	samples/cli/scientific/range_only_localization/README.md:63	sample-readme-oracle
+samples/cli/scientific/range_only_localization/validate.py	UNCERTAIN	samples/cli/scientific/range_only_localization/EVIDENCE.md:82	sample-readme-oracle
+samples/cli/scientific/range_only_localization/validate_terminal.py	UNCERTAIN	samples/cli/scientific/range_only_localization/EVIDENCE.md:87	sample-readme-oracle
+samples/cli/scientific/regularized_deconvolution/reference.py	UNCERTAIN	samples/cli/scientific/regularized_deconvolution/README.md:28	sample-readme-oracle
+samples/cli/scientific/regularized_deconvolution/validate.py	UNCERTAIN	samples/cli/scientific/regularized_deconvolution/README.md:25	sample-readme-oracle
+samples/cli/scientific/research_record_linkage/reference.py	UNCERTAIN	samples/cli/scientific/research_record_linkage/README.md:60	sample-readme-oracle
+samples/cli/scientific/research_record_linkage/validate.py	UNCERTAIN	samples/cli/scientific/research_record_linkage/README.md:86	sample-readme-oracle
+samples/cli/scientific/resource_scheduler/validation/build_observer.py	UNCERTAIN	samples/cli/scientific/resource_scheduler/README.md:103	sample-readme-oracle
+samples/cli/scientific/resource_scheduler/validation/check_rejection.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/resource_scheduler/validation/reference.py	UNCERTAIN	samples/cli/scientific/resource_scheduler/README.md:92	sample-readme-oracle
+samples/cli/scientific/resource_scheduler/validation/validate.py	UNCERTAIN	samples/cli/scientific/resource_scheduler/README.md:114	sample-readme-oracle
+samples/cli/scientific/rigid_point_registration/validation/reference.py	UNCERTAIN	samples/cli/scientific/rigid_point_registration/README.md:77	sample-readme-oracle
+samples/cli/scientific/rigid_point_registration/validation/reference_boundary.py	UNCERTAIN	samples/cli/scientific/rigid_point_registration/README.md:80	sample-readme-oracle
+samples/cli/scientific/rigid_point_registration/validation/terminal_validate.py	UNCERTAIN	samples/cli/scientific/rigid_point_registration/README.md:119	sample-readme-oracle
+samples/cli/scientific/rigid_point_registration/validation/validate.py	UNCERTAIN	samples/cli/scientific/rigid_point_registration/validation/terminal_validate.py:4	sample-readme-oracle
+samples/cli/scientific/sample_collection_routing/data/reference.py	UNCERTAIN	samples/cli/scientific/sample_collection_routing/validate.py:23	sample-readme-oracle
+samples/cli/scientific/sample_collection_routing/validate.py	UNCERTAIN	samples/cli/scientific/sample_collection_routing/README.md:60	sample-readme-oracle
+samples/cli/scientific/site_service_regions/exercise.py	UNCERTAIN	samples/cli/scientific/site_service_regions/README.md:68	sample-readme-oracle
+samples/cli/scientific/site_service_regions/reference.py	UNCERTAIN	samples/cli/scientific/site_service_regions/README.md:33	sample-readme-oracle
+samples/cli/scientific/site_service_regions/validate.py	UNCERTAIN	samples/cli/scientific/site_service_regions/README.md:36	sample-readme-oracle
+samples/cli/scientific/spatial_diffusion/reference.py	UNCERTAIN	samples/cli/scientific/spatial_diffusion/validate.py:13	sample-readme-oracle
+samples/cli/scientific/spatial_diffusion/validate.py	UNCERTAIN	samples/cli/scientific/spatial_diffusion/README.md:57	sample-readme-oracle
+samples/cli/scientific/spatial_sensor_deployment/data/reference.py	UNCERTAIN	samples/cli/scientific/spatial_sensor_deployment/README.md:44	sample-readme-oracle
+samples/cli/scientific/spatial_sensor_deployment/validate.py	UNCERTAIN	samples/cli/scientific/spatial_sensor_deployment/README.md:64	sample-readme-oracle
+samples/cli/scientific/spatial_sensor_deployment/validate_terminal.py	UNCERTAIN	samples/cli/scientific/spatial_sensor_deployment/README.md:70	sample-readme-oracle
+samples/cli/scientific/spectral_power/freeze_reference.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/spectral_power/validate.py	UNCERTAIN	samples/cli/scientific/spectral_power/README.md:40	sample-readme-oracle
+samples/cli/scientific/spectrometer_attribution/corpus_review.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/spectrometer_attribution/reference.py	UNCERTAIN	samples/cli/scientific/spectrometer_attribution/README.md:67	sample-readme-oracle
+samples/cli/scientific/spectrometer_attribution/runtime_matrix.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/spectrometer_attribution/validate.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/stiff_reaction_kinetics/reference.py	UNCERTAIN	samples/cli/scientific/stiff_reaction_kinetics/README.md:70	sample-readme-oracle
+samples/cli/scientific/stiff_reaction_kinetics/validate.py	UNCERTAIN	samples/cli/scientific/stiff_reaction_kinetics/README.md:75	sample-readme-oracle
+samples/cli/scientific/stiff_reaction_kinetics/validation/link_terminal.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/stochastic_gene_kinetics/reference.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/stochastic_gene_kinetics/validate.py	UNCERTAIN	samples/cli/scientific/stochastic_gene_kinetics/README.md:43	sample-readme-oracle
+samples/cli/scientific/stoichiometric_batch_balance/validation/invalid_control.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/stoichiometric_batch_balance/validation/reference.py	UNCERTAIN	samples/cli/scientific/stoichiometric_batch_balance/README.md:58	sample-readme-oracle
+samples/cli/scientific/stoichiometric_batch_balance/validation/verify.py	UNCERTAIN	samples/cli/scientific/stoichiometric_batch_balance/README.md:73	sample-readme-oracle
+samples/cli/scientific/stratified_partitioning/reference.py	UNCERTAIN	samples/cli/scientific/stratified_partitioning/README.md:54	sample-readme-oracle
+samples/cli/scientific/stratified_partitioning/validate.py	UNCERTAIN	samples/cli/scientific/stratified_partitioning/README.md:107	sample-readme-oracle
+samples/cli/scientific/terrain_contour_tracing/data/reference.py	UNCERTAIN	samples/cli/scientific/terrain_contour_tracing/README.md:48	sample-readme-oracle
+samples/cli/scientific/terrain_contour_tracing/validate.py	UNCERTAIN	samples/cli/scientific/terrain_contour_tracing/README.md:55	sample-readme-oracle
+samples/cli/scientific/thermocouple_compensation/reference.py	UNCERTAIN	samples/cli/scientific/thermocouple_compensation/README.md:52	sample-readme-oracle
+samples/cli/scientific/thermocouple_compensation/review_controls/validate.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/thermocouple_compensation/validate.py	UNCERTAIN	samples/cli/scientific/thermocouple_compensation/VALIDATION.md:15	sample-readme-oracle
+samples/cli/scientific/thin_film_reflectometry/freeze_reference.py	UNCERTAIN	samples/cli/scientific/thin_film_reflectometry/README.md:48	sample-readme-oracle
+samples/cli/scientific/thin_film_reflectometry/validate.py	UNCERTAIN	samples/cli/scientific/thin_film_reflectometry/README.md:54	sample-readme-oracle
+samples/cli/scientific/transmission_line_reflections/reference.py	UNCERTAIN	samples/cli/scientific/transmission_line_reflections/README.md:64	sample-readme-oracle
+samples/cli/scientific/transmission_line_reflections/run_validation.py	UNCERTAIN	samples/cli/scientific/transmission_line_reflections/README.md:104	sample-readme-oracle
+samples/cli/scientific/transmission_line_reflections/validate.py	UNCERTAIN	samples/cli/scientific/transmission_line_reflections/README.md:70	sample-readme-oracle
+samples/cli/scientific/transport_planner/validation/build_terminal_probe.py	UNCERTAIN	samples/cli/scientific/transport_planner/README.md:82	sample-readme-oracle
+samples/cli/scientific/transport_planner/validation/freeze.py	UNCERTAIN	samples/cli/scientific/transport_planner/README.md:61	sample-readme-oracle
+samples/cli/scientific/transport_planner/validation/record_command.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/transport_planner/validation/reference.py	UNCERTAIN	samples/cli/scientific/transport_planner/README.md:53	sample-readme-oracle
+samples/cli/scientific/transport_planner/validation/validate.py	UNCERTAIN	samples/cli/scientific/transport_planner/README.md:43	sample-readme-oracle
+samples/cli/scientific/travel_time_tomography/validation/verify.py	UNCERTAIN	samples/cli/scientific/travel_time_tomography/README.md:73	sample-readme-oracle
+samples/cli/scientific/trophic_energy_reconciliation/data/reference.py	UNCERTAIN	samples/cli/scientific/trophic_energy_reconciliation/README.md:44	sample-readme-oracle
+samples/cli/scientific/trophic_energy_reconciliation/validate.py	UNCERTAIN	samples/cli/scientific/trophic_energy_reconciliation/README.md:67	sample-readme-oracle
+samples/cli/scientific/uncertain_event_chronology/validation/link_terminal.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/uncertain_event_chronology/validation/reference.py	UNCERTAIN	samples/cli/scientific/uncertain_event_chronology/README.md:54	sample-readme-oracle
+samples/cli/scientific/uncertain_event_chronology/validation/validate.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/uncertain_event_chronology/validation/verify_frozen.py	UNCERTAIN	samples/cli/scientific/uncertain_event_chronology/README.md:58	sample-readme-oracle
+samples/cli/scientific/vapor_liquid_flash/closure_reference.py	UNCERTAIN	samples/cli/scientific/vapor_liquid_flash/validate.py:8	sample-readme-oracle
+samples/cli/scientific/vapor_liquid_flash/reference.py	UNCERTAIN	samples/cli/scientific/vapor_liquid_flash/README.md:51	sample-readme-oracle
+samples/cli/scientific/vapor_liquid_flash/validate.py	UNCERTAIN	samples/cli/scientific/vapor_liquid_flash/README.md:45	sample-readme-oracle
+samples/cli/scientific/variant_record_normalization/validation/freeze.py	UNCERTAIN	samples/cli/scientific/variant_record_normalization/README.md:80	sample-readme-oracle
+samples/cli/scientific/variant_record_normalization/validation/freeze_review.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/variant_record_normalization/validation/reference.py	UNCERTAIN	samples/cli/scientific/variant_record_normalization/README.md:77	sample-readme-oracle
+samples/cli/scientific/variant_record_normalization/validation/verify.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/voice_period_tracking/reference.py	UNCERTAIN	samples/cli/scientific/voice_period_tracking/README.md:56	sample-readme-oracle
+samples/cli/scientific/w100/nf02_numeric_accuracy_policy/derive_oracle.py	UNCERTAIN	samples/cli/scientific/w100/nf02_numeric_accuracy_policy/README.md:8	sample-readme-oracle
+samples/cli/scientific/w100/nf03_complex_carrier_ops/evidence/qualify.py	UNCERTAIN	samples/cli/scientific/w100/nf03_complex_carrier_ops/README.md:54	sample-readme-oracle
+samples/cli/scientific/w100/nf03_complex_carrier_ops/validate.py	UNCERTAIN	samples/cli/scientific/w100/nf03_complex_carrier_ops/README.md:42	sample-readme-oracle
+samples/cli/scientific/w100/nf03_complex_carrier_ops/validation/build_runtime.py	UNCERTAIN	samples/cli/scientific/w100/nf03_complex_carrier_ops/README.md:41	sample-readme-oracle
+samples/cli/scientific/w100/nf03_complex_carrier_ops/verify_oracles.py	UNCERTAIN	samples/cli/scientific/w100/nf03_complex_carrier_ops/README.md:12	sample-readme-oracle
+samples/cli/scientific/watershed_spill_analysis/reference/build_validator.py	UNCERTAIN	samples/cli/scientific/watershed_spill_analysis/README.md:106	sample-readme-oracle
+samples/cli/scientific/watershed_spill_analysis/reference/oracle.py	UNCERTAIN	samples/cli/scientific/watershed_spill_analysis/README.md:51	sample-readme-oracle
+samples/cli/scientific/watershed_spill_analysis/reference/validate.py	UNCERTAIN	samples/cli/scientific/watershed_spill_analysis/README.md:80	sample-readme-oracle
+samples/cli/scientific/wavelet_transient_denoising/freeze_reference.py	UNCERTAIN	samples/cli/scientific/wavelet_transient_denoising/validate.py:13	sample-readme-oracle
+samples/cli/scientific/wavelet_transient_denoising/validate.py	UNCERTAIN	samples/cli/scientific/wavelet_transient_denoising/README.md:47	sample-readme-oracle
+samples/cli/scientific/weighted_lattice/data/reference.py	DEAD	no-reference	unreferenced-sample-helper
+samples/cli/scientific/weighted_lattice/validate.py	UNCERTAIN	samples/cli/scientific/weighted_lattice/README.md:39	sample-readme-oracle
+samples/cli/scientific/wrapping_clock/reference.py	UNCERTAIN	samples/cli/scientific/wrapping_clock/README.md:96	sample-readme-oracle
+samples/cli/scientific/wrapping_clock/validate.py	UNCERTAIN	samples/cli/scientific/wrapping_clock/README.md:115	sample-readme-oracle
+samples/gui/dungeon_crawler/verify_window.py	UNCERTAIN	samples/gui/dungeon_crawler/README.md:83	sample-readme-oracle
+source/omega/construct.py	LIVE-OTHER	source/omega/README.md:35	construction-input
+tests/alpha/bounds.py	LIVE-OTHER	tests/alpha/conformance.sh:182	alpha-seed-gates
+tests/alpha/container.py	LIVE-OTHER	tests/alpha/container.sh:75	alpha-seed-gates
+tests/alpha/native_exit.py	LIVE-OTHER	tests/alpha/conformance.sh:49	alpha-seed-gates
+tests/alpha/reference/alpha_ref.py	LIVE-OTHER	tests/alpha/parity.sh:76	alpha-seed-gates
+tests/beta/compiler/beta_ref.py	LIVE-OTHER	tests/beta/compiler/compiler-diamond.sh:39	beta-assembler-gates
+tests/beta/compiler/root-audit.py	LIVE-OTHER	tests/bootstrap/alpha-beta-edge.sh:193	beta-assembler-gates
+tests/beta/compiler/word-prefix.py	LIVE-OTHER	tests/beta/compiler/word-prefix.sh:19	beta-assembler-gates
+tests/bootstrap/gate_lib.py	LIVE-OTHER	tests/bootstrap/omega-request/gate.py:18 <- tests/bootstrap/omega-request/run.sh:34	omega-customer-gates
+tests/bootstrap/omega-executable/gate.py	LIVE-OTHER	tests/bootstrap/omega-executable/run.sh:81	omega-customer-gates
+tests/bootstrap/omega-outcome/gate.py	LIVE-OTHER	tests/bootstrap/omega-outcome/run.sh:38	omega-customer-gates
+tests/bootstrap/omega-parser/gate.py	LIVE-OTHER	tests/bootstrap/omega-parser/run.sh:38	omega-customer-gates
+tests/bootstrap/omega-parser/measure.py	LIVE-OTHER	tests/bootstrap/omega-parser/measure.sh:31	omega-customer-gates
+tests/bootstrap/omega-parser/measure_heap.py	LIVE-OTHER	tests/bootstrap/omega-parser/measure.py:63 <- tests/bootstrap/omega-parser/measure.sh:31	omega-customer-gates
+tests/bootstrap/omega-parser/measure_observer.py	LIVE-OTHER	tests/bootstrap/omega-parser/measure.py:17 <- tests/bootstrap/omega-parser/measure.sh:31	omega-customer-gates
+tests/bootstrap/omega-parser/measure_observer_test.py	LIVE-OTHER	tests/bootstrap/omega-parser/measure.py:64 <- tests/bootstrap/omega-parser/measure.sh:31	omega-customer-gates
+tests/bootstrap/omega-request/gate.py	LIVE-OTHER	tests/bootstrap/omega-request/run.sh:34	omega-customer-gates
+tests/bootstrap/source-closure.py	LIVE-OTHER	tests/bootstrap/source-closure.sh:14	omega-customer-gates
+tests/delta/emission/fixtures.py	LIVE-OTHER	tests/delta/emission/gate.py:10 <- tests/delta/emission/run.sh:21	delta-boundary-gates
+tests/delta/emission/gate.py	LIVE-OTHER	tests/delta/emission/run.sh:21	delta-boundary-gates
+tests/delta/frontend-boundary/catalog_replacements.py	LIVE-OTHER	tests/delta/frontend-boundary/run.sh:28	delta-boundary-gates
+tests/delta/frontend-boundary/census_cursors.py	LIVE-OTHER	tests/delta/frontend-boundary/run.sh:26	delta-boundary-gates
+tests/delta/frontend-boundary/depth_fixtures.py	LIVE-OTHER	tests/delta/frontend-boundary/run.sh:23	delta-boundary-gates
+tests/delta/frontend-boundary/name_fixtures.py	LIVE-OTHER	tests/delta/frontend-boundary/run.sh:24	delta-boundary-gates
+tests/delta/frontend-boundary/name_roles.py	LIVE-OTHER	tests/delta/frontend-boundary/run.sh:25	delta-boundary-gates
+tests/delta/frontend-boundary/parameter_cursors.py	LIVE-OTHER	tests/delta/frontend-boundary/run.sh:27	delta-boundary-gates
+tests/delta/generated-function-census/gate.py	LIVE-OTHER	tests/delta/generated-function-census/run.sh:20	delta-boundary-gates
+tests/delta/internal-boundary/gate.py	LIVE-OTHER	tests/delta/internal-boundary/run.sh:23	delta-boundary-gates
+tests/delta/lowering-plan/fixtures.py	LIVE-OTHER	tests/delta/lowering-plan/run.sh:29	delta-boundary-gates
+tests/delta/normalization/fixtures.py	LIVE-OTHER	tests/delta/normalization/run.sh:37	delta-boundary-gates
+tests/delta/resource-boundary/constructor_rows.py	LIVE-OTHER	tests/delta/resource-boundary/run.sh:43	delta-boundary-gates
+tests/delta/resource-boundary/environment_rows.py	LIVE-OTHER	tests/delta/resource-boundary/run.sh:46	delta-boundary-gates
+tests/delta/resource-boundary/function_rows.py	LIVE-OTHER	tests/delta/resource-boundary/run.sh:44	delta-boundary-gates
+tests/delta/resource-boundary/match_coverage.py	LIVE-OTHER	tests/delta/resource-boundary/run.sh:48	delta-boundary-gates
+tests/delta/resource-boundary/name_storage.py	LIVE-OTHER	tests/delta/resource-boundary/run.sh:53	delta-boundary-gates
+tests/delta/resource-boundary/outcome_row.py	LIVE-OTHER	tests/delta/resource-boundary/syntax_storage.py:5 <- tests/delta/resource-boundary/run.sh:49	delta-boundary-gates
+tests/delta/resource-boundary/pair_study.py	UNCERTAIN	tests/delta/resource-boundary/README.md:309	delta-pair-study
+tests/delta/resource-boundary/payload_bytes.py	LIVE-OTHER	tests/delta/resource-boundary/run.sh:50	delta-boundary-gates
+tests/delta/resource-boundary/syntax_storage.py	LIVE-OTHER	tests/delta/resource-boundary/run.sh:49	delta-boundary-gates
+tests/delta/resource-boundary/type_rows.py	LIVE-OTHER	tests/delta/resource-boundary/run.sh:45	delta-boundary-gates
+tests/delta/staged-compiler/emitter_fixtures.py	LIVE-OTHER	tests/delta/staged-compiler/run.sh:55	delta-boundary-gates
+tests/epsilon/array-storage/gate.py	LIVE-OTHER	tests/epsilon/array-storage/run.sh:18	epsilon-evaluator-gates
+tests/epsilon/checking-invariants/gate.py	LIVE-OTHER	tests/epsilon/checking-invariants/run.sh:21	epsilon-evaluator-gates
+tests/epsilon/d-composition/customers.py	LIVE-OTHER	tests/epsilon/d-composition/gate.py:18 <- tests/epsilon/d-composition/run.sh:21	epsilon-evaluator-gates
+tests/epsilon/d-composition/gate.py	LIVE-OTHER	tests/epsilon/d-composition/run.sh:21	epsilon-evaluator-gates
+tests/epsilon/evaluator_request.py	LIVE-OTHER	tests/epsilon/refinement/gate.py:22 <- tests/epsilon/refinement/run.sh:30	epsilon-evaluator-gates
+tests/epsilon/pair-boundary/gate.py	LIVE-OTHER	tests/epsilon/pair-boundary/run.sh:31	epsilon-evaluator-gates
+tests/epsilon/refinement/corpus.py	LIVE-OTHER	tests/epsilon/refinement/gate.py:21 <- tests/epsilon/refinement/run.sh:30	epsilon-evaluator-gates
+tests/epsilon/refinement/gate.py	LIVE-OTHER	tests/epsilon/refinement/run.sh:30	epsilon-evaluator-gates
+tests/epsilon/refinement/model.py	LIVE-OTHER	tests/epsilon/refinement/gate.py:23 <- tests/epsilon/refinement/run.sh:30	epsilon-evaluator-gates
+tests/epsilon/source-views/gate.py	LIVE-OTHER	tests/epsilon/source-views/run.sh:21	epsilon-evaluator-gates
+tests/fixtures/pass/layouts/private_callback_inherited_policy_exit/fixture/prepare.py	UNCERTAIN	tests/fixtures/pass/layouts/private_callback_inherited_policy_exit/README.md:44	stale-callback-prepare
+tests/gamma/beta-encoding-check/check.py	LIVE-OTHER	tests/gamma/beta-encoding-check/run.sh:59	gamma-proof-gates
+tests/gamma/beta-encoding-theory/counter_cost.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/counters.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/counter_cost.py:14 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/emit_gamma.py	UNCERTAIN	bootstrap/proofs/beta_encoding/README.md:258	encoding-gamma-emitter
+tests/gamma/beta-encoding-theory/encoder.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/fixtures.py:9 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/encoding.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/identity.py:68 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/fixtures.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/gate.py:12 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/full_subject.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/gate.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/identity.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/full_subject.py:55 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/lexical.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/full_subject.py:56 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/literal_rows.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/counters.py:4 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/mutations.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/nibbles.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/fixtures.py:4 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/ordering/__init__.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/fixtures.py:8 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/ordering/bytes.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/ordering/__init__.py:3 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/ordering/nibbles.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/ordering/__init__.py:3 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/ordering/proofs.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/ordering/words.py:3 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/ordering/words.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/ordering/__init__.py:3 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/roundtrip.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/fixtures.py:5 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/stepper.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/full_subject.py:57 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/subject_shape.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/words.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/fixtures.py:6 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/beta-encoding-theory/worksim.py	DEAD	tests/gamma/beta-encoding-theory/encoder.py:574	comment-only
+tests/gamma/deep_stack.py	LIVE-OTHER	tests/gamma/beta-encoding-theory/full_subject.py:54 <- tests/gamma/beta-encoding-theory/run.sh:42	gamma-proof-gates
+tests/gamma/derivation-admission/fixtures.py	LIVE-OTHER	tests/gamma/derivation-admission/gate.py:8 <- tests/gamma/derivation-admission/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-admission/gate.py	LIVE-OTHER	tests/gamma/derivation-admission/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/fixtures.py	LIVE-OTHER	tests/gamma/derivation-checking/gate.py:6 <- tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/forwarding.py	LIVE-OTHER	tests/gamma/derivation-checking/fixtures.py:8 <- tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/gate.py	LIVE-OTHER	tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/positive.py	LIVE-OTHER	tests/gamma/derivation-checking/fixtures.py:9 <- tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/proof_wire.py	LIVE-OTHER	tests/gamma/derivation-checking/unfolding.py:3 <- tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/references.py	LIVE-OTHER	tests/gamma/derivation-checking/fixtures.py:10 <- tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/relations.py	LIVE-OTHER	tests/gamma/derivation-checking/fixtures.py:11 <- tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/resources.py	LIVE-OTHER	tests/gamma/derivation-checking/fixtures.py:12 <- tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/roots.py	LIVE-OTHER	tests/gamma/derivation-checking/fixtures.py:13 <- tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-checking/unfolding.py	LIVE-OTHER	tests/gamma/derivation-checking/fixtures.py:14 <- tests/gamma/derivation-checking/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-comparison/boundaries.py	LIVE-OTHER	tests/gamma/derivation-comparison/fixtures.py:8 <- tests/gamma/derivation-comparison/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-comparison/comparison_wire.py	LIVE-OTHER	tests/gamma/derivation-comparison/sessions.py:3 <- tests/gamma/derivation-comparison/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-comparison/fixtures.py	LIVE-OTHER	tests/gamma/derivation-comparison/gate.py:6 <- tests/gamma/derivation-comparison/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-comparison/forwarding.py	LIVE-OTHER	tests/gamma/derivation-comparison/fixtures.py:9 <- tests/gamma/derivation-comparison/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-comparison/gate.py	LIVE-OTHER	tests/gamma/derivation-comparison/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-comparison/roots.py	LIVE-OTHER	tests/gamma/derivation-comparison/fixtures.py:10 <- tests/gamma/derivation-comparison/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-comparison/sessions.py	LIVE-OTHER	tests/gamma/derivation-comparison/fixtures.py:11 <- tests/gamma/derivation-comparison/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-formation/applications.py	LIVE-OTHER	tests/gamma/derivation-formation/fixtures.py:9 <- tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-formation/clauses.py	LIVE-OTHER	tests/gamma/derivation-formation/fixtures.py:10 <- tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-formation/decrease.py	LIVE-OTHER	tests/gamma/derivation-formation/fixtures.py:11 <- tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-formation/fixtures.py	LIVE-OTHER	tests/gamma/derivation-formation/gate.py:6 <- tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-formation/forwarding.py	LIVE-OTHER	tests/gamma/derivation-formation/fixtures.py:12 <- tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-formation/gate.py	LIVE-OTHER	tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-formation/positive.py	LIVE-OTHER	tests/gamma/derivation-formation/fixtures.py:13 <- tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-formation/resources.py	LIVE-OTHER	tests/gamma/derivation-formation/fixtures.py:14 <- tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-formation/signatures.py	LIVE-OTHER	tests/gamma/derivation-formation/fixtures.py:15 <- tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-formation/theory_wire.py	LIVE-OTHER	tests/gamma/derivation-formation/signatures.py:3 <- tests/gamma/derivation-formation/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-ground/applications.py	LIVE-OTHER	tests/gamma/derivation-ground/fixtures.py:9 <- tests/gamma/derivation-ground/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-ground/fixtures.py	LIVE-OTHER	tests/gamma/derivation-ground/gate.py:6 <- tests/gamma/derivation-ground/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-ground/forwarding.py	LIVE-OTHER	tests/gamma/derivation-ground/fixtures.py:10 <- tests/gamma/derivation-ground/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-ground/gate.py	LIVE-OTHER	tests/gamma/derivation-ground/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-ground/ground_wire.py	LIVE-OTHER	tests/gamma/derivation-ground/roots.py:3 <- tests/gamma/derivation-ground/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-ground/large.py	LIVE-OTHER	tests/gamma/derivation-ground/fixtures.py:11 <- tests/gamma/derivation-ground/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-ground/positive.py	LIVE-OTHER	tests/gamma/derivation-ground/fixtures.py:12 <- tests/gamma/derivation-ground/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-ground/references.py	LIVE-OTHER	tests/gamma/derivation-ground/fixtures.py:13 <- tests/gamma/derivation-ground/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-ground/roots.py	LIVE-OTHER	tests/gamma/derivation-ground/fixtures.py:14 <- tests/gamma/derivation-ground/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-layout/fixtures.py	LIVE-OTHER	tests/gamma/derivation-layout/gate.py:6 <- tests/gamma/derivation-layout/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-layout/gate.py	LIVE-OTHER	tests/gamma/derivation-layout/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-layout/groups.py	LIVE-OTHER	tests/gamma/derivation-layout/fixtures.py:3 <- tests/gamma/derivation-layout/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-layout/mutations.py	LIVE-OTHER	tests/gamma/derivation-layout/fixtures.py:4 <- tests/gamma/derivation-layout/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-layout/physical_cases.py	LIVE-OTHER	tests/gamma/derivation-layout/fixtures.py:5 <- tests/gamma/derivation-layout/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-layout/wire.py	LIVE-OTHER	tests/gamma/derivation-layout/fixtures.py:6 <- tests/gamma/derivation-layout/run.sh:21	gamma-proof-gates
+tests/gamma/derivation-substitution/fixtures.py	LIVE-OTHER	tests/gamma/derivation-substitution/gate.py:6 <- tests/gamma/derivation-substitution/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-substitution/gate.py	LIVE-OTHER	tests/gamma/derivation-substitution/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-substitution/rejections.py	LIVE-OTHER	tests/gamma/derivation-substitution/fixtures.py:8 <- tests/gamma/derivation-substitution/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-substitution/resources.py	LIVE-OTHER	tests/gamma/derivation-substitution/fixtures.py:9 <- tests/gamma/derivation-substitution/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-substitution/sessions.py	LIVE-OTHER	tests/gamma/derivation-substitution/fixtures.py:10 <- tests/gamma/derivation-substitution/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-substitution/substitution_wire.py	LIVE-OTHER	tests/gamma/derivation-substitution/unfolding.py:3 <- tests/gamma/derivation-substitution/run.sh:20	gamma-proof-gates
+tests/gamma/derivation-substitution/unfolding.py	LIVE-OTHER	tests/gamma/derivation-substitution/fixtures.py:11 <- tests/gamma/derivation-substitution/run.sh:20	gamma-proof-gates
+tests/gamma/derivation_gate.py	LIVE-OTHER	tests/gamma/derivation-substitution/gate.py:9 <- tests/gamma/derivation-substitution/run.sh:20	gamma-proof-gates
+tests/gamma/evaluator-development/environment_rows.py	LIVE-OTHER	tests/gamma/evaluator-development/run.sh:38	gamma-proof-gates
+tests/gamma/evaluator-development/function_lookup.py	LIVE-OTHER	tests/gamma/evaluator-development/run.sh:34	gamma-proof-gates
+tests/gamma/evaluator-development/sequential_bindings.py	LIVE-OTHER	tests/gamma/evaluator-development/run.sh:22	gamma-proof-gates
+tests/gamma/heap-boundary/gate.py	LIVE-OTHER	tests/gamma/heap-boundary/run.sh:13	gamma-proof-gates
+tests/product/alpha/test.py	LIVE-OTHER	tests/product/alpha/run.sh:8	product-psi-decoders
+tests/product/completed_outputs/check.py	LIVE-OTHER	tests/fixtures/pass/build/acquired_generator_completed_output_set/README.md:24	product-psi-decoders
+tests/product/entry_review/check.py	LIVE-OTHER	tests/product/entry_review/README.md:3	product-psi-decoders
+tests/product/request/test_request.py	LIVE-OTHER	tests/product/request/test-request.sh:6	product-psi-decoders
+tests/product/run_arguments/check.py	LIVE-OTHER	tests/product/run_arguments/README.md:3	product-psi-decoders
+tests/product/run_keep/check.py	LIVE-OTHER	tests/product/run_keep/README.md:3	product-psi-decoders
+tests/psi/checking/test_checking.py	LIVE-OTHER	tests/psi/checking/test-checking.sh:5	product-psi-decoders
+tests/psi/parser/test_parser.py	LIVE-OTHER	tests/psi/parser/test-parser.sh:5	product-psi-decoders
+tests/psi/resolver/test_resolver.py	LIVE-OTHER	tests/psi/resolver/test-resolver.sh:5	product-psi-decoders
+tests/psi/typing/test_typing.py	LIVE-OTHER	tests/psi/typing/test-typing.sh:5	product-psi-decoders

@@ -1,0 +1,36 @@
+; Census and work preflight are scalar and precede all index allocation.
+(def formation_census ((frame Int) (sorts Int) (constructors Int)
+  (cursor Int) (remaining Int) (arguments Int)) Int
+  (if (eq remaining 0)
+    (formation_provision frame sorts constructors arguments cursor)
+    (formation_census frame sorts constructors (formation_record_next cursor)
+      (- remaining 1) (+ arguments (formation_arity cursor)))))
+
+(def formation_provision ((frame Int) (sorts Int) (constructors Int)
+  (arguments Int) (function_table Int)) Int
+  (let functions Int (layout_word function_table)
+    (let words Int (/ (- (admission_theory_end frame) 28) 4)
+      (let estimate Int
+        (+ (+ (* (+ sorts 1) (+ constructors arguments))
+          (* functions constructors)) (+ (* 4 words) sorts))
+        (if (lt 8388608 estimate)
+          (admission_incomplete 3 28 8388608 estimate)
+          (let constructor_index Int (formation_index 32)
+            (let function_index Int (formation_index function_table)
+              (formation_check frame sorts
+                (pair constructor_index function_index)))))))))
+
+(def formation_check ((frame Int) (sorts Int) (context Int)) Int
+  (let signatures Int (formation_signatures context sorts)
+    (if (lt signatures 0)
+      (formation_rejection signatures)
+      (let inhabited Int (formation_inhabited (first context) sorts)
+        (if (lt inhabited 0)
+          (formation_rejection inhabited)
+          (let functions Int (second context)
+            (let checked Int
+              (formation_functions (formation_index_lookup functions 1)
+                1 (first functions) context)
+              (if (lt checked 0)
+                (formation_rejection checked)
+                (formation_formed frame sorts context)))))))))

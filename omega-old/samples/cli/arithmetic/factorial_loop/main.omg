@@ -1,0 +1,32 @@
+use omega::language::core::ProcessExit;
+// Accumulator factorial via a SELF-TRANSITION LOOP (`-> fact(n - 1, acc * n)`
+// re-enters the entry state -- a jump with re-bound arguments; Omega has NO
+// recursion). The loop-carried arguments stage through scratch so the multiply
+// reads the PRE-decrement n (the parallel-assignment guarantee), proven
+// terminating by `terminates by n;`.
+//
+//   fact(5, 1) = 120
+//
+// Expected exit: 120
+use omega_language_std::Console;
+use omega::language::core::narrow_u64_to_i32_trapping;
+machine fact(n: u64, acc: u64 in Wrapping) -> u64
+terminates by n
+{
+    transition n > 0 {
+        true -> fact(n - 1, acc * (n as u64 in Wrapping))
+        false -> (acc as u64)
+    }
+}
+data Main { }
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let result: u64 = fact(5, 1 as +Wrapping);
+    let code: i32 = narrow_u64_to_i32_trapping(result);
+    ProcessExit::exit_process(code);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}

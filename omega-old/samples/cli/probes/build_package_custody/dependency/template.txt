@@ -1,0 +1,1 @@
+public machine value() -> i32 { seed() }

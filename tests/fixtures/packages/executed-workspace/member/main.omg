@@ -1,3 +1,0 @@
-use sibling::main;
-public machine answer() -> u32 { sibling::main::answer() }
-machine private_answer() -> u32 { 73u32 }

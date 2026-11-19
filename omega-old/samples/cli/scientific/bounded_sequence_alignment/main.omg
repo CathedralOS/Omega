@@ -1,0 +1,46 @@
+use omega::language::core::ProcessExit;
+// With absent stdin, the sample harness checks the missing-input diagnostic.
+// Expected exit: 64.
+// Expected output contains: ERROR missing-sequence
+// Independent bounded local biological alignment. Every score and path is
+// computed from stdin at runtime; no fixture selection or reference imports.
+use omega_language_std::Console;
+use input::sequence;
+use alignment::local;
+use output::report;
+
+data Main { }
+
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let mut first: input::sequence::Sequence;
+    let mut second: input::sequence::Sequence;
+    let mut result: alignment::local::Alignment;
+    let status: i32 = block input::sequence::read_sequence(&mut first);
+    transition status == 0 { true -> block read_second(main, &first, &mut second, &mut result) false -> diagnostic(main, status) }
+    machine read_second(main: &mut Main, first: &input::sequence::Sequence, second: &mut input::sequence::Sequence, result: &mut alignment::local::Alignment) {
+        let status: i32 = block input::sequence::read_sequence(second);
+        transition status == 0 { true -> compute(main, first, second, result) false -> diagnostic(main, status) }
+    }
+    machine compute(main: &mut Main, first: &input::sequence::Sequence, second: &input::sequence::Sequence, result: &mut alignment::local::Alignment) {
+        let valid: bool = alignment::local::align(first, second, result);
+        transition valid { true -> emit(main, result) false -> internal(main) }
+    }
+    machine emit(main: &mut Main, result: &alignment::local::Alignment) {
+        output::report::report(result);
+        ProcessExit::exit_process(0);
+    }
+    machine diagnostic(main: &mut Main, status: i32) {
+        transition status { 1 -> empty(main) 2 -> alphabet(main) 3 -> capacity(main) 4 -> missing(main) _ -> internal(main) }
+    }
+    machine empty(main: &mut Main) { Console::write_line("ERROR empty-sequence"); ProcessExit::exit_process(64); }
+    machine alphabet(main: &mut Main) { Console::write_line("ERROR alphabet-expected-ACGTN"); ProcessExit::exit_process(64); }
+    machine capacity(main: &mut Main) { Console::write_line("ERROR sequence-exceeds-16"); ProcessExit::exit_process(64); }
+    machine missing(main: &mut Main) { Console::write_line("ERROR missing-sequence"); ProcessExit::exit_process(64); }
+    machine internal(main: &mut Main) { Console::write_line("ERROR internal-alignment"); ProcessExit::exit_process(70); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

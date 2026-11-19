@@ -1,3 +1,0 @@
-# The exact-output protocol includes a deliberate space after the final field.
-data/*.stdout -whitespace
-data/*.stdin -text -whitespace

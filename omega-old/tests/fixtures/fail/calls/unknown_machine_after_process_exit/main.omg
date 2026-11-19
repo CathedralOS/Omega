@@ -1,0 +1,17 @@
+use omega::language::core::ProcessExit;
+
+// Rejected. Twin of `run/calls/statement_after_process_exit`: the
+// statement after the call that never returns names a machine nothing
+// declares. An unreachable statement is still source, so the unknown name
+// is an error here as it is anywhere else.
+data Main { status: i32; count: i32; }
+
+machine main(root: &mut Main) reaches ProcessExit {
+    ProcessExit::exit_process(root.status);
+    undeclared_machine(root.count);
+}
+
+machine entry_start() reaches ProcessExit {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}

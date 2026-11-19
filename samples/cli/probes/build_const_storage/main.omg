@@ -1,3 +1,0 @@
-machine main() { let marker: u8 = 0; }
-data Main {}
-machine touch(main: &mut Main) { }

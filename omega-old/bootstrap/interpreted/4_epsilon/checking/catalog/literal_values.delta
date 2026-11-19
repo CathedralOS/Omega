@@ -1,0 +1,6 @@
+
+; ---- body-resolution catalog foundation ----------------------------------
+
+(def epsilon_integer_literal_value ((literal EpsilonIntegerLiteral)) Int
+  (match literal
+    ((EpsilonIntegerSpan start end value) value)))

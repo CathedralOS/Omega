@@ -1,0 +1,11 @@
+# Access scalar access to original RAM
+
+`omega run --both main.omg` exercises initialized ordinary RAM through the explicit `Access::view_mut` factory. Status is a readonly u32 at byte 0; transmit is a write-only u8 at byte 4. Every access uses the generated sealed accessor.
+
+The frozen output files cover capture retirement, helper calls, whole returned views, direct reads and writes, descriptor capture, one evaluated array selector, stored whole views, forwarding, state transitions and Unit-returning writers. Each final 4109 line means the read observed 41 and the original transmit byte was 9 after loan retirement.
+
+Prepare the package with `omega packages update` and the normal capability review. Source acceptance and the static placement plan do not grant backing or runtime authority. Native host and callback entrances still need an independently proved lender; this sample captures its own initialized RAM.
+
+The typed fixture reads and writes i16, bool, f32 and f64 values; its two
+`1111` lines verify all four equalities inside the helper and again in the
+original storage after loan retirement.

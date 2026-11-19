@@ -1,0 +1,9 @@
+// Expected exit: 0.
+// The positive twin of fail/proofs/unused_partial_mathematical_predicate:
+// `value +% 1u32` wraps at `u32::MAX`, so the unused predicate is total under
+// its own formal and the program compiles.
+let is_zero(value: u32): core::Strict<0> = value == 0u32;
+
+let reflexive(value: u32): core::Strict<0> = value +% 1u32 == 1u32;
+
+machine launch() requires is_zero(0u32) { }

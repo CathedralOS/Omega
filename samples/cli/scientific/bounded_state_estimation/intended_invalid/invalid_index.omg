@@ -1,6 +1,0 @@
-// A two-state covariance has exactly four entries. Constant index four must
-// reject at checking, irrespective of whether a provider can run the program.
-machine invalid_index() {
-    let covariance: [f64; 4] = [1.0, 0.0, 0.0, 1.0];
-    let value: f64 = covariance[4];
-}

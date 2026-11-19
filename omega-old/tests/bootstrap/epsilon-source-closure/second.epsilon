@@ -1,0 +1,3 @@
+machine Counter::main(&mut self) {
+    self.value = 1;
+}

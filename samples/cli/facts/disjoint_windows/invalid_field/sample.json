@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "creates local borrow `b` while local borrow `a` is still active"
-  ]
-}

@@ -1,0 +1,8 @@
+data Direction { case Low; case High; }
+machine bits(direction: Direction) -> u32
+ensures result == ((match direction { Direction::Low -> 0u32, Direction::High -> 0x80000000u32 }) | 0x00400000u32)
+{
+    let selected: u32 = match direction { Direction::Low -> 0u32, Direction::High -> 0u32 };
+    selected | 0x00400000u32
+}
+machine main() {}

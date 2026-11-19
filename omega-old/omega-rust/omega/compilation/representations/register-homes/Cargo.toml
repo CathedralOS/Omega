@@ -1,0 +1,30 @@
+[package]
+name = "register-homes"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+access-vocabulary = { path = "../../../../psi/compilation/representations/access-vocabulary" }
+wire = { path = "../../../../psi/foundation/wire" }
+target-vocabulary = { path = "../target-operations/target-vocabulary" }
+register-environment = { path = "../../target-description/register-environment" }
+native-vocabulary = { path = "../native-vocabulary" }
+layout-plans = { path = "../../../../psi/compilation/representations/storage-layout" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+function-identity = { path = "../function-identity" }
+optimization-core = { path = "../optimization-contracts" }
+target = { path = "../../target-description/target" }
+register-model = { path = "../../target-description/register-model" }
+runtime-abi = { path = "../../target-description/runtime-abi" }
+selected-instructions = { path = "../selected-instructions" }
+task-plans = { path = "../task-plans" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+symbols = { path = "../../../../psi/compilation/representations/declaration-identity" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-wire = { path = "../../../../psi/compilation/representations/terminal-psi/wire" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+access-admission = { path = "../../../../psi/compilation/access-admission" }

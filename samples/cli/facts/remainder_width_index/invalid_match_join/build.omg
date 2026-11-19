@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "remainder_width_match_join_invalid");
-}

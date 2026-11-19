@@ -1,0 +1,71 @@
+use omega::language::core::ProcessExit;
+// Expected exit: 2 (empty stdin).
+// Expected output contains: invalid spectrum input
+// Valid spectrum/catalog fixtures exit 0 and emit regions and catalog matches.
+module spectrometer;
+use omega_language_std::Console;
+use spectrometer::model::Spectrometer;
+use spectrometer::model::IntegerRead;
+use spectrometer::input::read_integer;
+use spectrometer::input::load_spectrum;
+use spectrometer::regions::find_regions;
+use spectrometer::matching::match_regions;
+use spectrometer::output::print_report;
+
+// The ordinary hosted entry consumes one complete bounded spectrum/catalog
+// inventory. There are no built-in answers or scenario-dependent branches.
+public machine main(application: &mut Spectrometer) reaches ProcessExit + Console
+invokes Console
+blocks
+crashes Trap
+{
+    transition { _ -> block input(application, 0) }
+    machine input(application: &mut Spectrometer, index: i32 in Wrapping) {
+        transition index >= 0 && index < 27 {
+            true -> block token(application, index)
+            false -> block trailing(application)
+        }
+    }
+    machine token(application: &mut Spectrometer, index: i32 in Wrapping) {
+        transition block read_integer(application) {
+            IntegerRead::Value { value } -> block store(application, index, value)
+            _ -> invalid(application)
+        }
+    }
+    machine store(application: &mut Spectrometer, index: i32 in Wrapping,
+                value: i32 in Wrapping) {
+        application.raw[index] = value;
+        transition { _ -> block input(application, index + 1) }
+    }
+    machine trailing(application: &mut Spectrometer) {
+        transition block read_integer(application) {
+            IntegerRead::End -> validate(application)
+            _ -> invalid(application)
+        }
+    }
+    machine validate(application: &mut Spectrometer) {
+        transition load_spectrum(application) {
+            true -> analyze(application)
+            false -> invalid(application)
+        }
+    }
+    machine analyze(application: &mut Spectrometer) {
+        transition find_regions(&application.spectrum, &mut application.regions) {
+            true -> report(application)
+            false -> capacity(application)
+        }
+    }
+    machine report(application: &mut Spectrometer) {
+        match_regions(&application.spectrum, &mut application.regions);
+        print_report(application);
+        ProcessExit::exit_process(0);
+    }
+    machine invalid(application: &mut Spectrometer) {
+        Console::write_line("invalid spectrum input");
+        ProcessExit::exit_process(2);
+    }
+    machine capacity(application: &mut Spectrometer) {
+        Console::write_line("region capacity exceeded");
+        ProcessExit::exit_process(3);
+    }
+}

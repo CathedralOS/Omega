@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_missing_source");
-    let mut ghost_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "missing_dir" });
-    dependency::with_alias(&mut ghost_dependency, "ghost");
-    let ghost_registration: DependencyRegistration = Build::dependency(builder, ghost_dependency);
-}

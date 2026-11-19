@@ -1,0 +1,82 @@
+data Counter { left: i32; right: i32; }
+data Marker { case Clear; case Set; }
+data Main { console: Console; counter: Counter; bytes: [u8; 8]; marker: Marker; }
+
+machine marker_score(value: Marker) -> i32 {
+    transition value { Marker::Clear -> return 0 Marker::Set -> return 1 }
+}
+
+machine Counter::increment(&mut self) -> i32 {
+    self.left = self.left + 1;
+    return self.left;
+}
+machine Counter::pair(&mut self, first: i32, second: i32) -> i32 {
+    return first * 10 + second;
+}
+machine Counter::copied_bytes(&mut self, bytes: [u8; 8]) -> [u8; 8] {
+    return bytes;
+}
+machine Counter::carried(&mut self, value: i32, bytes: &[u8]) -> i32 {
+    value = value + 1;
+    transition true { true -> finish(2) }
+    state finish(index: i32) { return value + bytes[index]; }
+}
+
+// A later argument mutates the same caller record. Both the machine and its
+// next state receive value snapshots with their own writable homes.
+machine Counter::copies(&mut self, first: Counter, buffer: [u8; 8], tag: Marker, later: i32) -> i32 {
+    assert marker_score(Marker::Set) == 1;
+    transition true { true -> carried(first, buffer, tag) }
+    state carried(record: Counter, bytes: [u8; 8], marker: Marker) {
+        record.right = later;
+        bytes[2] = bytes[2] + record.right;
+        tag = marker;
+        return record.left * 10 + bytes[2];
+    }
+}
+
+machine Main::main(&mut self) {
+    let index: i32 = self.console.read_byte();
+    let stress: i32 = self.console.read_byte();
+    self.counter.left = 3;
+    self.counter.right = 9;
+    let observed: i32 = self.counter.pair(self.counter.left, self.counter.increment());
+    assert observed == 34;
+    assert self.counter.right == 9;
+    assert (0 && self.counter.increment()) == 0;
+    assert (1 || self.counter.increment()) == 1;
+    assert self.counter.left == 4;
+    let snapshot: Counter = self.counter;
+    self.counter.left = 5;
+    assert snapshot.left == 4;
+    self.bytes[2] = 7;
+    let returned: [u8; 8] = self.counter.copied_bytes(self.bytes);
+    returned[2] = 10;
+    assert self.bytes[2] == 7;
+    let local: [u8; 8] = self.bytes;
+    let view: &[u8] = local.as_slice;
+    local[2] = 8;
+    assert self.bytes[2] == 7;
+    assert view[2] == 8;
+    assert self.counter.carried(2, view) == 11;
+    assert self.counter.copies(self.counter, self.bytes, self.marker, self.counter.increment()) == 63;
+    assert self.counter.left == 6;
+    assert self.counter.right == 9;
+    assert self.bytes[2] == 7;
+    self.console.write_byte(65);
+    transition stress {
+        1 -> retain(view, index, 300000)
+        _ -> retain(view, index, 3)
+    }
+
+    state retain(view: &[u8], index: i32, remaining: i32) {
+        transition remaining {
+            0 -> finish(view, index)
+            _ -> retain(view, index, remaining - 1)
+        }
+    }
+    state finish(view: &[u8], index: i32) {
+        assert view[index] == 8;
+        self.console.exit_process(42);
+    }
+}

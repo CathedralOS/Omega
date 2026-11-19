@@ -1,0 +1,28 @@
+data Point requires x >= 1 { x: u32; y: u32; }
+machine hop0(p: Point, choose: bool) -> u32 {
+    transition choose { true -> left0(p, choose) false -> right0(p, choose) }
+}
+machine left0(p: Point, choose: bool) -> u32 { hop1(p, choose) }
+machine right0(p: Point, choose: bool) -> u32 { hop1(p, choose) }
+machine hop1(p: Point, choose: bool) -> u32 {
+    transition choose { true -> left1(p, choose) false -> right1(p, choose) }
+}
+machine left1(p: Point, choose: bool) -> u32 { hop2(p, choose) }
+machine right1(p: Point, choose: bool) -> u32 { let copied: Point; hop2(copied, choose) }
+machine hop2(p: Point, choose: bool) -> u32 {
+    transition choose { true -> left2(p, choose) false -> right2(p, choose) }
+}
+machine left2(p: Point, choose: bool) -> u32 { hop3(p, choose) }
+machine right2(p: Point, choose: bool) -> u32 { hop3(p, choose) }
+machine hop3(p: Point, choose: bool) -> u32 {
+    transition choose { true -> p.x false -> hop0(p, true) }
+}
+machine main() crashes Trap {
+    let p: Point = Point { x: 7u32, y: 9u32 };
+    let value: u32 = hop0(p, true);
+    let other: Point = Point { x: 7u32, y: 9u32 };
+    let backedge: u32 = hop0(other, false);
+    transition value == 7u32 && backedge == 7u32 { true -> done() false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

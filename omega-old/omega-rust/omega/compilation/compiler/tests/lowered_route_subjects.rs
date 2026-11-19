@@ -1,0 +1,2151 @@
+//! The checker on the lowered form judges every declaration a check claims,
+//! not only the machines the entry calls. Each fixture here is a `fail/`
+//! program whose entry is `machine main() {}` and whose defect sits in a
+//! machine nothing calls. When only the entry's calls were lowered, the route
+//! accepted all of them: the defective machine was never in the module, so
+//! it had no obligation and no refusal.
+//!
+//! `wiki/spec/build/validation_subjects.md` sets what a check claims: "every
+//! declaration of the subject packages is valid", and the closure "starts
+//! from every declaration of every subject, including unused ones". So each
+//! program must be rejected or reported as unsupported by the route, and
+//! none may be accepted.
+#[path = "support/artifact_trust.rs"]
+mod artifact_trust;
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
+
+use arena::IdTable;
+use semantic_vocabulary::MachineId;
+use source_compiler::checking::{RouteVerdict, judge};
+use source_compiler::lowering::{Compilation, elaborate, elaborate_closure};
+use source_compiler::source_state::deferred_refusals::DeferredRequest;
+use symbols::SymbolHandle;
+
+// Fixture compilation shares process-wide counters; run one at a time.
+static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// What the route must conclude about a program with a defect in an
+/// uncalled machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Expected {
+    /// The route finds a rule violation or an unproved obligation.
+    Rejected,
+    /// A subject declaration is outside what the route lowers, so the
+    /// compilation is reported as unsupported.
+    FallsBack,
+}
+
+/// Programs the route accepted when it lowered only the entry's calls.
+/// Programs with precise diagnostic checks are pinned below.
+const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
+    (
+        "tests/fixtures/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
+        Expected::Rejected,
+    ),
+    (
+        "tests/fixtures/fail/constants/target_layout_derived_ground_guarantee_reject",
+        Expected::Rejected,
+    ),
+    (
+        "tests/fixtures/fail/contracts/overwritten_requirement_cannot_rule_out_branch",
+        Expected::Rejected,
+    ),
+    (
+        "tests/fixtures/fail/contracts/ruled_out_caller_does_not_bound_callee_body",
+        Expected::Rejected,
+    ),
+    (
+        "tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction",
+        Expected::Rejected,
+    ),
+    (
+        "tests/fixtures/fail/contracts/adapter_input_membership_is_not_result",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/dyn_requirement_float_nonreflexive",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/termination/computed_rank_no_decrease",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/termination/native_layout_family_circular",
+        Expected::FallsBack,
+    ),
+];
+
+/// The other programs a sweep found with the same shape and the same wrong
+/// acceptance: `fail/` fixtures of `arithmetic`, `calls`, `contracts`,
+/// `proofs`, `ranges` and `termination`, and screened fixtures elsewhere,
+/// whose entry is `machine main() {}`.
+const OTHER_SWEPT_DEFECTS: &[(&str, Expected)] = &[
+    (
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_exact_overflow",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_saturation",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_signed_minimum",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_wrapping",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_zero_divisor",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/contracts/match_contract_partial_operand_rejected",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/contracts/match_contract_replaced_subject_rejected",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/contracts/match_contract_unknown_arm_rejected",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/contracts/match_contract_wrong_case_rejected",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/contracts/recursive_result_bound_changed_actual",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/contracts/ruled_out_arm_value_does_not_reach_join",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/contracts/written_element_cannot_rule_out_branch",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/core/content_projection_foreign_package",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/core/scoped_integer_call_wrapping_actual_requires_formation",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/applied_callable_unproven_law",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_inequality",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_negated",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_strict",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/mathematical_negated_custom_order",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/mathematical_negated_ieee_order",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/quotient_runtime_affine_carrier",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/quotient_runtime_false_relation",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/quotient_runtime_false_result",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/quotient_runtime_routed_carrier",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/quotient_theorem_private_crash_rejected",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/referenced_law_slot_ambiguous",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/result_index_authored_operator",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/result_index_lexical_operator",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/result_index_shadowed_result",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/proofs/structural_application_premise_unknown_rejected",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/targets/target_local_precondition_rejected",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/termination/computed_rank_guard_write",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/termination/computed_rank_operand_write",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/termination/computed_rank_static_arity",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/termination/native_layout_family_missing_premise",
+        Expected::FallsBack,
+    ),
+    (
+        "tests/fixtures/fail/termination/native_layout_family_unpromised",
+        Expected::FallsBack,
+    ),
+];
+
+/// The typed trees of a kept `fail/` program that types, with `main` bound
+/// and the program's own package as the subject.
+fn rejected_frontier(fixture: &str) -> Box<compiler::TypedFrontier> {
+    unbuilt_frontier::fixture_frontier(fixture)
+}
+
+/// The route's verdict on everything the check claims, and the typed-tree
+/// machine of each `MachineId` when the program lowered.
+fn route_verdict(
+    frontier: &compiler::TypedFrontier,
+) -> (
+    Option<IdTable<MachineId, SymbolHandle>>,
+    terminal_check_tables::Checked<RouteVerdict>,
+) {
+    let elaborated = elaborate(
+        &frontier.typed,
+        Compilation {
+            declaration_metadata: &[],
+            entries: &frontier.entries,
+            subjects: &[frontier.subject],
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            selected: &frontier.selected,
+            calling: frontier
+                .normalization
+                .calling
+                .borrow(&frontier.typed)
+                .selection(),
+            providers: frontier.provider_selections(),
+            bindings: &frontier.bindings,
+            supplies: &[],
+        },
+    );
+    let machines = elaborated
+        .as_ref()
+        .ok()
+        .map(|elaboration| elaboration.machines.clone());
+    (machines, judge(elaborated))
+}
+
+/// The verdicts that differ from the table, one line each.
+fn wrong_verdicts(programs: &[(&str, Expected)]) -> Vec<String> {
+    let mut wrong = Vec::new();
+    for (fixture, expected) in programs {
+        let frontier = rejected_frontier(fixture);
+        let found = match route_verdict(&frontier).1 {
+            Ok(RouteVerdict::Rejected { .. }) => Some(Expected::Rejected),
+            Ok(RouteVerdict::FallBack(_)) => Some(Expected::FallsBack),
+            Ok(RouteVerdict::Accepted(_) | RouteVerdict::Incomplete(_)) | Err(_) => None,
+        };
+        if found != Some(*expected) {
+            wrong.push(format!("{fixture}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    wrong
+}
+
+fn assert_authored_site(
+    frontier: &compiler::TypedFrontier,
+    site: Option<source_text::SourceSpan>,
+    path: &str,
+    anchor: &str,
+    text: &str,
+) {
+    let site = site.expect("rejection retains an authored position");
+    let file = frontier.typed.symbols.source_file(site).unwrap();
+    assert!(file.path.ends_with(path), "{:?}", file.path);
+    let start = file
+        .source
+        .find(anchor)
+        .expect("the source contains the anchor")
+        + anchor
+            .find(text)
+            .expect("the anchor contains the rejected name");
+    assert_eq!(site.span, source_text::Span::new(start, start + text.len()));
+}
+
+fn rule_violation(frontier: &compiler::TypedFrontier) -> source_compiler::checking::RuleViolation {
+    let (_, verdict) = route_verdict(frontier);
+    let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
+        panic!("the route must reject a rule violation: {verdict:?}");
+    };
+    let [violation]: [_; 1] = violations.try_into().expect("exactly one rule violation");
+    violation
+}
+
+fn unproved_subject_obligation(
+    frontier: &compiler::TypedFrontier,
+) -> source_compiler::checking::UnprovedObligation {
+    let (_, verdict) = route_verdict(frontier);
+    let Ok(RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        unestablished,
+        conflicts,
+        exceeded,
+    }) = &verdict
+    else {
+        panic!("the route must reject an unproved obligation: {verdict:?}");
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty(),
+        "only the proof obligation should fail: {verdict:?}"
+    );
+    let [obligation] = unproved.as_slice() else {
+        panic!("exactly one proof obligation should fail: {unproved:?}");
+    };
+    obligation.clone()
+}
+
+#[test]
+fn arithmetic_contract_defects_keep_their_proof_refusals() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    // The constructor's remainder predicate reaches a proof obligation.
+    // The scalar prover cannot decide this comparison and refuses the value.
+    let fixture = "tests/fixtures/fail/arithmetic/integer_multiple_remainder_stale_capture";
+    let frontier = rejected_frontier(fixture);
+    let obligation = unproved_subject_obligation(&frontier);
+    assert!(matches!(
+        obligation.kind,
+        terminal_check_tables::obligations::ObligationKind::DataDomain { clause: 0, .. }
+    ));
+    assert_eq!(
+        obligation.cause,
+        terminal_check_tables::UnprovedCause::NoDerivation
+    );
+    assert_eq!(
+        obligation.detail,
+        "comparison term outside the scalar subset"
+    );
+    assert_eq!(
+        obligation.statement,
+        "cannot prove requires clause 1 of a data type in machine `invalid` state `entry` return value"
+    );
+    assert_authored_site(
+        &frontier,
+        obligation.site.authored_span(),
+        &format!("{fixture}/main.omg"),
+        "Even { value: cell.count }",
+        "Even { value: cell.count }",
+    );
+
+    // At u8 value 128 the wrapping product is zero while the result is 128.
+    let fixture = "tests/fixtures/fail/proofs/wrapping_zero_product_does_not_cancel_factor";
+    let frontier = rejected_frontier(fixture);
+    let obligation = unproved_subject_obligation(&frontier);
+    assert!(matches!(
+        obligation.kind,
+        terminal_check_tables::obligations::ObligationKind::NormalGuarantee { clause: 0, .. }
+    ));
+    assert_eq!(
+        obligation.cause,
+        terminal_check_tables::UnprovedCause::NoDerivation
+    );
+    assert_eq!(obligation.detail, "the bounds do not decide the comparison");
+    assert_eq!(
+        obligation.statement,
+        "cannot prove ensures contract for exit from claimed_zero at statement 0: result == 0"
+    );
+    assert_authored_site(
+        &frontier,
+        obligation.site.authored_span(),
+        &format!("{fixture}/main.omg"),
+        "    value\n}",
+        "value",
+    );
+}
+
+#[test]
+fn a_defect_in_a_machine_the_entry_never_calls_is_never_accepted() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let wrong = wrong_verdicts(UNCALLED_DEFECTS);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+
+    let fixture = "tests/fixtures/fail/contracts/ruled_out_branch_requires_resolved_names";
+    let frontier = rejected_frontier(fixture);
+    let violation = rule_violation(&frontier);
+    let rule = DeferredRequest::UndeclaredValueName.construct();
+    assert_eq!(
+        violation.statement,
+        format!("{rule} while reading the signature of `pick`")
+    );
+    assert_authored_site(
+        &frontier,
+        violation.site,
+        &format!("{fixture}/main.omg"),
+        "true -> (missing_name - 1u64)",
+        "missing_name",
+    );
+
+    let fixture = "tests/fixtures/fail/proofs/normal_return_expression_statement_is_not_return";
+    let frontier = rejected_frontier(fixture);
+    let (_, verdict) = route_verdict(&frontier);
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+        panic!("the false return must reject its enclosing guarantee: {verdict:?}");
+    };
+    let [guarantee] = unproved.as_slice() else {
+        panic!("exactly the normal-return guarantee should fail: {unproved:?}");
+    };
+    assert!(matches!(
+        guarantee.kind,
+        terminal_check_tables::obligations::ObligationKind::NormalGuarantee { clause: 0, .. }
+    ));
+    assert_eq!(
+        guarantee.cause,
+        terminal_check_tables::UnprovedCause::NoDerivation
+    );
+    assert_eq!(
+        guarantee.statement,
+        "cannot prove ensures contract for exit from invalid at statement 0: result == true"
+    );
+    assert_authored_site(
+        &frontier,
+        guarantee.site.authored_span(),
+        &format!("{fixture}/main.omg"),
+        "transition { _ -> finish() }",
+        "finish",
+    );
+}
+
+#[test]
+#[ignore = "36 more fixture compilations, several minutes; run with --ignored"]
+fn no_other_swept_program_with_an_uncalled_defect_is_accepted() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let wrong = wrong_verdicts(OTHER_SWEPT_DEFECTS);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// The rejection comes from judging the uncalled machine, not from refusing
+/// it wholesale. `pick` requires `count >= 10` and subtracts in both arms of
+/// `transition count < 50`: `count - 10` is safe and `count - 100` is not.
+/// The route proves the first, leaves the second unproved, and reports
+/// nothing against the entry.
+#[test]
+fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let frontier =
+        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
+    let entry = *frontier.entries.first().expect("the Build binds an entry");
+    let (machines, verdict) = route_verdict(&frontier);
+    let machines = machines.expect("the whole program is inside the lowered subset");
+    assert_eq!(
+        machines.len(),
+        2,
+        "the module holds the entry and the machine it never calls"
+    );
+    let first = MachineId::new(1).unwrap();
+    assert_eq!(machines.get(first), Some(&entry), "the entry is machine 1");
+    let Ok(RouteVerdict::Rejected {
+        unproved,
+        unestablished,
+        ..
+    }) = verdict
+    else {
+        panic!("the route must reject this program: {verdict:?}");
+    };
+    assert!(unestablished.is_empty());
+    let [only] = unproved.as_slice() else {
+        panic!("exactly one obligation is unproved: {unproved:?}");
+    };
+    assert_ne!(only.machine, first, "the entry owes nothing");
+    assert!(
+        matches!(
+            only.kind,
+            terminal_check_tables::obligations::ObligationKind::OperationSafety { .. }
+        ),
+        "the unproved obligation is the subtraction that can underflow: {only:?}"
+    );
+}
+
+/// Wholly anonymous arithmetic denotes an exact rational
+/// (`wiki/spec/language/numeric_values.md`: "Anonymous integer-literal
+/// division is rational division, not truncation"), so `7 / 2` is `7/2`,
+/// which no `i32` holds. The route lowered such a division as an integer
+/// division yielding a truncated value, proved that, and accepted each
+/// machine here. Integer landing also "requires ... explicit `as` when
+/// acknowledging fractional intermediates", so `(7 / 2) * 2` must not land
+/// as 7 either, and builtin remainder has no anonymous meaning at all. Each
+/// tree is now evaluated exactly and refused. None of these fixtures binds
+/// an entry, so each machine is judged as the root of its own closure.
+const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
+    (
+        "tests/fixtures/fail/arithmetic/fractional_integer_landing",
+        "value",
+        "expression fractional anonymous value while reading the body of `value`",
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/fractional_integer_operand",
+        "value",
+        "expression fractional anonymous value while reading the body of `value`",
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/anonymous_remainder_rejected",
+        "run",
+        "expression anonymous operation without an exact meaning while reading the body of `run`",
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "returned",
+        "expression anonymous value with a fractional intermediate while reading the body of `returned`",
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "local",
+        "expression anonymous value with a fractional intermediate while reading the local binding of \
+         `local::entry::value` while reading the body of `local`",
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "field",
+        "expression anonymous value with a fractional intermediate while reading the local binding of \
+         `field::entry::held` while reading the body of `field`",
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "argument",
+        "expression anonymous value with a fractional intermediate while reading the body of `argument`",
+    ),
+    (
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
+        "half",
+        "expression anonymous value with a fractional intermediate while reading the body of `half`",
+    ),
+];
+
+#[test]
+fn an_anonymous_tree_that_cannot_land_is_handed_back_not_truncated() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut wrong = Vec::new();
+    let mut frontiers: Vec<(&str, Box<compiler::TypedFrontier>)> = Vec::new();
+    for (fixture, machine, detail) in ANONYMOUS_TREES_WITHOUT_A_LANDING {
+        if !frontiers.iter().any(|(checked, _)| checked == fixture) {
+            frontiers.push((fixture, rejected_frontier(fixture)));
+        }
+        let (_, frontier) = frontiers
+            .iter()
+            .find(|(checked, _)| checked == fixture)
+            .expect("checked above");
+        let typed = &frontier.typed;
+        let root = unbuilt_frontier::program_machine(typed, machine)
+            .unwrap_or_else(|| panic!("{fixture} declares `{machine}`"));
+        match judge(elaborate_closure(typed, root)) {
+            Ok(RouteVerdict::FallBack(refusal)) if refusal.detail == *detail => {}
+            other => wrong.push(format!("{fixture} `{machine}`: {other:?}")),
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// A package identity that is not the fixture's, so that the fixture's own
+/// declarations read as a dependency's.
+fn another_package(frontier: &compiler::TypedFrontier) -> semantic_vocabulary::PackageKeyIdentity {
+    let subject = frontier.subject.expect("a fixture is checked as a package");
+    let mut digest = subject.digest();
+    digest[0] ^= 1;
+    semantic_vocabulary::PackageKeyIdentity::from_digest(digest).expect("a nonzero digest")
+}
+
+/// With no subject declaration beyond the entry, the scope is the entry's
+/// calls again, and the same program is accepted. This is the acceptance the
+/// first test forbids; it shows the subject, not some other change, is what
+/// brings the uncalled machine in.
+#[test]
+fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let frontier =
+        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
+    let another = another_package(&frontier);
+    // Checked as a dependency of some other package, the fixture's machines
+    // are judged only when an entry reaches them.
+    let as_dependency = judge(elaborate(
+        &frontier.typed,
+        Compilation {
+            declaration_metadata: &[],
+            entries: &frontier.entries,
+            subjects: &[Some(another)],
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            selected: &frontier.selected,
+            calling: frontier
+                .normalization
+                .calling
+                .borrow(&frontier.typed)
+                .selection(),
+            providers: frontier.provider_selections(),
+            bindings: &frontier.bindings,
+            supplies: &[],
+        },
+    ));
+    let Ok(RouteVerdict::Accepted(accepted)) = as_dependency else {
+        panic!("only the empty entry is in scope: {as_dependency:?}");
+    };
+    assert_eq!(accepted.elaboration.machines.len(), 1);
+}
+
+/// What the Build's selections name is in scope whichever package declares
+/// it. The same program is checked as a dependency again, so only the entry
+/// would be judged, and each selection is then added by hand. Selecting the
+/// defective machine brings it in and the program is rejected. Selecting a
+/// boundary requirement and its trait, as a native binding does, declares
+/// that boundary. Selecting a namespace, which supplies no executable
+/// declaration to judge, hands the compilation back instead of leaving the
+/// selection unjudged.
+#[test]
+fn a_declaration_the_build_selects_is_judged_or_handed_back() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let frontier =
+        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
+    let entry = *frontier.entries.first().expect("the Build binds an entry");
+    let another = another_package(&frontier);
+    let typed = &frontier.typed;
+    let verdict_selecting = |selected: SymbolHandle| {
+        judge(elaborate(
+            typed,
+            Compilation {
+                declaration_metadata: &[],
+                entries: &frontier.entries,
+                subjects: &[Some(another)],
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                selected: &[selected],
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+        ))
+    };
+
+    // The only other machine this package's Product sources declare.
+    let uncalled = typed
+        .machines()
+        .iter()
+        .map(|machine| machine.symbol)
+        .find(|symbol| {
+            *symbol != entry
+                && typed
+                    .symbols
+                    .symbol_provenance_source_span(*symbol)
+                    .and_then(|span| typed.symbols.source_file(span))
+                    .is_some_and(|file| {
+                        file.origin == source_admission::SourceOrigin::User
+                            && file.dependency_scope
+                                == declaration_contracts::source_identity::DependencyScope::Product
+                    })
+        })
+        .expect("the fixture declares `pick` beside its entry");
+    let selected_machine = verdict_selecting(uncalled);
+    assert!(
+        matches!(selected_machine, Ok(RouteVerdict::Rejected { .. })),
+        "a selected machine is judged: {selected_machine:?}"
+    );
+
+    // What a native binding claims: a requirement of a boundary trait, and
+    // that trait. Neither has a body; each is read as the boundary it is,
+    // and the requirement is declared in the accepted module though nothing
+    // calls it.
+    // Build and Product load separate declarations of the bundled library.
+    // This Product check must select its own prepared boundary declaration.
+    let exit = typed
+        .traits()
+        .iter()
+        .find(|definition| {
+            definition.is_boundary
+                && definition.name.as_str() == "ProcessExit"
+                && typed.symbols.symbol_is_in_dependency_scope(
+                    definition.symbol,
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                )
+        })
+        .expect("the Product library declares `ProcessExit`");
+    let exit_process = typed
+        .trait_machine_signatures(exit)
+        .first()
+        .expect("`ProcessExit` declares a requirement")
+        .symbol;
+    let bound = judge(elaborate(
+        typed,
+        Compilation {
+            calling: None,
+            providers: None,
+
+            declaration_metadata: &[],
+            entries: &frontier.entries,
+            subjects: &[Some(another)],
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            selected: &[exit.symbol, exit_process],
+            bindings: &frontier.bindings,
+            supplies: &[],
+        },
+    ));
+    let Ok(RouteVerdict::Accepted(accepted)) = bound else {
+        panic!("a selected boundary requirement is read as a boundary: {bound:?}");
+    };
+    assert!(
+        accepted
+            .elaboration
+            .boundaries
+            .iter()
+            .any(|(_, symbol)| *symbol == exit_process)
+    );
+
+    let namespace = typed.symbols.get(exit.symbol).parent;
+    assert!(matches!(
+        typed.symbols.get(namespace).kind,
+        symbols::SymbolKind::Module | symbols::SymbolKind::Root
+    ));
+    let Ok(RouteVerdict::FallBack(refusal)) = verdict_selecting(namespace) else {
+        panic!("a selection the route cannot judge hands the compilation back");
+    };
+    assert_eq!(
+        refusal.detail,
+        "declaration Build selection that is not a machine, a data type or a boundary"
+    );
+}
+
+/// What the route must conclude about a one-declaration program.
+#[derive(Debug, PartialEq, Eq)]
+enum Verdict {
+    /// Accepted, with this many machines in the module.
+    Accepted(usize),
+    Rejected,
+    /// Handed back, with the refusal's detail.
+    FallsBack(String),
+}
+
+/// One program per kind of declaration a subject package can hold. Each is
+/// the declaration followed by `machine main() {}`, so nothing reaches it
+/// and only its being a subject declaration brings it into the check.
+const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
+    // A valid machine: `count + 1` cannot overflow under its `requires`.
+    (
+        "valid_machine",
+        "machine spare(count: u64) -> u64 requires count <= 10 { (count + 1u64) }",
+    ),
+    // The same body with no `requires`: the addition can overflow.
+    (
+        "defective_machine",
+        "machine spare(count: u64) -> u64 { (count + 1u64) }",
+    ),
+    ("plain_data", "data Pair [copy] { left: u64; right: u64; }"),
+    // An invariant with nothing constructing the type owes nothing yet.
+    (
+        "data_invariant",
+        "data Small [copy] requires self.value <= 9 { value: u64; }",
+    ),
+    // Plain affine data: owned, moved at most once, discarded with no code
+    // (ownership.md, "Affine ownership permits eligible automatic
+    // cleanup"). Nothing holds a value of it here, so nothing is owed; its
+    // moves are judged where a value exists (`lowered_route_ownership.rs`).
+    ("data_affine", "data Owned { value: u64; }"),
+    (
+        "generic_machine",
+        "machine keep<T>(value: u64) -> u64 { value }",
+    ),
+    // A machine parameter is how a callback is passed.
+    (
+        "callback",
+        "machine apply<machine Observe>(kept: bool) -> bool\n\
+         requires machine Observe(kept: bool) -> bool;\n{\n    Observe(kept)\n}",
+    ),
+    ("constant", "const GOOD: u64 = 2;"),
+    // Aggregate constants: each leaf of the materialized initializer is
+    // the evaluated value.
+    (
+        "record_constant",
+        "data Pair [copy] { left: u64; right: u64; }\n\
+         const START: Pair = Pair { left: 3, right: 4 };",
+    ),
+    ("array_constant", "const ROW: [u64; 3] = [5, 6, 7];"),
+    // A literal still owes its constructor's default-domain proof through
+    // the ordinary initializer machine, even when no caller reads it.
+    (
+        "constrained_record_constant",
+        "data Pair [copy] requires left < right { left: u64; right: u64; }\n\
+         const START: Pair = Pair { left: 3, right: 4 };",
+    ),
+    ("domain", "domain u64::AtMostSeven requires self <= 7;"),
+    (
+        "trait",
+        "trait Walk {\n    machine step(remaining: u64) -> u64;\n}",
+    ),
+    (
+        "measure",
+        "data Countdown [copy] { remaining: u64; }\n\
+         measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }",
+    ),
+    (
+        "proposition",
+        "data Point [copy] { x: u64; y: u64; }\n\
+         proposition same_x(left: Point, right: Point) = left.x == right.x;",
+    ),
+    // A proof: an empty body whose contract states a lemma.
+    (
+        "lemma",
+        "data Point [copy] { x: u64; y: u64; }\n\
+         proposition same_x(left: Point, right: Point) = left.x == right.x;\n\
+         machine same_x_symmetric(a: Point, b: Point)\n\
+         requires same_x(a, b)\nensures same_x(b, a)\n{\n}",
+    ),
+    // Wholly anonymous arithmetic is exact: `(2147483647 + 1) - 1` lands in
+    // `i32` although its intermediate does not, where `i32` addition would
+    // overflow.
+    (
+        "exact_anonymous_intermediate",
+        "machine spare() -> i32 ensures result == 2147483647 { (2147483647 + 1) - 1 }",
+    ),
+    // The twin of `fail/arithmetic/fractional_integer_operand`: `4096 / 2`
+    // is an integer, so the operand lands and the product is judged.
+    (
+        "integral_anonymous_operand",
+        "machine spare(input: i32) -> i32 requires input >= 0, input <= 1 { input * (4096 / 2) }",
+    ),
+];
+
+/// The route's verdict on `declaration` and an empty `main`, staged as a
+/// standalone source with `main` bound.
+fn verdict_on_unused(name: &str, declaration: &str) -> Verdict {
+    let frontier = staged_unused(name, declaration);
+    match route_verdict(&frontier).1 {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            Verdict::Accepted(accepted.elaboration.machines.len())
+        }
+        Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
+        Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
+        other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
+    }
+}
+
+/// `declaration` and an empty entry, staged as `verdict_on_unused` stages
+/// them and checked through Psi 04.
+fn staged_unused(name: &str, declaration: &str) -> Box<compiler::TypedFrontier> {
+    unbuilt_frontier::staged_frontier(name, &format!("{declaration}\nmachine main() {{}}\n"))
+}
+
+/// A generic machine nothing applies is still in the check, as its own
+/// check form: judged once as written, with the closure judged beside it
+/// (`judge_compilation`). generics.md: "An unspecialized body checks every
+/// admitted alternative". A closure judged without it decides nothing, so
+/// `judge` alone hands the compilation back (the table above), and
+/// `judge_compilation` judges it: a valid body is accepted, and one that
+/// can overflow for a type it admits is rejected though no caller uses that
+/// type or any other.
+#[test]
+fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let parts = judged_parts;
+    // The closure (the empty entry) and the generic form, both accepted.
+    assert_eq!(
+        parts(
+            "generic_machine",
+            "machine keep<T>(value: u64) -> u64 { value }"
+        ),
+        [Verdict::Accepted(1), Verdict::Accepted(1)]
+    );
+    // One check per listed alternative; the body can overflow in each.
+    assert_eq!(
+        parts(
+            "generic_family_overflow",
+            "machine bump<T>(value: u64) -> u64 requires T == u8 || T == u16 { value + 1u64 }"
+        ),
+        [Verdict::Accepted(1), Verdict::Rejected, Verdict::Rejected]
+    );
+}
+
+/// Every part `judge_compilation` judges of `declaration` and an empty
+/// entry: the closure first, then each generic check form.
+fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
+    judged_frontier(name, &staged_unused(name, declaration))
+}
+
+/// Every part `judge_compilation` judges of a staged program.
+fn judged_frontier(name: &str, frontier: &compiler::TypedFrontier) -> Vec<Verdict> {
+    source_compiler::checking::judge_compilation(
+        source_compiler::lowering::prepare_compilation(
+            &frontier.typed,
+            Compilation {
+                declaration_metadata: &[],
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                selected: &frontier.selected,
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
+                bindings: &frontier.bindings,
+                supplies: &frontier.supplies,
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
+    )
+    .into_iter()
+    .map(|verdict| match verdict {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            Verdict::Accepted(accepted.elaboration.machines.len())
+        }
+        Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
+        Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
+        other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
+    })
+    .collect()
+}
+
+/// A trait header that takes a named implementation and a boundary trait
+/// that inherits an application of it are read, as std's
+/// `Calling<Policy satisfies CallingPolicy>` and
+/// `boundary trait MacosImageData: Calling<DarwinArm64ByteViewCalling>` are
+/// (calling_plans.md: "Ordinary policy parents contribute contract identity
+/// without service reach"). The parameterized trait has no requirement to
+/// prove; the boundary trait's own requirements are read as any boundary's;
+/// the parent edge owes an argument that names an implementation of the
+/// parameter's bound. Naming an implementation of another trait there is
+/// never accepted.
+#[test]
+fn a_parent_naming_a_policy_implementation_is_judged() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let declaration = |argument: &str| {
+        format!(
+            "trait Plan {{ machine plan(value: u64) -> u64; }}
+         trait Other {{ machine other(value: u64) -> u64; }}
+         Fast satisfies Plan {{ machine plan(value: u64) -> u64 {{ value }} }}
+         Slow satisfies Other {{ machine other(value: u64) -> u64 {{ value }} }}
+         trait Convention<Selected satisfies Plan> {{ }}
+         public boundary trait Leaf: Convention<{argument}> {{
+             machine read(value: u64) -> u64 reaches none crashes none;
+         }}
+machine main() {{}}
+"
+        )
+    };
+    let accepted = judged_frontier(
+        "policy_parent_named",
+        &unbuilt_frontier::staged_frontier("policy_parent_named", &declaration("Fast")),
+    );
+    assert!(!accepted.is_empty());
+    assert!(
+        accepted
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted(_))),
+        "{accepted:?}"
+    );
+    // The earlier stages leave this to the checker, which refuses it.
+    let frontier =
+        unbuilt_frontier::staged_frontier("policy_parent_other_trait", &declaration("Slow"));
+    let refused = judged_frontier("policy_parent_other_trait", &frontier);
+    assert!(
+        refused.iter().any(|verdict| matches!(verdict,
+            Verdict::FallsBack(detail)
+            if detail.contains("implementation argument supplies another nominal trait"))),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn borrowed_generic_schemas_close_only_at_their_selected_callables() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = "trait Read<T> { machine read(value: &T) -> u32 ensures result == 1u32; } ReadInt satisfies Read<i32> { machine read(value: &i32) -> u32 { 1u32 } } machine invoke() -> u32 { let value: i32 = 7; ReadInt::read(&value) }";
+    let accepted = judged_parts("borrowed_schema_closed_call", source);
+    assert!(!accepted.is_empty(), "the source must produce check forms");
+    assert!(
+        matches!(accepted.first(), Some(Verdict::Accepted(count)) if *count >= 3),
+        "the main, invoke, and selected read bodies must be judged: {accepted:?}"
+    );
+    assert!(
+        accepted
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted(_))),
+        "{accepted:?}"
+    );
+
+    let invalid = source.replace("{ 1u32 }", "{ 0u32 }");
+    let refused = judged_parts("borrowed_schema_unproved_result", &invalid);
+    assert!(refused.contains(&Verdict::Rejected), "{refused:?}");
+
+    let mutation = source.replace("{ 1u32 }", "{ value = 8; 1u32 }");
+    let refused = judged_parts("borrowed_schema_shared_mutation", &mutation);
+    assert!(refused.contains(&Verdict::Rejected), "{refused:?}");
+
+    let unproved = "trait Read<T> { machine read(value: &T) -> u32 requires value > 0; }";
+    let refused = judged_parts("borrowed_schema_unproved_referent", unproved);
+    assert!(
+        refused
+            .iter()
+            .any(|verdict| !matches!(verdict, Verdict::Accepted(_))),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let declaration = |body: &str| {
+        format!(
+            "public boundary trait Probe {{
+            machine probe(value: u8) -> u8 ensures result == value reaches crashes none;
+         }}
+         machine supplied(value: u8) -> u8 satisfies Probe::probe {{ {body} }}"
+        )
+    };
+    let valid = declaration("value");
+    let verdicts = judged_parts("boundary_subject_valid", &valid);
+    assert!(!verdicts.is_empty());
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted(_))),
+        "{verdicts:?}"
+    );
+    let invalid = judged_parts("boundary_subject_invalid", &declaration("0u8"));
+    assert!(invalid.contains(&Verdict::Rejected), "{invalid:?}");
+
+    let direct = unbuilt_frontier::staged_frontier(
+        "boundary_subject_direct_call",
+        &format!("{valid}\nmachine main() -> u8 {{ supplied(7u8) }}"),
+    );
+    let (_, verdict) = route_verdict(&direct);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::FallBack(ref refusal))
+        if refusal.detail.contains("a boundary conformer is callable only through its provider slot")),
+        "{verdict:?}"
+    );
+
+    // The map owns the boundary contract. Its private helper stays an
+    // ordinary callable; the wrapper must still forward the right argument.
+    let through_helper = |argument: &str| {
+        format!(
+            "public boundary trait Probe {{
+                machine probe(value: u8) -> u8 ensures result == value reaches crashes none;
+             }}
+             public SuppliedProbe satisfies Probe {{
+                machine probe(value: u8) -> u8 {{ helper({argument}) }}
+             }}
+             machine helper(value: u8) -> u8 ensures result == value {{ value }}"
+        )
+    };
+    let helper_valid = judged_parts("boundary_subject_helper_valid", &through_helper("value"));
+    assert!(!helper_valid.is_empty());
+    assert!(
+        helper_valid
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted(_))),
+        "{helper_valid:?}"
+    );
+    let helper_invalid = judged_parts(
+        "boundary_subject_helper_wrong_argument",
+        &through_helper("0u8"),
+    );
+    assert!(
+        helper_invalid.contains(&Verdict::Rejected),
+        "{helper_invalid:?}"
+    );
+}
+
+/// The checker includes a generic helper's body when checking its caller.
+/// The call supports the caller's result bound. A tighter bound still fails.
+/// Recursive applications follow the ordinary rules for calls and termination.
+#[test]
+fn a_generic_body_that_applies_another_generic_machine_is_judged() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // Borrow the unused item so the test can check the call's numeric contract.
+    let forward = "machine forward<T>(item: &T, limit: u32) -> u32 \
+                   requires limit <= 10 ensures result <= 10 { limit }";
+    let relay = |bound: u32| {
+        format!(
+            "{forward}\nmachine relay<T>(item: &T, limit: u32) -> u32 \
+             requires limit <= 10 ensures result <= {bound} {{ forward<T>(item, limit) + 1 }}"
+        )
+    };
+    // The closure (the empty entry), `forward`'s form, and `relay`'s form
+    // with `forward<T>` beside it.
+    assert_eq!(
+        judged_parts("generic_application", &relay(11)),
+        [
+            Verdict::Accepted(1),
+            Verdict::Accepted(1),
+            Verdict::Accepted(2)
+        ]
+    );
+    assert_eq!(
+        judged_parts("generic_application_exceeds_callee", &relay(10)),
+        [
+            Verdict::Accepted(1),
+            Verdict::Accepted(1),
+            Verdict::Rejected
+        ]
+    );
+    // These calls test a cycle in static applications. The type parameter
+    // is passed at compile time and needs no runtime storage.
+    assert_eq!(
+        judged_parts(
+            "generic_application_of_itself",
+            "machine again<T>(limit: u32) -> u32 \
+             ensures result <= 10 { again<T>(limit) }"
+        ),
+        [Verdict::Accepted(1), Verdict::Accepted(1)]
+    );
+    assert_eq!(
+        judged_parts(
+            "generic_application_of_itself_with_no_guarantee",
+            "machine forever<T>(limit: u32) -> u32              terminates { forever<T>(limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack("contract termination promise over a call cycle".to_owned())
+        ]
+    );
+    // Both check forms include the bodies of the two machines in the cycle.
+    assert_eq!(
+        judged_parts(
+            "generic_application_cycle_of_two",
+            "machine ping<T>(limit: u32) -> u32 { pong<T>(limit) }
+             machine pong<T>(limit: u32) -> u32 { ping<T>(limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::Accepted(2),
+            Verdict::Accepted(2)
+        ]
+    );
+}
+
+#[test]
+fn literal_constant_predicates_use_checked_initializers() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut frontier = unbuilt_frontier::fixture_frontier(
+        "tests/fixtures/pass/constants/literal_predicate_handoff",
+    );
+    let (_, verdict) = route_verdict(&frontier);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "{verdict:?}"
+    );
+
+    // The two programs differ only in the unused literal's value. The
+    // refusal must come from that constructor's predicate, not its spelling
+    // or from a failure to encode the record.
+    let main = unbuilt_frontier::repository(
+        "tests/fixtures/fail/constants/literal_predicate_handoff/main.omg",
+    );
+    let Err(messages) = unbuilt_frontier::frontier(&main, None, &[]) else {
+        panic!("the false predicate on an unused constant must be refused");
+    };
+    assert!(
+        messages.iter().any(|message| {
+            message.contains("constant `UNUSED` evaluation")
+                && message.contains("cannot prove requires clause")
+        }),
+        "{messages:?}"
+    );
+
+    // A canonical payload is not a proof receipt. Losing the exact
+    // initializer must restore the refusal, even though the payload remains.
+    let original = frontier.typed.clone();
+    let mut typed = frontier.typed.clone().into_inner();
+    let constant = typed
+        .tables
+        .const_declarations
+        .iter()
+        .find_map(|(handle, declaration)| {
+            (typed.symbols.name(declaration.symbol) == "UNUSED").then_some(handle)
+        })
+        .expect("the unused constant declaration");
+    typed
+        .tables
+        .const_declarations
+        .get_mut(constant)
+        .evaluation_entry = Default::default();
+    frontier.typed = typed.into();
+    let (_, verdict) = route_verdict(&frontier);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::FallBack(ref refusal))
+        if refusal.detail.contains("constant of data with requires needs its default-domain proof")),
+        "{verdict:?}"
+    );
+
+    // The other initializer returns the same value in the same carrier.
+    // It still cannot replace this declaration's computation custody.
+    let mut typed = original.into_inner();
+    let other = typed
+        .const_declarations()
+        .iter()
+        .find(|declaration| typed.symbols.name(declaration.symbol) == "COMPUTED")
+        .expect("the computed declaration")
+        .clone();
+    let declaration = typed.tables.const_declarations.get_mut(constant);
+    declaration.evaluation_entry = other.evaluation_entry;
+    declaration.evaluation_expression = other.evaluation_expression;
+    frontier.typed = typed.into();
+    let (_, verdict) = route_verdict(&frontier);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::FallBack(ref refusal))
+        if refusal.detail.contains("constant initializer belongs to another declaration")),
+        "{verdict:?}"
+    );
+}
+
+/// Every kind of unused subject declaration is in the check. What the route
+/// can judge it judges: a valid machine, plain data and scalar, record and
+/// array constants are accepted with the machine in the module, and a
+/// defective machine is rejected. Every kind it
+/// cannot judge hands the compilation back with a refusal naming that kind,
+/// so none is skipped.
+#[test]
+fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(1),
+        Verdict::Accepted(1),
+        Verdict::Accepted(1),
+        falls_back("machine generic machines not judged as their own check forms"),
+        falls_back("machine generic machines not judged as their own check forms"),
+        Verdict::Accepted(1),
+        Verdict::Accepted(1),
+        Verdict::Accepted(1),
+        Verdict::Accepted(2),
+        // A domain's predicates are contracts of the places declared in it,
+        // so a declaration no type names owes nothing once its clauses are
+        // read.
+        Verdict::Accepted(1),
+        // A requirement has no body: nothing is owed until something
+        // implements or calls it.
+        Verdict::Accepted(1),
+        falls_back("declaration measure"),
+        falls_back("declaration proposition"),
+        falls_back("contract named proposition while reading the signature of `same_x_symmetric`"),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+    ];
+    assert_eq!(expected.len(), UNUSED_DECLARATIONS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in UNUSED_DECLARATIONS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+
+    // The checker must follow library calls even from an unused machine.
+    let frontier = staged_unused(
+        "dependency_call",
+        "use omega::language::core::CompactBinary;\n\
+         machine spare(word: u64) -> i64 { CompactBinary::signed_from_word(word) }",
+    );
+    let (_, verdict) = route_verdict(&frontier);
+    let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+        panic!("the checker must accept the library call: {verdict:?}");
+    };
+    assert!(accepted.elaboration.names.iter().any(|(_, names)| {
+        names.machine == "signed_from_word"
+            && names
+                .declared
+                .and_then(|span| frontier.typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.path
+                        .ends_with("source/library/core/compact_binary.omg")
+                })
+    }));
+}
+
+/// A requirement that contradicts a crash route's guard rules the route out,
+/// so a machine that writes `crashes none` keeps it. In the pending program
+/// `requires denominator != 0u64` makes both `denominator == 0u64` routes
+/// unreachable, the machine's own arm and a callee's published route, and the
+/// route accepts the whole program. The twin requires `denominator != 1u64`,
+/// which admits zero, and is rejected.
+#[test]
+fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let ruled_out = rejected_frontier(
+        "tests/fixtures/pending/contracts/requires_disequality_rules_out_crash_route_exit",
+    );
+    let verdict = route_verdict(&ruled_out).1;
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "every route is ruled out: {verdict:?}"
+    );
+    let left_open = rejected_frontier(
+        "tests/fixtures/fail/contracts/requires_disequality_leaves_crash_route_open",
+    );
+    let verdict = route_verdict(&left_open).1;
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Rejected { .. })),
+        "`denominator != 1u64` admits zero: {verdict:?}"
+    );
+}
+
+/// A call into a dependency's private machine. The typed trees hold the call
+/// resolved. The route took every resolved call as permitted and accepted
+/// the program whole, with two obligations discharged. It now refuses the
+/// compilation at the call.
+#[test]
+fn a_call_into_another_packages_private_machine_is_never_accepted() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // The edge the fixture's Build registers, under the alias it gives.
+    let frontier = unbuilt_frontier::bound_fixture_frontier(
+        "tests/fixtures/fail/build/executed_dependency_private_call",
+        None,
+        &[(
+            "selected",
+            "tests/fixtures/pass/build/executed_dependency_source_library",
+        )],
+    );
+    let verdict = route_verdict(&frontier).1;
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::FallBack(_))),
+        "{verdict:?}"
+    );
+}
+
+/// A statement that computes a value and drops it is a defect: "A non-Unit
+/// call result cannot be silently discarded" (`wiki/spec/language/effects.md`).
+/// `invalid` evaluates `identity(false) || identity(false);` and goes on. The
+/// route read the statement for its effects and accepted the machine; it now
+/// hands the machine back.
+#[test]
+fn a_statement_that_drops_its_value_is_never_accepted() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let wrong = wrong_verdicts(&[(
+        "tests/fixtures/fail/calls/non_unit_compound_expression_requires_use",
+        Expected::FallsBack,
+    )]);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// One program per thing the route decides about a formal the body writes.
+/// Each is the declaration followed by `machine main() {}`.
+const WRITTEN_FORMALS: &[(&str, &str)] = &[
+    // The add after the assignment reads the assigned value, at most 11.
+    (
+        "mut_scalar_assigned",
+        "machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
+         value = value + 1;\n    value + 4294967284\n}",
+    ),
+    // `value <= 10` was true of the argument; `value` now holds `other`.
+    (
+        "mut_scalar_stale_fact",
+        "machine spare(mut value: u32, other: u32) -> u32 requires value <= 10 {\n    \
+         value = other;\n    value + 4294967285\n}",
+    ),
+    // The same add with no assignment before it.
+    (
+        "mut_scalar_entry_fact",
+        "machine spare(mut value: u32, other: u32) -> u32 requires value <= 10 {\n    \
+         value + 4294967285\n}",
+    ),
+    // The read after the store is of 5.
+    (
+        "mut_record_stored",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair.a = 5;\n    pair.a + 4294967285\n}",
+    ),
+    // `pair.a <= 10` was true of what the field held before the store.
+    (
+        "mut_record_stale_fact",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair.a = 4294967295;\n    pair.a + 4294967285\n}",
+    ),
+    // A whole assignment replaces every field the entry fact spoke of.
+    (
+        "mut_record_replaced",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair = Pair { a: 4294967295, b: 0 };\n    pair.a + 4294967285\n}",
+    ),
+    // The callee stores into its own copy, so the caller's field holds 1.
+    (
+        "mut_record_callers_argument",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine set(mut pair: Pair) { pair.a = 4294967295; }\n\
+         machine spare() -> u32 {\n    \
+         let q: Pair = Pair { a: 1, b: 2 };\n    set(q);\n    q.a + 4294967294\n}",
+    ),
+    // Lent exclusively, the formal holds whatever the callee stored.
+    (
+        "mut_scalar_lent",
+        "machine clear(value: &mut u32) { value = 0; }\n\
+         machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
+         clear(&mut value);\n    value + 4294967285\n}",
+    ),
+    (
+        "mut_named_in_ensures",
+        "machine spare(mut value: u32) -> u32 ensures result == value { value }",
+    ),
+    (
+        "mut_affine_data",
+        "data Token { value: u32; }\n\
+         machine spare(mut token: Token) -> u32 { token.value = 1; token.value }",
+    ),
+];
+
+/// A `mut` formal that holds its own value is the callee's own storage and
+/// is written as a `mut` local is; the route used to refuse every machine
+/// that declared one (`parameter mutable parameter`). A fact from `requires`
+/// is about the argument: it does not survive an assignment to a scalar
+/// formal, a store into that field of a record formal, a whole assignment or
+/// an exclusive loan, and each such program is rejected for the operation
+/// that needed it. Writing to an immutable by-value formal rejects at its
+/// authored target.
+#[test]
+fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Rejected,
+        Verdict::Accepted(3),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        // Plain data without `[copy]` is served since affine moves landed:
+        // the callee owns the value, stores into it and drops it.
+        Verdict::Accepted(2),
+    ];
+    assert_eq!(expected.len(), WRITTEN_FORMALS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in WRITTEN_FORMALS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+
+    for (name, declaration, parameter, assignment, target) in [
+        (
+            "immutable_scalar_assigned",
+            "machine spare(value: u32) -> u32 { value = 1; value }",
+            "value",
+            "value = 1",
+            "value",
+        ),
+        (
+            "immutable_record_stored",
+            "data Pair [copy] { a: u32; b: u32; }\n\
+             machine spare(pair: Pair) -> u32 { pair.a = 5; pair.a }",
+            "pair",
+            "a = 5",
+            "a",
+        ),
+    ] {
+        let frontier = staged_unused(name, declaration);
+        let violation = rule_violation(&frontier);
+        assert_eq!(
+            violation.statement,
+            "writing to an immutable owned binding requires `mut` while reading the body of `spare`"
+        );
+        assert_authored_site(&frontier, violation.site, "main.omg", assignment, target);
+        let mutable =
+            declaration.replacen(&format!("({parameter}:"), &format!("(mut {parameter}:"), 1);
+        assert_eq!(
+            verdict_on_unused(&format!("{name}_mut"), &mutable),
+            Verdict::Accepted(2)
+        );
+    }
+}
+
+/// Contracts retain invocation inputs while executable bindings are assigned
+/// or lent. The same identities survive publication, and the actual working
+/// values execute; a guarantee equating the result with the final binding
+/// instead of the input is rejected.
+#[test]
+fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
+    use terminal_interpreter::{
+        TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
+        TerminalExecutionStatus, TerminalStructuralInputs,
+    };
+
+    struct NoEffects;
+    impl TerminalEffectHandler for NoEffects {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Err(TerminalEffectRejection::new(
+                "the counter performs no effect",
+            ))
+        }
+    }
+
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let frontier =
+        unbuilt_frontier::fixture_frontier("tests/fixtures/pass/contracts/mutable_contract_input");
+    let counter = unbuilt_frontier::program_machine(&frontier.typed, "counter").unwrap();
+    let closure = match route_verdict(&frontier).1 {
+        Ok(RouteVerdict::Accepted(closure)) => closure,
+        other => panic!("the original-input contracts must check: {other:?}"),
+    };
+    let counter_id = closure
+        .elaboration
+        .machines
+        .iter()
+        .find_map(|(id, symbol)| (*symbol == counter).then_some(id))
+        .unwrap();
+    let counter = closure
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .find(|machine| machine.id == counter_id)
+        .unwrap();
+    assert_eq!(counter.parameters.len(), 2);
+    assert!(
+        counter.structural_places.is_empty(),
+        "logical scalar inputs require no snapshot storage"
+    );
+    let publication = closure.publish().expect("counter publication");
+    assert_eq!(
+        publication.artifact.semantic_module(),
+        &closure.elaboration.module
+    );
+    let input = native_program_planning::lower_artifact(
+        &artifact_trust::authorize(&publication.artifact),
+        Some(publication.seals.clone()),
+    )
+    .expect("Omega 00 retains the original-input guarantees")
+    .into_optimization_artifact()
+    .into_optimization_input();
+    native_program_planning::test_support::build_verified_psi_optimization_unit(
+        input,
+        terminal_work::WorkSchedule::CURRENT.identity(),
+    )
+    .expect("Omega 01 independently checks the published operations");
+    let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
+        .expect("the published module encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
+            .expect("the published module loads");
+    let status = execution
+        .resume(
+            &mut terminal_work::WorkMeter::with_budget(10_000_000),
+            &mut NoEffects,
+        )
+        .expect("direct, lent, terminal and affine counter calls execute");
+    assert!(
+        matches!(status, TerminalExecutionStatus::Complete(_)),
+        "{status:?}"
+    );
+
+    let wrong =
+        unbuilt_frontier::fixture_frontier("tests/fixtures/fail/contracts/mutable_contract_input");
+    let verdict = route_verdict(&wrong).1;
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+        panic!("the final-value interpretation must reject: {verdict:?}");
+    };
+    assert!(
+        unproved.iter().any(|row| matches!(
+            row.kind,
+            terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+        )),
+        "the authored return guarantee must be unproved: {unproved:?}"
+    );
+}
+
+#[test]
+fn mutable_contract_inputs_keep_crash_guards_and_arrivals_at_their_own_inputs() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (name, guard, accepted) in [
+        ("original_input_crash", 3, true),
+        ("assigned_value_crash", 0, false),
+    ] {
+        let source = format!(
+            "machine spare(mut position: u32) requires position == 3u32 \
+             crashes Trap position == {guard}u32 {{ position = 0; crash Trap; }}"
+        );
+        let frontier = staged_unused(name, &source);
+        let verdict = route_verdict(&frontier).1;
+        if accepted {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{name}: {verdict:?}"
+            );
+        } else {
+            let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+                panic!("{name}: the assigned value cannot cover an input-based route: {verdict:?}");
+            };
+            assert!(
+                unproved.iter().any(|row| matches!(
+                    row.kind,
+                    terminal_check_tables::obligations::ObligationKind::CrashCoverage { .. }
+                )),
+                "{name}: {unproved:?}"
+            );
+        }
+    }
+    assert_eq!(
+        verdict_on_unused(
+            "fresh_recursive_input",
+            "machine spare(mut position: u32) requires position <= 10u32 { \
+             position = position + 1; transition position <= 10u32 { \
+             true -> spare(position) false -> done() } } machine done() {}"
+        ),
+        Verdict::Accepted(3)
+    );
+    assert_eq!(
+        verdict_on_unused(
+            "recursive_input_not_original",
+            "machine spare(mut position: u32) requires position <= 10u32 { \
+             position = position + 1; spare(position) }"
+        ),
+        Verdict::Rejected
+    );
+    // Unlike a by-value name, the supplied reference observes its referent
+    // at completion. Explicit old keeps the entry observation instead.
+    let borrowed = "machine spare(position: &mut u32) -> u32 ensures result == position { \
+                    position = 0; position }";
+    assert_eq!(
+        verdict_on_unused("borrowed_completion_not_input_snapshot", borrowed),
+        Verdict::Accepted(2)
+    );
+    // Entry three makes the incorrect old-input promise differ from zero.
+    let old = borrowed
+        .replace("ensures", "requires position == 3u32 ensures")
+        .replace("result == position", "result == old(position)");
+    let frontier = staged_unused("borrowed_old_not_completion", &old);
+    let verdict = route_verdict(&frontier).1;
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+        panic!("the cleared result must not equal the entry observation: {verdict:?}");
+    };
+    assert!(
+        unproved.iter().any(|failure| matches!(
+            failure.kind,
+            terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+        )),
+        "the old-input guarantee must fail: {unproved:?}"
+    );
+}
+
+/// One program per thing the route decides about an integer whose type
+/// carries an arithmetic policy. Each is the declaration followed by
+/// `machine main() {}`.
+const POLICY_INTEGERS: &[(&str, &str)] = &[
+    // A Wrapping add is total: nothing is owed.
+    (
+        "wrapping_add",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping {\n    \
+         left + right\n}",
+    ),
+    // The literal lands in the carrier and the operator is still Wrapping's.
+    (
+        "wrapping_literal_operand",
+        "machine spare(left: u32 in Wrapping) -> u32 in Wrapping { left * 31 + 1 }",
+    ),
+    (
+        "saturating_add",
+        "machine spare(left: i32 in Saturating, right: i32 in Saturating) -> i32 in Saturating {\n    \
+         left + right\n}",
+    ),
+    // Stage 04 rewrites `+%` to the casts and the Wrapping add.
+    (
+        "suffixed_operator",
+        "machine spare(left: u32, right: u32) -> u32 { left +% right }",
+    ),
+    // A policy supplies no divisor.
+    (
+        "wrapping_divide_unproved",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping {\n    \
+         left / right\n}",
+    ),
+    (
+        "wrapping_divide_proved",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping\n\
+         requires right > 0\n{\n    left / right\n}",
+    ),
+    // A Wrapping operation beside it excuses no Exact one.
+    (
+        "exact_add_beside_a_wrapping_one",
+        "machine spare(left: u32, right: u32) -> u32 {\n    \
+         let wrapped: u32 = left +% right;\n    left + right\n}",
+    ),
+    (
+        "wrapping_field",
+        "data Counter [copy] { ticks: u32 in Wrapping; }\n\
+         machine spare(mut counter: Counter) -> u32 in Wrapping {\n    \
+         counter.ticks = counter.ticks + 1;\n    counter.ticks\n}",
+    ),
+    (
+        "wrapping_loop",
+        "machine spare(count: u32 in Wrapping, left: u32) -> u32 in Wrapping {\n    \
+         transition left > 0 {\n        true -> spare(count + 1, left - 1)\n        \
+         false -> count\n    }\n}",
+    ),
+    (
+        "wrapping_call",
+        "machine twice(value: u32 in Wrapping) -> u32 in Wrapping { value + value }\n\
+         machine spare(value: u32 in Wrapping) -> u32 in Wrapping { twice(twice(value)) }",
+    ),
+    // The literal lands in the carrier the cast names.
+    (
+        "wrapping_constant",
+        "machine spare() -> u32 in Wrapping { (5 as u32 in Wrapping) + 1 }",
+    ),
+    // A cast into a policy converts the carrier exactly first: no policy
+    // makes `as` truncate.
+    (
+        "narrowing_cast_into_wrapping",
+        "machine spare(value: u16) -> u8 in Wrapping { value as u8 in Wrapping }",
+    ),
+    (
+        "bounded_narrowing_cast_into_wrapping",
+        "machine spare(value: u16) -> u8 in Wrapping requires value <= 255 {\n    \
+         value as u8 in Wrapping\n}",
+    ),
+    (
+        "wrapping_and_plain_binding",
+        "machine spare(left: u32 in Wrapping, right: u32) -> u32 in Wrapping { left + right }",
+    ),
+    (
+        "wrapping_compared_with_plain_field",
+        "data Clock [copy] { at: u64; }\n\
+         machine spare(sum: u64 in Wrapping, clock: Clock) -> u32 {\n    \
+         transition sum < clock.at { true -> 1 false -> 0 }\n}",
+    ),
+    (
+        "wrapping_and_plain_binding_of_another_carrier",
+        "machine spare(left: u32 in Wrapping, right: u64) -> u32 in Wrapping { left + right }",
+    ),
+    (
+        "two_policies",
+        "machine spare(left: u8 in Wrapping, right: u8 in Saturating) -> u8 in Wrapping {\n    \
+         left + right\n}",
+    ),
+    (
+        "wrapping_value_as_plain_result",
+        "machine spare(left: u32 in Wrapping) -> u32 { left }",
+    ),
+    (
+        "literal_into_wrapping_local",
+        "machine spare() -> u32 in Wrapping { let start: u32 in Wrapping = 5; start }",
+    ),
+    (
+        "trapping",
+        "machine spare(left: u32 in Trapping, right: u32 in Trapping) -> u32 in Trapping {\n    \
+         left + right\n}",
+    ),
+    (
+        "trapping_forbidden",
+        "machine spare(left: u32 in Trapping, right: u32 in Trapping) -> u32 in Trapping crashes none { left + right }",
+    ),
+];
+
+/// Each policy-qualified integer is judged with its policy's operations.
+/// The route used to refuse qualified types (`type constrained`) and every
+/// suffixed operator's rewrite. A policy operation owes what Terminal semantics says it owes: an
+/// add nothing, a divide its divisor. It is never read as the Exact
+/// operation: an Exact add beside a Wrapping one still owes its range. That
+/// a wrapped sum is not taken for the mathematical sum is pinned in
+/// `terminal-psi-to-terminal-psi` (`a_wrapped_sum_is_not_the_mathematical_sum`): its
+/// verdict is "no rule for this goal", which this table has no row for. A cast into a policy converts the carrier exactly and owes
+/// that the value fits. What the route does not serve is refused by name.
+#[test]
+fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(3),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        // `left + right` with a plain `right` of the same carrier selects
+        // core's `(T in Wrapping, T)` operator; another carrier selects none.
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        falls_back(
+            "typing operands under two arithmetic policies while reading the body of `spare`",
+        ),
+        // A policy is a domain: a Wrapping value is not a plain result,
+        // and a literal lands in the carrier and gains no policy. Both are
+        // errors of the program, not forms the route does not serve.
+        Verdict::Rejected,
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+    ];
+    assert_eq!(expected.len(), POLICY_INTEGERS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in POLICY_INTEGERS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// One program per thing the route decides about data with no field and no
+/// case. Each is the declarations followed by `machine main() {}`.
+const EMPTY_RECORDS: &[(&str, &str)] = &[
+    (
+        "minted",
+        "data Token {}\nmachine spare() -> u32 { let token: Token = Token {}; 0 }",
+    ),
+    (
+        "declared",
+        "data Token {}\nmachine spare() -> u32 { let token: Token; 0 }",
+    ),
+    // Not `[copy]`: the second argument names a local whose value moved.
+    (
+        "affine_passed_twice",
+        "data Token {}\nmachine take(token: Token) -> u32 { 0 }\n\
+         machine spare(token: Token) -> u32 { take(token) + take(token) }",
+    ),
+    (
+        "copy_passed_twice",
+        "data Token [copy] {}\nmachine take(token: Token) -> u32 { 0 }\n\
+         machine spare(token: Token) -> u32 { take(token) + take(token) }",
+    ),
+    (
+        "lent",
+        "data Token {}\nmachine touch(token: &mut Token) {}\n\
+         machine spare() -> u32 {\n    let mut token: Token = Token {};\n    \
+         touch(&mut token);\n    0\n}",
+    ),
+    (
+        "field",
+        "data Token {}\ndata Holder { token: Token; count: u32; }\n\
+         machine spare() -> u32 {\n    \
+         let holder: Holder = Holder { token: Token {}, count: 3 };\n    holder.count\n}",
+    ),
+];
+
+/// Data with no field and no case is a record whose roster is empty; the
+/// route used to refuse every value of one (`type data without fields`). A
+/// value is minted, declared, lent and held in a field like any record, and
+/// one that is not `[copy]` still moves only once although it has no storage
+/// to find empty.
+#[test]
+fn an_empty_record_is_a_record_with_no_field() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(3),
+        Verdict::Accepted(3),
+        Verdict::Accepted(2),
+    ];
+    assert_eq!(expected.len(), EMPTY_RECORDS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in EMPTY_RECORDS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+#[test]
+fn a_primitive_result_cannot_replace_a_policy_establishment_edge() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for policy in ["Wrapping", "Saturating", "Trapping"] {
+        let source = format!(
+            "machine main() -> u32 in {policy} {{ (1u32 as +{policy}) | (2u32 as +{policy}) }}"
+        );
+        let frontier = unbuilt_frontier::staged_frontier("policy-establishment-edge", &source);
+        let entry = unbuilt_frontier::program_machine(&frontier.typed, "main").unwrap();
+        let mut lowered = elaborate_closure(&frontier.typed, entry).unwrap();
+        terminal_semantics::scalar_qualifications::validate(&lowered.module).unwrap();
+        let (machine, result) = lowered
+            .module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine.operations().find_map(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::IntegerBitwiseOr { .. }
+                    )
+                    .then(|| (machine.id, operation.result.scalar_ref().unwrap().id))
+                })
+            })
+            .unwrap();
+        let coercion = lowered
+            .module
+            .scalar_qualifications
+            .coercions
+            .iter()
+            .find(|row| row.machine == machine && row.source == result)
+            .copied()
+            .unwrap();
+        let body = lowered
+            .module
+            .machines
+            .iter_mut()
+            .find(|body| body.id == machine)
+            .unwrap();
+        let qualified = terminal_semantics::scalar_qualifications::values(body)
+            .find(|value| value.id == coercion.destination)
+            .unwrap()
+            .qualifications;
+        for operation in body
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+        {
+            if let terminal_psi::OperationResult::Scalar(value) = &mut operation.result
+                && value.id == result
+            {
+                assert!(value.qualifications.is_empty());
+                value.qualifications = qualified;
+            }
+        }
+        // The forged primitive now supplies the same qualified type directly.
+        // Erase the explicit membership-change row so an equal-set transfer
+        // cannot be the reason this malformed module is refused.
+        lowered
+            .module
+            .scalar_qualifications
+            .coercions
+            .retain(|row| row.machine != machine || row.source != result);
+        let error =
+            terminal_semantics::scalar_qualifications::validate(&lowered.module).unwrap_err();
+        assert!(
+            format!("{error:?}")
+                .contains("ordinary scalar operation cannot establish a declared domain"),
+            "{error:?}"
+        );
+    }
+}
+
+#[test]
+fn a_guarded_array_index_survives_only_writes_to_separate_fields() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (name, write, expected) in [
+        ("guarded_index_unchanged", "", Verdict::Accepted(3)),
+        (
+            "guarded_index_sibling",
+            "input.mask = 1u32 as +Wrapping;",
+            Verdict::Accepted(3),
+        ),
+        (
+            "guarded_index_replaced",
+            "input.index = 3u32 as +Wrapping;",
+            Verdict::Rejected,
+        ),
+    ] {
+        let source = format!(
+            "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}\n\
+            machine fetch(input: &mut Input) -> u32 {{ {write} input.values[input.index as -Wrapping] }}\n\
+            public machine spare(input: &mut Input) -> u32 requires true {{\n\
+                transition input.index < 3u32 {{ true -> fetch(input) false -> 0u32 }}\n\
+            }}"
+        );
+        assert_eq!(verdict_on_unused(name, &source), expected, "{name}");
+    }
+}
+
+#[test]
+fn a_guarded_array_index_survives_a_terminal_call_cycle() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (name, write, contract, alternative, accepted) in [
+        (
+            "guarded_index_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "",
+            "0u32",
+            true,
+        ),
+        (
+            "replaced_index_cycle",
+            "input.index = 3u32 as +Wrapping;",
+            "",
+            "0u32",
+            false,
+        ),
+        (
+            "unbounded_index_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "requires true",
+            "0u32",
+            false,
+        ),
+        (
+            "unguarded_arrival_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "",
+            "block fetch(input)",
+            false,
+        ),
+    ] {
+        let source = format!("data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
+            public machine spare(input: &mut Input) -> u32 requires true {{
+                transition {{ _ -> block test(input) }}
+                machine test(input: &mut Input) -> u32 {{
+                    transition input.index < 3u32 {{ true -> block fetch(input) _ -> {alternative} }}
+                }}
+                machine fetch(input: &mut Input) -> u32 {contract} {{
+                    {write}
+                    let found: u32 = input.values[input.index as -Wrapping];
+                    input.index = input.index + 1;
+                    transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
+                }}
+            }}");
+        let frontier = staged_unused(name, &source);
+        let verdict = route_verdict(&frontier).1;
+        if accepted {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{name}: {verdict:?}"
+            );
+        } else {
+            let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+                panic!("{name}: {verdict:?}");
+            };
+            assert!(
+                unproved
+                    .iter()
+                    .any(|row| row.statement.contains("index is within length 3")),
+                "{name}: {unproved:?}"
+            );
+        }
+    }
+    // A recursive caller's guard is not the whole input envelope when an
+    // ordinary caller can also enter this total helper without that guard.
+    for (name, entry) in [
+        (
+            "ordinary_and_recursive_arrivals",
+            "transition { _ -> block fetch(input) }",
+        ),
+        (
+            "narrow_ordinary_arrival",
+            "transition input.index == 0u32 { true -> block fetch(input) _ -> 0u32 }",
+        ),
+    ] {
+        let source = format!(
+            "data Input {{ index: u32 in Wrapping; }}
+            public machine spare(input: &mut Input) -> u32 requires true {{
+                {entry}
+                machine test(input: &mut Input) -> u32 {{
+                    transition input.index < 3u32 {{ true -> block fetch(input) _ -> 0u32 }}
+                }}
+                machine fetch(input: &mut Input) -> u32 {{
+                    input.index = input.index + 1;
+                    transition input.index == 0u32 {{ true -> 0u32 _ -> block test(input) }}
+                }}
+            }}"
+        );
+        let frontier = staged_unused(name, &source);
+        let verdict = route_verdict(&frontier).1;
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{name}: {verdict:?}"
+        );
+    }
+}

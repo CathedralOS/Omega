@@ -1,1 +1,0 @@
-the shift count is not provably below the operand width

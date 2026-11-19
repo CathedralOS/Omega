@@ -1,8 +1,0 @@
-// Complete independent control: Pressure cannot be delivered as nominal Volume.
-data Volume [copy] { litres: f64; }
-data Pressure [copy] { kilopascals: f64; }
-machine volume_identity(value: Volume) -> Volume { value }
-machine main() {
-    let pressure: Pressure = Pressure { kilopascals: 4.0 };
-    let result: Volume = volume_identity(pressure);
-}

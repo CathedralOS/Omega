@@ -1,0 +1,2 @@
+cannot prove the value of this cast is in the domain it adds
+domain `[u8]::Ascii` requires `byte_observation::ascii_only(&self[..])`

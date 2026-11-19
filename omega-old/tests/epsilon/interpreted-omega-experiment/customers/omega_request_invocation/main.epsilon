@@ -1,0 +1,173 @@
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+
+data Main {
+    console: Console;
+    structure: OmegaRequestStructure;
+    buffer: [u8; 256];
+    cursor: i32;
+    subject_at: i32;
+    invocation_at: i32;
+    end_at: i32;
+    root_role_at: i32;
+    product_at: i32;
+    admission_count_at: i32;
+    commitment_at: i32;
+}
+
+machine Main::put_u32(&mut self, value: i32) {
+    self.buffer[self.cursor] = value & 255;
+    self.buffer[self.cursor + 1] = (value >> 8) & 255;
+    self.buffer[self.cursor + 2] = (value >> 16) & 255;
+    self.buffer[self.cursor + 3] = (value >> 24) & 255;
+    self.cursor = self.cursor + 4;
+    return;
+}
+
+machine Main::poke_u32(&mut self, offset: i32, value: i32) {
+    self.buffer[offset] = value & 255;
+    self.buffer[offset + 1] = (value >> 8) & 255;
+    self.buffer[offset + 2] = (value >> 16) & 255;
+    self.buffer[offset + 3] = (value >> 24) & 255;
+    return;
+}
+
+machine Main::put_raw(&mut self, text: &[u8]) {
+    transition true { true -> byte(0) }
+
+    state byte(index: i32) {
+        transition index < text.len {
+            true -> write(index)
+            _ -> return
+        }
+    }
+
+    state write(index: i32) {
+        self.buffer[self.cursor] = text[index];
+        self.cursor = self.cursor + 1;
+        transition true { true -> byte(index + 1) }
+    }
+}
+
+machine Main::put_bytes(&mut self, text: &[u8]) {
+    self.put_u32(text.len);
+    self.put_raw(text);
+    return;
+}
+
+// A canonical single-package request: one external-local package row with an
+// empty snapshot table, no edges, the package root role, and an
+// alpha_bootstrap_tape invocation with an empty admission table and a 32-byte
+// commitment. The minimal subject keeps the invocation-side refusal vectors
+// inside the observation watchdog; the richer two-package subject lives in
+// the omega_request customer.
+machine Main::build_request(&mut self) {
+    self.cursor = 0;
+    self.put_raw("OCREQ\x01\x00\x00");
+    self.put_u32(0);
+    self.put_u32(0);
+    self.subject_at = self.cursor;
+    self.put_u32(1);
+    self.put_bytes("a");
+    self.put_u32(1);
+    self.put_bytes("l");
+    self.put_bytes("r");
+    self.put_bytes("t");
+    self.put_bytes("c");
+    self.put_bytes("");
+    self.put_u32(1);
+    self.put_u32(0);
+    self.put_u32(0);
+    self.put_u32(0);
+    self.root_role_at = self.cursor;
+    self.put_u32(1);
+    self.invocation_at = self.cursor;
+    self.product_at = self.cursor;
+    self.put_u32(4);
+    self.put_bytes("alpha_bootstrap");
+    self.admission_count_at = self.cursor;
+    self.put_u32(0);
+    self.commitment_at = self.cursor;
+    self.put_raw("\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA\xAA");
+    self.end_at = self.cursor;
+    self.poke_u32(8, self.invocation_at - self.subject_at);
+    self.poke_u32(12, self.end_at - self.invocation_at);
+    return;
+}
+
+machine Main::expect_refusal(&mut self, coordinate: i32) {
+    transition self.structure.complete {
+        1 -> self.console.exit_process(10)
+        _ -> verify()
+    }
+
+    state verify() {
+        assert self.structure.outcome_tag == 1;
+        assert self.structure.outcome_space == 1;
+        assert self.structure.outcome_code == 1;
+        assert self.structure.outcome_coordinate == coordinate;
+        assert self.structure.outcome_limit == 0;
+        assert self.structure.outcome_requested == 0;
+        return;
+    }
+}
+
+machine Main::main(&mut self) {
+    // The canonical request passes phases 0, 2, and 6 and retains its
+    // top-level summary.
+    self.build_request();
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    assert self.structure.complete == 1;
+    assert self.structure.package_count == 1;
+    assert self.structure.edge_count == 0;
+    assert self.structure.root_package == 0;
+    assert self.structure.root_role == 1;
+    assert self.structure.product == 4;
+    assert self.structure.admission_count == 0;
+    assert self.structure.malformed_offset == -1;
+    assert self.structure.outcome_tag == 0;
+    assert self.structure.outcome_code == -1;
+
+    // An unassigned root role is malformed at the tag field.
+    self.poke_u32(self.root_role_at, 3);
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    self.expect_refusal(self.root_role_at);
+    self.poke_u32(self.root_role_at, 1);
+
+    // An unassigned product tag is malformed at the tag field.
+    self.poke_u32(self.product_at, 5);
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    self.expect_refusal(self.product_at);
+    self.poke_u32(self.product_at, 4);
+
+    // A present admission row has no assigned kind and is malformed at it;
+    // the refusal fires before the borrowed commitment bytes are read.
+    self.poke_u32(self.admission_count_at, 1);
+    self.poke_u32(self.admission_count_at + 4, 0);
+    self.structure.check(self.buffer.as_slice[0..self.end_at]);
+    self.expect_refusal(self.admission_count_at + 4);
+    self.poke_u32(self.admission_count_at, 0);
+    self.poke_u32(self.admission_count_at + 4, -1431655766);
+
+    // A short commitment reports the section end as the first missing byte.
+    self.poke_u32(12, self.end_at - self.invocation_at - 20);
+    self.structure.check(
+        self.buffer.as_slice[0..self.end_at - 20]);
+    self.expect_refusal(self.end_at - 20);
+    self.poke_u32(12, self.end_at - self.invocation_at);
+
+    // A trailing byte inside the declared invocation extent is malformed at
+    // the first trailing byte.
+    self.poke_u32(12, self.end_at - self.invocation_at + 1);
+    self.buffer[self.end_at] = 66;
+    self.structure.check(
+        self.buffer.as_slice[0..self.end_at + 1]);
+    self.expect_refusal(self.end_at);
+    self.poke_u32(12, self.end_at - self.invocation_at);
+
+    self.console.write_line("A");
+}

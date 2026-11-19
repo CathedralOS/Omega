@@ -1,0 +1,18 @@
+data Ticket { number: i32; }
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine verify(ticket: &Ticket) -> i32 { ticket.number }
+machine through_join(choice: bool, incoming: &Ticket) -> i32 {
+    let retained: &Ticket = incoming;
+    let joined: &Ticket = match choice { true -> retained, _ -> retained };
+    verify(joined)
+}
+machine main() crashes Trap {
+    let issued: Ticket = Ticket { number: 4 };
+    let saved: &Ticket = &issued;
+    let observed: i32 = through_join(true, saved);
+    let alternate: i32 = through_join(false, saved);
+    transition observed == 4 && alternate == 4 { true -> done() false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

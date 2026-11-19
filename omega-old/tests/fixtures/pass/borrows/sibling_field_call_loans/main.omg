@@ -1,0 +1,36 @@
+// One call argument reads a field while another lends a sibling field. The
+// loans are judged per field path: reading `handle.fd` beside
+// `&mut handle.status` touches no lent storage, and reading `table.count`
+// beside the shared loan `&table.items[..]` only reads.
+data Status { size: u64; mode: u64; }
+data Handle { fd: u64; status: Status; }
+data Table { count: u64; items: [u64; 4]; }
+
+machine fill(fd: u64, status: &mut Status) -> u64 {
+    status.size = 40;
+    fd
+}
+
+machine pick(table: &Table, item: &u64) -> u64 { item }
+
+machine inspect(handle: &mut Handle) -> bool {
+    let fd: u64 = fill(handle.fd, &mut handle.status);
+    fd == 3 && handle.status.size == 40 && handle.status.mode == 5
+}
+
+machine look(table: &Table) -> u64 requires table.count < 4 {
+    pick(table, &table.items[table.count])
+}
+
+machine main() crashes Trap {
+    let mut handle: Handle = Handle { fd: 3, status: Status { size: 0, mode: 5 } };
+    let table: Table = Table { count: 2, items: [10, 20, 30, 40] };
+    let filled: bool = inspect(&mut handle);
+    let picked: u64 = look(&table);
+    transition filled && picked == 30 {
+        true -> good()
+        false -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

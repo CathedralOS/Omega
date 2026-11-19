@@ -1,2 +1,0 @@
-violates required fact `j <= 3`
-the instantiated fact is structurally false (`4 <= 3`)

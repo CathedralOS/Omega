@@ -1,9 +1,0 @@
-{
-  "source_inputs": [
-    ".gitignore",
-    "build.omg",
-    "dep",
-    "expected.txt",
-    "main.omg"
-  ]
-}

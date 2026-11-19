@@ -1,2 +1,0 @@
-# Input fixtures intentionally include CRLF and EOF-without-newline cases.
-data/*.stdin -text

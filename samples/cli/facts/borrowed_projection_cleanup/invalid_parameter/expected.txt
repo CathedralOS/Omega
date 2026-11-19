@@ -1,3 +1,0 @@
-cannot prove automatic cleanup requires
-drop_captured_receipt clause
-drop_captured_token clause

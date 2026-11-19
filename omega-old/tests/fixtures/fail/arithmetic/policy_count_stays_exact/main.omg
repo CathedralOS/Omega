@@ -1,0 +1,5 @@
+// The count's Wrapping domain does not give its policy to the plain value.
+// Narrowing before checking would incorrectly reduce this count to one.
+machine main() {
+    let exact: u8 = 36u8 << (4294967297u64 as +Wrapping);
+}

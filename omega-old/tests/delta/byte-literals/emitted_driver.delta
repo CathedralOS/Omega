@@ -1,0 +1,11 @@
+; The generated function's ordinary Delta entry is supplied separately from
+; the source encoder. Its runtime contains type declarations, not an Epsilon
+; parser or expression/state evaluator.
+(def main ((source Bytes)) Bytes
+  (let result EpsilonCompiledOutcome
+    (ep_free_omega_is_identifier_start 7)
+    (match result
+      ((EpsilonCompiledScalar value) (bytes_single value))
+      (EpsilonCompiledResultless (bytes_empty))
+      ((EpsilonCompiledTrap kind) (bytes_empty))
+      ((EpsilonCompiledInternal offset) (bytes_empty)))))

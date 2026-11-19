@@ -1,0 +1,18 @@
+use omega::language::core::ProcessExit;
+
+// Expected exit: 0, with one warning. `ProcessExit::exit_process` never
+// returns, so the `let` after it is unreachable: the program is accepted, the
+// statement is never executed, and it owes nothing. Were it reachable, its
+// `root.count + 1` could overflow and the program would be rejected, as the
+// twin `fail/calls/statement_after_conditional_exit` is.
+data Main { status: i32; count: i32; }
+
+machine main(root: &mut Main) reaches ProcessExit {
+    ProcessExit::exit_process(root.status);
+    let next: i32 = root.count + 1;
+}
+
+machine entry_start() reaches ProcessExit {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}

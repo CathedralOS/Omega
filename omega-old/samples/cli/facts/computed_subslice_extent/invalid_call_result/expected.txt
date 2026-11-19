@@ -1,0 +1,3 @@
+cannot prove requires contract for call range from window
+end <= items.len
+in state `entry`

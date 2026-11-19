@@ -1,0 +1,305 @@
+/*
+We derive the canonical source-consumption commitment (`PackageSourceConsumptionCommitment`) and subject (`PackageCompilationSubject`) for a package-aware compilation.
+
+Every package-aware frontend run retains the reconciled package graph and the exact authored, generated, and toolchain source bytes it consumed. We project those retained `SourceFile` records and generated-source custody rows into sorted, deduplicated `ConsumedSourceUnit` records (`derive_consumed_source_units`) and hash them alongside the root package identity, root role, package roster, and dependency edges under `OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4` (`derive_source_consumption_commitment`).
+*/
+
+/*
+Why authored and generated source units deduplicate differently:
+Authored physical files share identical bytes across `Build` and `Product` checked scopes and collapse to a single `ConsumedSourceUnit` row. Generated source instances (`PackageGeneratedSource`) include their checked scope in their canonical coordinate because the same virtual path `.omega/generated/<path>` may legitimately carry different bytes in `Build` vs `Product` scopes; however, two generated units at the exact same coordinate with differing bytes still fail closed.
+*/
+
+/*
+Provenance:
+- Pre-build and final checked source custody (`BuildSourceCustody`, `CheckedSourceCustody`): `src/source/source_consumption/checked_sources.rs`.
+*/
+
+use diagnostics::Diagnostic;
+use source_admission::SourceFile;
+use source_admission::SourceOrigin;
+
+#[path = "source_consumption_checked_sources.rs"]
+mod checked_sources;
+pub use checked_sources::{BuildSourceCustody, CheckedSourceCustody};
+
+const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4\0";
+
+pub use declaration_contracts::source_identity::ConsumedSourceUnit;
+pub use declaration_contracts::source_identity::ConsumedSourceUnitKind;
+use declaration_contracts::source_identity::append_canonical_consumed_unit;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PackageSourceConsumptionCommitment {
+    digest: [u8; 32],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageCompilationSubject {
+    root: semantic_vocabulary::PackageKeyIdentity,
+    dependency_closure: crate::PackageDependencyClosure,
+    source_consumption_commitment: PackageSourceConsumptionCommitment,
+    consumed_units: Vec<ConsumedSourceUnit>,
+}
+
+impl PackageCompilationSubject {
+    pub const fn root(&self) -> semantic_vocabulary::PackageKeyIdentity {
+        self.root
+    }
+
+    pub const fn dependency_closure(&self) -> &crate::PackageDependencyClosure {
+        &self.dependency_closure
+    }
+
+    pub const fn root_role(&self) -> crate::BuildDeclarationKind {
+        self.dependency_closure.root_role()
+    }
+
+    pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
+        self.source_consumption_commitment
+    }
+
+    pub fn consumed_units(&self) -> &[ConsumedSourceUnit] {
+        &self.consumed_units
+    }
+}
+
+impl PackageSourceConsumptionCommitment {
+    #[doc(hidden)]
+    pub const fn from_retained_digest(digest: [u8; 32]) -> Self {
+        Self { digest }
+    }
+
+    pub const fn digest(self) -> [u8; 32] {
+        self.digest
+    }
+}
+
+#[doc(hidden)]
+pub fn derive_source_consumption_commitment(
+    consumed_units: &[ConsumedSourceUnit],
+    inputs: &crate::PackageCompilationInputs,
+) -> Result<PackageSourceConsumptionCommitment, Vec<Diagnostic>> {
+    if consumed_units.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "package source consumption commitment requires retained frontend source metadata",
+        )]);
+    }
+    if consumed_units.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(vec![Diagnostic::error(
+            "package source consumption commitment requires strictly ordered unique consumed units",
+        )]);
+    }
+
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SOURCE_CONSUMPTION_DOMAIN);
+    digest.raw(&inputs.root().digest());
+    digest.byte(canonical_root_role(inputs.root_role()));
+    let packages = inputs
+        .packages()
+        .map(|(identity, _)| identity)
+        .collect::<Vec<_>>();
+    digest.u64(u64::try_from(packages.len()).expect("compiler package count fits u64"));
+    for package in packages {
+        digest.raw(&package.digest());
+    }
+    let dependencies = inputs.dependencies().collect::<Vec<_>>();
+    digest.u64(u64::try_from(dependencies.len()).expect("compiler dependency count fits u64"));
+    for (requester, alias, target) in dependencies {
+        digest.raw(&requester.digest());
+        digest.bytes(alias.as_bytes());
+        digest.raw(&target.digest());
+    }
+    digest.u64(u64::try_from(consumed_units.len()).expect("loaded source count fits u64"));
+    let mut row_bytes = Vec::new();
+    for unit in consumed_units {
+        row_bytes.clear();
+        append_canonical_consumed_unit(&mut row_bytes, unit);
+        digest.bytes(&row_bytes);
+    }
+    Ok(PackageSourceConsumptionCommitment {
+        digest: digest.finish(),
+    })
+}
+
+fn canonical_root_role(role: crate::BuildDeclarationKind) -> u8 {
+    match role {
+        crate::BuildDeclarationKind::Package => 0,
+        crate::BuildDeclarationKind::Application => 1,
+        crate::BuildDeclarationKind::Workspace => {
+            unreachable!("workspace roots reject before source-consumption commitment")
+        }
+    }
+}
+
+#[doc(hidden)]
+pub(crate) fn derive_consumed_source_units<'source>(
+    sources: impl IntoIterator<Item = &'source SourceFile>,
+    generated_sources: &[(source_text::SourceId, build_output::PackageGeneratedSource)],
+) -> Result<Vec<ConsumedSourceUnit>, Vec<Diagnostic>> {
+    let generated_by_id = GeneratedSourceOrder::new(generated_sources);
+    if (1..generated_sources.len())
+        .any(|position| generated_by_id.at(position - 1).0 == generated_by_id.at(position).0)
+    {
+        return Err(vec![Diagnostic::error(
+            "generated-source custody contains duplicate frontend source IDs",
+        )]);
+    }
+
+    let mut observed_generated = vec![false; generated_sources.len()];
+    let mut units = sources
+        .into_iter()
+        .map(|source| {
+            let generated = generated_by_id.find(source.source_id);
+            if let Some((position, generated)) = generated {
+                validate_generated_source_join(source, generated)?;
+                observed_generated[position] = true;
+            }
+            consumed_source_unit(source, generated.is_some())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if observed_generated.contains(&false) {
+        return Err(vec![Diagnostic::error(
+            "generated-source custody names a source absent from the final checked closure",
+        )]);
+    }
+    if units.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "consumed-source projection requires retained frontend source metadata",
+        )]);
+    }
+    units.sort();
+    units.dedup();
+    if units
+        .windows(2)
+        .any(|pair| same_source_coordinate(&pair[0], &pair[1]))
+    {
+        return Err(vec![Diagnostic::error(
+            "final checked closure contains distinct sources at duplicate canonical coordinates",
+        )]);
+    }
+    Ok(units)
+}
+
+struct GeneratedSourceOrder<'source> {
+    sources: &'source [(source_text::SourceId, build_output::PackageGeneratedSource)],
+    positions: Option<Vec<usize>>,
+}
+
+impl<'source> GeneratedSourceOrder<'source> {
+    fn new(
+        sources: &'source [(source_text::SourceId, build_output::PackageGeneratedSource)],
+    ) -> Self {
+        let positions = sources
+            .windows(2)
+            .any(|pair| pair[0].0.0 > pair[1].0.0)
+            .then(|| {
+                let mut positions = (0..sources.len()).collect::<Vec<_>>();
+                positions.sort_unstable_by_key(|position| (sources[*position].0.0, *position));
+                positions
+            });
+        Self { sources, positions }
+    }
+
+    fn at(
+        &self,
+        position: usize,
+    ) -> &'source (source_text::SourceId, build_output::PackageGeneratedSource) {
+        &self.sources[self
+            .positions
+            .as_ref()
+            .map_or(position, |positions| positions[position])]
+    }
+
+    fn find(
+        &self,
+        source_id: source_text::SourceId,
+    ) -> Option<(usize, &'source build_output::PackageGeneratedSource)> {
+        let position = match &self.positions {
+            Some(positions) => {
+                positions.partition_point(|position| self.sources[*position].0.0 < source_id.0)
+            }
+            None => self
+                .sources
+                .partition_point(|(candidate, _)| candidate.0 < source_id.0),
+        };
+        (position < self.sources.len() && self.at(position).0 == source_id)
+            .then(|| (position, &self.at(position).1))
+    }
+}
+
+fn validate_generated_source_join(
+    source: &SourceFile,
+    generated: &build_output::PackageGeneratedSource,
+) -> Result<(), Vec<Diagnostic>> {
+    if source.origin != SourceOrigin::User || source.source.as_bytes() != generated.bytes() {
+        return Err(vec![Diagnostic::error(format!(
+            "generated-source custody does not match final checked source `{}`",
+            source.path.display()
+        ))]);
+    }
+    let relative = source
+        .path
+        .strip_prefix(&source.package_root)
+        .map_err(|_| {
+            vec![Diagnostic::error(format!(
+                "generated source `{}` is outside its reconciled package root",
+                source.path.display()
+            ))]
+        })?;
+    let logical_path =
+        source_admission::source_identity::canonical_path_components(relative, &source.path)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .join("/");
+    let expected_path = [b".omega/generated/".as_slice(), generated.relative_path()].concat();
+    if logical_path.as_bytes() != expected_path {
+        return Err(vec![Diagnostic::error(format!(
+            "generated-source custody path does not match final checked source `{}`",
+            source.path.display()
+        ))]);
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn derive_package_compilation_subject<'source>(
+    sources: impl IntoIterator<Item = &'source SourceFile>,
+    inputs: &crate::PackageCompilationInputs,
+    generated_sources: &[(source_text::SourceId, build_output::PackageGeneratedSource)],
+) -> Result<PackageCompilationSubject, Vec<Diagnostic>> {
+    let consumed_units = derive_consumed_source_units(sources, generated_sources)?;
+    let source_consumption_commitment =
+        derive_source_consumption_commitment(&consumed_units, inputs)?;
+    Ok(PackageCompilationSubject {
+        root: inputs.root(),
+        dependency_closure: inputs.dependency_closure(),
+        source_consumption_commitment,
+        consumed_units,
+    })
+}
+
+fn consumed_source_unit(
+    source: &SourceFile,
+    generated: bool,
+) -> Result<ConsumedSourceUnit, Vec<Diagnostic>> {
+    source_admission::source_identity::consumed_source_unit(source, generated)
+        .map_err(|reason| vec![Diagnostic::error(reason)])
+}
+
+fn same_source_coordinate(left: &ConsumedSourceUnit, right: &ConsumedSourceUnit) -> bool {
+    left.kind() == right.kind()
+        && left.package() == right.package()
+        && left.toolchain_namespace() == right.toolchain_namespace()
+        && left.relative_path() == right.relative_path()
+}
+
+pub fn toolchain_source_identities<'source>(
+    sources: impl IntoIterator<Item = &'source SourceFile>,
+) -> Result<Vec<(source_text::SourceId, [u8; 32])>, Vec<Diagnostic>> {
+    source_admission::source_identity::toolchain_source_identities(sources)
+        .map_err(|reason| vec![Diagnostic::error(reason)])
+}
+
+#[doc(hidden)]
+pub fn toolchain_source_identity_digest(source: &SourceFile) -> Result<[u8; 32], Vec<Diagnostic>> {
+    source_admission::source_identity::toolchain_source_identity_digest(source)
+        .map_err(|reason| vec![Diagnostic::error(reason)])
+}

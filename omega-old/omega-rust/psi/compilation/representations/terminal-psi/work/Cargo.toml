@@ -1,0 +1,16 @@
+[package]
+name = "terminal-work"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_work"
+path = "src/lib.rs"
+
+[dependencies]
+evaluation-contracts = { path = "../../../../evaluation/evaluation-contracts" }
+compiler-storage = { path = "../../../../foundation/compiler-storage" }
+evaluation-accounting = { path = "../../../../evaluation/evaluation-accounting" }
+semantic-vocabulary = { path = "../../semantic-vocabulary" }
+terminal-psi = { path = ".." }

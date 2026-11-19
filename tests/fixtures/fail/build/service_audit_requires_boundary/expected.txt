@@ -1,1 +1,0 @@
-service audit operand `Ordinary` must name one visible boundary trait declaration

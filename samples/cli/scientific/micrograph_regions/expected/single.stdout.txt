@@ -1,8 +1,0 @@
-P2
-# micrograph region labels; zero is background
-1 1
-64
-1
-regions 1
-label area centroid_x centroid_y min_x min_y max_x max_y
-1 1 0/1 0/1 0 0 0 0

@@ -1,0 +1,91 @@
+; Closed enums use named target data/case declarations. Their constructors are
+; values, not an additional numeric protocol or a runtime syntax interpreter.
+(def epsilon_delta_enum_type_name ((source EpsilonSourceView) (name EpsilonName)) Bytes
+  (bytes_concat "EpType_" (epsilon_emit_name source name)))
+
+(def epsilon_delta_enum_case_name ((source EpsilonSourceView)
+  (owner EpsilonName) (name EpsilonName)) Bytes
+  (match owner
+    ((EpsilonNameSpan start end)
+      (bytes_concat "EpCase_" (bytes_concat (epsilon_emit_decimal (- end start))
+        (bytes_concat "_" (bytes_concat (epsilon_emit_name source owner)
+          (bytes_concat "_" (epsilon_emit_name source name)))))))))
+
+(def epsilon_delta_enum_cases_only ((members EpsilonDataMemberList)) Int
+  (match members
+    (NoEpsilonDataMembers 1)
+    ((MoreEpsilonDataMembers member rest)
+      (match member
+        ((EpsilonFieldMember start end name typeValue) 0)
+        ((EpsilonCaseMember start end name payload)
+          (match (epsilon_optional_payload_parameters payload)
+            (NoEpsilonParameters (epsilon_delta_enum_cases_only rest))
+            ((MoreEpsilonParameters parameter parameters) 0)))))))
+
+(def epsilon_delta_is_closed_enum ((members EpsilonDataMemberList)) Int
+  (match members
+    (NoEpsilonDataMembers 0)
+    ((MoreEpsilonDataMembers member rest) (epsilon_delta_enum_cases_only members))))
+
+(def epsilon_delta_enum_case_declarations ((source EpsilonSourceView)
+  (owner EpsilonName) (members EpsilonDataMemberList)) Bytes
+  (match members
+    (NoEpsilonDataMembers "")
+    ((MoreEpsilonDataMembers member rest)
+      (match member
+        ((EpsilonFieldMember start end name typeValue) "")
+        ((EpsilonCaseMember start end name payload)
+          (let constructor Bytes (epsilon_delta_enum_case_name source owner name)
+            (bytes_concat "\n  (" (bytes_concat constructor (bytes_concat ")"
+              (epsilon_delta_enum_case_declarations source owner rest))))))))))
+
+(def epsilon_delta_type_declarations ((source EpsilonSourceView)
+  (declarations EpsilonDeclarationList)) EpsilonDeltaCompilation
+  (match declarations
+    (NoEpsilonDeclarations (EpsilonDeltaCompiled ""))
+    ((MoreEpsilonDeclarations declaration rest)
+      (epsilon_delta_append (epsilon_delta_data_declaration source declaration)
+        (epsilon_delta_type_declarations source rest)))))
+
+; Unused record/payload types remain checked compile-time declarations. Uses
+; require their own supported representation before a module can be published.
+(def epsilon_delta_data_declaration ((source EpsilonSourceView)
+  (declaration EpsilonDeclaration)) EpsilonDeltaCompilation
+  (match declaration
+    ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaCompiled ""))
+    ((EpsilonMachineDeclaration start end name inputs returnType body) (EpsilonDeltaCompiled ""))
+    ((EpsilonDataDeclaration start end name members)
+      (if (epsilon_delta_is_closed_enum members)
+        (EpsilonDeltaCompiled (bytes_concat "(data "
+          (bytes_concat (epsilon_delta_enum_type_name source name)
+            (bytes_concat (epsilon_delta_enum_case_declarations source name members) ")\n"))))
+        (EpsilonDeltaCompiled "")))))
+
+(def epsilon_delta_named_type ((context EpsilonDeltaContext)
+  (name EpsilonName)) EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match catalog
+        ((EpsilonResolutionCatalogSyntax rows)
+          (match (epsilon_catalog_find_owner source name rows)
+            (NoEpsilonCatalogOwner (EpsilonDeltaInternal (epsilon_name_start name)))
+            ((OneEpsilonCatalogBoundaryOwner owner) (EpsilonDeltaUnsupported (epsilon_name_start name)))
+            ((OneEpsilonCatalogDataOwner owner shape)
+              (match owner
+                ((EpsilonDataDeclaration start end ownerName members)
+                  (if (epsilon_delta_is_closed_enum members)
+                    (EpsilonDeltaCompiled (epsilon_delta_enum_type_name source ownerName))
+                    (EpsilonDeltaUnsupported (epsilon_name_start name))))
+                ((EpsilonBoundaryDeclaration start end ownerName members) (EpsilonDeltaInternal start))
+                ((EpsilonMachineDeclaration start end ownerName inputs returnType body)
+                  (EpsilonDeltaInternal start))))))))))
+
+(def epsilon_delta_parameter_type ((context EpsilonDeltaContext)
+  (typeValue EpsilonType)) EpsilonDeltaCompilation
+  (match typeValue
+    ((EpsilonNamedType start end name) (epsilon_delta_named_type context name))
+    ((EpsilonI32Type start end) (EpsilonDeltaCompiled "Int"))
+    ((EpsilonU8Type start end) (EpsilonDeltaCompiled "Int"))
+    ((EpsilonNeverType start end) (EpsilonDeltaUnsupported start))
+    ((EpsilonArrayType start end element extent) (EpsilonDeltaUnsupported start))
+    ((EpsilonViewType start end element) (EpsilonDeltaUnsupported start))))

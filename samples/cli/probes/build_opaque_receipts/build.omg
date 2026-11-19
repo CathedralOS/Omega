@@ -1,9 +1,0 @@
-// Opaque-property receipts under a freestanding multi-target check: two
-// boundary-data carriers with their representation satisfies declarations
-// authored in reverse order. Without ProgramEntry binds the check still
-// derives per-target admission receipts for both opaque types.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "build_opaque_receipts");
-    builder.freestanding = true;
-}

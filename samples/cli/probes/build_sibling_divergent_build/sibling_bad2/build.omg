@@ -1,8 +1,0 @@
-// Divergence in build scope at pool position 4: this sibling's build
-// source calls a machine that does not exist — a checked-compilation
-// failure inside the dep's own build file rather than an eval failure.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "sibling_bad2");
-    let missing: i32 = ghost_machine();
-}

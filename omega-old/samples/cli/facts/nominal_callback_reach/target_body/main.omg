@@ -1,0 +1,79 @@
+// A nominal Step callback selection contributes its specialized reach row;
+// its result is produced inside target-specific caller bodies.
+// Place: another target body.
+// Expected exit: 0
+trait StepContract {
+    machine step(value: u64) -> u64;
+}
+
+machine bump(value: u64) -> u64
+satisfies StepContract::step
+{
+    42
+}
+
+machine walk<machine Step>(value: u64) -> u64
+requires machine Step satisfies StepContract::step;
+{
+    Step(value)
+}
+
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedRelay {
+    machine relay(value: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Relay satisfies SelectedRelay {
+    machine relay(value: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        walk<bump>(value)
+    }
+}
+
+ArmRelay satisfies SelectedRelay {
+    machine relay(value: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        walk<bump>(value)
+    }
+}
+
+machine main() crashes Trap {
+    transition SelectedRelay::relay(35) == 42u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

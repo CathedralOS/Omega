@@ -1,5 +1,0 @@
-use b::main;
-
-public machine va() -> i32 {
-    vb()
-}

@@ -1,0 +1,12 @@
+; Function 27: choose_word_result(Bool, WordResult, WordResult)->WordResult.
+; False selects slot 1 and True selects slot 2. Slot 0 is matched and unbound.
+(def beta_counter_choice_definition () Int
+  (let length Int (beta_theory_word 22)
+    (let signature Int (beta_theory_fields3 7 3 2)
+      (let alternatives Int (beta_theory_fields3 7 7 1)
+        (let cases Int (beta_theory_fields3 0 2 6)
+          (let false_case Int (beta_theory_fields3 257 1 2)
+            (let false_body Int (beta_theory_fields3 0 1 1)
+              (let true_case Int (beta_theory_fields3 6 258 1)
+                (let variable Int (beta_variable_template 2)
+                  (beta_theory_word 1))))))))))

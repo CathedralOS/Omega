@@ -1,0 +1,26 @@
+(def invariant_core_scalar ((operator EpsilonBinaryOperator)
+  (left Int) (right Int)) Bytes
+  (invariant_observe
+    (epsilon_evaluator_complete_scalar
+      (epsilon_evaluate_core_binary_values operator left right)
+      (invariant_store) (invariant_output))))
+
+(def invariant_logical ((operator EpsilonBinaryOperator) (left Int)
+  (right EpsilonExpression)) Bytes
+  (invariant_observe
+    (epsilon_evaluate_binary_left (invariant_context) operator left right
+      NoEpsilonEvaluatorBindings (invariant_store) (invariant_output))))
+
+(def invariant_scalars () Bytes
+  (let missing EpsilonExpression
+    (EpsilonNameExpression 107 108 (EpsilonNameSpan 0 1))
+    (bytes_concat (invariant_core_scalar EpsilonLogicalOr 0 1)
+      (bytes_concat (invariant_core_scalar EpsilonLogicalAnd 1 0)
+        (bytes_concat (invariant_core_scalar EpsilonAdd 40 2)
+          (bytes_concat (invariant_core_scalar EpsilonDivide 1 0)
+            (bytes_concat (invariant_logical EpsilonLogicalAnd 0 missing)
+              (bytes_concat (invariant_logical EpsilonLogicalOr 1 missing)
+                (bytes_concat (invariant_logical EpsilonLogicalAnd 1 missing)
+                  (bytes_concat
+                    (invariant_logical EpsilonLogicalOr 0 (EpsilonTrueExpression 109 110))
+                    (invariant_logical EpsilonLogicalAnd 2 missing)))))))))))

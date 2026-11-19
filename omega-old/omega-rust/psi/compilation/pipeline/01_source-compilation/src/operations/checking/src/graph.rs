@@ -1,0 +1,386 @@
+/*
+Premises must dominate their uses on every path (fact_validity.md). Prepare
+the table-edge topology once, retain a linear-size dominance forest, and keep
+operation positions for ordering within a block. Extra table edges participate
+even when no terminator owns them: they conservatively remove availability.
+*/
+
+use semantic_vocabulary::{BlockId, MachineId};
+use terminal_check_tables::edges::Destination;
+use terminal_check_tables::{
+    Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
+};
+use terminal_psi::TerminalMachine;
+use terminal_semantics::control_graph::{DominanceInterval, dominance_forest};
+
+#[path = "graph/roots.rs"]
+mod roots;
+#[cfg(test)]
+#[path = "graph/tests.rs"]
+mod tests;
+
+pub(crate) struct Graph {
+    machine: MachineId,
+    dominance: Vec<DominanceInterval>,
+    /// Block and index of each operation, indexed by `OperationId - 1`.
+    operations: Vec<Option<(BlockId, usize)>>,
+    /// Every incoming edge is counted, including repeated sources.
+    predecessors: Vec<Vec<BlockId>>,
+    ordered: Vec<BlockId>,
+    entry: BlockId,
+    tables_edges: Vec<(BlockId, Destination)>,
+    cleanup_counts: Vec<usize>,
+    block_ends: Vec<usize>,
+    cyclic_blocks: Vec<bool>,
+}
+
+fn index(raw: u64) -> usize {
+    usize::try_from(raw - 1).unwrap_or(usize::MAX)
+}
+
+impl Graph {
+    pub(crate) fn new(
+        machine: MachineId,
+        lowered: &TerminalMachine,
+        tables: &MachineTables,
+    ) -> Checked<Self> {
+        let refuse = |detail: &str| Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            machine,
+            concerns: Construct::Machine,
+            source_span: None,
+            detail: detail.to_owned(),
+        };
+        let count = lowered.blocks.len();
+        for (position, block) in lowered.blocks.iter().enumerate() {
+            if index(block.id.get()) != position {
+                return Err(refuse("blocks are not dense in identity order"));
+            }
+        }
+        if index(lowered.entry.get()) >= count {
+            return Err(refuse("entry block is past the end"));
+        }
+        let mut operations: Vec<Option<(BlockId, usize)>> = Vec::new();
+        for block in &lowered.blocks {
+            for (position, operation) in block.operations.iter().enumerate() {
+                let slot = index(operation.id.get());
+                if operations.len() <= slot {
+                    operations.resize(slot + 1, None);
+                }
+                if operations[slot].replace((block.id, position)).is_some() {
+                    return Err(refuse("an operation appears twice"));
+                }
+            }
+        }
+        let mut predecessors = vec![Vec::new(); count];
+        let mut successors = vec![Vec::new(); count];
+        let mut tables_edges = Vec::with_capacity(tables.edges.len());
+        for (_, edge) in tables.edges.iter() {
+            let outgoing = successors
+                .get_mut(index(edge.source.get()))
+                .ok_or_else(|| refuse("edge leaves a block past the end"))?;
+            if let Destination::Block(target) = edge.destination {
+                predecessors
+                    .get_mut(index(target.get()))
+                    .ok_or_else(|| refuse("edge enters a block past the end"))?
+                    .push(edge.source);
+                outgoing.push(target);
+            }
+            tables_edges.push((edge.source, edge.destination));
+        }
+        let mut cleanup_counts = vec![0; tables_edges.len()];
+        for block in &lowered.blocks {
+            for (edge, actions) in block.terminator.cleanup_rosters() {
+                if actions.is_empty() {
+                    continue;
+                }
+                let count = cleanup_counts
+                    .get_mut(index(edge.get()))
+                    .ok_or_else(|| refuse("cleanup edge is outside the graph"))?;
+                if tables_edges[index(edge.get())].0 != block.id {
+                    return Err(refuse("cleanup edge belongs to another block"));
+                }
+                *count = actions.len();
+            }
+        }
+        let block_ends = lowered
+            .blocks
+            .iter()
+            .map(|block| block.operations.len())
+            .collect();
+        let ordered = ordered_blocks(
+            std::iter::once(lowered.entry).chain(
+                (1..=count).map(|raw| BlockId::new(raw as u64).expect("dense block identity")),
+            ),
+            &successors,
+        );
+        let roots = roots::virtual_entries(lowered.entry, &predecessors, &successors, &ordered);
+        // The legacy traversal may start inside a disconnected downstream
+        // component before visiting its source. Keep that consumer order, but
+        // dominance needs the actual reverse postorder of the virtual entries.
+        let disconnected_order = (roots.iter().filter(|&&root| root).count() > 1).then(|| {
+            ordered_blocks(
+                roots
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, root)| **root)
+                    .map(|(slot, _)| BlockId::new(slot as u64 + 1).expect("dense block identity")),
+                &successors,
+            )
+        });
+        let dominance_order = disconnected_order.as_deref().unwrap_or(&ordered);
+        let incoming_positions: Vec<Vec<usize>> = predecessors
+            .iter()
+            .map(|incoming| incoming.iter().map(|block| index(block.get())).collect())
+            .collect();
+        let ordered_positions: Vec<_> = dominance_order
+            .iter()
+            .map(|block| index(block.get()))
+            .collect();
+        let dominance = dominance_forest(&incoming_positions, &ordered_positions, &roots)
+            .ok_or_else(|| refuse("control graph has no complete dominance forest"))?;
+        let cyclic_blocks = cyclic_blocks(&predecessors, &successors, &ordered);
+        Ok(Self {
+            machine,
+            dominance,
+            operations,
+            predecessors,
+            ordered,
+            entry: lowered.entry,
+            tables_edges,
+            cleanup_counts,
+            block_ends,
+            cyclic_blocks,
+        })
+    }
+
+    fn refuse(&self, concerns: Construct) -> Refusal {
+        Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            machine: self.machine,
+            concerns,
+            source_span: None,
+            detail: String::from("program point is not in this machine"),
+        }
+    }
+
+    pub(crate) fn entry(&self) -> BlockId {
+        self.entry
+    }
+    pub(crate) fn block_count(&self) -> usize {
+        self.predecessors.len()
+    }
+    /// Whether `block` belongs to a control-flow cycle in the table-edge graph.
+    pub(crate) fn in_cycle(&self, block: BlockId) -> Checked<bool> {
+        self.cyclic_blocks
+            .get(index(block.get()))
+            .copied()
+            .ok_or_else(|| self.refuse(Construct::Block(block)))
+    }
+    /// One past the largest operation identity the machine holds.
+    pub(crate) fn operation_count(&self) -> usize {
+        self.operations.len()
+    }
+    /// The source block of every edge that enters `block`.
+    pub(crate) fn predecessors(&self, block: BlockId) -> Checked<&[BlockId]> {
+        self.predecessors
+            .get(index(block.get()))
+            .map(Vec::as_slice)
+            .ok_or_else(|| self.refuse(Construct::Block(block)))
+    }
+    /// Preserve the entry-first DFS forest's reverse finish order. Consumers
+    /// borrow the prepared order instead of reconstructing table-edge topology.
+    pub(crate) fn reverse_postorder(&self) -> Checked<&[BlockId]> {
+        Ok(&self.ordered)
+    }
+
+    /// Entry is before every operation, a normal successor is after its
+    /// operation, and an outgoing edge is after them all.
+    pub(crate) fn locate(&self, point: ProgramPoint) -> Checked<(BlockId, usize)> {
+        let (block, position, _) = self.locate_with_dominance(point)?;
+        Ok((block, position))
+    }
+
+    /// Keep the checked block association through the query instead of
+    /// resolving each interval again after locating the two program points.
+    fn locate_with_dominance(
+        &self,
+        point: ProgramPoint,
+    ) -> Checked<(BlockId, usize, &DominanceInterval)> {
+        let (block, position) = match point {
+            ProgramPoint::BlockEntry(block) => (block, 0),
+            ProgramPoint::AfterOperation(operation) => self
+                .operations
+                .get(index(operation.get()))
+                .copied()
+                .flatten()
+                .map(|(block, position)| (block, position + 1))
+                .ok_or_else(|| self.refuse(Construct::Operation(operation)))?,
+            ProgramPoint::BeforeCleanup {
+                edge,
+                action_ordinal,
+            }
+            | ProgramPoint::AfterCleanup {
+                edge,
+                action_ordinal,
+            } => {
+                if usize::try_from(action_ordinal).ok().is_none_or(|ordinal| {
+                    self.cleanup_counts
+                        .get(index(edge.get()))
+                        .is_none_or(|count| ordinal >= *count)
+                }) {
+                    return Err(self.refuse(Construct::Edge(edge)));
+                }
+                let source = self
+                    .tables_edges
+                    .get(index(edge.get()))
+                    .ok_or_else(|| self.refuse(Construct::Edge(edge)))?
+                    .0;
+                (source, self.block_ends[index(source.get())])
+            }
+            ProgramPoint::Edge(edge) => self
+                .tables_edges
+                .get(index(edge.get()))
+                .map(|(source, _)| (*source, usize::MAX))
+                .ok_or_else(|| self.refuse(Construct::Edge(edge)))?,
+        };
+        let dominance = self
+            .dominance
+            .get(index(block.get()))
+            .ok_or_else(|| self.refuse(Construct::Block(block)))?;
+        Ok((block, position, dominance))
+    }
+
+    /// Whether every path to `used` passes `available` first.
+    pub(crate) fn dominates(&self, available: ProgramPoint, used: ProgramPoint) -> Checked<bool> {
+        let (used_block, used_position, used_dominance) = self.locate_with_dominance(used)?;
+        let (block, position, dominance) = self.locate_with_dominance(available)?;
+        if available == used {
+            return Ok(true);
+        }
+        let cleanup = |point| match point {
+            ProgramPoint::BeforeCleanup {
+                edge,
+                action_ordinal,
+            } => Some((edge, action_ordinal, false)),
+            ProgramPoint::AfterCleanup {
+                edge,
+                action_ordinal,
+            } => Some((edge, action_ordinal, true)),
+            _ => None,
+        };
+        if let Some((edge, ordinal, after)) = cleanup(available) {
+            if let Some((used_edge, used_ordinal, used_after)) = cleanup(used)
+                && edge == used_edge
+            {
+                return Ok((ordinal, after) <= (used_ordinal, used_after));
+            }
+            if let ProgramPoint::Edge(used_edge) = used
+                && edge == used_edge
+            {
+                return Ok(true);
+            }
+            if block == used_block {
+                return Ok(false);
+            }
+            let (_, destination) = self.tables_edges[index(edge.get())];
+            let Destination::Block(target) = destination else {
+                return Ok(false);
+            };
+            return Ok(self.predecessors[index(target.get())].len() == 1
+                && self.dominance[index(target.get())].depth() != 1
+                && self.dominance[index(target.get())].dominates(used_dominance));
+        }
+        if let (ProgramPoint::Edge(edge), Some((used_edge, _, _))) = (available, cleanup(used))
+            && (edge == used_edge || block == used_block)
+        {
+            return Ok(false);
+        }
+        if let ProgramPoint::Edge(edge) = available {
+            let (_, destination) = self
+                .tables_edges
+                .get(index(edge.get()))
+                .ok_or_else(|| self.refuse(Construct::Edge(edge)))?;
+            let Destination::Block(target) = destination else {
+                return Ok(false);
+            };
+            // A real edge supplies a premise only if it is the sole way in.
+            // Virtual entries also count: a backedge cannot establish a fact
+            // on the first visit to the machine or a disconnected source SCC.
+            if self.predecessors[index(target.get())].len() != 1
+                || self.dominance[index(target.get())].depth() == 1
+            {
+                return Ok(false);
+            }
+            return Ok(self.dominance[index(target.get())].dominates(used_dominance));
+        }
+        if block == used_block {
+            return Ok(position <= used_position);
+        }
+        Ok(dominance.dominates(used_dominance))
+    }
+}
+
+fn ordered_blocks(
+    roots: impl Iterator<Item = BlockId>,
+    successors: &[Vec<BlockId>],
+) -> Vec<BlockId> {
+    let mut visited = vec![false; successors.len()];
+    let mut postorder = Vec::with_capacity(successors.len());
+    let mut pending = Vec::new();
+    for root in roots {
+        if std::mem::replace(&mut visited[index(root.get())], true) {
+            continue;
+        }
+        pending.push((root, 0));
+        while let Some((block, next)) = pending.last_mut() {
+            if let Some(&successor) = successors[index(block.get())].get(*next) {
+                *next += 1;
+                if !std::mem::replace(&mut visited[index(successor.get())], true) {
+                    pending.push((successor, 0));
+                }
+            } else {
+                postorder.push(*block);
+                pending.pop();
+            }
+        }
+    }
+    postorder.reverse();
+    postorder
+}
+
+fn cyclic_blocks(
+    predecessors: &[Vec<BlockId>],
+    successors: &[Vec<BlockId>],
+    reverse_postorder: &[BlockId],
+) -> Vec<bool> {
+    let count = successors.len();
+    let mut assigned = vec![false; count];
+    let mut cyclic = vec![false; count];
+    let mut component = Vec::new();
+    let mut pending = Vec::new();
+    for &root in reverse_postorder {
+        let root_slot = index(root.get());
+        if std::mem::replace(&mut assigned[root_slot], true) {
+            continue;
+        }
+        component.clear();
+        component.push(root_slot);
+        pending.push(root);
+        while let Some(block) = pending.pop() {
+            for &predecessor in &predecessors[index(block.get())] {
+                let slot = index(predecessor.get());
+                if !std::mem::replace(&mut assigned[slot], true) {
+                    component.push(slot);
+                    pending.push(predecessor);
+                }
+            }
+        }
+        if component.len() > 1 || successors[root_slot].contains(&root) {
+            for &slot in &component {
+                cyclic[slot] = true;
+            }
+        }
+    }
+    cyclic
+}

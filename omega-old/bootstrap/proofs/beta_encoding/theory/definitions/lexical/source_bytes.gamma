@@ -1,0 +1,19 @@
+; These Gamma calculations author explicit finite clauses. The checker never
+; runs them or gains arithmetic/byte-classification primitives from them.
+(def beta_lexical_boolean ((function Int) (byte Int)) Int
+  (if (eq function 1) (beta_source_byte byte)
+    (if (eq function 2) (beta_separator byte)
+      (beta_comment_end byte))))
+
+(def beta_source_byte ((byte Int)) Int
+  (if (eq byte 9) 1
+    (if (beta_comment_end byte) 1
+      (if (lt byte 32) 0 (lt byte 127)))))
+
+(def beta_separator ((byte Int)) Int
+  (if (eq byte 9) 1
+    (if (beta_comment_end byte) 1
+      (if (eq byte 32) 1 (eq byte 44)))))
+
+(def beta_comment_end ((byte Int)) Int
+  (if (eq byte 10) 1 (eq byte 13)))

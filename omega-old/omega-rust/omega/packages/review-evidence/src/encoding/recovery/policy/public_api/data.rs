@@ -1,0 +1,38 @@
+// Bounded recovery for public data declaration shapes, supply modes, invariants, and members.
+
+use super::super::{
+    Error,
+    contracts::contract_fact,
+    declarations::data_member,
+    identity::{nominal, type_identity},
+    reader::Reader,
+    signatures::data_properties,
+};
+use super::signatures::type_parameter;
+use crate::record::{PackagePolicyDataShape, PackageReviewDataKind};
+
+pub(in crate::encoding::recovery) fn data_shape(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyDataShape, Error> {
+    Ok(PackagePolicyDataShape {
+        identity: nominal(reader)?,
+        kind: super::super::tag!(reader => {
+            0 => PackageReviewDataKind::Ordinary,
+            1 => PackageReviewDataKind::Quotient {
+                carrier: type_identity(reader)?,
+                relation: nominal(reader)?,
+            },
+        }),
+        supply: super::super::tag!(reader => {
+            0 => declaration_contracts::DataSupplyMode::CheckedShape,
+            1 => declaration_contracts::DataSupplyMode::BoundaryOpaque,
+        }),
+        lifetime_parameter_count: reader.usize()?,
+        type_parameters: reader.sequence(3, type_parameter)?,
+        properties: data_properties(reader)?,
+        zero_gated: reader.boolean()?,
+        invariants: reader.sequence(2, contract_fact)?,
+        retired_identities: reader.sequence(8, |reader| reader.u64())?,
+        members: reader.sequence(19, data_member)?,
+    })
+}

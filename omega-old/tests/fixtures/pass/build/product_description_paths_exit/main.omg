@@ -1,0 +1,4 @@
+// Expected exit: 0
+use payload;
+
+machine main() {}

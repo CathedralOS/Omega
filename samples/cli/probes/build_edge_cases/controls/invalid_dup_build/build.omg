@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_dup_build");
-}
-machine build(builder: &mut Build) {
-    Build::application(builder, "invalid_dup_build_second");
-}

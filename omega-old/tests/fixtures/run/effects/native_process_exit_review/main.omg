@@ -1,0 +1,7 @@
+// Expected exit: 37.
+// The native binding ends the process with the authored status.
+use omega::language::core::ProcessExit;
+
+machine main() reaches ProcessExit {
+    ProcessExit::exit_process(37i32);
+}

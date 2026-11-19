@@ -1,0 +1,76 @@
+// Quotient data declaration: `data EquivalenceClass =
+// Representative % equivalent requires equivalent satisfies
+// Equivalence<Representative, equivalent> as
+// RepresentativeEquivalence` — the carrier, proposition, named
+// conformance, and quotient type all spelled in user code.
+//
+//   * `Trait::member = machine` roster inside the satisfies block.
+//   * `(a as EquivalenceClass)` cast-to-quotient in ensures.
+//   * `hits` records the reached arm.
+//
+// Compile-checked only: declaration surface, no standard-library
+// dependency, no ProcessExit provider.
+
+use omega::language::core::Equivalence;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires
+    a == b
+ensures b == a
+{
+}
+
+machine equivalent_transitive(
+    a: Representative,
+    b: Representative,
+    c: Representative
+)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
+    machine reflexive(value: Representative) ensures equivalent(value, value) { equivalent_reflexive(value) }
+    machine symmetric(left: Representative, right: Representative) requires equivalent(left, right) ensures equivalent(right, left) { equivalent_symmetric(left, right) }
+    machine transitive(left: Representative, middle: Representative, right: Representative) requires equivalent(left, middle), equivalent(middle, right) ensures equivalent(left, right) { equivalent_transitive(left, middle, right) }
+}
+
+data EquivalenceClass = Representative % equivalent
+requires equivalent satisfies
+    Equivalence<Representative, equivalent>
+    as RepresentativeEquivalence;
+
+machine quotient_congruence(a: Representative, b: Representative)
+requires a == b
+ensures (a as EquivalenceClass) == (b as EquivalenceClass)
+{
+}
+
+data Main {
+    hits: i32 in Wrapping;
+}
+
+machine Main::main(main: &mut Main) {
+    main.hits = 1;
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

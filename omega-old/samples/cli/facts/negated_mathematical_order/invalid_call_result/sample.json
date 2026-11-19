@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "cannot prove the value assigned to `value` in establish is in domain `u64::Small`"
+  ]
+}

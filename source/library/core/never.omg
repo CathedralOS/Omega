@@ -1,3 +1,0 @@
-// No value can satisfy this ordinary default-domain predicate.
-public data Never requires false {
-}

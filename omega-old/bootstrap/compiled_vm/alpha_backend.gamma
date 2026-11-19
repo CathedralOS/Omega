@@ -1,0 +1,44 @@
+; Alpha register operands are consecutive bytes after the opcode. Pack those
+; bytes into one little-endian field. Immediate words and label addresses
+; follow their prefix as separate eight-byte fields.
+(def alpha_reg ((s Int) (opcode Int) (reg Int)) Int
+  (i_field s 2 (+ opcode (* 256 reg))))
+(def alpha_regs ((s Int) (opcode Int) (a Int) (b Int)) Int
+  (i_field s 3 (+ opcode (* 256 (+ a (* 256 b))))))
+
+(def i_halt ((s Int) (reg Int)) Int (alpha_reg s 0 reg))
+(def i_imm ((s Int) (reg Int) (value Int)) Int
+  (i_field (alpha_reg s 1 reg) 8 value))
+(def i_mov ((s Int) (a Int) (b Int)) Int (alpha_regs s 2 a b))
+(def i_add ((s Int) (a Int) (b Int)) Int (alpha_regs s 3 a b))
+(def i_sub ((s Int) (a Int) (b Int)) Int (alpha_regs s 4 a b))
+(def i_mul ((s Int) (a Int) (b Int)) Int (alpha_regs s 5 a b))
+(def i_div ((s Int) (a Int) (b Int)) Int (alpha_regs s 6 a b))
+(def i_mod ((s Int) (a Int) (b Int)) Int (alpha_regs s 7 a b))
+(def i_loadb ((s Int) (dst Int) (addr Int)) Int (alpha_regs s 8 dst addr))
+(def i_storeb ((s Int) (addr Int) (src Int)) Int (alpha_regs s 9 addr src))
+(def i_load ((s Int) (dst Int) (addr Int)) Int (alpha_regs s 10 dst addr))
+(def i_store ((s Int) (addr Int) (src Int)) Int (alpha_regs s 11 addr src))
+(def i_jmp ((s Int) (label Int)) Int (i_address (i_field s 1 12) label))
+(def i_jz ((s Int) (reg Int) (label Int)) Int
+  (i_address (alpha_reg s 13 reg) label))
+(def i_jnz ((s Int) (reg Int) (label Int)) Int
+  (i_address (alpha_reg s 14 reg) label))
+(def i_jlt ((s Int) (a Int) (b Int) (label Int)) Int
+  (i_address (alpha_regs s 15 a b) label))
+(def i_jeq ((s Int) (a Int) (b Int) (label Int)) Int
+  (i_address (alpha_regs s 16 a b) label))
+(def i_read ((s Int) (reg Int)) Int (alpha_reg s 17 reg))
+(def i_write ((s Int) (reg Int)) Int (alpha_reg s 18 reg))
+(def i_call ((s Int) (label Int)) Int (i_address (i_field s 1 19) label))
+(def i_ret ((s Int)) Int (i_field s 1 20))
+
+; Alpha jumps and calls carry an absolute byte offset from the first opcode.
+(def i_target_width () Int 8)
+(def i_target_value ((size Int) (following Int) (suffix Int)) Int (- size suffix))
+
+; The audited seed hole holds at most 16 MiB minus its four-byte length.
+(def i_limit () Int 16777213)
+(def i_publish ((fields Int) (size Int) (labels Int)) Int
+  (let capacity Int (c_check (lt size (i_limit)) 0)
+    (i_output fields size labels size)))

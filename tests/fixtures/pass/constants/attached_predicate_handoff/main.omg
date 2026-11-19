@@ -1,3 +1,0 @@
-use attached_values;
-
-machine main() crashes Trap { attached_values::probe() }

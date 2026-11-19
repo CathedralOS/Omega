@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "unrequested_target_entry_returns_value");
-    Build::bind(builder, linux_x86_64::ProgramEntry, launch);
-    Build::bind(builder, windows_x86_64::ProgramEntry, foreign_launch);
-}

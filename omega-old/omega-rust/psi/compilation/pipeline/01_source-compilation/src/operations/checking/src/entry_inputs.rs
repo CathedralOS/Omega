@@ -1,0 +1,1630 @@
+/*
+A private helper may rely on what every caller establishes when its input
+contract was omitted. For example, a helper that subtracts one can be called
+under `n > 0` without repeating that condition in its header. A written
+contract, including `requires true`, remains the whole input promise.
+
+Describe each arrival in the callee's formal values, join those descriptions,
+and make that predicate an ordinary entry requirement. Every call then owes
+it to the same prover and kernel as an authored requirement. Describing an
+arrival is inference, never evidence: the final discharge checks all calls,
+body operations and joins before anything can be accepted.
+
+Only facts about exact actuals cross here. Scalar inputs and the current
+values of fields under structural inputs have names in the callee. A written
+boundary stops caller inference, while its own declared facts can justify calls
+within its body.
+*/
+
+use arena::IdTable;
+use semantic_vocabulary::{
+    BlockId, CanonicalStructuralPathSegment, EdgeId, InvocationSite, MachineId, PlaceId,
+    Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
+};
+use std::collections::VecDeque;
+use terminal_check_tables::edges::Callee;
+use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
+use terminal_check_tables::program::{Elaboration, SourceOrigin};
+use terminal_check_tables::values::Justification;
+use terminal_check_tables::{
+    Checked, Construct, InvocationId, MachineTables, ProgramPoint, RefusalReason,
+};
+use terminal_psi::{OperationKind, TerminalMachine, Terminator};
+use terminal_semantics::substitution::clauses::substitute_clause_with_computation_names;
+
+use crate::checking::{
+    Bindings, Unbound, graph::Graph, joins, prepare_with_inhabitation, refusal, scalar_actuals,
+    terminal_machine,
+};
+
+mod integer_cases;
+
+/// Ordinary callers precede helpers. A recursive component's internal calls
+/// are block arrivals: discover their conditions without an inductive
+/// assumption, then check every internal and external arrival normally.
+pub(crate) fn infer(
+    scope: &mut crate::checking::ReplayScope<'_>,
+    unreached: &mut crate::checking::Unreached,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::checking::ProofSearchActivity,
+) -> Checked<()> {
+    let elaboration = scope.source();
+    if elaboration.private_inputs.is_empty() {
+        return Ok(());
+    }
+    let sites = CallSites::new(elaboration)?;
+    // Internal tail calls are block arrivals after frame reuse. Discover their
+    // conditions without a recursive hypothesis, then publish them as ordinary
+    // entry requirements and head predicates. Every real arrival must prove
+    // them, including the entry transfer of each separately callable member.
+    let mut loop_inputs = elaboration.tables.machines.map(|_, _| Vec::new());
+    for caller in elaboration.tables.machines.keys() {
+        describe_calls(
+            scope,
+            caller,
+            &sites,
+            true,
+            &mut loop_inputs,
+            unreached,
+            inhabitation,
+            activity,
+        )?;
+    }
+    for (callee, arrivals) in loop_inputs.iter() {
+        if !arrivals.is_empty() {
+            let predicate = canonical(joins::connective(arrivals.clone(), false), callee)?;
+            if predicate != Proposition::Truth {
+                scope.require(callee, predicate, &sites, activity)?;
+            }
+        }
+    }
+    let elaboration = scope.source();
+    let mut waiting = sites.incoming.map(|_, callers| callers.len());
+    let mut bodies = elaboration.tables.machines.map(|_, _| true);
+    for requirement in &elaboration.requirements {
+        *machine_row_mut(&mut bodies, *requirement, *requirement)? = false;
+    }
+    let mut ready: VecDeque<_> = bodies
+        .iter()
+        .filter_map(|(id, body)| {
+            (*body && (sites.private.get(id) == Some(&false) || waiting.get(id) == Some(&0)))
+                .then_some(id)
+        })
+        .collect();
+    // Keep the internal arrivals when later acyclic caller inference adds
+    // facts. An ordinary caller alone cannot narrow a recursive helper past
+    // the inputs its other incoming edges admit.
+    let mut incoming = loop_inputs;
+    while let Some(id) = ready.pop_front() {
+        if sites.private.get(id) == Some(&true) {
+            let arrivals =
+                terminal_check_tables::row(&incoming, id, id, Construct::Machine)?.clone();
+            if !arrivals.is_empty() {
+                let predicate = canonical(joins::connective(arrivals, false), id)?;
+                if predicate != Proposition::Truth {
+                    scope.require(id, predicate, &sites, activity)?;
+                }
+            }
+        }
+        describe_calls(
+            scope,
+            id,
+            &sites,
+            false,
+            &mut incoming,
+            unreached,
+            inhabitation,
+            activity,
+        )?;
+        for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
+            let callee = sites.arrivals[site].callee;
+            let remaining = machine_row_mut(&mut waiting, callee, id)?;
+            *remaining -= 1;
+            if *remaining == 0 && bodies.get(callee) == Some(&true) {
+                ready.push_back(callee);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn describe_calls(
+    scope: &crate::checking::ReplayScope<'_>,
+    id: MachineId,
+    sites: &CallSites,
+    transfers: bool,
+    incoming: &mut IdTable<MachineId, Vec<Proposition>>,
+    unreached: &mut crate::checking::Unreached,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::checking::ProofSearchActivity,
+) -> Checked<()> {
+    let elaboration = scope.source();
+    let original =
+        terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
+    let outgoing = terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)?;
+    let edges = if transfers {
+        terminal_check_tables::row(&sites.transfers, id, id, Construct::Machine)?.as_slice()
+    } else {
+        &[][..]
+    };
+    let includes_call = |index: usize| {
+        !transfers
+            || sites
+                .heads
+                .get(sites.arrivals[index].callee)
+                .is_some_and(|heads| !heads.is_empty())
+    };
+    if !outgoing.iter().any(|&index| includes_call(index)) && edges.is_empty() {
+        return Ok(());
+    }
+    // One caller's construction scratch; the final evidence tables remain
+    // untouched. No typed trees or completed proof products are copied.
+    let mut tables = original.clone();
+    let prepared = prepare_with_inhabitation(
+        scope.formed(),
+        &elaboration.domains,
+        id,
+        &mut tables,
+        inhabitation,
+    )?;
+    let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
+    let mut references = prepared.references(&elaboration.module.structural_types);
+    let storage = crate::checking::places::Storage::new(
+        id,
+        lowered,
+        &elaboration.module,
+        &elaboration.domains,
+        &prepared.graph,
+        &tables,
+        &prepared.types,
+        &mut references,
+    )?;
+    let declared = joins::prepare(
+        lowered,
+        id,
+        &mut tables,
+        &prepared.graph,
+        &prepared.context,
+        &elaboration.module.scalar_block_invariants,
+        &storage,
+        &mut references,
+        activity,
+    )?;
+
+    let mut decided = (0..tables.obligations.len())
+        .map(|_| None)
+        .collect::<Vec<_>>();
+    let beyond = unreached.values(lowered, &tables);
+    joins::check(
+        &joins::Machine {
+            module: &elaboration.module,
+            lowered,
+            storage: &storage,
+            id,
+            types: &prepared.types,
+            graph: &prepared.graph,
+            context: &prepared.context,
+            ranking_bindings: &prepared.ranking_bindings,
+            declared: &declared,
+            unreached: &beyond,
+        },
+        &mut tables,
+        &mut decided,
+        activity,
+        &mut references,
+    )?;
+    for &(edge, callee) in edges {
+        let (_, actuals, structural) = storage.arrival(edge, Construct::Edge(edge))?;
+        let target = terminal_machine(&elaboration.module.machines, callee, id)?;
+        let point = ProgramPoint::Edge(edge);
+        let known = known_at(&tables, &prepared.graph, &prepared.context, id, point)?;
+        let mut fields = storage.at_join(
+            &mut references,
+            &tables,
+            &target.structural_parameters,
+            structural,
+            &[],
+            point,
+            Construct::Edge(edge),
+        )?;
+        let crossing = target
+            .parameters
+            .iter()
+            .zip(actuals)
+            .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
+            .chain(fields.observations().field_crossings())
+            .collect::<Vec<_>>();
+        let predicate = describe(
+            &known,
+            &prepared.context,
+            &crossing,
+            &mut InputBindings {
+                actuals,
+                target,
+                denotation: crate::checking::known::TransportInputs::new(known.equations.len()),
+                known: &known,
+                context: &prepared.context,
+                fields: fields.observations(),
+                equal: None,
+            },
+        );
+        incoming
+            .get_mut(callee)
+            .expect("callee was indexed")
+            .push(predicate);
+    }
+    for &index in outgoing {
+        if !includes_call(index) {
+            continue;
+        }
+        let site = &sites.arrivals[index];
+        let callee = site.callee;
+        let call = terminal_check_tables::row(
+            &tables.invocations,
+            site.invocation,
+            id,
+            Construct::Invocation(site.invocation),
+        )?;
+        let actuals = scalar_actuals(&call.actuals);
+        let target = terminal_machine(&elaboration.module.machines, callee, id)?;
+        let crossing: Vec<_> = target
+            .parameters
+            .iter()
+            .zip(&actuals)
+            .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
+            .collect();
+        let known = known_at(&tables, &prepared.graph, &prepared.context, id, site.before)?;
+        let mut fields = storage.at_call(
+            &mut references,
+            &tables,
+            &call.actuals,
+            &target.structural_parameters,
+            call.site,
+            Construct::Invocation(site.invocation),
+        )?;
+        // Record fields cross like scalar formals, so a field the caller
+        // overwrote keeps its name beside the field its value was read from.
+        let mut described = crossing.clone();
+        described.extend(fields.observations().field_crossings());
+        let predicate = describe(
+            &known,
+            &prepared.context,
+            &described,
+            &mut InputBindings {
+                actuals: &actuals,
+                target,
+                denotation: crate::checking::known::TransportInputs::new(known.equations.len()),
+                known: &known,
+                context: &prepared.context,
+                fields: fields.observations(),
+                equal: None,
+            },
+        );
+        // What the caller derives of an integer actual without holding it
+        // as a fact: the interval of a sum of bounded values, of a call's
+        // result, of a cast. The helper's body may need exactly that
+        // (`preserved - 100` after `step(total)`), and the arrival proves
+        // it like every other part of the inferred condition.
+        let derived = derived(
+            &tables,
+            &prepared.graph,
+            &prepared.context,
+            id,
+            site.before,
+            &crossing,
+            &beyond,
+            activity,
+        )?;
+        // What the helper learns of such a formal describes an operation
+        // the integer rules do not reach, in the caller.
+        for formal in derived.unreached {
+            unreached.mark_formal(callee, formal);
+        }
+        let mut parts = derived.bounds;
+        parts.push(predicate);
+        let predicate = joins::connective(parts, true);
+        incoming
+            .get_mut(callee)
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Machine,
+                    "a private callee has no arrival roster",
+                )
+            })?
+            .push(predicate);
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum CallPosition {
+    Operation { block: usize, operation: usize },
+    NoNormal { block: usize },
+}
+
+struct Arrival {
+    caller: MachineId,
+    callee: MachineId,
+    invocation: InvocationId,
+    before: ProgramPoint,
+    position: CallPosition,
+}
+
+struct LoopHead {
+    caller: MachineId,
+    block: BlockId,
+    arrivals: Vec<terminal_psi::ScalarBlockInvariantArrival>,
+}
+
+/// Resolve the call graph and physical call positions once. Updating an
+/// inferred contract follows its own arrivals, not every machine again.
+/// Inference appends clauses and obligations; it never moves a block, an
+/// operation or an invocation, so these positions remain valid throughout.
+pub(crate) struct CallSites {
+    private: IdTable<MachineId, bool>,
+    arrivals: Vec<Arrival>,
+    incoming: IdTable<MachineId, Vec<usize>>,
+    outgoing: IdTable<MachineId, Vec<usize>>,
+    transfers: IdTable<MachineId, Vec<(EdgeId, MachineId)>>,
+    heads: IdTable<MachineId, Vec<LoopHead>>,
+}
+
+impl CallSites {
+    fn new(elaboration: &Elaboration) -> Checked<Self> {
+        let mut private = elaboration.tables.machines.map(|_, _| false);
+        for id in &elaboration.private_inputs {
+            *machine_row_mut(&mut private, *id, *id)? = true;
+        }
+        // A selected cleanup contract must stand on its declared inputs.
+        // Generated disposal sites never infer a new demand on their caller.
+        for machine in &elaboration.module.machines {
+            for (_, actions) in machine
+                .blocks
+                .iter()
+                .flat_map(|block| block.terminator.cleanup_rosters())
+            {
+                for action in actions {
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
+                        *machine_row_mut(&mut private, cleanup.cleanup_machine, machine.id)? =
+                            false;
+                    }
+                }
+            }
+        }
+        let mut result = Self {
+            private,
+            arrivals: Vec::new(),
+            incoming: elaboration.tables.machines.map(|_, _| Vec::new()),
+            outgoing: elaboration.tables.machines.map(|_, _| Vec::new()),
+            transfers: elaboration.tables.machines.map(|_, _| Vec::new()),
+            heads: elaboration.tables.machines.map(|_, _| Vec::new()),
+        };
+        // Correspondence chooses candidates, never proof premises. Whatever
+        // condition it suggests is checked on all ordinary calls and all
+        // physical arrivals before any body can use it.
+        for (id, sources) in elaboration.sources.iter() {
+            if sources.heads.is_empty() {
+                continue;
+            }
+            let machine = terminal_machine(&elaboration.module.machines, id, id)?;
+            let tables = terminal_check_tables::row(
+                &elaboration.tables.machines,
+                id,
+                id,
+                Construct::Machine,
+            )?;
+            let mut arrivals = vec![Vec::new(); machine.blocks.len()];
+            for (obligation, row) in tables.obligations.iter() {
+                let ObligationKind::ArrivalInvariant { edge } = row.kind else {
+                    continue;
+                };
+                let edge_row =
+                    terminal_check_tables::row(&tables.edges, edge, id, Construct::Edge(edge))?;
+                if let terminal_check_tables::edges::Destination::Block(target) =
+                    edge_row.destination
+                {
+                    let index = usize::try_from(target.get() - 1).map_err(|_| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Block(target),
+                            "block position exceeds usize",
+                        )
+                    })?;
+                    arrivals
+                        .get_mut(index)
+                        .ok_or_else(|| {
+                            refusal(
+                                RefusalReason::ForeignIdentity,
+                                id,
+                                Construct::Block(target),
+                                "arrival names no block",
+                            )
+                        })?
+                        .push(terminal_psi::ScalarBlockInvariantArrival { edge, obligation });
+                }
+            }
+            let mut members = vec![None; machine.blocks.len()];
+            for &(head, callee) in &sources.heads {
+                if result.private.get(callee) != Some(&true) {
+                    continue;
+                }
+                let slot = usize::try_from(head.get() - 1)
+                    .ok()
+                    .and_then(|index| members.get_mut(index))
+                    .ok_or_else(|| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Block(head),
+                            "a loop head is outside its machine",
+                        )
+                    })?;
+                if slot.replace(callee).is_some() {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        Construct::Block(head),
+                        "a loop head has two member correspondences",
+                    ));
+                }
+                result
+                    .heads
+                    .get_mut(callee)
+                    .expect("private callee was indexed")
+                    .push(LoopHead {
+                        caller: id,
+                        block: head,
+                        arrivals: std::mem::take(&mut arrivals[(head.get() - 1) as usize]),
+                    });
+            }
+            for (edge, row) in tables.edges.iter() {
+                let terminal_check_tables::edges::Destination::Block(target) = row.destination
+                else {
+                    continue;
+                };
+                let Some(callee) = usize::try_from(target.get() - 1)
+                    .ok()
+                    .and_then(|index| members.get(index))
+                    .copied()
+                    .flatten()
+                else {
+                    continue;
+                };
+                // The synthetic root-to-head edge is checked against the
+                // inferred entry contract; it is not an authored caller.
+                if sources.edges.get(edge)
+                    == Some(&SourceOrigin::Unpositioned(
+                        terminal_check_tables::program::Unpositioned::MachineEntry,
+                    ))
+                {
+                    continue;
+                }
+                result
+                    .transfers
+                    .get_mut(id)
+                    .expect("caller was indexed")
+                    .push((edge, callee));
+            }
+        }
+        for (id, tables) in elaboration.tables.machines.iter() {
+            if !tables.invocations.values().any(|call| {
+                matches!(call.callee, Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) if result.private.get(callee) == Some(&true))
+            }) {
+                continue;
+            }
+            let machine = terminal_machine(&elaboration.module.machines, id, id)?;
+            let mut operations: Vec<Option<(CallPosition, ProgramPoint)>> = Vec::new();
+            for (block_index, block) in machine.blocks.iter().enumerate() {
+                let mut before = ProgramPoint::BlockEntry(block.id);
+                for (operation_index, operation) in block.operations.iter().enumerate() {
+                    let index = usize::try_from(operation.id.get() - 1).map_err(|_| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Operation(operation.id),
+                            "operation position exceeds usize",
+                        )
+                    })?;
+                    if operations.len() <= index {
+                        operations.resize(index + 1, None);
+                    }
+                    operations[index] = Some((
+                        CallPosition::Operation {
+                            block: block_index,
+                            operation: operation_index,
+                        },
+                        before,
+                    ));
+                    before = ProgramPoint::AfterOperation(operation.id);
+                }
+            }
+            for (invocation, call) in tables.invocations.iter() {
+                let Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) =
+                    call.callee
+                else {
+                    continue;
+                };
+                if result.private.get(callee) != Some(&true) {
+                    continue;
+                }
+                let foreign = || {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        Construct::Invocation(invocation),
+                        "a private invocation has no call position",
+                    )
+                };
+                let (position, before) = match call.site {
+                    InvocationSite::Operation(operation) => usize::try_from(operation.get() - 1)
+                        .ok()
+                        .and_then(|index| operations.get(index))
+                        .copied()
+                        .flatten()
+                        .ok_or_else(foreign)?,
+                    InvocationSite::InvokeNoNormal(edge) => {
+                        let row = terminal_check_tables::row(
+                            &tables.edges,
+                            edge,
+                            id,
+                            Construct::Edge(edge),
+                        )?;
+                        let index = usize::try_from(row.source.get() - 1).map_err(|_| foreign())?;
+                        let block = machine
+                            .blocks
+                            .get(index)
+                            .filter(|block| block.id == row.source)
+                            .ok_or_else(foreign)?;
+                        if !matches!(&block.terminator, Terminator::InvokeNoNormal { edge: actual, .. } if *actual == edge)
+                        {
+                            return Err(foreign());
+                        }
+                        (
+                            CallPosition::NoNormal { block: index },
+                            block
+                                .operations
+                                .last()
+                                .map_or(ProgramPoint::BlockEntry(block.id), |operation| {
+                                    ProgramPoint::AfterOperation(operation.id)
+                                }),
+                        )
+                    }
+                    _ => return Err(foreign()),
+                };
+                let index = result.arrivals.len();
+                result.arrivals.push(Arrival {
+                    caller: id,
+                    callee,
+                    invocation,
+                    before,
+                    position,
+                });
+                machine_row_mut(&mut result.incoming, callee, id)?.push(index);
+                machine_row_mut(&mut result.outgoing, id, id)?.push(index);
+            }
+        }
+        Ok(result)
+    }
+}
+
+fn machine_row_mut<T>(
+    table: &mut IdTable<MachineId, T>,
+    id: MachineId,
+    from: MachineId,
+) -> Checked<&mut T> {
+    table.get_mut(id).ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            from,
+            Construct::Machine,
+            "machine identity is past the end of an entry-inference table",
+        )
+    })
+}
+
+/// What `derived` finds for the actuals of one arrival.
+struct Derived {
+    /// The literal bounds the prover derives for each integer actual, stated
+    /// of its formal.
+    bounds: Vec<Proposition>,
+    /// The formals whose actual the integer rules do not reach.
+    unreached: Vec<ValueId>,
+}
+
+/// The interval machine `id` derives at `point` for each value that crosses
+/// to a callee's formal, and which of those values the integer rules do not
+/// reach (`prove::reach`).
+#[allow(clippy::too_many_arguments)]
+fn derived(
+    tables: &MachineTables,
+    graph: &Graph,
+    context: &semantic_vocabulary::PropositionContext,
+    id: MachineId,
+    point: ProgramPoint,
+    crossing: &[(ScalarTerm, ValueId)],
+    beyond: &[ValueId],
+    activity: &mut crate::checking::ProofSearchActivity,
+) -> Checked<Derived> {
+    let mut assumptions = Vec::new();
+    let mut axioms = Vec::new();
+    for (_, row) in tables.knowledge.iter() {
+        if graph.dominates(row.available_from, point)? {
+            let proposition = terminal_check_tables::row(
+                &tables.propositions,
+                row.proposition,
+                id,
+                Construct::Machine,
+            )?;
+            if matches!(row.justification, Justification::OperationSemantics(_)) {
+                axioms.push(proposition.clone());
+            } else {
+                assumptions.push(proposition.clone());
+            }
+        }
+    }
+    let mut prover = crate::checking::prove::Prover::new(
+        context,
+        &assumptions,
+        &axioms,
+        &tables.values,
+        activity,
+    );
+    let mut found = Derived {
+        bounds: Vec::new(),
+        unreached: Vec::new(),
+    };
+    for (name, here) in crossing {
+        if let ScalarTerm::Value { id: formal, .. } = name
+            && prover.value_beyond_rules(*here, beyond)
+        {
+            found.unreached.push(*formal);
+        }
+        let ScalarType::Integer(integer) = name.scalar_type() else {
+            continue;
+        };
+        if tables.values.get(*here).map(|row| row.scalar_type) != Some(name.scalar_type()) {
+            continue;
+        }
+        let (lower, upper) = prover.literal_bounds(*here);
+        if let Some(literal) = lower.and_then(|lower| ScalarTerm::integer(integer, lower).ok()) {
+            found
+                .bounds
+                .push(Proposition::LessOrEqual(literal, name.clone()));
+        }
+        if let Some(literal) = upper.and_then(|upper| ScalarTerm::integer(integer, upper).ok()) {
+            found
+                .bounds
+                .push(Proposition::LessOrEqual(name.clone(), literal));
+        }
+    }
+    Ok(found)
+}
+
+/// The premises available before projecting a contract description.
+pub(crate) fn known_at(
+    tables: &MachineTables,
+    graph: &Graph,
+    context: &semantic_vocabulary::PropositionContext,
+    id: MachineId,
+    point: ProgramPoint,
+) -> Checked<crate::checking::known::Known> {
+    let mut available = Vec::new();
+    for (_, row) in tables.knowledge.iter() {
+        if graph.dominates(row.available_from, point)? {
+            let proposition = terminal_check_tables::row(
+                &tables.propositions,
+                row.proposition,
+                id,
+                Construct::Machine,
+            )?;
+            flatten(row.justification, proposition, &mut available);
+        }
+    }
+    // Use the same equality transport as proof search. In particular, a taken
+    // result such as `(condition == true) == true` establishes `condition`'s
+    // literal value before caller-only Boolean identities are projected away.
+    let mut assumptions = Vec::new();
+    let mut axioms = Vec::new();
+    for (why, proposition) in &available {
+        if matches!(why, Justification::OperationSemantics(_)) {
+            axioms.push((*proposition).clone());
+        } else {
+            assumptions.push((*proposition).clone());
+        }
+    }
+    Ok(crate::checking::known::Known::new(
+        context,
+        &assumptions,
+        &axioms,
+        &tables.values,
+    ))
+}
+
+/// State the available facts using the names on the other side of a contract
+/// boundary. A fact over a value without a name there can only be forgotten.
+pub(crate) fn describe(
+    known: &crate::checking::known::Known,
+    context: &PropositionContext,
+    crossing: &[(ScalarTerm, ValueId)],
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Proposition {
+    let mut parts = Vec::new();
+    let mut computation_names = Vec::new();
+    let mut aliases = Vec::new();
+    let mut transport = crate::checking::known::TransportInputs::new(known.equations.len());
+    for (name, here) in crossing {
+        // Callable identity and selection have no mathematical equality.
+        // Its declared type crosses independently of inferred predicates.
+        if matches!(name.scalar_type(), ScalarType::Callable(_)) {
+            continue;
+        }
+        let definition = known.expand_value(context, *here, name.scalar_type(), &mut transport);
+        if let Ok(term) = crate::checking::bound(&definition, &mut *bindings)
+            && *name != term
+        {
+            // The receiving name holds a value the description names
+            // elsewhere, for example a field the caller overwrote with
+            // another field's value. Facts are restated under it below.
+            if matches!(
+                term,
+                ScalarTerm::Value { .. }
+                    | ScalarTerm::IntegerField { .. }
+                    | ScalarTerm::BooleanField { .. }
+            ) {
+                aliases.push((term.clone(), name.clone()));
+            }
+            parts.push(Proposition::Equal(name.clone(), term));
+        }
+        if definition.scalar_type() == name.scalar_type() && !definition.operands().is_empty() {
+            computation_names.push((definition, name.clone()));
+        }
+    }
+    computation_names.sort_unstable();
+    computation_names.dedup_by(|right, left| right.0 == left.0);
+    for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
+        // A normalized fact may already name the exact computation passed
+        // across the boundary. Give that computation its receiving name
+        // before resolving operands the receiver cannot see.
+        parts.push(joins::project(&fact.proposition, &mut |atom| {
+            substitute_clause_with_computation_names(atom, &mut *bindings, &computation_names).ok()
+        }));
+    }
+    // The receiver checks against these facts directly; it does not search
+    // through the equality above. State each fact again with the other name
+    // in place of the one the description chose.
+    for (from, to) in &aliases {
+        let mut renamed = RenamedTerm {
+            from,
+            to,
+            inner: &mut *bindings,
+        };
+        for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
+            parts.push(joins::project(&fact.proposition, &mut |atom| {
+                substitute_clause_with_computation_names(atom, &mut renamed, &computation_names)
+                    .ok()
+            }));
+        }
+    }
+    // A restated fact can itself be a conjunction. Terminal's canonical
+    // encoding refuses one nested in another, so join its operands here.
+    let mut flat = Vec::with_capacity(parts.len());
+    while let Some(part) = parts.pop() {
+        match part {
+            Proposition::Conjunction(nested) => parts.extend(nested),
+            // Restating a fact under the other name of the same value can
+            // produce `x == x`; it says nothing.
+            Proposition::Equal(left, right) if left == right => {}
+            Proposition::IntegerMathEqual(left, right) if left == right => {}
+            other => flat.push(other),
+        }
+    }
+    joins::connective(flat, true)
+}
+
+/// Bindings that resolve like `inner`, except that the one term `from` reads
+/// as `to`. Both name the same value at the arrival being described.
+struct RenamedTerm<'s> {
+    from: &'s ScalarTerm,
+    to: &'s ScalarTerm,
+    inner: &'s mut dyn Bindings<Error = Unbound>,
+}
+
+impl RenamedTerm<'_> {
+    fn rename(&self, term: ScalarTerm) -> ScalarTerm {
+        if term == *self.from {
+            self.to.clone()
+        } else {
+            term
+        }
+    }
+}
+
+impl Bindings for RenamedTerm<'_> {
+    type Error = Unbound;
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.inner.validate_float_meaning_source(source)
+    }
+    fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+        let term = self.inner.value(value, scalar_type)?;
+        Ok(self.rename(term))
+    }
+    fn field(
+        &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Unbound> {
+        let term = self.inner.field(version, root, path, scalar_type)?;
+        Ok(self.rename(term))
+    }
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Unbound> {
+        self.inner.extent(root, path, scalar_type)
+    }
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Unbound> {
+        self.inner.byte_predicate(predicate, root, path)
+    }
+    fn case(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        case: StructuralCaseId,
+    ) -> Result<bool, Unbound> {
+        self.inner.case(root, path, case)
+    }
+}
+
+fn flatten<'a>(
+    why: Justification,
+    proposition: &'a Proposition,
+    available: &mut Vec<(Justification, &'a Proposition)>,
+) {
+    if let Proposition::Conjunction(parts) = proposition {
+        for part in parts {
+            flatten(why, part, available);
+        }
+    } else {
+        available.push((why, proposition));
+    }
+}
+
+struct InputBindings<'s, 'a> {
+    actuals: &'s [ValueId],
+    target: &'s TerminalMachine,
+    denotation: crate::checking::known::TransportInputs,
+    known: &'s crate::checking::known::Known,
+    context: &'s semantic_vocabulary::PropositionContext,
+    fields: crate::checking::places::CallObservations<'s, 'a>,
+    /// The caller's value equalities, gathered on the first value that does
+    /// not bind directly.
+    equal: Option<Vec<(ValueId, ValueId)>>,
+}
+
+impl InputBindings<'_, '_> {
+    /// `value` as a callee formal or as the field of a structural input it
+    /// was read from.
+    fn direct(&mut self, value: ValueId, scalar_type: ScalarType) -> Option<ScalarTerm> {
+        self.actuals
+            .iter()
+            .position(|actual| *actual == value)
+            .and_then(|position| self.target.parameters.get(position))
+            .filter(|formal| formal.scalar_type == scalar_type)
+            .map(|formal| ScalarTerm::value(formal.id, scalar_type))
+            .or_else(|| {
+                self.fields
+                    .formal_observation(value, scalar_type, |held, snapshot| {
+                        self.known.same_denotation(
+                            self.context,
+                            held,
+                            snapshot,
+                            &mut self.denotation,
+                        )
+                    })
+            })
+    }
+}
+
+impl Bindings for InputBindings<'_, '_> {
+    type Error = Unbound;
+    fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
+        if let Some(term) = self.direct(value, scalar_type) {
+            return Ok(term);
+        }
+        // A fact may name a value the arrival cannot see while an equal one
+        // is read from what it passes on. In a call cycle the head of
+        // `render_loop` reads `main.i` from its own block formal, and the
+        // guard in `mark` reads the same unchanged field from `mark`'s: the
+        // guard's bound is stated over the first read and only the second
+        // is an input of the edge to `render_bump`. Follow the caller's own
+        // value equalities to a value the edge does pass. Describing an
+        // arrival is inference: every arrival still proves the result.
+        // Both directions of each equality, sorted, so a value's equals are
+        // one contiguous run.
+        let equal = self.equal.get_or_insert_with(|| {
+            let mut pairs = Vec::new();
+            for &index in &self.known.equations {
+                if let Some(Proposition::Equal(
+                    ScalarTerm::Value { id: left, .. },
+                    ScalarTerm::Value { id: right, .. },
+                )) = self.known.facts.get(index).map(|fact| &fact.proposition)
+                    && left != right
+                {
+                    pairs.push((*left, *right));
+                    pairs.push((*right, *left));
+                }
+            }
+            pairs.sort_unstable();
+            pairs.dedup();
+            pairs
+        });
+        let mut seen = vec![value];
+        let mut next = 0;
+        while let Some(&here) = seen.get(next) {
+            next += 1;
+            let first = equal.partition_point(|(from, _)| *from < here);
+            for &(from, other) in &equal[first..] {
+                if from != here {
+                    break;
+                }
+                if !seen.contains(&other) {
+                    seen.push(other);
+                }
+            }
+        }
+        for other in seen.into_iter().skip(1) {
+            if let Some(term) = self.direct(other, scalar_type) {
+                return Ok(term);
+            }
+        }
+        Err(Unbound::Unproved(
+            "a caller value is not read from an actual input",
+        ))
+    }
+    fn field(
+        &mut self,
+        _: semantic_vocabulary::ContentPlaceVersion,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: ScalarType,
+    ) -> Result<ScalarTerm, Unbound> {
+        Err(Unbound::Unproved(
+            "a caller storage path is not a callee input value",
+        ))
+    }
+    fn case(
+        &mut self,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: StructuralCaseId,
+    ) -> Result<bool, Unbound> {
+        Err(Unbound::Unproved(
+            "a caller storage case is not a callee input value",
+        ))
+    }
+}
+
+pub(crate) fn canonical(proposition: Proposition, id: MachineId) -> Checked<Proposition> {
+    let encode_error = |_| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            "an inferred input predicate is not encodable",
+        )
+    };
+    Ok(match proposition {
+        Proposition::Equal(mut left, mut right) => {
+            if terminal_codec::canonical_scalar_term_order_key(&left).map_err(encode_error)?
+                > terminal_codec::canonical_scalar_term_order_key(&right).map_err(encode_error)?
+            {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::Equal(left, right)
+        }
+        Proposition::Conjunction(parts) => canonical_parts(parts, true, id)?,
+        Proposition::Disjunction(parts) => canonical_parts(parts, false, id)?,
+        other => other,
+    })
+}
+
+fn canonical_parts(
+    mut parts: Vec<Proposition>,
+    conjunction: bool,
+    id: MachineId,
+) -> Checked<Proposition> {
+    let mut keyed = Vec::with_capacity(parts.len());
+    let (unit, zero) = if conjunction {
+        (Proposition::Truth, Proposition::Falsehood)
+    } else {
+        (Proposition::Falsehood, Proposition::Truth)
+    };
+    while let Some(part) = parts.pop() {
+        // An inferred caller condition can itself join several arrivals.
+        // Flatten the same connective before ordering: Terminal's canonical
+        // contract encoding refuses nested conjunctions and disjunctions.
+        let part = match part {
+            Proposition::Conjunction(nested) if conjunction => {
+                parts.extend(nested);
+                continue;
+            }
+            Proposition::Disjunction(nested) if !conjunction => {
+                parts.extend(nested);
+                continue;
+            }
+            other => canonical(other, id)?,
+        };
+        // Normalizing the other connective can collapse a singleton and
+        // reveal this connective too; it has the same associative meaning.
+        match part {
+            Proposition::Conjunction(nested) if conjunction => {
+                parts.extend(nested);
+                continue;
+            }
+            Proposition::Disjunction(nested) if !conjunction => {
+                parts.extend(nested);
+                continue;
+            }
+            _ => {}
+        }
+        if part == zero {
+            return Ok(zero);
+        }
+        if part == unit {
+            continue;
+        }
+        keyed.push((
+            terminal_codec::canonical_proposition_order_key(&part).map_err(|_| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Machine,
+                    "an inferred input predicate is not encodable",
+                )
+            })?,
+            part,
+        ));
+    }
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    keyed.dedup_by(|left, right| left.0 == right.0);
+    let mut parts: Vec<_> = keyed.into_iter().map(|(_, part)| part).collect();
+    // Projecting a guard can leave both possible values of a Boolean in a
+    // connective. Settle that pair before passing the clause to proof search.
+    let mut boolean_values: Vec<_> = parts
+        .iter()
+        .filter_map(|part| match part {
+            Proposition::Equal(ScalarTerm::Boolean(value), term)
+            | Proposition::Equal(term, ScalarTerm::Boolean(value))
+                if term.scalar_type() == ScalarType::Boolean =>
+            {
+                Some((term, *value))
+            }
+            _ => None,
+        })
+        .collect();
+    boolean_values.sort_unstable();
+    if boolean_values
+        .windows(2)
+        .any(|pair| pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1)
+    {
+        return Ok(zero);
+    }
+    if !conjunction && parts.len() > 1 {
+        // A caller's entry condition can reach the same helper by several
+        // paths. State their common facts once so checking any arrival need
+        // only distinguish what changed between those paths.
+        let mut common: std::collections::BTreeSet<_> = conjuncts(&parts[0]).iter().collect();
+        for part in &parts[1..] {
+            if common.is_empty() {
+                break;
+            }
+            let here: std::collections::BTreeSet<_> = conjuncts(part).iter().collect();
+            common.retain(|fact| here.contains(fact));
+        }
+        if !common.is_empty() {
+            let distinct = parts
+                .iter()
+                .map(|part| {
+                    let conditions = conjuncts(part)
+                        .iter()
+                        .filter(|fact| !common.contains(fact))
+                        .cloned()
+                        .collect();
+                    canonical_parts(conditions, true, id)
+                })
+                .collect::<Checked<Vec<_>>>()?;
+            let mut required: Vec<_> = common.into_iter().cloned().collect();
+            required.push(canonical_parts(distinct, false, id)?);
+            return canonical_parts(required, true, id);
+        }
+    }
+    Ok(match parts.len() {
+        0 if conjunction => Proposition::Truth,
+        0 => Proposition::Falsehood,
+        1 => parts.pop().unwrap_or(Proposition::Truth),
+        _ if conjunction => Proposition::Conjunction(parts),
+        _ => Proposition::Disjunction(parts),
+    })
+}
+
+fn conjuncts(proposition: &Proposition) -> &[Proposition] {
+    match proposition {
+        Proposition::Conjunction(parts) => parts,
+        other => std::slice::from_ref(other),
+    }
+}
+
+/// Add the inferred predicate to the contract and mint its obligation at
+/// every real call. Existing clauses retain their obligation identities when
+/// canonical ordering moves their positions.
+/// The part of an inferred condition whose arithmetic forms in the callee's
+/// contract. Nobody wrote the condition, so a conjunct that cannot form (a
+/// product like `pi == e * 26` that arrived without the bound on `e` that
+/// keeps it total) is not the program's error: leave it out. Keeping fewer
+/// conjuncts only gives the body fewer premises, and every arrival still
+/// proves what is kept. Conjuncts are retried while any joins, so a bound
+/// that sorts after the term it protects still admits that term.
+fn formed(
+    elaboration: &Elaboration,
+    callee: MachineId,
+    predicate: Proposition,
+    activity: &mut crate::checking::ProofSearchActivity,
+) -> Checked<Option<Proposition>> {
+    // Projecting a branch condition can leave all outcomes of a comparison
+    // in a helper's inferred input. Omit these universal conditions before
+    // assigning them to callers. Written requirements keep their own checks.
+    let predicate = match predicate {
+        Proposition::Disjunction(ref parts) if integer_cases::exhaustive(parts) => {
+            return Ok(None);
+        }
+        Proposition::Conjunction(mut parts) => {
+            parts.retain(|part| {
+                !matches!(part, Proposition::Disjunction(arms) if integer_cases::exhaustive(arms))
+            });
+            match parts.len() {
+                0 => return Ok(None),
+                1 => parts.pop().expect("one inferred conjunct"),
+                _ => Proposition::Conjunction(parts),
+            }
+        }
+        other => other,
+    };
+    if predicate == Proposition::Truth {
+        return Ok(None);
+    }
+    let contract = &terminal_machine(&elaboration.module.machines, callee, callee)?.contract;
+    // A defect in the module itself is still reported, never left out.
+    let forms = |clause: &Proposition, activity: &mut crate::checking::ProofSearchActivity| {
+        let mut proposed = contract.clone();
+        proposed.requires.push(clause.clone());
+        match crate::checking::formation::contract(&elaboration.module, callee, &proposed, activity)
+        {
+            Ok(_) => Ok(true),
+            Err(refusal) if refusal.reason == RefusalReason::ForeignIdentity => Err(refusal),
+            Err(_) => Ok(false),
+        }
+    };
+    if forms(&predicate, activity)? {
+        return Ok(Some(predicate));
+    }
+    let mut pending = conjuncts(&predicate).to_vec();
+    let mut kept = Vec::new();
+    loop {
+        let mut joined = false;
+        let mut waiting = Vec::with_capacity(pending.len());
+        for part in pending {
+            let mut trial = kept.clone();
+            trial.push(part.clone());
+            if forms(&joins::connective(trial, true), activity)? {
+                kept.push(part);
+                joined = true;
+            } else {
+                waiting.push(part);
+            }
+        }
+        pending = waiting;
+        if !joined || pending.is_empty() {
+            break;
+        }
+    }
+    let predicate = joins::connective(kept, true);
+    Ok((predicate != Proposition::Truth).then_some(predicate))
+}
+
+pub(super) fn require(
+    elaboration: &mut Elaboration,
+    callee: MachineId,
+    predicate: Proposition,
+    sites: &CallSites,
+    activity: &mut crate::checking::ProofSearchActivity,
+) -> Checked<()> {
+    // An inferred condition becomes a premise for later callers in this
+    // pass. Its arithmetic must form before publishing that new contract.
+    let Some(predicate) = formed(elaboration, callee, predicate, activity)? else {
+        return Ok(());
+    };
+    let machine = usize::try_from(callee.get() - 1).map_err(|_| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            callee,
+            Construct::Machine,
+            "callee position exceeds usize",
+        )
+    })?;
+    let target = elaboration
+        .module
+        .machines
+        .get_mut(machine)
+        .ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                callee,
+                Construct::Machine,
+                "callee is past the module",
+            )
+        })?;
+    let parameters = target.parameters.clone();
+    let structural_parameters = target.structural_parameters.clone();
+    let previous = target.contract.requires.clone();
+    let mut clauses = previous.clone();
+    clauses.push(predicate);
+    let mut keyed = Vec::with_capacity(clauses.len());
+    for clause in clauses {
+        keyed.push((
+            terminal_codec::canonical_proposition_order_key(&clause).map_err(|_| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    callee,
+                    Construct::Machine,
+                    "input clause is not encodable",
+                )
+            })?,
+            clause,
+        ));
+    }
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    keyed.dedup_by(|left, right| left.0 == right.0);
+    let clauses: Vec<_> = keyed.into_iter().map(|(_, clause)| clause).collect();
+    target.contract.requires.clone_from(&clauses);
+    // Synthesized clauses have no authored text. Keep diagnostics aligned
+    // with the canonical positions of any existing authored clauses.
+    if let Some(names) = elaboration.names.get_mut(callee) {
+        let old = names.requires.clone();
+        names.requires = clauses
+            .iter()
+            .map(|clause| {
+                previous
+                    .iter()
+                    .position(|old| old == clause)
+                    .and_then(|position| old.get(position))
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        terminal_check_tables::names::ClauseText(vec![
+                            terminal_check_tables::names::Piece::Text(String::from(
+                                "inferred input condition",
+                            )),
+                        ])
+                    })
+            })
+            .collect();
+    }
+    for &index in terminal_check_tables::row(&sites.incoming, callee, callee, Construct::Machine)? {
+        let site = &sites.arrivals[index];
+        let caller_index = usize::try_from(site.caller.get() - 1).map_err(|_| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                callee,
+                Construct::Machine,
+                "caller position exceeds usize",
+            )
+        })?;
+        let caller = elaboration
+            .module
+            .machines
+            .get_mut(caller_index)
+            .filter(|caller| caller.id == site.caller)
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    callee,
+                    Construct::Machine,
+                    "caller is past the module",
+                )
+            })?;
+        let tables = elaboration
+            .tables
+            .machines
+            .get_mut(caller.id)
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    caller.id,
+                    Construct::Machine,
+                    "caller has no tables",
+                )
+            })?;
+        let sources = elaboration.sources.get_mut(caller.id).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                caller.id,
+                Construct::Machine,
+                "caller has no source correspondence",
+            )
+        })?;
+        let invocation = site.invocation;
+        let call = terminal_check_tables::row(
+            &tables.invocations,
+            invocation,
+            caller.id,
+            Construct::Invocation(invocation),
+        )?
+        .clone();
+        if call.callee
+            != Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee))
+            || call.requirements.len() != previous.len()
+        {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                caller.id,
+                Construct::Invocation(invocation),
+                "a planned private arrival does not match its invocation row",
+            ));
+        }
+        let point = site.before;
+        let source: SourceOrigin = match call.site {
+            InvocationSite::Operation(operation) => *terminal_check_tables::row(
+                &sources.operations,
+                operation,
+                caller.id,
+                Construct::Operation(operation),
+            )?,
+            InvocationSite::InvokeNoNormal(edge) => {
+                *terminal_check_tables::row(&sources.edges, edge, caller.id, Construct::Edge(edge))?
+            }
+            _ => {
+                return Err(refusal(
+                    RefusalReason::ForeignIdentity,
+                    caller.id,
+                    Construct::Invocation(invocation),
+                    "invocation site is not a direct call",
+                ));
+            }
+        };
+        let mut requirements = Vec::with_capacity(clauses.len());
+        for (position, clause) in clauses.iter().enumerate() {
+            let clause_position = crate::checking::position(position, caller.id)?;
+            let kind = ObligationKind::CallRequirement {
+                invocation,
+                clause: clause_position,
+            };
+            let obligation = if let Some(old) = previous.iter().position(|old| old == clause) {
+                let obligation = *call.requirements.get(old).ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        caller.id,
+                        Construct::Invocation(invocation),
+                        "call lacks an existing input obligation",
+                    )
+                })?;
+                let row = terminal_check_tables::row(
+                    &tables.obligations,
+                    obligation,
+                    caller.id,
+                    Construct::Obligation(obligation),
+                )?;
+                if row.kind
+                    != (ObligationKind::CallRequirement {
+                        invocation,
+                        clause: crate::checking::position(old, caller.id)?,
+                    })
+                    || row.created_at != point
+                {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        caller.id,
+                        Construct::Obligation(obligation),
+                        "an existing input obligation does not match its call",
+                    ));
+                }
+                tables
+                    .obligations
+                    .get_mut(obligation)
+                    .expect("the row was checked")
+                    .kind = kind;
+                obligation
+            } else {
+                let obligation = tables.obligations.push(ObligationRow {
+                    kind,
+                    created_at: point,
+                });
+                if sources.obligations.push(source) != obligation {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        caller.id,
+                        Construct::Obligation(obligation),
+                        "an input obligation and its source correspondence have different identities",
+                    ));
+                }
+                obligation
+            };
+            requirements.push(obligation);
+        }
+        tables
+            .invocations
+            .get_mut(invocation)
+            .expect("the call was read above")
+            .requirements
+            .clone_from(&requirements);
+        match site.position {
+            CallPosition::Operation { block, operation } => {
+                let found = caller
+                    .blocks
+                    .get_mut(block)
+                    .and_then(|block| block.operations.get_mut(operation))
+                    .filter(|operation| call.site == InvocationSite::Operation(operation.id))
+                    .ok_or_else(|| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            caller.id,
+                            Construct::Invocation(invocation),
+                            "a planned private arrival has no call operation",
+                        )
+                    })?;
+                // Every direct call lowering makes, whatever its result and
+                // argument lanes: a private helper that returns Unit or
+                // takes a record owes its inferred input like any other.
+                let (OperationKind::Call {
+                    requirement_obligations,
+                    ..
+                }
+                | OperationKind::CallUnit {
+                    requirement_obligations,
+                    ..
+                }
+                | OperationKind::CallStructuralScalar {
+                    requirement_obligations,
+                    ..
+                }
+                | OperationKind::CallStructuralWithScalarArguments {
+                    requirement_obligations,
+                    ..
+                }) = &mut found.kind
+                else {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        caller.id,
+                        Construct::Invocation(invocation),
+                        "a planned private arrival is not a call operation",
+                    ));
+                };
+                requirement_obligations.clone_from(&requirements);
+            }
+            CallPosition::NoNormal { block } => {
+                let found = caller.blocks.get_mut(block).ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        caller.id,
+                        Construct::Invocation(invocation),
+                        "a planned private arrival has no call block",
+                    )
+                })?;
+                let Terminator::InvokeNoNormal {
+                    edge,
+                    requirement_obligations,
+                    ..
+                } = &mut found.terminator
+                else {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        caller.id,
+                        Construct::Invocation(invocation),
+                        "a planned private arrival is not a non-returning call",
+                    ));
+                };
+                if call.site != InvocationSite::InvokeNoNormal(*edge) {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        caller.id,
+                        Construct::Invocation(invocation),
+                        "a planned private arrival names another call edge",
+                    ));
+                }
+                requirement_obligations.clone_from(&requirements);
+            }
+        }
+    }
+    // Frame reuse changes a call into an edge, not its entry requirement.
+    // Each copied head receives the same condition over its own formals,
+    // and the existing arrival judgment checks every edge before using it.
+    let heads = terminal_check_tables::row(&sites.heads, callee, callee, Construct::Machine)?;
+    if heads.is_empty() {
+        return Ok(());
+    }
+    let invariants = &mut elaboration.module.scalar_block_invariants;
+    invariants.sort_by_key(|row| (row.machine, row.header));
+    let mut added = Vec::new();
+    for head in heads {
+        let caller = terminal_machine(&elaboration.module.machines, head.caller, callee)?;
+        let block = caller
+            .blocks
+            .get((head.block.get() - 1) as usize)
+            .filter(|block| block.id == head.block)
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    head.caller,
+                    Construct::Block(head.block),
+                    "an inferred input names no loop head",
+                )
+            })?;
+        if parameters.len() != block.parameters.len()
+            || structural_parameters.len() != block.structural_parameters.len()
+        {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                head.caller,
+                Construct::Block(head.block),
+                "a loop head does not match its member's input lanes",
+            ));
+        }
+        let values = parameters
+            .iter()
+            .zip(&block.parameters)
+            .map(|(formal, actual)| (formal.id, ScalarTerm::value(actual.id, actual.scalar_type)))
+            .collect();
+        let places = structural_parameters
+            .iter()
+            .zip(&block.structural_parameters)
+            .map(|(formal, actual)| (formal.place, (actual.place, Vec::new())))
+            .collect();
+        // A clause may itself be an inferred conjunction; the published
+        // invariant must be Terminal's canonical flat, ordered form.
+        let predicate = joins::connective(
+            clauses
+                .iter()
+                .map(|clause| {
+                    let clause = terminal_semantics::substitution::substitute_proposition_values(
+                        clause, &values,
+                    );
+                    terminal_semantics::substitution::substitute_proposition_structural_places(
+                        &clause, &places,
+                    )
+                })
+                .collect(),
+            true,
+        );
+        let predicate = canonical(predicate, callee)?;
+        if let Ok(index) = invariants
+            .binary_search_by_key(&(head.caller, head.block), |row| (row.machine, row.header))
+        {
+            let invariant = &mut invariants[index];
+            invariant.predicate = canonical(
+                joins::connective(vec![invariant.predicate.clone(), predicate], true),
+                callee,
+            )?;
+        } else {
+            added.push(terminal_psi::ScalarBlockInvariant {
+                machine: head.caller,
+                header: head.block,
+                predicate,
+                arrivals: head.arrivals.clone(),
+            });
+        }
+    }
+    invariants.extend(added);
+    invariants.sort_by_key(|row| (row.machine, row.header));
+    Ok(())
+}

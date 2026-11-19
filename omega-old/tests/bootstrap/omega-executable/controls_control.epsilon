@@ -1,0 +1,195 @@
+// The first program is the exact canonical lexer declarations followed by
+// lexer_controls.omg. Remaining controls exercise the same generic backend.
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+data Main { console: Console; compiler: OmegaScalarCompiler; source: [u8; 65536]; length: i32; }
+machine Main::main(&mut self) {
+    self.length = 0;
+    transition true { true -> read() }
+    state read() {
+        let value: i32 = self.console.read_byte();
+        transition value == -1 { true -> run() _ -> append(value) }
+    }
+    state append(value: i32) {
+        assert self.length < 65536;
+        self.source[self.length] = value;
+        self.length = self.length + 1;
+        transition true { true -> read() }
+    }
+    state run() {
+        self.positive(self.source.as_slice[0..self.length], 42, 10);
+        self.positive("machine main() -> u8 { transition { _ -> swap(41, 42, false) } machine swap(a: u8, b: u8, done: bool) -> u8 { transition done { true -> finish(a) _ -> swap(b, a, true) } } machine finish(answer: u8) -> u8 { answer } }", 42, 11);
+        self.positive("machine negated() -> bool { !false } machine looping() -> bool { transition { _ -> again() } machine again() -> bool { transition { _ -> again() } } } machine main() -> u8 { let left: bool = false && looping(); let right: bool = true || looping(); transition !left && right && negated() { true -> yes() _ -> no() } machine yes() -> u8 { 43 } machine no() -> u8 { 1 } }", 43, 12);
+        self.positive("machine word(x: u32 in Trapping) -> u32 in Trapping { x } machine main() -> u8 { let high: u32 in Trapping = word(4294967295 as +Trapping); let low: u32 in Trapping = word(2147483648 as +Trapping); let plain_high: u32 = high as -Trapping; let byte: u8 = 255; let good: bool = plain_high > byte && high > low && high >= word(4294967295 as +Trapping) && low < word(4294967295 as +Trapping) && low <= word(2147483648 as +Trapping) && high != low && (high == word(4294967295 as +Trapping)) == true; transition good { true -> yes() _ -> no() } machine yes() -> u8 { 44 } machine no() -> u8 { 1 } }", 44, 13);
+        self.positive("machine word(x: u32 in Trapping) -> u32 in Trapping { x } machine main() -> u8 { let good: bool = (word(1 as +Trapping) < word(2 as +Trapping)) == (word(3 as +Trapping) >= word(3 as +Trapping)); transition good { false -> no() true -> yes() } machine yes() -> u8 { 45 } machine no() -> u8 { 1 } }", 45, 14);
+        self.refusal("machine word(x: u32 in Trapping) -> bool { x == 0 } machine main() -> u8 { let bad: bool = word(4294967296 as +Trapping); 42 }", 1, 40);
+        self.refusal("machine main() -> u8 { let bad: bool = 1; 42 }", 1, 41);
+        self.refusal("machine main() -> u8 { let bad: u8 = true; 42 }", 1, 42);
+        self.refusal("machine word(x: u32 in Trapping) -> bool { x == 0 } machine main() -> u8 { let small: u8 = 1; let bad: bool = word(small); 42 }", 1, 43);
+        self.refusal("machine word(x: u32 in Wrapping) -> bool { x == 0 } machine main() -> u8 { 42 }", 2, 44);
+        self.refusal("machine main() -> u8 { transition { _ -> next(1) } machine next(value: bool) -> u8 { 42 } }", 1, 45);
+        self.refusal("machine main() -> u8 { transition { _ -> next() } machine next(value: bool) -> u8 { 42 } }", 1, 46);
+        self.refusal("machine choose(value: bool) -> u8 { transition value { true -> yes() } machine yes() -> u8 { 42 } } machine main() -> u8 { choose(true) }", 1, 47);
+        self.refusal("machine main() -> u8 { transition { _ -> next() } machine next() -> bool { true } }", 1, 48);
+        self.refusal("machine main() -> u8 { transition { _ -> finish() } state finish() { 42 } }", 2, 49);
+        self.refusal("machine main() -> u8 { transition { _ -> next(1) } machine next(value: u8) -> u8 { value } machine next(value: bool) -> u8 { 42 } }", 2, 50);
+        self.refusal("machine main() -> u8 { transition { _ -> next(1) } machine next(first: u8) -> u8 { first } machine next(second: u8) -> u8 { second } }", 1, 51);
+        self.refusal("machine guarded(x: u32 in Trapping) -> bool requires x == 0 { true } machine main() -> u8 { let bad: bool = guarded(1 as +Trapping); 42 }", 0, 52);
+        self.refusal("machine dead(x: bool) -> bool { transition x { true -> true _ -> missing(1) } } machine main() -> u8 { 42 }", 1, 53);
+        self.refusal("machine main() -> u8 { transition { _ -> finish() } machine finish() { 42 } }", 1, 55);
+        self.refusal("machine word(x: u32 in Trapping) -> bool { x == 0 } machine main() -> u8 { let bad: bool = word(0); 42 }", 1, 56);
+        self.refusal("machine main() -> u8 { let bad: u32 in Trapping = 1; 42 }", 1, 57);
+        self.refusal("machine word() -> u32 in Trapping { 1 } machine main() -> u8 { 42 }", 1, 58);
+        self.refusal("machine main() -> u8 { transition { _ -> next(1) } machine next(value: u32 in Trapping) -> u8 { 42 } }", 1, 59);
+        self.refusal("machine main() -> u8 { let plain: u32 = 1; let bad: u32 in Trapping = plain as u32 in Trapping; 42 }", 0, 60);
+        self.refusal("machine main() -> u8 { let flag: bool = true; transition flag && (1 < 2) { true -> yes() } machine yes() -> u8 { 42 } }", 1, 54);
+        assert self.compiler.outcome_space == 4;
+        assert self.compiler.outcome_coordinate == 80;
+        self.positive("machine word(x: u32 in Trapping) -> u32 in Trapping { x } machine main() -> u8 { let small: u8 = 42; let plain: u32 = small as u32; let qualified: u32 in Trapping = plain as +Trapping; let copied: u32 in Trapping = word(qualified); let restored: u32 = copied as -Trapping; transition restored == small { true -> yes() _ -> no() } machine yes() -> u8 { 46 } machine no() -> u8 { 1 } }", 46, 16);
+        self.refusal("machine target() -> u8 { 42 } machine main() -> u8 { transition { _ -> target() } }", 2, 65);
+        self.refusal("public machine compare(value: u32 in Trapping) -> bool { value == 0 } machine main() -> u8 { 42 }", 2, 61);
+        assert self.compiler.outcome_space == 4;
+        assert self.compiler.outcome_coordinate == 0;
+        self.refusal("machine compare(value: u32 in Trapping) -> bool { value == 0 } public machine expose(value: u32 in Trapping) -> bool { compare(value) } machine main() -> u8 { 42 }", 2, 62);
+        assert self.compiler.outcome_space == 4;
+        assert self.compiler.outcome_coordinate == 63;
+        self.refusal("public machine expose(value: u32 in Trapping) -> bool { compare(value) } machine compare(value: u32 in Trapping) -> bool { value == 0 } machine main() -> u8 { 42 }", 2, 63);
+        assert self.compiler.outcome_space == 4;
+        assert self.compiler.outcome_coordinate == 0;
+        self.refusal("pub machine main() -> u8 { 42 }", 2, 64);
+        self.positive("public machine compare(value: u32) -> bool { let pub: u32 = value; pub == 47 } public machine main() -> u8 { transition compare(47) { true -> yes() _ -> no() } machine yes() -> u8 { 47 } machine no() -> u8 { 1 } }", 47, 90);
+        // default
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{let value:Mode;choose(value)}",42,100);
+        // copy/result
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine make()->Mode{let value:Mode=Mode::Second;value} machine first(a:Mode,b:Mode)->Mode{a} machine main()->u8{let value:Mode=first(make(),Mode::First);choose(value)}",43,101);
+        // field
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}data Holder [copy]{mode:Mode;} machine main()->u8{let mut holder:Holder;holder.mode=Mode::Second;let snapshot:Holder=holder;holder.mode=Mode::First;choose(snapshot.mode)}",43,102);
+        // parallel tail
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{transition{_->again(Mode::First,Mode::Second,false)} machine again(a:Mode,b:Mode,done:bool)->u8{transition done{true->finish(a) _->again(b,a,true)}} machine finish(value:Mode)->u8{choose(value)}}",43,103);
+        // ordered wildcard
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8{transition value{_->yes() Mode::First->no() Mode::Second->no()} machine yes()->u8{42} machine no()->u8{1}} machine main()->u8{choose(Mode::First)}",42,104);
+        // same spelling distinct owners
+        self.positive("data Mode [copy] {case First;case Second;}data Other [copy]{case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{choose(Mode::Second)}",43,105);
+        // hash collision
+        self.positive("data Mode [copy]{case Ab;case BA;} machine choose(value:Mode)->u8{transition value{Mode::Ab->a() Mode::BA->b()} machine a()->u8{1} machine b()->u8{42}} machine main()->u8{choose(Mode::BA)}",42,106);
+        // argument snapshot
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}data Holder {mode:Mode;} machine change(holder:&mut Holder)->Mode{holder.mode=Mode::First;holder.mode} machine first(a:Mode,b:Mode)->Mode{a} machine main()->u8{let mut holder:Holder;holder.mode=Mode::Second;let snapshot:Mode=first(holder.mode,change(&mut holder));choose(snapshot)}",43,107);
+        // subject once
+        self.positive("data Mode [copy] {case First;case Second;}data Counter {value:u32 in Trapping;} machine subject(counter:&mut Counter)->Mode{counter.value=counter.value+1;let result:Mode=Mode::Second;result} machine observe(counter:&mut Counter)->u8{transition subject(counter){Mode::First->bad() Mode::Second->good()} machine bad()->u8{1} machine good()->u8{42}} machine main()->u8{let mut counter:Counter;let answer:u8=observe(&mut counter);transition answer==42 && counter.value==1{true->yes() _->no()} machine yes()->u8{42} machine no()->u8{1}}",42,108);
+        // nominal mismatch
+        self.refusal("data Mode [copy] {case First;case Second;}data Other [copy]{case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{choose(Other::First)}",1,120);
+        // missing case
+        self.refusal("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{choose(Mode::Missing)}",1,121);
+        // nonexhaustive
+        self.refusal("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8{transition value{Mode::First->yes()} machine yes()->u8{42}} machine main()->u8{choose(Mode::First)}",1,122);
+        // bad arm after wildcard
+        self.refusal("data Mode [copy] {case First;case Second;}data Other [copy]{case First;} machine choose(value:Mode)->u8{transition value{_->yes() Other::First->yes()} machine yes()->u8{42}} machine main()->u8{choose(Mode::First)}",1,123);
+        // duplicate case
+        self.refusal("data Mode [copy]{case First;case First;} machine main()->u8{42}",1,124);
+        // mixed record/sum
+        self.refusal("data Mode [copy]{word:u8;case First;} machine main()->u8{42}",1,125);
+        // record-shaped sum
+        self.refusal("data Mode [copy] {case First;case Second;}machine main()->u8{let x:Mode=Mode{};42}",1,126);
+        // integer forgery
+        self.refusal("data Mode [copy] {case First;case Second;}machine main()->u8{let x:Mode=0;42}",1,127);
+        // noncopy
+        self.refusal("data Mode {case First;} machine main()->u8{42}",2,128);
+        // payload
+        self.refusal("data Mode [copy]{case First(value:u8);} machine main()->u8{42}",2,129);
+        assert self.compiler.parser.data_cases[0].payload_field_count == 1;
+        assert self.compiler.outcome_coordinate == 0;
+        // Rebuild the first-case default after failed partial case censuses.
+        self.positive("data Mode [copy] {case First;case Second;}machine choose(value:Mode)->u8 {transition value {Mode::First->first() Mode::Second->second()} machine first()->u8{42} machine second()->u8{43}}machine main()->u8{let value:Mode;choose(value)}",42,140);
+        self.source_sets();
+    }
+}
+
+machine Main::positive(&mut self, source: &[u8], expected: i32, failure: i32) {
+    self.compiler.compile(source, "main");
+    self.publish(expected, failure);
+}
+
+machine Main::publish(&mut self, expected: i32, failure: i32) {
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Complete -> publish()
+        _ -> self.console.exit_process(failure)
+    }
+    state publish() {
+        assert self.compiler.tape.finalized == 1;
+        self.console.write_byte(expected);
+        let length: i32 = self.compiler.tape.payload_length();
+        self.console.write_byte(length % 256);
+        self.console.write_byte((length / 256) % 256);
+        self.console.write_byte((length / 65536) % 256);
+        self.console.write_byte((length / 16777216) % 256);
+        transition true { true -> byte(0) }
+    }
+    state byte(index: i32) {
+        transition index < self.compiler.tape.payload_length() {
+            true -> write(index)
+            _ -> return
+        }
+    }
+    state write(index: i32) {
+        self.console.write_byte(self.compiler.tape.bytes[index]);
+        transition true { true -> byte(index + 1) }
+    }
+}
+machine Main::refusal(&mut self, source: &[u8], expected: i32, failure: i32) {
+    self.compiler.compile(source, "main");
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Reject -> check(1)
+        OmegaScalarCompilationStatus::Incomplete -> check(2)
+        _ -> self.console.exit_process(failure)
+    }
+    state check(actual: i32) {
+        assert (expected == 0) || (expected == actual);
+        assert self.compiler.tape.finalized == 0;
+        assert self.compiler.tape.payload_length() == 0;
+    }
+}
+
+// Two exact source units exercise a namespace import across one supplied edge.
+// Removing that edge must refuse, even after the successful lookup; restoring
+// it must rebuild rather than inheriting a partial failed invocation.
+machine Main::source_sets(&mut self) {
+    let source: &[u8] = "appdepuse dep::tools; machine main()->u8 {tools::answer()}module tools; public machine answer()->u8 {42}";
+    self.compiler.parser.sources.package_count = 2;
+    self.compiler.parser.sources.packages[0].name.start = 0;
+    self.compiler.parser.sources.packages[0].name.end = 3;
+    self.compiler.parser.sources.packages[0].role = 0;
+    self.compiler.parser.sources.packages[1].name.start = 3;
+    self.compiler.parser.sources.packages[1].name.end = 6;
+    self.compiler.parser.sources.packages[1].role = 0;
+    self.compiler.parser.sources.dependency_count = 1;
+    self.compiler.parser.sources.dependencies[0].requester = 0;
+    self.compiler.parser.sources.dependencies[0].target = 1;
+    self.compiler.parser.sources.dependencies[0].alias.start = 3;
+    self.compiler.parser.sources.dependencies[0].alias.end = 6;
+    self.compiler.parser.sources.unit_count = 2;
+    self.compiler.parser.sources.units[0].package = 0;
+    self.compiler.parser.sources.units[0].start = 6;
+    self.compiler.parser.sources.units[0].end = 58;
+    self.compiler.parser.sources.units[1].package = 1;
+    self.compiler.parser.sources.units[1].start = 58;
+    self.compiler.parser.sources.units[1].end = source.len;
+    self.compiler.compile_set(source, 0, "main");
+    self.publish(42, 141);
+    self.compiler.parser.sources.dependency_count = 0;
+    self.compiler.compile_set(source, 0, "main");
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Reject -> restore(source)
+        _ -> self.console.exit_process(142)
+    }
+    state restore(source: &[u8]) {
+        assert self.compiler.tape.finalized == 0;
+        assert self.compiler.tape.payload_length() == 0;
+        self.compiler.parser.sources.dependency_count = 1;
+        self.compiler.compile_set(source, 0, "main");
+        self.publish(42, 143);
+    }
+}

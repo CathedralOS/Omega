@@ -1,0 +1,2 @@
+// Ordinary package review entry for the portable standard-library surface.
+// Its declarations share the package-root logical module with sibling sources.
