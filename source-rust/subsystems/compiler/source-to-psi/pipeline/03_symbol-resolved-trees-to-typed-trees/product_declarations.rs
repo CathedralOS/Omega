@@ -1,8 +1,10 @@
 //! Resolve Build requests for declarations from their authored source scope.
 
 mod authored_requests;
+mod opaque_representations;
 mod root_bindings;
 mod root_grants;
+pub use opaque_representations::collect_opaque_representations;
 pub use root_bindings::{RootBinding, collect_root_bindings};
 pub use root_grants::collect_product_root_grants;
 
