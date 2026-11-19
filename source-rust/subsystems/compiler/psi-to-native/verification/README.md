@@ -15,6 +15,10 @@ install a handler. Their callers need the checked records during compilation.
   requirements against the selected program. Instruction selection obtains
   the planned resources, frame binding checks the measured handlers, and
   publication checks the recorded physical demands.
+  Its [installation conditions](installation-admission/conditions/src/lib.rs)
+  retain the caller's platform assumptions and each handler's measured stack
+  requirements. Build and publication can carry these records without running
+  provider or installation admission.
 
 [Machine-code checks](../pipeline/representations/machine-code/) compare a
 frame, instruction encoding or layout with its contract. [Object replay](../replay/)

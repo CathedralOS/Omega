@@ -16,7 +16,7 @@ This package is standalone admission evidence rather than a pipeline stage.
 
 #![forbid(unsafe_code)]
 
-pub use installation_evidence::{
+pub use installation_conditions::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
@@ -31,7 +31,7 @@ pub use provider_admission::{
     AdmittedFatalInterruptEntry, AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptHelper,
     AdmittedInstalledInterruptScope, AdmittedInterruptContextAnchor,
     AdmittedNativeCallbackArgument, InstalledInterruptNativeEntryProposal,
-    NativeCallbackArgumentProposal, SettledCompilerBuiltin,
+    NativeCallbackArgumentProposal, ProviderExecutionEvidence, SettledCompilerBuiltin,
 };
 pub use provider_installation::{
     AdmittedProviderInstallation, ProviderInstallationError, SelectedProviderAdapter,

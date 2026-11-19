@@ -60,7 +60,7 @@ fn callable_error(error: BodyEmissionError) -> Vec<Diagnostic> {
 pub(super) fn prepare_callable_physical(
     prepared: CallableTargetProduct,
     execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
-    requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
+    requirements: Vec<installation_conditions::InstalledInterruptStackRequirement>,
 ) -> Result<CallablePhysicalProduct, Vec<Diagnostic>> {
     let CallableTargetProduct {
         code,

@@ -313,10 +313,10 @@ pub(super) fn prepare(
         let mut delivery = None;
         for assumption in &installation_assumptions {
             let occupied = match assumption {
-                installation_evidence::InstallationEnvironmentAssumption::Bootstrap(row) => {
+                installation_conditions::InstallationEnvironmentAssumption::Bootstrap(row) => {
                     bootstrap.replace(row).is_some()
                 }
-                installation_evidence::InstallationEnvironmentAssumption::InterruptDelivery(
+                installation_conditions::InstallationEnvironmentAssumption::InterruptDelivery(
                     row,
                 ) => delivery.replace(row).is_some(),
             };

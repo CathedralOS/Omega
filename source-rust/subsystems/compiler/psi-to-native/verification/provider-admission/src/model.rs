@@ -10,8 +10,8 @@
 // execution evidence rather than another program representation; their fields
 // are constructed only after admission checks succeed.
 
+use crate::ProviderExecutionEvidence;
 use calling_conventions::NativePlace;
-use installation_evidence::ProviderExecutionEvidence;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use target_operations::{BoundaryRealization, BoundarySettlementRealization};
 
@@ -76,7 +76,7 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub program_provider_context:
         Option<&'request std::sync::Arc<super::AdmittedProgramProviderContext>>,
     pub installation_assumptions:
-        &'request [installation_evidence::InstallationEnvironmentAssumption],
+        &'request [installation_conditions::InstallationEnvironmentAssumption],
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
     pub checked_adapters: &'request [crate::SelectedProviderAdapter],
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
@@ -264,7 +264,7 @@ pub struct AdmittedBoundarySettlement<'execution> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum AdmittedBoundaryExecution<'execution> {
-    Provider(&'execution dyn installation_evidence::ProviderExecutionEvidence),
+    Provider(&'execution dyn crate::ProviderExecutionEvidence),
     CompilerBuiltin(super::SettledCompilerBuiltin),
     NativeBinding {
         execution: target_operations::NativeBindingExecution,

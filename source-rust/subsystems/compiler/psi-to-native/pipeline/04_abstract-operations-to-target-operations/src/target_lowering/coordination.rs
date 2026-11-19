@@ -16,8 +16,8 @@ use super::scalar_abi::{
 use crate::target_lowering::LoweringError;
 use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
-use installation_evidence::ProviderInstallationEvidence;
 use installed_provider_calls::validate_installed_provider_calls;
+use provider_admission::AdmittedProviderInstallation;
 use settlement_roster::validate_settlement_roster;
 use std::collections::BTreeMap;
 use target::NativeTarget;
@@ -26,10 +26,8 @@ use target_operations::{BoundarySettlementBinding, TargetFunction, TargetOperati
 mod installed_provider_calls {
     use crate::target_lowering::LoweringError;
     use abstract_operations::{AbstractOperation, AbstractOperationPlan};
-    use installation_evidence::{
-        InstalledProviderCallEvidence, InstalledProviderCompletionClaimSource,
-        ProviderInstallationEvidence,
-    };
+    use operation_evidence::provider_calls::InstalledProviderCallEvidence;
+    use provider_admission::AdmittedProviderInstallation;
     use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId};
     use std::collections::BTreeMap;
 
@@ -42,7 +40,7 @@ mod installed_provider_calls {
 
     pub(crate) fn index_installed_provider_calls(
         plan: &AbstractOperationPlan,
-        installation: Option<&dyn ProviderInstallationEvidence>,
+        installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<InstalledCallsByCall, LoweringError> {
         let installed_calls = installation
             .map(|installation| {
@@ -156,14 +154,6 @@ mod installed_provider_calls {
                     boundary: key.2,
                 });
             };
-            let exact_sources = completion_claim_sources
-                .iter()
-                .map(|source| InstalledProviderCompletionClaimSource {
-                    claim: source.claim,
-                    entry: source.entry.clone(),
-                    content: source.content.clone(),
-                })
-                .collect::<Vec<_>>();
             let exact_result = match (result, &installed.result) {
                 (
                     abstract_operations::AbstractBoundaryResult::Unit,
@@ -205,7 +195,7 @@ mod installed_provider_calls {
                 || !declared_result_matches
                 || installed.scalar_arguments != *arguments
                 || installed.structural_arguments != *structural_arguments
-                || installed.completion_claim_sources != exact_sources
+                || installed.completion_claim_sources != *completion_claim_sources
                 || installed.completion_receipts != *completion_receipts
                 || if let Some(assumption) = &installed.assumption {
                     !assumption.matches(key.2, &installed.provider)
@@ -492,7 +482,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
     unit: &optimization_unit::PsiOptimizationUnit,
     target: NativeTarget,
     settlement_bindings: &[BoundarySettlementBinding],
-    installation: Option<&dyn ProviderInstallationEvidence>,
+    installation: Option<&AdmittedProviderInstallation>,
     native_callbacks: &[crate::target_lowering::AdmittedNativeCallbackArgument],
     verified_input: Option<&verified_optimization_input::AdmittedLoweringFacts>,
 ) -> Result<TargetOperationPlan, LoweringError> {

@@ -26,7 +26,8 @@ mod native_providers {
 
     pub struct RetainedNativeProviderInputs<'input> {
         pub execution: &'input PreparedNativeExecution,
-        pub optimization_selections: &'input optimization_selections::PostTerminalOptimizationSelections,
+        pub optimization_selections:
+            &'input optimization_selections::PostTerminalOptimizationSelections,
         pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
         pub imports: &'input [SourceEvaluatedImportSettlement<'input>],
     }
@@ -171,7 +172,7 @@ mod native_providers {
             settlements: &'request [NativeProviderSettlement<'request>],
             terminal_authority_policy: &'request TerminalAuthorityPolicy,
             receiving_permissions: &'request Option<TerminalAuthorityPermissionPolicy>,
-            installation_assumptions: &'request [installation_evidence::InstallationEnvironmentAssumption],
+            installation_assumptions: &'request [installation_conditions::InstallationEnvironmentAssumption],
         ) -> crate::artifact_lowering::NativeAdmissionRequest<'request, 'request> {
             let proposal = self.proposal;
             crate::artifact_lowering::NativeAdmissionRequest {

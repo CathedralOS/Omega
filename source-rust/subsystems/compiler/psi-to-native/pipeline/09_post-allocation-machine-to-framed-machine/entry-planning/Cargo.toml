@@ -15,7 +15,7 @@ installation-admission = { path = "../../../verification/installation-admission"
 function-identity = { path = "../../representations/function-identity" }
 arena = { path = "../../../../../../foundation/arena" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
-installation-evidence = { path = "../../../installation/installation-evidence" }
+installation-conditions = { path = "../../../verification/installation-admission/conditions" }
 frame-admission = { path = "../../representations/machine-code/frame-admission" }
 machine-code = { path = "../../representations/machine-code" }
 post-allocation-machine = { path = "../../representations/post-allocation-machine" }

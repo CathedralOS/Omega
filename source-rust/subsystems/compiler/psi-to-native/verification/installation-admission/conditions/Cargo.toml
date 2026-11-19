@@ -1,0 +1,11 @@
+[package]
+name = "installation-conditions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+runtime-abi = { path = "../../../targets/runtime-abi" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+target = { path = "../../../targets/target" }
+terminal-psi = { path = "../../../../psi" }

@@ -356,9 +356,6 @@ pub(crate) mod optimized {
             installation,
         } = request;
         require_lowering_context(&optimized, &lowering_facts, target)?;
-        let installed = installation
-            .as_ref()
-            .map(|value| value as &dyn installation_evidence::ProviderInstallationEvidence);
         let bindings =
             super::provider_evidence::bind_provider_executions(optimized.plan(), settlements)
                 .map_err(|error| error.with_boundary_context(optimized.plan()))?;
@@ -368,7 +365,7 @@ pub(crate) mod optimized {
                 optimized.unit(),
                 target,
                 &bindings,
-                installed,
+                installation.as_ref(),
                 lowering_facts.native_callbacks().callbacks(),
                 Some(&lowering_facts),
             )
@@ -587,7 +584,7 @@ pub(crate) mod provider_evidence {
 pub(crate) mod selected_boundary_calls {
     use crate::target_lowering::LoweringError;
     use abstract_operations::{AbstractBoundaryResult, AbstractOperation, AbstractOperationPlan};
-    use installation_evidence::InstalledProviderCallEvidence;
+    use operation_evidence::provider_calls::InstalledProviderCallEvidence;
     use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId};
     use std::collections::BTreeMap;
     use target_operations::NativeCallOrigin;

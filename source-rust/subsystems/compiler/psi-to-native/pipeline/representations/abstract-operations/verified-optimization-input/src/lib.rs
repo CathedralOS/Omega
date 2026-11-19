@@ -11,7 +11,7 @@
 */
 
 use abstract_operations::AbstractOperationPlan;
-use installation_evidence::InstalledAssumedBindingEvidence;
+use operation_evidence::provider_calls::InstalledAssumedBindingEvidence;
 use terminal_installation::{
     AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
 };

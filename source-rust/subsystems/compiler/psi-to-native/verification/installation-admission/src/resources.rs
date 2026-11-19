@@ -1,6 +1,6 @@
 //! Check the physical guard roster against the admitted callback and interrupt entries.
 use bound_installations::{BoundInstallations, BoundInstalledEntry};
-use installation_evidence::InstalledInterruptStackRequirement;
+use installation_conditions::InstalledInterruptStackRequirement;
 use provider_admission::{
     AdmittedInstalledEntryExecution, AdmittedInstalledInterruptCohort, AdmittedNativeCallbackCohort,
 };
@@ -205,7 +205,7 @@ fn validate_stack_requirements(
 fn project_installations(
     cohort: &AdmittedInstalledInterruptCohort,
     entry_execution: Option<&AdmittedInstalledEntryExecution>,
-    stack_requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
+    stack_requirements: Vec<installation_conditions::InstalledInterruptStackRequirement>,
 ) -> bound_installations::BoundInstallations {
     use bound_installations as bound;
     let installations = cohort

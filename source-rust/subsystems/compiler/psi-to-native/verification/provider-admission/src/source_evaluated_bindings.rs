@@ -16,16 +16,16 @@
 // have no user-space callee and mint no same-stack reserve.
 
 use super::{NativeBoundaryRealization, NativeProviderSettlement};
+use crate::ProviderExecutionEvidence;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
-use installation_evidence::ProviderExecutionEvidence;
-use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
 use provider_stack_contribution::{
     AdmittedSameStackContribution, SameStackContributionAdmissionCandidate,
     SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment,
     admit_same_stack_contribution,
 };
+use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SourceEvaluatedImportSettlement<'evidence> {

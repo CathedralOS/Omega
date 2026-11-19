@@ -21,7 +21,8 @@ source-text = { path = "../../../../../../../foundation/source-text" }
 abstract-operations = { path = ".." }
 target-operations = { path = "../../target-operations" }
 effects = { path = "../../../../installation/native-effects" }
-installation-evidence = { path = "../../../../installation/installation-evidence" }
+installation-conditions = { path = "../../../../verification/installation-admission/conditions" }
+operation-evidence = { path = "../../operation-evidence" }
 provider-admission = { path = "../../../../verification/provider-admission" }
 semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 arena = { path = "../../../../../../../foundation/arena" }
