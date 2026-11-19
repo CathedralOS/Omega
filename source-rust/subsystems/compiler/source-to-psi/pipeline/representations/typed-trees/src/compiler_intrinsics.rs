@@ -250,6 +250,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
     // Exhaust the header so a new Machine field requires a deliberate schema
     // decision. Source coordinates and body storage do not change a signature.
     let Machine {
+        active_case_visitor,
         lexical_region_origin,
         assembly_target_requirement,
         symbol,
@@ -288,7 +289,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         contracts: _,
         states: _,
     } = machine;
-    if lexical_region_origin.is_some()
+    if active_case_visitor.is_some() || lexical_region_origin.is_some()
         || attached_data.is_some()
         || attached_data_symbol.is_valid()
         || attached_data_application.is_valid()

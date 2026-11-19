@@ -30,7 +30,6 @@ mod active_cases;
 pub(super) fn elaborate(
     program: &mut TypedTrees,
     position: usize,
-    case_branches: &mut std::collections::HashSet<SymbolHandle>,
 ) -> Result<(), (Stop, source_text::SourceSpan)> {
     let machine = program.machines()[position].clone();
     for state_index in 0..program.machine_states(&machine).len() {
@@ -54,15 +53,9 @@ pub(super) fn elaborate(
                 ReflectionOperation::Record(operation) => {
                     close(program, &machine, &state, site, &call, operation)
                 }
-                ReflectionOperation::ActiveCases(access) => active_cases::expand(
-                    program,
-                    &machine,
-                    &state,
-                    site,
-                    &call,
-                    access,
-                    case_branches,
-                ),
+                ReflectionOperation::ActiveCases(access) => {
+                    active_cases::expand(program, &machine, &state, site, &call, access)
+                }
             };
             match replacement {
                 Ok(replacement) => {

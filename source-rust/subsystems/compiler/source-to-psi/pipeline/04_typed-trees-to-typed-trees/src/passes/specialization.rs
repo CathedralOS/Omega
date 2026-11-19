@@ -92,9 +92,11 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut position = 0;
     while position < program.machines().len() {
         let holder = program.machines()[position].symbol;
-        let conditional = case_branches.contains(&holder);
+        let conditional = program.machines()[position].active_case_visitor
+            == Some(crate::source_state::machine::ActiveCaseVisitor::Case)
+            || case_branches.contains(&holder);
         let first_child = program.machines().len();
-        match reflected_fields::elaborate(program, position, &mut case_branches) {
+        match reflected_fields::elaborate(program, position) {
             Ok(()) => {}
             Err((Stop::Unserved(detail), span)) => {
                 program.record_deferred_refusal_with_detail(

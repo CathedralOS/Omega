@@ -15,7 +15,7 @@ use crate::source_state::expression::{
     StaticSymbolApplication, TableBinaryExpression, TableCallExpression, TableDestructurePattern,
     TableStructLiteral, TableStructLiteralField,
 };
-use crate::source_state::machine::Machine;
+use crate::source_state::machine::{ActiveCaseVisitor, Machine};
 use crate::source_state::name::Identifier;
 use crate::source_state::reflection::construction::{
     construct_semantic_schema_graph_for_type, schema_query_authority,
@@ -57,7 +57,6 @@ pub(super) fn expand(
     site: StatementHandle,
     call: &TableCall,
     access: ReferenceAccess,
-    case_branches: &mut std::collections::HashSet<SymbolHandle>,
 ) -> Served<Vec<StatementNode>> {
     let visitor = declaration(program, call.target_symbol)
         .ok_or(unserved("the sum visitor lost its declaration"))?;
@@ -191,7 +190,6 @@ pub(super) fn expand(
             &format!("visit_case#{}.{}", site.arena_index(), arms.len()),
             inputs,
         );
-        case_branches.insert(branch.symbol);
         if let Some(reason) = refusal {
             program.record_deferred_refusal_with_detail(
                 branch.symbol,
@@ -260,7 +258,7 @@ pub(super) fn expand(
         }
         let entry = branch.entry;
         let branch_name = branch.name.clone();
-        branch.install(program, body);
+        branch.install(program, ActiveCaseVisitor::Case, body);
         let arguments = program.expression_table.insert_expression_handles(actuals);
         let visit = expression(
             program,
@@ -280,7 +278,7 @@ pub(super) fn expand(
     }
     let entry = dispatcher.entry;
     let target = dispatcher.name.clone();
-    dispatcher.install(program, arms);
+    dispatcher.install(program, ActiveCaseVisitor::Dispatcher, arms);
     // Ordinary call arguments evaluate both operands once, in source order.
     // The application's two callback interfaces have already been checked.
     Ok(vec![StatementNode::Call(TableCall {
@@ -526,7 +524,7 @@ impl GeneratedMachine {
         }
     }
 
-    fn install(self, program: &mut TypedTrees, body: Vec<StatementNode>) {
+    fn install(self, program: &mut TypedTrees, role: ActiveCaseVisitor, body: Vec<StatementNode>) {
         let mut statement_nodes = arena::HandleSpan::empty();
         for statement in body {
             program
@@ -544,6 +542,7 @@ impl GeneratedMachine {
         }
         let states = program.machine_states.insert_many([entry]);
         program.push_machine(Machine {
+            active_case_visitor: Some(role),
             symbol: self.symbol,
             name: self.name,
             states,
@@ -628,7 +627,6 @@ fn case_arm(
         .statement_table
         .insert_transition_target(TransitionTargetNode::Value(visit));
     StatementNode::Transition(TableTransition {
-        reflected_active_case: true,
         patterns,
         target,
         guard: TransitionGuardNode::When(guard),

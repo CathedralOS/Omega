@@ -769,6 +769,7 @@ pub(crate) mod machine {
         }
         retain_attached_data_type_reference(lowerer, machine.attached_data_symbol);
         let mut typed_machine = typed::machine::Machine {
+            active_case_visitor: None,
             lexical_region_origin: None,
             assembly_target_requirement:
                 language_core::inline_assembly::AsmTargetApplicability::Any,

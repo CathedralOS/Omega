@@ -235,6 +235,15 @@ impl Program<'_> {
         let mut source = SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
         let mut wildcard = None;
         let mut full_cases = Vec::new();
+        let is_reflected = self
+            .symbols
+            .get(id)
+            .and_then(|&symbol| self.typed.machine_by_symbol(symbol))
+            .is_some_and(|machine| {
+                machine.active_case_visitor
+                    == Some(crate::source_state::machine::ActiveCaseVisitor::Dispatcher)
+            });
+        let mut reflected_coverage = None;
         for statement in statements {
             let StatementNode::Transition(transition) =
                 self.typed.statement_table.statement(statement)
@@ -310,13 +319,16 @@ impl Program<'_> {
                     // Generated visitation candidates name callbacks for precisely
                     // the cases that can occur. Use the same record and contracts
                     // as the dispatch lowerer before discovering the target.
-                    if transition.reflected_active_case {
-                        let contracts =
-                            crate::lowering::inhabitation::SourceContracts(&self.records);
-                        if self.inhabitation.extend(&contracts).is_ok()
-                            && self.inhabitation.case_status(record.record(), case.case)
+                    if is_reflected {
+                        let coverage = reflected_coverage.get_or_insert_with(|| {
+                            terminal_semantics::inhabitation::Inhabitation::prepare(
+                                &crate::lowering::inhabitation::SourceContracts(&self.records),
+                            )
+                        });
+                        if coverage.as_ref().is_ok_and(|coverage| {
+                            coverage.case_status(record.record(), case.case)
                                 == terminal_semantics::inhabitation::Status::ProvedEmpty
-                        {
+                        }) {
                             taken += 1;
                             continue;
                         }
