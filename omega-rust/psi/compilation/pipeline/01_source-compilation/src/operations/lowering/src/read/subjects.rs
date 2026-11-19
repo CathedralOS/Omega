@@ -45,6 +45,7 @@ use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
 use crate::lowering::{Unserved, refuse};
+use crate::source_state::trait_definition::AppliedTraitScope;
 
 /// Whose declaration a symbol is, for one compilation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -246,19 +247,50 @@ impl Program<'_> {
             // exact requirement. Ordinary traits grant no boundary capability.
             let (owner, requirements) = match typed.trait_definition_by_symbol(supply.slot) {
                 Some(owner) => {
-                    // No applied parent environment is carried by this bare
-                    // whole-trait nomination. Refuse rather than omit inherited
-                    // requirements or pretend the application was empty.
+                    // This supply names the declaration without arguments.
                     if !owner.lifetime_parameters.is_empty()
                         || !owner.type_parameters.is_empty()
                         || !owner.conformance_bounds.is_empty()
-                        || !owner.requires.is_empty()
                         || owner.refines.is_some()
                         || !owner.refinement_clauses.is_empty()
                     {
-                        return unserved(
-                            "whole-trait supply with parameters, parents or refinements",
-                        );
+                        return unserved("whole-trait supply with parameters or refinements");
+                    }
+                    if !owner.requires.is_empty() {
+                        if !owner.is_boundary {
+                            return unserved(
+                                "whole-trait supply of an ordinary trait with parents",
+                            );
+                        }
+                        let receiving = AppliedTraitScope::abstract_scope(owner);
+                        let supplied = typed
+                            .conformance_by_symbol(supply.provider)
+                            .and_then(|selected| {
+                                AppliedTraitScope::from_conformance(typed, selected)
+                            })
+                            .and_then(|scope| scope.declaring_scope(typed, owner.symbol));
+                        if !supplied.is_some_and(|scope| {
+                            typed.requirement_contract_scopes_match(&receiving, &scope)
+                        }) {
+                            return unserved(
+                                "provider does not supply the boundary's exact application",
+                            );
+                        }
+                        // Each inherited application must be checked. The
+                        // roster below can only supply methods on this trait.
+                        receiving
+                            .try_visit(typed, &mut |parent| {
+                                if parent.declaration.symbol != owner.symbol
+                                    && !parent.declaration.machines.is_empty()
+                                {
+                                    return Err("whole-trait supply with inherited methods");
+                                }
+                                Ok(())
+                            })
+                            .map_err(|what| {
+                                refuse(entry, Construct::Machine, Unserved::Declaration(what))
+                            })?;
+                        self.require_boundary_parent_contract(entry, &receiving)?;
                     }
                     (
                         owner,
