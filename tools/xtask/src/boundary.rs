@@ -46,6 +46,10 @@ const CLI_APPLICATION: &str = "source-rust/application";
 const REVIEW_EVIDENCE: &str = "source-rust/subsystems/package-manager/review/evidence";
 #[cfg(test)]
 const PSI_FACADE: &str = linear_pipeline::SOURCE_DRIVER;
+const SOURCE_PROVIDER_PUBLICATION: &str =
+    "source-rust/subsystems/compiler/source-to-psi/publication/target-providers";
+const NATIVE_PROVIDER_DEMAND: &str =
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand";
 const FRONTEND_OPERATIONS: &[&str] = &[linear_pipeline::FRONTEND[0], linear_pipeline::FRONTEND[1]];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -145,6 +149,19 @@ pub fn forbidden_rules() -> Vec<Rule> {
                 "provider correspondence compares admitted declarations")
         },
     ];
+    rules.push(Rule {
+        forbidden_packages: vec![SOURCE_PROVIDER_PUBLICATION],
+        allowed: vec![
+            Allowance { owner: linear_pipeline::PSI_STAGES[7], dependency: SOURCE_PROVIDER_PUBLICATION },
+            Allowance { owner: NATIVE_PROVIDER_DEMAND, dependency: SOURCE_PROVIDER_PUBLICATION },
+        ],
+        ..rule(vec![""], vec![], "only source publication and native input admission exchange completed Build provider demand")
+    });
+    rules.push(rule(
+        vec!["source-rust/subsystems/compiler/psi/providers"],
+        vec!["source-rust/subsystems/compiler/build"],
+        "portable provider selection reads the artifact and receiving installation",
+    ));
     // Only the source driver runs the full numbered source pipeline. The text reader
     // preserves authored spelling and trivia. The other readers take stage 07 records.
     rules.push(Rule {
@@ -1279,6 +1296,11 @@ mod tests {
         let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
             (native_stages::DRIVER, stages[7], None, true),
+            (linear_pipeline::PSI_STAGES[7], SOURCE_PROVIDER_PUBLICATION, None, true),
+            (NATIVE_PROVIDER_DEMAND, SOURCE_PROVIDER_PUBLICATION, None, true),
+            (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),
+            (stages[1], SOURCE_PROVIDER_PUBLICATION, None, false),
+            ("source-rust/subsystems/compiler/psi/providers", "source-rust/subsystems/compiler/build/evaluation/receipts", None, false),
             ("source-rust/subsystems/compiler/build/package-compilation", linear_pipeline::PSI_STAGES[7], None, false),
             ("source-rust/subsystems/compiler/build/package-compilation", stages[0], None, false),
             (library, stages[2], None, false),

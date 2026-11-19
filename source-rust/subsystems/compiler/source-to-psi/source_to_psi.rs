@@ -62,7 +62,7 @@ pub fn compile_reporting(
 pub struct PublishedTargetProgram {
     subject: Option<semantic_vocabulary::PackageKeyIdentity>,
     artifact: PublishedPsi,
-    providers: psi_provider_selections::publication::PublishedTargetProviders,
+    providers: provider_supply::PublishedTargetProviders,
     exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
     runtime_declarations: RuntimePermissionDeclarations,
 }
@@ -133,7 +133,7 @@ impl PublishedTargetProgram {
         self,
     ) -> (
         PublishedPsi,
-        psi_provider_selections::publication::PublishedTargetProviders,
+        provider_supply::PublishedTargetProviders,
         Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
     ) {
         (self.artifact, self.providers, self.exclusions)
@@ -171,7 +171,7 @@ fn published_target(
     let demand = checked
         .prepare_provider_demand(target)?
         .receive(checked.terminal_publication(), Some(target))?;
-    let providers = psi_provider_selections::publication::PublishedTargetProviders::new(
+    let providers = provider_supply::PublishedTargetProviders::new(
         &artifact, target, demand,
     );
     Ok(PublishedTargetProgram {

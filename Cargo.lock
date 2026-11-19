@@ -518,6 +518,7 @@ dependencies = [
  "source-lexer",
  "source-parser",
  "source-provenance",
+ "source-provider-publication",
  "source-symbol-table",
  "source-text",
  "symbol-resolved-trees-to-typed-trees",
@@ -2270,8 +2271,8 @@ dependencies = [
  "declaration-scope",
  "diagnostics",
  "host-provider-inputs",
- "psi-provider-selections",
  "semantic-vocabulary",
+ "source-provider-publication",
  "target",
  "terminal-codec",
  "terminal-semantics",
@@ -2342,7 +2343,6 @@ name = "psi-provider-selections"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
- "evaluation-receipts",
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
@@ -3070,6 +3070,18 @@ version = "0.1.0"
 dependencies = [
  "record-storage",
  "sha2",
+]
+
+[[package]]
+name = "source-provider-publication"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "evaluation-receipts",
+ "psi-provider-selections",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]

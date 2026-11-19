@@ -166,6 +166,7 @@ members = [
     "source-rust/subsystems/compiler/source-to-psi/pipeline/05_typed-trees-to-lowered-program",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi",
+    "source-rust/subsystems/compiler/source-to-psi/publication/target-providers",
     "source-rust/subsystems/compiler/source-to-psi/product/accounting",
     "source-rust/subsystems/compiler/source-to-psi/representations/lowered-program",
     "source-rust/subsystems/compiler/source-to-psi/representations/source-files",

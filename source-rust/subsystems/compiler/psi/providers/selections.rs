@@ -5,7 +5,6 @@
 #![forbid(unsafe_code)]
 
 pub mod logical_reach;
-pub mod publication;
 
 mod component;
 pub use component::{AdmittedComponentProvider, admit_component_provider};

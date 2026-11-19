@@ -14,6 +14,7 @@ path = "lib.rs"
 test-support = ["typed-trees-to-lowered-program/test-support", "lowered-program-to-checked-program/test-support"]
 
 [dependencies]
+source-provider-publication = { path = "../../publication/target-providers" }
 psi-authorization = { path = "../../../psi/authorization" }
 psi-provider-selections = { path = "../../../psi/providers" }
 service-surface = { path = "../../../psi/service-surface" }

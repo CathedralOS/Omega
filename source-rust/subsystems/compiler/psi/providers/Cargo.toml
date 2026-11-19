@@ -8,7 +8,6 @@ version.workspace = true
 path = "selections.rs"
 
 [dependencies]
-evaluation-receipts = { path = "../../build/evaluation/receipts" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
 record-storage = { path = "../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }

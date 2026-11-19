@@ -3,14 +3,16 @@
 
 use diagnostics::Diagnostic;
 use host_provider_inputs::ProviderExecutionOrigins;
-use psi_provider_selections::publication::SourceProviderDemand;
+use source_provider_publication::SourceProviderDemand;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::sync::Arc;
 use terminal_semantics::{
     callable_values::CallableBoundaryImplementation, logical_providers::ClosedLogicalProviders,
 };
 
-pub use psi_provider_selections::publication::SourcePackageReviewRequirements as PackageReviewRequirements;
+pub use source_provider_publication::{
+    PublishedTargetProviders, SourcePackageReviewRequirements as PackageReviewRequirements,
+};
 
 pub enum ProviderDemandInputs {
     Unscoped {

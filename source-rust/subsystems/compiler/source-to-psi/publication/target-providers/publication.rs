@@ -1,5 +1,7 @@
-//! Provider choices and completed Build records issued with one portable program.
-use crate::logical_reach::ClosedLogicalProviderReach;
+//! Source-issued provider choices and completed Build bindings for one Psi publication and target.
+#![forbid(unsafe_code)]
+
+use psi_provider_selections::logical_reach::ClosedLogicalProviderReach;
 use diagnostics::Diagnostic;
 use evaluation_receipts::NativeBindingMaterialization;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
@@ -82,7 +84,7 @@ mod tests {
 
         let target = "linux_x86_64";
         let closed =
-            crate::logical_reach::close_providers(source.semantic_module(), target, None, &[])
+            psi_provider_selections::logical_reach::close_providers(source.semantic_module(), target, None, &[])
                 .unwrap();
         let publish = || {
             PublishedTargetProviders::new(

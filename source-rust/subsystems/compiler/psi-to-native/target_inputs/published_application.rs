@@ -280,7 +280,7 @@ pub struct SourceNativeTarget<'a> {
 /// Receive the ordinary source publisher's target-bound program and Build choices.
 pub fn prepare_source_program(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
-    publication: psi_provider_selections::publication::PublishedTargetProviders,
+    publication: provider_demand::PublishedTargetProviders,
     exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
     target: SourceNativeTarget<'_>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
