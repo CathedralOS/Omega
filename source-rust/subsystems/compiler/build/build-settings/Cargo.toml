@@ -40,7 +40,7 @@ diagnostics = { path = "../../../../foundation/diagnostics" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = "../../representations/psi" }
 layout-plans = { path = "../../psi/layout" }
-symbols = { path = "../../source-to-psi/language/declaration-identity" }
+symbols = { path = "../../foundation/declaration-identity" }
 build-declarations = { path = "../../packages/build-declarations" }
 
 [dev-dependencies]

@@ -459,7 +459,7 @@ mod interrupt_control_tests {
         TerminalAuthorityClosureLeafOrigin, TerminalAuthorityClosureReviewReceipt,
         provider_plan::{ProviderPlanDigest, ServiceSchemaDigest},
     };
-    use symbols::BuiltinFunction;
+    use language_core::BuiltinFunction;
 
     #[test]
     fn mask_intrinsics_have_only_interrupt_control() {

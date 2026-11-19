@@ -1474,7 +1474,7 @@ pub(crate) struct DeclaredExpressionTypes {
     rows: std::collections::HashMap<
         (SymbolHandle, ExpressionHandle),
         Option<TypeReferenceHandle>,
-        symbols::BuildSymbolHasher,
+        arena::BuildIndexHasher,
     >,
 }
 

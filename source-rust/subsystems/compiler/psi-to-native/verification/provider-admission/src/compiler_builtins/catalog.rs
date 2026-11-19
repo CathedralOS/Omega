@@ -9,7 +9,7 @@
 // complete boundary signature independently.
 
 use effects::CompilerIntrinsicExecutionIdentity;
-use symbols::BuiltinFunction;
+use language_core::BuiltinFunction;
 use target_operations::CompilerBuiltinExecution;
 
 /// ```compile_fail
@@ -66,8 +66,8 @@ fn nearest_arithmetic(
 }
 
 fn format_bearing_builtin(function: BuiltinFunction) -> Option<CompilerBuiltinExecution> {
+    use language_core::BuiltinFunction as Function;
     use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
-    use symbols::BuiltinFunction as Function;
     use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
     use target_operations::IeeeFloatBinaryOperation as Binary;
     use target_operations::IeeeFloatRoundingDirection as Rounding;

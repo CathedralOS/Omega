@@ -17,6 +17,6 @@ target = { path = "../../targets/target" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 
-symbols = { path = "../../../source-to-psi/language/declaration-identity" }
+symbols = { path = "../../../foundation/declaration-identity" }
 terminal-codec = { path = "../../../psi/codec" }
 wire = { path = "../../../../../foundation/wire" }

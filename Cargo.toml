@@ -20,6 +20,7 @@ members = [
     "source-rust/subsystems/compiler/build/package-compilation",
     "source-rust/subsystems/compiler/build/package-compilation/psi-publication",
     "source-rust/subsystems/compiler/foundation/check-site",
+    "source-rust/subsystems/compiler/foundation/declaration-identity",
     "source-rust/subsystems/compiler/foundation/declaration-scope",
     "source-rust/subsystems/compiler/foundation/graphs",
     "source-rust/subsystems/compiler/foundation/language-core",

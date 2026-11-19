@@ -23,7 +23,7 @@ artifacts = { path = "../../foundation/measurements" }
 flow-effects = { path = "../../source-to-psi/language/source-effects" }
 optimization-selections = { path = "../../foundation/optimization-selections" }
 arena = { path = "../../../../foundation/arena" }
-symbols = { path = "../../source-to-psi/language/declaration-identity" }
+symbols = { path = "../../foundation/declaration-identity" }
 source-compiler = { path = "../../source-to-psi" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }

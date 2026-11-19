@@ -21,8 +21,8 @@ use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
     TerminalAuthorityClass, TerminalAuthorityDisposition, primitive_float_operation_tag,
 };
+use language_core::BuiltinFunction;
 use numeric_literals::FloatFormat;
-use symbols::BuiltinFunction;
 
 use super::UnclassifiedTerminalMechanism;
 

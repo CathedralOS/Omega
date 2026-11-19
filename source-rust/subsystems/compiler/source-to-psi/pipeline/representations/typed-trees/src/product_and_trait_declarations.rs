@@ -97,11 +97,11 @@ pub mod product_operand {
                         struct Inputs {
                             types: std::collections::HashSet<
                                 TypeReferenceHandle,
-                                symbols::BuildSymbolHasher,
+                                arena::BuildIndexHasher,
                             >,
                             expressions: std::collections::HashSet<
                                 ExpressionHandle,
-                                symbols::BuildSymbolHasher,
+                                arena::BuildIndexHasher,
                             >,
                         }
                         impl Extend<SymbolHandle> for Inputs {

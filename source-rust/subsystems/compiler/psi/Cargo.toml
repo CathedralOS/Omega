@@ -17,7 +17,7 @@ application-identity = { path = "../../source-to-psi/language/application-identi
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }
 wire = { path = "../../../foundation/wire" }
-symbols = { path = "../../source-to-psi/language/declaration-identity" }
+symbols = { path = "../foundation/declaration-identity" }
 record-storage = { path = "../../../foundation/record-storage" }
 arena = { path = "../../../foundation/arena" }
 optimization = { path = "optimization-selections" }

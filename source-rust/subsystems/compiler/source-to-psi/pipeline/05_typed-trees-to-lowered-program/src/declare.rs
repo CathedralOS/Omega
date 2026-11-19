@@ -1330,14 +1330,15 @@ pub(crate) fn close_specializations(
     if applications.is_empty() {
         return Ok(());
     }
-    let bases: symbols::SymbolMap<_> = generic
+    let bases: arena::HandleKeyMap<SymbolHandle, _> = generic
         .iter()
         .map(|generic| (generic.template, template_commitment(generic)))
         .collect();
     close_specializations_with_bases(&bases, applications, closure)
 }
 
-pub(crate) type TemplateCommitments = symbols::SymbolMap<Result<Option<[u8; 32]>, &'static str>>;
+pub(crate) type TemplateCommitments =
+    arena::HandleKeyMap<SymbolHandle, Result<Option<[u8; 32]>, &'static str>>;
 
 pub(crate) fn close_specializations_with_bases(
     bases: &TemplateCommitments,

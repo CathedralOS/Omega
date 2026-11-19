@@ -8,7 +8,7 @@ dependency. Its only crate dependency is record encoding. Retained evaluated con
 | Export group | Responsibility |
 | --- | --- |
 | `atomic` | Memory order and atomic ordering-plan definitions; order compatibility laws. |
-| `core_vocabulary`, `sealed_intrinsics`, `float_operations` | Sealed language names, arities, numeric operation contracts and identities. |
+| `BuiltinFunction`, `core_vocabulary`, `sealed_intrinsics`, `float_operations` | Sealed language names, arities, numeric operation contracts and identities. |
 | `inline_assembly` | Authored assembly declaration vocabulary and operand constraints; no instruction encoding. |
 | `source_semantics` exports | Binding, multiplicity, carry, access, domain and acknowledgement records; reserved source spellings and label operations. |
 | `cast_form`, `operator_spelling` | Authored cast/operator forms and their spellings. |

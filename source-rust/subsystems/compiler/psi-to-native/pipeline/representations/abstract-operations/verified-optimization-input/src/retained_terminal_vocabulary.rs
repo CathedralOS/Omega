@@ -1501,7 +1501,7 @@ mod semantic {
         1 => External(value0),
     });
 
-    record_variants!(symbols::BuiltinFunction {
+    record_variants!(language_core::BuiltinFunction {
         0 => FloatMaximum,
         1 => FloatMinimum,
         2 => FloatSquareRoot,

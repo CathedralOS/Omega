@@ -21,7 +21,6 @@ runtime-abi = { path = "../../../targets/runtime-abi" }
 selected-instructions = { path = "../selected-instructions" }
 task-plans = { path = "../../../installation/task-plans" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-symbols = { path = "../../../../source-to-psi/language/declaration-identity" }
 terminal-semantics = { path = "../../../../psi/semantics" }
 terminal-wire = { path = "../../../../psi/wire" }
 terminal-psi = { path = "../../../../psi" }

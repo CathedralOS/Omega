@@ -20,7 +20,6 @@ numerics = { path = "../../../psi/semantics/numeric" }
 layout-plans = { path = "../../../psi/layout" }
 target-operations = { path = "../../pipeline/representations/target-operations" }
 task-plans = { path = "../../installation/task-plans" }
-symbols = { path = "../../../source-to-psi/language/declaration-identity" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 abstract-operations = { path = "../../pipeline/representations/abstract-operations" }
 installation-evidence = { path = "../../installation/installation-evidence" }
