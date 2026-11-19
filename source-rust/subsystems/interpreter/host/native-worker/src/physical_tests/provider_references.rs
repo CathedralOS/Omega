@@ -8,7 +8,7 @@ use calling_conventions::{
     CallSignature, CallingPolicy, NativeForeignBridgeRequest, ValueShape,
     evaluate_ordinary_boundary_entry_plan,
 };
-use image_fixtures::prepare_foreign_adapter_object;
+use native_compiler::test_support::compile_runtime_foreign_adapter;
 use std::path::{Path, PathBuf};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
@@ -150,7 +150,7 @@ impl Fixture {
         };
         let locator = normalize_foreign_locator(candidate, profile).unwrap();
         image_emission::emit_native_foreign_adapter(
-            prepare_foreign_adapter_object(request, locator, [37; 32]).unwrap(),
+            compile_runtime_foreign_adapter(request, locator, [37; 32]).unwrap(),
         )
         .unwrap()
     }

@@ -13,7 +13,7 @@ use calling_conventions::{
     CallSignature, CallingPolicy, NativeForeignBridgeRequest, ValueShape,
     evaluate_ordinary_boundary_entry_plan,
 };
-use image_fixtures::prepare_foreign_adapter_object;
+use native_compiler::test_support::compile_runtime_foreign_adapter;
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
 pub(super) fn compile(command: &mut Command) {
@@ -38,11 +38,11 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
     ));
     std::fs::create_dir(&directory).unwrap();
     let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let fixture = manifest
+    let provider = manifest
         .ancestors()
-        .nth(4)
-        .unwrap()
-        .join("samples/cli/facts/foreign_retained_shared_borrow/fixture");
+        .map(|dir| dir.join("samples/cli/facts/foreign_retained_shared_borrow/fixture/provider.c"))
+        .find(|path| path.is_file())
+        .expect("shared retention provider fixture");
     let profile = TargetProfile::host();
     let target = profile.native_target();
     let name = match target.object_format {
@@ -83,7 +83,7 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
     }
     compile(
         command
-            .arg(fixture.join("provider.c"))
+            .arg(provider)
             .arg(manifest.join("src/physical_tests/process_exit.c"))
             .arg("-o")
             .arg(&library),
@@ -143,7 +143,7 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
         };
         let locator = normalize_foreign_locator(candidate, profile).unwrap();
         let product = image_emission::emit_native_foreign_adapter(
-            prepare_foreign_adapter_object(request, locator, [index as u8 + 1; 32]).unwrap(),
+            compile_runtime_foreign_adapter(request, locator, [index as u8 + 1; 32]).unwrap(),
         )
         .unwrap();
         installed.push(
@@ -419,7 +419,7 @@ fn guest_errno_survives_worker_housekeeping() {
         };
         let locator = normalize_foreign_locator(candidate, profile).unwrap();
         image_emission::emit_native_foreign_adapter(
-            prepare_foreign_adapter_object(request, locator, [tag; 32]).unwrap(),
+            compile_runtime_foreign_adapter(request, locator, [tag; 32]).unwrap(),
         )
         .unwrap()
     };

@@ -15,6 +15,16 @@ pub(super) fn plan(
     entry_planning::native_foreign_bridge::plan_foreign_adapter(request, locator, application)
 }
 
+pub(super) fn compile(
+    request: super::runtime_provisions::NativeForeignAdapterRequest,
+) -> Result<ObjectForeignAdapter, String> {
+    plan(request)
+        .map(installation_binding::entries::bind_foreign_adapter)
+        .and_then(encode)
+        .and_then(place)
+        .and_then(construct)
+}
+
 pub(super) fn encode(
     entry: installation_binding::entries::BoundForeignAdapter,
 ) -> Result<EncodedForeignAdapter, String> {

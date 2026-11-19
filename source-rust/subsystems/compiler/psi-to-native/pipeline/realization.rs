@@ -194,13 +194,25 @@ pub(crate) fn admit_terminal_runtime(
         )]
     })?;
     Ok(provisions
-        .map_adapters(|request| {
-            auxiliary_native::plan(request).map(installation_binding::entries::bind_foreign_adapter)
-        })
-        .map_adapters(auxiliary_native::encode)
-        .map_adapters(auxiliary_native::place)
-        .map_adapters(auxiliary_native::construct)
+        .map_adapters(auxiliary_native::compile)
         .with_borrowed_storage_layouts(borrowed_storage_layouts))
+}
+
+/// Exercise the runtime adapter compiler with the explicit ABI inputs supplied
+/// by the external C and provider-process tests.
+#[cfg(feature = "test-support")]
+pub fn compile_runtime_foreign_adapter(
+    bridge: calling_conventions::NativeForeignBridgeRequest,
+    locator: target::NormalizedForeignLocator,
+    application: [u8; 32],
+) -> Result<object_file::ForeignAdapterObject, String> {
+    auxiliary_native::compile(
+        self::runtime_provisions::NativeForeignAdapterRequest::for_test(
+            bridge,
+            locator,
+            application,
+        ),
+    )
 }
 
 pub(crate) fn selected_physical_pipeline_failed(
