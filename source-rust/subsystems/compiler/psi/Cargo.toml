@@ -10,14 +10,14 @@ path = "src/lib.rs"
 
 [dependencies]
 proof-applications = { path = "proof-applications" }
-access-vocabulary = { path = "../../source-to-psi/language/access-vocabulary" }
+access-vocabulary = { path = "access" }
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
 schema-reflection = { path = "../../source-to-psi/language/schema-reflection" }
 application-identity = { path = "application-identity" }
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }
 wire = { path = "../../../foundation/wire" }
-symbols = { path = "../../source-to-psi/language/declaration-identity" }
+symbols = { path = "../foundation/declaration-identity" }
 record-storage = { path = "../../../foundation/record-storage" }
 arena = { path = "../../../foundation/arena" }
 optimization = { path = "optimization-selections" }

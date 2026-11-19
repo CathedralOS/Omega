@@ -10,7 +10,7 @@ path = "lib.rs"
 [dependencies]
 declaration-scope = { path = "../../../../foundation/declaration-scope" }
 artifacts = { path = "../../../../foundation/measurements" }
-access-vocabulary = { path = "../../../language/access-vocabulary" }
+access-vocabulary = { path = "../../../../psi/access" }
 declaration-contracts = { path = "../../../language/declaration-contracts" }
 schema-reflection = { path = "../../../language/schema-reflection" }
 application-identity = { path = "../../../../psi/application-identity" }
@@ -31,7 +31,7 @@ language-core = { path = "../../../../foundation/language-core" }
 layout-plans = { path = "../../../../psi/layout" }
 numerics = { path = "../../../../psi/semantics/numeric" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-symbols = { path = "../../../language/declaration-identity" }
+symbols = { path = "../../../../foundation/declaration-identity" }
 source-declarations = { path = "../../../language/source-declarations" }
 
 [dev-dependencies]

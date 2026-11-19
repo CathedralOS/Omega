@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+operation-evidence = { path = "../representations/operation-evidence" }
 compiler-check-site = { path = "../../../foundation/check-site" }
 abstract-operations = { path = "../representations/abstract-operations" }
 application-identity = { path = "../../../psi/application-identity" }

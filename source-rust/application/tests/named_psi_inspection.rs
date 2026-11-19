@@ -24,7 +24,7 @@ fn inspect(project: &Path, name: &str, artifact: &Path) -> Output {
 #[test]
 fn named_inspection_publishes_the_requested_reference_machine() {
     let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/run/ownership/incoming_record_reference_return");
+        .join("../../tests/fixtures/run/ownership/incoming_record_reference_return");
     let scratch = TemporaryDirectory::create("named-psi-inspection", false).unwrap();
     let artifact = scratch.path().join("retained.psi");
     let output = inspect(&project, "retained", &artifact);
@@ -58,7 +58,7 @@ fn named_inspection_publishes_the_requested_reference_machine() {
 #[test]
 fn named_inspection_reopens_owned_record_sequences_stored_in_locals() {
     let scratch = TemporaryDirectory::create("named-sequence-inspection", false).unwrap();
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures");
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
     for (tier, name) in [
         ("run", "owned_record_sequence"),
         ("run", "runtime_record_sequence"),
@@ -82,7 +82,7 @@ fn named_inspection_reopens_owned_record_sequences_stored_in_locals() {
 #[test]
 fn saved_console_provider_keeps_the_direct_mutable_byte_window() {
     let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/run/providers/default_console_provider_reached");
+        .join("../../tests/fixtures/run/providers/default_console_provider_reached");
     let scratch = TemporaryDirectory::create("console-provider-inspection", false).unwrap();
     let artifact = scratch.path().join("console.psi");
     let published = inspect(&project, "entry_start", &artifact);
@@ -142,7 +142,7 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
 
 #[test]
 fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let fixture = root.join("tests/fixtures/run/calls/scalar_contract_route_exit");
     let targets = [
         "linux_x86_64",
@@ -232,7 +232,7 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
 #[test]
 fn reopened_program_uses_the_host_pinned_package_lock() {
     use sha2::{Digest, Sha256};
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let fixture = root.join("tests/fixtures/run/providers/native_boundary_supply");
     let consumer = TemporaryDirectory::create("psi-lock-consumer", false).unwrap();
     let host = TemporaryDirectory::create("psi-lock-host", false).unwrap();

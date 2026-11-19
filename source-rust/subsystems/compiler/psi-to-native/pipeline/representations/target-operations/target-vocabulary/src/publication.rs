@@ -17,7 +17,7 @@ pub use execution_scope::{EmittedCallbackOccurrence, EmittedExecutionScope};
 use std::sync::Arc;
 
 use ::wire::digest_encoder::DomainDigestEncoder;
-pub use native_vocabulary::provenance::PsiProvenance;
+pub use operation_evidence::provenance::PsiProvenance;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
 
 /// Facts resolved while the admitted module and its target selection are available.

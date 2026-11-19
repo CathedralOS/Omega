@@ -1,14 +1,12 @@
 //! Declaration identities, kinds and retained spellings. Resolution belongs to source-compiler.
 #![forbid(unsafe_code)]
 mod builtin;
-mod fast_map;
 mod primitive;
 mod symbol;
 pub use builtin::{
-    BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember,
-    FixedCoreDeclaration,
+    BUILTIN_TYPE_COUNT, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember, FixedCoreDeclaration,
 };
-pub use fast_map::{BuildSymbolHasher, SymbolHasher, SymbolKeyMap, SymbolMap};
+pub use language_core::BuiltinFunction;
 pub use primitive::PrimitiveType;
 pub use symbol::kind::SymbolKind;
 pub use symbol::name::{SymbolName, SymbolNameRef};

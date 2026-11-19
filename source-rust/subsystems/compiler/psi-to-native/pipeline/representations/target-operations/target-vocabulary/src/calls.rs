@@ -264,6 +264,6 @@ pub enum TargetAccessCallAssociation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetAccessInterpretation {
-    Captured(native_vocabulary::access_references::AccessReferenceBacking),
+    Captured(operation_operands::access_references::AccessReferenceBacking),
     Formal(terminal_psi::TerminalAccessViewInput),
 }

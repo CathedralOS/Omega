@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use native_vocabulary::provenance::PsiProvenance;
+use operation_evidence::provenance::PsiProvenance;
 use semantic_vocabulary::{EdgeId, MachineId, OperationId, PlaceId};
 use target_vocabulary::{NativeByteLiteral, NativeFunctionPublication, NativePublicationFacts};
 

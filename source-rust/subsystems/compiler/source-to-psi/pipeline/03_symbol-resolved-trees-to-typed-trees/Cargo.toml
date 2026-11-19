@@ -29,7 +29,7 @@ diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../psi/semantics/numeric" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-symbols = { path = "../../language/declaration-identity" }
+symbols = { path = "../../../foundation/declaration-identity" }
 syntax-trees = { path = "../representations/syntax-trees" }
 
 [dev-dependencies]

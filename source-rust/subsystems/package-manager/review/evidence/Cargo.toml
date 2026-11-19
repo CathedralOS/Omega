@@ -31,5 +31,5 @@ diagnostics = { path = "../../../../foundation/diagnostics" }
 flow-effects = { path = "../../../compiler/source-to-psi/language/source-effects" }
 language-core = { path = "../../../compiler/foundation/language-core" }
 numerics = { path = "../../../compiler/psi/semantics/numeric" }
-symbols = { path = "../../../compiler/source-to-psi/language/declaration-identity" }
+symbols = { path = "../../../compiler/foundation/declaration-identity" }
 

@@ -64,13 +64,13 @@ impl AbstractOperationPlan {
 }
 
 pub mod ownership;
-pub use native_vocabulary::access_lifecycles::AccessLifecycleOperands;
-pub use native_vocabulary::access_references::{
-    AccessReferenceBacking, BorrowedExtentBacking, ResidentReferenceBacking,
-};
 pub use native_vocabulary::structural_type_catalog;
 pub use native_vocabulary::structural_type_catalog::{
     StructuralTypeCatalog, closed_owned_sequence_bounds,
+};
+pub use operation_operands::access_lifecycles::AccessLifecycleOperands;
+pub use operation_operands::access_references::{
+    AccessReferenceBacking, BorrowedExtentBacking, ResidentReferenceBacking,
 };
 pub use ownership::CompletionClaimSource;
 pub mod atomic;
@@ -98,7 +98,7 @@ pub use values::{
     AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding, binding_arguments,
 };
 pub mod operations;
-pub use native_vocabulary::structural_stores::{
+pub use operation_operands::structural_stores::{
     StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
 };
 pub use operations::{

@@ -8,8 +8,8 @@
   and charges a nonzero unit count.
 */
 
-use native_vocabulary::provenance::PsiProvenance;
-use native_vocabulary::provenance::WorkSettlement;
+use operation_evidence::provenance::PsiProvenance;
+use operation_evidence::provenance::WorkSettlement;
 use semantic_vocabulary::{EdgeId, ObligationId, OperationId, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

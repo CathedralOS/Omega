@@ -19,8 +19,11 @@ tokens or replay evidence a stage keeps beside it.
 
 Other packages separate shared records and preparation from program roots:
 
+- [Operation evidence](operation-evidence/src/lib.rs) identifies where a row came
+  from and preserves its charged work, claim sources and ownership frontier.
+  The optimizer and later forms can name this evidence without opening a function.
 - [Operation operands](operation-operands/src/lib.rs) hold the call targets,
-  value bindings and integer operation policies first produced during abstract lowering.
+  value bindings, integer operation policies and structural storage operands first produced during abstract lowering.
   Target and machine representations carry the same operands through later stages.
 - [`abstract-operations/verified-optimization-input/`](abstract-operations/verified-optimization-input/src/lib.rs)
   owns `VerifiedPsiOptimizationInput`, what stage 02 passes to stage 03: the

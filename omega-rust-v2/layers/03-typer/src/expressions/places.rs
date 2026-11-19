@@ -68,13 +68,12 @@ impl BodyTyper<'_, '_> {
         for &entry in entries {
             let domain = self
                 .unit
-                .checked_domain_application(self.unit.single_child(entry)?, &self.catalog.types)?;
+                .domain_application(self.unit.single_child(entry)?, &self.catalog.types)?;
             let action = source_file.nodes[entry].leaves[0].text;
             for atom in self
                 .catalog
                 .types
-                .domains
-                .expanded(&domain, &carrier, false)
+                .expanded_domain_at(&domain, &carrier, false, source_file, entry)
                 .map_err(|m| TypeError::at(source_file, entry, m))?
             {
                 if !mentioned.insert(atom.clone()) {
@@ -106,8 +105,7 @@ impl BodyTyper<'_, '_> {
             for parent in self
                 .catalog
                 .types
-                .domains
-                .expanded(atom, &carrier, true)
+                .expanded_domain_at(atom, &carrier, true, source_file, node_index)
                 .map_err(|m| TypeError::at(source_file, node_index, m))?
             {
                 if !result.contains(&parent) {

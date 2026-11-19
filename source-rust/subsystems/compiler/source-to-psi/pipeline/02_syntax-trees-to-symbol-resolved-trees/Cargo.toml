@@ -29,7 +29,7 @@ record-storage = { path = "../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../psi/semantics/numeric" }
-symbols = { path = "../../language/declaration-identity" }
+symbols = { path = "../../../foundation/declaration-identity" }
 syntax-trees = { path = "../representations/syntax-trees" }
 
 [dev-dependencies]

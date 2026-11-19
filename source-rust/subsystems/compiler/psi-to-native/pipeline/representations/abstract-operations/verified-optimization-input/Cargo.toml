@@ -28,7 +28,6 @@ arena = { path = "../../../../../../../foundation/arena" }
 record-storage = { path = "../../../../../../../foundation/record-storage" }
 language-core = { path = "../../../../../foundation/language-core" }
 layout-plans = { path = "../../../../../psi/layout" }
-symbols = { path = "../../../../../source-to-psi/language/declaration-identity" }
 terminal-codec = { path = "../../../../../psi/codec" }
 psi-authorization = { path = "../../../../../psi/authorization" }
 terminal-installation = { path = "../../../../../psi-admission" }

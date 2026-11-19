@@ -451,7 +451,7 @@ pub mod internal {
             provider: Box<ProviderCandidateConformance>,
             assumption: Option<target_vocabulary::InstalledAssumedBindingEvidence>,
             completion_claim_sources:
-                Vec<native_vocabulary::completion_claims::CompletionClaimSource>,
+                Vec<operation_evidence::completion_claims::CompletionClaimSource>,
             completion_receipts: Vec<CompletionReceipt>,
         },
     }

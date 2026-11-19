@@ -2603,9 +2603,9 @@ impl Program<'_> {
                     (0..parameters.len()).map(Some).collect::<Vec<_>>(),
                     None::<usize>,
                 )];
-                let mut visited = symbols::SymbolMap::<Vec<usize>>::default();
+                let mut visited = arena::HandleKeyMap::<SymbolHandle, Vec<usize>>::default();
                 visited.insert(symbol, vec![0]);
-                let mut active = symbols::SymbolMap::<usize>::default();
+                let mut active = arena::HandleKeyMap::<SymbolHandle, usize>::default();
                 let mut pending_instances = vec![(0, true)];
                 let mut selected = None;
                 let mut listed = Vec::new();

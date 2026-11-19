@@ -153,12 +153,12 @@ struct Questions<'source> {
             crate::source_state::expression::ExpressionHandle,
         ),
         BuildCallSite,
-        symbols::BuildSymbolHasher,
+        arena::BuildIndexHasher,
     >,
     requirements: HashMap<
         (MachineId, ContractId, MachineId),
         &'source crate::lowering::Selected,
-        symbols::BuildSymbolHasher,
+        arena::BuildIndexHasher,
     >,
 }
 

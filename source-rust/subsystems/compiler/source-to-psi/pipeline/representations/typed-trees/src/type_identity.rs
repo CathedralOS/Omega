@@ -24,7 +24,7 @@ pub(crate) mod callable_identity {
     use crate::source_state::signature::StateSignature;
     use crate::source_state::trait_definition::TraitDefinition;
 
-    type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+    use arena::HandleKeyMap as HashMap;
 
     #[derive(
         Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
@@ -3995,7 +3995,7 @@ pub(crate) mod normalized_identities {
     type CompositeIndex = std::collections::HashMap<
         std::sync::Arc<(&'static str, Vec<IdentityPart>)>,
         TypeIdentityId,
-        symbols::BuildSymbolHasher,
+        arena::BuildIndexHasher,
     >;
 
     /// One part of a compound identity: an identity of this table, or text

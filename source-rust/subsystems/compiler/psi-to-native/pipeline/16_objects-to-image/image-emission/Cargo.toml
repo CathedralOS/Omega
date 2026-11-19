@@ -18,7 +18,6 @@ physical-program = { path = "../../representations/post-allocation-machine/body-
 installation-admission = { path = "../../../verification/installation-admission" }
 register-homes = { path = "../../representations/register-homes" }
 wire = { path = "../../../../../../foundation/wire" }
-native-vocabulary = { path = "../../../native-vocabulary" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 language-core = { path = "../../../../foundation/language-core" }
@@ -64,7 +63,6 @@ entry-planning = { path = "../../09_post-allocation-machine-to-framed-machine/en
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = "../../09_post-allocation-machine-to-framed-machine" }
 native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encoding" }
 isa-x86_64 = { path = "../../11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
-image-fixtures = { path = "../../../../../test-support/image-fixtures" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../psi/layout" }

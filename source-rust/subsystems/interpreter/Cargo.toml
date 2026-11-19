@@ -9,11 +9,11 @@ name = "terminal_interpreter"
 path = "src/lib.rs"
 
 [dependencies]
-access-vocabulary = { path = "../compiler/source-to-psi/language/access-vocabulary" }
+access-vocabulary = { path = "../compiler/psi/access" }
 storage-access = { path = "memory/storage-access" }
 storage-materialization = { path = "memory/materialization" }
 resource-bounds = { path = "../compiler/psi/storage-bounds" }
-extent-contracts = { path = "../compiler/source-to-psi/language/extent-contracts" }
+extent-contracts = { path = "../compiler/psi/extent-contracts" }
 evaluation-contracts = { path = "../evaluation/evaluation-contracts" }
 language-core = { path = "../compiler/foundation/language-core" }
 record-storage = { path = "../../foundation/record-storage" }

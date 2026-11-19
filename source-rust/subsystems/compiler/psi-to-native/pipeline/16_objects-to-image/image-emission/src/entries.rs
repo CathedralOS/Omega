@@ -3668,19 +3668,11 @@ pub(crate) mod physical_entry {
         }
     }
 
+    use physical_recipes::physical_stack_switch::{Destination, StackSwitch};
     pub use requirements::{
         InstalledPhysicalCpuRequirement, PhysicalEntryRequirements, PhysicalEntryStackRequirement,
         PhysicalIncomingStackRequirement,
     };
-    mod stack_switch {
-        #[cfg(test)]
-        pub(super) use entry_planning::physical_stack_switch::plan;
-        #[cfg(test)]
-        pub(super) use native_encoding::physical_stack_switch::encode;
-        pub(super) use physical_recipes::physical_stack_switch::{Destination, StackSwitch};
-    }
-
-    use stack_switch::{Destination, StackSwitch};
 
     #[cfg(test)]
     mod tests {
@@ -3688,8 +3680,9 @@ pub(crate) mod physical_entry {
         use calling_conventions::{
             CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
         };
-        use entry_planning::native_entry_bridge::{NativeEntryBridgeRequest, NativeEntryParameter};
-        use image_fixtures::emit_native_entry_bridge;
+        use entry_planning::native_entry_bridge::{
+            NativeEntryBridgeRequest, NativeEntryParameter, plan_native_entry_bridge,
+        };
 
         #[test]
         fn retained_suffix_includes_alignment_after_nonempty_program_bss() {
@@ -3756,7 +3749,7 @@ pub(crate) mod physical_entry {
                         scalar_codec: 0,
                     });
                 }
-                let bridge = emit_native_entry_bridge(NativeEntryBridgeRequest {
+                let physical = plan_native_entry_bridge(NativeEntryBridgeRequest {
                     target: target::NativeTarget::uefi_x64(),
                     internal: plan.plan().call.clone(),
                     inbound: plan.plan().clone(),
@@ -3764,13 +3757,9 @@ pub(crate) mod physical_entry {
                     parameters,
                 })
                 .unwrap();
-                let physical = entry_planning::native_entry_bridge::plan_native_entry_bridge(
-                    bridge.request().clone(),
-                )
-                .unwrap();
-                let (_, wrapper) =
-                    super::stack_switch::encode(super::stack_switch::plan(physical).unwrap())
-                        .unwrap();
+                let switch = entry_planning::physical_stack_switch::plan(physical).unwrap();
+                let (bridge, wrapper) =
+                    native_encoding::physical_stack_switch::encode(switch).unwrap();
                 crate::published_entry_bytes::verify_stack_switch_bytes(&wrapper, &wrapper.bytes)
                     .unwrap();
                 let mut relocated = wrapper.bytes.clone();

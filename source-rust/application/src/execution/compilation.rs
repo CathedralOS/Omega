@@ -53,11 +53,8 @@ pub(super) fn compile(
         }
         let profile = target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
             .map_err(|error| vec![error])?;
-        let host =
-            orchestration::configured_host_packages().map_err(BuildError::into_diagnostics)?;
-        let installation =
-            orchestration::saved_program_installation(&artifact, profile, host.as_ref())
-                .map_err(BuildError::into_diagnostics)?;
+        let host = crate::saved_program::configured_host_packages()?;
+        let installation = crate::saved_program::installation(&artifact, profile, host.as_ref())?;
         let report = orchestration::prepare_saved_program(
             artifact,
             &options.root_path,

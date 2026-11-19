@@ -29,7 +29,6 @@ register-model = { path = "../../../targets/register-model", features = ["test-s
 isa-conformance = { path = "../../../tests/isa-conformance" }
 normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls", features = ["test-support"] }
 encoded-scalar-plan = { path = "../../representations/machine-code/scalar-encoding", features = ["test-support"] }
-symbols = { path = "../../../../source-to-psi/language/declaration-identity" }
 optimization-core = { path = "../../representations/optimization-records" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }

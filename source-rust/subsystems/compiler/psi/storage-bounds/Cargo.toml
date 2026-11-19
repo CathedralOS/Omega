@@ -5,4 +5,4 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-extent-contracts = { path = "../../../source-to-psi/language/extent-contracts" }
+extent-contracts = { path = "../extent-contracts" }

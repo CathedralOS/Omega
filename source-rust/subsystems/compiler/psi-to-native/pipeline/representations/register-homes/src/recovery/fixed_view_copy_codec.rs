@@ -25,7 +25,7 @@ use ::selected_instructions::{
     SelectedInstructionProvenance, VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin, selected_instruction_plan_identity,
 };
-use native_vocabulary::provenance::{
+use operation_evidence::provenance::{
     PsiProvenance, ValueDefinitionSite, WorkSettlement, encode_value_definition_site_identity,
 };
 use optimization_core::AcceptedObligationFactIdentity;

@@ -2,7 +2,7 @@
 
 pub use crate::TargetDescriptorOrigin as LegalizedDescriptorOrigin;
 use calling_conventions::{CallPlan, ValuePlacement};
-use native_vocabulary::provenance::ValueDefinitionSite;
+use operation_evidence::provenance::ValueDefinitionSite;
 use semantic_vocabulary::{
     BoundaryMachineId, ClosedScalarType, ObligationId, StructuralFieldId, ValueId,
 };

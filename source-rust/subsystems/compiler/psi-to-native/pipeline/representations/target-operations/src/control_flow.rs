@@ -66,9 +66,9 @@ pub struct TargetControlBlock {
 /// This is not an executable operation or a reference to an earlier body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetOperationMetadata {
-    pub work: Vec<native_vocabulary::provenance::WorkSettlement>,
-    pub effect: native_vocabulary::provenance::EffectLink,
-    pub ownership: Vec<native_vocabulary::provenance::OwnershipEvent>,
+    pub work: Vec<operation_evidence::provenance::WorkSettlement>,
+    pub effect: operation_evidence::provenance::EffectLink,
+    pub ownership: Vec<operation_evidence::provenance::OwnershipEvent>,
 }
 
 impl TargetControlBlock {
@@ -237,7 +237,7 @@ pub struct TargetControlCaseSuccessor {
     pub payloads: Vec<TargetControlCasePayload>,
     pub structural_bindings: Vec<operation_operands::values::AbstractStructuralBinding>,
     pub structural_indices: Vec<Vec<crate::TargetStructuralRuntimeIndex>>,
-    pub work: Vec<native_vocabulary::provenance::WorkSettlement>,
+    pub work: Vec<operation_evidence::provenance::WorkSettlement>,
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
 }
 
@@ -255,7 +255,7 @@ pub struct TargetControlSuccessor {
     pub bindings: Vec<ValueBinding>,
     pub structural_bindings: Vec<operation_operands::values::AbstractStructuralBinding>,
     pub structural_indices: Vec<Vec<crate::TargetStructuralRuntimeIndex>>,
-    pub work: Vec<native_vocabulary::provenance::WorkSettlement>,
+    pub work: Vec<operation_evidence::provenance::WorkSettlement>,
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
 

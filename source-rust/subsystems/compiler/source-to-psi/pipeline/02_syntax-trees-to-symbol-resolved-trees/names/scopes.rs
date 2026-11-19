@@ -264,7 +264,7 @@ pub(super) struct AttachedMachine {
 */
 pub(super) struct AttachedMachines {
     pub(super) list: Vec<AttachedMachine>,
-    by_owner: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>,
+    by_owner: arena::HandleKeyMap<SymbolHandle, Vec<usize>>,
 }
 
 impl AttachedMachines {
@@ -276,7 +276,7 @@ impl AttachedMachines {
 
 pub(super) fn attached_machines(program: &SymbolResolvedTrees) -> AttachedMachines {
     let list = attached_machine_list(program);
-    let mut by_owner: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>> = Default::default();
+    let mut by_owner: arena::HandleKeyMap<SymbolHandle, Vec<usize>> = Default::default();
     for (index, entry) in list.iter().enumerate() {
         by_owner.entry(entry.owner).or_default().push(index);
     }

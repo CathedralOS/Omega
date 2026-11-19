@@ -5,11 +5,11 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+operation-evidence = { path = "../../representations/operation-evidence" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }
 wire = { path = "../../../../../../foundation/wire" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
-native-vocabulary = { path = "../../../native-vocabulary" }
 arena = { path = "../../../../../../foundation/arena" }
 register-environment = { path = "../../../targets/register-environment" }
 optimization-core = { path = "../../representations/optimization-records" }

@@ -49,6 +49,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use compiler::CompilerRequestOutcome;
+use diagnostics::Diagnostic;
 use orchestration::{
     BuildError, BuildOutcome, BuildReport, BuildRequest, BuildTargets, NativeDestination,
     ProjectProduct, TargetBuildOutcome, build,
@@ -90,8 +91,10 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
     let roster = roster.as_deref().unwrap_or_default();
     let target_names = arguments.target_names;
     let targets = match resolve_targets(&target_names) {
-        Ok(targets) => targets,
-        Err(error) => exit_on_refusal(output, [&error]),
+        Ok(RequestedTargets::Host) => BuildTargets::Host,
+        Ok(RequestedTargets::Single(profile)) => BuildTargets::Single(profile),
+        Ok(RequestedTargets::Batch(set)) => BuildTargets::Batch(set),
+        Err(diagnostics) => exit_on_refusal(output, [&BuildError::Diagnostics(diagnostics)]),
     };
     let request = BuildRequest {
         stage_validators: arguments.stage_validators,
@@ -147,38 +150,63 @@ fn build_saved(arguments: CompileArguments, output: DiagnosticOutput) {
         arguments.trusted_artifact.as_deref(),
     )
     .unwrap_or_else(|diagnostics| exit_on_refusal(output, [&BuildError::Diagnostics(diagnostics)]));
-    let targets =
-        resolve_targets(&arguments.target_names).unwrap_or_else(|error| exit_on_refusal(output, [&error]));
-    let directory = compiler::CompileOptions {
-        root_path: arguments.root_path.clone(),
-        build_dir: arguments.build_dir,
-        target_name: None,
-    }
-    .build_dir();
-    match orchestration::build_saved_program(
+    let targets = resolve_targets(&arguments.target_names)
+        .unwrap_or_else(|error| exit_on_refusal(output, [&BuildError::Diagnostics(error)]));
+    let profiles = targets.profiles().unwrap_or_else(|diagnostics| {
+        exit_on_refusal(output, [&BuildError::Diagnostics(diagnostics)])
+    });
+    match crate::saved_program::publish(
         authorization,
         &arguments.root_path,
-        &directory,
-        targets,
+        arguments.build_dir.as_deref(),
+        &profiles,
+        matches!(targets, RequestedTargets::Batch(_)),
     ) {
         Ok(paths) => {
             for path in paths {
                 println!("executable {}", path.display());
             }
         }
-        Err(error) => exit_on_refusal(output, [&error]),
+        Err(crate::saved_program::PublicationError::Diagnostics(rows)) => {
+            exit_on_refusal(output, [&BuildError::Diagnostics(rows)]);
+        }
+        Err(crate::saved_program::PublicationError::Output(error)) => {
+            exit_on_refusal(output, [&BuildError::Publication(error)]);
+        }
     }
 }
 
-fn resolve_targets(target_names: &[String]) -> Result<BuildTargets, BuildError> {
+enum RequestedTargets {
+    Host,
+    Single(target::TargetProfile),
+    Batch(target::ExplicitTargetSet),
+}
+
+impl RequestedTargets {
+    fn profiles(&self) -> Result<Vec<target::TargetProfile>, Vec<Diagnostic>> {
+        match self {
+            Self::Host => target::TargetProfile::host_if_supported()
+                .map(|profile| vec![profile])
+                .ok_or_else(|| {
+                    let names = target::TargetProfile::ALL.map(target::TargetProfile::target_name);
+                    vec![Diagnostic::error(format!(
+                        "no target was named and this host has no catalogued Omega deployment profile; name an exact target ({})",
+                        names.join(", ")
+                    ))]
+                }),
+            Self::Single(profile) => Ok(vec![*profile]),
+            Self::Batch(set) => Ok(set.profiles().to_vec()),
+        }
+    }
+}
+
+fn resolve_targets(target_names: &[String]) -> Result<RequestedTargets, Vec<Diagnostic>> {
     match target_names {
-        [] => Ok(BuildTargets::Host),
+        [] => Ok(RequestedTargets::Host),
         [name] => target::TargetProfile::from_omega_target_name(Some(name))
-            .map(BuildTargets::Single)
-            .map_err(|error| BuildError::Diagnostics(vec![error])),
-        names => target::ExplicitTargetSet::from_caller_names(names)
-            .map(BuildTargets::Batch)
-            .map_err(BuildError::Diagnostics),
+            .map(RequestedTargets::Single)
+            .map_err(|diagnostic| vec![diagnostic]),
+        names => target::ExplicitTargetSet::from_caller_names(names).map(RequestedTargets::Batch),
     }
 }
 

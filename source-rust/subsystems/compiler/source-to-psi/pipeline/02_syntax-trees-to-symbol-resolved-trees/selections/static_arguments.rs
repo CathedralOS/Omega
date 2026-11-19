@@ -21,12 +21,12 @@ struct Member {
 }
 
 struct Members {
-    rows: HashMap<SymbolHandle, HashMap<String, Vec<Member>>, symbols::BuildSymbolHasher>,
+    rows: HashMap<SymbolHandle, HashMap<String, Vec<Member>>, arena::BuildIndexHasher>,
 }
 
 impl Members {
     fn collect(program: &SymbolResolvedTrees) -> Self {
-        let mut rows: HashMap<_, HashMap<String, Vec<Member>>, symbols::BuildSymbolHasher> =
+        let mut rows: HashMap<_, HashMap<String, Vec<Member>>, arena::BuildIndexHasher> =
             HashMap::default();
         for implementation in program.conformances.iter() {
             let names = rows.entry(implementation.symbol).or_default();

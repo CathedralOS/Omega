@@ -1273,7 +1273,7 @@ pub(crate) mod selected_lowering {
                         && !literal.provenance.work.is_empty()
                         && literal.provenance.work.iter().all(|work| {
                             work.site
-                                == native_vocabulary::provenance::PsiProvenance::Operation(
+                                == operation_evidence::provenance::PsiProvenance::Operation(
                                     literal.provenance.operations[0],
                                 )
                         })

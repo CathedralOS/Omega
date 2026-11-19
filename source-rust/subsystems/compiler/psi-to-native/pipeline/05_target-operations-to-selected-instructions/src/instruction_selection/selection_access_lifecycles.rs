@@ -11,7 +11,7 @@ use crate::instruction_selection::selection::construction::scalar_graph::structu
 };
 use crate::instruction_selection::structural_inputs::structural_reference_input;
 use layout_plans::{IntegerInterpretation, LayoutPlacementReport};
-use native_vocabulary::access_lifecycles::AccessLifecycleOperands;
+use operation_operands::access_lifecycles::AccessLifecycleOperands;
 use semantic_vocabulary::{
     AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, StructuralTypeId,
 };
@@ -44,7 +44,7 @@ pub(crate) mod initialization {
         use crate::instruction_selection::selection::construction::scalar_graph::structural::{
             leaf_copy, record,
         };
-        use native_vocabulary::access_lifecycles::AccessLifecycleOperands;
+        use operation_operands::access_lifecycles::AccessLifecycleOperands;
         use terminal_psi::TerminalAccessLifecycleExecution;
         let super::LegalizedScalarInstructionKind::AccessLifecycle {
             operands:
@@ -2329,8 +2329,8 @@ pub(crate) mod resource_profile {
                 LegalizedCallUnitParameter, LegalizedScalarInstructionKind,
                 LegalizedStructuralContract,
             };
-            use native_vocabulary::access_lifecycles::AccessLifecycleOperands;
             use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
+            use operation_operands::access_lifecycles::AccessLifecycleOperands;
             use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
             use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralDomainId};
             use terminal_psi::{
@@ -2639,7 +2639,7 @@ pub(crate) mod resource_profile {
                                 builder.definitions.push((
                                     selector.operand.value,
                                     register,
-                                    native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(
+                                    operation_evidence::provenance::ValueDefinitionSite::FunctionParameter(
                                         position as u32,
                                     ),
                                     semantic_vocabulary::ClosedScalarType::try_from(
@@ -4744,7 +4744,7 @@ pub(crate) mod tests {
             result: None,
             kind: LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(0)),
             work: vec![],
-            effect: native_vocabulary::provenance::EffectLink {
+            effect: operation_evidence::provenance::EffectLink {
                 input: 0,
                 output: 1,
             },
@@ -5100,8 +5100,8 @@ pub(crate) mod tests {
                     let preceding = OperationId::new(70).unwrap();
                     builder.pending_provenance = SelectedInstructionProvenance {
                         operations: vec![preceding],
-                        work: vec![native_vocabulary::provenance::WorkSettlement {
-                            site: native_vocabulary::provenance::PsiProvenance::Operation(
+                        work: vec![operation_evidence::provenance::WorkSettlement {
+                            site: operation_evidence::provenance::PsiProvenance::Operation(
                                 preceding,
                             ),
                             units: 3,
@@ -6038,7 +6038,10 @@ pub(crate) mod view {
         };
         let LegalizedScalarInstructionKind::AccessLifecycle {
             operands:
-                native_vocabulary::access_lifecycles::AccessLifecycleOperands::View { storage, profile },
+                operation_operands::access_lifecycles::AccessLifecycleOperands::View {
+                    storage,
+                    profile,
+                },
             indices,
             result,
             ..

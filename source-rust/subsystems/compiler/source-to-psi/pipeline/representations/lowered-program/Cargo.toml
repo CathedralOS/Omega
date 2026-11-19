@@ -16,6 +16,6 @@ source-text = { path = "../../../../../../foundation/source-text" }
 arena = { path = "../../../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 language-core = { path = "../../../../foundation/language-core" }
-symbols = { path = "../../../language/declaration-identity" }
+symbols = { path = "../../../../foundation/declaration-identity" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../../psi" }

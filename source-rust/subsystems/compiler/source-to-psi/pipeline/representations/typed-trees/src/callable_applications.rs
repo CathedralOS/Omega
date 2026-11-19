@@ -2721,7 +2721,7 @@ pub(crate) mod namespaces {
     /// handles only; all source and body correspondence stays in the record.
     #[derive(Default)]
     pub struct NamedConformanceCaptureIndex {
-        rows: symbols::SymbolKeyMap<
+        rows: arena::HandleKeyMap<
             CaptureKey,
             Option<arena::Handle<crate::source_state::CapturedMachineApplication>>,
         >,

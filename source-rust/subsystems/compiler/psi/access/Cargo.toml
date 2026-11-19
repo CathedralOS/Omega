@@ -4,7 +4,10 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[lib]
+path = "access.rs"
+
 [dependencies]
-record-storage = { path = "../../../../../foundation/record-storage" }
-language-core = { path = "../source-vocabulary" }
+record-storage = { path = "../../../../foundation/record-storage" }
+language-core = { path = "../../foundation/language-core" }
 extent-contracts = { path = "../extent-contracts" }

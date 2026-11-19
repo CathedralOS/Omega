@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use abstract_operations::{AbstractOperation as Operation, AbstractOperationPlan};
-use native_vocabulary::provenance::PsiProvenance;
+use operation_evidence::provenance::PsiProvenance;
 use target_vocabulary::{NativeByteLiteral, NativeFunctionPublication, NativePublicationFacts};
 
 pub fn capture_source_publication(

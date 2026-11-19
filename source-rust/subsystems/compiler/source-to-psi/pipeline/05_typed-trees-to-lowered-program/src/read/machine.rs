@@ -189,7 +189,7 @@ impl<'t> Program<'t> {
         // A nested helper can be named only from its declaring machine's
         // scope. An unchecked dependency body can hide a caller there, so
         // mark every lexical scope that still contains a deferred body.
-        let mut incomplete_scopes = symbols::SymbolMap::default();
+        let mut incomplete_scopes = arena::HandleKeyMap::<SymbolHandle, _>::default();
         for machine in self.typed.machines().iter() {
             if machine.body_status != MachineBodyStatus::Deferred {
                 continue;
@@ -690,7 +690,7 @@ impl<'t> Program<'t> {
                 .iter()
                 .copied()
                 .map(|binder| (binder, ()))
-                .collect::<symbols::SymbolMap<_>>();
+                .collect::<arena::HandleKeyMap<SymbolHandle, _>>();
             for binder in binders {
                 if known.insert(binder, ()).is_none() {
                     self.generic_binders.push(binder);

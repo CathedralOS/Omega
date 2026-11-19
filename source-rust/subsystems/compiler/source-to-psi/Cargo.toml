@@ -33,7 +33,6 @@ typed-trees = { path = "pipeline/representations/typed-trees" }
 source-syntax = { path = "pipeline/01_tokens-to-syntax-trees/source-syntax" }
 source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
 source-lexer = { path = "pipeline/00_source-files-to-tokens" }
-access-vocabulary = { path = "language/access-vocabulary" }
 declaration-contracts = { path = "language/declaration-contracts" }
 schema-reflection = { path = "language/schema-reflection" }
 application-identity = { path = "../psi/application-identity" }
@@ -67,7 +66,7 @@ optimization = { path = "../psi/optimization-selections" }
 proof-admission = { path = "proof-admission" }
 rayon = "1.11"
 semantic-vocabulary = { path = "../foundation/semantic-records" }
-symbols = { path = "language/declaration-identity" }
+symbols = { path = "../foundation/declaration-identity" }
 syntax-trees = { path = "pipeline/representations/syntax-trees" }
 terminal-check-tables = { path = "pipeline/representations/lowered-program" }
 terminal-codec = { path = "../psi/codec" }

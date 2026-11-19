@@ -188,7 +188,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
                     .as_mut()
                     .unwrap()
                     .definition_site =
-                    native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(0)
+                    operation_evidence::provenance::ValueDefinitionSite::FunctionParameter(0)
             }
             15 => call_mut(function, 0)
                 .result_placement
@@ -213,7 +213,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             scalar_type: semantic_vocabulary::ClosedScalarType::Integer(
                 semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
             ),
-            definition_site: native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(
+            definition_site: operation_evidence::provenance::ValueDefinitionSite::FunctionParameter(
                 0,
             ),
             placement: call_mut(&mut plan.clone().scalar_functions[0], 0).arguments[0]
@@ -233,7 +233,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             }
             2 => {
                 parameter.definition_site =
-                    native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(1)
+                    operation_evidence::provenance::ValueDefinitionSite::FunctionParameter(1)
             }
             _ => parameter.placement.locations.clear(),
         }
@@ -443,11 +443,11 @@ fn ownership_frontier_fact_identities_bind_the_plan_identity() {
     let identity = legalized_operation_plan_identity(&plan);
     assert!(plan.scalar_functions[0].ownership_frontier_facts.is_empty());
     let fact = |site| {
-        native_vocabulary::ownership_frontier::OwnershipFrontierFact::new(
+        operation_evidence::ownership_frontier::OwnershipFrontierFact::new(
             plan.psi,
             id(1),
             site,
-            native_vocabulary::ownership_frontier::OwnershipFrontierSnapshot {
+            operation_evidence::ownership_frontier::OwnershipFrontierSnapshot {
                 nominal_partitions: Vec::new(),
                 claims: Vec::new(),
                 owned_places: Vec::new(),
@@ -457,8 +457,8 @@ fn ownership_frontier_fact_identities_bind_the_plan_identity() {
     };
     let mut retained = plan.clone();
     retained.scalar_functions[0].ownership_frontier_facts = vec![
-        fact(native_vocabulary::ownership_frontier::OwnershipFrontierSite::BlockEntry(id(1))),
-        fact(native_vocabulary::ownership_frontier::OwnershipFrontierSite::EdgeEntry(id(1))),
+        fact(operation_evidence::ownership_frontier::OwnershipFrontierSite::BlockEntry(id(1))),
+        fact(operation_evidence::ownership_frontier::OwnershipFrontierSite::EdgeEntry(id(1))),
     ];
     let retained_identity = legalized_operation_plan_identity(&retained);
     assert_identity_drift(identity, &retained);
@@ -469,7 +469,7 @@ fn ownership_frontier_fact_identities_bind_the_plan_identity() {
     assert_identity_drift(retained_identity, &reordered);
     let mut substituted = retained.clone();
     substituted.scalar_functions[0].ownership_frontier_facts[1] =
-        fact(native_vocabulary::ownership_frontier::OwnershipFrontierSite::EdgeEntry(id(2)));
+        fact(operation_evidence::ownership_frontier::OwnershipFrontierSite::EdgeEntry(id(2)));
     assert_identity_drift(retained_identity, &substituted);
     let mut dropped = retained.clone();
     dropped.scalar_functions[0].ownership_frontier_facts.pop();
@@ -632,7 +632,7 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
         let mut changed = plan.clone();
         let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination:
-                native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(
+                operation_operands::structural_stores::StructuralScalarStoreDestination::Parameter(
                     destination,
                 ),
             path,
@@ -714,7 +714,7 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
     let field_identity = legalized_operation_plan_identity(&field);
     let LegalizedScalarInstructionKind::StructuralScalarFieldStore {
         destination:
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(
+            operation_operands::structural_stores::StructuralScalarStoreDestination::Parameter(
                 destination,
             ),
         ..
@@ -741,7 +741,7 @@ fn primitive_store_identity_binds_owned_producer_and_home() {
         panic!("primitive store fixture");
     };
     *destination =
-        native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
+        operation_operands::structural_stores::StructuralScalarStoreDestination::OwnedResult {
             producer: id(505),
             result: terminal_psi::StructuralOperationResult {
                 place: id(501),
@@ -760,7 +760,7 @@ fn primitive_store_identity_binds_owned_producer_and_home() {
         let mut changed = plan.clone();
         let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination:
-                native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
+                operation_operands::structural_stores::StructuralScalarStoreDestination::OwnedResult {
                     producer,
                     result,
                 },
@@ -798,7 +798,7 @@ fn runtime_index(
 
 #[test]
 fn owned_block_field_store_identity_binds_block_declaration_and_variant() {
-    use native_vocabulary::structural_stores::StructuralScalarStoreDestination as Destination;
+    use operation_operands::structural_stores::StructuralScalarStoreDestination as Destination;
 
     let plan = primitive_store_plan();
     let field_store = |destination: Destination| {

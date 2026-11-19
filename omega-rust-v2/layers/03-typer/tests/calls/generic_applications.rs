@@ -302,3 +302,72 @@ fn runtime_domain_sets_normalize_when_call_arguments_coincide_or_change_order() 
     let wrong=format!("{prefix} machine drop_one(k:u8,m:u8,x:u8 in Label<k> & Label<m>)->u8 in Label<k>{{both(m,k,x)}}");
     assert!(check(&[("sets.omg",&wrong)]).unwrap_err().message.contains("no matching overload for both"));
 }
+
+#[test]
+fn indexed_domain_aliases_preserve_each_constituent_and_its_arguments() {
+    let defs = "domain<const N:u8> u8::Bound<N>; domain u8::Five = u8::Bound<5>; domain u8::Six = u8::Bound<6>;
+        domain<const M:u8> u8::Pair<M> = u8::Five & u8::Bound<M>; domain u8::Both = u8::Pair<6>;";
+    let good = "machine expand(x:u8 in Both)->u8 in Bound<5> & Bound<6>{x}
+        machine attach(x:u8)->u8 in Both {x as +Both}
+        machine remove(x:u8 in Both)->u8 {x as -Both}";
+    let stage = check(&[("use.omg", good), ("domains.omg", defs)]).unwrap();
+    let machine = stage
+        .signatures
+        .iter()
+        .find(|s| s.machine.path == "expand")
+        .unwrap();
+    assert_eq!(machine.parameters[0].1, machine.result);
+    assert_eq!(
+        machine
+            .result
+            .domains()
+            .iter()
+            .map(|a| a.arguments[0].to_string())
+            .collect::<Vec<_>>(),
+        ["5", "6"]
+    );
+    let wrong = "machine substitute(x:u8 in Five)->u8 in Six {x}";
+    let error = check(&[("domains.omg", defs), ("use.omg", wrong)]).unwrap_err();
+    assert_eq!(error.file, "use.omg");
+    assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"x".as_slice()));
+    assert!(error.message.contains("Bound<6>") && error.message.contains("Bound<5>"), "{error:?}");
+    for (target, message) in [
+        ("u8::Bound", "incorrect indexed domain arity"),
+        ("u8::Bound<256>", "does not land in u8"),
+    ] {
+        let invalid = format!("domain u8::Invalid = {target};");
+        let error = check(&[("invalid.omg", &invalid), ("domains.omg", defs)]).unwrap_err();
+        assert_eq!(error.file, "invalid.omg");
+        assert!(error.message.contains(message), "{error:?}");
+    }
+}
+
+#[test]
+fn indexed_domain_type_arguments_normalize_under_both_spellings() {
+    let defs = "data Byte = u8; domain<Frame> u8::Coordinates<Frame>;";
+    for (input, output) in [
+        ("u8::Coordinates<Byte>", "u8 in Coordinates<u8>"),
+        ("u8 in Coordinates<u8>", "u8::Coordinates<Byte>"),
+    ] {
+        let same = format!("machine take(x:{input})->{output} {{x}}");
+        check(&[("types.omg", defs), ("use.omg", &same)]).unwrap();
+        let different = same.replace("Coordinates<Byte>", "Coordinates<bool>");
+        assert!(check(&[("types.omg", defs), ("use.omg", &different)]).is_err());
+    }
+}
+
+#[test]
+fn domain_alias_indices_are_checked_after_substitution_at_each_use() {
+    let defs = "domain<const N:u8> u8::Bound<N>; domain<const M:u8> u8::Next<M> = u8::Bound<M+1>;";
+    for source in [
+        "machine value(x:u8 in Next<254>)->u8 in Bound<255> {x}",
+        "machine cast(x:u8) {let y=x as +Next<254>;}",
+        "machine member(x:u8)->bool {x in Next::<254>}",
+    ] {
+        check(&[("domains.omg", defs), ("use.omg", source)]).unwrap();
+        let overflow = source.replace("254", "255");
+        let error = check(&[("domains.omg", defs), ("use.omg", &overflow)]).unwrap_err();
+        assert_eq!(error.file, "use.omg");
+        assert_eq!(error.message, "static index 256 exceeds u8");
+    }
+}
