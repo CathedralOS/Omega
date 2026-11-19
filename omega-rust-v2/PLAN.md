@@ -150,7 +150,7 @@ Psi to native code) are not planned yet.
 | L2 Resolver | syntax trees → symbol-resolved trees | locked, revised handoff signed off 2026-11-19 | 0.17 s (2026-11-18 warm median, five runs) |
 | L3 Typer | symbol-resolved trees → typed trees | locked, revised static integer handoff signed off 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | open, preparing local signed and unsigned integer constants and closed indices, 1–128 bits | — |
-| L5 Lowering | typed tree → Terminal Psi | not started | — |
+| L5 Lowering | prepared tree → Terminal Psi | production lowering not started; closed fixed-array handoff exercised by a consumer test | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |
 | Driver | compile a stage, run it, read its plan; repeat until a plan asks for an artifact | not started; needs L5 and an interpreter | — |
