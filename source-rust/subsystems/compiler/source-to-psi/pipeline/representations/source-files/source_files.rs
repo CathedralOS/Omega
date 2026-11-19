@@ -7,14 +7,7 @@ use source_text::SourceId;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-)]
-pub enum DependencyScope {
-    #[default]
-    Product,
-    Build,
-}
+pub use source_provenance::DependencyScope;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
 pub enum SourceOrigin {

@@ -407,7 +407,7 @@ mod tests {
     }
 
     fn revision(namespace: &str, file: &str) -> [u8; 32] {
-        declaration_contracts::source_identity::toolchain_owned_identity_digest(
+        source_provenance::toolchain_owned_identity_digest(
             namespace,
             vec![file.to_owned()],
             include_bytes!("../../../../../source/library/core/filesystem_authority.omg"),

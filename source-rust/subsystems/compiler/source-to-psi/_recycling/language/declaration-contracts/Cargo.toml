@@ -5,8 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-source-files = { path = "../../../pipeline/representations/source-files" }
-sha2 = "0.10"
+source-provenance = { path = "../../../../foundation/source-provenance" }
 numeric-literals = { path = "../numeric-literals" }
 source-text = { path = "../../../../../../foundation/source-text" }
 bignum = { path = "../../../../../foundation/bignum" }

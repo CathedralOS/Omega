@@ -12,7 +12,7 @@ diagnostics = { path = "../../foundation/diagnostics" }
 native-compiler = { path = "psi-to-native" }
 product-publication = { path = "build/build-output/product-publication" }
 semantic-vocabulary = { path = "foundation/semantic-records" }
-source-admission = { path = "source-to-psi/inputs/source-admission" }
+source-admission = { path = "source-to-psi/pipeline/representations/source-files/custody" }
 source-compiler = { path = "source-to-psi" }
 source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }

@@ -11,7 +11,7 @@ path = "src/lib.rs"
 # Retained representations. This crate must never depend on pipeline stages:
 # it is the contract the checker on the lowered form is built against.
 [dependencies]
-source-admission = { path = "../../../inputs/source-admission" }
+source-admission = { path = "../source-files/custody" }
 source-text = { path = "../../../../../../foundation/source-text" }
 arena = { path = "../../../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }

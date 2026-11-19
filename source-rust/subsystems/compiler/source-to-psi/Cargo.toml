@@ -19,6 +19,7 @@ test-support = [
 ]
 
 [dependencies]
+source-provenance = { path = "../foundation/source-provenance" }
 declaration-scope = { path = "../foundation/declaration-scope" }
 source-files = { path = "pipeline/representations/source-files" }
 checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi" }
@@ -40,7 +41,7 @@ numeric-literals = { path = "../foundation/numeric-literals" }
 evaluation-contracts = { path = "../build/evaluation/usage" }
 evaluation-receipts = { path = "../build/evaluation/receipts" }
 source-capture = { path = "../../../../host-support/source-capture" }
-source-admission = { path = "inputs/source-admission" }
+source-admission = { path = "pipeline/representations/source-files/custody" }
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }
 sha2 = "0.10.9"

@@ -1358,7 +1358,9 @@ mod tests;
 
 pub mod selection;
 
-pub mod entry_contract_identity;
-pub mod source_identity;
+pub mod entry_contract_identity {
+    pub use source_provenance::entry_contract_digest as digest;
+}
+pub use source_provenance as source_identity;
 
 pub mod build_stage;

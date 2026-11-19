@@ -369,7 +369,7 @@ fn prepare_and_judge(
                 "selected entry has no physical contract package",
             )]
         })?;
-        let digest = declaration_contracts::entry_contract_identity::digest(
+        let digest = source_provenance::entry_contract_digest(
             contract.manifest_identity,
             contract.relative_source,
             file.source.as_bytes(),

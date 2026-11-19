@@ -15,7 +15,7 @@ declaration-contracts = { path = "../../../language/declaration-contracts" }
 schema-reflection = { path = "../../../../psi/schema" }
 application-identity = { path = "../../../../psi/application-identity" }
 numeric-literals = { path = "../../../../foundation/numeric-literals" }
-source-admission = { path = "../../../inputs/source-admission" }
+source-admission = { path = "../source-files/custody" }
 source-text = { path = "../../../../../../foundation/source-text" }
 bignum = { path = "../../../../../../foundation/bignum" }
 sha2 = "0.10.9"
