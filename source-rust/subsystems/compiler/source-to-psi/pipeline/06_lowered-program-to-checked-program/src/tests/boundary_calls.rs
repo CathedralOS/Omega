@@ -1840,30 +1840,10 @@ Previous satisfies Step {{
 machine entry() crashes none {{}}
 "#
     );
-    let typed = typed(&text);
-    let entry = entry(&typed);
-    let verdicts = crate::checking::judge_compilation(
-        crate::lowering::prepare_compilation(
-            &typed,
-            crate::lowering::Compilation {
-                calling: None,
-                providers: None,
-
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[None],
-                purpose: source_provenance::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                supplies: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        )
-        .expect("fixture must lower to checker input")
-        .program,
-    );
-    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
-    verdicts.into_iter().map(Result::unwrap).collect()
+    compilation_results_for_subjects(&typed(&text), &[None])
+        .into_iter()
+        .map(Result::unwrap)
+        .collect()
 }
 
 #[test]
@@ -1969,6 +1949,13 @@ fn compilation_verdicts_of(typed: &crate::source_state::TypedTrees) -> Vec<Route
 pub(super) fn compilation_results_of(
     typed: &crate::source_state::TypedTrees,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+    compilation_results_for_subjects(typed, &[])
+}
+
+fn compilation_results_for_subjects(
+    typed: &crate::source_state::TypedTrees,
+    subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
+) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let entry = entry(typed);
     let prepared = crate::lowering::prepare_compilation(
         typed,
@@ -1977,7 +1964,7 @@ pub(super) fn compilation_results_of(
             providers: None,
             declaration_metadata: &[],
             entries: &[entry],
-            subjects: &[],
+            subjects,
             purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
