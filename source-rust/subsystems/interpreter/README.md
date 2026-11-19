@@ -58,6 +58,11 @@ payload copies, effect observations and saved return/cleanup metadata stay
 separate from executable code. This removes code copying, not all runtime
 allocation, and no speedup has been measured.
 
+The [native provider sponsor](host/native-sponsor/sponsor.rs) starts the isolated
+worker and installs the compiler's completed adapter images. The caller supplies
+the published roster. The sponsor matches each request against its application,
+locator, calling convention and image digest before sending bytes to the worker.
+
 ## Admission and preparation work
 
 Until containment of untrusted artifacts is audited, the

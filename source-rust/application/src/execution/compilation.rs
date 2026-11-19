@@ -158,14 +158,17 @@ pub(super) fn interpret_product(
             entry: None,
             filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
             native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,
-            native_provider: Some(native_provider_sponsor::for_provisions(
+            native_provider: Some(native_provider_sponsor::for_adapters(
                 std::process::Command::new(std::env::current_exe().map_err(|error| {
                     TerminalRuntimeError::MissingProvision {
                         capability: "native-provider-sponsor",
                         reason: error.to_string(),
                     }
                 })?),
-                report.published_runtime_provisions(),
+                report
+                    .published_runtime_provisions()
+                    .into_iter()
+                    .flat_map(|runtime| runtime.published_native_adapters()),
             )),
             x86_flags: terminal_runtime::capture_host_x86_flags(target)?,
             memory_ordering:
