@@ -1888,7 +1888,6 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "arena",
- "declaration-contracts",
  "optimization-core",
  "optimization-unit",
  "semantic-vocabulary",

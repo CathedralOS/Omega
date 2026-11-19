@@ -9,7 +9,6 @@ name = "optimization_unit_semantics"
 path = "src/lib.rs"
 
 [dependencies]
-declaration-contracts = { path = "../../../../../source-to-psi/language/declaration-contracts" }
 arena = { path = "../../../../../../../foundation/arena" }
 structural-storage = { path = "../../structural-storage" }
 optimization-core = { path = "../../optimization-records" }

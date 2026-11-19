@@ -17098,10 +17098,7 @@ pub(crate) mod structural_catalog {
                     identities,
                     types,
                 )
-                && declaration_contracts::content::terminal_projection_report_fingerprint(
-                    &projection.algebra,
-                    &projection.expression,
-                ) == projection.identity.projection_report_fingerprint
+                && projection.expression.report_fingerprint(&projection.algebra) == projection.identity.projection_report_fingerprint
         }
     }
     mod function_catalog {
