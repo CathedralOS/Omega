@@ -7,9 +7,9 @@ use terminal_installation::{
     AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 
+pub use native_compiler::SavedProgramTarget as NativeTarget;
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource};
-pub use native_compiler::SavedProgramTarget as NativeTarget;
 
 pub enum CompileRequest<'a> {
     Psi(StageSource<'a>),
@@ -40,7 +40,11 @@ pub fn compile(request: CompileRequest<'_>) -> Result<Artifact, Vec<Diagnostic>>
             entry_memory,
         } => {
             let psi = program.into_authorized_psi()?;
-            psi_to_native::emit(psi, target, entry_memory).map(Artifact::Native)
+            let application = target.application.clone();
+            let image = native_compiler::emit(psi, target, entry_memory)?;
+            Ok(Artifact::Native(
+                product_publication::CompletedProduct::from_native(image, None, application),
+            ))
         }
     }
 }

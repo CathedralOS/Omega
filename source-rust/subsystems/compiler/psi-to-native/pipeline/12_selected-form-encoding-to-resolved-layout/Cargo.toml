@@ -17,7 +17,7 @@ register-model = { path = "../../target-description/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }
 target = { path = "../../target-description/target" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
-encoding-admission = { path = "../../verification/encoding-admission" }
+encoding-admission = { path = "../representations/machine-code/encoding-admission" }
 
 [dev-dependencies]
 isa-aarch64 = { path = "../11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }

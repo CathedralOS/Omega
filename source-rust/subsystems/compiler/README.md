@@ -8,9 +8,9 @@
 | Native image | Stage source and target | Publish Psi in memory and lower it for the target. |
 | Native image | Authorized Psi and target | Lower the supplied Psi for the target. |
 
-The [source pipeline](source-to-psi/source_to_psi.rs) and the [native pipeline](psi-to-native/published-program/src/lib.rs) meet at [Psi](representations/psi/). For a saved program, the receiving host decodes the file and authorizes the exact artifact before it requests native code.
+The [source pipeline](source-to-psi/source_to_psi.rs) and the [native pipeline](psi-to-native/psi_to_native.rs) meet at [Psi](psi/). For a saved program, the receiving host decodes the file and authorizes the exact artifact before it requests native code.
 
-Each pipeline keeps its own [source program forms](source-to-psi/pipeline/representations/) or [native program forms](psi-to-native/pipeline/representations/). Their shared [Psi format](representations/psi/) is the handoff between them.
+Each pipeline keeps its own [source program forms](source-to-psi/pipeline/representations/) or [native program forms](psi-to-native/pipeline/representations/). Their shared [Psi format](psi/) is the handoff between them.
 
 A [project build](build/build.rs) calls this API for each program in its stage chain. The build driver runs planning programs in the interpreter and returns the final requested artifact.
 

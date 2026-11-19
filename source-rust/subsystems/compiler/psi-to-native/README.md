@@ -1,30 +1,25 @@
-# Native compilation
+# Psi to native code
 
-The native driver takes a published Psi program, one target and a
-`NativeCompileRequest`. The request supplies the entry, selected providers,
-imports, component call inputs, completed scalar values and output policy.
-The driver checks the scope and prepares the executable. A full image request
-runs through image construction at stage 16. A runtime admission request can return
-the provisions needed to interpret the program. [Native entry points](src/compile.rs)
-· [Preparation](src/preparation.rs)
+The [entry point](psi_to_native.rs) takes an authorized Psi program, a target, and the receiving host's inputs. An image request produces a finished native image. The [caller](../compiler.rs) packages that image. Runtime admission stops as soon as the interpreter's provisions are ready.
 
-| Stages | What passes forward |
+## Follow a compilation
+
+1. [Complete scalar inputs](pipeline/00_psi-to-admitted-native-inputs/scalar-applications/scalar_applications.rs) for this deployment. Build also consumes this operation when it needs the evaluation receipts. Its crate exposes evaluated values and receipts and has no dependency on the native driver.
+2. The [driver](pipeline/mod.rs) prepares the request, binds admitted entries and providers, then asks the numbered stages to lower the program. [Preparation](pipeline/prepare.rs) owns the checks on the retained publication, private entry memory and supplied scalar values.
+3. [Realization](pipeline/realization.rs) drives the common body sequence for the application, callbacks, and component exports. Follow [one physical body](pipeline/realization/physical_body.rs) from instruction selection through object construction. Generated foreign adapters have their own representation at each applicable stage. [Image emission](pipeline/16_objects-to-image/image-emission/) consumes the finished objects.
+4. [Replay](replay/README.md) consumes retained originals on an explicit validation request. [Frame and encoding checks](pipeline/representations/machine-code/) validate the corresponding machine-code forms. [Admission](verification/README.md) also has callers during ordinary compilation and execution.
+
+## Placement during the repair
+
+| Code | Owner |
 | --- | --- |
-| 01–05 · Admission and target lowering | The compiler admits the published program, selects providers and lowers the reached bodies through abstract operations to target operations. Target lowering issues the instruction input, semantic obligations and closed private references together. [Target lowering](pipeline/04_abstract-operations-to-target-operations/src/lib.rs) |
-| 06–11 · Selection through installation binding | Physical planning allocates registers, plans frames and generated entry code, and measures demanded installed handlers. Installation binding checks the exact operation, body identity, geometry and fault evidence. [Body sequence](src/pipeline.rs) · [Installation binding](pipeline/10_framed-machine-to-bound-framed-machine/src/lib.rs) |
-| 12–16 · Encoding, layout and object construction | The driver encodes each body, places its blocks, relaxes eligible branches, places complete functions and constructs their objects. Application entries, demanded callbacks and separately admitted component exports use the common operations. [Body sequence](src/pipeline.rs) · [Callable exports](src/components.rs) |
-| 17 · Image construction | The image owner takes the object publication, target image request and selected component inputs and builds the executable and its evidence. [Native artifact](pipeline/16_objects-to-image/native-artifact/src/lib.rs) |
+| A transformation of one issued program form | Its numbered directory under `pipeline/`. Facts needed by the next stage belong to the output of their producer. |
+| Code that calls several numbered stages | The private driver under `pipeline/`. Root bodies, callback bodies and component exports use its shared sequences. |
+| Program records consumed across stages | The relevant form under `pipeline/representations/`. A representation can describe its data and validate its invariants. It cannot drive the next transformation. |
+| Target descriptions | [Targets](targets/) owns target data, calling conventions and register descriptions. Target facts can be queried without constructing a program. |
+| Existing code with no active caller or unresolved ownership | `_recycling/` retains source for comparison or a rewrite. Cargo paths and Rust module declarations in active packages must resolve outside it. |
 
-The product coordinator completes the source or received artifact's scalar
-inputs before native compilation. Target planning runs the selected calling
-policy on the publication. Storage for an identical checked Psi program
-can be shared across targets. Each target keeps its own entry, deployment
-policy, authority and image. [Product coordinator](../compiler/src/product_execution.rs)
-· [Executable preparation](../compiler/src/executable.rs)
-
-File installation writes the finished products and returns their receipts. Independent validators can request retained originals to compare the
-physical program, encoding, frames and image. [Product publication](../build/build-output/product-publication/src/lib.rs)
-· [Verification](verification/) · [Full pipeline](../../../pipeline.md#connected-program-route)
+The sort establishes ownership of the files. The driver still passes the proposal, execution selections and admission policy together in [its realization request](pipeline/request.rs). Repair that handoff by following a concrete consumer back to the stage that can issue the needed fact. The [representation plan](../../../../representation-pipeline.md) describes the isolation check for each adjacent pair.
 
 ## Reviewing a bootstrap environment assumption
 
@@ -36,16 +31,16 @@ and [UEFI handoff](../../../../wiki/spec/build/uefi_entry.md#hardware-preparatio
 It does not establish CPU configuration, masked ordinary interrupts, exclusive
 storage, mappings, stack capacity or absence of software faults.
 
-The normal project API shows the exact identities without compiling a separate
+The V1 project API showed the exact identities without compiling a separate
 program. On an already accepted package, use the
-[review example](../../build-system/orchestration/examples/installation_assumption_review.rs):
+V1 review example (archived with its orchestration crate):
 
 ```sh
 mbx run -p orchestration --example installation_assumption_review -- inspect path/main.omg uefi_x86_64 build/boot-review
 cat build/boot-review/catalog.txt
 ```
 
-This runs ordinary project discovery, the Build and Terminal Psi production.
+In a build of that revision, this runs ordinary project discovery, the Build and Terminal Psi production.
 The catalog names the selected entry, the advertised private entries and every
 retained installation operation with the declaration that owns it.
 `terminal.psi` is the actual canonical artifact. Choose the entry and

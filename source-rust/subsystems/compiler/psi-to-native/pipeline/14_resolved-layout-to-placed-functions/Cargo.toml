@@ -13,7 +13,7 @@ relaxation = { package = "resolved-layout-to-resolved-layout", path = "../13_res
 physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
 target-x86_64 = { path = "../../target-description/target-x86_64" }
 target-aarch64 = { path = "../../target-description/target-aarch64" }
-frame-admission = { path = "../../verification/frame-admission" }
+frame-admission = { path = "../representations/machine-code/frame-admission" }
 wire = { path = "../../../../../foundation/wire" }
 register-environment = { path = "../../target-description/register-environment" }
 register-model = { path = "../../target-description/register-model" }
@@ -34,7 +34,7 @@ post-allocation-machine = { path = "../representations/post-allocation-machine" 
 target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
 
 [dev-dependencies]
-encoding-admission = { path = "../../verification/encoding-admission" }
+encoding-admission = { path = "../representations/machine-code/encoding-admission" }
 isa-aarch64 = { path = "../11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 isa-x86_64 = { path = "../11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
 layout-plans = { path = "../../../psi/layout" }

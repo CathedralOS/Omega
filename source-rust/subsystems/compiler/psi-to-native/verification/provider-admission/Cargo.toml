@@ -11,9 +11,9 @@ numeric-literals = { path = "../../../source-to-psi/language/numeric-literals" }
 arena = { path = "../../../../../foundation/arena" }
 wire = { path = "../../../../../foundation/wire" }
 language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
-layout = { path = "../../target-description/layout" }
-runtime-abi = { path = "../../target-description/runtime-abi" }
-provider-correspondence = { path = "../../verification/provider-correspondence" }
+layout = { path = "../../targets/layout" }
+runtime-abi = { path = "../../targets/runtime-abi" }
+provider-correspondence = { path = "../provider-correspondence" }
 component-description = { path = "../../components/description" }
 optimization-core = { path = "../../optimization-contracts" }
 function-identity = { path = "../../native-vocabulary/function-identity" }
@@ -27,15 +27,15 @@ abstract-operations = { path = "../../pipeline/representations/abstract-operatio
 installation-evidence = { path = "../../installation/installation-evidence" }
 bound-installations = { path = "../../installation/bound-installations" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../representations/psi" }
-terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-psi = { path = "../../../psi" }
+terminal-codec = { path = "../../../psi/codec" }
 terminal-installation = { path = "../../../psi-admission" }
-terminal-semantics = { path = "../../../representations/psi/semantics" }
-calling-conventions = { path = "../../target-description/calling-conventions" }
+terminal-semantics = { path = "../../../psi/semantics" }
+calling-conventions = { path = "../../targets/calling-conventions" }
 backend-plan = { path = "../../installation/provider-plans" }
 effects = { path = "../../installation/native-effects" }
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 
 [dev-dependencies]
 optimization-unit-semantics = { path = "../../pipeline/representations/abstract-operations/optimization-unit-semantics" }
-terminal-work = { path = "../../../representations/psi/work" }
+terminal-work = { path = "../../../psi/work" }
