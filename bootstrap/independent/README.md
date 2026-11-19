@@ -275,8 +275,9 @@ artifacts measured for that experiment.
 The [test source packer](../../tests/epsilon/compiled-native/composition.py)
 takes whole files from the verified Epsilon manifest in declaration order.
 The Epsilon-to-Delta compiler uses the source view, representations, lexer,
-parser and checker. The reference evaluator also includes its execution
-functions and entry. Compiled programs receive the runtime files required by
+parser and checker. Its literal emitter also uses the byte decoder in
+`execution/views/strings.delta`. The reference evaluator includes the
+remaining execution functions and its entry. Compiled programs receive the runtime files required by
 their calling convention. The Delta compiler checks each assembled program.
 
 The PR2737 scalar milestone first compiled four lexical machines. An initial implementation threaded generic runtime values and stores through

@@ -42,7 +42,8 @@ def checker_source(packed_evaluator):
         member = packed_evaluator[offset:end]
         if sha256(member).hexdigest() != digest:
             raise ValueError(f'packed evaluator member differs from its manifest: {name}')
-        if name == 'source.delta' or name.startswith(
+        # Emitting a checked string literal uses the evaluator's byte decoder.
+        if name in ('source.delta', 'execution/views/strings.delta') or name.startswith(
                 ('representations/', 'lexical/', 'parsing/', 'checking/')):
             selected.append(member)
         offset = end
