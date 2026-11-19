@@ -2249,7 +2249,7 @@ fn a_selected_callback_keeps_its_exact_applied_record_result() {
                 .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
         "the callback's applied result must keep its data view: {accepted:?}"
     );
-    let invalid = source.replace("invoke<make>", "invoke<other>");
+    let invalid = source.replace("invoke::<make>", "invoke::<other>");
     assert_ne!(source, invalid);
     let rejected = match crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(&invalid),
