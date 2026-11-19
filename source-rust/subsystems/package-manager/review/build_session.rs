@@ -168,6 +168,26 @@ impl PackageBuildSession {
         self.create_build_directory(base)
     }
 
+    /// Run an acquired Build under this command's retained resource grants.
+    pub fn source_build_inputs(
+        &mut self,
+        profile: target::TargetProfile,
+        snapshot: Option<package_compilation::BuildSnapshotRequest>,
+        dependency_activation: bool,
+    ) -> Result<package_compilation::BuildExecutionInputs, CompileResolvedPackageReviewsError> {
+        let directory = self.create_build_directory(self.root.join("source"))?;
+        Ok(package_compilation::BuildExecutionInputs {
+            profile: Some(profile),
+            directory: Some(directory),
+            filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
+            evaluation_sponsor: Some(self.evaluation_sponsor.clone()),
+            snapshot: Some(snapshot.unwrap_or_else(|| {
+                package_compilation::BuildSnapshotRequest::new(std::iter::empty())
+            })),
+            dependency_activation,
+            ..Default::default()
+        })
+    }
 
     fn create_build_directory(
         &mut self,
