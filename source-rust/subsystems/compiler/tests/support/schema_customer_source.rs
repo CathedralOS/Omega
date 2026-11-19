@@ -13,7 +13,7 @@ use std::{
 // The constructor control uses the same real library loader, but it does not
 // demand a policy body merely to obtain typed source. Package and source
 // custody stay intact; all library bytes match the compiler catalog.
-pub(super) fn actual_library_source(
+pub(crate) fn actual_library_source(
     library: &Path,
     query_text: &str,
     package: semantic_vocabulary::PackageKeyIdentity,
@@ -81,10 +81,10 @@ fn resolved_library_source(
     let mut bindings = Vec::new();
     for (id, text) in units {
         let previous = syntax.root_item_handles().len();
-        let tokens = crate::evaluation::frontend_fixture::Lexer::new(&text)
+        let tokens = crate::stages::frontend_fixture::Lexer::new(&text)
             .tokenize()
             .map_err(|errors| format!("lex source {id:?}: {errors:?}"))?;
-        crate::evaluation::frontend_fixture::parse(&mut syntax, id, &tokens)
+        crate::stages::frontend_fixture::parse(&mut syntax, id, &tokens)
             .map_err(|errors| format!("parse source {id:?}: {errors:?}"))?;
         for root in &syntax.root_item_handles()[previous..] {
             let syntax_trees::item::Item::Use(import) = syntax.root_item(*root) else {

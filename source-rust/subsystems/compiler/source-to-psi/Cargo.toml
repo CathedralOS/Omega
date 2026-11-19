@@ -25,6 +25,9 @@ evaluation-admission = { path = "../build/evaluation/admission" }
 psi-provider-selections = { path = "../psi/providers" }
 psi-scalar-applications = { path = "../psi/scalar-applications" }
 psi-target-layouts = { path = "../psi/layout/admission" }
+access-admission = { path = "../psi/access/admission" }
+access-vocabulary = { path = "../psi/access" }
+schema-reflection = { path = "../psi/schema" }
 source-completion-accounting = { path = "pipeline/prepare_and_check/accounting" }
 build-scalar-evaluation = { path = "../build/evaluation/scalars" }
 build-time-values = { path = "../build/evaluation/values" }

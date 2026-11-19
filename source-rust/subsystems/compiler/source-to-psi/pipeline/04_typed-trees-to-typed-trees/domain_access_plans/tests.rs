@@ -6,7 +6,7 @@ use crate::evaluation::{
 };
 use crate::source_state::expression::ExpressionNode;
 
-use super::schema_customer_source as customer_source;
+use crate::stages::{fixture_repository, schema_customer_source};
 
 const SOURCE: &str = include_str!("access_plan_construction.omg");
 
@@ -116,10 +116,8 @@ fn assert_zero_tail(plan: &BuildTimeValue) {
 }
 
 fn typed_source(source: &str) -> crate::source_state::TypedTrees {
-    let library =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library");
-    customer_source::actual_library_source(
-        &library,
+    schema_customer_source::actual_library_source(
+        &fixture_repository::root().join("source/library"),
         source,
         semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32])
             .expect("retained test package"),
@@ -355,13 +353,13 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         declaration_metadata: &[],
         entries: &entries,
         subjects: &[],
-        purpose: declaration_contracts::source_identity::DependencyScope::Product,
+        purpose: source_provenance::DependencyScope::Product,
         selected: &[],
         bindings: &[],
         supplies: &[],
     };
     let mut accounting = SourceCompletionAccounting::default();
-    super::domain_access_plans::evaluate(&mut typed, request, None, None, &mut accounting)
+    super::evaluate(&mut typed, request, None, None, &mut accounting)
         .expect("evaluate the actual domain's selected policy with normal call accounting");
     let (source, _) = crate::preparation::prepare_typed_trees(
         typed.clone(),
@@ -607,13 +605,13 @@ machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
             declaration_metadata: &[],
             entries: &entries,
             subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],
         };
         let mut accounting = SourceCompletionAccounting::default();
-        super::domain_access_plans::evaluate(&mut typed, request, None, None, &mut accounting)
+        super::evaluate(&mut typed, request, None, None, &mut accounting)
             .expect("evaluate the actual complete selected read/write policy");
         let policy = typed
             .domain_definitions
@@ -884,7 +882,7 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         .invoke_recorded(target(&facts), &mut accounting)
         .expect("nonempty plan is constructed and returned through ordinary checked source");
     let result = last_receipt(&accounting);
-    let normalized = crate::evaluation::source_jobs::access_plan_values::normalize(query, &result)
+    let normalized = super::returned_plan::normalize(query, &result)
         .expect("exact query and result correspondence");
     // Domain snapshots retain this same complete result, including borrowed
     // function descriptions and the schema's original query visibility.
@@ -898,9 +896,8 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
     assert_eq!(retained, normalized);
     let mut foreign_region = normalized.clone();
     foreign_region.readers[0].0 = crate::source_state::reflection::SchemaNodeHandle::INVALID;
-    let encoded =
-        record_storage::encode(&foreign_region, record_storage::RecordLimits::default())
-            .expect("stage the same result with a foreign region handle");
+    let encoded = record_storage::encode(&foreign_region, record_storage::RecordLimits::default())
+        .expect("stage the same result with a foreign region handle");
     let error = record_storage::decode::<access_admission::AccessPlan>(
         &encoded,
         record_storage::RecordLimits::default(),
@@ -995,11 +992,7 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
             .unwrap()
             .invoke_recorded(target(&facts), &mut accounting)
             .unwrap();
-        let error = crate::evaluation::source_jobs::access_plan_values::normalize(
-            query,
-            &last_receipt(&accounting),
-        )
-        .unwrap_err();
+        let error = super::returned_plan::normalize(query, &last_receipt(&accounting)).unwrap_err();
         assert!(error.contains(reason), "{error}");
     }
     let mut altered = produced.value().clone();
@@ -1018,11 +1011,7 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         .unwrap()
         .invoke_recorded(target(&facts), &mut accounting)
         .unwrap();
-    let error = crate::evaluation::source_jobs::access_plan_values::normalize(
-        query,
-        &last_receipt(&accounting),
-    )
-    .unwrap_err();
+    let error = super::returned_plan::normalize(query, &last_receipt(&accounting)).unwrap_err();
     assert!(
         error.contains("callable description is not bound to the actual source"),
         "{error}"
@@ -1037,11 +1026,7 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         .unwrap()
         .invoke_recorded(target(&facts), &mut accounting)
         .unwrap();
-    let error = crate::evaluation::source_jobs::access_plan_values::normalize(
-        query,
-        &last_receipt(&accounting),
-    )
-    .unwrap_err();
+    let error = super::returned_plan::normalize(query, &last_receipt(&accounting)).unwrap_err();
     assert!(
         error.contains("not the genuine core AccessPlan declaration"),
         "{error}"
