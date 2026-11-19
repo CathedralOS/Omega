@@ -34,6 +34,8 @@ machine Main::main(&mut self) {
             6 -> batch_6()
             7 -> batch_7()
             8 -> batch_8()
+            9 -> batch_9()
+            10 -> batch_10()
             _ -> self.console.exit_process(99)
         }
     }
@@ -196,6 +198,34 @@ machine Main::main(&mut self) {
         self.refusal("machine unused()->u8 {transition true && target<4 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}} machine main()->u8 {0}",1,172);
         self.refusal("machine main()->u8 {let x:bool=true;transition (match x {true -> false, _ -> true}) {true->miss() _->pass()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,173);
         self.positive("machine main()->u8 {transition false {true->miss() _->pass()} machine pass()->u8 {44} machine miss()->u8 {1}}",44,174);
+    }
+
+    state batch_9() {
+        // The combined spelling and the explicit pair must perform the same conversion.
+        self.positive("machine mark(n:u64)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",42,180);
+        self.positive("machine mark(n:u64)->u64 in Trapping {(n as u64) as +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",42,181);
+        self.positive("machine mark(n:u32)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(4294967295);let y:u64 in Trapping=x+1;transition y>4294967295 {true->pass() _->miss()} machine pass()->u8 {43} machine miss()->u8 {1}}",43,182);
+        self.positive("data Cell {n:u32 in Trapping;} machine take(c:@mut Cell)->u32 {let before:u32 in Trapping=c.n;c.n=before+1;before as -Trapping} machine main()->u8 {let mut c:Cell;c.n=1 as +Trapping;let v:u64 in Trapping=(take(@mut c)) as u64 +Trapping;transition c.n==2 && v==1 {true->pass() _->miss()} machine pass()->u8 {44} machine miss()->u8 {1}}",44,183);
+        // A carrier cast accepts a plain operand. Unsupported proofs produce no artifact.
+        self.refusal("machine mark(n:u64 in Trapping)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3 as +Trapping);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",1,184);
+        self.refusal("machine bad(n:u64 in Trapping)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {42}",1,185);
+        self.refusal("machine mark(n:u64)->u32 in Trapping {(n as u32) as +Trapping} machine main()->u8 {let x:u32 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,186);
+        self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 +Unseen} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,187);
+        self.positive("machine mark(n:u64)->u64 in Trapping {(n as u64 +Trapping)+1} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==4 {true->pass() _->miss()} machine pass()->u8 {45} machine miss()->u8 {1}}",45,188);
+    }
+
+    state batch_10() {
+        // Preserve every u64 bit and the overflow behavior of its destination domain.
+        self.positive("machine mark(n:u8)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",42,189);
+        self.positive("machine twice(x:u64 in Trapping)->u64 in Trapping {x+x} machine grow(x:u64 in Trapping)->u64 in Trapping {twice(twice(twice(twice(x))))} machine maximum()->u64 in Trapping {let x:u64 in Trapping=4294967295 as +Trapping;grow(grow(grow(grow(grow(grow(grow(grow(x))))))))+4294967295} machine tag(n:u64)->u64 in Trapping {n as u64 +Trapping} machine main()->u8 {let high:u64 in Trapping=maximum();let plain:u64=high as -Trapping;let result:u64 in Trapping=tag(plain);let overflow:u64 in Trapping=result+1;42}",0,190);
+        self.positive("machine mark(n:u32)->u32 in Trapping {n as u32 +Trapping} machine main()->u8 {let x:u32 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",42,191);
+        // Domain entries cannot become arithmetic on the unparenthesized result.
+        self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 -Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,192);
+        self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 =Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,193);
+        self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 +Trapping +Trapping} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,194);
+        self.refusal("machine mark(n:u64)->u64 in Trapping {n as u64 + 1} machine main()->u8 {let x:u64 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",1,195);
+        self.refusal("machine mark(n:u32)->u32 in Trapping {n as u32 in Trapping} machine main()->u8 {let x:u32 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,196);
+        self.positive("machine mark(n:u32)->u32 in Trapping {(n as u32) as +Trapping} machine main()->u8 {let x:u32 in Trapping=mark(3);transition x==3 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",42,197);
     }
 
 }

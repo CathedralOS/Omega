@@ -9308,12 +9308,15 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.cast_kind = OmegaCastKind::Carrier;
         self.cast_type_reference = 0;
         self.cast_end = self.type_end;
-        transition true { true -> validate_cast_end_punctuation(0) }
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Plus -> retain_cast_after_end(0)
+            _ -> validate_cast_end_punctuation(0)
+        }
     }
 
     state validate_cast_end_punctuation(after_domain: i32) {
-        // + / - after any cast introduce more domain entries, never arithmetic.
-        // This first slice retains one entry; a continuation refuses explicitly.
+        // After a domain entry, another sign begins a second entry.
+        // Arithmetic on the resulting value requires a parenthesized cast.
         transition self.scan.punctuation {
             OmegaPunctuationKind::Plus -> incomplete_root()
             OmegaPunctuationKind::Minus -> incomplete_root()
@@ -9468,7 +9471,17 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
         self.cast_expression_count = self.cast_expression_count + 1;
         self.expression_count = self.expression_count + 1;
         self.expression_consumer = self.cast_result_consumer;
-        transition true { true -> primary_expression_end_punctuation() }
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Plus -> add_domain_to_carrier_result()
+            _ -> primary_expression_end_punctuation()
+        }
+    }
+
+    state add_domain_to_carrier_result() {
+        // The carrier conversion owns the original operand. Adding one domain
+        // views the result exactly as an explicit second cast would.
+        self.cast_value_expression = self.expression_result;
+        transition true { true -> begin_domain_cast(OmegaCastKind::AddDomain) }
     }
 
     state local_data_type_end() {
