@@ -7,15 +7,17 @@ pub mod stage_validators;
 
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;
-pub use pipeline::prepare::published_application::SavedProgramTarget;
+pub use pipeline::prepare::published_application::{
+    NativeApplicationSettings, SavedProgramTarget, prepare_issued_program,
+};
 
-use verified_optimization_input::RetainedTerminalArtifact;
 use diagnostics::Diagnostic;
 use pipeline::prepare::published_application::{complete_entry_scalars, prepare_saved_program};
 use pipeline::request::NativeCompileRequest;
 use provider_admission::current_terminal_authority_policy;
 use psi_authorization::AuthorizedTerminalArtifact;
 use psi_entry_memory::PrivateEntryRamInitialization;
+use verified_optimization_input::RetainedTerminalArtifact;
 
 /// Integration tests can supply an already retained input to isolate admission or
 /// observe how often ordinary compilation enters a stage.
@@ -36,7 +38,7 @@ pub fn emit(
     target: SavedProgramTarget<'_>,
     entry_memory: &[PrivateEntryRamInitialization],
 ) -> Result<native_artifact::FinishedNativeImage, Vec<Diagnostic>> {
-    emit_image(program, target, entry_memory, false).map(|(image, _)| image)
+    prepare_saved_program(program, target)?.emit(entry_memory)
 }
 
 /// Check the requested stages against originals from this emission before releasing its image.
@@ -52,35 +54,7 @@ pub fn emit_with_validators(
     ),
     stage_validators::NativeValidationError,
 > {
-    let profile = target.profile;
-    let (image, replay) = emit_image(program, target, entry_memory, !validators.is_empty())
-        .map_err(stage_validators::NativeValidationError::Compilation)?;
-    let results = validators.check(profile, &image, &replay)?;
-    Ok((image, results))
-}
-
-fn emit_image(
-    program: AuthorizedTerminalArtifact,
-    target: SavedProgramTarget<'_>,
-    entry_memory: &[PrivateEntryRamInitialization],
-    retain_native_stage_inputs: bool,
-) -> Result<
-    (
-        native_artifact::FinishedNativeImage,
-        published_object_verification::NativeStageReplay,
-    ),
-    Vec<Diagnostic>,
-> {
-    with_published_request(
-        program,
-        target,
-        entry_memory,
-        &mut Vec::new(),
-        |terminal, mut request| {
-            request.retain_native_stage_inputs = retain_native_stage_inputs;
-            pipeline::compile(&terminal, request)
-        },
-    )
+    prepare_saved_program(program, target)?.emit_with_validators(entry_memory, validators)
 }
 
 /// Stop after admitting the provisions needed by the Psi interpreter.
@@ -90,47 +64,109 @@ pub fn admit_published_runtime(
     entry_memory: &[PrivateEntryRamInitialization],
     accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
 ) -> Result<AdmittedRuntimeProgram, Vec<Diagnostic>> {
-    with_published_request(
-        program,
-        target,
-        entry_memory,
-        accounting,
-        pipeline::admit_runtime,
-    )
+    prepare_saved_program(program, target)?.admit_runtime(entry_memory, accounting)
 }
 
-fn with_published_request<T>(
-    authorization: AuthorizedTerminalArtifact,
-    target: SavedProgramTarget<'_>,
-    private_entry_ram: &[PrivateEntryRamInitialization],
-    accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
-    finish: impl FnOnce(
-        RetainedTerminalArtifact,
-        NativeCompileRequest<'_>,
-    ) -> Result<T, (target::ExecutableImageEmissionRequest, Vec<Diagnostic>)>,
-) -> Result<T, Vec<Diagnostic>> {
-    let subsystem = target.application.subsystem;
-    let (terminal, permissions) = prepare_saved_program(authorization, target)?;
+/// A native invocation whose target provider demand was matched to its authorized
+/// program. Its reviewed assumptions travel to the same entry and installation checks.
+pub struct NativeProgram {
+    terminal: RetainedTerminalArtifact,
+    permissions: provider_admission::TerminalAuthorityPermissionPolicy,
+    profile: target::TargetProfile,
+    subsystem: u16,
+    installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
+}
 
-    let proposal = terminal.native_realization_proposal().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "saved Psi compilation lost its native proposal",
-        )]
-    })?;
-    let scalars = complete_entry_scalars(terminal.authorization(), proposal, accounting)?;
-    let optimizations = proposal.post_terminal_optimizations().selections().clone();
-    let request = NativeCompileRequest {
-        retain_native_stage_inputs: false,
-        installation_assumptions: &[],
-        private_entry_ram,
-        optimization_selections: &optimizations,
-        terminal_authority_policy: current_terminal_authority_policy(),
-        accepted_package_terminal_authority_permission_policy: permissions,
-        terminal_authority_permission_policy: None,
-        image_request: target::ExecutableImageEmissionRequest::direct(subsystem),
-        imports: &[],
-        components: &[],
-        scalars: scalars.as_ref(),
-    };
-    finish(terminal, request).map_err(|(_, diagnostics)| diagnostics)
+impl NativeProgram {
+    pub fn emit(
+        self,
+        entry_memory: &[PrivateEntryRamInitialization],
+    ) -> Result<native_artifact::FinishedNativeImage, Vec<Diagnostic>> {
+        self.emit_image(entry_memory, false).map(|(image, _)| image)
+    }
+
+    pub fn emit_with_validators(
+        self,
+        entry_memory: &[PrivateEntryRamInitialization],
+        validators: &stage_validators::StageValidatorRequest,
+    ) -> Result<
+        (
+            native_artifact::FinishedNativeImage,
+            Vec<stage_validators::StageValidationRow>,
+        ),
+        stage_validators::NativeValidationError,
+    > {
+        let profile = self.profile;
+        let (image, replay) = self.emit_image(entry_memory, !validators.is_empty())?;
+        let rows = validators.check(profile, &image, &replay)?;
+        Ok((image, rows))
+    }
+
+    fn emit_image(
+        self,
+        entry_memory: &[PrivateEntryRamInitialization],
+        retain_native_stage_inputs: bool,
+    ) -> Result<
+        (
+            native_artifact::FinishedNativeImage,
+            published_object_verification::NativeStageReplay,
+        ),
+        Vec<Diagnostic>,
+    > {
+        self.finish(
+            entry_memory,
+            &mut Vec::new(),
+            retain_native_stage_inputs,
+            |terminal, request| pipeline::compile(&terminal, request),
+        )
+    }
+
+    pub fn admit_runtime(
+        self,
+        entry_memory: &[PrivateEntryRamInitialization],
+        accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
+    ) -> Result<AdmittedRuntimeProgram, Vec<Diagnostic>> {
+        self.finish(entry_memory, accounting, false, pipeline::admit_runtime)
+    }
+
+    fn finish<T>(
+        self,
+        private_entry_ram: &[PrivateEntryRamInitialization],
+        accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
+        retain_native_stage_inputs: bool,
+        finish: impl FnOnce(
+            RetainedTerminalArtifact,
+            NativeCompileRequest<'_>,
+        )
+            -> Result<T, (target::ExecutableImageEmissionRequest, Vec<Diagnostic>)>,
+    ) -> Result<T, Vec<Diagnostic>> {
+        let Self {
+            terminal,
+            permissions,
+            subsystem,
+            installation_assumptions,
+            ..
+        } = self;
+        let proposal = terminal.native_realization_proposal().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "prepared Psi compilation lost its native proposal",
+            )]
+        })?;
+        let scalars = complete_entry_scalars(terminal.authorization(), proposal, accounting)?;
+        let optimizations = proposal.post_terminal_optimizations().selections().clone();
+        let request = NativeCompileRequest {
+            retain_native_stage_inputs,
+            installation_assumptions: &installation_assumptions,
+            private_entry_ram,
+            optimization_selections: &optimizations,
+            terminal_authority_policy: current_terminal_authority_policy(),
+            accepted_package_terminal_authority_permission_policy: permissions,
+            terminal_authority_permission_policy: None,
+            image_request: target::ExecutableImageEmissionRequest::direct(subsystem),
+            imports: &[],
+            components: &[],
+            scalars: scalars.as_ref(),
+        };
+        finish(terminal, request).map_err(|(_, diagnostics)| diagnostics)
+    }
 }

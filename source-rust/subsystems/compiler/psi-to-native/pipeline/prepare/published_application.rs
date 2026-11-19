@@ -262,17 +262,18 @@ pub struct SavedProgramTarget<'a> {
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
-/// Use the same provider, entry and native application stages as a source build.
+/// Target application settings used after stage 00 has bound the issued demand.
+pub struct NativeApplicationSettings<'a> {
+    pub application: target::NativeApplicationMetadata,
+    pub optimizations: &'a optimization_core::OptimizationSelections,
+    pub behavior_exclusions: &'a [behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+}
+
 pub(crate) fn prepare_saved_program(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     mut target: SavedProgramTarget<'_>,
-) -> Result<
-    (
-        RetainedTerminalArtifact,
-        TerminalAuthorityPermissionPolicy,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
     let artifact = Arc::clone(authorization.shared_artifact());
     let origins = target
@@ -302,8 +303,6 @@ pub(crate) fn prepare_saved_program(
             Some((*id, module.identities.text(boundary.identity)?.to_owned()))
         })
         .collect();
-    let package_permissions = origins.inputs().package_permissions.clone();
-    let entry_bindings = Arc::clone(&origins.inputs().semantic_bindings);
     let facts = provider_demand::ProviderDemandInputs::Target {
         profile: target.profile,
         logical,
@@ -314,20 +313,62 @@ pub(crate) fn prepare_saved_program(
         review: None,
     };
     let issued = provider_demand::IssuedProviderDemand::issue((), facts);
-    let admitted = native_inputs::admit(authorization, issued)
-        .map_err(|error| refuse(error.to_string()))?;
+    prepare_issued_program(
+        authorization,
+        issued,
+        NativeApplicationSettings {
+            application: target.application,
+            optimizations: target.optimizations,
+            behavior_exclusions: target.behavior_exclusions,
+            x86_scalar_fma_provider: target.x86_scalar_fma_provider,
+        },
+        Vec::new(),
+    )
+}
+
+/// Admit an issued target demand against its authorized Psi, then use its selected
+/// providers and application settings to prepare one native invocation.
+pub fn prepare_issued_program<Publisher>(
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    issued: provider_demand::IssuedProviderDemand<Publisher>,
+    settings: NativeApplicationSettings<'_>,
+    installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    let refuse = |reason: String| vec![Diagnostic::error(reason)];
+    let provider_demand::ProviderDemandInputs::Target {
+        profile, origins, ..
+    } = issued.inputs()
+    else {
+        return Err(refuse(
+            "native application preparation requires a target-scoped provider demand".into(),
+        ));
+    };
+    let profile = *profile;
+    let package_permissions = origins.inputs().package_permissions.clone();
+    let entry_bindings = Arc::clone(&origins.inputs().semantic_bindings);
+    let artifact = Arc::clone(authorization.shared_artifact());
+    let admitted =
+        native_inputs::admit(authorization, issued).map_err(|error| refuse(error.to_string()))?;
     let mut execution = select_published_providers(admitted)?;
     execution
         .bind_folded_entry(&artifact, artifact.published_evidence().map(Arc::as_ref))
         .map_err(refuse)?;
-    prepare_published_application(PublishedApplicationInputs {
+    let subsystem = settings.application.subsystem;
+    let (terminal, permissions) = prepare_published_application(PublishedApplicationInputs {
         execution: &execution,
         bindings: &entry_bindings,
         package_permissions: package_permissions.as_ref(),
-        application: target.application,
-        optimizations: target.optimizations,
-        behavior_exclusions: target.behavior_exclusions,
-        x86_scalar_fma_provider: target.x86_scalar_fma_provider,
+        application: settings.application,
+        optimizations: settings.optimizations,
+        behavior_exclusions: settings.behavior_exclusions,
+        x86_scalar_fma_provider: settings.x86_scalar_fma_provider,
+    })?;
+    Ok(crate::NativeProgram {
+        terminal,
+        permissions,
+        subsystem,
+        installation_assumptions,
+        profile,
     })
 }
 
