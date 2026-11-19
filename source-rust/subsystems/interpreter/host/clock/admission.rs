@@ -8,7 +8,7 @@ use calling_conventions::{CallSignature, ValueShape};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target::TargetProfile;
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
 use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind};
 

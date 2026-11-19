@@ -1001,7 +1001,7 @@ machine build(builder: @mut Build) {{
             .iter()
             .find(|row| row.boundary == boundary.id)
             .unwrap();
-        let target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding) =
+        let target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding) =
             &provision.realization
         else {
             panic!("produced native binding")

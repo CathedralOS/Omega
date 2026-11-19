@@ -11,7 +11,7 @@ use native_provider_runtime::{KernelOperand, KernelResult, LinuxFilesystemOperat
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerValue, ScalarType};
 use target::TargetProfile;
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,

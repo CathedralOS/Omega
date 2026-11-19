@@ -23,7 +23,7 @@ use super::TerminalRuntimeError;
 use calling_conventions::BoundaryCallingApplication;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use std::sync::{Arc, Mutex};
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
