@@ -55,3 +55,17 @@ fn reject_fixtures_fail_with_their_expected_error() {
         panic!("{failures}");
     }
 }
+#[test]
+fn malformed_selection_rows_refuse_the_first_missing_part() {
+    for (row, unexpected) in [
+        ("Trait:: = target;", "="),
+        ("Trait::slot target;", "target"),
+        ("Trait::slot = ;", ";"),
+        ("Trait::slot = target", "}"),
+    ] {
+        let source = format!("Impl satisfies Trait {{ {row} }}");
+        let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
+        let error = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap_err();
+        assert_eq!(error.get_span().slice(source.as_bytes()), Some(unexpected.as_bytes()), "{row}");
+    }
+}

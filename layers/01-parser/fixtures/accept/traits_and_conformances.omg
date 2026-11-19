@@ -29,3 +29,7 @@ requires machine Step(value: T) -> T
 
 // A type named `public` still gets a conformance.
 public satisfies Marker {}
+
+Forwarder satisfies Logger {
+    Logger::write = logging::write_log;
+}

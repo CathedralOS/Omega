@@ -167,7 +167,11 @@ and a restricted alias
 ### conformance
 
     conformance = visibility? word generic_params? 'satisfies' type
-                  hypothesis* '{' machine* '}'
+                  hypothesis* '{' ( machine | selection_row )* '}'
+    selection_row = word '::' word '=' path ';'
+
+A selection row names a trait requirement and an existing machine to supply
+it. Both paths retain their own source spans. [Named conformances](../../wiki/spec/language/conformances.md#declaration-and-selection)
 
 `public SaturatingIncrement satisfies Incrementable<Counter> { ... }`
 (language/conformances.md:39), and with hypotheses (proofs/quotients.md:196).

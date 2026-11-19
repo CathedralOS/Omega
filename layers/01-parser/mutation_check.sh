@@ -55,6 +55,7 @@ MUTATIONS=(
   "saturating left shift binds like xor|grammar/expressions.rs|s/| Punctuation::LessLessSaturating |/|/;s/Punctuation::Caret => 7,/Punctuation::LessLessSaturating | Punctuation::Caret => 7,/"
   "one extra nesting level allowed|parsing/syntax_parser.rs|s/const NESTING_LIMIT: u32 = 128;/const NESTING_LIMIT: u32 = 129;/"
   "fragment may leave trailing tokens|parsing/syntax_parser.rs|s/if !self.at_end() {/if false {/"
+  "conformance selection rows disabled|grammar/traits.rs|s/else if self.at_word() \&\& self.nth_at(1, Punctuation::ColonColon)/else if false/"
 )
 
 caught=0

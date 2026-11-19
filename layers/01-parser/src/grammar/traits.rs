@@ -66,7 +66,7 @@ impl SyntaxParser<'_> {
         Ok(())
     }
 
-    /// `visibility? word generic_params? 'satisfies' type hypothesis* '{' machine* '}'`
+    /// A conformance supplies members with inline machines or named selection rows.
     pub(crate) fn parse_conformance(&mut self) -> Parsed {
         let conformance = self.open();
 
@@ -89,11 +89,22 @@ impl SyntaxParser<'_> {
         self.expect(Punctuation::LeftBrace, "`{`")?;
 
         while !self.at(Punctuation::RightBrace) {
-            if !self.at_machine_declaration() {
-                return Err(self.error("a machine or `}`"));
+            if self.at_machine_declaration() {
+                self.parse_item()?;
+            } else if self.at_word() && self.nth_at(1, Punctuation::ColonColon) {
+                let row = self.open();
+                let requirement = self.open();
+                self.bump();
+                self.bump();
+                self.expect_word("a trait member name")?;
+                self.close(requirement, NodeKind::Path);
+                self.expect(Punctuation::Equal, "`=`")?;
+                self.parse_path()?;
+                self.expect(Punctuation::Semicolon, "`;`")?;
+                self.close(row, NodeKind::SelectionRow);
+            } else {
+                return Err(self.error("a machine, selection row or `}`"));
             }
-
-            self.parse_item()?;
         }
 
         self.bump();

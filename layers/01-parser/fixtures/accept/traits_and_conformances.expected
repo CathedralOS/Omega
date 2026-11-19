@@ -201,3 +201,14 @@ File
     PathType 'Marker'
     '{'
     '}'
+  Conformance
+    'Forwarder'
+    'satisfies'
+    PathType 'Logger'
+    '{'
+    SelectionRow
+      Path 'Logger' '::' 'write'
+      '='
+      Path 'logging' '::' 'write_log'
+      ';'
+    '}'

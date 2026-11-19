@@ -23,6 +23,7 @@ pub enum NodeKind {
     Trait,
     Restriction,
     Conformance,
+    SelectionRow,
     Hypothesis,
     Machine,
     AsmMachine,
