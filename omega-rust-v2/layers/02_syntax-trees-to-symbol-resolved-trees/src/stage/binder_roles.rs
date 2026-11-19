@@ -35,7 +35,7 @@ impl Catalog<'_> {
                     if heads.is_empty() {
                         heads.resize(self.entries.len(), None);
                     }
-                    matches!(self.alias_head(contexts, &mut heads, file_index, bound), Head::Universe)
+                    matches!(self.alias_head(contexts, &mut heads, file_index, bound)?, Head::Universe)
                 };
                 if !universe {
                     continue;
@@ -71,7 +71,7 @@ impl Catalog<'_> {
         heads: &mut [Option<Head>],
         file: usize,
         node: usize,
-    ) -> Head {
+    ) -> Result<Head, NameError> {
         use NodeKind::*;
         let mut pending = vec![Visit::Read(file, node)];
         let mut head = Head::Other;
@@ -106,7 +106,7 @@ impl Catalog<'_> {
                         }
                         continue;
                     }
-                    let slots = self.lookup(file, i, &contexts[i], n, &path);
+                    let slots = self.lookup(file, i, &contexts[i], n, &path)?;
                     let mut data = slots.into_iter().filter(|&s| self.entries[s].id.kind == Data);
                     let Some(slot) = data.next() else { continue };
                     if data.any(|other| other != slot) {
@@ -143,7 +143,7 @@ impl Catalog<'_> {
                             .map(|w| w.text)
                             .collect::<Vec<_>>()
                             .join("::");
-                        if self.lookup(file, i, &contexts[i], n, &prefix).contains(&owner) {
+                        if self.lookup(file, i, &contexts[i], n, &prefix)?.contains(&owner) {
                             if let Some(&argument) = file.nodes[args].children.get(position) {
                                 pending.push(Visit::Read(i, argument));
                             }
@@ -153,6 +153,6 @@ impl Catalog<'_> {
                 }
             }
         }
-        head
+        Ok(head)
     }
 }

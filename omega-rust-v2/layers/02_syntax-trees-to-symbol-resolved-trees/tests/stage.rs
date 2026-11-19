@@ -1022,3 +1022,97 @@ fn a_qualified_generic_argument_takes_the_selected_binders_role() {
         "unresolved name N"
     );
 }
+
+/// The declaration that each use spelled `spelling` in `file` selects.
+fn selected(
+    stage: &omega_resolver::ResolvedStage,
+    file: &str,
+    text: &str,
+    spelling: &str,
+) -> Vec<String> {
+    stage
+        .uses
+        .iter()
+        .filter(|u| u.file == file && text.get(u.span.get_start_offset()..u.span.get_end_offset()) == Some(spelling))
+        .map(|u| match &u.target {
+            Symbol::Declaration(id) => format!("{}::{}", id.package, id.path),
+            other => format!("{other:?}"),
+        })
+        .collect()
+}
+
+#[test]
+fn a_qualified_path_and_its_import_select_the_same_root_module_declaration() {
+    // `combat` names the package's root module wherever the path is written, as it
+    // does in `use combat::score`. A same-named child directory of the caller is not
+    // reached by a qualified path or by an import.
+    let root = ("app", "combat/s.omg", "machine score() -> u32 { 1 } data Point { x: u32; }");
+    let child = ("app", "game/combat/s.omg", "machine score() -> u32 { 2 } data Point { y: u32; }");
+    let qualified = "machine f(p: combat::Point) -> u32 { combat::score() }";
+    let imported = "use combat::score; use combat::Point; machine f(p: Point) -> u32 { score() }";
+    for caller in ["main.omg", "game/main.omg"] {
+        for text in [qualified, imported] {
+            let stage = run(&[root, child, ("app", caller, text)], &[]).unwrap();
+            for (spelling, expected) in [
+                ("combat::score", "app::combat::score"),
+                ("score", "app::combat::score"),
+                ("combat::Point", "app::combat::Point"),
+                ("Point", "app::combat::Point"),
+            ] {
+                for target in selected(&stage, caller, text, spelling) {
+                    assert_eq!(target, expected, "{caller}: `{text}` selects {spelling}");
+                }
+            }
+            assert!(!selected(&stage, caller, text, "combat::score").is_empty());
+        }
+    }
+    for (text, message) in [
+        ("machine f() -> u32 { combat::score() }", "unresolved name combat::score"),
+        ("use combat::score; machine f() -> u32 { score() }", "unavailable import combat::score"),
+        ("machine f(p: combat::Point) {}", "unresolved name combat::Point"),
+    ] {
+        let error = run(&[child, ("app", "game/main.omg", text)], &[])
+            .err()
+            .unwrap_or_else(|| panic!("`{text}` in game/ reached game::combat"));
+        assert_eq!((error.file.as_str(), error.message.as_str()), ("game/main.omg", message));
+    }
+}
+
+#[test]
+fn a_dependency_alias_that_also_names_a_root_directory_or_declaration_is_refused_in_every_directory() {
+    let edge = Dependency {
+        requester: "app",
+        alias: "dep",
+        package: "lib",
+    };
+    let library = ("lib", "l.omg", "public machine item() -> u32 { 1 }");
+    let directory = ("app", "dep/x.omg", "machine item() -> u32 { 2 }");
+    let qualified = "machine f() -> u32 { dep::item() }";
+    let imported = "use dep::item; machine f() -> u32 { item() }";
+    for caller in ["main.omg", "sub/main.omg"] {
+        for text in [qualified, imported] {
+            // A root declaration named like the alias competes the same way.
+            for local in [directory, ("app", "d.omg", "data dep { case item; }")] {
+                let error = run(&[library, local, ("app", caller, text)], &[edge])
+                    .err()
+                    .unwrap_or_else(|| {
+                        let stage = run(&[library, local, ("app", caller, text)], &[edge]).unwrap();
+                        panic!("{caller}: `{text}` was accepted and selects {:?}", selected(&stage, caller, text, "dep::item"))
+                    });
+                assert_eq!(error.file, caller);
+                assert_eq!(error.message, "competing module paths dep: package lib and app::dep");
+                assert_eq!(text.get(error.span.get_start_offset()..error.span.get_end_offset()), Some("dep::item"));
+            }
+            for (files, edges, expected) in [
+                (vec![library, ("app", caller, text)], vec![edge], "lib::item"),
+                (vec![directory, ("app", caller, text)], vec![], "app::dep::item"),
+            ] {
+                let stage = run(&files, &edges).unwrap();
+                let mut targets = selected(&stage, caller, text, "dep::item");
+                targets.extend(selected(&stage, caller, text, "item"));
+                assert!(!targets.is_empty());
+                assert!(targets.iter().all(|t| t == expected), "{caller}: `{text}` selects {targets:?}");
+            }
+        }
+    }
+}

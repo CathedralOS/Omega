@@ -104,7 +104,7 @@ impl Catalog<'_> {
             if let Some(path) = file.child(machine_node, Path)
                 && let Some((qualifier, _)) = file.nodes[path].path().rsplit_once("::")
             {
-                let mut domains = self.lookup(file, file_number, ctx, n, qualifier);
+                let mut domains = self.lookup(file, file_number, ctx, n, qualifier)?;
                 domains.extend(
                     ctx.exposed_domains
                         .keys()

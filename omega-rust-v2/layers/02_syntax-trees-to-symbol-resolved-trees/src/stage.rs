@@ -266,7 +266,7 @@ pub fn resolve_stage_with_exports<'text>(
                     {
                         continue;
                     }
-                    let mut slots = provisional.lookup(file, file_number, ctx, n, &name);
+                    let mut slots = provisional.lookup(file, file_number, ctx, n, &name)?;
                     slots.sort_unstable();
                     slots.dedup();
                     for i in slots {
@@ -277,9 +277,9 @@ pub fn resolve_stage_with_exports<'text>(
                     }
                 }
             }
-            owners
+            Ok(owners)
         })
-        .collect();
+        .collect::<Result<_, NameError>>()?;
     let universe_binders = provisional.bind_universe_roles(&mut contexts)?;
     let trait_parents = provisional.trait_parents;
     for (slot, position) in universe_binders {
@@ -372,7 +372,7 @@ pub fn resolve_stage_with_exports<'text>(
         if let Some(head) = file.child(node, NodeKind::Path)
             && let Some((owner, _)) = file.nodes[head].path().rsplit_once("::")
         {
-            let owners = catalog.lookup(file, file_number, &contexts[file_number], head, owner);
+            let owners = catalog.lookup(file, file_number, &contexts[file_number], head, owner)?;
             if owners.iter().any(|&i| entries[i].id.kind == NodeKind::Data) {
                 return Err(file.error(file.span(head), "a data carrier cannot own a machine"));
             }
@@ -400,7 +400,7 @@ pub fn resolve_stage_with_exports<'text>(
         {
             Carrier::Generic
         } else {
-            let slots = catalog.lookup(file, file_number, context, head, carrier);
+            let slots = catalog.lookup(file, file_number, context, head, carrier)?;
             let mut owners = slots
                 .into_iter()
                 .filter(|&i| matches!(entries[i].id.kind, NodeKind::Data | NodeKind::Domain));

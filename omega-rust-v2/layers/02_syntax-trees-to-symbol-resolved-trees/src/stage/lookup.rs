@@ -19,7 +19,7 @@ impl Catalog<'_> {
                 .filter(|&&n| file.nodes[n].kind == NodeKind::PathType)
             {
                 let name = file.nodes[base].path();
-                let ids = self.lookup(file, file_number, &contexts[file_number], base, &name);
+                let ids = self.lookup(file, file_number, &contexts[file_number], base, &name)?;
                 let mut traits = ids
                     .iter()
                     .map(|&i| &self.entries[i])
@@ -84,16 +84,26 @@ impl Catalog<'_> {
         }
         Ok(())
     }
+    /// Imports and fully qualified paths start at a requester-local dependency
+    /// alias or at the requester's package root, never at the caller's directory.
+    /// An alias that also names a root module or declaration of the requester
+    /// makes two modules visible for one path, so the path is refused instead of
+    /// letting the caller's directory choose between them.
     fn address(
         &self,
         file: &File<'_>,
         path: &str,
-    ) -> (String, String) {
+        span: SourceSpan,
+    ) -> Result<(String, String), NameError> {
         let (root, rest) = path.split_once("::").unwrap_or((path, ""));
-        match self.edges.get(&(file.package, root)) {
-            Some(&package) => (package.into(), rest.into()),
-            None => (file.package.into(), path.into()),
+        let Some(&package) = self.edges.get(&(file.package, root)) else {
+            return Ok((file.package.into(), path.into()));
+        };
+        let own = (file.package.to_owned(), root.to_owned());
+        if self.modules.contains(&own) || !self.visible(file, &own).is_empty() {
+            return Err(file.error(span, format!("competing module paths {root}: package {package} and {}::{root}", file.package)));
         }
+        Ok((package.into(), rest.into()))
     }
     pub(super) fn visible(
         &self,
@@ -152,8 +162,8 @@ impl Catalog<'_> {
             let Some(h) = file.child(n, NodeKind::Path) else { continue };
             ctx.heads.insert(h);
             let path = file.nodes[h].path();
-            let address = self.address(file, &path);
             let span = file.span(h);
+            let address = self.address(file, &path, span)?;
             let alias = path.rsplit("::").next().unwrap_or(&path);
             let slots = self.visible(file, &address);
             let target = if !slots.is_empty() {
@@ -264,7 +274,7 @@ impl Catalog<'_> {
         node: usize,
         path: &str,
         membership_target: bool,
-    ) -> Vec<usize> {
+    ) -> Result<Vec<usize>, NameError> {
         let parent = file.nodes[node].parent.map(|p| &file.nodes[p]);
         // A membership test names its domain without a carrier, even when it is written as a
         // qualified generic argument under a value binder.
@@ -273,7 +283,7 @@ impl Catalog<'_> {
             .map(|p| file.nodes[p.children[0]].path());
         let domain_position = implicit_carrier.is_some() || parent.is_some_and(|p| p.kind == NodeKind::CastEntry) || membership_target;
         if !domain_position && !path.contains("::") {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
         fn split(name: &str) -> (Option<&str>, &str) {
@@ -285,9 +295,12 @@ impl Catalog<'_> {
         let mut owners = loop {
             let Some(prefix) = qualifier else {
                 qualifier = implicit_carrier.as_deref();
-                break qualifier.map_or_else(Vec::new, |name| self.lookup(file, file_number, ctx, node, name));
+                break match qualifier {
+                    Some(name) => self.lookup(file, file_number, ctx, node, name)?,
+                    None => Vec::new(),
+                };
             };
-            let direct = self.lookup(file, file_number, ctx, node, prefix);
+            let direct = self.lookup(file, file_number, ctx, node, prefix)?;
             if !domain_position || super::builtin(prefix) || !direct.is_empty() {
                 break direct;
             }
@@ -333,7 +346,7 @@ impl Catalog<'_> {
             }
             qualifier = Some(segment);
         }
-        owners
+        Ok(owners)
     }
 
     /// A generic domain gets its carrier from this qualifier. An inherited
@@ -373,7 +386,7 @@ impl Catalog<'_> {
                 kind: local.kind,
             }
         } else {
-            let owners = self.lookup(file, file_number, ctx, n, prefix);
+            let owners = self.lookup(file, file_number, ctx, n, prefix)?;
             let [owner] = owners.as_slice() else { return Ok(None) };
             let id = &self.entries[*owner].id;
             if !generic
@@ -426,7 +439,7 @@ impl Catalog<'_> {
         ctx: &Context<'_>,
         n: usize,
         path: &str,
-    ) -> Vec<usize> {
+    ) -> Result<Vec<usize>, NameError> {
         for owner in file.enclosing_contexts(n) {
             let Some(&entry) = ctx.entries.get(&owner) else { continue };
             let address = (file.package.into(), qualify(&self.entries[entry].id.path, path));
@@ -440,11 +453,27 @@ impl Catalog<'_> {
                     })
                     .collect();
                 if !visible.is_empty() {
-                    return visible;
+                    return Ok(visible);
                 }
             }
         }
-        let local = self.visible(file, &(file.package.into(), qualify(&file.namespace, path)));
+        // A qualified path can name a declaration of the caller's own namespace,
+        // as in `Shape::Circle` or `i32::Positive`, but it never descends into a
+        // child directory: written in game/, `combat::score` names the root
+        // module combat, as `use combat::score` does. Such a path, and one that
+        // starts with a dependency alias in the root namespace, resolves through
+        // `address` after imports, wherever the caller is.
+        let local = match path.split_once("::") {
+            Some((root, _))
+                if self
+                    .modules
+                    .contains(&(file.package.into(), qualify(&file.namespace, root)))
+                    || (file.namespace.is_empty() && self.edges.contains_key(&(file.package, root))) =>
+            {
+                Vec::new()
+            }
+            _ => self.visible(file, &(file.package.into(), qualify(&file.namespace, path))),
+        };
         let mut preferred: Vec<_> = local
             .iter()
             .copied()
@@ -471,15 +500,11 @@ impl Catalog<'_> {
             }
         }
         if !preferred.is_empty() {
-            return preferred;
+            return Ok(preferred);
         }
-        if !local.is_empty() {
-            return local;
+        if !local.is_empty() || !path.contains("::") {
+            return Ok(local);
         }
-        if path.contains("::") {
-            self.visible(file, &self.address(file, path))
-        } else {
-            vec![]
-        }
+        Ok(self.visible(file, &self.address(file, path, file.span(n))?))
     }
 }

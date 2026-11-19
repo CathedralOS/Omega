@@ -58,7 +58,7 @@ impl Catalog<'_> {
                 && let Some(label) = node.words().nth(1)
             {
                 let slots = self
-                    .lookup(file, file_number, ctx, n, label.text)
+                    .lookup(file, file_number, ctx, n, label.text)?
                     .into_iter()
                     .filter(|&i| self.entries[i].id.kind == AsmMachine)
                     .collect::<Vec<_>>();
@@ -91,7 +91,7 @@ impl Catalog<'_> {
                 pattern_value = subjectless
                     || matches!(name.as_str(), "true" | "false")
                     || self
-                        .lookup(file, file_number, ctx, n, &name)
+                        .lookup(file, file_number, ctx, n, &name)?
                         .iter()
                         .any(|&i| self.entries[i].id.kind == Const);
                 if pattern_value {
@@ -248,7 +248,7 @@ impl Catalog<'_> {
                         Some(Symbol::Builtin(path.clone()))
                     } else {
                         let slots = self
-                            .lookup(file, file_number, ctx, n, &path)
+                            .lookup(file, file_number, ctx, n, &path)?
                             .into_iter()
                             .filter(|&i| matches!(self.entries[i].id.kind, Data | Domain | Trait) == is_type)
                             .collect::<Vec<_>>();
@@ -312,9 +312,9 @@ impl Catalog<'_> {
             {
                 Symbol::Builtin(path.clone())
             } else {
-                let mut candidates = self.lookup(file, file_number, ctx, n, &path);
+                let mut candidates = self.lookup(file, file_number, ctx, n, &path)?;
                 if (ty || membership_target) && !ctx.heads.contains(&n) {
-                    candidates.extend(self.attached_domains(file, file_number, ctx, n, &path, membership_target));
+                    candidates.extend(self.attached_domains(file, file_number, ctx, n, &path, membership_target)?);
                 }
                 candidates.retain(|&i| {
                     let kind = self.entries[i].id.kind;
@@ -366,7 +366,7 @@ impl Catalog<'_> {
                     let prefix_name = prefix.iter().map(|w| w.text).collect::<Vec<_>>().join("::");
                     let mut owners = candidates.clone();
                     if prefix_name != path && !prefix.is_empty() {
-                        owners = self.lookup(file, file_number, ctx, n, &prefix_name);
+                        owners = self.lookup(file, file_number, ctx, n, &prefix_name)?;
                         if owners.is_empty() {
                             return Err(file.error(prefix[0].span, format!("unresolved application owner {prefix_name}")));
                         }
