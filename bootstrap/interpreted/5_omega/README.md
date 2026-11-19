@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,589 lines / 838,365 bytes with SHA-256
-`264fee9a530430f52cd9f0736fae76b3e7595c6812eb13377594facb4ee269af`.
+manifest materializes 22,591 lines / 838,497 bytes with SHA-256
+`5aac4b30bb4c030c1807e03f690e608358414e25b6cffd4a17472121a7c472e2`.
 The manifest itself is 1,674 bytes, SHA-256
-`0d633afe9e70eb3415bac66810fe8ade67509990ee52209f61bb6eb325f113a9`;
+`eec439467f1c1224a37a79c718bf44adbd3fd81d2cc1611106045da9a60fbdd7`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -102,6 +102,10 @@ resolved ordinary free calls, nested argument calls, scalar comparisons,
 short-circuit Boolean operations, and parameterized same-owner tail transfers.
 Boolean transition subjects may depend on runtime values, with Boolean or
 wildcard guards and either a machine transfer or a direct Boolean result.
+An operand of a transition subject may use a local with a keyword spelling,
+including `target`. The ordinary name resolver checks that binding.
+Boolean literals and `self` retain their expression roles. Match expressions
+and the type spelling `Self` remain outside this transition-subject slice.
 Constant transition subjects retain their specialized code path.
 
 Nullary `[copy]` sums retain declaration identity through local, field, parameter,
@@ -785,3 +789,14 @@ The `2486977ecd06` graph and the frozen single-unit row-count projection
 (`3c7966ee415014061465b97e08418728241b29144fa9069243f9ebb30372304e`)
 reproduced the unmodified and published coordinates respectively. Each of
 the four observations contains only the refusal coordinate.
+
+With keyword-spelled transition operands, the model ran the unchanged
+284-unit product from `6be46283b514` above. It completed parsing
+`application/construction/main.omg` and reached
+`compilation/00_scalar_operations_to_alpha.omg`. In `alpha_new_mark`,
+`mark as u64 +Trapping` returned `Incomplete` at the plus, line 131,
+column 21, packed byte 18,143 / unit byte 4,389. The nine-byte observation
+was `0002000000df460000`.
+The frozen `b95769558667` input reached the same source unit and local
+coordinate, packed byte 18,029, observation `00020000006d460000`.
+Neither run reached semantic checking of the entire source graph.
