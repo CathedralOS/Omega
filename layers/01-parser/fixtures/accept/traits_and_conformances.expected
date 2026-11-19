@@ -16,7 +16,7 @@ File
           'value'
           ':'
           ReferenceType
-            '&'
+            '@'
             'mut'
             PathType 'T'
         ')'
@@ -97,7 +97,7 @@ File
           'value'
           ':'
           ReferenceType
-            '&'
+            '@'
             'mut'
             PathType 'Counter'
         ')'

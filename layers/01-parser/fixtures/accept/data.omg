@@ -27,7 +27,7 @@ requires self.high < 100
 data SmallBytes = ByteBuffer<64>;
 
 data Lease<T> [linear, carry(suspension: allowed, transfer: refused)] dropped by release_guard<T> {
-    pool: &mut Pool<T>;
+    pool: @mut Pool<T>;
     slot: u32;
 }
 

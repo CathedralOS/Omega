@@ -10,7 +10,7 @@ machine every_form<
     machine Step,
     some S,
     'a,
->(value: &'a T) {
+>(value: @'a T) {
 }
 
 // A machine type's clause inside `<...>` ends at the closing `>`.

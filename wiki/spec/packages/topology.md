@@ -113,16 +113,16 @@ Illustrative root `build.omg` (schematic APIs and abbreviated error handling):
 ```omega
 use build_support::deployment;
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "payments_deployment");
     let mut topology_dependency: DependencyDescription = dependency::from_source(Source::Path {
         location: "../topology"
     });
-    dependency::with_alias(&mut topology_dependency, "topology");
+    dependency::with_alias(@mut topology_dependency, "topology");
     let topology_registration: DependencyRegistration = Build::build_dependency(builder, topology_dependency);
     Build::artifact_only(builder);
 
-    let inputs = deployment_inputs(&mut builder.source);
+    let inputs = deployment_inputs(@mut builder.source);
     let output = builder.output.require("payments.plan");
     suspend Build::await_provider::<TopologyBuild, topology::DiagnosticTopology>(builder);
     compose_payments(inputs, output);

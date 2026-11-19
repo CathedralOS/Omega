@@ -272,7 +272,7 @@ another starter from spending that capacity.
 
 ## Linear task claim
 
-`Task<T>` is linear. `TaskLifecycle::request_cancel(&task)` retains the claim; it
+`Task<T>` is linear. `TaskLifecycle::request_cancel(@task)` retains the claim; it
 requests a transition, not proof that execution stopped.
 `TaskLifecycle::finish(move task)` terminally
 consumes it and returns ordinary `TaskOutcome<T>` cases `Cancelled`, `Returned(value)`,
@@ -281,7 +281,7 @@ the outer sum describes lifecycle outcomes. Trap/abort remain declared crash
 routes, not fabricated returned cases. Generic result containers retain each
 active payload's substituted linear debt.
 
-These operations declare ordinary explicit parameters: `task: &Task<T>` for
+These operations declare ordinary explicit parameters: `task: @Task<T>` for
 cancellation and `task: Task<T>` for completion. Carrier qualification supplies
 no implicit argument or storage, and consuming completion retains its declared
 suspension and blocking contract.

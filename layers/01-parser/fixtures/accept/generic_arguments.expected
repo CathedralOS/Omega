@@ -81,7 +81,7 @@ File
           TypeArgs
             '<'
             ReferenceType
-              '&'
+              '@'
               PathType 'u8'
             ','
             SliceType
@@ -249,7 +249,7 @@ File
           Args
             '('
             Borrow
-              '&'
+              '@'
               'mut'
               PathExpression 'e'
             ','

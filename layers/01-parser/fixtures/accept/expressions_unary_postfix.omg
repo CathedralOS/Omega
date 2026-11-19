@@ -1,13 +1,13 @@
 // GRAMMAR.md: prefixes, postfixes, primaries.
-machine operands(counter: Counter, view: &[u8], operations: Operations) {
+machine operands(counter: Counter, view: @[u8], operations: Operations) {
     _ = -a;
     _ = !ready;
     _ = ~mask;
     _ = - -a;
     _ = !-a.b;
-    _ = &counter;
-    _ = &mut counter;
-    _ = &mut;
+    _ = @counter;
+    _ = @mut counter;
+    _ = @mut;
     _ = move counter;
     _ = suspend read(view);
     _ = block wait();
@@ -17,7 +17,7 @@ machine operands(counter: Counter, view: &[u8], operations: Operations) {
     _ = counter.value.inner;
     _ = counter.read().value;
     _ = builder.tests.group::<Tests::memory>();
-    _ = (operations.value)(&counter);
+    _ = (operations.value)(@counter);
     _ = view[0];
     _ = view[2..4];
     _ = view[..];

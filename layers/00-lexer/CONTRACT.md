@@ -45,7 +45,7 @@ readable files are tests in `tests/byte_cases.rs`.
 | R14 | There is no raw literal form: `r"` and `r#"` reject. | Spec: Lexical profile ("no … raw-payload literal form") | `words` (a lone `r` is a word) | `raw_literal_prefix`, `raw_literal_prefix_hashes` |
 | R15 | Punctuation is a closed set, listed below. The lexer always takes the longest spelling that matches. | Spec: [expressions](../../wiki/spec/language/expressions.md#operator-declarations) ("the token vocabulary is closed", "lexing takes the longest operator"); the list itself is *gap G5* | `punctuation` | — |
 | R16 | There is no `>>` token. Two adjacent `>` are two tokens. | Spec: expressions ("no `>>` token is added") | `punctuation` | — |
-| R17 | Any other ASCII character rejects. | Implied by R3, R4, R15 | — | `unknown_character_at`, `unknown_character_question`, `unknown_character_dollar`, `unknown_character_backslash`, `unknown_character_backtick`, `nul_byte_rejects` |
+| R17 | Any other ASCII character rejects. | Implied by R3, R4, R15 | — | `unknown_character_vertical_tab`, `unknown_character_question`, `unknown_character_dollar`, `unknown_character_backslash`, `unknown_character_backtick`, `nul_byte_rejects` |
 
 ### Punctuation vocabulary (R15)
 
@@ -53,7 +53,7 @@ readable files are tests in `tests/byte_cases.rs`.
     *   *%  *|  *!  *=          /   /%  /|  /!  /=
     %   %%  %|  %!  %=          <   <=  <<  <<%  <<|  <<!
     >   >=                      =   ==      !   !=
-    &   &&      |   ||          :   ::      .   ..  ..=
+    @   &   &&      |   ||          :   ::      .   ..  ..=
     '   ^   ~   #   ,   ;       (   )   [   ]   {   }
 
 ## What this layer does not check
@@ -79,7 +79,7 @@ rests on. The survey is of the 19,442 `.omg` files under V1's `source`,
 | G2 | What is comment syntax? | `//` line comments and nesting `/* */` block comments. | `//` appears on 51 lines of spec examples. The spec never shows `/*`; V1's lexer accepts it with nesting, and 4 surveyed files use it. |
 | G3 | How is a float spelled? | Digits are required on both sides of the `.`. No `.5`, no `1.`. | Survey: 0 files use a leading-dot or trailing-dot float; 15 use an exponent. V1's lexer accepts both dotted forms. |
 | G4 | Are `0X`, `0B`, `0O` and `E` accepted? | No, lowercase only. | The spec spells them lowercase. Survey: 0 files use an uppercase radix prefix. V1's lexer accepts uppercase. |
-| G5 | What is the punctuation vocabulary? | V1's table with `>>` removed. | The spec states the vocabulary is closed but lists it nowhere in one place. |
+| G5 | What is the punctuation vocabulary? | V1's table with `>>` removed and `@` added for V2 references. | The spec states the vocabulary is closed but lists it nowhere in one place. |
 | G6 | Where may `_` appear in a number? | Anywhere after the first digit, including doubled and trailing. | The spec says "digit underscores" and shows `0x1_0000u32`. V1 is equally permissive. |
 
 ## Where this differs from V1's lexer

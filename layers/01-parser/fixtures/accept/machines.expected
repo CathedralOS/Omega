@@ -14,7 +14,7 @@ File
         'self'
         ':'
         ReferenceType
-          '&'
+          '@'
           'mut'
           PathType 'EchoSupplier'
       ','
@@ -41,7 +41,7 @@ File
         'bytes'
         ':'
         ReferenceType
-          '&'
+          '@'
           SliceType
             '['
             PathType 'u8'
@@ -132,7 +132,7 @@ File
         'view'
         ':'
         ReferenceType
-          '&'
+          '@'
           SliceType
             '['
             PathType 'Element'
@@ -169,7 +169,7 @@ File
         'view'
         ':'
         ReferenceType
-          '&'
+          '@'
           SliceType
             '['
             PathType 'Element'
@@ -188,7 +188,7 @@ File
     Result
       '->'
       ReferenceType
-        '&'
+        '@'
         SliceType
           '['
           PathType 'Element'

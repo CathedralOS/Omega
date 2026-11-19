@@ -33,13 +33,13 @@ declaration identity remain independent of the types of explicit arguments.
 ```omega
 data Counter { value: u64; }
 
-machine clear(counter: &mut Counter) {
+machine clear(counter: @mut Counter) {
     counter.value = 0;
 }
 
 machine example() {
     let mut counter: Counter;
-    clear(&mut counter);
+    clear(@mut counter);
 }
 ```
 

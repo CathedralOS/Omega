@@ -1,7 +1,7 @@
 # L1 Parser grammar
 
 Status: **built against this document on 2026-11-18; gate passed; waiting for
-Jarod's sign-off.** All eleven decisions are made. The parser in `src/` follows
+Jarod's sign-off.** All twelve decisions are made. The parser in `src/` follows
 this grammar, every rule below has fixtures (see [Rules and their
 fixtures](#rules-and-their-fixtures)), and all 132 spec examples parse.
 Building it changed the grammar in seven places and raised two questions;
@@ -65,7 +65,7 @@ value (`ByteBuffer<64>`, `Buffer<N * 2>`), and the two can start alike. The
 parser decides by looking ahead:
 
 1. Skip any `[` the argument opens with.
-2. `&` or `machine(` there begins a type.
+2. `@` or `machine(` there begins a type.
 3. A name there, with any `::name` parts, begins a type if the token after
    it is `<` or `->`, or ends the argument: `,` or `>` at the top, `]` or `;`
    inside brackets. So `[u8]` and `[u8; 4]` are types, and `[a, b]` and
@@ -85,7 +85,7 @@ ahead to tell them apart.
 
 | The spec writes | V2 writes |
 | --- | --- |
-| `apply<set_time>(&mut e, 5)` | `apply::<set_time>(&mut e, 5)` |
+| `apply<set_time>(&mut e, 5)` | `apply::<set_time>(@mut e, 5)` |
 | `integer::max<i32>()` | `integer::max::<i32>()` |
 | `Sensor<29u64>::read()` | `Sensor::<29u64>::read()` |
 | `builder.tests.group<Tests::memory>()` | `builder.tests.group::<Tests::memory>()` |
@@ -228,7 +228,7 @@ proofs/mathematical_bindings.md:63 and :226.
 ## Types
 
     type        = type_operand ( '->' type )?
-    type_operand = '&' lifetime? 'mut'? type_operand
+    type_operand = '@' lifetime? ( 'mut' | 'write' )? type_operand
                 | '[' type ']'
                 | '[' type ';' expression ']'
                 | machine_type
@@ -239,7 +239,7 @@ proofs/mathematical_bindings.md:63 and :226.
     machine_type = 'machine' generic_params? '(' params ')' result? clause*
     lifetime    = ''' word
 
-References and views `&[u8]`, `&mut [u8]`, `&'a U`, `&'a mut S`
+References and views `@[u8]`, `@mut [u8]`, `@'a U`, `@'a mut S`
 (language/data_and_literals.md:109, language/some_packages.md:15), arrays
 `[u8; 38]` (language/expressions.md:526), machine types as field and
 parameter types (language/effects.md:201), function types `A -> B` in
@@ -247,8 +247,8 @@ mathematical declarations and in machine parameters
 (proofs/mathematical_bindings.md:63 and :226), and qualification
 `i32 in Km & Positive` (language/domains.md:572).
 
-- **The function arrow** groups to the right, and `&A -> B` is a function
-  from `&A`. It is a type everywhere except directly after `as`: in an arm
+- **The function arrow** groups to the right, and `@A -> B` is a function
+  from `@A`. It is a type everywhere except directly after `as`: in an arm
   written `x as T -> ...` the arrow belongs to the arm.
 - **`machine` alone is a name.** It is a machine type when `(` or `<`
   follows it, which is how `const F: machine` (an inferred machine) parses.
@@ -257,9 +257,9 @@ mathematical declarations and in machine parameters
   `<const F: machine(v: u64) -> u64 ensures result >= v>` the last `>` closes
   the list (language/effects.md:571). A greater-than comparison in such a
   clause is written in parentheses.
-- **A reference to a reference is written `& &T`.** The lexer reads `&&` as
-  one token, and no type begins with it. The same holds for `& &x` in an
-  expression. See [What building it found](#what-building-it-found).
+- **Each `@` adds one reference layer.** `@@T` and `@ @T` have the same tree.
+  In expressions, `@@x` borrows a borrow. Decision 12 reserves prefix `@`
+  for references and borrows. `&` and `&&` keep their operator meanings.
 
 ## Header clauses
 
@@ -407,7 +407,7 @@ and `field: value` is ordinary projected equality" (language/patterns.md,
     selection  = path 'satisfies' type
     postfix = primary ( '(' args ')' | '.' word expr_args? | '[' index ']' )*
     index   = expression | expression? ( '..' | '..=' ) expression?
-    prefix  = ( '&' 'mut'? | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix
+    prefix  = ( '@' ( 'mut' | 'write' )? | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix
     cast    = prefix ( 'as' type? cast_entry* )*
     cast_entry = ( '+' | '-' | '=' ) path_type
 
@@ -453,7 +453,7 @@ Bitwise operators bind tighter than comparisons, unlike C.
   (language/effects.md:871). `move`, `suspend` and `block` are prefixes only
   directly before another word, so each is still a name everywhere else:
   `block(x)` calls a machine named `block`.
-- **`mut` after `&`** is the marker only if an operand follows it; `&mut;`
+- **`mut` and `write` after `@`** mark access only if an operand follows. `@mut;`
   borrows a name spelled `mut`.
 - **A record literal needs parentheses** where a `{` after a name means
   something else: in the subject of a `match` or `transition`, in a clause's
@@ -463,7 +463,7 @@ Bitwise operators bind tighter than comparisons, unlike C.
   (language/data_and_literals.md:172).
 - Membership `self in Value::Integer` (language/data_and_literals.md:272).
 - Views `view[2..4]`, `bytes[..]` (language/expressions.md:499, :526).
-- A call through a field `(operations.value)(&counter)`
+- A call through a field `(operations.value)(@counter)`
   (language/machine_values.md:17).
 - A selection `(clear satisfies A::clear)` is an expression and a generic
   argument (decision 9; language/conformances.md:197, :526).
@@ -511,7 +511,8 @@ the word is an ordinary name.
 | `public` | a declaration follows | `public satisfies T { }` |
 | `boundary` | `trait`, `machine` or `let` follows, as a declaration | |
 | `match`, `transition` | `{` follows, or a token that can start a subject | `match = match.field;` |
-| `mut` | after `&` or `let`, and an operand or pattern follows | `let mut = move;` |
+| `mut` | after `@` or `let`, and an operand or pattern follows | `let mut = move;` |
+| `write` | after `@` when a type or operand follows | `@write;` borrows the name `write` |
 | `move`, `suspend`, `block` | directly before another word | `block(use);` |
 | `case` (in data) | a name follows | `case: u8;` |
 | `const`, `machine`, `some` (generic parameter) | a name follows | `<const, machine, some>` |
@@ -573,7 +574,7 @@ language/generics.md:636), and the many examples that are fragments
 
 Every fixture is a whole file under `fixtures/`, parsed with `parse_file`.
 An accept fixture's `.expected` is its tree; a reject fixture's is the one
-error it must produce. 22 accept, 100 reject.
+error it must produce. 23 accept, 102 reject.
 
 | Rule | Accept fixture | Reject fixtures |
 | --- | --- | --- |
@@ -586,14 +587,14 @@ error it must produce. 22 accept, 100 reject.
 | mathematical let | `math_let` | `math_let_without_type`, `public_math_let` |
 | generic parameters | `generic_params` | `generic_params_empty`, `generic_params_unclosed`, `const_param_without_type` |
 | generic arguments | `generic_arguments` | `generic_args_empty`, `generic_args_unclosed`, `generic_arg_value_starting_with_type`, `generic_arg_greater_than`, `turbofish_in_type` |
-| types | `types`, `reference_to_reference` | `array_type_without_length`, `slice_type_unclosed`, `type_missing_after_reference`, `qualified_type_without_domain`, `reference_to_reference_unspaced` |
+| types | `types`, `reference_to_reference`, `job_queue` | `array_type_without_length`, `slice_type_unclosed`, `type_missing_after_reference`, `qualified_type_without_domain`, `logical_and_as_type`, `ampersand_reference_type` |
 | header clauses | `clauses` | `semicolon_before_body`, `comma_before_body`, `clause_without_predicate`, `terminates_by_without_measure`, `reaches_without_type`, `registers_without_value`, `clobbers_without_name`, `record_literal_in_clause` |
 | statements | `statements` | `if_statement`, `if_statement_parenthesized`, `return_statement`, `compound_assignment`, `crash_statement`, `empty_statement`, `let_with_literal_pattern`, `let_without_semicolon`, `statement_after_tail`, `statement_after_nested_machine`, `transition_not_last` |
 | match, transition | `match_and_transition` | `missing_arm_comma`, `missing_arm_comma_in_transition`, `fat_arrow_arm`, `arm_without_result`, `arm_result_is_block`, `match_without_arms`, `record_literal_as_subject`, `transition_as_expression` |
 | patterns | `patterns` | `record_pattern_rest_not_last`, `field_pattern_as_without_name` |
 | binary operators | `expressions_binary` | `missing_operand`, `two_operators`, `chained_relational_comparison`, `chained_equality_comparison`, `comparison_of_a_comparison`, `comparison_as_right_operand`, `range_written_as_mathematics` |
 | right shift | `right_shift` | `right_shift_with_space` |
-| prefixes, postfixes, primaries | `expressions_unary_postfix`, `reference_to_reference` | `borrow_of_borrow_unspaced`, `unary_plus`, `unclosed_call`, `unclosed_index`, `unclosed_parenthesis`, `field_access_by_number`, `path_ending_in_colons`, `record_literal_missing_comma`, `record_literal_omission_not_last`, `selection_without_trait` |
+| prefixes, postfixes, primaries | `expressions_unary_postfix`, `reference_to_reference` | `logical_and_as_borrow`, `ampersand_borrow`, `unary_plus`, `unclosed_call`, `unclosed_index`, `unclosed_parenthesis`, `field_access_by_number`, `path_ending_in_colons`, `record_literal_missing_comma`, `record_literal_omission_not_last`, `selection_without_trait` |
 | casts | `casts` | `cast_then_arithmetic`, `cast_then_less_than` |
 | assembly | `assembly` | `asm_instructions_without_separator`, `asm_transition_without_target`, `asm_machine_holding_a_machine`, `asm_block_unclosed` |
 | no reserved words | `words_are_not_reserved` | covered by the rows above: each keyword test has a fixture on each side |
@@ -603,7 +604,7 @@ Beyond the fixtures, `tests/hostile_inputs.rs` checks that the parser refuses
 without crashing or hanging: every recursive rule nested 100,000 deep on a
 1 MB stack, five inputs that make a try-and-rewind parser take exponential
 time, 30,000 random sources built from the grammar's own vocabulary, and
-every accept fixture with each of its tokens removed in turn (3,316 inputs).
+every accept fixture with each of its tokens removed in turn (3,482 inputs).
 
 For accepted fixtures, spec fragments, random sources and token-deletion cases,
 the invariant checks for one root, finished nodes, ordered tokens and brackets
@@ -647,9 +648,8 @@ answered, and are owner questions 5 and 6 in PLAN.md.
   answer compared with a number. Decided 2026-11-18 (decision 11): a
   comparison is not the operand of another without parentheses. None of the
   132 examples was affected.
-- **`&&` is one token.** A reference to a reference has to be written
-  `& &T`, and a borrow of a borrow `& &x`. Asked as owner question 6 and
-  answered 2026-11-18: leave it as it is.
+- **Reference syntax.** Owner question 6 originally retained prefix `&` and
+  required spacing for two layers. Decision 12 supersedes that spelling.
 
 ## Decisions
 
@@ -668,6 +668,7 @@ Made by Jarod on 2026-11-18, with Zac on two of them.
 | 9 | `satisfies` expressions and `some` binders? | In the spec since 2026-11-10. | "obviously in" | **In.** |
 | 10 | How is the spec corpus tagged? | 132 examples of mixed kinds. | "I dont care" | **Claude's choice.** |
 | 11 | May a comparison be the operand of another? | Grouped to the left, `a == b == c` on three booleans type-checks as `(a == b) == c`, which is not "all three are equal", and nothing downstream objects. Rust, Zig and Lean refuse such chains, all six operators as one group; Rocq defines a chain as both comparisons holding; Odin groups to the left. No spec example chains comparisons. | Decided, then dropped ("just keep the chaining"), then on the boolean case: "this hole seems bad and it sounds like magic, which I hate" and "bring it back". | **No, not without parentheses.** All six comparison operators. This revises decision 6 for those six. |
+| 12 | How are references and borrows spelled? | The reader can distinguish a borrow from bitwise AND at sight. | Jarod chose the job-queue example using `@`. | Each `@` adds one layer, including `@mut`, `@write` and nested `@@`. |
 
 A rule that `iN` and `uN` cannot be declared as type names came up under
 decision 5. It is a rule about names, so it belongs to the layer that
@@ -704,7 +705,7 @@ added.
 - Statements: `crash Trap;`, compound assignment `+=` and friends, and a
   proof-output binding `let (value; field: term) = call();`.
 - Expressions: an `if` guard on an arm, `Name { fields } if condition -> ...`;
-  an evidence lane in calls `f(a, b; evidence)`; `&write` and `&state`
+  an evidence lane in calls `f(a, b; evidence)`; `&state`
   borrows; `zero_value<T>()`; `utf16 "..."`.
 - An arm whose result is an empty block, `-> {}`.
 - Clauses: `stack N bytes`, `reaches A + B`, `reaches <= Bound`, labelled

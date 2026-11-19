@@ -1,2 +1,2 @@
-machine f(a: &) {
+machine f(a: @) {
 }

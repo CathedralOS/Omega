@@ -13,7 +13,7 @@ File
         'view'
         ':'
         ReferenceType
-          '&'
+          '@'
           SliceType
             '['
             PathType 'u8'
@@ -72,14 +72,14 @@ File
         '_'
         '='
         Borrow
-          '&'
+          '@'
           PathExpression 'counter'
         ';'
       Discard
         '_'
         '='
         Borrow
-          '&'
+          '@'
           'mut'
           PathExpression 'counter'
         ';'
@@ -87,7 +87,7 @@ File
         '_'
         '='
         Borrow
-          '&'
+          '@'
           PathExpression 'mut'
         ';'
       Discard
@@ -205,7 +205,7 @@ File
           Args
             '('
             Borrow
-              '&'
+              '@'
               PathExpression 'counter'
             ')'
         ';'

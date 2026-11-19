@@ -2,11 +2,11 @@
 machine main() {
 }
 
-public machine EchoSupplier::supply(self: &mut EchoSupplier, value: u32) -> u32 {
+public machine EchoSupplier::supply(self: @mut EchoSupplier, value: u32) -> u32 {
     value
 }
 
-boundary machine platform_write(bytes: &[u8]) -> u64;
+boundary machine platform_write(bytes: @[u8]) -> u64;
 
 machine + add(left: Metres, right: Metres) -> Metres {
     left
@@ -16,11 +16,11 @@ machine > Small::greater(left: u16 in Small, right: u16) -> bool {
     (left as -Small) > right
 }
 
-machine [] read<Element [copy]>(view: &[Element], index: u64) -> Element {
+machine [] read<Element [copy]>(view: @[Element], index: u64) -> Element {
     view[index]
 }
 
-machine [..] view<Element>(view: &[Element], from: u64, to: u64) -> &[Element] {
+machine [..] view<Element>(view: @[Element], from: u64, to: u64) -> @[Element] {
     view[from..to]
 }
 

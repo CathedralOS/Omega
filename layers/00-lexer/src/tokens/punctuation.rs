@@ -94,6 +94,7 @@ define_punctuation! {
     ("^", Caret),
     ("~", Tilde),
     ("#", Hash),
+    ("@", At),
     (",", Comma),
     (";", Semicolon),
     ("(", LeftParenthesis),
@@ -186,6 +187,7 @@ impl Punctuation {
             (b'^', _) => Self::Caret,
             (b'~', _) => Self::Tilde,
             (b'#', _) => Self::Hash,
+            (b'@', _) => Self::At,
             (b',', _) => Self::Comma,
             (b';', _) => Self::Semicolon,
             (b'(', _) => Self::LeftParenthesis,
@@ -296,7 +298,7 @@ mod tests {
     fn bytes_that_start_no_punctuation_match_nothing() {
         assert_eq!(Punctuation::longest_match(b""), None);
         assert_eq!(Punctuation::longest_match(b"a"), None);
-        assert_eq!(Punctuation::longest_match(b"@"), None);
+        assert_eq!(Punctuation::longest_match(b"$"), None);
         assert_eq!(Punctuation::longest_match(&[0xC3, 0xA9]), None);
     }
 

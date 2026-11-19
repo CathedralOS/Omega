@@ -38,10 +38,10 @@ enough to run on every change. **Decided.**
   on 2026-11-18 to V2's syntax: commas between arms, `::<` for generic
   arguments in expressions, the one `if` statement turned into a
   `transition`, and the stray `;` and `,` after `requires` removed. That
-  is 23 files and about 60 lines, all inside code examples; `git diff 755101b
-  -- wiki/spec` shows every change against the import. The prose around the
-  examples has not been revised yet and still describes the old forms in
-  places. **Decided** (Jarod: "v2 has to change").
+  first revision touched 23 files and about 60 lines, all inside code examples.
+  Decision 12 later migrated reference and borrow spellings in examples and
+  prose across 40 spec files. Some prose still describes earlier generic-call
+  and arm syntax. **Decided** (Jarod: "v2 has to change").
 - **The language guide is for humans**, not a source for V2. **Decided.**
 - **`wiki/drafts` in V1 is agent working material**, not spec. **Decided.**
 - **V1's `omega-rust/pipeline.md` is a proposed pipeline**, read for context
@@ -123,7 +123,7 @@ Psi to native code) are not planned yet.
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
-| L1 Parser | tokens → syntax tree | built, gate passed 2026-11-18; waiting for sign-off | 1.32 s |
+| L1 Parser | tokens → syntax tree | built, gate passed 2026-11-18; waiting for sign-off | 1.15 s |
 | L2 Resolver | syntax tree → names resolved | not started | — |
 | L3 Typer | resolved tree → typed tree | not started | — |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
@@ -191,13 +191,13 @@ Psi to native code) are not planned yet.
 
   | Check | Result |
   | --- | --- |
-  | Fixtures | 22 accepted trees and 100 exact refusals for whole files. The grammar maps each rule family to its fixtures. Another 35 cases adapted from V1's Psi suite cover malformed input, exact byte spans and V2 verdicts. |
+  | Fixtures | 23 accepted trees and 102 exact refusals for whole files. The grammar maps each rule family to its fixtures. Another 35 cases adapted from V1's Psi suite cover malformed input, exact byte spans and V2 verdicts. |
   | Spec corpus | All 132 examples parse. 125 did on the first run; the other seven each showed a gap in the grammar, listed as F1 to F7 in GRAMMAR.md. |
   | Independent check | Trees from fixtures, spec fragments, random sources and token deletions preserve token order and bracket ownership. Printing their leaves and lexing the result reproduces the meaningful token kinds and spellings. |
   | Operator grouping | All 1,600 ordered pairs of binary operator spellings have their specified grouping or refusal. All 36 comparison pairs accept either explicit grouping. |
-  | Hostile input | 128 nested data declarations parse and 129 are refused. 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five ambiguous inputs, 30,000 random sources and 3,316 one-token deletions pass the robustness checks. |
+  | Hostile input | 128 nested data declarations parse and 129 are refused. 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five ambiguous inputs, 30,000 random sources and 3,482 one-token deletions pass the robustness checks. |
   | Mutation | All 35 deliberate parser changes were caught. Four exercise prefix `&&`, saturating shift precedence, the exact nesting limit and trailing fragment input. The runner requires a passing baseline and exits with failure for any missed or unapplied change. |
-  | Suite time | 1.32 s wall clock for a warm `cargo test -p omega-parser --tests` on Windows. Doctests and mutation checks run separately. |
+  | Suite time | 1.15 s wall clock for a warm `cargo test -p omega-parser --tests` on Windows. Doctests and mutation checks run separately. |
   | Speed | 571 MB/s on one thread, 6.5 ns per token, after three kept experiments (8.4% faster than first built, same tree); 8.1 GB/s parsing on 32 threads. The lexer is now the slower layer on the same bytes. Ledger, including four rejected attempts, in [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md). |
 
 - **Design:** recursive descent, one function per grammar rule, with
@@ -207,19 +207,19 @@ Psi to native code) are not planned yet.
   lookahead, because readings that contain each other make a rewinding parser
   exponential on hostile input.
 - **Raised by the build, both answered 2026-11-18:** owner question 5
-  (comparisons do not chain; decision 11) and owner question 6 (`&&` stays
-  one token).
+  (explicit comparison grouping, decision 11) and owner question 6
+  (prefix `@` for references and borrows, decision 12).
 - **What it found:** four places where the spec disagrees with itself, and
   seven spec examples that V1's parser, as read, would refuse. The largest:
   the spec shows an `if` statement that V1 retired, and writes `match` arms
   in a way V1 cannot parse.
-- **Decisions:** all eleven grammar decisions are recorded (2026-11-18): no `if`
+- **Decisions:** all twelve grammar decisions are recorded (2026-11-18): no `if`
   statement, `match` and `transition` share one grammar, nothing after a
   `requires` before a body, no reserved words, V1's operator precedence,
   assembly is parsed, and the spec's newer forms are in. Generic arguments
   in expressions are written `::<`. Arms are
-  separated by commas. Decision 11 requires parentheses around a comparison
-  used as the operand of another comparison.
+  separated by commas. Decision 11 requires explicit grouping of comparisons.
+  Decision 12 assigns `@` to references and borrows.
 
 ### L2 to L4
 
@@ -523,14 +523,14 @@ before the layer that depends on it is signed off.
 
 | # | Gap | Evidence | Affects | Decision |
 | --- | --- | --- | --- | --- |
-| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01-parser/GRAMMAR.md`, all eleven decisions made, parser built against it. L1 sign-off pending. |
+| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01-parser/GRAMMAR.md`, all twelve decisions made, parser built against it. L1 sign-off pending. |
 | 11 | No limit on nesting is stated. | A parser that follows nesting without limit can be run out of stack by a small hostile file. | L1 | The parser follows 128 levels and refuses more; accepted with L1 sign-off |
 | 10 | The spec's examples disagree with each other and with V1's parser. | A `requires` before a body is punctuated three ways in one file; an `if` statement appears once and is defined nowhere; `match` is shown with tuple patterns V1 does not parse. Full list in the grammar. | L1 | Decided with the grammar; V2's copy of the spec's examples is rewritten to match, its prose is not yet |
 | 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Accepted with L0 sign-off (G2): `//` and nesting `/* */` |
 | 5 | No list of reserved words. | The spec gives only the shape of an identifier and says "no identifier is reserved for builtin types". | L0, L1 | Accepted with L0 sign-off (G1): the lexer has none; L1 decides |
 | 6 | Float literal spelling is not defined. | No prose; examples use `1.0e-48` style only. | L0 | Accepted with L0 sign-off (G3): digits on both sides of the dot |
 | 7 | Case of `0x`, `0b`, `0o` and the exponent `e` is not stated. | The spec spells them lowercase and never says uppercase is refused. | L0 | Accepted with L0 sign-off (G4): lowercase only |
-| 8 | The punctuation vocabulary is "closed" but listed nowhere in one place. | `language/expressions.md` states the vocabulary is closed and gives only the arithmetic tiers. | L0 | Accepted with L0 sign-off (G5): V1's table without `>>` |
+| 8 | The punctuation vocabulary is "closed" but listed nowhere in one place. | `language/expressions.md` states the vocabulary is closed and gives only the arithmetic tiers. | L0 | Accepted with L0 sign-off (G5): V1's table without `>>`, plus V2's `@` |
 | 9 | Where `_` may appear in a number is not stated. | The spec says "digit underscores" and shows `0x1_0000u32`. | L0 | Accepted with L0 sign-off (G6): anywhere after the first digit |
 | 3 | Three links from the spec point at V1 files that no longer exist. | Two under `omega-rust/psi/compilation`, one ELF backend source file. | none | Ignore unless a layer needs them |
 | 4 | "Pre-resolution evaluation" and its "post-typing continuation" are named but not defined. | The terms appear once, in `build/execution.md` under the generated-source boundary. V1 runs an evaluation step before name resolution that returns rewritten syntax. | L2 to L4 | Open |
@@ -547,7 +547,7 @@ repository. Nothing has been committed yet.
 ## Where V2 departs from the spec
 
 The spec is the reference except for the departures listed here. Each one was
-decided by Jarod, and the spec text has not been changed to match.
+decided by Jarod. V2’s spec incorporates the reference spelling in row 11.
 
 | # | Spec rule | V2 instead | Decided |
 | --- | --- | --- | --- |
@@ -561,6 +561,7 @@ decided by Jarod, and the spec text has not been changed to match.
 | 8 | `match` and `transition` arms are written one per line with no separator, in every spec example. | Arms are separated by commas, with an optional comma after the last. Newlines never matter. An arm has nothing to mark where the next begins, which a clause gets from the next clause word. | 2026-11-18 |
 | 9 | `match` and `transition` are described separately, and V1 gives only `transition` tuple subjects. | One grammar for both. `transition` is the form in tail position. | 2026-11-18 |
 | 10 | Every binary operator groups to the left, comparisons included (V1's operator table, adopted as grammar decision 6). | The six comparison operators do not take a comparison as an operand without parentheses: `a < b < c`, `a == b == c` and `a < b == c` are refused. Every other operator still groups to the left. | 2026-11-18 |
+| 11 | V1 uses `&` for references, borrows and bitwise AND. | V2 uses `@` for references and borrows. `&` remains bitwise AND or domain intersection and `&&` remains Boolean AND. | 2026-11-18 |
 
 ## Owner questions
 
@@ -574,7 +575,7 @@ not worked around in code.
 | 3 | When `omega run main.omg` is run and a build program sits beside it, is that build program used or ignored? Using it makes the command do what the project intends; ignoring it keeps "what you pass is what runs" and lets a script be run without its project's build. | 2026-11-18 | driver | Open. Probably moot: if no file names are blessed, nothing beside the given file can be picked up implicitly. Not confirmed. |
 | 4 | How should V2 load source files? Measured on V1's 19,442 files: reading file by file tops out near 90,000 files per second (about 125 MB/s) at 4 threads, or about 115,000 with real-time antivirus off, because each file costs 24 to 30 microseconds of operating-system work whatever its size. Reading the same bytes as one packed file runs at 6 to 9 GB/s. Getting near the drive therefore needs a packed copy of the sources plus a cheap way to see which files changed. Is that wanted, and at which stage? Details in [EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md), experiment 6. | 2026-11-18 | driver, source loading | Deferred 2026-11-18, worth revisiting. Not built now: staleness detection is the hard part and nothing downstream exists to show what share of a build reading is. Revisit when a real build can be timed end to end and reading is more than about 10 to 20 percent of it, or when the full test suite's read time is felt. First thing to measure then: how cheaply the OS can report which files changed. See [What the operating system costs](#what-the-operating-system-costs). |
 | 5 | Should a comparison be allowed as the operand of another comparison? Today it is, because every operator groups to the left (grammar decision 6). The cost: a generic call written the old way, `apply<set_time>(x)`, is a valid expression, `(apply < set_time) > (x)`, and gets past the parser. The typer will refuse it, but with a message about comparing a machine. Refusing chained comparisons in the parser would catch it there with a message that says to write `::<`. No spec example chains comparisons. | 2026-11-18 | L1 | Answered 2026-11-18, after it was decided, undone and decided again: no. A comparison is not the operand of another without parentheses, for all six comparison operators as one group, so `a < b < c`, `a == b == c` and `a < b == c` are refused (grammar decision 11). The reason: the grouping has to be something the writer wrote. Where the types differ the typer would refuse a chain anyway (`false < 32`), which is why keeping the chain looked harmless. Where all three are booleans nothing objects: `a == b == c` type-checks as `(a == b) == c`, which is not "all three are equal". Rust, Zig and Lean refuse chains the same way; Rocq defines a chain as both comparisons holding; Odin groups to the left. Not adopted: forcing parentheses where `&&` and `||` are mixed. Not a reason: what a V1 user might write. |
-| 6 | Should `&&` be split when it starts a type or an operand? The lexer reads `&&` as one token, so a reference to a reference must be written `& &T`, and a borrow of a borrow `& &x`. Splitting it in those two positions removes the corner; leaving it keeps the lexer and parser simpler. V1 has the same token. | 2026-11-18 | L0, L1 | Answered 2026-11-18: leave it as it is. `&&` stays one token, and a reference to a reference is written `& &T`. Both spellings have fixtures. |
+| 6 | How should a reader distinguish a nested borrow from an AND operator? | 2026-11-18 | L0, L1 | The initial answer kept prefix `&` and required spacing. Superseded by grammar decision 12: each `@` starts one reference or borrow, so `@@T` and `@@x` express two layers. |
 
 ## What the operating system costs
 
@@ -625,4 +626,5 @@ files waits for. Full figures and method are in
 | 2026-11-18 | Last two grammar decisions: arms are separated by commas; generic arguments in expressions are written `::<`. V2 may break compatibility with V1's source and the spec's examples freely. | Jarod, with Zac |
 | 2026-11-18 | A packed source copy is deferred, not rejected: revisit when a real build shows reading is a meaningful share of it. The per-file cost Windows imposes is recorded in the plan. | Jarod |
 | 2026-11-18 | Comparisons do not chain: a comparison needs parentheses to be the operand of another, for `==` and `!=` as well as the relational four. V1 is not an audience; a rule is not justified by what a V1 user might write. | Jarod, with Zac |
-| 2026-11-18 | `&&` stays one token (owner question 6); a reference to a reference is written `& &T`. | Jarod |
+| 2026-11-18 | `&&` stays one token (owner question 6); the initial nested spelling was `& &T`. | Jarod |
+| 2026-11-18 | Prefix `@` introduces a reference or borrow. `@@T` and `@@x` supersede the spaced ampersands from owner question 6. | Jarod |

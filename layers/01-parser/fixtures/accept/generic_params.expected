@@ -65,7 +65,7 @@ File
         'value'
         ':'
         ReferenceType
-          '&'
+          '@'
           Lifetime ''' 'a'
           PathType 'T'
       ')'

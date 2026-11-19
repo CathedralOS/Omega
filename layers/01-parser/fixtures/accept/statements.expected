@@ -13,7 +13,7 @@ File
         'view'
         ':'
         ReferenceType
-          '&'
+          '@'
           'mut'
           SliceType
             '['

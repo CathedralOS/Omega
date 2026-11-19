@@ -328,7 +328,7 @@ data Descriptor {
   address: u64;
 }
 
-machine consume(descriptor: &CLayout<Descriptor>) {
+machine consume(descriptor: @CLayout<Descriptor>) {
   inspect_descriptor(descriptor);
 }
 ```

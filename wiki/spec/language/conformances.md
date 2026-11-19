@@ -38,19 +38,19 @@ retain the behavior and safety obligations of their selected requirements.
 
 ```omega
 trait Incrementable<T> {
-    machine increment(counter: &mut T);
+    machine increment(counter: @mut T);
 }
 
 data Counter { value: i32; }
 
 public SaturatingIncrement satisfies Incrementable<Counter> {
-    machine increment(counter: &mut Counter) {
+    machine increment(counter: @mut Counter) {
         transition counter.value < integer::max::<i32>() {
             true -> raise(counter),
             false -> hold(),
         }
 
-        machine raise(counter: &mut Counter) {
+        machine raise(counter: @mut Counter) {
             counter.value = counter.value + 1;
         }
 
@@ -346,23 +346,23 @@ the slot the way it receives any other implementation:
 boundary trait TimeObservation {}
 
 trait ClockOps<S> {
-    machine now(state: &mut S) -> u64
+    machine now(state: @mut S) -> u64
         reaches TimeObservation
         crashes none;
 }
 
 boundary trait WallClock: ClockOps<NoState> {}
 
-machine stamp<S, const C: ClockOps<S>>(clock: &mut S, entry: &mut Entry) {
+machine stamp<S, const C: ClockOps<S>>(clock: @mut S, entry: @mut Entry) {
     entry.at = C::now(clock);
 }
 
-stamp::<NoState, WallClock>(&mut none, &mut entry);
+stamp::<NoState, WallClock>(@mut none, @mut entry);
 
 const RealClock: ClockOps<NoState> = WallClock;       // the same value, named
-stamp::<NoState, RealClock>(&mut none, &mut entry);
+stamp::<NoState, RealClock>(@mut none, @mut entry);
 
-stamp::<SimClock, Simulated>(&mut sim, &mut entry);     // an ordinary implementation
+stamp::<SimClock, Simulated>(@mut sim, @mut entry);     // an ordinary implementation
 ```
 
 **Which parent.** The view is of an exact ordinary-parent application that the
@@ -392,7 +392,7 @@ provider leaves `stamp<NoState, WallClock>` the same application and the same
 guarantees, and may change its results within the slot's published contract.
 
 **Calls.** Calling a projected member is the same boundary demand as calling
-the slot by path, `WallClock::now(&mut none)`. Naming, forwarding and storing
+the slot by path, `WallClock::now(@mut none)`. Naming, forwarding and storing
 the view reach nothing.
 
 **Contract.** The members carry the slot's complete published contract: reach,
@@ -531,20 +531,20 @@ A field, a generic argument, a result and an assignment accept an existing
 binding. Their expected type never creates one.
 
 ```omega
-machine clear(item: &mut u32) { item = 0; }
+machine clear(item: @mut u32) { item = 0; }
 
 const clear_a = (clear satisfies A::clear);
 const clear_b = (clear satisfies B::clear);
 
-clear(&mut x);        // direct
-clear_a(&mut x);      // through A::clear
-clear_b(&mut x);      // through B::clear
+clear(@mut x);        // direct
+clear_a(@mut x);      // through A::clear
+clear_b(@mut x);      // through B::clear
 
-machine run<const F: A::clear>(item: &mut u32) { F(item); }
+machine run<const F: A::clear>(item: @mut u32) { F(item); }
 
-run::<clear_a>(&mut x);                    // accepted
-run::<(clear satisfies A::clear)>(&mut x); // accepted
-run::<clear>(&mut x);                      // rejected: `clear` is not bound
+run::<clear_a>(@mut x);                    // accepted
+run::<(clear satisfies A::clear)>(@mut x); // accepted
+run::<clear>(@mut x);                      // rejected: `clear` is not bound
 ```
 
 **What a binding checks.** The requirement application resolves

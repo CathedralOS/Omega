@@ -181,7 +181,7 @@ hypothesis cannot promise an observed Type result, runtime mutation, ownership
 transfer, authority acquisition/consumption, scheduling or other executable action.
 Operational clauses cannot be justified by a logical Π-term. No-result, empty
 reach, termination and absent failure ceilings alone do not classify a contract
-as logical: a resultless reset through `&mut` still promises a state change.
+as logical: a resultless reset through `@mut` still promises a state change.
 References to live pre/post-state relationships must retain their operational
 meaning, not be reinterpreted as independent mathematical parameters.
 

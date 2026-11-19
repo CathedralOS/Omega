@@ -105,3 +105,13 @@
 9:39     Punctuation  :
 9:41     Punctuation  '
 9:42     Word         a
+10:1     Punctuation  @
+10:3     Punctuation  @
+10:4     Punctuation  @
+10:6     Punctuation  @
+10:7     Word         mut
+10:11    Punctuation  @
+10:12    Word         a
+10:14    Punctuation  &
+10:16    Punctuation  @
+10:17    Word         b

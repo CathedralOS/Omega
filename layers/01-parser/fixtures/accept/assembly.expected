@@ -14,7 +14,7 @@ File
         'bytes'
         ':'
         ReferenceType
-          '&'
+          '@'
           SliceType
             '['
             PathType 'u8'

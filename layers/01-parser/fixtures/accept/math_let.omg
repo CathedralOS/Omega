@@ -2,4 +2,4 @@
 let greater_than(limit: i32, value: i32): core::Strict<0> = value > limit;
 boundary let choose<u: core::Level, A: core::Type<u>>(present: core::Squash<A>): A;
 let compose<A, B, C>(first: A -> B, second: B -> C): A -> C = second;
-let curried(f: A -> B -> C): &A -> B = f;
+let curried(f: A -> B -> C): @A -> B = f;

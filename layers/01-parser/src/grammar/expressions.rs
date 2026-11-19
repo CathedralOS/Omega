@@ -235,7 +235,7 @@ impl SyntaxParser<'_> {
         matches!(self.nth_punctuation(0), Some(Punctuation::Plus | Punctuation::Minus | Punctuation::Equal))
     }
 
-    /// `( '&' 'mut'? | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix`
+    /// `( '@' ('mut' | 'write')? | '!' | '~' | '-' | 'move' | 'suspend' | 'block' )* postfix`
     fn parse_prefix(
         &mut self,
         context: ExpressionContext,
@@ -254,13 +254,13 @@ impl SyntaxParser<'_> {
         context: ExpressionContext,
     ) -> Parsed<ClosedNode> {
         match self.nth_punctuation(0) {
-            Some(Punctuation::Ampersand) => {
+            Some(Punctuation::At) => {
                 let borrow = self.open();
 
                 self.bump();
 
-                // `mut` is the marker only if an operand follows it; otherwise it is the name being borrowed.
-                if self.at_keyword("mut") && self.nth_can_start_expression(1) {
+                // An access word is a marker only if an operand follows it; otherwise it is the name being borrowed.
+                if (self.at_keyword("mut") || self.at_keyword("write")) && self.nth_can_start_expression(1) {
                     self.bump();
                 }
 
@@ -323,12 +323,7 @@ impl SyntaxParser<'_> {
         matches!(
             self.nth_punctuation(ahead),
             Some(
-                Punctuation::LeftParenthesis
-                    | Punctuation::LeftBracket
-                    | Punctuation::Ampersand
-                    | Punctuation::Exclamation
-                    | Punctuation::Tilde
-                    | Punctuation::Minus
+                Punctuation::LeftParenthesis | Punctuation::LeftBracket | Punctuation::At | Punctuation::Exclamation | Punctuation::Tilde | Punctuation::Minus
             )
         )
     }

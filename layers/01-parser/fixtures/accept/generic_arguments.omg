@@ -6,7 +6,7 @@ machine arguments(
     c: Buffer<N>,
     d: Buffer<N * 2>,
     e: Buffer<(Other::<T>::SIZE + 1)>,
-    f: Wrapper<&u8, [u8], [u8; 4], [[u8; 2]; 2]>,
+    f: Wrapper<@u8, [u8], [u8; 4], [[u8; 2]; 2]>,
     g: Routes<2, [open_file(), open_dir()]>,
     h: Routes<1, [(open_file)]>,
     i: Table<[a, b]>,
@@ -15,7 +15,7 @@ machine arguments(
     l: Chosen<(clear satisfies A::clear)>,
     m: Signed<-1, !flag>,
 ) {
-    _ = apply::<set_time>(&mut e, 5);
+    _ = apply::<set_time>(@mut e, 5);
     _ = integer::max::<i32>();
     _ = Sensor::<29u64>::read();
     _ = convert::<Outcome<u32, Never>, 64>(a);

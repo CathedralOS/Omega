@@ -1,5 +1,5 @@
 // GRAMMAR.md: assembly.
-asm machine syscall_write(fd: u64, bytes: &[u8]) -> u64
+asm machine syscall_write(fd: u64, bytes: @[u8]) -> u64
 registers rdi = fd
 registers rsi = bytes.address
 clobbers rcx, r11

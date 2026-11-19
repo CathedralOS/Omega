@@ -1,0 +1,155 @@
+File
+  Data
+    'data'
+    'Job'
+    '{'
+    Field
+      StableNumber '#' '1'
+      'flags'
+      ':'
+      PathType 'u32'
+      ';'
+    '}'
+  Data
+    'data'
+    'Queue'
+    '{'
+    Field
+      StableNumber '#' '1'
+      'online'
+      ':'
+      PathType 'bool'
+      ';'
+    Field
+      StableNumber '#' '2'
+      'selected'
+      ':'
+      ReferenceType
+        '@'
+        PathType 'Job'
+      ';'
+    '}'
+  Machine
+    'machine'
+    Path 'can_dispatch'
+    Params
+      '('
+      Param
+        'queue'
+        ':'
+        ReferenceType
+          '@'
+          PathType 'Queue'
+      ','
+      Param
+        'required'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'bool'
+    Body
+      '{'
+      Tail
+        Binary
+          FieldAccess
+            PathExpression 'queue'
+            '.'
+            'online'
+          '&&'
+          Binary
+            Paren
+              '('
+              Binary
+                FieldAccess
+                  FieldAccess
+                    PathExpression 'queue'
+                    '.'
+                    'selected'
+                  '.'
+                  'flags'
+                '&'
+                PathExpression 'required'
+              ')'
+            '=='
+            PathExpression 'required'
+      '}'
+  Machine
+    'machine'
+    Path 'enable_flags'
+    Params
+      '('
+      Param
+        'job'
+        ':'
+        ReferenceType
+          '@'
+          'mut'
+          PathType 'Job'
+      ','
+      Param
+        'flags'
+        ':'
+        PathType 'u32'
+      ')'
+    Body
+      '{'
+      Assign
+        FieldAccess
+          PathExpression 'job'
+          '.'
+          'flags'
+        '='
+        Binary
+          FieldAccess
+            PathExpression 'job'
+            '.'
+            'flags'
+          '|'
+          PathExpression 'flags'
+        ';'
+      '}'
+  Machine
+    'machine'
+    Path 'audit_selection'
+    Params
+      '('
+      Param
+        'slot'
+        ':'
+        ReferenceType
+          '@'
+          ReferenceType
+            '@'
+            PathType 'Job'
+      ')'
+    ';'
+  Machine
+    'machine'
+    Path 'review'
+    Params
+      '('
+      Param
+        'queue'
+        ':'
+        ReferenceType
+          '@'
+          PathType 'Queue'
+      ')'
+    Body
+      '{'
+      ExpressionStatement
+        Call
+          PathExpression 'audit_selection'
+          Args
+            '('
+            Borrow
+              '@'
+              FieldAccess
+                PathExpression 'queue'
+                '.'
+                'selected'
+            ')'
+        ';'
+      '}'

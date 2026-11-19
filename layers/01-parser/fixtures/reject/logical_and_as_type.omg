@@ -1,0 +1,3 @@
+// The lexer reads `&&` as one token, and no type begins with it. Written `@@u8`.
+machine f(a: &&u8) {
+}

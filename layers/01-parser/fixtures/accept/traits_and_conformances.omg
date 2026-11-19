@@ -1,6 +1,6 @@
 // GRAMMAR.md: trait, conformance.
 trait Incrementable<T> {
-    machine increment(value: &mut T) -> T;
+    machine increment(value: @mut T) -> T;
     machine + add(left: T, right: T) -> T reaches none;
 }
 
@@ -11,7 +11,7 @@ public trait LocalLogger = Logger {
 }
 
 public SaturatingIncrement satisfies Incrementable<Counter> {
-    machine increment(value: &mut Counter) -> Counter {
+    machine increment(value: @mut Counter) -> Counter {
         value.count = value.count +| 1;
         value
     }

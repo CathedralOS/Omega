@@ -60,12 +60,12 @@ impl SyntaxParser<'_> {
         Ok(())
     }
 
-    /// A type with no function arrow at its top: `&A -> B` is a function from `&A`.
+    /// A type with no function arrow at its top: `@A -> B` is a function from `@A`.
     fn parse_type_operand(
         &mut self,
         type_position: TypePosition,
     ) -> Parsed<ClosedNode> {
-        if self.at(Punctuation::Ampersand) {
+        if self.at(Punctuation::At) {
             let reference_type = self.open();
 
             self.bump();
@@ -74,8 +74,8 @@ impl SyntaxParser<'_> {
                 self.parse_lifetime()?;
             }
 
-            // `mut` is the marker only if a type follows it; otherwise it is the name of the type referred to.
-            if self.at_keyword("mut") && self.nth_can_start_type(1) {
+            // An access word is a marker only if a type follows it; otherwise it names the referenced type.
+            if (self.at_keyword("mut") || self.at_keyword("write")) && self.nth_can_start_type(1) {
                 self.bump();
             }
 
@@ -119,7 +119,7 @@ impl SyntaxParser<'_> {
         &self,
         ahead: usize,
     ) -> bool {
-        self.nth_at_word(ahead) || self.nth_at(ahead, Punctuation::Ampersand) || self.nth_at(ahead, Punctuation::LeftBracket)
+        self.nth_at_word(ahead) || self.nth_at(ahead, Punctuation::At) || self.nth_at(ahead, Punctuation::LeftBracket)
     }
 
     /// `machine` is a machine type when a parameter list or generic parameters follow; alone it is a name.

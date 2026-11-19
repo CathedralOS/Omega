@@ -61,7 +61,7 @@ type and no claims or qualifications. Shared descriptors are unrestricted;
 mutable descriptors are affine and retain exact mutable authority through
 every source link. Source elaboration applies
 [explicit mutable range formation](../language/expressions.md#borrowed-range-access)
-before publishing this access: a receiving `&mut` annotation cannot upgrade a
+before publishing this access: a receiving `@mut` annotation cannot upgrade a
 bare range. Forwarding an already mutable descriptor preserves its ordinary
 custody, not a new source-spelling requirement. Equal endpoints, including an
 empty suffix, still require both proof legs. The descriptor becomes available
@@ -382,7 +382,7 @@ bound; the core `boundary machine [] Slice::index<T>` declaration is
 under-constrained, but identical in accepted programs because the ownership
 law supplies the same cut. Non-copy elements are reached through borrowed
 spellings instead: `SliceAccess::from`, `SliceAccess::tail` and `Slice::range`
-return element views, and `SliceAccess::index_mut` yields a `&mut T`
+return element views, and `SliceAccess::index_mut` yields a `@mut T`
 projection rather than an element value. Element writes move the supplied
 value in and the displaced element out of its slot under the ordinary
 disposal law for its type; the write supplies no escape for a value whose

@@ -49,7 +49,7 @@ MUTATIONS=(
   "every instruction needs a semicolon|grammar/assembly.rs|s/if !self.eat(Punctuation::Semicolon) {/self.expect(Punctuation::Semicolon, \"x\")?; if false {/"
   "nesting limit removed|parsing/syntax_parser.rs|s/const NESTING_LIMIT: u32 = 128;/const NESTING_LIMIT: u32 = 4000000;/"
   "a token is dropped from the tree|parsing/syntax_parser.rs|s/^        self.events.push(TreeEvent::Token);$/        if self.token_position % 97 != 96 { self.events.push(TreeEvent::Token); }/"
-  "logical and starts a borrow|grammar/expressions.rs|s/Some(Punctuation::Ampersand) => {/Some(Punctuation::Ampersand | Punctuation::AmpersandAmpersand) => {/"
+  "logical and starts a borrow|grammar/expressions.rs|s/Some(Punctuation::At) => {/Some(Punctuation::At | Punctuation::AmpersandAmpersand) => {/"
   "saturating left shift binds like xor|grammar/expressions.rs|s/| Punctuation::LessLessSaturating |/|/;s/Punctuation::Caret => 7,/Punctuation::LessLessSaturating | Punctuation::Caret => 7,/"
   "one extra nesting level allowed|parsing/syntax_parser.rs|s/const NESTING_LIMIT: u32 = 128;/const NESTING_LIMIT: u32 = 129;/"
   "fragment may leave trailing tokens|parsing/syntax_parser.rs|s/if !self.at_end() {/if false {/"

@@ -53,15 +53,15 @@ data Command {
     };
 }
 
-machine targets_one_user(op: &Command::Operation) -> bool {
+machine targets_one_user(op: @Command::Operation) -> bool {
     match op {
         Command::Operation::GetUser { user_id as _ } -> true,
         Command::Operation::CountUsers -> false,
     }
 }
 
-machine inspect(command: &Command) -> bool {
-    targets_one_user(&command.op)
+machine inspect(command: @Command) -> bool {
+    targets_one_user(@command.op)
 }
 ```
 
@@ -116,13 +116,13 @@ facts, loans and invariants apply to it without a special route.
   equalities. It drops no constraint on the other fields and creates no
   validity or authority evidence.
 - **A helper sees the sum's own contract.** A machine receiving
-  `&Command::Operation` is checked independently. It has the sum's default
+  `@Command::Operation` is checked independently. It has the sum's default
   domain and each payload field's declared type under the selected case. Facts
   the caller holds about the complete record or its other fields do not cross
   the call; a helper that needs one states it as its own requirement, and the
   caller proves it.
 - **Lending the field keeps the holder's obligations.** Through
-  `&mut command.op` a helper may mutate the active payload or replace the
+  `@mut command.op` a helper may mutate the active payload or replace the
   case. The lender owes the complete record's predicates again at handback
   under [contract-based repair](dependent_values.md#contract-based-repair).
 - **Ownership is ordinary.** Borrowed decomposition retains the subject's
@@ -153,7 +153,7 @@ that binding. A pattern that can fail rejects; a binding introduces no hidden
 branch, trap, fallback or runtime assertion. Use ordinary match arms when
 alternatives remain possible.
 
-For an existing `command: &Command`, the outer match above may instead be written:
+For an existing `command: @Command`, the outer match above may instead be written:
 
 ```omega
 let Command { command_id as _, op as operation } = command;

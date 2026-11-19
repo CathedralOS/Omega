@@ -8,20 +8,36 @@ File
         'a'
         ':'
         ReferenceType
-          '&'
+          '@'
           ReferenceType
-            '&'
+            '@'
             PathType 'u8'
       ','
       Param
         'b'
         ':'
         ReferenceType
-          '&'
+          '@'
           ReferenceType
-            '&'
+            '@'
             'mut'
             PathType 'u8'
+      ','
+      Param
+        'out'
+        ':'
+        ReferenceType
+          '@'
+          Lifetime ''' 'a'
+          'write'
+          PathType 'u8'
+      ','
+      Param
+        'write'
+        ':'
+        ReferenceType
+          '@'
+          PathType 'write'
       ')'
     Body
       '{'
@@ -29,10 +45,70 @@ File
         '_'
         '='
         Borrow
-          '&'
+          '@'
           Borrow
-            '&'
+            '@'
             PathExpression 'a'
+        ';'
+      Discard
+        '_'
+        '='
+        Borrow
+          '@'
+          Borrow
+            '@'
+            PathExpression 'a'
+        ';'
+      Discard
+        '_'
+        '='
+        Borrow
+          '@'
+          'mut'
+          PathExpression 'a'
+        ';'
+      Discard
+        '_'
+        '='
+        Borrow
+          '@'
+          'write'
+          PathExpression 'a'
+        ';'
+      Discard
+        '_'
+        '='
+        Borrow
+          '@'
+          PathExpression 'write'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Call
+            PathExpression
+              'check'
+              ExpressionArgs
+                '::'
+                '<'
+                ReferenceType
+                  '@'
+                  PathType 'u8'
+                '>'
+            Args
+              '('
+              Borrow
+                '@'
+                PathExpression 'a'
+              ','
+              Binary
+                PathExpression 'mask'
+                '&'
+                PathExpression 'bits'
+              ')'
+          '&&'
+          PathExpression 'enabled'
         ';'
       Discard
         '_'

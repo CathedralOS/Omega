@@ -53,7 +53,7 @@ fn malformed_syntax_points_at_the_offending_token_or_end_of_file() {
 fn complete_psi_examples_and_v2_followups_parse_as_files() {
     let cases = [
         "use a; data D { x: u8; } machine m() {}",
-        "data D<'a> { v: &'a u8; w: &'a mut u16; }",
+        "data D<'a> { v: @'a u8; w: @'a mut u16; }",
         "data D { a: Pair<u8, [u16; 2]>; }",
         "data Disk { #1 counter: i32; #2 case Done(#0 code: u8, #1 more: u8); }",
         // V2 permits contextual names, untyped let bindings, and trailing parameter commas.

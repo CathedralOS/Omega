@@ -2120,7 +2120,7 @@ foreign transport role is separate from a pointee body: `false` names one
 native pointer, `true` names the target's two-word descriptor. The checked
 producer retains this distinction without expanding the pointee. It supplies
 neither owned storage nor field/dereference authority. This keeps
-`Nest<T>` containing `&Nest<[T; 2]>` finite without truncating type identity or
+`Nest<T>` containing `@Nest<[T; 2]>` finite without truncating type identity or
 manufacturing a placeholder shape. Zero array extent does not erase its element.
 
 Structural type declarations are strictly ordered by structural type id; a

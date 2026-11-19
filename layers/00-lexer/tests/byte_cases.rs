@@ -78,7 +78,7 @@ fn lex_into_reuses_the_list_and_matches_lex() {
 #[test]
 fn lex_into_leaves_the_list_empty_on_a_refusal() {
     let mut reused_tokens = lex(b"left over from an earlier file").expect("Expected the earlier file to lex.");
-    let unknown_character_error = lex_into(b"let a = @;", &mut reused_tokens).expect_err("Expected `@` to be refused, since it is not Omega syntax.");
+    let unknown_character_error = lex_into(b"let a = ?;", &mut reused_tokens).expect_err("Expected `?` to be refused, since it is not Omega syntax.");
 
     assert_eq!(unknown_character_error.get_kind(), LexErrorKind::UnknownCharacter);
     assert!(reused_tokens.is_empty(), "tokens scanned before the error must not be left behind");

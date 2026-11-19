@@ -1,5 +1,5 @@
 // GRAMMAR.md: statements.
-machine statements(value: Lease, view: &mut [u8]) -> u32 {
+machine statements(value: Lease, view: @mut [u8]) -> u32 {
     let a = 1;
     let mut b: u32 = 2;
     let c: i32 in Km;

@@ -1,5 +1,10 @@
-// GRAMMAR.md: a reference to a reference is written with a space, in types and in expressions.
-machine f(a: & &u8, b: & &mut u8) {
-    _ = & &a;
+// GRAMMAR.md: each @ forms one reference or borrow, including adjacent tokens.
+machine f(a: @@u8, b: @@mut u8, out: @'a write u8, write: @write) {
+    _ = @@a;
+    _ = @ @a;
+    _ = @mut a;
+    _ = @write a;
+    _ = @write;
+    _ = check::<@u8>(@a, mask & bits) && enabled;
     _ = a && b;
 }

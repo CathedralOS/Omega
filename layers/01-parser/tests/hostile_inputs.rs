@@ -43,14 +43,13 @@ fn deep_nesting_is_refused_without_overflowing_the_stack() {
             format!("machine f() {{ _ = {}a{}; }}", "[".repeat(HOSTILE_DEPTH), "]".repeat(HOSTILE_DEPTH)),
         ),
         ("unary operators", format!("machine f() {{ _ = {}a; }}", "-".repeat(HOSTILE_DEPTH))),
-        ("borrows", format!("machine f() {{ _ = {}a; }}", "& ".repeat(HOSTILE_DEPTH))),
+        ("borrows", format!("machine f() {{ _ = {}a; }}", "@".repeat(HOSTILE_DEPTH))),
         ("prefix words", format!("machine f() {{ _ = {}a; }}", "move ".repeat(HOSTILE_DEPTH))),
         (
             "calls as arguments",
             format!("machine f() {{ _ = {}a{}; }}", "g(".repeat(HOSTILE_DEPTH), ")".repeat(HOSTILE_DEPTH)),
         ),
-        // Spaced, because the lexer reads `&&` as one token, which no type begins with.
-        ("reference types", format!("machine f(a: {}u8) {{ }}", "& ".repeat(HOSTILE_DEPTH))),
+        ("reference types", format!("machine f(a: {}u8) {{ }}", "@".repeat(HOSTILE_DEPTH))),
         (
             "slice types",
             format!("machine f(a: {}u8{}) {{ }}", "[".repeat(HOSTILE_DEPTH), "]".repeat(HOSTILE_DEPTH)),
@@ -228,6 +227,7 @@ const SOURCE_PIECES: &[&str] = &[
     "const",
     "let",
     "mut",
+    "write",
     "match",
     "transition",
     "asm",
@@ -293,6 +293,7 @@ const SOURCE_PIECES: &[&str] = &[
     "/",
     "%",
     "&",
+    "@",
     "&&",
     "|",
     "||",

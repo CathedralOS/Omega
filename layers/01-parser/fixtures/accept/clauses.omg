@@ -17,7 +17,7 @@ satisfies Pure
 machine other_terminations() terminates {
 }
 
-machine measured(items: &[u8]) terminates by items -> Slice::Length {
+machine measured(items: @[u8]) terminates by items -> Slice::Length {
 }
 
 machine bounded(n: u32) terminates by n in limit {

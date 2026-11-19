@@ -1,6 +1,6 @@
 data Counter { value: u64; }
 
-machine clear(counter: &mut Counter) {
+machine clear(counter: @mut Counter) {
     counter.value = 0;
 }
 

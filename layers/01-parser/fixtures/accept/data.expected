@@ -162,7 +162,7 @@ File
       'pool'
       ':'
       ReferenceType
-        '&'
+        '@'
         'mut'
         PathType
           'Pool'

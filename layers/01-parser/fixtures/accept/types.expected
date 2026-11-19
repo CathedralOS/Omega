@@ -57,14 +57,14 @@ File
         'f'
         ':'
         ReferenceType
-          '&'
+          '@'
           PathType 'u8'
       ','
       Param
         'g'
         ':'
         ReferenceType
-          '&'
+          '@'
           'mut'
           SliceType
             '['
@@ -75,7 +75,7 @@ File
         'h'
         ':'
         ReferenceType
-          '&'
+          '@'
           Lifetime ''' 'a'
           'mut'
           PathType 'S'
@@ -194,7 +194,7 @@ File
         'q'
         ':'
         ReferenceType
-          '&'
+          '@'
           PathType 'mut'
       ','
       Param
@@ -207,7 +207,7 @@ File
       '->'
       QualifiedType
         ReferenceType
-          '&'
+          '@'
           Lifetime ''' 'a'
           SliceType
             '['

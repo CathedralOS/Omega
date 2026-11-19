@@ -134,7 +134,7 @@ impl SyntaxParser<'_> {
           - Skip any `[` the argument opens with. They belong to a slice or
             array type, or to an array literal, and what follows them settles
             which.
-          - `&` or `machine(` there begins a type.
+          - `@` or `machine(` there begins a type.
           - A name there, with any `::name` parts, begins a type if the token
             after it continues a type or ends the argument: `<`, `->`, and
             `,` or `>` at the top, `]` or `;` inside brackets. So `[u8]` and
@@ -159,7 +159,7 @@ impl SyntaxParser<'_> {
 
         let is_inside_brackets = ahead > 0;
 
-        if self.nth_at(ahead, Punctuation::Ampersand) {
+        if self.nth_at(ahead, Punctuation::At) {
             return true;
         }
 
