@@ -11,8 +11,8 @@ import tempfile
 import zipfile
 
 
-ROOT = Path(__file__).resolve().parents[3]
-RECORD = ROOT / "atlas/evidence/checkpoints/public-console.json"
+ROOT = Path(__file__).resolve().parents[4]
+RECORD = Path(__file__).resolve().parents[1] / "checkpoints/public-console.json"
 SAMPLE = "samples/cli/basics/cli_mvp"
 
 

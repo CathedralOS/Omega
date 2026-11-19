@@ -17,9 +17,8 @@ import sys
 from urllib.parse import unquote, urlsplit
 
 ATLAS = Path(__file__).resolve().parents[1]
-ROOT = ATLAS.parent
 sys.path.insert(0, str(ATLAS))
-from build_pages import check_content_revision, require_commit
+from build_pages import ROOT, check_content_revision, require_commit
 
 
 class Page(HTMLParser):

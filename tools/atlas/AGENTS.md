@@ -1,7 +1,7 @@
 # Atlas: instructions for agents
 
-These apply to every agent working in `atlas/` (Codex, GPT, Claude, any
-other), on top of the repository's [AGENTS.md](../AGENTS.md).
+These apply to every agent working in `tools/atlas/` (Codex, GPT, Claude, any
+other), on top of the repository's [AGENTS.md](../../AGENTS.md).
 
 Atlas is a planning workspace that maps the Omega codebase and plans how to
 make it one linear pipeline. Nothing here is compiled. Read in this order:
@@ -22,7 +22,7 @@ Rules:
   disk in any browser. Copy [design/page-template.html](design/page-template.html)
   to start one. Add every new page to the table in `README.md`.
 - **Regenerate, don't hand-edit, generated files**: run
-  `python3 atlas/build_pages.py` after changing a plan or an artifact source.
+  `python3 tools/atlas/build_pages.py` after changing a plan or an artifact source.
 - **Change a ruling only in `rulings.md`**, with the date, and only when the
   owner made it.
-- Write in plain language ([AGENTS.md "Explain the change"](../AGENTS.md#explain-the-change)).
+- Write in plain language ([AGENTS.md "Explain the change"](../../AGENTS.md#explain-the-change)).

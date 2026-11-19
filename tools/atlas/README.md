@@ -67,8 +67,8 @@ historical publications. These builds do not update those URLs.
 From the repository root, with Python 3.10+ and the repository's Cargo toolchain:
 
 ```bash
-python3 -m unittest discover -s atlas/evidence/tests -v
-python3 atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d
+python3 -m unittest discover -s tools/atlas/evidence/tests -v
+python3 tools/atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d
 ```
 
 The generator extracts the pinned Git tree to a temporary directory, checks
@@ -79,8 +79,8 @@ hashes and counting rules in [manifest.json](evidence/data/manifest.json).
 Compare a separate reproduction with:
 
 ```bash
-python3 atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d --output-dir /tmp/atlas-evidence
-diff -rq atlas/evidence/data /tmp/atlas-evidence
+python3 tools/atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d --output-dir /tmp/atlas-evidence
+diff -rq tools/atlas/evidence/data /tmp/atlas-evidence
 ```
 
 The
@@ -95,12 +95,12 @@ tracked `.rs` files from `src/` and include the backend `target/` source crate.
 Dependencies: Python 3.10+, Node.js 18+, Bun 1.4.4, Graphviz (`dot` on `PATH`) and Markdown 3.7:
 
 ```bash
-bun install --cwd atlas/artifacts --frozen-lockfile
+bun install --cwd tools/atlas/artifacts --frozen-lockfile
 python3 -m venv /tmp/omega-atlas-venv
-/tmp/omega-atlas-venv/bin/python -m pip install -r atlas/artifacts/requirements.txt
-/tmp/omega-atlas-venv/bin/python atlas/build_pages.py
-python3 atlas/artifacts/check.py
-python3 -m http.server 8765 --bind 127.0.0.1 --directory atlas
+/tmp/omega-atlas-venv/bin/python -m pip install -r tools/atlas/artifacts/requirements.txt
+/tmp/omega-atlas-venv/bin/python tools/atlas/build_pages.py
+python3 tools/atlas/artifacts/check.py
+python3 -m http.server 8765 --bind 127.0.0.1 --directory tools/atlas
 ```
 
 Open <http://127.0.0.1:8765/>. The canonical build writes tracked `index.html`,
@@ -116,22 +116,22 @@ not claim those objects are present.
 
 After changing Markdown, evidence, the renderer or the design kit:
 
-1. Preview with `python3 atlas/build_pages.py --draft` using the venv Python.
+1. Preview with `python3 tools/atlas/build_pages.py --draft` using the venv Python.
    It writes ignored `artifacts/out/` and labels the pages as an uncommitted
-   draft. Serve all of `atlas/` and open `/artifacts/out/` for working local
+   draft. Serve all of `tools/atlas/` and open `/artifacts/out/` for working local
    source links.
 2. Commit those source changes. Run
-   `python3 atlas/build_pages.py --content-revision HEAD` using the venv Python.
+   `python3 tools/atlas/build_pages.py --content-revision HEAD` using the venv Python.
    This records the source commit and rebuilds the publication files.
-3. Run `python3 atlas/artifacts/check.py`, review both themes and screen sizes,
+3. Run `python3 tools/atlas/artifacts/check.py`, review both themes and screen sizes,
    then commit `content-revision.txt`, `index.html` and `pages/`. A later normal
    build must reproduce those files without a diff.
 
-A standalone copy of `atlas/` can render without Git objects:
+A standalone copy of `tools/atlas/` can render without Git objects:
 
 ```bash
-/tmp/omega-atlas-venv/bin/python atlas/build_pages.py --offline
-python3 atlas/artifacts/check.py --local-only
+/tmp/omega-atlas-venv/bin/python tools/atlas/build_pages.py --offline
+python3 tools/atlas/artifacts/check.py --local-only
 ```
 
 Offline mode keeps the recorded GitHub links but explicitly skips verification
@@ -143,7 +143,7 @@ full source folder.
 For browser checks, install Playwright separately and use a local Chromium:
 
 ```bash
-python3 atlas/artifacts/browser_check.py --site atlas --browser /usr/bin/chromium --base-url http://127.0.0.1:8765
+python3 tools/atlas/artifacts/browser_check.py --site tools/atlas --browser /usr/bin/chromium --base-url http://127.0.0.1:8765
 ```
 
 This checks all pages at 1440px and 400px in both themes, fonts, figure labels,
@@ -207,16 +207,16 @@ After changing `artifacts/zoom-entry.js` or its dependencies, rebuild that
 bundle and its license notices with:
 
 ```bash
-bun run --cwd atlas/artifacts bundle
+bun run --cwd tools/atlas/artifacts bundle
 ```
 
-For local iteration, build with `--draft` and serve `atlas/` as above. Keep
+For local iteration, build with `--draft` and serve `tools/atlas/` as above. Keep
 `content-revision.txt`, `index.html` and tracked `pages/` unchanged until
 publication. Check the graph and its browser interaction with:
 
 ```bash
-python3 -m unittest atlas.artifacts.test_overview
-python3 atlas/artifacts/check_architecture.py --base-url http://127.0.0.1:8765/artifacts/out/
+python3 -m unittest tools.atlas.artifacts.test_overview
+python3 tools/atlas/artifacts/check_architecture.py --base-url http://127.0.0.1:8765/artifacts/out/
 ```
 
 ## Rules for working here
@@ -227,6 +227,6 @@ python3 atlas/artifacts/check_architecture.py --base-url http://127.0.0.1:8765/a
   still show drivers, retained inputs and work outside numbered stages.
 - **Trace values.** Name producers, storage, consumers and authorizing checks.
   Separate ordinary execution, tests and explicit audits.
-- **Plain language.** Follow [AGENTS.md](../AGENTS.md#explain-the-change).
+- **Plain language.** Follow [AGENTS.md](../../AGENTS.md#explain-the-change).
 - **Show mechanisms.** Use the Omega design system; explain what each arrow
   carries and mark proposals.

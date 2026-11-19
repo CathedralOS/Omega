@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build atlas/index.html and atlas/pages from Markdown and explicit diagram semantics.
+"""Build tools/atlas/index.html and tools/atlas/pages from Markdown and explicit diagram semantics.
 
 Requires Python 3.10+, Markdown 3.7, and Graphviz's `dot`. The diagram reader
 deliberately accepts only the documented Mermaid flowchart subset and fails
@@ -24,7 +24,8 @@ from artifacts.whole_map import render_architecture
 
 ATLAS = Path(__file__).resolve().parent
 HERE = ATLAS / "artifacts"
-ROOT = ATLAS.parent
+ROOT = ATLAS.parents[1]
+ATLAS_PATH = "tools/atlas"
 OUT = ATLAS / "pages"
 GITHUB = "https://github.com/CathedralOS/Omega"
 
@@ -166,7 +167,7 @@ def mermaid_svg(source: str, diagram_id: str, spec: dict) -> str:
 def source_url(path: Path, content_revision: str | None, output: Path) -> str:
     if content_revision is None:
         return quote(Path(os.path.relpath(path, output.parent)).as_posix(), safe="/")
-    return f"{GITHUB}/blob/{content_revision}/{quote(path.relative_to(ROOT).as_posix())}"
+    return f"{GITHUB}/blob/{content_revision}/{ATLAS_PATH}/{quote(path.relative_to(ATLAS).as_posix())}"
 
 
 def rewrite_links(body: str, source: Path, content_revision: str | None, output: Path) -> str:
@@ -291,7 +292,7 @@ def render_home() -> str:
 def require_commit(revision: str) -> None:
     repository = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=ROOT, capture_output=True, text=True)
     if repository.returncode or Path(repository.stdout.strip()).resolve() != ROOT:
-        raise ValueError("Full verification requires atlas/ at the root of its Omega repository. A standalone copy uses --offline to render and check.py --local-only for static checks.")
+        raise ValueError("Full verification requires tools/atlas/ inside its Omega repository. A standalone copy uses --offline to render and check.py --local-only for static checks.")
     result = subprocess.run(["git", "cat-file", "-e", revision + "^{commit}"], cwd=ROOT, capture_output=True)
     if result.returncode:
         raise ValueError(f"Required Git commit {revision} is unavailable. Fetch it in this repository (git fetch origin {revision}) before full verification; standalone rendering uses --offline.")
@@ -299,12 +300,12 @@ def require_commit(revision: str) -> None:
 
 def check_content_revision(revision: str) -> None:
     if not re.fullmatch("[0-9a-f]{40}", revision):
-        raise ValueError("atlas/content-revision.txt must contain a full commit SHA")
+        raise ValueError("tools/atlas/content-revision.txt must contain a full commit SHA")
     require_commit(revision)
-    exclusions = [":(exclude)atlas/pages", ":(exclude)atlas/index.html", ":(exclude)atlas/content-revision.txt"]
-    changed = subprocess.check_output(["git", "diff", "--name-only", revision, "--", "atlas", *exclusions], cwd=ROOT, text=True).splitlines()
-    untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard", "atlas"], cwd=ROOT, text=True).splitlines()
-    changed += [p for p in untracked if not p.startswith("atlas/pages/") and p not in ("atlas/index.html", "atlas/content-revision.txt")]
+    inputs = [ATLAS_PATH, *(f":(exclude){ATLAS_PATH}/{path}" for path in ("pages", "index.html", "content-revision.txt"))]
+    changed = subprocess.check_output(["git", "diff", "--name-only", revision, "--", *inputs], cwd=ROOT, text=True).splitlines()
+    untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard", "--", *inputs], cwd=ROOT, text=True).splitlines()
+    changed += untracked
     if changed:
         raise ValueError("Atlas source differs from its recorded content revision; commit sources, then use --content-revision HEAD. Draft previews use --draft.\n" + "\n".join(changed))
 
@@ -320,7 +321,7 @@ def render_original(content_revision: str | None, output: Path) -> str:
     page = re.sub(r'@font-face.*?\n(?=body \{)', ':root { --serif: var(--font-serif); --mono: var(--font-mono); }\n\n', page, count=1, flags=re.S)
     page = page.replace('<style>', '<link rel="stylesheet" href="../design/tokens.css">\n<style>', 1)
     page = page.replace('</style>', (HERE/'navigation.css').read_text()+'\n</style>', 1)
-    publication = 'Draft preview' if content_revision is None else f'Atlas content <a href="{GITHUB}/tree/{content_revision}/atlas">{content_revision[:12]}</a>'
+    publication = 'Draft preview' if content_revision is None else f'Atlas content <a href="{GITHUB}/tree/{content_revision}/{ATLAS_PATH}">{content_revision[:12]}</a>'
     strip = f'<aside class="history-note" aria-label="Historical design status"><strong>Historical original · 2026-11-17</strong> · {publication}<br>Original drawing, labels and estimates preserved. Read the <a href="pipeline-current.html">reviewed account</a> for corrected claims. <a href="{source_url(original,content_revision,output)}">Preserved source</a>.</aside>'
     page = page.replace('<div class="page">', site_header('pipeline-map','../')+strip+'<div class="page" id="main">', 1)
     page = page.replace('g.hidden = !box.checked;', 'g.toggleAttribute("hidden", !box.checked);')
@@ -364,7 +365,7 @@ def build_all(content_revision: str | None, site: Path) -> Path:
         diagrams += extra_diagrams
         if explorer:
             body = '<details class="architecture-notes"><summary>About the map and snapshot</summary>' + glance + body + '</details>'
-        publication = "Uncommitted draft preview" if content_revision is None else f'Atlas content <a href="{GITHUB}/tree/{content_revision}/atlas"><code>{content_revision[:12]}</code></a>'
+        publication = "Uncommitted draft preview" if content_revision is None else f'Atlas content <a href="{GITHUB}/tree/{content_revision}/{ATLAS_PATH}"><code>{content_revision[:12]}</code></a>'
         replacements = {
             "TITLE": html.escape(title), "DESCRIPTION": html.escape(description), "STYLE": style,
             "SCRIPT": script, "CANVAS_BUNDLE": f'<script src="{os.path.relpath(ATLAS / "design/diagram-zoom.js", output.parent).replace(chr(92), "/")}"></script>' if explorer else "", "STATUS": html.escape(status), "PAGE_NUMBER": str(number),
@@ -410,7 +411,7 @@ def main():
     revision = subprocess.check_output(["git", "rev-parse", args.content_revision + "^{commit}"], cwd=ROOT, text=True).strip() if args.content_revision else pin.read_text().strip()
     if args.offline:
         if not re.fullmatch("[0-9a-f]{40}", revision):
-            parser.error("atlas/content-revision.txt must contain a full commit SHA")
+            parser.error("tools/atlas/content-revision.txt must contain a full commit SHA")
         print("Offline render: atlas content and compiler source verification NOT RUN. Use check.py --local-only for static checks.")
     else:
         check_content_revision(revision)

@@ -9,8 +9,8 @@ From the repository root, with Python 3.10 or newer and the repository's Cargo
 toolchain installed:
 
 ```bash
-python3 -m unittest discover -s atlas/evidence/tests -v
-python3 atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d
+python3 -m unittest discover -s tools/atlas/evidence/tests -v
+python3 tools/atlas/evidence/scripts/regenerate.py --source-revision 3f9ce43f0c9d179048911d18faa91ba93f60176d
 ```
 
 The generator extracts a full Git archive of the chosen revision, verifies
@@ -87,13 +87,13 @@ For a fresh metadata file and individual reports **from the current checkout**:
 
 ```bash
 cargo metadata --format-version 1 --no-deps --locked > /tmp/omega-meta.json
-python3 atlas/evidence/scripts/modscan.py /tmp/omega-meta.json /tmp/usage.json
-python3 atlas/evidence/scripts/modscan_be.py /tmp/omega-meta.json /tmp/usage_be.json
-python3 atlas/evidence/scripts/users.py /tmp/omega-meta.json
-python3 atlas/evidence/scripts/backend_users.py < /tmp/omega-meta.json
-python3 atlas/evidence/scripts/stage_dependencies.py < /tmp/omega-meta.json
-python3 atlas/evidence/scripts/sub.py atlas/evidence/data/usage.json language-core float_operations
-python3 atlas/evidence/scripts/report.py atlas/evidence/data/usage.json /tmp/omega-meta.json language-core --by-file
+python3 tools/atlas/evidence/scripts/modscan.py /tmp/omega-meta.json /tmp/usage.json
+python3 tools/atlas/evidence/scripts/modscan_be.py /tmp/omega-meta.json /tmp/usage_be.json
+python3 tools/atlas/evidence/scripts/users.py /tmp/omega-meta.json
+python3 tools/atlas/evidence/scripts/backend_users.py < /tmp/omega-meta.json
+python3 tools/atlas/evidence/scripts/stage_dependencies.py < /tmp/omega-meta.json
+python3 tools/atlas/evidence/scripts/sub.py tools/atlas/evidence/data/usage.json language-core float_operations
+python3 tools/atlas/evidence/scripts/report.py tools/atlas/evidence/data/usage.json /tmp/omega-meta.json language-core --by-file
 ```
 
 `report.py` prints candidate definition locations. It keeps multiple matches
@@ -109,7 +109,7 @@ The [native execution checkpoint](checkpoints/native-host-execution-f658.json) r
 From the repository root, run the evidence checker with GitHub CLI access to the job logs and the cited Git objects available locally.
 
 ```bash
-python3 atlas/evidence/scripts/check_native_hosts.py
+python3 tools/atlas/evidence/scripts/check_native_hosts.py
 ```
 
 The checker reads each process result from its job log, verifies the complete set of eight executions and checks the image bytes against the proof commit. To match the original local build products as well, pass `--products /path/to/acceptance-f658-products`. This also checks both compiler binaries, the fixture source hashes, every official library file and all eight locally published images. The [host proof readme](https://github.com/CathedralOS/Omega/blob/edc830ed21a353efd63ac94e19503c7224e13a01/native-host-proof/README.md) gives the build command.
@@ -121,8 +121,8 @@ The checker reads each process result from its job log, verifies the complete se
 The [Console record](checkpoints/public-console.json) pins the exact compiler, library, sample, input, combined process output and exit codes. Choose a lane listed in the record. The checker verifies the compiler digest, extracts the matching Git inputs into a fresh directory and supplies a newline when the program asks for input. This runs the public CLI on Linux x86-64.
 
 ```bash
-python3 atlas/evidence/scripts/check_console_sample.py official --compiler /path/to/official/omega --run
-python3 atlas/evidence/scripts/check_console_sample.py migration --compiler /path/to/migration/omega --run
+python3 tools/atlas/evidence/scripts/check_console_sample.py official --compiler /path/to/official/omega --run
+python3 tools/atlas/evidence/scripts/check_console_sample.py migration --compiler /path/to/migration/omega --run
 ```
 
 With `--log /path/to/console.log`, the checker can also compare a saved byte-for-byte transcript. Without `--run` it checks the cited inputs and any supplied log or executable.
@@ -154,7 +154,7 @@ replay() {
 }
 replay "$BASELINE_OMEGA" "$scratch/baseline"
 replay "$CANDIDATE_OMEGA" "$scratch/candidate"
-python3 "$repo/atlas/evidence/scripts/check_target_execution.py" \
+python3 "$repo/tools/atlas/evidence/scripts/check_target_execution.py" \
     "$scratch/baseline" "$scratch/candidate" --run
 ```
 

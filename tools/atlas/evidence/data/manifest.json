@@ -30,15 +30,18 @@
   "users.txt": "048ead79c5eb2f24a53a31e23b49a3e6259658bbdb82055171710a68ee17de62"
  },
  "scanner_sha256": {
-  "atlas/evidence/scripts/backend_users.py": "f999357fc134c4a60bfb5cb0cba49e3d9b3d1b94b9cdeaede5d518fd9b9cd506",
-  "atlas/evidence/scripts/modscan.py": "d31a2e738037f048c141194ec960de7833132c8b4de3f9cc58516523a6929967",
-  "atlas/evidence/scripts/modscan_be.py": "a2e77cd256b8dad53f4be7240ee8db4ee963376b32d0168753212f5b0540a726",
-  "atlas/evidence/scripts/regenerate.py": "6726032d1bc1eccce1f45214336acbdb59d8c26961e4d27405dfedc50bcc24e2",
-  "atlas/evidence/scripts/report.py": "dad731a1744be6320bb630a212c24e5e93762d1c711c864c06c1b96f3b3eb33f",
-  "atlas/evidence/scripts/scanlib.py": "db209b02fd43b589c5d89e015e720b87c18ea90c15cda1bb85017405ed2db168",
-  "atlas/evidence/scripts/stage_dependencies.py": "fc8102edcb2d7f6ec7e8497c8fc508fb9f227610940cf1ceff4eadff88fcc313",
-  "atlas/evidence/scripts/sub.py": "049cef99714cbed51bdedceededd5c8e8460a0f151ae0816820506b01e8a673b",
-  "atlas/evidence/scripts/users.py": "6d78bcee831eacfa2cb6b7290ac1fb5dcbb4213eed8c824168688d0ea4cc27ef"
+  "tools/atlas/evidence/scripts/backend_users.py": "f999357fc134c4a60bfb5cb0cba49e3d9b3d1b94b9cdeaede5d518fd9b9cd506",
+  "tools/atlas/evidence/scripts/check_console_sample.py": "36844f006d497f2f8a515f7b3c099060a2277925c31707734b8ddcb1ae3b3836",
+  "tools/atlas/evidence/scripts/check_native_hosts.py": "871c371ffc98310cc733988395055f84471d7d69856fd0c494f91ba4eb6510e9",
+  "tools/atlas/evidence/scripts/check_target_execution.py": "1468dd3f8ff30ee775f72c2056239292301db35f0155afd280197bf93302c2e0",
+  "tools/atlas/evidence/scripts/modscan.py": "d31a2e738037f048c141194ec960de7833132c8b4de3f9cc58516523a6929967",
+  "tools/atlas/evidence/scripts/modscan_be.py": "a2e77cd256b8dad53f4be7240ee8db4ee963376b32d0168753212f5b0540a726",
+  "tools/atlas/evidence/scripts/regenerate.py": "a0f206ac2979958abfb1d1332fd9700a1aa1e09839829c4e68c75b7658ba4505",
+  "tools/atlas/evidence/scripts/report.py": "dad731a1744be6320bb630a212c24e5e93762d1c711c864c06c1b96f3b3eb33f",
+  "tools/atlas/evidence/scripts/scanlib.py": "db209b02fd43b589c5d89e015e720b87c18ea90c15cda1bb85017405ed2db168",
+  "tools/atlas/evidence/scripts/stage_dependencies.py": "fc8102edcb2d7f6ec7e8497c8fc508fb9f227610940cf1ceff4eadff88fcc313",
+  "tools/atlas/evidence/scripts/sub.py": "049cef99714cbed51bdedceededd5c8e8460a0f151ae0816820506b01e8a673b",
+  "tools/atlas/evidence/scripts/users.py": "6d78bcee831eacfa2cb6b7290ac1fb5dcbb4213eed8c824168688d0ea4cc27ef"
  },
  "schema_version": 2,
  "source_policy": "Full Git archive of source_revision; every tracked blob is checked against its Git object identity before Cargo metadata or scanning. The pinned Git tree supplies the file inventory; current checkout changes, untracked and generated files are excluded. Symlinks are refused; Gitlink contents are outside the inventory.",

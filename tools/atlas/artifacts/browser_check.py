@@ -2,7 +2,7 @@
 """Inspect the static site from file:// or localhost in both themes and sizes.
 
 Requires Playwright and a Chromium executable. Example:
-python3 atlas/artifacts/browser_check.py --site atlas --browser /usr/bin/chromium
+python3 tools/atlas/artifacts/browser_check.py --site tools/atlas --browser /usr/bin/chromium
 Use --screens-only for an early visual review; it makes no full-check claim.
 Screenshots and the report go to ignored artifacts/out/browser-check/.
 """

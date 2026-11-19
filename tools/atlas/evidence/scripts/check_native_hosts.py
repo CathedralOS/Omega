@@ -13,7 +13,7 @@ PROOF = "edc830ed21a353efd63ac94e19503c7224e13a01"
 INTEGRATION = "683122d180a90b6c339904e1c07c0a3ad028b61b"
 PROVIDER_CHANGE = "3d14fe87dff4fc08ed0d6ee8cbf2f5d8bde00348"
 RECORD = Path(__file__).resolve().parents[1] / "checkpoints/native-host-execution-f658.json"
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 HOSTS = {
     "linux_x86_64": ("Linux", "x86_64", "X64", "ELF64"),
     "linux_arm64": ("Linux", "aarch64", "ARM64", "ELF64"),

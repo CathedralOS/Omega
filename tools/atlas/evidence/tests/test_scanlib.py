@@ -120,8 +120,8 @@ use foundation::Production;
 
 class RepositoryRegression(unittest.TestCase):
     def test_real_target_crate_names_all_six_reported_missing_dependencies(self):
-        root = SCRIPTS.parents[2]
-        revision = json.loads((root / "atlas/evidence/data/manifest.json").read_text())["source_revision"]
+        root = SCRIPTS.parents[3]
+        revision = json.loads((SCRIPTS.parent / "data/manifest.json").read_text())["source_revision"]
         with archived_source(root, revision) as (source, tracked):
             metadata = json.loads(subprocess.check_output(
                 ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked"], cwd=source))

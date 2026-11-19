@@ -1,6 +1,6 @@
 """Regenerate the Atlas evidence with real Cargo metadata and tracked source.
 
-Run from any directory: python3 atlas/evidence/scripts/regenerate.py
+Run from any directory: python3 tools/atlas/evidence/scripts/regenerate.py
 Use --source-revision to reproduce the recorded snapshot after atlas-only edits.
 The source is read from a verified Git archive; this does not switch Git.
 """
@@ -75,13 +75,13 @@ def main():
     parser.add_argument("--source-revision", default="HEAD")
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()
-    root = Path(__file__).resolve().parents[3]
+    root = Path(__file__).resolve().parents[4]
     resolved = subprocess.run(
         ["git", "rev-parse", "--verify", args.source_revision + "^{commit}"], cwd=root, text=True, capture_output=True)
     if resolved.returncode:
         raise SystemExit(f"Required source commit {args.source_revision} is unavailable. Fetch it in this repository (git fetch origin {args.source_revision}) before regenerating evidence.")
     revision = resolved.stdout.strip()
-    output = args.output_dir or root / "atlas/evidence/data"
+    output = args.output_dir or Path(__file__).resolve().parents[1] / "data"
     with archived_source(root, revision) as (source, tracked):
         generate(root, source, tracked, revision, output)
 
