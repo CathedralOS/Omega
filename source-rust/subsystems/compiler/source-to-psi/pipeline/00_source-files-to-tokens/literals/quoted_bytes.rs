@@ -3,119 +3,107 @@
 use source_text::Span;
 use tokens::TokenKind;
 
-use crate::LexError;
-
-use crate::{LexedToken, Lexer};
+use crate::{ByteScanner, LexError, LexedToken};
 
 pub(crate) fn decode_string_literal(raw: &str, bytes: &mut Vec<u8>) {
-    let contents = &raw.as_bytes()[1..raw.len() - 1];
-    bytes.reserve(contents.len());
-    let mut rest = contents;
-
-    while let Some(escape) = rest.iter().position(|&byte| byte == b'\\') {
-        bytes.extend_from_slice(&rest[..escape]);
-        let (decoded, spelled_length) = match rest[escape + 1] {
-            b'"' => (b'"', 2),
-            b'\\' => (b'\\', 2),
-            b'n' => (b'\n', 2),
-            b'r' => (b'\r', 2),
-            b't' => (b'\t', 2),
-            b'0' => (b'\0', 2),
-            b'x' => {
-                let high = hex_digit_value(rest[escape + 2]);
-                let low = hex_digit_value(rest[escape + 3]);
-                ((high << 4) | low, 4)
-            }
-            other => {
-                unreachable!("validated string literal contains escape byte {other:#04x}")
-            }
-        };
+    let end = raw.len() - 1;
+    bytes.reserve(end - 1);
+    let mut offset = 1;
+    while let Some(relative) = memchr::memchr(b'\\', &raw.as_bytes()[offset..end]) {
+        let escape = offset + relative;
+        bytes.extend_from_slice(&raw.as_bytes()[offset..escape]);
+        let (decoded, next) =
+            read_escape(raw, escape, 0).expect("valid string token contains a checked escape");
         bytes.push(decoded);
-        rest = &rest[escape + spelled_length..];
+        offset = next;
     }
-    bytes.extend_from_slice(rest);
+    bytes.extend_from_slice(&raw.as_bytes()[offset..end]);
 }
 
-fn hex_digit_value(digit: u8) -> u8 {
-    match digit {
-        b'0'..=b'9' => digit - b'0',
-        b'a'..=b'f' => digit - b'a' + 10,
-        b'A'..=b'F' => digit - b'A' + 10,
-        other => unreachable!("validated hex escape contains byte {other:#04x}"),
-    }
-}
-
-impl<'source> Lexer<'source> {
-    pub(crate) fn lex_string_token(&mut self, start: usize) -> Result<LexedToken, LexError> {
-        let end = self.lex_cooked_string_end(start)?;
-        Ok(LexedToken {
-            kind: TokenKind::StringLiteral,
-            span: Span::new(start, end),
-        })
-    }
-
-    fn lex_cooked_string_end(&mut self, start: usize) -> Result<usize, LexError> {
-        while let Some((index, character)) = self.chars.next() {
-            if character == '"' {
-                return Ok(index + character.len_utf8());
-            }
-
-            if matches!(character, '\r' | '\n') {
-                return Err(LexError::outside_lexical_profile(Span::new(
-                    index,
-                    index + character.len_utf8(),
-                )));
-            }
-
-            if character == '\\' {
-                let Some((escape_index, escaped)) = self.chars.next() else {
-                    return Err(LexError::new(
-                        "unterminated string escape",
-                        Span::new(start, self.source.len()),
-                    ));
-                };
-
-                match escaped {
-                    '"' | '\\' | 'n' | 'r' | 't' | '0' => {}
-                    'x' => self.consume_hex_escape(start)?,
-                    'u' => {
-                        return Err(LexError::outside_lexical_profile(Span::new(
-                            index,
-                            escape_index + escaped.len_utf8(),
-                        )));
-                    }
-                    other => {
-                        return Err(LexError::new(
-                            format!("unsupported escape sequence `\\{other}`"),
-                            Span::new(index, escape_index + other.len_utf8()),
-                        ));
-                    }
+impl ByteScanner<'_> {
+    pub(crate) fn scan_quoted(&mut self, start: usize) -> Result<LexedToken, LexError> {
+        while let Some(byte) = self.peek() {
+            match byte {
+                b'"' => {
+                    self.offset += 1;
+                    return Ok(LexedToken {
+                        kind: TokenKind::StringLiteral,
+                        span: Span::new(start, self.offset),
+                    });
                 }
+                b'\r' | b'\n' => {
+                    return Err(LexError::outside_lexical_profile(Span::new(
+                        self.offset,
+                        self.offset + 1,
+                    )));
+                }
+                b'\\' => {
+                    let (_, next) = read_escape(self.source, self.offset, start)?;
+                    self.offset = next;
+                }
+                _ => self.offset += 1,
             }
         }
-
         Err(LexError::new(
             "unterminated string literal",
-            Span::new(start, self.source.len()),
+            Span::new(start, self.offset),
         ))
     }
+}
 
-    fn consume_hex_escape(&mut self, string_start: usize) -> Result<(), LexError> {
-        for _ in 0..2 {
-            let Some((digit_index, digit)) = self.chars.next() else {
-                return Err(LexError::new(
-                    "unterminated hex escape",
-                    Span::new(string_start, self.source.len()),
-                ));
-            };
-            if !digit.is_ascii_hexdigit() {
-                return Err(LexError::new(
-                    "invalid hex escape digit",
-                    Span::new(digit_index, digit_index + digit.len_utf8()),
-                ));
+/// Returns the decoded byte and the offset of the next source byte.
+fn read_escape(source: &str, slash: usize, string_start: usize) -> Result<(u8, usize), LexError> {
+    let bytes = source.as_bytes();
+    let Some(&escaped) = bytes.get(slash + 1) else {
+        return Err(LexError::new(
+            "unterminated string escape",
+            Span::new(string_start, bytes.len()),
+        ));
+    };
+    let byte = match escaped {
+        b'"' | b'\\' => escaped,
+        b'n' => b'\n',
+        b'r' => b'\r',
+        b't' => b'\t',
+        b'0' => 0,
+        b'x' => {
+            let mut value = 0;
+            for offset in slash + 2..slash + 4 {
+                let Some(&digit) = bytes.get(offset) else {
+                    return Err(LexError::new(
+                        "unterminated hex escape",
+                        Span::new(string_start, bytes.len()),
+                    ));
+                };
+                let nibble = match digit {
+                    b'0'..=b'9' => digit - b'0',
+                    b'a'..=b'f' => digit - b'a' + 10,
+                    b'A'..=b'F' => digit - b'A' + 10,
+                    _ => {
+                        let character = source[offset..].chars().next().unwrap();
+                        return Err(LexError::new(
+                            "invalid hex escape digit",
+                            Span::new(offset, offset + character.len_utf8()),
+                        ));
+                    }
+                };
+                value = (value << 4) | nibble;
             }
+            return Ok((value, slash + 4));
         }
-
-        Ok(())
-    }
+        b'u' => {
+            return Err(LexError::outside_lexical_profile(Span::new(
+                slash,
+                slash + 2,
+            )));
+        }
+        _ => {
+            let character = source[slash + 1..].chars().next().unwrap();
+            return Err(LexError::new(
+                format!("unsupported escape sequence `\\{character}`"),
+                Span::new(slash, slash + 1 + character.len_utf8()),
+            ));
+        }
+    };
+    Ok((byte, slash + 2))
 }
