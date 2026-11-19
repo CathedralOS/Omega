@@ -8,20 +8,15 @@
 # a session unpacks it before its first build and compiles only what changed
 # since. The archive is about 300 MB, so the restore takes seconds.
 #
-#   bash tools/warm_build.sh pack <slot> <out-dir>   # CI: archive ./target
+#   bash tools/warm_build.sh pack <slot> <out-dir>   # CI: archive the build and generated files
 #   bash tools/warm_build.sh publish <slot> <out-dir> # CI: push it to the registry
 #   bash tools/warm_build.sh restore <slot> [replace-stale] # unpack into the slot
 #   bash tools/warm_build.sh session-start           # SessionStart hook, cloud only
 #
-# mbx cannot do this job here. This workspace builds with Cargo's checksum
-# freshness (.cargo/config.toml), which passes `-Zchecksum-hash-algorithm` to
-# rustc, and mbx 1.29.2 does not cache a compilation with a flag it does not
-# model: every unit is reported as bypassed and its store stays empty. The
-# same setting is what makes a plain directory restore sound: Cargo compares
-# source contents, not file times, so a fresh clone reuses a restored build and
-# recompiles exactly the crates whose sources differ. Build scripts are the
-# exception: Cargo still dates their inputs by modification time, which
-# settle_source_times handles.
+# Cargo compares source contents with the restored build. It still uses file
+# times for build script inputs, which settle_source_times handles. Cargo also
+# records absolute paths to generated files that mbx shares outside target/.
+# The archive carries those files so Cargo can reuse dependent crates.
 #
 # There are two slots because Cargo gives the two places a session builds in
 # different identities. A pool worktree (.agents/worktree/worker-N) sits inside
@@ -77,16 +72,31 @@ toolchain() { (cd "$1" && rustc -V); }
 
 manifest_value() { sed -n "s/^$2=//p" "$1" | head -n 1; }
 
+shared_outputs() {
+  local cache
+  cache=$(mbx settings get cache_dir 2>/dev/null) || cache=
+  printf '%s/out-dirs/v1\n' "${cache:-${XDG_CACHE_HOME:-$HOME/.cache}/mbx}"
+}
+
 pack() {
-  local slot=$1 out=$2 dir commit asset
+  local slot=$1 out=$2 dir commit asset generated target_kib generated_kib=0
+  local -a archive=(target)
   dir=$(slot_dir "$slot")
   [ "$(pwd -P)" = "$dir" ] || fail "pack $slot runs in $dir, the path sessions build at"
   [ -x target/debug/omega ] || fail "target/debug/omega is missing; build before packing"
   commit=$(git rev-parse HEAD)
   asset=target-$slot-${commit:0:12}.tar.zst
   mkdir -p "$out"
+  target_kib=$(du -sk target | cut -f1)
+  generated=$(shared_outputs)
+  if [ -d "$generated" ]; then
+    archive+=(-C "$(dirname "$generated")" v1)
+    generated_kib=$(du -sk "$generated" | cut -f1)
+  else
+    generated=
+  fi
   # pax headers keep nanosecond file times; Cargo compares outputs by them.
-  tar --format=posix -cf - target | zstd -T0 -6 -q -f -o "$out/$asset"
+  tar --format=posix -cf - "${archive[@]}" | zstd -T0 -6 -q -f -o "$out/$asset"
   {
     echo "schema=$SCHEMA"
     echo "slot=$slot"
@@ -95,7 +105,8 @@ pack() {
     echo "rustc=$(toolchain "$dir")"
     echo "asset=$asset"
     echo "sha256=$(sha256sum "$out/$asset" | cut -d' ' -f1)"
-    echo "unpacked_kib=$(du -sk target | cut -f1)"
+    echo "unpacked_kib=$((target_kib + generated_kib))"
+    echo "shared_outputs=$generated"
   } > "$out/warm-build-$slot.txt"
   cat "$out/warm-build-$slot.txt"
 }
@@ -223,10 +234,26 @@ settle_source_times() {
     echo "warm build: could not date $dir back to ${commit:0:12}; the first build reruns the compiler build script"
 }
 
+# Both slots can restore into one cache. Publish each complete directory by
+# renaming it on the cache filesystem, leaving any existing entry in place.
+restore_shared_outputs() (
+  local packed=$1 destination=$2 staging entry name
+  mkdir -p "$destination" || return 1
+  staging=$(mktemp -d "$(dirname "$destination")/.warm-build.XXXXXX") || return 1
+  trap 'rm -rf "$staging"' EXIT
+  for entry in "$packed"/*; do
+    name=${entry##*/}
+    [[ "$name" =~ ^[0-9a-f]{64}$ && -d "$entry" ]] || continue
+    [ ! -e "$destination/$name" ] || continue
+    cp -a "$entry" "$staging/$name" || return 1
+    mv -nT "$staging/$name" "$destination/$name" || [ -d "$destination/$name" ] || return 1
+  done
+)
+
 # restore <slot> [replace-stale]
 restore() (
   local slot=$1 replace=${2:-} root dir stage manifest commit asset want have need free started
-  local built_at old=''
+  local built_at generated old=''
   started=$(date +%s)
   root=$(primary_root)
   dir=$(slot_dir "$slot")
@@ -278,6 +305,11 @@ restore() (
   echo "$(manifest_value "$manifest" sha256)  $stage/$asset" | sha256sum --check --status ||
     fail "$slot: $asset does not match its published digest"
   zstd -dc "$stage/$asset" | tar -xf - -C "$stage"
+  generated=$(manifest_value "$manifest" shared_outputs)
+  if [ -n "$generated" ] && [ "$generated" = "$(shared_outputs)" ]; then
+    restore_shared_outputs "$stage/v1" "$generated" ||
+      fail "$slot: could not restore generated build outputs to $generated"
+  fi
   cp "$manifest" "$stage/target/.warm-build.txt"
   if [ -n "$old" ]; then
     # The stale build goes into the stage, which the exit trap deletes.
