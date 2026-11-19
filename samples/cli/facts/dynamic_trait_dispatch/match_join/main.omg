@@ -1,4 +1,4 @@
-// Fact: a runtime dyn trait selector dispatches an inline conformance member over explicit data arguments to establish 100u64 when subtracting 100u64.
+// Fact: Calling a selected conformance member through a machine value preserves its guarantee of 100u64 for exact subtraction of 100u64.
 // Place: match_join.
 // Expected exit: 0
 
@@ -37,16 +37,17 @@ requires a >= 60u64 && a <= 60u64
 requires b >= 40u64 && b <= 40u64
 ensures result >= 100u64 && result <= 100u64
 {
-    let selector: dyn WeightedCombine = match choice {
-        true -> UnitCombine as dyn WeightedCombine
-        false -> OtherCombine as dyn WeightedCombine
+    let selector: machine(left: u64, right: u64, observation: &mut u64) -> u64 reaches none crashes none
+        requires left >= 60u64 && left <= 60u64
+        requires right >= 40u64 && right <= 40u64
+        ensures result >= 100u64 && result <= 100u64 = match choice {
+        true -> UnitCombine::combine
+        false -> OtherCombine::combine
     };
-    WeightedCombine::combine(selector, a, b, observation)
+    selector(a, b, observation)
 }
 
 machine main() crashes Trap {
-    let first_selector: dyn WeightedCombine = UnitCombine as dyn WeightedCombine;
-    let second_selector: dyn WeightedCombine = OtherCombine as dyn WeightedCombine;
     let mut first_observation: u64 = 0;
     let mut second_observation: u64 = 0;
     let first: u64 = probe(true, 60u64, 40u64, &mut first_observation);

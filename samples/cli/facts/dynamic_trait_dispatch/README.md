@@ -39,9 +39,10 @@ keep their original values.
 
 The parameter example calls the machine it receives. The forwarding and nested
 machine examples pass it to another machine before calling it. The named
-constant example subtracts `TARGET` from the result. Each invalid example passes
-39 where the callable requires 40. The match and Build-selected examples still
-use the older syntax.
+constant example subtracts `TARGET` from the result. The match example selects a
+machine in each branch and calls the result after the branches meet. Each invalid
+example passes 39 where the callable requires 40. The Build-selected example still
+uses the older syntax.
 
 ## Places and controls
 

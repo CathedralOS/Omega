@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Provider service contracts lose the invoked parameter
+
+- Category: Re-deriving.
+- Where: [Service contract projection](omega-rust/psi/compilation/pipeline/01_source-compilation/src/source_state/src/service_declarations.rs#L1651) and [Checked boundary contracts](omega-rust/psi/compilation/representations/terminal-psi/src/callable_values.rs#L36).
+- Saw: The typed contract distinguishes a callable parameter from a named service. The service projection turns each invoked parameter into its type's trait name. It rejects structural machine types and merges separate parameters of the same nominal type. The checked boundary already retains the parameter in its typed invocation contract, but the provider schema uses only service names.
+- Cost: The provider-selected dispatch sample stops on its valid `invokes selected` clause before checking either program. Provider admission needs the actual parameter position or named entry to bind the invocation to the caller's argument.
+- Reported: 2026-11-18, Codex, while migrating Build-selected dispatch to machine values.
+
 ### Invocation inference loses the parameter behind a callable alias
 
 - Category: One idea, several implementations.

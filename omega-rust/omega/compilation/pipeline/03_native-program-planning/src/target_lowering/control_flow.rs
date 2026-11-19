@@ -2166,11 +2166,10 @@ mod transfers {
             .filter(|block| block.block != function.entry)
         {
             for parameter in &block.parameters {
-                if !matches!(
+                if crate::target_lowering::scalar_abi::fixed_native_scalar_shape(
                     parameter.scalar_type,
-                    ScalarType::Boolean | ScalarType::IeeeFloat(_)
-                ) && !matches!(parameter.scalar_type, ScalarType::Integer(integer)
-                    if crate::target_lowering::scalar_abi::fixed_native_integer_shape(integer).is_some())
+                )
+                .is_none()
                 {
                     return Err(LoweringError::ValueTypeMismatch(parameter.value));
                 }
