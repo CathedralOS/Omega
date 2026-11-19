@@ -31,6 +31,7 @@ schema-reflection = { path = "../psi/schema" }
 source-completion-accounting = { path = "pipeline/prepare_and_check/accounting" }
 build-scalar-evaluation = { path = "../build/evaluation/scalars" }
 build-time-values = { path = "../build/evaluation/values" }
+build-value-projection = { path = "../build/evaluation/value-projection" }
 service-surface = { path = "../psi/service-surface" }
 source-provenance = { path = "../foundation/source-provenance" }
 declaration-scope = { path = "../foundation/declaration-scope" }

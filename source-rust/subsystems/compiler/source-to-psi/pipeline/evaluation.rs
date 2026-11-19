@@ -9,6 +9,9 @@ pub use source_completion_accounting::{
     PureTerminalEvaluationReceipt, SourceCompletionAccounting,
 };
 pub use source_symbol_table::source_inputs::InvocationSourceConsent;
+#[path = "evaluation/fixed_layouts/mod.rs"]
+mod fixed_layouts;
+pub(crate) use fixed_layouts::evaluate_fixed_layout_applications;
 #[path = "evaluation/frontier.rs"]
 mod frontier;
 pub(crate) use frontier::PreCheckEvaluation;

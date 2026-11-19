@@ -17,17 +17,63 @@ use crate::evaluation::{
     BuildTimeSelectionAuthority, BuildTimeValue, InvocationTarget, SourceCompletionAccounting,
 };
 
-pub(super) mod placements;
+mod placements;
 mod reflection;
 mod schema;
+#[cfg(test)]
+mod tests;
 mod validation;
 
-pub(super) fn evaluate(
+/// One private slot observed while running this exact source layout policy.
+#[derive(Debug, Clone, PartialEq)]
+struct PrivateLayoutPlacementReceipt {
+    operation_expression: crate::source_state::expression::ExpressionHandle,
+    selected_slot: crate::source_state::expression::StaticMachineArgument,
+    placement: BuildTimeValue,
+}
+
+/// A source invocation's ordinary return value and any sealed layout calls it executed.
+#[derive(Debug, Clone, PartialEq)]
+struct EvaluatedLayout {
+    value: BuildTimeValue,
+    private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
+}
+
+impl super::PreparedBuildMachineEntry {
+    fn invoke_layout_policy(
+        &self,
+        produced: Arc<crate::production::ProducedTerminalProgram>,
+        target: InvocationTarget<'_>,
+        accounting: &mut SourceCompletionAccounting,
+    ) -> Result<super::MeasuredEvaluation<EvaluatedLayout>, String> {
+        let sites = placements::executed_sites(self.accepted(), produced.view().module())?;
+        let calls = sites.iter().map(|site| site.call).collect::<Vec<_>>();
+        self.invoke_with_observations(
+            Arc::clone(&produced),
+            target,
+            accounting,
+            &calls,
+            |value, events| {
+                let private_layout_placements = placements::decode(
+                    &terminal_interpreter::TerminalProgram::borrow(produced.view()),
+                    &sites,
+                    events,
+                )?;
+                Ok(EvaluatedLayout {
+                    value,
+                    private_layout_placements,
+                })
+            },
+        )
+    }
+}
+
+pub(crate) fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     scopes: &[FixedLayoutTargetScope],
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     consent: Option<Arc<dyn crate::evaluation::InvocationSourceConsent>>,
-    purpose: declaration_contracts::source_identity::DependencyScope,
+    purpose: source_provenance::DependencyScope,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {
     if !typed.plan_laid_layouts.is_empty() || !typed.plan_laid_target_layouts.is_empty() {
@@ -66,7 +112,7 @@ pub(super) fn evaluate(
         .iter()
         .all(|scope| scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty())
     {
-        return crate::evaluation::source_frontier::refresh_layout_policy_requests(typed);
+        return super::frontier::refresh_layout_policy_requests(typed);
     }
     let occurrences = collect_program_type_occurrences(typed);
     let mut requests = Vec::new();
@@ -110,12 +156,12 @@ pub(super) fn evaluate(
     requests.sort_by_key(|(scope, identity, _, _)| (*scope, *identity));
     requests.dedup_by_key(|(scope, identity, _, _)| (*scope, *identity));
     if requests.is_empty() {
-        return crate::evaluation::source_frontier::refresh_layout_policy_requests(typed);
+        return super::frontier::refresh_layout_policy_requests(typed);
     }
     // Keep one immutable source owner for all policy calls. Installing an
     // earlier result cannot change the program used to judge a later policy.
-    let mut program = PreparedBuildMachineProgram::prepare_for(typed, authority, purpose, consent)?;
-    program.publication = terminal_codec::TerminalPublication::LayoutPolicyInvocation;
+    let program =
+        PreparedBuildMachineProgram::prepare_for_layout(typed, authority, purpose, consent)?;
     for (scope_index, _, requester, storage) in requests {
         let scope = &scopes[scope_index];
         if let Some(plan) = typed.plan_laid_layout_for_type(storage.application)
@@ -143,7 +189,7 @@ pub(super) fn evaluate(
             return Err(vec![diagnostic]);
         }
     }
-    crate::evaluation::source_frontier::refresh_layout_policy_requests(typed)
+    super::frontier::refresh_layout_policy_requests(typed)
 }
 
 fn evaluate_application(
@@ -223,7 +269,7 @@ fn evaluate_application(
     {
         return Err("layout policy result lost its original source declaration".into());
     }
-    let result = entry.invoke_operations_recorded(
+    let result = entry.invoke_layout_policy(
         Arc::new(entry.produce_invocation()?),
         InvocationTarget {
             name: Some(&scope.target),
@@ -233,19 +279,19 @@ fn evaluate_application(
         },
         accounting,
     )?;
-    let validated_layout = validation::record_plan(typed, data, &fields, result.value().value())?;
+    let validated_layout = validation::record_plan(typed, data, &fields, &result.value().value)?;
     let data_symbol = data.symbol;
     let data_name = data.name.to_string();
     let geometry = PlanLaidGeometry {
         validated_layout,
         private_callback_demands: placements::close(
             typed,
-            &entry,
-            result.value().private_layout_placements(),
+            accepted,
+            &result.value().private_layout_placements,
             requester,
             &policy,
             storage.semantic_type,
-            &program.exact_toolchain_sources,
+            program.exact_toolchain_sources(),
         )?,
     };
     placements::validate(&geometry, &fields, facts)?;

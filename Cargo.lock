@@ -3223,6 +3223,7 @@ dependencies = [
  "build-invocation",
  "build-scalar-evaluation",
  "build-time-values",
+ "build-value-projection",
  "checked-program-to-psi",
  "declaration-scope",
  "diagnostics",
