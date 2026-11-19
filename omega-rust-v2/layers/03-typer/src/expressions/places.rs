@@ -5,6 +5,11 @@ use omega_parser::NodeKind;
 use omega_resolver::Symbol;
 use std::collections::HashSet;
 
+pub(super) enum PlaceUse {
+    Assignment,
+    Borrow { site: usize, access: Access },
+}
+
 impl BodyTyper<'_, '_> {
     pub(super) fn cast(
         &mut self,
@@ -125,14 +130,68 @@ impl BodyTyper<'_, '_> {
         self.record_operator(node_index, "as", vec![source], &target);
         Ok(target)
     }
-    pub(super) fn ungrouped_place(
-        &self,
-        mut node_index: usize,
-    ) -> Result<usize, TypeError> {
-        while self.unit.file.nodes[node_index].kind == NodeKind::Paren {
-            node_index = self.unit.single_child(node_index)?;
+    /// Assignment and explicit borrowing must select the same storage through any
+    /// number of grouping nodes. Indexing selects its own operation and records
+    /// the loan on the collection, so it must not also record a field or local loan.
+    pub(super) fn check_place(
+        &mut self,
+        mut place: usize,
+        usage: PlaceUse,
+    ) -> Result<(usize, ValueType), TypeError> {
+        use crate::Access as Authority;
+        use NodeKind::*;
+        let access = match &usage {
+            PlaceUse::Assignment => &Authority::Write,
+            PlaceUse::Borrow { access, .. } => access,
+        };
+        let source = &self.unit.file;
+        let ty = loop {
+            match source.nodes[place].kind {
+                Paren => place = self.unit.single_child(place)?,
+                FieldAccess => break self.project_fields(place, access)?,
+                Index => {
+                    let ty = match usage {
+                        PlaceUse::Assignment => {
+                            let view = self.index(place, Some(Authority::Mut))?;
+                            let ValueType::Reference(Authority::Mut | Authority::Write, inner) = view else {
+                                return Err(TypeError::at(source, place, "index does not return writable storage"));
+                            };
+                            *inner
+                        }
+                        PlaceUse::Borrow { access, .. } => self.index(place, Some(access))?,
+                    };
+                    return Ok((place, ty));
+                }
+                PathExpression | Literal | Binary | Unary | Cast | Tuple | Move | CallMarker | Call | RecordLiteral | Match | Body | ArrayLiteral | Borrow => {
+                    break self.type_expression(place)?;
+                }
+                File | Fragment | Use | Const | Data | Field | Case | CaseField | StableNumber | Attributes | Attribute | DroppedBy | Domain | Access
+                | Trait | Restriction | Conformance | SelectionRow | Hypothesis | Machine | AsmMachine | OperatorToken | MathLet | Path | GenericParams
+                | TypeParam | KindedParam | ConstParam | MachineParam | SomeParam | LifetimeParam | Params | Param | Result | Requires | Ensures | Reaches
+                | Crashes | Blocks | Suspends | Terminates | Invokes | Satisfies | Registers | Clobbers | ReferenceType | SliceType | ArrayType
+                | MachineType | FunctionType | FamilyApplication | PathType | TypeArgs | QualifiedType | Lifetime | Let | Assign | Discard
+                | ExpressionStatement | Tail | AsmBlock | Instruction | AsmTransition | Transition | Arm | WildcardPattern | BindingPattern | RecordPattern
+                | FieldPattern | RestPattern | TuplePattern | ParenPattern | ValuePattern | ExpressionArgs | FieldInit | Omission | Selection | Args
+                | Range | CastEntry | Unfinished => return Err(TypeError::unsupported(source, place)),
+            }
+        };
+        if *access != Authority::Shared {
+            self.require_writable(place)?;
         }
-        Ok(node_index)
+        let result = match usage {
+            PlaceUse::Assignment => ty,
+            PlaceUse::Borrow { site, access } => {
+                self.record_obligation(
+                    site,
+                    ObligationKind::Borrow {
+                        access: access.clone(),
+                        place: Site::at(source, place),
+                    },
+                );
+                ValueType::Reference(access, Box::new(ty))
+            }
+        };
+        Ok((place, result))
     }
     pub(super) fn require_writable(
         &self,
@@ -177,22 +236,7 @@ impl BodyTyper<'_, '_> {
         let [place, right_type] = *source.nodes[node_index].children.as_slice() else {
             return Err(TypeError::unsupported(source, node_index));
         };
-        let place = self.ungrouped_place(place)?;
-        let ty = if source.nodes[place].kind == NodeKind::FieldAccess {
-            let ty = self.project_fields(place, &Access::Write)?;
-            self.require_writable(place)?;
-            ty
-        } else if source.nodes[place].kind == NodeKind::Index {
-            let view = self.index(place, Some(Access::Mut))?;
-            let ValueType::Reference(Access::Mut | Access::Write, inner) = view else {
-                return Err(TypeError::at(source, place, "index does not return writable storage"));
-            };
-            *inner
-        } else {
-            let ty = self.type_expression(place)?;
-            self.require_writable(place)?;
-            ty
-        };
+        let (place, ty) = self.check_place(place, PlaceUse::Assignment)?;
         let value = self.type_expression_with_expected_type(right_type, Some(&ty))?;
         self.version = Some(Site::at(source, node_index));
         self.cases.clear();
@@ -334,7 +378,7 @@ impl BodyTyper<'_, '_> {
     ) -> Result<ValueType, TypeError> {
         self.project_fields(node_index, &Access::Shared)
     }
-    pub(super) fn project_fields(
+    fn project_fields(
         &mut self,
         mut node_index: usize,
         access: &Access,
