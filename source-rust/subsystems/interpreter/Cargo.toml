@@ -34,3 +34,6 @@ terminal-codec = { path = "../compiler/psi/codec" }
 terminal-work = { path = "../compiler/psi/work" }
 terminal-semantics = { path = "../compiler/psi/semantics" }
 closed-predicates = { path = "../compiler/psi/semantics/closed-predicates" }
+
+[dev-dependencies]
+evaluation-work = { path = "../compiler/build/evaluation/work" }

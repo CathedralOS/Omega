@@ -263,7 +263,7 @@ pub(crate) mod instance {
         use semantic_vocabulary::{BoundaryMachineId, OperationId};
         use psi_provider_selections::AdmittedComponentProvider;
         use psi_scalar_applications::AdmittedScalarApplications;
-        use terminal_work::WorkMeter;
+        use terminal_work::ExecutionMeter;
 
         use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
         use crate::boundary::results::TerminalExecutionStatus;
@@ -537,7 +537,7 @@ pub(crate) mod instance {
                 operation: OperationId,
                 arguments: &[TerminalScalarValue],
                 structural_operands: &[terminal_psi::StructuralArgument],
-                meter: &mut WorkMeter,
+                meter: &mut dyn ExecutionMeter,
             ) -> Result<Option<TerminalExecutionStatus>, String> {
                 let pending = self
                     .pending
@@ -1682,7 +1682,7 @@ pub(crate) mod instance {
     use std::collections::BTreeMap;
 
     use semantic_vocabulary::BoundaryMachineId;
-    use terminal_work::WorkMeter;
+    use terminal_work::ExecutionMeter;
 
     use crate::boundary::effects::byte_buffers::TerminalBoundaryByteBuffer;
     use crate::boundary::effects::results::TerminalEffectResult;
@@ -2101,7 +2101,7 @@ pub(crate) mod instance {
 
         pub fn invoke(
             &mut self,
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
         ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
             if self.closed {
                 return Err(TerminalInstanceError::Closed);

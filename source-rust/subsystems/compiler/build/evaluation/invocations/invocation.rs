@@ -17,7 +17,8 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
     TerminalRuntimeSupplies,
 };
-use terminal_work::{WorkMeter, WorkUsage};
+use evaluation_work::EvaluationWorkMeter;
+use terminal_work::WorkUsage;
 
 /// Values and observations offered for one call. `bind` checks these against
 /// the independently admitted code and supplies before sealing the invocation.
@@ -37,7 +38,7 @@ pub struct InvocationInput<'input> {
 /// inputs or meter and consumes the binding, so it cannot quietly replay a call.
 pub struct ArtifactInvocation<'input> {
     input: InvocationInput<'input>,
-    meter: &'input mut WorkMeter,
+    meter: &'input mut EvaluationWorkMeter,
 }
 
 #[derive(Debug, Clone)]
@@ -124,7 +125,7 @@ impl InvocationOutcome {
 impl<'input> ArtifactInvocation<'input> {
     pub fn bind(
         input: InvocationInput<'input>,
-        meter: &'input mut WorkMeter,
+        meter: &'input mut EvaluationWorkMeter,
     ) -> Result<Self, String> {
         let entry = input
             .code
@@ -165,7 +166,7 @@ impl<'input> ArtifactInvocation<'input> {
             target: input.target.map(str::to_owned),
             arguments: Arc::clone(input.arguments),
             inputs: Arc::clone(input.inputs),
-            account: self.meter.invocation_account().cloned(),
+            account: self.meter.payment().invocation().cloned(),
             usage: self.meter.usage().clone(),
         };
         InvocationOutcome { value, receipt }
@@ -253,7 +254,7 @@ impl<'input> ArtifactInvocation<'input> {
             .result
             .structural()
             .map(|result| result.structural_type);
-        let account = meter.invocation_account().cloned();
+        let account = meter.payment().invocation().cloned();
         let request = TerminalInstantiation {
             account: account.as_ref(),
             installation: Some(self.input.supplies),

@@ -208,7 +208,6 @@ use evaluation_contracts::{
 use semantic_vocabulary::{ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, ValueId};
 use std::sync::Arc;
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueDeclaration};
-use terminal_work::WorkMeter;
 
 #[test]
 fn exact_calls_retain_executed_integer_arguments_and_discard_crashed_invocations() {
@@ -299,7 +298,7 @@ fn exact_calls_retain_executed_integer_arguments_and_discard_crashed_invocations
         let mut instance =
             TerminalInstance::new(crate::TerminalProgram { program }, execution, vec![]);
         assert!(instance.take_call_observations().is_empty());
-        let mut meter = WorkMeter::with_invocation(account.clone(), Some(1000)).unwrap();
+        let mut meter = evaluation_work::sponsored_meter(account.clone(), Some(1000)).unwrap();
         let status = instance.invoke(&mut meter).unwrap();
         let usage = account.snapshot().unwrap();
         assert_eq!(usage.record().work_units, meter.usage().total_units());

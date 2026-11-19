@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+evaluation-work = { path = "../evaluation/work" }
 build-settings = { path = "../build-settings" }
 build-evaluation-result = { path = "result" }
 normalized-build-settings = { path = "../build-settings/normalized" }

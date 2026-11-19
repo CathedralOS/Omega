@@ -38,7 +38,7 @@ impl PreparedBuildMachineEntry {
     ) -> Result<T, String> {
         let (admitted, requirements) = self.admit_invocation(&produced, target)?;
         let sponsor = pure_terminal_invocation_account()?;
-        let mut meter = terminal_work::WorkMeter::with_invocation(sponsor, None)
+        let mut meter = evaluation_work::sponsored_meter(sponsor, None)
             .map_err(|error| format!("source invocation meter: {error:?}"))?;
         let run = self.execute_invocation(
             &produced,
@@ -264,7 +264,7 @@ impl PreparedBuildMachineEntry {
         admitted: &evaluation_admission::AdmittedCompilerEvaluation,
         requirements: terminal_interpreter::TerminalExecutionRequirements,
         target: InvocationTarget<'_>,
-        meter: &mut terminal_work::WorkMeter,
+        meter: &mut evaluation_work::EvaluationWorkMeter,
         observed_calls: &[terminal_interpreter::TerminalCallObservation],
     ) -> Result<build_invocation::InvocationOutcome, String> {
         let selected = produced

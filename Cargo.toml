@@ -28,6 +28,7 @@ members = [
     "source-rust/subsystems/compiler/build/evaluation/receipts",
     "source-rust/subsystems/compiler/build/evaluation/scalars",
     "source-rust/subsystems/compiler/build/evaluation/usage",
+    "source-rust/subsystems/compiler/build/evaluation/work",
     "source-rust/subsystems/compiler/build/evaluation/value-projection",
     "source-rust/subsystems/compiler/build/evaluation/values",
     "source-rust/subsystems/compiler/build/optimization-policy/requests",

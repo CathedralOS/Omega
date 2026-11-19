@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+evaluation-work = { path = "../../../build/evaluation/work" }
 native-execution-scope = { path = "execution-scope" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 build-value-projection = { path = "../../../build/evaluation/value-projection" }

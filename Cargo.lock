@@ -108,6 +108,7 @@ dependencies = [
  "evaluation-admission",
  "evaluation-contracts",
  "evaluation-receipts",
+ "evaluation-work",
  "host-provider-inputs",
  "language-core",
  "layout",
@@ -305,6 +306,7 @@ dependencies = [
  "evaluation-admission",
  "evaluation-contracts",
  "evaluation-receipts",
+ "evaluation-work",
  "filesystem-authority",
  "interpreter-numeric-imports",
  "normalized-build-settings",
@@ -340,6 +342,7 @@ dependencies = [
  "build-value-projection",
  "evaluation-accounting",
  "evaluation-admission",
+ "evaluation-work",
  "layout-plans",
  "psi-scalar-applications",
  "semantic-vocabulary",
@@ -367,6 +370,7 @@ dependencies = [
  "build-time-values",
  "evaluation-accounting",
  "evaluation-contracts",
+ "evaluation-work",
  "proof-applications",
  "psi-provider-selections",
  "psi-scalar-applications",
@@ -818,6 +822,17 @@ dependencies = [
  "record-storage",
  "semantic-vocabulary",
  "wire",
+]
+
+[[package]]
+name = "evaluation-work"
+version = "0.1.0"
+dependencies = [
+ "evaluation-accounting",
+ "evaluation-contracts",
+ "semantic-vocabulary",
+ "terminal-psi",
+ "terminal-work",
 ]
 
 [[package]]
@@ -2938,6 +2953,7 @@ dependencies = [
  "evaluation-admission",
  "evaluation-contracts",
  "evaluation-receipts",
+ "evaluation-work",
  "language-core",
  "layout-planning",
  "layout-plans",
@@ -2998,6 +3014,7 @@ dependencies = [
  "evaluation-accounting",
  "evaluation-admission",
  "evaluation-contracts",
+ "evaluation-work",
  "record-storage",
  "semantic-vocabulary",
  "symbols",
@@ -3491,6 +3508,7 @@ dependencies = [
  "evaluation-accounting",
  "evaluation-admission",
  "evaluation-contracts",
+ "evaluation-work",
  "extent-contracts",
  "extents",
  "language-core",
@@ -3628,8 +3646,6 @@ dependencies = [
 name = "terminal-work"
 version = "0.1.0"
 dependencies = [
- "evaluation-accounting",
- "evaluation-contracts",
  "record-storage",
  "semantic-vocabulary",
  "terminal-psi",

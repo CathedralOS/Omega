@@ -1999,7 +1999,7 @@ pub(crate) mod execution {
         StructuralPathSegment, StructuralTypeDeclaration, TerminalAccessViewInput, Terminator,
     };
     use terminal_semantics::validate_empty_erased_invocation_inputs;
-    use terminal_work::WorkMeter;
+    use terminal_work::ExecutionMeter;
 
     pub(crate) enum TerminatorFlow {
         Continue,
@@ -2970,7 +2970,7 @@ pub(crate) mod execution {
 
         pub fn resume(
             &mut self,
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
         ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
             self.resume_with_components(meter, handler, &mut ComponentBindings::new())
@@ -2978,7 +2978,7 @@ pub(crate) mod execution {
 
         pub(crate) fn resume_with_components(
             &mut self,
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
             components: &mut ComponentBindings<'_, 'artifact>,
         ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
@@ -3018,7 +3018,7 @@ pub(crate) mod execution {
 
         fn resume_operations(
             &mut self,
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
             handler: &mut impl TerminalEffectHandler,
             components: &mut ComponentBindings<'_, 'artifact>,
         ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {

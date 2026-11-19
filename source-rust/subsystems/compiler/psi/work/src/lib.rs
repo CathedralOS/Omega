@@ -1,42 +1,12 @@
 #![forbid(unsafe_code)]
 
-/*
-We define the target-neutral logical work schedule (`WorkSchedule`, `WorkScheduleIdentity`),
-per-site charge attribution (`WorkChargeSite`, `WorkAttribution`, `WorkUsage`), and sponsor-owned
-execution metering (`WorkMeter`, `WorkBudgetExhausted`, `WorkMeterError`) for Terminal Psi. Every
-executable `OperationKind` and taken control-flow `Terminator` edge in Terminal Psi is assigned an
-explicit, deterministic unit cost under `WorkSchedule::TerminalUnitV1`
-(`WorkScheduleIdentity::TERMINAL_UNIT_V1`, marker `"psi-work-unit-v1"`). `WorkMeter` charges each
-`WorkChargeSite::Operation(OperationId)` or `WorkChargeSite::Edge(EdgeId)` before the interpreter
-executes that instruction or takes that control-flow edge, recording exact execution counts and
-accumulated units in a deterministic `BTreeMap<WorkChargeSite, WorkAttribution>` while optionally
-debiting a shared `EvaluationInvocationAccount` and a local resumable budget ceiling.
-*/
-
-/*
-Why meter logical work at the target-neutral Terminal Psi representation layer rather than counting
-host instructions or wall-clock time? Proof-checked execution budgets, compile-time evaluation
-ceilings (`EvaluationInvocationAccount`), and differential interpreter replay require an
-architecture-independent cost model where every semantic operation and control-flow transfer charges
-the exact same deterministic unit regardless of host CPU, optimization pass selection, or target ABI
-realization. Pre-charging each site before execution—and validating both local remaining units and
-the shared invocation account atomically before committing attribution—ensures that budget
-exhaustion (`WorkBudgetExhausted`) is a clean, resumable sponsor event that never partially executes
-an instruction or mutates accumulated usage when payment is refused.
-*/
-
-/*
-`WorkSchedule::CURRENT` is pinned by `WorkScheduleIdentity::TERMINAL_UNIT_V1` into
-`EvaluationMeasurementIdentity::TerminalPsi`, consumed by the Terminal Psi interpreter
-(`terminal-interpreter`) to meter every step of program evaluation, and recorded into build
-settings, native image emission, and compilation provenance so published artifacts and execution
-traces bind to the exact logical work schedule under which they were evaluated.
-*/
+//! The target-neutral work schedule charges each executed operation and each taken
+//! edge. After checking the available quantum and attribution counters, the meter
+//! charges its payment source and records the event. A refused charge leaves the
+//! local quantum and usage available for the next attempt.
 
 use std::collections::BTreeMap;
 
-use evaluation_accounting::EvaluationInvocationAccount;
-use evaluation_contracts::{EvaluationAccountingError, EvaluationMeasurementIdentity};
 use semantic_vocabulary::{EdgeId, OperationId};
 use terminal_psi::{Operation, OperationKind, Terminator};
 
@@ -224,53 +194,52 @@ impl WorkUsage {
     }
 }
 
+/// Charge an external budget after the meter has checked its local quantum and counters.
+pub trait WorkPayment {
+    fn pay(&self, units: u64) -> Result<(), String>;
+}
+
+impl WorkPayment for () {
+    fn pay(&self, _units: u64) -> Result<(), String> {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct WorkMeter {
+pub struct WorkMeter<Payment = ()> {
     schedule: WorkSchedule,
     work_remaining: Option<u64>,
     usage: WorkUsage,
-    invocation: Option<EvaluationInvocationAccount>,
+    payment: Payment,
 }
 
 impl WorkMeter {
     pub fn unbounded() -> Self {
-        Self::new(WorkSchedule::CURRENT, None)
+        Self::with_payment((), None)
     }
 
     pub fn with_budget(units: u64) -> Self {
-        Self::new(WorkSchedule::CURRENT, Some(units))
+        Self::with_payment((), Some(units))
     }
+}
 
-    pub fn with_invocation(
-        invocation: EvaluationInvocationAccount,
-        budget: Option<u64>,
-    ) -> Result<Self, WorkMeterError> {
+impl<Payment: WorkPayment> WorkMeter<Payment> {
+    pub fn with_payment(payment: Payment, work_remaining: Option<u64>) -> Self {
         let schedule = WorkSchedule::CURRENT;
-        let EvaluationMeasurementIdentity::TerminalPsi { work_schedule, .. } =
-            invocation.measurement();
-        if work_schedule != schedule.identity() {
-            return Err(WorkMeterError::InvocationMeasurementMismatch);
-        }
-        let mut meter = Self::new(schedule, budget);
-        meter.invocation = Some(invocation);
-        Ok(meter)
-    }
-
-    fn new(schedule: WorkSchedule, work_remaining: Option<u64>) -> Self {
         Self {
             schedule,
             work_remaining,
             usage: WorkUsage::empty(schedule.identity()),
-            invocation: None,
+            payment,
         }
+    }
+
+    pub fn payment(&self) -> &Payment {
+        &self.payment
     }
 
     pub const fn schedule(&self) -> WorkSchedule {
         self.schedule
-    }
-
-    pub fn invocation_account(&self) -> Option<&EvaluationInvocationAccount> {
-        self.invocation.as_ref()
     }
 
     pub const fn work_remaining(&self) -> Option<u64> {
@@ -362,11 +331,9 @@ impl WorkMeter {
             .checked_add(units)
             .ok_or(WorkMeterError::AccountingOverflow(site))?;
 
-        if let Some(invocation) = &self.invocation {
-            invocation
-                .charge_work(units)
-                .map_err(|reason| WorkMeterError::InvocationCharge { site, reason })?;
-        }
+        self.payment
+            .pay(units)
+            .map_err(|reason| WorkMeterError::PaymentRefused { site, reason })?;
         self.usage.total_units = total_units;
         self.usage.attribution.insert(
             site,
@@ -379,6 +346,30 @@ impl WorkMeter {
             *remaining -= units;
         }
         Ok(())
+    }
+}
+
+mod private {
+    pub trait Sealed {}
+}
+impl<P: WorkPayment> private::Sealed for WorkMeter<P> {}
+
+/// Execution charges the same schedule and counters for every kind of budget.
+pub trait ExecutionMeter: private::Sealed {
+    fn charge_operation(&mut self, operation: &Operation) -> Result<(), WorkMeterError>;
+    fn charge_terminator(&mut self, terminator: &Terminator) -> Result<(), WorkMeterError>;
+    fn charge_edge(&mut self, edge: EdgeId, terminator: &Terminator) -> Result<(), WorkMeterError>;
+}
+
+impl<P: WorkPayment> ExecutionMeter for WorkMeter<P> {
+    fn charge_operation(&mut self, operation: &Operation) -> Result<(), WorkMeterError> {
+        WorkMeter::charge_operation(self, operation)
+    }
+    fn charge_terminator(&mut self, terminator: &Terminator) -> Result<(), WorkMeterError> {
+        WorkMeter::charge_terminator(self, terminator)
+    }
+    fn charge_edge(&mut self, edge: EdgeId, terminator: &Terminator) -> Result<(), WorkMeterError> {
+        WorkMeter::charge_edge(self, edge, terminator)
     }
 }
 
@@ -411,12 +402,11 @@ impl std::fmt::Display for WorkBudgetExhausted {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkMeterError {
-    InvocationMeasurementMismatch,
-    InvocationCharge {
+    PaymentRefused {
         site: WorkChargeSite,
-        reason: EvaluationAccountingError,
+        reason: String,
     },
     ConditionalEdgeNotSelected,
     EdgeNotOwnedByTerminator(EdgeId),
@@ -428,7 +418,7 @@ pub enum WorkMeterError {
 impl std::fmt::Display for WorkMeterError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvocationCharge { site, reason } => write!(formatter, "{reason} at {site:?}"),
+            Self::PaymentRefused { site, reason } => write!(formatter, "{reason} at {site:?}"),
             Self::Exhausted(exhaustion) => exhaustion.fmt(formatter),
             other => write!(formatter, "{other:?}"),
         }

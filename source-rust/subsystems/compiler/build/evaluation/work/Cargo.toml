@@ -1,0 +1,17 @@
+[package]
+name = "evaluation-work"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "work.rs"
+
+[dependencies]
+evaluation-accounting = { path = "../accounting" }
+evaluation-contracts = { path = "../usage" }
+terminal-work = { path = "../../../psi/work" }
+
+[dev-dependencies]
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+terminal-psi = { path = "../../../psi" }

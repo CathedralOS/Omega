@@ -8,6 +8,7 @@ version.workspace = true
 path = "invocation.rs"
 
 [dependencies]
+evaluation-work = { path = "../work" }
 build-time-values = { path = "../values" }
 build-value-projection = { path = "../value-projection" }
 evaluation-accounting = { path = "../accounting" }

@@ -12,7 +12,7 @@ use terminal_interpreter::{
     TerminalRuntimeSupplyRequest, TerminalStructuralInputs, TerminalStructuralValue,
 };
 use terminal_psi::TargetMachineCallable;
-use terminal_work::{WorkMeter, WorkUsage};
+use terminal_work::WorkUsage;
 
 pub(super) fn evaluate_terminal_calling_policy(
     invocation: TerminalCallingPolicyInvocation<'_>,
@@ -83,7 +83,7 @@ pub(super) fn evaluate_terminal_calling_policy(
             demanded.push(application);
         }
     }
-    let mut meter = WorkMeter::with_invocation(account.clone(), None)
+    let mut meter = evaluation_work::sponsored_meter(account.clone(), None)
         .map_err(|error| format!("calling policy work: {error:?}"))?;
     let declaration = artifact
         .semantic_module()

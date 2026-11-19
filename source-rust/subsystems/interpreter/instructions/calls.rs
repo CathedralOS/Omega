@@ -1431,7 +1431,7 @@ pub(crate) mod component_arguments {
 pub(crate) mod component_calls {
     use semantic_vocabulary::StructuralDomainId;
     use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult};
-    use terminal_work::WorkMeter;
+    use terminal_work::ExecutionMeter;
 
     use crate::boundary::effects::results::TerminalEffectResult;
     use crate::boundary::effects::{
@@ -1448,7 +1448,7 @@ pub(crate) mod component_calls {
             &mut self,
             operation: &terminal_psi::Operation,
             arguments: &[TerminalScalarValue],
-            meter: &mut WorkMeter,
+            meter: &mut dyn ExecutionMeter,
             components: &mut ComponentBindings<'_, 'artifact>,
         ) -> Result<OperationFlow, TerminalInterpretError> {
             let reject = |reason| TerminalInterpretError::EffectRejected {
@@ -2960,7 +2960,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
-        meter: &mut terminal_work::WorkMeter,
+        meter: &mut dyn terminal_work::ExecutionMeter,
         components: &mut crate::embedding::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         if let Some(pending) = self.awaiting_effect.as_ref() {
