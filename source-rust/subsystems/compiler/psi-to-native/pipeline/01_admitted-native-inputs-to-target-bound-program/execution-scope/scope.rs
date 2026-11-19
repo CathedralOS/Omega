@@ -1,10 +1,11 @@
 //! Follow the machines, callbacks and provider boundaries reachable for a selected target entry.
 #![forbid(unsafe_code)]
 
-mod sequence_bounds;
 use provider_admission::provider_installation::SelectedProviderAdapter;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-pub use sequence_bounds::closed_owned_sequence_bounds;
+#[cfg(test)]
+use terminal_semantics::closed_owned_sequence_bounds;
+use verified_optimization_input::{NativeExecutionScope, ProposalScopeRequest, ScopeInputs};
 use target_vocabulary::publication::{EmittedCallbackOccurrence, EmittedExecutionScope};
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
