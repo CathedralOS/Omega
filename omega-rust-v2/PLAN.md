@@ -57,8 +57,12 @@ tokens, tokens to a tree, and so on. The same loop runs for every layer:
 
 1. **Contract.** Write down the layer's input, output and every rule it
    enforces, each rule citing the spec section it comes from. A rule with no
-   spec owner goes in [Spec gaps](#spec-gaps) and gets a decision from Jarod
-   before it is implemented.
+   spec owner needs a ruling from Jarod before it is implemented. File unresolved
+   language and architecture questions in Omega's root
+   [OWNER_QUESTIONS.md](../OWNER_QUESTIONS.md) with the specific contract and
+   example that leave the choice open. Link to the question from the affected
+   layer's contract. When Jarod answers, record the ruling in the governing
+   spec and remove the queue entry.
 2. **Fixtures first.** For every rule, at least one input the layer must
    accept and one it must reject, written before the code.
 3. **Implement** the layer as a library that depends only on the layers
@@ -175,11 +179,9 @@ native/Psi agreement. Use V2 syntax and stage expectations for the fixtures.
 · [Execution comparison](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/tests/both_exit_status_comparison.rs)
 
 **Before documenting bare `omega run` as available**, settle whether a
-neighboring build file participates and what engine the bare command selects.
-The Fable discussion leaned toward running the named file directly with
-default settings. V1 and the imported [CLI](wiki/spec/build/command_line.md)
-and [execution spec](wiki/spec/build/embedding.md#standalone-execution-selection)
-provide the native-default comparison. Track the build backings, grants,
+neighboring build file participates. The [open direct-run question](../OWNER_QUESTIONS.md#open-questions)
+records the choice. The [execution spec](wiki/spec/build/embedding.md#standalone-execution-selection)
+selects native execution when the engine is omitted. Track the build backings, grants,
 stage budget and lockfile details with the existing driver questions below.
 
 ### L0 Lexer
@@ -337,7 +339,7 @@ exist yet.
 **Decided** by Jarod, 2026-11-18, in two steps: first as two insulated stages
 that talk through reflection, then generalized to any number of stages on
 Zac's proposal, with refinements from Astra's review. Cracks that show up
-later come back as [owner questions](#owner-questions) in this repo.
+later go to the repository's [owner-question queue](../OWNER_QUESTIONS.md).
 
 The rule:
 
@@ -578,8 +580,8 @@ encoding contract). Not planned in detail.
 
 ## Spec gaps
 
-Places where the spec is silent, stale or inconsistent. Each needs a decision
-before the layer that depends on it is signed off.
+This table records findings and their disposition. Open language and architecture
+decisions belong in the [repository owner-question queue](../OWNER_QUESTIONS.md).
 
 | # | Gap | Evidence | Affects | Decision |
 | --- | --- | --- | --- | --- |
@@ -623,16 +625,15 @@ decided by Jarod. V2’s spec incorporates the reference spelling in row 11.
 | 10 | Every binary operator groups to the left, comparisons included (V1's operator table, adopted as grammar decision 6). | The six comparison operators do not take a comparison as an operand without parentheses: `a < b < c`, `a == b == c` and `a < b == c` are refused. Every other operator still groups to the left. | 2026-11-18 |
 | 11 | V1 uses `&` for references, borrows and bitwise AND. | V2 uses `@` for references and borrows. `&` remains bitwise AND or domain intersection and `&&` remains Boolean AND. | 2026-11-18 |
 
-## Owner questions
+## Historical V2 owner rulings
 
-Questions only Jarod can answer. Cracks in a decided design are raised here,
-not worked around in code.
+These entries preserve earlier V2 decisions and deferred research. File new
+questions in [Omega's root owner-question queue](../OWNER_QUESTIONS.md).
 
 | # | Question | Raised | Affects | Answer |
 | --- | --- | --- | --- | --- |
 | 1 | May `build.omg` register a build-only package while it runs and then use it? If yes, `build.omg` itself still needs staged checking (reason 2 under [Why V1 loops back](#why-v1-loops-back)). If build-only packages must be known before it runs, the only loop left is source discovery. | 2026-11-18 | driver | Answered 2026-11-18: no. A stage may discover a package and put it in its plan; a later stage imports it. Nothing is used in the stage that registers it. |
 | 2 | Where do a Build's own services come from? `build.omg` may import a file that declares or uses a service such as `Console`, but calling it needs a provider, and the decided Build model does not say who supplies one. Raised by Zac. | 2026-11-18 | driver, interpreter | Answered 2026-11-18: from the stage before it. The core-supplied first stage selects the ordinary build backings for `build.omg`, and the invocation grants the resources. See the [Build model](#v2s-build-model-a-chain-of-stages). |
-| 3 | When `omega run main.omg` is run and a build program sits beside it, is that build program used or ignored? Using it makes the command do what the project intends; ignoring it keeps "what you pass is what runs" and lets a script be run without its project's build. | 2026-11-18 | driver | Open. Probably moot: if no file names are blessed, nothing beside the given file can be picked up implicitly. Not confirmed. |
 | 4 | How should V2 load source files? Measured on V1's 19,442 files: reading file by file tops out near 90,000 files per second (about 125 MB/s) at 4 threads, or about 115,000 with real-time antivirus off, because each file costs 24 to 30 microseconds of operating-system work whatever its size. Reading the same bytes as one packed file runs at 6 to 9 GB/s. Getting near the drive therefore needs a packed copy of the sources plus a cheap way to see which files changed. Is that wanted, and at which stage? Details in [EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md), experiment 6. | 2026-11-18 | driver, source loading | Deferred 2026-11-18, worth revisiting. Not built now: staleness detection is the hard part and nothing downstream exists to show what share of a build reading is. Revisit when a real build can be timed end to end and reading is more than about 10 to 20 percent of it, or when the full test suite's read time is felt. First thing to measure then: how cheaply the OS can report which files changed. See [What the operating system costs](#what-the-operating-system-costs). |
 | 5 | Should a comparison be allowed as the operand of another comparison? Today it is, because every operator groups to the left (grammar decision 6). The cost: a generic call written the old way, `apply<set_time>(x)`, is a valid expression, `(apply < set_time) > (x)`, and gets past the parser. The typer will refuse it, but with a message about comparing a machine. Refusing chained comparisons in the parser would catch it there with a message that says to write `::<`. No spec example chains comparisons. | 2026-11-18 | L1 | Answered 2026-11-18, after it was decided, undone and decided again: no. A comparison is not the operand of another without parentheses, for all six comparison operators as one group, so `a < b < c`, `a == b == c` and `a < b == c` are refused (grammar decision 11). The reason: the grouping has to be something the writer wrote. Where the types differ the typer would refuse a chain anyway (`false < 32`), which is why keeping the chain looked harmless. Where all three are booleans nothing objects: `a == b == c` type-checks as `(a == b) == c`, which is not "all three are equal". Rust, Zig and Lean refuse chains the same way; Rocq defines a chain as both comparisons holding; Odin groups to the left. Not adopted: forcing parentheses where `&&` and `||` are mixed. Not a reason: what a V1 user might write. |
 | 6 | How should a reader distinguish a nested borrow from an AND operator? | 2026-11-18 | L0, L1 | The initial answer kept prefix `&` and required spacing. Superseded by grammar decision 12: each `@` starts one reference or borrow, so `@@T` and `@@x` express two layers. |
