@@ -1116,3 +1116,56 @@ fn a_dependency_alias_that_also_names_a_root_directory_or_declaration_is_refused
         }
     }
 }
+
+/// What each use spelled `word` in `file` refers to: a constant's path, or the
+/// kind and offset of the binding.
+fn word_targets(
+    stage: &omega_resolver::ResolvedStage,
+    file: &str,
+    text: &str,
+    word: &str,
+) -> Vec<String> {
+    stage
+        .uses
+        .iter()
+        .filter(|u| u.file == file && text.get(u.span.get_start_offset()..u.span.get_end_offset()) == Some(word))
+        .map(|u| match &u.target {
+            Symbol::Declaration(id) => format!("{:?} {}::{}", id.kind, id.package, id.path),
+            Symbol::Binding { span, kind, .. } => format!("{kind:?}@{}", span.get_start_offset()),
+            other => format!("{other:?}"),
+        })
+        .collect()
+}
+
+#[test]
+fn a_bare_arm_word_compares_only_against_a_constant_that_no_local_hides() {
+    // `x` in `match v { x -> x }` is a fresh binder unless the word names a
+    // constant. A parameter, local or generic binder named `x` hides a package
+    // constant of that spelling, so adding or removing the constant cannot turn
+    // the arm into a comparison against the parameter.
+    let consts = ("app", "consts.omg", "const x: u32 = 7; const N: u32 = 7;");
+    for text in [
+        "machine f(x: u32, v: u32) -> u32 { match v { x -> x, _ -> 0 } }",
+        "machine f(v: u32) -> u32 { let x = 3; match v { x -> x, _ -> 0 } }",
+        "machine f<const x: u32>(v: u32) -> u32 { match v { x -> x, _ -> 0 } }",
+    ] {
+        let pattern = text.find("{ x ->").unwrap() + 2;
+        let binder = format!("BindingPattern@{pattern}");
+        for files in [
+            vec![("app", "main.omg", text)],
+            vec![consts, ("app", "main.omg", text)],
+        ] {
+            let stage = run(&files, &[]).unwrap();
+            assert_eq!(
+                word_targets(&stage, "main.omg", text, "x"),
+                [binder.as_str()],
+                "{text} with {} files",
+                files.len()
+            );
+        }
+    }
+    // With no local of that spelling the word compares against the constant.
+    let text = "machine f(v: u32) -> u32 { match v { x -> 1, _ -> 0 } }";
+    let stage = run(&[consts, ("app", "main.omg", text)], &[]).unwrap();
+    assert_eq!(word_targets(&stage, "main.omg", text, "x"), ["Const app::x"]);
+}
