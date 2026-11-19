@@ -57,10 +57,78 @@
 */
 
 /*
+    How the code is laid out.
+
+    This file only declares the modules and names what the crate exports.
+    Everything else is in four folders, one for each thing a reader might be
+    looking for:
+
+        lexing/     the work itself: the two entry points, the scanner that
+                    makes the one pass, the byte tables it reads, and the
+                    escape rules of a quoted literal.
+        tokens/     what comes out: the token, its kinds, the punctuation
+                    vocabulary and the radix of an integer.
+        errors/     what a refusal carries: the error and the rule it names.
+        locations/  where something is in a file: a byte range, and the line
+                    and column a person would look for.
+
+    The folders are not numbered, because they are not steps: the lexer is one
+    pass, and these are the things that pass uses and produces. There is still
+    a good order to read them in, and it crosses the folders:
+
+        1. lexing/lexer.rs
+           The two entry points, `lex` and `lex_into`, with a narrated example
+           on each. This is all a caller ever touches.
+
+        2. tokens/token.rs, tokens/token_kind.rs, locations/source_span.rs
+           What comes back. A token is a kind and a span, and that is the whole
+           output, so read these before the code that fills them in.
+
+        3. lexing/token_scanner.rs
+           The pass. `scan_all` is the loop that every byte goes through; read
+           it first. The methods under it take over for the three kinds of
+           token with more rules: numbers, quoted literals and block comments.
+
+        4. lexing/byte_class.rs
+           The table the loop looks each first byte up in. It is why the loop
+           has so little in it.
+
+        5. tokens/punctuation.rs
+           The punctuation list, and how the longest spelling is chosen.
+
+        6. lexing/quoted_literal_decoder.rs, lexing/quoted_escape_error.rs,
+           tokens/integer_radix.rs
+           The small rules the scanner's slower paths lean on: escapes inside a
+           quoted literal, and the bases a number can be written in.
+
+        7. errors/lex_error.rs, errors/lex_error_kind.rs
+           What a refusal carries. The kinds line up with the rules in
+           CONTRACT.md, so read the two side by side.
+
+        8. locations/line_index.rs, locations/source_position.rs
+           Only for showing a person where something is. Nothing above depends
+           on these, so they can be left for last or skipped.
+
+    The text dump that the golden fixtures compare is not here. Only the tests
+    read it, so it lives with them in `tests/support/token_dump_formatter.rs`
+    and uses nothing but what this crate exports.
+
+    Each type has a file of its own, named after it, and keeps its fields
+    private behind `get_` accessors. A folder's `mod.rs` declares its files and
+    nothing else. Callers do not see the folders: everything public is
+    re-exported from here, so it is `omega_lexer::Token` and not a path.
+
+    The code follows the conventions of the Squalr codebase, with one measured
+    exception: methods on the small `Copy` enums take `self` by value, where
+    Squalr would take `&self`. See experiment 8 in EXPERIMENTS.md.
+*/
+
+/*
     Contract: CONTRACT.md in this crate.
     Tests: `tests/golden_fixtures.rs` (accept and reject fixtures under `fixtures/`),
     `tests/byte_cases.rs` (inputs that cannot be written as readable files), and
     `tests/spec_corpus.rs` (every `omega` example in `wiki/spec`).
+    Measurements: the tools in `measurements/`, and what they found in EXPERIMENTS.md.
     Reference: Omega V1's lexer, `omega-rust/psi/compilation/pipeline/01_source-compilation/
     src/operations/lexing/lexer.rs`. We read it for behaviour the spec leaves open; CONTRACT.md
     lists where we deliberately differ.
@@ -68,96 +136,19 @@
 
 #![forbid(unsafe_code)]
 
-mod lex_error;
-mod punctuation;
-mod quoted_bytes;
-mod scanner;
-mod source_position;
-mod span;
-mod token;
-mod token_dump;
+mod errors;
+mod lexing;
+mod locations;
+mod tokens;
 
-pub use lex_error::{LexError, LexErrorKind};
-pub use punctuation::Punctuation;
-pub use quoted_bytes::decode_quoted_bytes;
-pub use source_position::{LineIndex, SourcePosition};
-pub use span::Span;
-pub use token::{Radix, Token, TokenKind};
-pub use token_dump::{dump_error, dump_tokens};
-
-/// Cuts one source file into tokens, or reports the first lexical rule it breaks.
-///
-/// The returned tokens cover `source_bytes` exactly: the first starts at byte 0, each starts where
-/// the previous one ended, and the last ends at `source_bytes.len()`. An empty file gives no tokens.
-///
-/// A typical caller lexes a file, skips the tokens a parser does not care about, and reads each
-/// remaining token's spelling straight out of the source:
-///
-/// ```
-/// use omega_lexer::{TokenKind, lex};
-///
-/// let source_bytes = b"let mask: u16 = 0xFFFFu16; // all ones";
-/// let tokens = lex(source_bytes).expect("this source is lexically valid");
-///
-/// // Whitespace and comments are tokens, so that every byte is accounted for.
-/// // A parser asks each token whether it is trivia and moves on.
-/// let spellings: Vec<&[u8]> = tokens
-///     .iter()
-///     .filter(|token| !token.kind.is_trivia())
-///     .filter_map(|token| token.span.slice(source_bytes))
-///     .collect();
-/// assert_eq!(spellings, [&b"let"[..], b"mask", b":", b"u16", b"=", b"0xFFFFu16", b";"]);
-///
-/// // `let` and `mask` are the same kind of token. The lexer has no keyword list.
-/// assert_eq!(tokens[0].kind, TokenKind::Word);
-/// assert_eq!(tokens[2].kind, TokenKind::Word);
-/// ```
-pub fn lex(source_bytes: &[u8]) -> Result<Vec<Token>, LexError> {
-    let mut tokens = Vec::new();
-    lex_into(source_bytes, &mut tokens)?;
-    Ok(tokens)
-}
-
-/// Does what `lex` does, but writes the tokens into a list the caller already owns.
-///
-/// `tokens` is emptied first and keeps its storage, so a caller lexing many files can hand the
-/// same list back in for each one and never allocate after the first few. That matters far more
-/// than it sounds: with every hardware thread lexing its own files, a fresh list per file makes
-/// the threads queue for the memory allocator, and lexing stops getting faster as threads are
-/// added. See experiment 4 in EXPERIMENTS.md.
-///
-/// On a refusal `tokens` is left empty. The output of this layer is exactly right or absent.
-///
-/// ```
-/// use omega_lexer::lex_into;
-///
-/// let mut tokens = Vec::new();
-/// for source_bytes in [&b"let a = 1;"[..], b"b", b"machine main() {}"] {
-///     lex_into(source_bytes, &mut tokens).expect("each source is lexically valid");
-///     // Use the tokens here, before the next call empties the list.
-///     assert_eq!(tokens.last().map(|token| token.span.end), Some(source_bytes.len()));
-/// }
-/// ```
-pub fn lex_into(source_bytes: &[u8], tokens: &mut Vec<Token>) -> Result<(), LexError> {
-    tokens.clear();
-
-    if let Err(utf8_error) = std::str::from_utf8(source_bytes) {
-        let invalid_start = utf8_error.valid_up_to();
-        // `error_len` is None when the file ends in the middle of a character; then the rest is the error.
-        let invalid_end = utf8_error
-            .error_len()
-            .map_or(source_bytes.len(), |invalid_byte_count| {
-                invalid_start + invalid_byte_count
-            });
-        return Err(LexError::new(
-            LexErrorKind::InvalidUtf8,
-            Span::new(invalid_start, invalid_end),
-        ));
-    }
-
-    let scan_result = scanner::Scanner::new(source_bytes).scan_all(tokens);
-    if scan_result.is_err() {
-        tokens.clear();
-    }
-    scan_result
-}
+pub use errors::lex_error::LexError;
+pub use errors::lex_error_kind::LexErrorKind;
+pub use lexing::lexer::{lex, lex_into};
+pub use lexing::quoted_literal_decoder::decode_quoted_bytes;
+pub use locations::line_index::LineIndex;
+pub use locations::source_position::SourcePosition;
+pub use locations::source_span::SourceSpan;
+pub use tokens::integer_radix::IntegerRadix;
+pub use tokens::punctuation::Punctuation;
+pub use tokens::token::Token;
+pub use tokens::token_kind::TokenKind;

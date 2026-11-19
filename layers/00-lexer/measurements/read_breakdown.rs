@@ -29,9 +29,7 @@
     tools are here and the step it measures has no layer of its own yet.
 */
 
-#[path = "support/omega_files.rs"]
-mod omega_files;
-
+use measure::{ToolArguments, collect_source_files};
 use std::fs::File;
 use std::hint::black_box;
 use std::io::Read;
@@ -45,33 +43,18 @@ const DEFAULT_PASS_COUNT: usize = 5;
 const REUSED_BUFFER_BYTE_COUNT: usize = 256 * 1024;
 
 fn main() {
-    let mut pass_count = DEFAULT_PASS_COUNT;
-    let mut search_directories = Vec::new();
-    let mut arguments = std::env::args_os().skip(1);
-    while let Some(argument) = arguments.next() {
-        if argument == "--passes" {
-            let requested = arguments
-                .next()
-                .and_then(|value| value.to_str()?.parse().ok());
-            let Some(requested) = requested.filter(|&count: &usize| count > 0) else {
-                eprintln!("--passes needs a positive number");
-                std::process::exit(2);
-            };
-            pass_count = requested;
-        } else {
-            search_directories.push(PathBuf::from(argument));
-        }
-    }
-    if search_directories.is_empty() {
-        eprintln!("usage: read_breakdown [--passes N] <directory>...");
-        std::process::exit(2);
-    }
+    let tool_arguments = ToolArguments::from_command_line("read_breakdown", DEFAULT_PASS_COUNT);
+    let pass_count = tool_arguments.get_pass_count();
+    let search_directories = tool_arguments.get_search_directories();
 
     let mut source_paths = Vec::new();
-    for search_directory in &search_directories {
-        omega_files::collect_omega_files(search_directory, &mut source_paths);
+
+    for search_directory in search_directories {
+        collect_source_files(search_directory, "omg", &mut source_paths);
     }
+
     source_paths.sort();
+
     if source_paths.is_empty() {
         eprintln!("no .omg source found");
         std::process::exit(1);
@@ -93,31 +76,36 @@ fn main() {
 }
 
 /// Times each of the four requests by itself, summed over every file on one thread.
-fn print_step_breakdown(source_paths: &[PathBuf], pass_count: usize) {
+fn print_step_breakdown(
+    source_paths: &[PathBuf],
+    pass_count: usize,
+) {
     let mut fastest = [Duration::MAX; 4];
     let mut read_buffer = vec![0u8; REUSED_BUFFER_BYTE_COUNT];
 
     for _ in 0..pass_count {
         let mut step_totals = [Duration::ZERO; 4];
+
         for source_path in source_paths {
-            let started = Instant::now();
+            let start_time = Instant::now();
             let Ok(mut file) = File::open(source_path) else {
                 continue;
             };
-            step_totals[0] += started.elapsed();
+            step_totals[0] += start_time.elapsed();
 
-            let started = Instant::now();
+            let start_time = Instant::now();
             black_box(file.metadata().map_or(0, |metadata| metadata.len()));
-            step_totals[1] += started.elapsed();
+            step_totals[1] += start_time.elapsed();
 
-            let started = Instant::now();
+            let start_time = Instant::now();
             black_box(read_until_finished(&mut file, &mut read_buffer));
-            step_totals[2] += started.elapsed();
+            step_totals[2] += start_time.elapsed();
 
-            let started = Instant::now();
+            let start_time = Instant::now();
             drop(file);
-            step_totals[3] += started.elapsed();
+            step_totals[3] += start_time.elapsed();
         }
+
         for (fastest_step, step_total) in fastest.iter_mut().zip(step_totals) {
             *fastest_step = (*fastest_step).min(step_total);
         }
@@ -126,25 +114,24 @@ fn print_step_breakdown(source_paths: &[PathBuf], pass_count: usize) {
     let whole: Duration = fastest.iter().sum();
     println!("\none file, one thread, each request timed by itself");
     println!("request            per file    share");
-    for (step_name, step_total) in ["open", "ask the size", "read", "close"]
-        .iter()
-        .zip(fastest)
-    {
+
+    for (step_name, step_total) in ["open", "ask the size", "read", "close"].iter().zip(fastest) {
         println!(
             "{step_name:<16} {:>7.1} us   {:>5.1}%",
             step_total.as_secs_f64() * 1e6 / source_paths.len() as f64,
             step_total.as_secs_f64() * 100.0 / whole.as_secs_f64()
         );
     }
-    println!(
-        "{:<16} {:>7.1} us",
-        "all four",
-        whole.as_secs_f64() * 1e6 / source_paths.len() as f64
-    );
+
+    println!("{:<16} {:>7.1} us", "all four", whole.as_secs_f64() * 1e6 / source_paths.len() as f64);
 }
 
 /// Compares whole ways of reading a file, on one thread.
-fn print_strategy_comparison(source_paths: &[PathBuf], pass_count: usize, total_byte_count: usize) {
+fn print_strategy_comparison(
+    source_paths: &[PathBuf],
+    pass_count: usize,
+    total_byte_count: usize,
+) {
     println!("\nways to read a file, one thread");
     println!("strategy                               time     files/s     MB/s");
 
@@ -191,19 +178,13 @@ fn print_strategy_comparison(source_paths: &[PathBuf], pass_count: usize, total_
     // The sizes are gathered here outside the timing, to stand in for that listing.
     let file_byte_counts: Vec<usize> = source_paths
         .iter()
-        .map(|source_path| {
-            std::fs::metadata(source_path).map_or(0, |metadata| metadata.len() as usize)
-        })
+        .map(|source_path| std::fs::metadata(source_path).map_or(0, |metadata| metadata.len() as usize))
         .collect();
     report(
         "size from the listing, one read",
         time_passes(pass_count, || {
             for (source_path, &file_byte_count) in source_paths.iter().zip(&file_byte_counts) {
-                black_box(read_known_size(
-                    source_path,
-                    file_byte_count,
-                    &mut read_buffer,
-                ));
+                black_box(read_known_size(source_path, file_byte_count, &mut read_buffer));
             }
         }),
     );
@@ -221,20 +202,20 @@ fn print_packed_file_comparison(
     pass_count: usize,
     report: &impl Fn(&str, f64),
 ) {
-    let pack_path = std::env::temp_dir().join(format!(
-        "omega-v2-read-breakdown-{}.pack",
-        std::process::id()
-    ));
+    let pack_path = std::env::temp_dir().join(format!("omega-v2-read-breakdown-{}.pack", std::process::id()));
     let mut packed_bytes = Vec::new();
+
     for source_path in source_paths {
         if let Ok(source_bytes) = std::fs::read(source_path) {
             packed_bytes.extend_from_slice(&source_bytes);
         }
     }
+
     if std::fs::write(&pack_path, &packed_bytes).is_err() {
         println!("(could not write a temporary packed file; skipping that comparison)");
         return;
     }
+
     drop(packed_bytes);
 
     report(
@@ -248,9 +229,11 @@ fn print_packed_file_comparison(
         "packed, into a reused buffer",
         time_passes(pass_count, || {
             pack_buffer.clear();
+
             if let Ok(mut pack_file) = File::open(&pack_path) {
                 let _ = pack_file.read_to_end(&mut pack_buffer);
             }
+
             black_box(pack_buffer.len());
         }),
     );
@@ -260,28 +243,38 @@ fn print_packed_file_comparison(
 
 /// Opens the file and reads exactly `file_byte_count` bytes, with no request for the size and
 /// no extra read to find the end. Returns the bytes read.
-fn read_known_size(source_path: &Path, file_byte_count: usize, read_buffer: &mut [u8]) -> usize {
+fn read_known_size(
+    source_path: &Path,
+    file_byte_count: usize,
+    read_buffer: &mut [u8],
+) -> usize {
     let Ok(mut file) = File::open(source_path) else {
         return 0;
     };
     let wanted_byte_count = file_byte_count.min(read_buffer.len());
     let mut filled_byte_count = 0;
+
     while filled_byte_count < wanted_byte_count {
         match file.read(&mut read_buffer[filled_byte_count..wanted_byte_count]) {
             Ok(0) | Err(_) => break,
             Ok(read_byte_count) => filled_byte_count += read_byte_count,
         }
     }
+
     filled_byte_count
 }
 
 /// Runs the two extreme strategies on a growing number of threads.
-fn print_thread_scaling(source_paths: &[PathBuf], pass_count: usize) {
+fn print_thread_scaling(
+    source_paths: &[PathBuf],
+    pass_count: usize,
+) {
     let hardware_thread_count = std::thread::available_parallelism().map_or(1, |count| count.get());
     println!("\nfiles per second by thread count");
     println!("threads   std::fs::read   reuse buffer, skip size");
 
     let mut thread_count = 1;
+
     loop {
         let standard_seconds = time_passes(pass_count, || {
             run_on_threads(
@@ -289,9 +282,7 @@ fn print_thread_scaling(source_paths: &[PathBuf], pass_count: usize) {
                 source_paths.len(),
                 || (),
                 |(), file_index| {
-                    black_box(
-                        std::fs::read(&source_paths[file_index]).map_or(0, |bytes| bytes.len()),
-                    );
+                    black_box(std::fs::read(&source_paths[file_index]).map_or(0, |bytes| bytes.len()));
                 },
             );
         });
@@ -301,10 +292,7 @@ fn print_thread_scaling(source_paths: &[PathBuf], pass_count: usize) {
                 source_paths.len(),
                 || vec![0u8; REUSED_BUFFER_BYTE_COUNT],
                 |read_buffer, file_index| {
-                    black_box(read_without_size_request(
-                        &source_paths[file_index],
-                        read_buffer,
-                    ));
+                    black_box(read_without_size_request(&source_paths[file_index], read_buffer));
                 },
             );
         });
@@ -317,24 +305,33 @@ fn print_thread_scaling(source_paths: &[PathBuf], pass_count: usize) {
         if thread_count >= hardware_thread_count {
             break;
         }
+
         thread_count = (thread_count * 2).min(hardware_thread_count);
     }
 }
 
 /// Opens the file, asks its size, then reads it into `read_buffer`. Returns the bytes read.
-fn read_with_size_request(source_path: &Path, read_buffer: &mut [u8]) -> usize {
+fn read_with_size_request(
+    source_path: &Path,
+    read_buffer: &mut [u8],
+) -> usize {
     let Ok(mut file) = File::open(source_path) else {
         return 0;
     };
     black_box(file.metadata().map_or(0, |metadata| metadata.len()));
+
     read_until_finished(&mut file, read_buffer)
 }
 
 /// Opens the file and reads it into `read_buffer` without asking its size first.
-fn read_without_size_request(source_path: &Path, read_buffer: &mut [u8]) -> usize {
+fn read_without_size_request(
+    source_path: &Path,
+    read_buffer: &mut [u8],
+) -> usize {
     let Ok(mut file) = File::open(source_path) else {
         return 0;
     };
+
     read_until_finished(&mut file, read_buffer)
 }
 
@@ -343,25 +340,35 @@ fn read_without_size_request(source_path: &Path, read_buffer: &mut [u8]) -> usiz
 /// A read that returns fewer bytes than asked for has not necessarily reached the end, so the
 /// only reliable signal is a read that returns nothing. For a file that fits the buffer that is
 /// two requests: one that returns the contents and one that returns zero.
-fn read_until_finished(file: &mut File, read_buffer: &mut [u8]) -> usize {
+fn read_until_finished(
+    file: &mut File,
+    read_buffer: &mut [u8],
+) -> usize {
     let mut filled_byte_count = 0;
+
     while filled_byte_count < read_buffer.len() {
         match file.read(&mut read_buffer[filled_byte_count..]) {
             Ok(0) | Err(_) => break,
             Ok(read_byte_count) => filled_byte_count += read_byte_count,
         }
     }
+
     filled_byte_count
 }
 
 /// Runs `measured_work` once per pass and returns the fastest pass in seconds.
-fn time_passes(pass_count: usize, mut measured_work: impl FnMut()) -> f64 {
+fn time_passes(
+    pass_count: usize,
+    mut measured_work: impl FnMut(),
+) -> f64 {
     let mut fastest_seconds = f64::INFINITY;
+
     for _ in 0..pass_count {
-        let started = Instant::now();
+        let start_time = Instant::now();
         measured_work();
-        fastest_seconds = fastest_seconds.min(started.elapsed().as_secs_f64());
+        fastest_seconds = fastest_seconds.min(start_time.elapsed().as_secs_f64());
     }
+
     fastest_seconds
 }
 
@@ -375,9 +382,11 @@ fn run_on_threads<ThreadState>(
 ) {
     if thread_count <= 1 {
         let mut thread_state = make_thread_state();
+
         for item_index in 0..item_count {
             handle_item(&mut thread_state, item_index);
         }
+
         return;
     }
 
@@ -386,11 +395,14 @@ fn run_on_threads<ThreadState>(
         for _ in 0..thread_count {
             scope.spawn(|| {
                 let mut thread_state = make_thread_state();
+
                 loop {
                     let item_index = next_item_index.fetch_add(1, Ordering::Relaxed);
+
                     if item_index >= item_count {
                         break;
                     }
+
                     handle_item(&mut thread_state, item_index);
                 }
             });

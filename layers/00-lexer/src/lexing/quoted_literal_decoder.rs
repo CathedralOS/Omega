@@ -1,25 +1,14 @@
 //! The escape rules of a quoted literal, shared by the scanner that validates and the decoder.
 
-/// Why an escape sequence is not one of the seven the spec allows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum EscapeProblem {
-    /// The source ended right after the backslash.
-    EndOfSource,
-    /// `\u`: quoted literals are bytes, and the spec rejects codepoint escapes.
-    Codepoint,
-    /// `\x` not followed by two hexadecimal digits.
-    InvalidHex,
-    /// A backslash followed by anything else.
-    Unknown,
-}
+use crate::lexing::quoted_escape_error::QuotedEscapeError;
 
 /// Reads one escape sequence. `escape_bytes` must start at the backslash.
 ///
 /// Returns the byte the escape denotes and how many source bytes spell it. Both the scanner and
 /// `decode_quoted_bytes` call this, so there is one table of escapes and they cannot drift apart.
-pub(crate) fn read_escape(escape_bytes: &[u8]) -> Result<(u8, usize), EscapeProblem> {
+pub(crate) fn read_escape(escape_bytes: &[u8]) -> Result<(u8, usize), QuotedEscapeError> {
     let Some(&escape_letter) = escape_bytes.get(1) else {
-        return Err(EscapeProblem::EndOfSource);
+        return Err(QuotedEscapeError::EndOfSource);
     };
 
     match escape_letter {
@@ -30,15 +19,16 @@ pub(crate) fn read_escape(escape_bytes: &[u8]) -> Result<(u8, usize), EscapeProb
         b'\\' => Ok((b'\\', 2)),
         b'"' => Ok((b'"', 2)),
         b'x' => {
-            let high_digit = escape_bytes.get(2).copied().and_then(get_hex_digit_value);
-            let low_digit = escape_bytes.get(3).copied().and_then(get_hex_digit_value);
-            match (high_digit, low_digit) {
-                (Some(high_digit), Some(low_digit)) => Ok(((high_digit << 4) | low_digit, 4)),
-                _ => Err(EscapeProblem::InvalidHex),
+            let high_digit_value = escape_bytes.get(2).copied().and_then(get_hex_digit_value);
+            let low_digit_value = escape_bytes.get(3).copied().and_then(get_hex_digit_value);
+
+            match (high_digit_value, low_digit_value) {
+                (Some(high_digit_value), Some(low_digit_value)) => Ok(((high_digit_value << 4) | low_digit_value, 4)),
+                _ => Err(QuotedEscapeError::InvalidHex),
             }
         }
-        b'u' => Err(EscapeProblem::Codepoint),
-        _ => Err(EscapeProblem::Unknown),
+        b'u' => Err(QuotedEscapeError::Codepoint),
+        _ => Err(QuotedEscapeError::Unknown),
     }
 }
 
@@ -50,13 +40,13 @@ pub(crate) fn read_escape(escape_bytes: &[u8]) -> Result<(u8, usize), EscapeProb
 pub fn decode_quoted_bytes(quoted_spelling: &[u8]) -> Option<Vec<u8>> {
     let body_bytes = quoted_spelling.strip_prefix(b"\"")?.strip_suffix(b"\"")?;
     let mut decoded_bytes = Vec::with_capacity(body_bytes.len());
-    let mut body_offset = 0;
+    let mut body_offset = 0usize;
 
     while let Some(&body_byte) = body_bytes.get(body_offset) {
         match body_byte {
             b'\\' => {
-                let (decoded_byte, spelled_byte_count) =
-                    read_escape(&body_bytes[body_offset..]).ok()?;
+                let (decoded_byte, spelled_byte_count) = read_escape(&body_bytes[body_offset..]).ok()?;
+
                 decoded_bytes.push(decoded_byte);
                 body_offset += spelled_byte_count;
             }
@@ -83,7 +73,7 @@ fn get_hex_digit_value(digit_byte: u8) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::decode_quoted_bytes;
+    use crate::lexing::quoted_literal_decoder::decode_quoted_bytes;
 
     #[test]
     fn decodes_every_escape_the_spec_lists() {
@@ -95,10 +85,7 @@ mod tests {
 
     #[test]
     fn copies_non_ascii_bytes_without_interpreting_them() {
-        assert_eq!(
-            decode_quoted_bytes("\"h\u{e9}\"".as_bytes()),
-            Some(vec![b'h', 0xC3, 0xA9])
-        );
+        assert_eq!(decode_quoted_bytes("\"h\u{e9}\"".as_bytes()), Some(vec![b'h', 0xC3, 0xA9]));
     }
 
     #[test]

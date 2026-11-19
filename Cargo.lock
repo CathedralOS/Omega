@@ -3,7 +3,18 @@
 version = 4
 
 [[package]]
+name = "compare-builds"
+version = "0.0.0"
+dependencies = [
+ "measure",
+]
+
+[[package]]
 name = "golden"
+version = "0.0.0"
+
+[[package]]
+name = "measure"
 version = "0.0.0"
 
 [[package]]
@@ -11,6 +22,7 @@ name = "omega-lexer"
 version = "0.0.0"
 dependencies = [
  "golden",
+ "measure",
  "spec-corpus",
 ]
 

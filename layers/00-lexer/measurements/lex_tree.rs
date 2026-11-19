@@ -15,11 +15,8 @@
     checkout can hold build output and other working copies of the same files.
 */
 
+use measure::collect_source_files;
 use omega_lexer::{LexErrorKind, LineIndex, lex};
-#[path = "support/omega_files.rs"]
-mod omega_files;
-
-use omega_files::collect_omega_files;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -36,15 +33,18 @@ struct Refusal {
 
 fn main() {
     let search_directories: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
+
     if search_directories.is_empty() {
         eprintln!("usage: lex_tree <directory>...");
         std::process::exit(2);
     }
 
     let mut source_paths = Vec::new();
+
     for search_directory in &search_directories {
-        collect_omega_files(search_directory, &mut source_paths);
+        collect_source_files(search_directory, "omg", &mut source_paths);
     }
+
     source_paths.sort();
 
     let mut accepted_file_count = 0usize;
@@ -71,16 +71,16 @@ fn main() {
                 accepted_file_count += 1;
                 total_token_count += tokens.len();
             }
-            Err(error) => {
-                let position = LineIndex::new(&source_bytes).get_position(error.span.start);
-                let offending_bytes = error.span.slice(&source_bytes).unwrap_or_default();
+            Err(lex_error) => {
+                let source_position = LineIndex::new(&source_bytes).get_position(lex_error.get_span().get_start_offset());
+                let offending_bytes = lex_error.get_span().slice(&source_bytes).unwrap_or_default();
                 refusals_by_kind
-                    .entry(describe_kind(error.kind))
+                    .entry(describe_kind(lex_error.get_kind()))
                     .or_default()
                     .push(Refusal {
                         file_path: source_path.clone(),
-                        line: position.line,
-                        column: position.column,
+                        line: source_position.get_line(),
+                        column: source_position.get_column(),
                         offending_text: String::from_utf8_lossy(offending_bytes)
                             .chars()
                             .take(40)
@@ -97,6 +97,7 @@ fn main() {
     println!("unreadable:     {unreadable_file_count}");
     println!("bytes lexed:    {total_byte_count}");
     println!("tokens:         {total_token_count}");
+
     if lexing_seconds > 0.0 {
         println!(
             "lexing time:    {:.3} s ({:.0} MB/s)",
@@ -107,6 +108,7 @@ fn main() {
 
     for (kind, refusals) in &refusals_by_kind {
         println!("\n{kind}: {} file(s)", refusals.len());
+
         for refusal in refusals.iter().take(EXAMPLES_PER_ERROR_KIND) {
             println!(
                 "  {}:{}:{}  {:?}",
@@ -116,11 +118,9 @@ fn main() {
                 refusal.offending_text
             );
         }
+
         if refusals.len() > EXAMPLES_PER_ERROR_KIND {
-            println!(
-                "  ... and {} more",
-                refusals.len() - EXAMPLES_PER_ERROR_KIND
-            );
+            println!("  ... and {} more", refusals.len() - EXAMPLES_PER_ERROR_KIND);
         }
     }
 }

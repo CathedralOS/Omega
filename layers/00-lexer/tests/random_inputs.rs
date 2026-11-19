@@ -27,61 +27,65 @@ const INTERESTING_BYTES: &[u8] = b"abefiorux_AEFX0123456789 \t\r\n\"\\/*.+-<>=!&
 
 const INPUT_COUNT: usize = 60_000;
 const LONGEST_INPUT_BYTE_COUNT: u64 = 24;
+const GENERATOR_SEED: u64 = 0x9E37_79B9_7F4A_7C15;
 
 struct XorShift {
     state: u64,
 }
 
 impl XorShift {
+    fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
+
     fn next(&mut self) -> u64 {
         self.state ^= self.state << 13;
         self.state ^= self.state >> 7;
         self.state ^= self.state << 17;
+
         self.state
     }
 }
 
 #[test]
 fn random_inputs_never_panic_and_always_satisfy_the_invariants() {
-    let mut generator = XorShift {
-        state: 0x9E37_79B9_7F4A_7C15,
-    };
+    let mut generator = XorShift::new(GENERATOR_SEED);
     let mut accepted_count = 0usize;
     let mut refused_count = 0usize;
 
     for _ in 0..INPUT_COUNT {
         let input_byte_count = generator.next() % (LONGEST_INPUT_BYTE_COUNT + 1);
         let source_bytes: Vec<u8> = (0..input_byte_count)
-            .map(|_| {
-                INTERESTING_BYTES[(generator.next() % INTERESTING_BYTES.len() as u64) as usize]
-            })
+            .map(|_| INTERESTING_BYTES[(generator.next() % INTERESTING_BYTES.len() as u64) as usize])
             .collect();
 
         match lex(&source_bytes) {
             Ok(tokens) => {
                 accepted_count += 1;
-                if let Some(problem) = support::describe_tiling_problem(&source_bytes, &tokens) {
-                    panic!(
-                        "{source_bytes:?} was accepted but its tokens do not tile it: {problem}"
-                    );
+
+                if let Some(tiling_problem) = support::describe_tiling_problem(&source_bytes, &tokens) {
+                    panic!("{source_bytes:?} was accepted but its tokens do not tile it: {tiling_problem}");
                 }
-                if let Some(problem) = support::describe_relex_problem(&source_bytes, &tokens) {
-                    panic!(
-                        "{source_bytes:?} was accepted but a token is not self-delimiting: {problem}"
-                    );
+
+                if let Some(relex_problem) = support::describe_relex_problem(&source_bytes, &tokens) {
+                    panic!("{source_bytes:?} was accepted but a token is not self-delimiting: {relex_problem}");
                 }
             }
-            Err(error) => {
+            Err(lex_error) => {
                 refused_count += 1;
+
+                let error_start = lex_error.get_span().get_start_offset();
+                let error_end = lex_error.get_span().get_end_offset();
+
                 assert!(
-                    error.span.start < error.span.end && error.span.end <= source_bytes.len(),
-                    "{source_bytes:?} was refused with {error:?}, whose span is empty or outside the source"
+                    error_start < error_end && error_end <= source_bytes.len(),
+                    "{source_bytes:?} was refused with {lex_error:?}, whose span is empty or outside the source"
                 );
+
                 if let Ok(source_text) = std::str::from_utf8(&source_bytes) {
                     assert!(
-                        source_text.is_char_boundary(error.span.start)
-                            && source_text.is_char_boundary(error.span.end),
-                        "{source_bytes:?} was refused with {error:?}, whose span splits a character"
+                        source_text.is_char_boundary(error_start) && source_text.is_char_boundary(error_end),
+                        "{source_bytes:?} was refused with {lex_error:?}, whose span splits a character"
                     );
                 }
             }
@@ -89,13 +93,8 @@ fn random_inputs_never_panic_and_always_satisfy_the_invariants() {
     }
 
     // Both outcomes have to be common, or the generator is not exercising half of the lexer.
-    assert!(
-        accepted_count > INPUT_COUNT / 20,
-        "only {accepted_count} of {INPUT_COUNT} inputs were accepted"
-    );
-    assert!(
-        refused_count > INPUT_COUNT / 20,
-        "only {refused_count} of {INPUT_COUNT} inputs were refused"
-    );
+    assert!(accepted_count > INPUT_COUNT / 20, "only {accepted_count} of {INPUT_COUNT} inputs were accepted");
+    assert!(refused_count > INPUT_COUNT / 20, "only {refused_count} of {INPUT_COUNT} inputs were refused");
+
     println!("random inputs: {accepted_count} accepted, {refused_count} refused");
 }

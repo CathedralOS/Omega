@@ -2,7 +2,9 @@
 resolver = "3"
 members = [
     "layers/00-lexer",
+    "tools/compare-builds",
     "tools/golden",
+    "tools/measure",
     "tools/spec-corpus",
 ]
 

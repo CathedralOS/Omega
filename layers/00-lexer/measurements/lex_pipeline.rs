@@ -29,12 +29,9 @@
     rights and disturbs the rest of the machine.
 */
 
-#[path = "support/omega_files.rs"]
-mod omega_files;
-
+use measure::{ToolArguments, collect_source_files};
 use omega_lexer::{Token, lex, lex_into};
 use std::hint::black_box;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
@@ -48,35 +45,18 @@ const DEFAULT_PASS_COUNT: usize = 5;
 const LEX_REPEAT_COUNT: usize = 20;
 
 fn main() {
-    let mut pass_count = DEFAULT_PASS_COUNT;
-    let mut search_directories = Vec::new();
-    let mut arguments = std::env::args_os().skip(1);
-    while let Some(argument) = arguments.next() {
-        if argument == "--passes" {
-            let requested = arguments
-                .next()
-                .and_then(|value| value.to_str()?.parse().ok());
-            let Some(requested) = requested.filter(|&count: &usize| count > 0) else {
-                eprintln!("--passes needs a positive number");
-                std::process::exit(2);
-            };
-            pass_count = requested;
-        } else {
-            search_directories.push(PathBuf::from(argument));
-        }
-    }
-    if search_directories.is_empty() {
-        eprintln!("usage: lex_pipeline [--passes N] <directory>...");
-        std::process::exit(2);
-    }
+    let tool_arguments = ToolArguments::from_command_line("lex_pipeline", DEFAULT_PASS_COUNT);
+    let pass_count = tool_arguments.get_pass_count();
+    let search_directories = tool_arguments.get_search_directories();
 
     let hardware_thread_count = std::thread::available_parallelism().map_or(1, |count| count.get());
 
     let mut source_paths = Vec::new();
     let find_seconds = time_passes(pass_count, || {
         source_paths.clear();
-        for search_directory in &search_directories {
-            omega_files::collect_omega_files(search_directory, &mut source_paths);
+
+        for search_directory in search_directories {
+            collect_source_files(search_directory, "omg", &mut source_paths);
         }
     });
     source_paths.sort();
@@ -88,6 +68,7 @@ fn main() {
         .map(|source_path| std::fs::read(source_path).unwrap_or_default())
         .collect();
     let total_byte_count: usize = sources.iter().map(Vec::len).sum();
+
     if total_byte_count == 0 {
         eprintln!("no .omg source found");
         std::process::exit(1);
@@ -155,59 +136,46 @@ fn main() {
                 },
             );
         });
-        report(
-            "lex, new token list per file",
-            thread_count,
-            seconds / LEX_REPEAT_COUNT as f64,
-        );
+        report("lex, new token list per file", thread_count, seconds / LEX_REPEAT_COUNT as f64);
     }
 
     for thread_count in thread_counts {
         let seconds = time_passes(pass_count, || {
-            run_on_threads(
-                thread_count,
-                sources.len() * LEX_REPEAT_COUNT,
-                Vec::<Token>::new,
-                |tokens, item_index| {
-                    let file_index = item_index % sources.len();
-                    let _ = lex_into(black_box(&sources[file_index]), tokens);
-                    black_box(tokens.len());
-                },
-            );
+            run_on_threads(thread_count, sources.len() * LEX_REPEAT_COUNT, Vec::<Token>::new, |tokens, item_index| {
+                let file_index = item_index % sources.len();
+                let _ = lex_into(black_box(&sources[file_index]), tokens);
+                black_box(tokens.len());
+            });
         });
-        report(
-            "lex, one token list per thread",
-            thread_count,
-            seconds / LEX_REPEAT_COUNT as f64,
-        );
+        report("lex, one token list per thread", thread_count, seconds / LEX_REPEAT_COUNT as f64);
     }
 
     for thread_count in thread_counts {
         let seconds = time_passes(pass_count, || {
-            run_on_threads(
-                thread_count,
-                source_paths.len(),
-                Vec::<Token>::new,
-                |tokens, file_index| {
-                    if let Ok(source_bytes) = std::fs::read(&source_paths[file_index]) {
-                        let _ = lex_into(&source_bytes, tokens);
-                        black_box(tokens.len());
-                    }
-                },
-            );
+            run_on_threads(thread_count, source_paths.len(), Vec::<Token>::new, |tokens, file_index| {
+                if let Ok(source_bytes) = std::fs::read(&source_paths[file_index]) {
+                    let _ = lex_into(&source_bytes, tokens);
+                    black_box(tokens.len());
+                }
+            });
         });
         report("read then lex, per file", thread_count, seconds);
     }
 }
 
 /// Runs `measured_work` once per pass and returns the fastest pass in seconds.
-fn time_passes(pass_count: usize, mut measured_work: impl FnMut()) -> f64 {
+fn time_passes(
+    pass_count: usize,
+    mut measured_work: impl FnMut(),
+) -> f64 {
     let mut fastest_seconds = f64::INFINITY;
+
     for _ in 0..pass_count {
-        let started = Instant::now();
+        let start_time = Instant::now();
         measured_work();
-        fastest_seconds = fastest_seconds.min(started.elapsed().as_secs_f64());
+        fastest_seconds = fastest_seconds.min(start_time.elapsed().as_secs_f64());
     }
+
     fastest_seconds
 }
 
@@ -225,9 +193,11 @@ fn run_on_threads<ThreadState>(
 ) {
     if thread_count <= 1 {
         let mut thread_state = make_thread_state();
+
         for item_index in 0..item_count {
             handle_item(&mut thread_state, item_index);
         }
+
         return;
     }
 
@@ -236,11 +206,14 @@ fn run_on_threads<ThreadState>(
         for _ in 0..thread_count {
             scope.spawn(|| {
                 let mut thread_state = make_thread_state();
+
                 loop {
                     let item_index = next_item_index.fetch_add(1, Ordering::Relaxed);
+
                     if item_index >= item_count {
                         break;
                     }
+
                     handle_item(&mut thread_state, item_index);
                 }
             });

@@ -3,7 +3,7 @@
 // One list generates the enum, the lookup table and the spelling of each kind, so they cannot disagree.
 macro_rules! define_punctuation {
     ($(($spelling:literal, $kind:ident)),* $(,)?) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
         pub enum Punctuation {
             $($kind,)*
         }
@@ -14,6 +14,9 @@ macro_rules! define_punctuation {
                 $(($spelling, Punctuation::$kind),)*
             ];
 
+            // @Speed: `self` by value on purpose. With `&self` the whole lexer measured about 2
+            // percent slower with function alignment held equal; the scanner asks every
+            // punctuation token for the length of its spelling. See experiment 8 in EXPERIMENTS.md.
             pub fn get_spelling(self) -> &'static str {
                 match self {
                     $(Self::$kind => $spelling,)*
@@ -115,6 +118,7 @@ impl Punctuation {
         let first_byte = *remaining_bytes.first()?;
         let second_byte = remaining_bytes.get(1).copied().unwrap_or(0);
         let third_byte = remaining_bytes.get(2).copied().unwrap_or(0);
+
         Self::match_leading_bytes(first_byte, second_byte, third_byte)
     }
 
@@ -207,14 +211,15 @@ impl Punctuation {
 
 #[cfg(test)]
 mod tests {
-    use super::Punctuation;
+    use crate::tokens::punctuation::Punctuation;
 
     // :LongestMatchOrder
     #[test]
     fn no_spelling_follows_one_of_its_own_prefixes() {
         let ordered_spellings = Punctuation::ORDERED_SPELLINGS;
-        for (later_index, (later_spelling, _)) in ordered_spellings.iter().enumerate() {
-            for (earlier_spelling, _) in &ordered_spellings[..later_index] {
+
+        for (later_spelling_index, (later_spelling, _)) in ordered_spellings.iter().enumerate() {
+            for (earlier_spelling, _) in &ordered_spellings[..later_spelling_index] {
                 assert!(
                     !later_spelling.starts_with(earlier_spelling),
                     "`{later_spelling}` is listed after its prefix `{earlier_spelling}` and could never match"
@@ -226,10 +231,7 @@ mod tests {
     #[test]
     fn every_spelling_matches_itself_and_round_trips() {
         for &(spelling, punctuation) in Punctuation::ORDERED_SPELLINGS {
-            assert_eq!(
-                Punctuation::longest_match(spelling.as_bytes()),
-                Some(punctuation)
-            );
+            assert_eq!(Punctuation::longest_match(spelling.as_bytes()), Some(punctuation));
             assert_eq!(punctuation.get_spelling(), spelling);
         }
     }
@@ -237,14 +239,16 @@ mod tests {
     /// Every byte that occurs in some spelling, plus bytes that occur in none: a letter, a digit,
     /// a space, an unused symbol, zero (the stand-in for end of source) and two non-ASCII bytes.
     fn get_distinguishing_bytes() -> Vec<u8> {
-        let mut bytes: Vec<u8> = Punctuation::ORDERED_SPELLINGS
+        let mut distinguishing_bytes: Vec<u8> = Punctuation::ORDERED_SPELLINGS
             .iter()
             .flat_map(|(spelling, _)| spelling.bytes())
             .collect();
-        bytes.extend_from_slice(b"a0 @\x00\x80\xFF");
-        bytes.sort_unstable();
-        bytes.dedup();
-        bytes
+
+        distinguishing_bytes.extend_from_slice(b"a0 @\x00\x80\xFF");
+        distinguishing_bytes.sort_unstable();
+        distinguishing_bytes.dedup();
+
+        distinguishing_bytes
     }
 
     #[test]
@@ -257,33 +261,35 @@ mod tests {
                 .all(|(spelling, _)| spelling.len() <= 3)
         );
 
-        let bytes = get_distinguishing_bytes();
+        let distinguishing_bytes = get_distinguishing_bytes();
         let mut checked_input_count = 0usize;
-        let mut check = |input: &[u8]| {
+        let mut check_input = |input_bytes: &[u8]| {
             assert_eq!(
-                Punctuation::longest_match(input),
-                Punctuation::longest_match_by_search(input),
-                "the match and the search disagree on {input:?}"
+                Punctuation::longest_match(input_bytes),
+                Punctuation::longest_match_by_search(input_bytes),
+                "the match and the search disagree on {input_bytes:?}"
             );
+
             checked_input_count += 1;
         };
 
-        check(&[]);
-        for &first in &bytes {
-            check(&[first]);
-            for &second in &bytes {
-                check(&[first, second]);
-                for &third in &bytes {
-                    check(&[first, second, third]);
+        check_input(&[]);
+
+        for &first_byte in &distinguishing_bytes {
+            check_input(&[first_byte]);
+
+            for &second_byte in &distinguishing_bytes {
+                check_input(&[first_byte, second_byte]);
+
+                for &third_byte in &distinguishing_bytes {
+                    check_input(&[first_byte, second_byte, third_byte]);
                     // A fourth byte must never change the answer; one sample is enough to show it is ignored.
-                    check(&[first, second, third, b'=']);
+                    check_input(&[first_byte, second_byte, third_byte, b'=']);
                 }
             }
         }
-        assert!(
-            checked_input_count > 50_000,
-            "only {checked_input_count} inputs were checked"
-        );
+
+        assert!(checked_input_count > 50_000, "only {checked_input_count} inputs were checked");
     }
 
     #[test]
@@ -296,9 +302,6 @@ mod tests {
 
     #[test]
     fn right_shift_is_not_a_token() {
-        assert_eq!(
-            Punctuation::longest_match(b">>"),
-            Some(Punctuation::Greater)
-        );
+        assert_eq!(Punctuation::longest_match(b">>"), Some(Punctuation::Greater));
     }
 }

@@ -7,6 +7,16 @@ expected, what happened, and whether the change was kept.
 
     cargo run --release -p omega-lexer --example lex_throughput -- --passes 9 <directories>
 
+To compare two versions, do not time them by hand. From the repository root:
+
+    cargo run --release -p compare-builds -- --package omega-lexer --tool lex_throughput -- --passes 7 <directories>
+
+That builds the last commit and the working tree three ways each, runs them
+interleaved, and ends with one sentence. `--baseline-ref` names another commit
+and `--baseline-dir` a directory. It exists because of what experiments 8 to
+10 ran into; experiment 12 shows it gives the right answer on two cases where
+the answer is known.
+
 - **Workload:** the 19,442 `.omg` files under V1's `source`, `samples` and
   `tests/fixtures`. 26,441,134 bytes, 7,758,242 tokens, median file 760
   bytes. All held in memory before timing, so no disk time is included.
@@ -15,6 +25,12 @@ expected, what happened, and whether the change was kept.
 - **Noise:** two runs of the same binary gave medians of 85 and 80 MB/s. The
   slowest pass in a run is typically 15 to 20 percent below the fastest.
   Differences smaller than that mean nothing.
+- **Placement:** two builds of the same logic can differ by up to 9 percent
+  because of where the hot loop lands in the binary, so one build's number is
+  good to about 5 percent either way. When two builds differ by less than 10
+  percent, build both with `RUSTFLAGS="-C llvm-args=-align-all-functions=6"`
+  and see whether the difference survives. Found in experiments 8 and 9; the
+  experiments before them did not control for this.
 - **Same output:** the tool prints a fingerprint of every token's kind and
   byte range. A change meant only to be faster must print the same one.
 
@@ -487,6 +503,257 @@ Two side facts from this run:
 take out from the caller's side: about 20 microseconds per file, peaking near
 110,000 to 120,000 files per second at 4 threads. The only measured way past
 that is to open fewer files, which is owner question 4 in PLAN.md.
+
+## 8. Restyling to Squalr's conventions (2026-11-18): kept, and a flaw found in how we measure
+
+**What changed.** No algorithm. The crate was rewritten in the style of the
+Squalr codebase: one type per file, private fields behind `get_` accessors,
+`Token::new` in place of a struct literal in the hot loop, and methods on the
+small `Copy` enums taking `&self` where they had taken `self`. Afterwards the
+files were moved into folders, which changes no code at all.
+
+**Hypothesis.** None of this should be measurable, since every accessor and
+constructor is a few instructions and is inlined. A repeatable difference
+larger than the noise would reject it.
+
+**What happened.** Every build printed the same fingerprint. File by file,
+median MB/s over interleaved rounds:
+
+| Build | Medians |
+| --- | --- |
+| Before the restyle | 742, 743, 739 |
+| Restyled, `&self` on the enums | 713, 711, 712 |
+| Restyled, `self` by value | 718, 734, 724, 729, 728 |
+| The same code moved into folders | 690, 684, 677, 681 |
+
+The last row is the important one. Moving files cannot make the lexer 8
+percent slower, so the measurement was showing something other than the code.
+
+**The flaw.** It is where the build happens to place the hot loop. Building
+with every function aligned to 64 bytes
+(`RUSTFLAGS="-C llvm-args=-align-all-functions=6"`) takes that luck away, and
+then the old code and the reorganised code are the same: 703, 706 and 693
+against 716, 714 and 704. The old code loses about 6 percent under that flag,
+which is to say its usual build was a lucky one.
+
+So two builds of this lexer can differ by 6 to 9 percent with nothing changed
+that matters. That is larger than several effects recorded above, and the
+"Noise" note at the top only covered two runs of one binary. Experiments 2, 3
+and 5A are the ones small enough to be worth re-measuring with alignment held
+equal. Experiments 1, 4 and 5B are far larger than this and stand. (Experiment
+3 was re-measured this way in experiment 10, and it stands too.)
+
+**`&self` against `self`, measured again.** With alignment held equal, four
+rounds gave 717, 717, 715 and 704 by value against 705, 699, 699 and 697 by
+reference. About 2 percent, in the same direction every round, not the 4
+percent the first comparison suggested. The scanner asks every punctuation
+token for the length of its spelling, and punctuation is a third of all
+tokens, so `Punctuation::get_spelling` is the likely place.
+
+**Decision.** The restyle and the folders are kept. Methods on `Punctuation`,
+`TokenKind`, `IntegerRadix` and `LexErrorKind` take `self` by value, which is the one
+place this crate does not follow Squalr.
+
+**What this leaves.** An ordinary release build of the reorganised crate has
+measured between 680 and 720 MB/s, moving each time the folders were renamed,
+where the old one measured about 740. That gap is placement. Aligning loops to 64 bytes as well as functions
+(`-C llvm-args=-align-loops=64`) gave 719, 723 and 712 against 719, 731 and
+737 for the old build in the same rounds, on a machine that was busier than
+usual. Experiment 9 tests that properly, and it does not hold up.
+
+## 9. Alignment flags as a fix for placement (2026-11-18): rejected
+
+**Hypothesis.** If luck in where the hot loop lands is worth 6 to 9 percent,
+then forcing the alignment should take the luck out and leave every build at
+the speed of a lucky one. Specifically, aligning functions and loops to 64
+bytes should measure about 740 MB/s whatever the folders are called. A forced
+build that is slower than an ordinary one would reject it.
+
+**How it was tested.** Three copies of the crate with the same code and
+different folder names, so that the logic is identical and only placement can
+differ. Each was built under nine settings, giving 27 binaries, all printing
+the same fingerprint. Every setting is a `-C llvm-args=` flag. File by file,
+7 passes, three or four rounds interleaved across settings and layouts.
+
+Another build was running on the machine for part of this and pulled whole
+rounds down by as much as 15 percent. So the table gives the fastest pass of
+each run, which other work can lower but not raise, and takes the middle
+round. The settings were measured in two sweeps, each with its own ordinary
+build beside it; the ordinary build read 728, 733 and 730 in the other sweep.
+
+| Setting | Flag | Three layouts, fastest pass, MB/s |
+| --- | --- | --- |
+| Ordinary build | none | 734, 731, 739 |
+| Blocks to 16 bytes | `-align-all-blocks=4` | 739, 734, 729 |
+| Functions and loops to 64 | `-align-all-functions=6 -align-loops=64` | 717, 715, 706 |
+| Branches inside 32-byte lines | `-x86-branches-within-32B-boundaries` | 705, 711, 707 |
+| Functions and loops to 32 | `-align-all-functions=5 -align-loops=32` | 703, 698, 713 |
+| Blocks to 32 bytes | `-align-all-blocks=5` | 697, 704, 704 |
+| Blocks after a jump to 32 | `-align-all-nofallthru-blocks=5` | 702, 711, 681 |
+| Functions to 64 | `-align-all-functions=6` | 692, 700, 694 |
+| Loops to 64 | `-align-loops=64` | 689, 710, 679 |
+
+**Result.** Rejected. No setting is faster than an ordinary build. Aligning
+blocks to 16 bytes ties it, and everything else is 2 to 6 percent slower. The
+setting proposed at the end of experiment 8 lands at about 713, not 740.
+
+Forcing alignment does make the three layouts agree with each other, but so
+did the ordinary build this time, whose medians in the undisturbed sweep were
+721, 720 and 724. The 9 percent swing in
+experiment 8 was between builds made in different directories, and it did not
+come back here. Collected over the day, ordinary builds of this same logic
+have measured 683, about 700 to 720, about 720 three times over, 737 and 749.
+The middle is about 720. The 749 that everything was being compared against
+was the old code's lucky build, and 683 was an unlucky one.
+
+**Decision.** No build flag is added. An ordinary release build is as fast as
+any forced alignment we tried, and usually faster.
+
+**What this leaves.** Two things worth keeping:
+
+- `-align-all-functions=6` is still the right check when two builds of the
+  same logic differ by less than 10 percent. It will not tell you how fast the
+  lexer is, since it costs about 5 percent itself. It tells you whether the
+  difference is in the code.
+- A single build's number is good to about 5 percent either way. The size of
+  the swing says the hot loop is dense with branches whose cost depends on
+  their addresses. Making the loop less sensitive to that would be a change to
+  the loop, which is candidate 1 below, not a flag.
+
+## 10. Is the hand-written punctuation match still worth it? (2026-11-18): yes, kept
+
+**Why ask.** Experiment 3 kept the hand-written match for a 9 percent gain,
+and experiment 8 showed that placement alone can move a build by that much.
+The match costs a second copy of the punctuation table, about 120 lines with
+the search and the test that keep the two in step. If the gain was luck, that
+is 120 lines and a duplicate we could drop.
+
+**Hypothesis.** The gain is real. Taking the match out and searching only the
+spellings that share a first byte, as experiment 1 did, should be at least 5
+percent slower on every layout, with and without forced alignment. Less than
+that, or a mixed result, would mean the match does not earn its place.
+
+**How it was tested.** As in experiment 9: three copies of the crate that
+differ only in folder names, each built plainly and with functions aligned to
+64 bytes, each binary in its own build folder. Fastest pass of 7, three
+rounds interleaved, the middle round shown. Every build printed the same
+fingerprint.
+
+| | Layout 1 | Layout 2 | Layout 3 |
+| --- | --- | --- | --- |
+| With the match, plain | 691 | 690 | 688 |
+| Without it, plain | 585 | 587 | 592 |
+| With the match, aligned | 708 | 713 | 693 |
+| Without it, aligned | 627 | 641 | 633 |
+
+**Result.** Confirmed. Without the match the lexer is 15 percent slower in a
+plain build and 10 percent slower aligned, on all three layouts. That is more
+than experiment 3 measured, and it is not placement.
+
+**Decision.** The match stays, and so does the test that checks it against
+the spelling list. Experiment 3 stands.
+
+A note on method. The first attempt at this built every variant into one
+shared build folder, and Cargo quietly reused the first binary for all of
+them, because the copies had the same file names and older timestamps. The
+giveaway was a build that finished in a hundredth of a second. Each variant
+now gets its own build folder, and the binaries are checked to be different
+before anything is timed.
+
+## 11. Every case of the loop yields its kind and its end (2026-11-18): kept
+
+**Why.** For reading, not for speed. The loop in `scan_all` set the scan
+position from inside each case, and the three slow paths (numbers, quoted
+literals, block comments) each needed three lines to hand the position to a
+method and take it back. The loop was harder to read than what it does.
+
+**Change.** Each case now evaluates to a pair, the token's kind and the
+offset where it ends, and the position is advanced in one place after the
+match. The slow-path methods take the token's start and return the same pair,
+so each of them is one line in the loop. No rule changed.
+
+**Hypothesis.** No measurable difference: the same decisions in the same
+order. A loss of more than 2 percent under forced alignment would reject it.
+
+**Result.** Measured with experiment 10, same method. "Shared" is the same
+change with the two identical punctuation cases moved into one function.
+
+| | Layout 1 | Layout 2 | Layout 3 |
+| --- | --- | --- | --- |
+| Before, plain | 691 | 690 | 688 |
+| After, plain | 722 | 723 | 727 |
+| After, shared, plain | 716 | 714 | 716 |
+| Before, aligned | 708 | 713 | 693 |
+| After, aligned | 754 | 748 | 753 |
+| After, shared, aligned | 741 | 739 | 736 |
+
+Faster, which was not the aim: about 5 percent plain and 7 percent aligned,
+on every layout. We did not look for the cause. The likely one is that the
+position now lives in a local for the whole loop and the scanner's own copy
+is written only on the slow paths.
+
+Sharing the punctuation case costs about 1.5 percent of that in all six
+comparisons, so the two cases stay written out, with a comment saying why.
+
+**Same output.** Fingerprint `b7778a2e5cd741fb` in every run; all 49 tests
+pass.
+
+**Decision.** Kept. The scanner is about 20 lines shorter and the loop reads
+as a list of cases.
+
+## 12. Does the comparison tool tell the truth? (2026-11-18): yes on both known cases
+
+**Why.** Experiments 8 to 10 were measured by hand, and the hand work went
+wrong three ways: placement read as a real effect, one binary reused for every
+variant, and a busy machine dragging medians down. `compare-builds`, under
+`tools/`, fixes the procedure in a program. Before trusting its verdicts we
+gave it two comparisons whose answers we already knew.
+
+**What it does.** It builds each version three ways, each in a folder of its
+own: plainly, with every function in a different place (a flag that changes
+nothing but the hash inside each symbol name), and with functions aligned to
+64 bytes. It checks the binaries differ, runs them interleaved, takes each
+one's best round, and gives a verdict on the first number the tool reports. A
+difference counts only if all three builds show it and it is over 2 percent.
+
+**Case 1: the same source against a copy of itself.** The right answer is no
+difference. File by file, fastest pass, three rounds of 7 passes:
+
+| Build | Copy | Working tree | Change |
+| --- | --- | --- | --- |
+| Plain | 785.5 | 779.9 | 0.7% slower |
+| Reshuffled | 794.2 | 783.3 | 1.4% slower |
+| Aligned | 737.1 | 743.9 | 0.9% faster |
+
+Verdict printed: no difference that every build agrees on. That 1.4 percent is
+where the 2 percent floor comes from.
+
+**Case 2: a baseline with the hand-written punctuation match taken out.**
+Experiment 10 measured that by hand as 13 to 18 percent slower.
+
+| Build | Without the match | Working tree | Change |
+| --- | --- | --- | --- |
+| Plain | 646.1 | 781.0 | 20.9% faster |
+| Reshuffled | 645.9 | 782.6 | 21.2% faster |
+| Aligned | 648.8 | 732.6 | 12.9% faster |
+
+Verdict printed: the candidate is faster in every build, by 12.9% to 21.2%.
+The fingerprint was the same in all 18 runs of both cases.
+
+**What else it showed.** Only the headline number is steady enough to judge.
+In case 1, with identical source, the one-line-repeated figure differed by
+13.7 percent in one build and the joined-buffer figure by 6.2 percent in
+another. Those rows are printed, and nothing is concluded from them.
+
+It also had the shared-folder mistake in it at first, in a new form: a
+baseline taken from an older directory could have been handed the previous
+baseline's binary. Its build folders for the baseline are now emptied at the
+start of every run.
+
+**Decision.** Use it for every comparison from here on. To be compared, a
+layer's tool has to end with a RESULT line from the `measure` crate, so the
+oldest commit this layer can be compared against is the one that adds it.
+
 ## How the estimates have done
 
 | Experiment | Estimated | Measured |
@@ -499,6 +766,10 @@ that is to open fewer files, which is owner question 4 in PLAN.md.
 | 5B. Branch-free word end | about 10 percent | about 16 percent |
 | 5C. Branch-free whitespace | a few percent faster | 15 percent slower |
 | 7. Open relative to a directory | clearly cheaper opens | no difference |
+| 8. Restyle and folders | no difference | no difference in the code; up to 9 percent from placement |
+| 9. Alignment flags | every build at 740 MB/s | none faster than an ordinary build; most 2 to 6 percent slower |
+| 10. Punctuation match, re-measured | at least 5 percent slower without it | 10 to 15 percent slower without it |
+| 11. Cases yield kind and end | no difference | 5 to 7 percent faster |
 
 Guesses about straight-line work have run high. The two that came in low, 4
 and 5B, both removed a wait (for the allocator, for a wrong branch guess)

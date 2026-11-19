@@ -2,8 +2,9 @@
 
 mod support;
 
-use omega_lexer::{dump_error, lex};
+use omega_lexer::lex;
 use std::path::Path;
+use support::dump_error;
 
 /// Every example in the spec must lex, tile its source, and have self-delimiting tokens.
 ///
@@ -13,46 +14,40 @@ use std::path::Path;
 #[test]
 fn every_spec_example_lexes() {
     let spec_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../wiki/spec");
-    let examples =
-        spec_corpus::extract_omega_examples(&spec_directory).expect("wiki/spec should be readable");
+    let spec_examples = spec_corpus::extract_omega_examples(&spec_directory).expect("Expected wiki/spec to be readable.");
+
     assert!(
-        examples.len() >= 100,
+        spec_examples.len() >= 100,
         "found only {} spec examples; is wiki/spec complete?",
-        examples.len()
+        spec_examples.len()
     );
 
-    let mut problems = Vec::new();
-    for example in &examples {
-        let source_bytes = example.source_text.as_bytes();
+    let mut example_problems = Vec::new();
+
+    for spec_example in &spec_examples {
+        let source_bytes = spec_example.source_text.as_bytes();
+
         match lex(source_bytes) {
-            Err(error) => problems.push(format!(
-                "{}\n{}",
-                example.get_label(),
-                dump_error(source_bytes, &error)
-            )),
+            Err(lex_error) => example_problems.push(format!("{}\n{}", spec_example.get_label(), dump_error(source_bytes, &lex_error))),
             Ok(tokens) => {
-                if let Some(problem) = support::describe_tiling_problem(source_bytes, &tokens) {
-                    problems.push(format!(
-                        "{}\ntokens do not tile the source: {problem}",
-                        example.get_label()
-                    ));
+                if let Some(tiling_problem) = support::describe_tiling_problem(source_bytes, &tokens) {
+                    example_problems.push(format!("{}\ntokens do not tile the source: {tiling_problem}", spec_example.get_label()));
                 }
-                if let Some(problem) = support::describe_relex_problem(source_bytes, &tokens) {
-                    problems.push(format!(
-                        "{}\na token is not self-delimiting: {problem}",
-                        example.get_label()
-                    ));
+
+                if let Some(relex_problem) = support::describe_relex_problem(source_bytes, &tokens) {
+                    example_problems.push(format!("{}\na token is not self-delimiting: {relex_problem}", spec_example.get_label()));
                 }
             }
         }
     }
 
     assert!(
-        problems.is_empty(),
+        example_problems.is_empty(),
         "{} of {} spec examples have a problem:\n\n{}",
-        problems.len(),
-        examples.len(),
-        problems.join("\n\n")
+        example_problems.len(),
+        spec_examples.len(),
+        example_problems.join("\n\n")
     );
-    println!("lexed {} spec examples", examples.len());
+
+    println!("lexed {} spec examples", spec_examples.len());
 }
