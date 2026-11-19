@@ -28,7 +28,6 @@ target-vocabulary = { path = "../../compiler/psi-to-native/pipeline/representati
 calling-conventions = { path = "../../compiler/psi-to-native/targets/calling-conventions" }
 
 [dev-dependencies]
-project-build = { path = "../../compiler/build" }
 service-surface = { path = "../../compiler/psi/service-surface" }
 native-provider-sponsor = { path = "native-sponsor" }
 application-identity = { path = "../../compiler/psi/application-identity" }
