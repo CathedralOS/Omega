@@ -230,16 +230,32 @@ fn type_applications_require_the_same_universe_membership_as_machine_calls() {
         .collect::<Vec<_>>();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].site.span.slice(valid.as_bytes()).unwrap(), b"Box<1,U>");
-    for source in [
-        format!("{prefix} machine f(x:Box<0,U>){{}}"),
-        format!("{prefix} machine f(x:Box<2,U>){{}}"),
-        format!("{prefix} data Wrapped<T> = Box<0,T>; machine f(x:Wrapped<U>){{}}"),
-        "domain<A:core::Type<0>> u8::Tag<A>; machine f(x:u8 in Tag<core::Type<0>>){}".to_owned(),
-        "domain<A:core::Type<0>> u8::Tag<A>; machine f(x:u8::Tag<core::Type<0>>){}".to_owned(),
-        "domain<A:core::Type<0>> u8::Tag<A>; machine f(x:u8)->bool{x in u8::Tag::<core::Type<0>>}".to_owned(),
-        "data StrictBox<A:core::Strict<1>>{} machine f(x:StrictBox<core::Type<0>>){}".to_owned(),
-    ] {
-        let err = check(&[("universe.omg", &source)]).unwrap_err();
-        assert_eq!(err.message, "universe argument requires its exact successor universe");
+    // Only the ordinary successor contains a universe. Ask the same question
+    // through each construct that accepts an explicit type argument.
+    for subject_level in 0..=3 {
+        for bound_level in 0..=3 {
+            let subject = format!("core::Type<{subject_level}>");
+            let sort = format!("core::Type<{bound_level}>");
+            let domain = format!("domain<A:{sort}> u8::Tag<A>;");
+            for source in [
+                format!("machine id<A:{sort}>(x:A)->A{{x}} machine f(x:{subject})->{subject}{{id::<{subject}>(x)}}"),
+                format!("let id<A:{sort}>(x:A):A=x; let f(x:{subject}):{subject} = id::<{subject}>(x);"),
+                format!("{prefix} machine f(x:Box<{bound_level},{subject}>){{}}"),
+                format!("data U={subject}; data Box<A:{sort}>{{}} data Wrap<T> = Box<T>; machine f(x:Wrap<U>){{}}"),
+                format!("{domain} machine f(x:u8 in Tag<{subject}>){{}}"),
+                format!("{domain} machine f(x:u8::Tag<{subject}>){{}}"),
+                format!("{domain} machine f(x:u8)->bool{{x in u8::Tag::<{subject}>}}"),
+                format!("{domain} machine f(x:u8){{let tagged=x as +Tag<{subject}>;}}"),
+            ] {
+                let result = check(&[("universe.omg", &source)]);
+                if bound_level == subject_level + 1 {
+                    result.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+                } else {
+                    assert_eq!(result.unwrap_err().message, "universe argument requires its exact successor universe", "{source}");
+                }
+            }
+        }
     }
+    let strict = "data StrictBox<A:core::Strict<1>>{} machine f(x:StrictBox<core::Type<0>>){}";
+    assert_eq!(check(&[("universe.omg", strict)]).unwrap_err().message, "universe argument requires its exact successor universe");
 }
