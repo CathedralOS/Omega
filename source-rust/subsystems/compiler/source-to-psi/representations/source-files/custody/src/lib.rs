@@ -3,11 +3,50 @@
 #![forbid(unsafe_code)]
 use source_provenance::PackageKeyIdentity;
 use source_text::{SourceId, SourceSpan, Span};
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use symbols::SymbolKind;
 
-pub use source_files::{LoadedSource, LoadedSources, SourceOrigin, directory_namespace};
+pub use source_files::{LoadedSource, LoadedSources, SourceOrigin};
+
+/// Package-relative directory components in their declared order. The file name is not a module.
+pub fn directory_namespace<'a>(
+    path: &'a Path,
+    package_root: &Path,
+) -> Result<Vec<&'a str>, String> {
+    let relative = path.strip_prefix(package_root).map_err(|_| {
+        format!(
+            "source `{}` is outside its owning package root `{}`",
+            path.display(),
+            package_root.display()
+        )
+    })?;
+    let mut namespace = Vec::new();
+    for component in relative.parent().into_iter().flat_map(Path::components) {
+        let Component::Normal(directory) = component else {
+            return Err(format!(
+                "source `{}` has a noncanonical package directory",
+                path.display()
+            ));
+        };
+        let valid = directory.to_str().filter(|name| {
+            let mut bytes = name.bytes();
+            bytes
+                .next()
+                .is_some_and(|first| first == b'_' || first.is_ascii_alphabetic())
+                && bytes.all(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
+        });
+        let name = valid.ok_or_else(|| format!(
+            "directory `{}` in source `{}` cannot name an Omega namespace; expected an ASCII identifier",
+            directory.to_string_lossy(), path.display()
+        ))?;
+        if symbols::BuiltinTypeAtom::is_builtin_type_spelling(name) {
+            return Err(format!("module `{name}` is spelled like the builtin type `{name}`; choose another directory name in source `{}`", path.display()));
+        }
+        namespace.push(name);
+    }
+    Ok(namespace)
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
 pub enum SourceResolutionStratum {
@@ -296,5 +335,35 @@ pub mod source_identity {
             && component
                 .to_str()
                 .is_some_and(|component| component.starts_with('<') && component.ends_with('>'))
+    }
+}
+
+#[cfg(test)]
+mod directory_tests {
+    use super::*;
+
+    #[test]
+    fn namespace_uses_only_the_owned_parent_directories() {
+        for root in [
+            Path::new("/signed/first-checkout"),
+            Path::new("/other/location"),
+        ] {
+            assert_eq!(
+                directory_namespace(&root.join("combat/ai/targeting.omg"), root).unwrap(),
+                ["combat", "ai"]
+            );
+            assert!(
+                directory_namespace(&root.join("program.omg"), root)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                directory_namespace(&root.join("bad-name/program.omg"), root)
+                    .unwrap_err()
+                    .contains("bad-name")
+            );
+            assert!(directory_namespace(Path::new("/elsewhere/program.omg"), root).is_err());
+            assert!(directory_namespace(&root.join("u32/program.omg"), root).unwrap_err().contains("builtin type `u32`"));
+        }
     }
 }

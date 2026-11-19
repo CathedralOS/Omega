@@ -135,9 +135,6 @@ impl NamespaceDeclarations {
                 if path.is_empty() || symbols.source_module(file.source_id).is_valid() {
                     continue;
                 }
-                if let Some(name) = path.iter().find(|name| crate::source_symbols::is_builtin_type_spelling(name)) {
-                    return Err(vec![Diagnostic::error(format!("module `{name}` is spelled like the builtin type `{name}`; choose another directory name in source `{}`", file.path.display()))]);
-                }
                 let anchor = file.source_span(source_text::Span::default());
                 symbols.register_source_module(file.source_id, path.into_iter().map(|name| (name, anchor)))
                     .map_err(|message| vec![Diagnostic::error(message)])?;

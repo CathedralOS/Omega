@@ -3,13 +3,7 @@ use symbols::{
     SymbolKind, SymbolNameRef,
 };
 pub fn is_builtin_type_spelling(name: &str) -> bool {
-    let integer_family = name
-        .strip_prefix(['i', 'u'])
-        .is_some_and(|digits| digits.bytes().all(|byte| byte.is_ascii_digit()));
-    integer_family
-        || BuiltinTypeAtom::SPELLINGS
-            .iter()
-            .any(|(_, _, symbol_name)| *symbol_name == name)
+    BuiltinTypeAtom::is_builtin_type_spelling(name)
 }
 pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_TYPE_COUNT] {
     BuiltinTypeAtom::SPELLINGS
