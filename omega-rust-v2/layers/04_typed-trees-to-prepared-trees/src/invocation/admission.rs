@@ -33,8 +33,9 @@ impl ConstantEvaluation<'_, '_> {
             return Err("the request does not select one ordinary static invocation".into());
         }
 
-        let signature = self
-            .signature(&call.machine)
+        let &(index, signature) = self
+            .signatures()
+            .get(&call.machine)
             .ok_or("the selected declaration has no typed signature")?;
         for record in request_tree.semantics_at(call.node.node) {
             match record {
@@ -71,9 +72,6 @@ impl ConstantEvaluation<'_, '_> {
             || !signature.multiplicity_bounds.is_empty()
             || file.child(declaration, NodeKind::GenericParams).is_some()
             || file.child(declaration, NodeKind::Hypothesis).is_some()
-            || file.nodes[declaration].children.iter().any(|&node| {
-                file.nodes[node].kind == NodeKind::Terminates && file.nodes[node].termination_clause() != Some(omega_parser::TerminationClause::Bare)
-            })
         {
             return Err(UNSUPPORTED_CONTRACT.into());
         }
@@ -84,9 +82,7 @@ impl ConstantEvaluation<'_, '_> {
         if signature.parameters.len() != call.operands.len() || parameters.len() != call.operands.len() {
             return Err("the typed call and selected parameters disagree".into());
         }
-        if execution.active.contains(&signature.node) {
-            return Err("a cyclic static invocation requires a checked termination proof".into());
-        }
+        self.admit_termination(index, signature, call, scope, &body_tree, execution)?;
         // The callee is active while evaluating its contract and body. Its
         // arguments belong to the caller, so keep id(id(true)) acyclic.
         execution.steps.push(Step::Enter(signature));
@@ -130,8 +126,11 @@ impl ConstantEvaluation<'_, '_> {
             })
             .collect::<Result<Vec<_>, EvaluationError>>()?;
         let arguments = Rc::new(CallBindings(RefCell::new(arguments)));
-        execution.active.insert(signature.node);
-        execution.steps.push(Step::Leave(signature.node));
+        let first_activation = execution.active.insert(signature.node);
+        execution.steps.push(Step::Leave {
+            declaration: signature.node,
+            first_activation,
+        });
 
         let body = file
             .child(declaration, NodeKind::Body)

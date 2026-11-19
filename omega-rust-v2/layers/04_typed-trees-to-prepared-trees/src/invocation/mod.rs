@@ -3,6 +3,7 @@
 //! before its value enters the prepared product.
 mod admission;
 mod statements;
+pub(super) mod termination;
 mod values;
 
 use crate::PreparedValue;
@@ -66,7 +67,9 @@ impl Scope<'_> {
         node: usize,
         carrier: &ValueType,
     ) -> Option<PreparedValue> {
-        let (Self::Body(arguments) | Self::Fact(arguments)) = self else { return None };
+        let (Self::Body(arguments) | Self::Fact(arguments)) = self else {
+            return None;
+        };
         let Symbol::Binding {
             binder_node,
             kind: NodeKind::Param | NodeKind::BindingPattern,
@@ -115,7 +118,10 @@ enum Step<'a> {
         case: Option<DeclarationId>,
         positions: Vec<usize>,
     },
-    Leave(TreeNodeId),
+    Leave {
+        declaration: TreeNodeId,
+        first_activation: bool,
+    },
     Require(&'static str),
     CrashGuard(&'static str),
     ApplyInteger(IntegerRange, String),
@@ -190,7 +196,7 @@ impl ConstantEvaluation<'_, '_> {
                             .is_some_and(|(_, use_call_site)| *use_call_site)
                             || execution.chain.len() > 1 =>
                     {
-                        self.call_refusal(reason, &execution.chain)
+                        self.call_refusal(reason, &execution.chain, &[])
                     }
                     other => other,
                 });
@@ -275,8 +281,11 @@ impl ConstantEvaluation<'_, '_> {
                     None => PreparedValue::Record { owner, fields },
                 });
             }
-            Step::Leave(declaration) => {
-                execution.active.remove(&declaration);
+            Step::Leave { declaration, first_activation } => {
+                // A recursive return leaves the outer activation active.
+                if first_activation {
+                    execution.active.remove(&declaration);
+                }
                 execution.chain.pop();
             }
             Step::Require(reason) => {
@@ -348,9 +357,12 @@ impl ConstantEvaluation<'_, '_> {
         &self,
         reason: &str,
         chain: &[(TreeNodeId, bool)],
+        cycle: &[&TypedCall],
     ) -> EvaluationError {
-        let (site, _) = chain.last().expect("visited call");
-        let tree = self.tree(*site).expect("visited call file");
+        let site = cycle
+            .last()
+            .map_or_else(|| chain.last().expect("visited call").0, |call| call.node);
+        let tree = self.tree(site).expect("visited call file");
         let file = tree.resolved().file;
         let site = omega_typer::Site {
             package: file.package.into(),
@@ -358,28 +370,37 @@ impl ConstantEvaluation<'_, '_> {
             span: file.span(site.node),
         };
         let mut error = crate::refusal(&site, reason);
-        if chain.len() == 1 {
-            return EvaluationError::AtCall(error);
-        }
-        error.message.push_str("\ncall chain: ");
-        for (index, (occurrence, _)) in chain.iter().enumerate() {
-            if index != 0 {
-                error.message.push_str(" -> ");
+        if chain.len() > 1 {
+            error.message.push_str("\ncall chain: ");
+            for (index, (occurrence, _)) in chain.iter().enumerate() {
+                if index != 0 {
+                    error.message.push_str(" -> ");
+                }
+                let tree = self.tree(*occurrence).expect("visited call file");
+                let name = tree
+                    .semantics_at(occurrence.node)
+                    .find_map(|record| match record {
+                        NodeSemantics::Call(call) => Some(call.machine.path.as_str()),
+                        _ => None,
+                    });
+                error
+                    .message
+                    .push_str(name.unwrap_or("<indirect or unsupported call>"));
             }
-            let tree = self
-                .trees
-                .trees()
-                .nth(occurrence.file)
-                .expect("visited call file");
-            let name = tree
-                .semantics_at(occurrence.node)
-                .find_map(|record| match record {
-                    NodeSemantics::Call(call) => Some(call.machine.path.as_str()),
-                    _ => None,
-                });
-            error
-                .message
-                .push_str(name.unwrap_or("<indirect or unsupported call>"));
+        }
+        if let Some(first) = cycle.first() {
+            error.message.push_str("\nrecursive component: ");
+            error.message.push_str(
+                &first
+                    .caller
+                    .as_ref()
+                    .expect("local call edge has a caller")
+                    .path,
+            );
+            for call in cycle {
+                error.message.push_str(" -> ");
+                error.message.push_str(&call.machine.path);
+            }
         }
         EvaluationError::AtCall(error)
     }
