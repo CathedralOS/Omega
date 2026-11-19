@@ -4,6 +4,7 @@ use support::check;
 
 // Keep each test at the crate root so existing --test calls -- --exact selectors still work.
 include!("calls/assembly.rs");
+include!("calls/borrowed_field_reads.rs");
 include!("calls/conformance.rs");
 include!("calls/contracts_and_effects.rs");
 include!("calls/data_and_places.rs");

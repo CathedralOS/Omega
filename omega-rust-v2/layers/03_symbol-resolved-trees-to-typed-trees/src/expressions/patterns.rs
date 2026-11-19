@@ -29,8 +29,8 @@ impl BodyTyper<'_, '_> {
         let subject_place = parts.peek().and_then(|&i| self.fact_subject(i));
         let mut subject_source = PatternSource::default();
         let subject = if let Some(expr) = parts.next_if(|&i| source.nodes[i].kind != NodeKind::Arm) {
-            let ty = self.type_expression(expr)?;
-            subject_source = PatternSource::of(self.origin(expr));
+            let (ty, from) = self.pattern_subject(expr)?;
+            subject_source = from;
             Some((expr, ty))
         } else {
             None
@@ -184,6 +184,19 @@ impl BodyTyper<'_, '_> {
         };
         self.check_destination(pattern, value, compared)
     }
+    /// Comparing a subject that lives in borrowed storage against a value
+    /// reads it out of that storage, at `read`.
+    fn read_compared_place(
+        &mut self,
+        read: usize,
+        subject: &ValueType,
+        from: &PatternSource,
+    ) -> Result<(), TypeError> {
+        match &from.place {
+            Some(place) if !matches!(subject, ValueType::Reference(..) | ValueType::AtLifetime(..)) => self.read_borrowed(read, &place.access.clone(), subject),
+            _ => Ok(()),
+        }
+    }
     /// A tuple literal initializer supplies each component from its own
     /// expression, so a refusal or copy read names that component.
     fn component(
@@ -226,6 +239,7 @@ impl BodyTyper<'_, '_> {
             }
             BindingPattern => {
                 let ty = self.pattern_value(node_index)?;
+                self.read_compared_place(initializer, subject, from)?;
                 self.compare_value(node_index, &ty, subject, initializer)?;
                 Ok(match self.unit.symbol(node_index) {
                     Some(Symbol::Builtin(s)) if s == "true" || s == "false" => PatternCoverage::Bool(s == "true"),
@@ -247,6 +261,7 @@ impl BodyTyper<'_, '_> {
                     return Ok(PatternCoverage::Case(Box::new(id.clone())));
                 }
                 let ty = self.type_expression(expr)?;
+                self.read_compared_place(initializer, subject, from)?;
                 self.compare_value(expr, &ty, subject, initializer)?;
                 Ok(match self.unit.symbol(expr) {
                     Some(Symbol::Builtin(s)) if matches!(s.as_str(), "true" | "false") => PatternCoverage::Bool(s == "true"),

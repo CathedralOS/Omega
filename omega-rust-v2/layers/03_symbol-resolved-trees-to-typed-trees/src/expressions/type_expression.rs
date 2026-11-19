@@ -41,11 +41,17 @@ impl BodyTyper<'_, '_> {
                         .and_then(|p| self.catalog.types.parameter_carrier(p))
                         .cloned()
                         .ok_or_else(|| TypeError::unsupported(source_file, node_index))?,
-                    Some(Symbol::Binding { span, .. }) => self
-                        .locals
-                        .get(span)
-                        .cloned()
-                        .ok_or_else(|| TypeError::at(source_file, node_index, "missing type of resolved binding"))?,
+                    Some(Symbol::Binding { span, .. }) => {
+                        let ty = self
+                            .locals
+                            .get(span)
+                            .cloned()
+                            .ok_or_else(|| TypeError::at(source_file, node_index, "missing type of resolved binding"))?;
+                        if let Some(access) = self.borrowed_binding(span) {
+                            self.read_borrowed(node_index, &access, &ty)?;
+                        }
+                        ty
+                    }
                     Some(Symbol::Builtin(name)) if name == "core::Squash" => {
                         let ValueType::Squash(source) = self.unit.annotation(node_index, &self.catalog.types)? else {
                             return Err(TypeError::unsupported(source_file, node_index));
