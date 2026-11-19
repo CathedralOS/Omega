@@ -4320,6 +4320,10 @@ impl From<&psi_provider_selections::AdmittedProviderSelections> for TerminalRunt
 }
 
 impl TerminalRuntimeSupplies {
+    pub fn native_code_layouts(&self) -> Option<&crate::TerminalNativeCodeLayoutEnvironment> {
+        self.native_code_layouts.as_deref()
+    }
+
     /// Bind compiler evaluation to the same provider installation and target
     /// that source consent admitted. Ordinary instantiation checks code custody;
     /// this join additionally prevents swapping another accepted supply set.

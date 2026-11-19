@@ -14,7 +14,7 @@ pub fn execute_report_with_completion(
         .psi_artifact();
     let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("named Product publishes portable Terminal");
-    let observation = orchestration::execute_published_terminal(
+    let observation = project_build::published_terminal::execute_published_terminal(
         terminal_runtime::TerminalRuntimeRequest {
             entry: None,
             filesystem: Default::default(),

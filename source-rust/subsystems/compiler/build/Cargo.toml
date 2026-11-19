@@ -9,6 +9,13 @@ build = false
 path = "build.rs"
 
 [dependencies]
+terminal-interpreter = { path = "../../interpreter" }
+terminal-runtime = { path = "../../interpreter/host" }
+target = { path = "../psi-to-native/targets/target" }
+product-publication = { path = "build-output/product-publication" }
 compiler = { path = ".." }
 diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
+
+[dev-dependencies]
+terminal-psi = { path = "../psi" }

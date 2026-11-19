@@ -186,26 +186,33 @@ pub fn execute_sliced(
     request: TerminalRuntimeRequest<'_>,
     quantum: std::num::NonZeroU64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    portable::invocation::execute(request, None, quantum)
+    let host = HostedTerminalProgram::prepare(request)?;
+    let installation = host
+        .program()
+        .admit_runtime_supplies(host.supplies())
+        .map_err(TerminalRuntimeError::Requirements)?;
+    hosted_invocation::execute_installed(host, installation, quantum)
 }
 
-mod portable {
-    use super::*;
-    type Image = std::convert::Infallible;
-    fn inspect(
-        image: Option<&Image>,
-        _: &TerminalRuntimeRequest<'_>,
-    ) -> Result<
-        Option<terminal_interpreter::TerminalNativeCodeLayoutEnvironment>,
-        TerminalRuntimeError,
-    > {
-        Ok(image.map(|image| match *image {}))
-    }
-
-    // Both hosts compile the same private invocation with a concrete image input.
-    pub(super) mod invocation {
-        include!("execution/hosted_invocation.rs");
-    }
+mod hosted_invocation;
+/// Use the linked code observations from an embedder's checked installation.
+/// All service, entry, memory and provider grants come from this host's request.
+pub fn execute_with_image_installation(
+    host: HostedTerminalProgram<'_>,
+    image: &terminal_interpreter::TerminalRuntimeSupplies,
+    quantum: std::num::NonZeroU64,
+) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
+    let layouts = image.native_code_layouts().ok_or(TerminalRuntimeError::InvalidProvision(
+        "published image supplied no checked linked code layouts",
+    ))?;
+    let installation = host
+        .program()
+        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: Some(layouts),
+            ..host.supplies()
+        })
+        .map_err(TerminalRuntimeError::Requirements)?;
+    hosted_invocation::execute_installed(host, installation, quantum)
 }
 
 /// Checked host choices for PSI's explicit low-level installation API.
