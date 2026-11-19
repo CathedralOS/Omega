@@ -110,3 +110,39 @@ fn the_published_vector_operator_selects_the_same_machine_as_a_named_call() {
         }
     }
 }
+
+#[test]
+fn the_published_command_pattern_requires_both_operation_cases() {
+    let mut examples = Vec::new();
+    spec_corpus::extract_examples_from_markdown("language/patterns.md", include_str!("../../../wiki/spec/language/patterns.md"), &mut examples);
+    let example_at = |line| {
+        examples
+            .iter()
+            .find(|example| example.fence_line_number == line)
+            .unwrap()
+            .source_text
+            .trim()
+    };
+    let declarations = example_at(46);
+    let pattern = example_at(158);
+    let (binding, dispatch) = pattern.split_once("\n\n").unwrap();
+    let caller = |dispatch: &str| format!("machine inspect_pattern(command: @Command) -> bool {{\n{binding}\n\n{dispatch}\n}}");
+
+    let complete = caller(dispatch);
+    let stage = support::check(&[("command.omg", declarations), ("pattern.omg", &complete)]).unwrap();
+    let result = stage
+        .expressions
+        .iter()
+        .find(|expr| expr.site.file == "pattern.omg" && expr.site.span.slice(complete.as_bytes()) == Some(dispatch.as_bytes()))
+        .expect("the typed product must contain the published match expression");
+    assert_eq!(result.ty, omega_typer::ValueType::Bool);
+
+    let omitted_arm = "    Command::Operation::CountUsers -> false,\n";
+    assert!(dispatch.contains(omitted_arm));
+    let incomplete_dispatch = dispatch.replacen(omitted_arm, "", 1);
+    let incomplete = caller(&incomplete_dispatch);
+    let error = support::check(&[("command.omg", declarations), ("pattern.omg", &incomplete)]).unwrap_err();
+    assert_eq!(error.file, "pattern.omg");
+    assert_eq!(error.message, "dispatch does not cover its subject");
+    assert_eq!(error.span.slice(incomplete.as_bytes()), Some(incomplete_dispatch.as_bytes()));
+}
