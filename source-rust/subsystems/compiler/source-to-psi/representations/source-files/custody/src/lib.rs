@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use symbols::SymbolKind;
 
-pub use source_files::{LoadedSource, LoadedSources, SourceOrigin};
+pub use source_files::{LoadedSource, LoadedSources, SourceOrigin, directory_namespace};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
 pub enum SourceResolutionStratum {
@@ -32,6 +32,10 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
+    pub fn directory_namespace(&self) -> Result<Vec<&str>, String> {
+        directory_namespace(&self.path, &self.package_root)
+    }
+
     pub fn source_span(&self, span: Span) -> SourceSpan {
         SourceSpan::new(self.source_id, span)
     }

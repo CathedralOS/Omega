@@ -127,7 +127,7 @@ fn bundled_core_imports_keep_the_callers_checked_purpose() {
         "byte_observation",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/byte_observation.omg"
+            "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
         )),
     )];
     let imports = "use omega::language::core::byte_observation; machine importer() {}";

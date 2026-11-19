@@ -21,7 +21,7 @@ const BYTE_OBSERVATION_SOURCE: &[(&str, &str, &str)] = &[(
     "byte_observation",
     include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../source/library/core/byte_observation.omg"
+        "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
     )),
 )];
 

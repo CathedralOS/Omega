@@ -63,7 +63,7 @@ impl Package {
                 let kit = add(
                     "pkg/kit.omg",
                     include_str!(
-                        "../../../../../../../tests/fixtures/pass/calls/ordinary_family_binding/kit.omg"
+                        "../../../../../../../tests/fixtures/pass/calls/ordinary_family_binding/kit/kit.omg"
                     ),
                 )?;
                 let main = add(

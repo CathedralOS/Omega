@@ -570,6 +570,19 @@ mod module_namespaces {
         SourceSpan::new(SourceId(source_ordinal), Span::new(0, 4))
     }
 
+    #[test]
+    fn siblings_share_candidates_but_a_files_own_declaration_wins() {
+        let (mut symbols, declarations, _) = namespace_table([1, 1, 1], Vec::new());
+        for source in 0..3 {
+            register_module(&mut symbols, source, &["combat", "ai"]);
+        }
+        for source in [1, 2] {
+            assert_eq!(symbols.top_level_candidates_from_source("Item", &[SymbolKind::Data], reference(source)), [declarations[source]]);
+        }
+        let siblings = symbols.top_level_candidates_from_source("Item", &[SymbolKind::Data], reference(0));
+        assert_eq!(siblings, [declarations[1], declarations[2]]);
+    }
+
     fn register_module(symbols: &mut SymbolTable, source_ordinal: usize, path: &[&str]) {
         symbols
             .register_source_module(
@@ -2097,15 +2110,13 @@ mod provenance {
     }
 
     #[test]
-    fn module_less_sibling_files_keep_their_own_same_spelled_declarations() {
+    fn sibling_files_keep_their_own_same_spelled_declarations_in_any_directory() {
         // Each module-less file selects its own declaration before a sibling's,
         // so two such files declaring one name are not duplicates.
         let (symbols, authored) =
             sourced_symbol_table([(SourceOrigin::User, None), (SourceOrigin::User, None)]);
         assert!(symbols.source_scopes_separate(authored[0], authored[1]));
 
-        // Files declaring one named module share its namespace: the same
-        // spelling in both stays one scope and is a duplicate.
         let (mut symbols, authored) =
             sourced_symbol_table([(SourceOrigin::User, None), (SourceOrigin::User, None)]);
         for declaration in &authored {
@@ -2116,7 +2127,7 @@ mod provenance {
                 .register_source_module(span.source_id, [("shared", span)])
                 .expect("module");
         }
-        assert!(!symbols.source_scopes_separate(authored[0], authored[1]));
+        assert!(symbols.source_scopes_separate(authored[0], authored[1]));
     }
 
     #[test]

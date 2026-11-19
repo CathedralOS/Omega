@@ -3003,7 +3003,7 @@ mod equality_identity_tests {
     fn aliases_keep_exact_same_leaf_declarations_at_both_sides_of_equality() {
         let points = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../tests/fixtures/run/equality/exact_nested_comparison/points.omg"
+            "/../../../../../../tests/fixtures/run/equality/exact_nested_comparison/points/points.omg"
         ));
         let accepted = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

@@ -101,3 +101,10 @@ use source_parser as parsing;
 
 #[path = "../../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
+
+#[test]
+fn authored_module_headers_cannot_replace_a_directory_namespace() {
+    for source in ["module other; machine check() {}", "machine check() {} module other;"] {
+        assert!(parse_error_message(source).contains("`module` headers are not valid"));
+    }
+}

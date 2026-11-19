@@ -64,7 +64,6 @@ pub(crate) fn select_machine_entry<T>(
 #[derive(Default)]
 pub(crate) struct NamespaceDeclarations {
     text: syntax_trees::SyntaxTextOwner,
-    modules: Vec<Vec<syntax_trees::identifier::Identifier>>,
     imports: Vec<Vec<syntax_trees::identifier::Identifier>>,
 }
 
@@ -75,16 +74,6 @@ impl syntax_trees::SyntaxTextContext for NamespaceDeclarations {
 }
 
 impl NamespaceDeclarations {
-    pub(crate) fn record_module(
-        &mut self,
-        syntax: &syntax_trees::SyntaxTrees,
-        path: arena::HandleSpan<syntax_trees::identifier::Identifier>,
-    ) {
-        self.text.retain_from(&syntax.text);
-        self.modules
-            .push(syntax.items.identifier_path_members(path).to_vec());
-    }
-
     pub(crate) fn record_import(
         &mut self,
         syntax: &syntax_trees::SyntaxTrees,
@@ -140,19 +129,19 @@ impl NamespaceDeclarations {
         Import-target validation still runs when the complete table is installed.
     */
     pub(crate) fn register(&self, symbols: &mut SymbolTable) -> Result<(), Vec<Diagnostic>> {
-        for path in &self.modules {
-            let Some(first) = path.first() else {
-                continue;
-            };
-            symbols
-                .register_source_module(
-                    first.source_span().source_id,
-                    path.iter()
-                        .map(|member| (member.as_str(&self.text), member.source_span())),
-                )
-                .map_err(|message| {
-                    vec![Diagnostic::error(message).with_source_span(first.source_span())]
-                })?;
+        if let Some(sources) = symbols.source_map() {
+            for file in sources.selected_files() {
+                let path = file.directory_namespace().map_err(|reason| vec![Diagnostic::error(reason)])?;
+                if path.is_empty() || symbols.source_module(file.source_id).is_valid() {
+                    continue;
+                }
+                if let Some(name) = path.iter().find(|name| crate::source_symbols::is_builtin_type_spelling(name)) {
+                    return Err(vec![Diagnostic::error(format!("module `{name}` is spelled like the builtin type `{name}`; choose another directory name in source `{}`", file.path.display()))]);
+                }
+                let anchor = file.source_span(source_text::Span::default());
+                symbols.register_source_module(file.source_id, path.into_iter().map(|name| (name, anchor)))
+                    .map_err(|message| vec![Diagnostic::error(message)])?;
+            }
         }
         for path in &self.imports {
             let Some(first) = path.first() else {
@@ -327,11 +316,10 @@ pub(crate) fn assign_symbols(
         sources.clone(),
         source_scoped_top_level_bindings,
         const_declarations,
-        !namespace_declarations.modules.is_empty(),
     );
     integers.install(&mut symbols);
     namespace_declarations.install(&mut symbols)?;
-    let has_sources = sources.is_some() || !namespace_declarations.modules.is_empty();
+    let has_sources = sources.is_some();
     let mut symbols = insert_selected_machine_children(program, symbols, sources, 0, has_sources);
     scopes::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;

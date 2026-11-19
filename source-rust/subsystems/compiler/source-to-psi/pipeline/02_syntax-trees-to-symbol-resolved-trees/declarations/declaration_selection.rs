@@ -226,7 +226,6 @@ impl<'base> ConstantSelection<'base> {
                         ));
                     }
                 }
-                Item::Module(module) => namespaces.record_module(syntax, module.path),
                 Item::Use(import) => namespaces.record_import(syntax, import.path),
                 _ => {}
             }
@@ -1748,32 +1747,24 @@ impl record_storage::Record for SelectionBase<'_> {
 mod retained_namespace_tests {
     use super::*;
     use arena::HandleSpan;
-    use source_text::{SourceId, SourceSpan, Span};
-    use syntax_trees::item::{ModuleDeclaration, UseItem};
+    use source_text::{SourceSpan, Span};
+    use syntax_trees::item::UseItem;
 
     #[test]
-    fn early_declaration_selection_retains_authored_namespace_names() {
-        let mut syntax = SyntaxTrees::new(SourceId(1));
-        let page = syntax.text.retain(Arc::from("example imported"));
-        let module = syntax
-            .items
-            .append_identifier_path_member(Identifier::source_backed(
-                page,
-                SourceSpan::new(SourceId(1), Span::new(0, 7)),
-            ));
-        let import = syntax
-            .items
-            .append_identifier_path_member(Identifier::source_backed(
-                page,
-                SourceSpan::new(SourceId(1), Span::new(8, 16)),
-            ));
-        syntax.push_root_item(Item::Module(ModuleDeclaration {
-            path: HandleSpan::from_parts(module, 1),
-        }));
-        syntax.push_root_item(Item::Use(UseItem {
-            path: HandleSpan::from_parts(import, 1),
-        }));
-        ConstantSelection::new(&syntax, None, Vec::new())
-            .expect("namespace registration retains source ownership before cloning names");
+    fn early_declaration_selection_retains_directory_namespace_names() {
+        let mut files = SourceMap::default();
+        let source = files.add_with_metadata(
+            "package/example/definitions.omg".into(), "imported".into(), "package".into(),
+            None, source_admission::SourceOrigin::User,
+        ).source_id;
+        let mut syntax = SyntaxTrees::new(source);
+        let page = syntax.text.retain(Arc::from("imported"));
+        let import = syntax.items.append_identifier_path_member(Identifier::source_backed(
+            page, SourceSpan::new(source, Span::new(0, 8)),
+        ));
+        syntax.push_root_item(Item::Use(UseItem { path: HandleSpan::from_parts(import, 1) }));
+        let selection = ConstantSelection::new(&syntax, Some(Arc::new(files)), Vec::new()).unwrap();
+        let symbols = selection.header_symbols();
+        assert_eq!(symbols.display_path(symbols.source_module(source), "::"), "example");
     }
 }

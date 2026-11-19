@@ -256,7 +256,7 @@ pub(in crate::resolution::declarations::generic_data) fn canonicalize_closed_dom
                 )));
             }
         }
-        let family_path = match module_path(syntax, definition.name.source_span().source_id) {
+        let family_path = match module_path(selection, definition.name.source_span().source_id) {
             Some(module) => format!("{module}::{}", definition.name.as_str(syntax)),
             None => definition.name.as_str(syntax).to_owned(),
         };

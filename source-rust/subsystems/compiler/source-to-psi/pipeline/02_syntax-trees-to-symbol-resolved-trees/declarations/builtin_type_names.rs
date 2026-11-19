@@ -41,11 +41,6 @@ pub(crate) fn validate(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
             Item::Data(definition) => refuse(&definition.name, "data declaration"),
             Item::TypeAlias(definition) => refuse(&definition.name, "type alias"),
             Item::Trait(definition) => refuse(&definition.name, "trait"),
-            Item::Module(module) => {
-                for segment in syntax.items.identifier_path_members(module.path) {
-                    refuse(segment, "module");
-                }
-            }
             Item::Machine(machine) => pending.extend(
                 machine
                     .nested_machines

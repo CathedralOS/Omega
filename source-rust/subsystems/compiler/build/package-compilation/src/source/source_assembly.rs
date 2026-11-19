@@ -1512,7 +1512,7 @@ mod requirement_preparation_tests {
                 file.source.as_ref(),
                 include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../source/library/core/indexing.omg"
+                    "/../../../../../source/library/core/indexing/indexing.omg"
                 ))
             );
             file.source_id

@@ -25,7 +25,7 @@ struct Member<'source> {
     name: &'source Identifier,
     target: &'source Identifier,
     file: Option<&'source SourceFile>,
-    module: &'source [Identifier],
+    module: Vec<&'source str>,
 }
 
 impl Member<'_> {
@@ -46,12 +46,7 @@ impl Member<'_> {
                             .map(|file| &file.package_root),
                     )
             })
-            .then_with(|| {
-                self.module
-                    .iter()
-                    .map(|name| name.as_str(syntax_trees))
-                    .cmp(other.module.iter().map(|name| name.as_str(syntax_trees)))
-            })
+            .then_with(|| self.module.cmp(&other.module))
             .then_with(|| {
                 self.name
                     .as_str(syntax_trees)
@@ -69,16 +64,6 @@ pub(crate) fn normalize(
     syntax: &mut SyntaxTrees,
     sources: Option<&SourceMap>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let modules = syntax
-        .root_items()
-        .filter_map(|item| {
-            let Item::Module(module) = item else {
-                return None;
-            };
-            let path = syntax.items.identifier_path_members(module.path);
-            Some((path.first()?.source_span().source_id, path))
-        })
-        .collect::<Vec<_>>();
     let mut members = Vec::new();
     for &handle in syntax.root_item_handles() {
         let Some(machine) = syntax.root_item(handle).as_machine() else {
@@ -105,11 +90,8 @@ pub(crate) fn normalize(
             name: &machine.name,
             target,
             file,
-            module: modules
-                .iter()
-                .find(|(owner, _)| *owner == source)
-                .map(|(_, path)| *path)
-                .unwrap_or_default(),
+            module: file.map(SourceFile::directory_namespace).transpose()
+                .map_err(|reason| vec![Diagnostic::error(reason)])?.unwrap_or_default(),
         });
     }
     members.sort_by(|left, right| {

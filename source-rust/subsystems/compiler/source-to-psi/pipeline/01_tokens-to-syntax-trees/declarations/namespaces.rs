@@ -1,20 +1,8 @@
 use crate::token_input::cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{ModuleDeclaration, PackageDeclaration};
+use syntax_trees::item::PackageDeclaration;
 use tokens::PunctuationKind;
-
-pub(crate) fn parse_module_declaration<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, ModuleDeclaration> {
-    let (path, input) = parse_dot_or_colon_path(input, |member| {
-        syntax_trees.items.append_identifier_path_member(member)
-    })?;
-    let input = take_optional_semicolon(input)?;
-
-    Ok((ModuleDeclaration { path }, input))
-}
 
 pub(crate) fn parse_package_declaration<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

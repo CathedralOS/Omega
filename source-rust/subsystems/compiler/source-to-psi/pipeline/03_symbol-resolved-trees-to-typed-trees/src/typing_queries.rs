@@ -2270,7 +2270,7 @@ mod tests {
             if core {
                 let text = include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../../source/library/core/byte_observation.omg"
+                    "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
                 ));
                 let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("../../../../../../source/library/core");

@@ -1326,7 +1326,7 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
                 .and_then(|span| frontier.typed.symbols.source_file(span))
                 .is_some_and(|file| {
                     file.path
-                        .ends_with("source/library/core/compact_binary.omg")
+                        .ends_with("source/library/core/CompactBinary/compact_binary.omg")
                 })
     }));
 }

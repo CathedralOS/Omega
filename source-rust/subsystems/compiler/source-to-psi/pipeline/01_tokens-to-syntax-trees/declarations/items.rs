@@ -1,4 +1,4 @@
-use crate::declarations::namespaces::{parse_module_declaration, parse_package_declaration};
+use crate::declarations::namespaces::parse_package_declaration;
 
 use crate::declarations::capabilities::parse_capability_definition;
 use crate::declarations::constants::parse_const_definition;
@@ -235,9 +235,7 @@ fn parse_declared_item<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Item> {
     if input.at_contextual("module") {
-        let input = input.take_contextual("module")?;
-        let (item, rest) = parse_module_declaration(syntax_trees, input)?;
-        return Ok((Item::Module(item), rest));
+        return Err(input.error_here("`module` headers are not valid; the source directory relative to its package root defines its namespace"));
     }
 
     if input.at_contextual("package") {

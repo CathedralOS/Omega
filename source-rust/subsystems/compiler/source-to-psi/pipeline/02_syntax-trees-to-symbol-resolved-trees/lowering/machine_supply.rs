@@ -446,7 +446,7 @@ mod compiler_machine_tests {
 
     const ATOMIC: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../source/library/core/atomic.omg"
+        "/../../../../../../source/library/core/Atomic/atomic.omg"
     ));
 
     const ORDERING: &str = include_str!(concat!(
@@ -608,7 +608,7 @@ mod compiler_machine_tests {
     }
     #[test]
     fn sealed_bodyless_declaration_retains_its_machine_owner() {
-        let trees = resolved(ATOMIC, "atomic.omg", SourceOrigin::Toolchain)
+        let trees = resolved(ATOMIC, "Atomic/atomic.omg", SourceOrigin::Toolchain)
             .expect("the bundled fence declaration must resolve");
         assert_eq!(trees.machines.len(), 1, "one authoritative machine owner");
         let machine = &trees.machines[0];
@@ -636,14 +636,14 @@ mod compiler_machine_tests {
 
     const BYTE_OBSERVATION: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../source/library/core/byte_observation.omg"
+        "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
     ));
 
     #[test]
     fn bundled_byte_observations_retain_one_complete_machine_header() {
         let trees = resolved(
             BYTE_OBSERVATION,
-            "byte_observation.omg",
+            "byte_observation/byte_observation.omg",
             SourceOrigin::Toolchain,
         )
         .expect("the exact bundled observations must resolve");
@@ -667,7 +667,7 @@ mod compiler_machine_tests {
     fn byte_observation_shape_does_not_replace_catalog_custody() {
         let edited = format!("{BYTE_OBSERVATION}\n// local edit\n");
         for (text, path, origin) in [
-            (BYTE_OBSERVATION, "byte_observation.omg", SourceOrigin::User),
+            (BYTE_OBSERVATION, "byte_observation/byte_observation.omg", SourceOrigin::User),
             (
                 BYTE_OBSERVATION,
                 "copied/byte_observation.omg",
@@ -675,7 +675,7 @@ mod compiler_machine_tests {
             ),
             (
                 edited.as_str(),
-                "byte_observation.omg",
+                "byte_observation/byte_observation.omg",
                 SourceOrigin::Toolchain,
             ),
         ] {
@@ -695,7 +695,7 @@ mod compiler_machine_tests {
         let check = |text: &str| {
             // Directly exercise shape checking; these edited bytes receive
             // no catalog custody, as the separate source-origin test pins.
-            let (syntax, _) = parsed(text, "byte_observation.omg", SourceOrigin::Toolchain);
+            let (syntax, _) = parsed(text, "byte_observation/byte_observation.omg", SourceOrigin::Toolchain);
             let machine = syntax
                 .root_items()
                 .find_map(|item| match item {
@@ -733,9 +733,9 @@ mod compiler_machine_tests {
     fn copied_or_edited_catalog_source_cannot_acquire_compiler_supply() {
         let edited = format!("{ATOMIC}\n// local edit\n");
         for (text, path, origin) in [
-            (ATOMIC, "atomic.omg", SourceOrigin::User),
+            (ATOMIC, "Atomic/atomic.omg", SourceOrigin::User),
             (ATOMIC, "other.omg", SourceOrigin::Toolchain),
-            (edited.as_str(), "atomic.omg", SourceOrigin::Toolchain),
+            (edited.as_str(), "Atomic/atomic.omg", SourceOrigin::Toolchain),
         ] {
             let errors = resolved(text, path, origin)
                 .expect_err("source custody must not be inferred from the machine shape");

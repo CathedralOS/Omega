@@ -1378,7 +1378,7 @@ mod tests {
     fn only_core_and_std_reach_every_program() {
         assert!(toolchain_library("source/library/core/layout.omg"));
         assert!(toolchain_library("source/library/std/console.omg"));
-        assert!(!toolchain_library("source/library/alloc/vec.omg"));
+        assert!(!toolchain_library("source/library/alloc/vec/vec.omg"));
         assert!(!toolchain_library("samples/cli/facts/f/local/main.omg"));
     }
 
