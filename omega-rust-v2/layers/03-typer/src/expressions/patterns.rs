@@ -68,7 +68,16 @@ impl BodyTyper<'_, '_> {
                 PatternCoverage::Product(parts) => products.push(parts),
                 PatternCoverage::Partial => {}
             }
-            values.push((expr, self.type_expression_with_expected_type(expr, expected)?));
+            let value = self.type_expression_with_expected_type(expr, expected)?;
+            // A terminal transition returns the selected arm directly. Attach
+            // its return obligation to that expression while its facts are in scope.
+            if source.nodes[node_index].kind == NodeKind::Transition
+                && let Some(body) = source.nodes[node_index].parent
+                && let Some(result) = expected
+            {
+                self.check_return_borrow(body, expr, result)?;
+            }
+            values.push((expr, value));
             changed |= self.version != entry_version;
             merged_views.extend(&self.local_views);
         }
