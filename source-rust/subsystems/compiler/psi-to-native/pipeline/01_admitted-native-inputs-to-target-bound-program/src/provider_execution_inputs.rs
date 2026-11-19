@@ -278,7 +278,7 @@ pub(crate) fn plan_inputs_and_review(
                 let providers =
                     psi_provider_selections::admit_provider_installation(artifact.view(), &[], &[])
                         .map_err(|error| refuse(format!("{error:?}")))?;
-                let admission = terminal_installation::admit_compiler_evaluation(
+                let admission = evaluation_admission::admit_compiler_evaluation(
                     artifact.view(),
                     profile.target_name(),
                     *instance
