@@ -849,6 +849,7 @@ machine entry() -> u64 { first<u32>(3u64) }
             },
             terminal_codec::TerminalPublication::Invocation,
         )
+        .expect("fixture must lower to Psi")
         .program
     };
     let verdicts = crate::checking::judge_compilation(prepare(mutually_recursive));
@@ -1352,7 +1353,8 @@ fn closed_callback_applications_prove_the_full_termination_contract() {
                 supplies: &[],
             },
             terminal_codec::TerminalPublication::Portable,
-        );
+        )
+        .expect("fixture must lower to Psi");
         let verdicts = crate::checking::judge_compilation(compilation.program);
         for (position, verdict) in verdicts.iter().enumerate() {
             match verdict {
@@ -1419,7 +1421,8 @@ fn an_unused_closed_callback_still_proves_its_type_requirement() {
                 supplies: &[],
             },
             terminal_codec::TerminalPublication::Portable,
-        );
+        )
+        .expect("fixture must lower to Psi");
         super::entryless::whole_subject_result(crate::checking::judge_compilation(
             compilation.program,
         ))
@@ -2172,7 +2175,8 @@ fn judge_prepared_source(
             declaration_contracts::source_identity::DependencyScope::Product,
         ),
         terminal_codec::TerminalPublication::Invocation,
-    );
+    )
+    .expect("fixture must lower to Psi");
     crate::checking::judge_compilation(prepared.program)
 }
 
@@ -2311,7 +2315,8 @@ machine entry() -> u32 {
                 supplies: &[],
             },
             terminal_codec::TerminalPublication::Portable,
-        );
+        )
+        .expect("fixture must lower to Psi");
         let judgments = crate::checking::judge_compilation(compilation.program);
         for (position, judgment) in judgments.iter().enumerate() {
             match judgment {

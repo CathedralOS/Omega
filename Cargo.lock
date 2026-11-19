@@ -2006,6 +2006,7 @@ dependencies = [
  "register-homes",
  "register-homes-to-post-allocation-machine",
  "register-model",
+ "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
@@ -3309,6 +3310,7 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
+ "bignum",
  "bundled-declarations",
  "declaration-contracts",
  "diagnostics",

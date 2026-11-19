@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+runtime-abi = { path = "../../target-description/runtime-abi" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "../09_register-homes-to-post-allocation-machine" }
 installation-admission = { path = "../../verification/installation-admission" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }

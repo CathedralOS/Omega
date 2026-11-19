@@ -889,6 +889,15 @@ impl SymbolResolvedTrees {
         self.data_type_parameters(machine.type_parameters)
     }
 
+    pub fn machine_declared_type_equations(
+        &self,
+        machine: &Machine,
+    ) -> &[crate::source_resolved::machine::DeclaredTypeEquation] {
+        self.declarations()
+            .declared_type_equations
+            .span_or_empty(machine.declared_type_equations)
+    }
+
     pub fn machine_ranking_view(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.declarations().ranking_views.span_or_empty(span)
     }

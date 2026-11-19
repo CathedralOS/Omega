@@ -38,6 +38,7 @@ terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 terminal-work = { path = "../../representations/terminal-psi/work" }
 
 [dev-dependencies]
+bignum = { path = "../../../foundation/bignum" }
 bundled-declarations = { path = "../../representations/bundled-declarations" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }

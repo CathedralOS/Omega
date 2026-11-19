@@ -221,6 +221,7 @@ machine entry() -> bool {
             },
             terminal_codec::TerminalPublication::Invocation,
         )
+        .expect("fixture must lower to Psi")
         .program;
         let mut verdicts = crate::checking::judge_compilation(prepared).into_iter();
         let primary = verdicts.next().unwrap().unwrap();

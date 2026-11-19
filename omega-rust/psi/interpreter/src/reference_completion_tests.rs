@@ -2040,6 +2040,7 @@ fn check_aggregate_reference_formation(control: AggregateReferenceControl) {
             entry: artifact.semantic_module().entry,
             installation: None,
             host_imports: &[],
+            external_completions: &[],
             target_machines: selected.then_some(&target),
             target_layouts: selected.then_some(&layouts),
         })

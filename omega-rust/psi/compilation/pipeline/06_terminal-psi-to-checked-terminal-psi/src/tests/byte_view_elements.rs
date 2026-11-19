@@ -681,6 +681,7 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
+        .expect("fixture must lower to Psi")
         .program,
     );
     match super::entryless::whole_subject_result(verdicts).unwrap() {

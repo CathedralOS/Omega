@@ -157,7 +157,8 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
             declaration_contracts::source_identity::DependencyScope::Product,
         ),
         terminal_codec::TerminalPublication::Invocation,
-    );
+    )
+    .expect("fixture must lower to Psi");
     let verdicts = crate::checking::judge_compilation(prepared.program);
     assert!(
         !verdicts.is_empty()

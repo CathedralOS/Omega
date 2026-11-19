@@ -219,16 +219,10 @@ fn conjunctions_keep_only_structural_definitions() {
             .iter()
             .find(|machine| !machine.type_parameters.is_empty())
             .unwrap();
-        let equations = resolved
-            .declarations()
-            .declared_type_equations
-            .span_or_empty(machine.declared_type_equations);
+        let equations = resolved.machine_declared_type_equations(machine);
         assert_eq!(equations.len(), expected, "{requirement}");
         if expected != 0 {
-            let parameters = resolved
-                .declarations()
-                .data_type_parameters
-                .span_or_empty(machine.type_parameters);
+            let parameters = resolved.machine_type_parameters(machine);
             assert!(matches!(&equations[0].parameter,
                 crate::source_resolved::types::TypeReference::Named { name, symbol, .. }
                     if name.as_str() == "Kind" && *symbol == parameters[0].symbol));
@@ -237,10 +231,7 @@ fn conjunctions_keep_only_structural_definitions() {
             else {
                 panic!("the definition keeps its constructor")
             };
-            let arguments = resolved
-                .declarations()
-                .child_type_references
-                .span_or_empty(definition.arguments);
+            let arguments = resolved.child_type_references(definition.arguments);
             assert_eq!(arguments.len(), 2);
             for (argument, parameter) in arguments.iter().zip(&parameters[1..]) {
                 assert!(
