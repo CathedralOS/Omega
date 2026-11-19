@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+terminal-authority-receipts = { path = "../../../verification/provider-admission/authority" }
 native-binding-admission = { path = "../../../verification/native-bindings" }
 native-intrinsics = { path = "../../../targets/intrinsics" }
 target-provider-admission = { path = "../../../verification/target-providers" }
@@ -28,7 +29,6 @@ selected-instructions = { path = "../../representations/selected-instructions" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-effects = { path = "../../../installation/native-effects" }
 function-identity = { path = "../../representations/function-identity" }
 target = { path = "../../../targets/target" }
 image = { path = "../image" }

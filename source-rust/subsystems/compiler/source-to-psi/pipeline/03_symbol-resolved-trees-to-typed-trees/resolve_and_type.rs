@@ -12,6 +12,7 @@ use crate::evaluation::{BuildTimeSelectionAuthority, PreCheckEvaluation};
 use crate::{PsiCompilationObserver, PsiCompilationStage};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
+use symbol_resolved_trees_to_typed_trees::product_declarations;
 
 mod activation {
     use super::{PreCheckEvaluation, ResolveAndTypeRequest};
@@ -949,8 +950,8 @@ impl PreparedSource {
     pub fn admit_root_bindings(
         &self,
         executed: &[crate::declaration_selection::ExecutedRootBinding],
-    ) -> Result<Vec<declaration_contracts::selection::RootBinding>, Vec<Diagnostic>> {
-        crate::root_bindings::collect_root_bindings(&self.typed, executed)
+    ) -> Result<Vec<crate::RootBinding>, Vec<Diagnostic>> {
+        product_declarations::collect_root_bindings(&self.typed, executed)
     }
 }
 
@@ -1186,7 +1187,7 @@ impl SourceContinuation {
         selecting: source_text::SourceSpan,
         path: &[u8],
     ) -> Result<semantic_vocabulary::ParameterDescription, String> {
-        crate::product_descriptions::describe_parameter(self.typed(), occurrence, selecting, path)
+        product_declarations::describe_parameter(self.typed(), occurrence, selecting, path)
     }
 
     pub fn describe_field(
@@ -1195,7 +1196,7 @@ impl SourceContinuation {
         selecting: source_text::SourceSpan,
         path: &[u8],
     ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
-        crate::product_descriptions::describe_field(self.typed(), occurrence, selecting, path)
+        product_declarations::describe_field(self.typed(), occurrence, selecting, path)
     }
 
     pub fn describe_schema(
@@ -1203,7 +1204,7 @@ impl SourceContinuation {
         occurrence: source_text::SourceSpan,
         path: &[u8],
     ) -> Result<crate::declaration_selection::DescribedProductSchema, String> {
-        crate::product_descriptions::describe_schema(self.typed(), occurrence, path)
+        product_declarations::describe_schema(self.typed(), occurrence, path)
     }
 
     pub fn describe_provider(
@@ -1211,7 +1212,7 @@ impl SourceContinuation {
         occurrence: source_text::SourceSpan,
         path: &[u8],
     ) -> Result<crate::declaration_selection::DescribedProductProvider, String> {
-        crate::product_descriptions::describe_provider(self.typed(), occurrence, path)
+        product_declarations::describe_provider(self.typed(), occurrence, path)
     }
 
     pub fn describe_entry(
@@ -1221,7 +1222,7 @@ impl SourceContinuation {
         slot: &[u8],
         slots: &dyn semantic_vocabulary::ProgramEntrySourceCatalog,
     ) -> Result<crate::declaration_selection::DescribedProductEntry, String> {
-        crate::product_descriptions::describe_entry(self.typed(), occurrence, path, slot, slots)
+        product_declarations::describe_entry(self.typed(), occurrence, path, slot, slots)
     }
 
     pub fn same_completion_input(&self, other: &Self) -> bool {
@@ -1458,6 +1459,23 @@ impl SourceCompletionInput {
                 .iter()
                 .zip(&other.pending_pre_checks)
                 .all(|(left, right)| left.same_pending_work(right))
+    }
+}
+
+/// The admitted files and reusable frontend results for one invocation.
+#[derive(Clone, Default)]
+pub struct SourcePreparation {
+    catalogue: Arc<std::sync::Mutex<crate::source_inputs::SourceCatalogue>>,
+    pub frontends: SourceFrontends,
+}
+
+impl SourcePreparation {
+    pub fn catalogue(
+        &self,
+    ) -> Result<std::sync::MutexGuard<'_, crate::source_inputs::SourceCatalogue>, Vec<Diagnostic>> {
+        self.catalogue
+            .lock()
+            .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])
     }
 }
 

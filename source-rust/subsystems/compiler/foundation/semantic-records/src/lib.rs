@@ -640,6 +640,8 @@ mod scalars {
 pub use scalar_condition_role::ScalarConditionRole;
 mod storage;
 pub use behavior_policy::{CrashCause, TerminalAuthorityClass};
+mod terminal_authority;
+pub use terminal_authority::{PortableFilesystemAuthorityFacet, TerminalAuthorityDisposition};
 pub use boundary::callback_identities::{
     BoundaryNativeParameterOrigin, CallbackRequirementId, NativeParameterId, StaticMachineBinderId,
     callback_nominal_report_fingerprint, callback_requirement_id, nominal_callback_binder_id,

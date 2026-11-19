@@ -11,7 +11,7 @@ requirement text can be absent from the program plan's identity table.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use effects::{
+use terminal_authority_receipts::{
     TerminalAuthorityClosureLeaf, TerminalAuthorityClosureLeafOrigin, TerminalMechanismIdentity,
 };
 use provider_plans::{ProviderBinding, ProviderPlanDigest, ServiceSchemaDigest};
@@ -65,7 +65,7 @@ impl<'a> Reviewer<'a> {
     ) -> (
         Vec<TerminalAuthorityClosureLeaf>,
         terminal_psi::TerminalIdentityTable,
-        effects::TerminalAuthorityPolicyIdentity,
+        terminal_authority_receipts::TerminalAuthorityPolicyIdentity,
     ) {
         (
             self.leaves.into_values().collect(),
@@ -211,7 +211,7 @@ impl<'a> Reviewer<'a> {
         if let Some(authority) = self.context.component_authority(boundary)? {
             for leaf in authority.review().leaves() {
                 match leaf.custody() {
-                    effects::TerminalAuthorityClosureCustody::SelectedRequirement {
+                    terminal_authority_receipts::TerminalAuthorityClosureCustody::SelectedRequirement {
                         service_schema,
                         requirement_identity,
                         declared_requirement_identity,
@@ -243,7 +243,7 @@ impl<'a> Reviewer<'a> {
                     // selected requirement (permissions.md, "Two-axis
                     // containment"); it inherits no foreign or boundary
                     // permission and is classified and adjudicated afresh.
-                    effects::TerminalAuthorityClosureCustody::NativeBinding {
+                    terminal_authority_receipts::TerminalAuthorityClosureCustody::NativeBinding {
                         service_schema,
                         requirement_identity,
                         declared_requirement_identity,
@@ -268,7 +268,7 @@ impl<'a> Reviewer<'a> {
                             leaf.origin(),
                         )?;
                     }
-                    effects::TerminalAuthorityClosureCustody::ProgramRoot { .. } => {
+                    terminal_authority_receipts::TerminalAuthorityClosureCustody::ProgramRoot { .. } => {
                         self.admit_leaf(
                             selected_plan.schema_identity_digest(),
                             requirement,
@@ -453,8 +453,8 @@ impl<'a> Reviewer<'a> {
         mechanism: TerminalMechanismIdentity,
     ) -> Result<
         (
-            Option<effects::TerminalAuthorityDisposition>,
-            Option<effects::TerminalAuthorityDisposition>,
+            Option<semantic_vocabulary::TerminalAuthorityDisposition>,
+            Option<semantic_vocabulary::TerminalAuthorityDisposition>,
         ),
         String,
     > {

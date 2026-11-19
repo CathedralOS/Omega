@@ -168,14 +168,14 @@ impl HandleReplayActivations {
         let mechanism = context
             .mechanism(boundary)
             .ok_or("native handle occurrence lost its admitted physical mechanism")?;
-        let effects::TerminalMechanismIdentity::NormalizedForeign(foreign) = *mechanism else {
+        let terminal_authority_receipts::TerminalMechanismIdentity::NormalizedForeign(foreign) = *mechanism else {
             return Err(
                 "Windows handle source occurrence is not an original foreign import".into(),
             );
         };
         if foreign.target() != target::TargetProfile::WindowsX64
             || foreign.argument_contract()
-                != effects::NormalizedForeignArgumentContract::AdmittedPlan
+                != terminal_authority_receipts::NormalizedForeignArgumentContract::AdmittedPlan
             || foreign.implementation_contract().is_zero()
         {
             return Err(
@@ -203,7 +203,7 @@ impl HandleReplayActivations {
         source.u64(boundary.get());
         // The original admitted key has no checked-argument proof. The source
         // context therefore cannot change when a proposed proof changes.
-        source.bytes(&effects::terminal_mechanism_identity_bytes(*mechanism));
+        source.bytes(&terminal_authority_receipts::terminal_mechanism_identity_bytes(*mechanism));
         Ok(NativeOccurrence {
             machine: scope.machine,
             site,
@@ -2590,8 +2590,8 @@ enum CapturedCallArgument {
 /// Narrowed rows exist only after replaying the retained program. Receiver
 /// grants do not participate in their physical meaning or proof identity.
 pub(super) struct CheckedHandleLeaf {
-    pub mechanism: effects::TerminalMechanismIdentity,
-    pub origin: effects::TerminalAuthorityClosureLeafOrigin,
+    pub mechanism: terminal_authority_receipts::TerminalMechanismIdentity,
+    pub origin: terminal_authority_receipts::TerminalAuthorityClosureLeafOrigin,
 }
 
 #[derive(Default)]
@@ -2622,9 +2622,11 @@ pub(super) fn checked_calls(
     context: &ReviewContext<'_>,
     trigger: semantic_vocabulary::BoundaryMachineId,
 ) -> Result<Option<CheckedHandleCalls>, String> {
-    use effects::{
-        CheckedSyscallArgumentContractIdentity, NormalizedForeignArgumentContract,
-        TerminalAuthorityClosureLeafOrigin, TerminalAuthorityDisposition,
+    use semantic_vocabulary::TerminalAuthorityDisposition;
+    use terminal_authority_receipts::{
+        CheckedSyscallArgumentContractIdentity,
+        NormalizedForeignArgumentContract,
+        TerminalAuthorityClosureLeafOrigin,
         TerminalMechanismIdentity,
     };
     if context.target_profile() != target::TargetProfile::WindowsX64
@@ -2731,7 +2733,7 @@ pub(super) fn checked_calls(
         let mechanism = context
             .mechanism(*boundary)
             .ok_or("external completion lost its admitted physical execution")?;
-        proof.bytes(&effects::terminal_mechanism_identity_bytes(*mechanism));
+        proof.bytes(&terminal_authority_receipts::terminal_mechanism_identity_bytes(*mechanism));
     }
     let complete_proof = proof.finish();
     let mut completed = Vec::new();
@@ -2761,7 +2763,7 @@ pub(super) fn checked_calls(
         let mut constraint =
             DomainDigestEncoder::new(b"omega.windows.file-handle.checked-occurrence.v1\0");
         constraint.raw(&complete_proof);
-        constraint.bytes(&effects::terminal_mechanism_identity_bytes(
+        constraint.bytes(&terminal_authority_receipts::terminal_mechanism_identity_bytes(
             TerminalMechanismIdentity::NormalizedForeign(*original),
         ));
         constraint.u64(occurrence.machine.get());

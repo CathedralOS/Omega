@@ -3,14 +3,13 @@
 mod permissions;
 mod semantic_bindings;
 
-pub use permissions::{
-    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission,
-    TerminalAuthorityDisposition,
-};
+pub use permissions::ServiceTerminalAuthorityPermission;
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, program_entry_semantic_binding_role,
 };
-pub use semantic_vocabulary::TerminalAuthorityClass;
+pub use semantic_vocabulary::{
+    PortableFilesystemAuthorityFacet, TerminalAuthorityClass, TerminalAuthorityDisposition,
+};
 
 use declaration_scope::ProductDeclarationScope;
 use std::sync::Arc;

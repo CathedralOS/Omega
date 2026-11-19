@@ -125,7 +125,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                 let validated =
                     calling_conventions::validate_boundary_entry_plan(entry.clone(), &signature)
                         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-                effects::TerminalMechanismIdentity::Table {
+                terminal_authority_receipts::TerminalMechanismIdentity::Table {
                     target: target::TargetProfile::from_canonical_target_name(
                         &provider_plan.target,
                     )
@@ -214,7 +214,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
 fn settled_host_cohort_row(
     provider_plan: &ProviderPlan,
     row: &ProviderPlanRow,
-    mechanism: effects::TerminalMechanismIdentity,
+    mechanism: terminal_authority_receipts::TerminalMechanismIdentity,
 ) -> Option<TerminalAuthorityPolicyRow> {
     let requirement = provider_plan
         .identities

@@ -17,7 +17,7 @@ intrinsics exercise no host authority class.
 
 use std::sync::OnceLock;
 
-use effects::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 use language_core::BuiltinFunction;
 use native_intrinsics::{
     CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,

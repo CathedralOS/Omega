@@ -1,281 +1,17 @@
-/*
-We define the role-tagged terminal mechanism identities
-(`TerminalMechanismIdentity`), their physical authority dispositions
-(`TerminalAuthorityDisposition`), consumer-supplied service permissions
-(`ServiceTerminalAuthorityPermission`), and the canonical closure review receipt
-(`TerminalAuthorityClosureReviewReceipt`). Mechanism identities and closure
-review commitments encode multi-byte integers in big-endian order, preserving
-the published v5 closure-review digest grammar.
-*/
+//! Check and identify the terminal authority leaves reviewed against a physical
+//! classification and an optional receiving permission policy. The native
+//! reviewer supplies the reachable leaves from its admitted execution.
+#![forbid(unsafe_code)]
 
-use crate::provider_plan::ServiceSchemaDigest;
+use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 
-pub use host_provider_inputs::{
-    PortableFilesystemAuthorityFacet, ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition,
+mod mechanisms;
+pub use mechanisms::{
+    CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
+    CheckedSyscallArgumentContractIdentity, NormalizedForeignArgumentContract,
+    NormalizedForeignTerminalMechanismIdentity, SyscallTerminalMechanismIdentity,
+    TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
 };
-
-pub use native_intrinsics::{
-    CompilerAccessorScalarOperation, CompilerIntrinsicExecutionIdentity, CompilerNumericType,
-    CompilerPrimitiveFloatBinaryOperation, CompilerPrimitiveIntegerComparisonOperation,
-    compiler_accessor_scalar_contract_identity, compiler_intrinsic_execution_identity_bytes,
-    primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
-};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NormalizedForeignArgumentContract {
-    AdmittedPlan,
-    Checked(CheckedSyscallArgumentContractIdentity),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NormalizedForeignTerminalMechanismIdentity {
-    target: target::TargetProfile,
-    locator_identity: target::ForeignLocatorIdentityDigest,
-    implementation_contract: crate::provider_plan::BoundaryCallingPlanCommitment,
-    argument_contract: NormalizedForeignArgumentContract,
-}
-
-impl NormalizedForeignTerminalMechanismIdentity {
-    pub fn from_normalized_locator(
-        locator: &target::NormalizedForeignLocator,
-        implementation_contract: crate::provider_plan::BoundaryCallingPlanCommitment,
-    ) -> Self {
-        Self {
-            target: locator.target(),
-            locator_identity: locator.identity_digest(),
-            implementation_contract,
-            argument_contract: NormalizedForeignArgumentContract::AdmittedPlan,
-        }
-    }
-
-    pub const fn with_checked_argument_contract(
-        self,
-        contract: CheckedSyscallArgumentContractIdentity,
-    ) -> Self {
-        Self {
-            argument_contract: NormalizedForeignArgumentContract::Checked(contract),
-            ..self
-        }
-    }
-
-    pub const fn argument_contract(self) -> NormalizedForeignArgumentContract {
-        self.argument_contract
-    }
-
-    pub const fn target(self) -> target::TargetProfile {
-        self.target
-    }
-
-    pub const fn locator_identity(self) -> target::ForeignLocatorIdentityDigest {
-        self.locator_identity
-    }
-
-    pub const fn implementation_contract(
-        self,
-    ) -> crate::provider_plan::BoundaryCallingPlanCommitment {
-        self.implementation_contract
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckedSyscallArgumentContractIdentity([u8; 32]);
-
-impl CheckedSyscallArgumentContractIdentity {
-    pub const fn from_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-
-    pub const fn as_bytes(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub fn is_zero(self) -> bool {
-        self.0 == [0; 32]
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SyscallTerminalMechanismIdentity {
-    target: target::TargetProfile,
-    number: u32,
-    checked_argument_contract: CheckedSyscallArgumentContractIdentity,
-}
-
-impl SyscallTerminalMechanismIdentity {
-    pub const fn new(
-        target: target::TargetProfile,
-        number: u32,
-        checked_argument_contract: CheckedSyscallArgumentContractIdentity,
-    ) -> Self {
-        Self {
-            target,
-            number,
-            checked_argument_contract,
-        }
-    }
-
-    pub const fn target(self) -> target::TargetProfile {
-        self.target
-    }
-
-    pub const fn number(self) -> u32 {
-        self.number
-    }
-
-    pub const fn checked_argument_contract(self) -> CheckedSyscallArgumentContractIdentity {
-        self.checked_argument_contract
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedPhysicalOperationIdentity {
-    PortWrite { port: u16 },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckedPhysicalTerminalMechanismIdentity {
-    target: target::TargetProfile,
-    operation: CheckedPhysicalOperationIdentity,
-}
-
-impl CheckedPhysicalTerminalMechanismIdentity {
-    pub const fn port_write(target: target::TargetProfile, port: u16) -> Self {
-        Self {
-            target,
-            operation: CheckedPhysicalOperationIdentity::PortWrite { port },
-        }
-    }
-
-    pub const fn target(self) -> target::TargetProfile {
-        self.target
-    }
-
-    pub const fn operation(self) -> CheckedPhysicalOperationIdentity {
-        self.operation
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminalMechanismIdentity {
-    CompilerIntrinsic(CompilerIntrinsicExecutionIdentity),
-    NormalizedForeign(NormalizedForeignTerminalMechanismIdentity),
-    CheckedPhysical(CheckedPhysicalTerminalMechanismIdentity),
-    Syscall(SyscallTerminalMechanismIdentity),
-    Table {
-        target: target::TargetProfile,
-        provider: crate::provider_plan::ProviderPlanDigest,
-        calling: crate::provider_plan::BoundaryCallingPlanCommitment,
-        byte_offset: u32,
-        dispatch_only: bool,
-    },
-}
-
-impl From<CompilerIntrinsicExecutionIdentity> for TerminalMechanismIdentity {
-    fn from(identity: CompilerIntrinsicExecutionIdentity) -> Self {
-        Self::CompilerIntrinsic(identity)
-    }
-}
-
-impl From<NormalizedForeignTerminalMechanismIdentity> for TerminalMechanismIdentity {
-    fn from(identity: NormalizedForeignTerminalMechanismIdentity) -> Self {
-        Self::NormalizedForeign(identity)
-    }
-}
-
-impl From<CheckedPhysicalTerminalMechanismIdentity> for TerminalMechanismIdentity {
-    fn from(identity: CheckedPhysicalTerminalMechanismIdentity) -> Self {
-        Self::CheckedPhysical(identity)
-    }
-}
-
-impl From<SyscallTerminalMechanismIdentity> for TerminalMechanismIdentity {
-    fn from(identity: SyscallTerminalMechanismIdentity) -> Self {
-        Self::Syscall(identity)
-    }
-}
-
-pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) -> Vec<u8> {
-    match identity {
-        TerminalMechanismIdentity::Table {
-            target,
-            provider,
-            calling,
-            byte_offset,
-            dispatch_only,
-        } => {
-            let target = target.identity().as_str().as_bytes();
-            let mut bytes = vec![4];
-            bytes.extend_from_slice(&(target.len() as u32).to_be_bytes());
-            bytes.extend_from_slice(target);
-            bytes.extend_from_slice(provider.as_bytes());
-            bytes.extend_from_slice(&calling.as_bytes());
-            bytes.extend_from_slice(&byte_offset.to_be_bytes());
-            bytes.push(u8::from(dispatch_only));
-            bytes
-        }
-        TerminalMechanismIdentity::CompilerIntrinsic(intrinsic) => {
-            let mut bytes = Vec::with_capacity(9);
-            bytes.push(0);
-            bytes.extend_from_slice(&compiler_intrinsic_execution_identity_bytes(intrinsic));
-            bytes
-        }
-        TerminalMechanismIdentity::NormalizedForeign(foreign) => {
-            let target = foreign.target().identity().as_str().as_bytes();
-            let mut bytes = Vec::with_capacity(1 + 4 + target.len() + 32 + 32 + 1 + 32);
-            bytes.push(1);
-            bytes.extend_from_slice(
-                &u32::try_from(target.len())
-                    .expect("target-profile identity length fits u32")
-                    .to_be_bytes(),
-            );
-            bytes.extend_from_slice(target);
-            bytes.extend_from_slice(&foreign.locator_identity().as_bytes());
-            bytes.extend_from_slice(&foreign.implementation_contract().as_bytes());
-            match foreign.argument_contract() {
-                NormalizedForeignArgumentContract::AdmittedPlan => {}
-                NormalizedForeignArgumentContract::Checked(contract) => {
-                    bytes.push(1);
-                    bytes.extend_from_slice(&contract.as_bytes());
-                }
-            }
-            bytes
-        }
-        TerminalMechanismIdentity::CheckedPhysical(physical) => {
-            let target = physical.target().identity().as_str().as_bytes();
-            let mut bytes = Vec::with_capacity(1 + 4 + target.len() + 3);
-            bytes.push(2);
-            bytes.extend_from_slice(
-                &u32::try_from(target.len())
-                    .expect("target-profile identity length fits u32")
-                    .to_be_bytes(),
-            );
-            bytes.extend_from_slice(target);
-            match physical.operation() {
-                CheckedPhysicalOperationIdentity::PortWrite { port } => {
-                    bytes.push(0);
-                    bytes.extend_from_slice(&port.to_be_bytes());
-                }
-            }
-            bytes
-        }
-        TerminalMechanismIdentity::Syscall(syscall) => {
-            let target = syscall.target().identity().as_str().as_bytes();
-            let mut bytes = Vec::with_capacity(1 + 4 + target.len() + 4 + 32);
-            bytes.push(3);
-            bytes.extend_from_slice(
-                &u32::try_from(target.len())
-                    .expect("target-profile identity length fits u32")
-                    .to_be_bytes(),
-            );
-            bytes.extend_from_slice(target);
-            bytes.extend_from_slice(&syscall.number().to_be_bytes());
-            bytes.extend_from_slice(&syscall.checked_argument_contract().as_bytes());
-            bytes
-        }
-    }
-}
-
-pub use semantic_vocabulary::TerminalAuthorityClass;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalAuthorityPolicyIdentity {
@@ -359,13 +95,13 @@ impl TerminalAuthorityClosureLeafOrigin {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalAuthorityClosureCustody {
     SelectedRequirement {
-        service_schema: crate::provider_plan::ServiceSchemaDigest,
+        service_schema: provider_plans::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
         declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
-        provider_plan: crate::provider_plan::ProviderPlanDigest,
+        provider_plan: provider_plans::ProviderPlanDigest,
     },
     NativeBinding {
-        service_schema: crate::provider_plan::ServiceSchemaDigest,
+        service_schema: provider_plans::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
         declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
         receipt: [u8; 32],
@@ -386,10 +122,10 @@ pub struct TerminalAuthorityClosureLeaf {
 
 impl TerminalAuthorityClosureLeaf {
     pub fn new(
-        service_schema: crate::provider_plan::ServiceSchemaDigest,
+        service_schema: provider_plans::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
         declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
-        provider_plan: crate::provider_plan::ProviderPlanDigest,
+        provider_plan: provider_plans::ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
         origin: TerminalAuthorityClosureLeafOrigin,
         exercised: Option<TerminalAuthorityDisposition>,
@@ -412,7 +148,7 @@ impl TerminalAuthorityClosureLeaf {
     }
 
     pub fn native_binding(
-        service_schema: crate::provider_plan::ServiceSchemaDigest,
+        service_schema: provider_plans::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
         declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
         receipt: [u8; 32],
@@ -544,7 +280,7 @@ impl TerminalAuthorityClosureLeaf {
         }
     }
 
-    pub const fn service_schema(&self) -> Option<crate::provider_plan::ServiceSchemaDigest> {
+    pub const fn service_schema(&self) -> Option<provider_plans::ServiceSchemaDigest> {
         match self.custody {
             TerminalAuthorityClosureCustody::SelectedRequirement { service_schema, .. }
             | TerminalAuthorityClosureCustody::NativeBinding { service_schema, .. } => {
@@ -554,7 +290,7 @@ impl TerminalAuthorityClosureLeaf {
         }
     }
 
-    pub const fn provider_plan(&self) -> Option<crate::provider_plan::ProviderPlanDigest> {
+    pub const fn provider_plan(&self) -> Option<provider_plans::ProviderPlanDigest> {
         match self.custody {
             TerminalAuthorityClosureCustody::SelectedRequirement { provider_plan, .. } => {
                 Some(provider_plan)
@@ -592,7 +328,7 @@ impl TerminalAuthorityClosureLeaf {
 pub struct TerminalAuthorityClosureReviewReceipt {
     terminal_artifact_identity: [u8; 32],
     target: target::NativeTarget,
-    selected_provider_closure: crate::SelectedProviderClosureDigest,
+    selected_provider_closure: selected_provider_plans::SelectedProviderClosureDigest,
     physical_policy: TerminalAuthorityPolicyIdentity,
     permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
     leaves: Vec<TerminalAuthorityClosureLeaf>,
@@ -604,7 +340,7 @@ impl TerminalAuthorityClosureReviewReceipt {
     pub fn from_reviewed_leaves(
         terminal_artifact_identity: [u8; 32],
         target: target::NativeTarget,
-        selected_provider_closure: crate::SelectedProviderClosureDigest,
+        selected_provider_closure: selected_provider_plans::SelectedProviderClosureDigest,
         physical_policy: TerminalAuthorityPolicyIdentity,
         permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
         mut leaves: Vec<TerminalAuthorityClosureLeaf>,
@@ -666,7 +402,9 @@ impl TerminalAuthorityClosureReviewReceipt {
         self.target
     }
 
-    pub const fn selected_provider_closure(&self) -> crate::SelectedProviderClosureDigest {
+    pub const fn selected_provider_closure(
+        &self,
+    ) -> selected_provider_plans::SelectedProviderClosureDigest {
         self.selected_provider_closure
     }
 
@@ -801,13 +539,13 @@ fn same_closure_leaf_key(
 fn terminal_authority_closure_review_identity(
     terminal_artifact_identity: [u8; 32],
     target: target::NativeTarget,
-    selected_provider_closure: crate::SelectedProviderClosureDigest,
+    selected_provider_closure: selected_provider_plans::SelectedProviderClosureDigest,
     physical_policy: TerminalAuthorityPolicyIdentity,
     permission_policy: Option<TerminalAuthorityPermissionPolicyIdentity>,
     leaves: &[TerminalAuthorityClosureLeaf],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> [u8; 32] {
-    let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
+    let mut digest = wire::digest_encoder::DomainDigestEncoder::new(
         b"omega.terminal-authority.closure-review.v6\0",
     );
     digest.raw(&terminal_artifact_identity);
@@ -938,7 +676,7 @@ fn terminal_authority_closure_review_identity(
 }
 
 fn encode_authority_classes(
-    digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder,
+    digest: &mut wire::digest_encoder::DomainDigestEncoder,
     disposition: &TerminalAuthorityDisposition,
 ) {
     digest.raw(&(disposition.classes().len() as u64).to_be_bytes());
@@ -952,14 +690,81 @@ mod physical_leaf_tests {
     use super::*;
 
     #[test]
+    fn physical_classification_and_receiver_permission_are_independent() {
+        let mut identities = terminal_psi::TerminalIdentityTable::default().into_builder();
+        let requirement = identities.intern("PortSequence::emit");
+        let identities = identities.build();
+        let profile = target::TargetProfile::LinuxX64;
+        let port_io = TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::PortIo]);
+        let leaf = |exercised, permitted| {
+            TerminalAuthorityClosureLeaf::new(
+                provider_plans::ServiceSchemaDigest::from_digest([1; 32]),
+                requirement,
+                requirement,
+                provider_plans::ProviderPlanDigest::from_digest([2; 32]),
+                CheckedPhysicalTerminalMechanismIdentity::port_write(profile, 0x3f8).into(),
+                TerminalAuthorityClosureLeafOrigin::CheckedPhysical {
+                    machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    operation: semantic_vocabulary::OperationId::new(2).unwrap(),
+                },
+                exercised,
+                permitted,
+            )
+        };
+        let review = |leaf, permission| {
+            TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
+                [3; 32],
+                profile.native_target(),
+                selected_provider_plans::SelectedProviderPlanFacts::default().identity_digest(),
+                TerminalAuthorityPolicyIdentity::from_parts(1, [5; 32]),
+                permission,
+                vec![leaf],
+                &identities,
+            )
+        };
+        let classified = leaf(Some(port_io.clone()), None).unwrap();
+        let granted = leaf(Some(port_io.clone()), Some(port_io.clone())).unwrap();
+        let policy = Some(TerminalAuthorityPermissionPolicyIdentity::from_parts(
+            1, [6; 32],
+        ));
+        assert_ne!(
+            review(classified.clone(), None).unwrap().identity(),
+            review(granted.clone(), policy).unwrap().identity(),
+        );
+        assert_eq!(
+            review(classified, policy),
+            Err(TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent)
+        );
+        assert_eq!(
+            review(granted, None),
+            Err(TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent)
+        );
+        assert_eq!(
+            leaf(None, Some(port_io.clone())),
+            Err(TerminalAuthorityClosureReviewBuildError::UnclassifiedAuthority)
+        );
+        assert_eq!(
+            leaf(
+                Some(port_io),
+                Some(TerminalAuthorityDisposition::from_classes([]))
+            ),
+            Err(
+                TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted {
+                    class: TerminalAuthorityClass::PortIo
+                }
+            ),
+        );
+    }
+
+    #[test]
     fn physical_sites_distinguish_events_without_allowing_mechanism_substitution() {
         let mut identities = terminal_psi::TerminalIdentityTable::default().into_builder();
         let requirement = identities.intern("PortSequence::emit");
         let identities = identities.build();
         let machine = semantic_vocabulary::MachineId::new(1).unwrap();
         let operation = semantic_vocabulary::OperationId::new(2).unwrap();
-        let schema = crate::provider_plan::ServiceSchemaDigest::from_digest([1; 32]);
-        let plan = crate::provider_plan::ProviderPlanDigest::from_digest([2; 32]);
+        let schema = provider_plans::ServiceSchemaDigest::from_digest([1; 32]);
+        let plan = provider_plans::ProviderPlanDigest::from_digest([2; 32]);
         let profile = target::TargetProfile::LinuxX64;
         let leaf = |operation, port| {
             TerminalAuthorityClosureLeaf::new(
@@ -978,7 +783,7 @@ mod physical_leaf_tests {
             TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
                 [3; 32],
                 profile.native_target(),
-                crate::SelectedProviderClosureDigest::from_digest([4; 32]),
+                selected_provider_plans::SelectedProviderPlanFacts::default().identity_digest(),
                 TerminalAuthorityPolicyIdentity::from_parts(1, [5; 32]),
                 None,
                 leaves,
@@ -989,6 +794,23 @@ mod physical_leaf_tests {
         let next_operation = semantic_vocabulary::OperationId::new(3).unwrap();
         let second = leaf(next_operation, 0x2f8);
         let ordered = receipt(vec![first.clone(), second.clone()]).unwrap();
+        // The published v5 digest binds the sorted leaves to this selected closure.
+        assert_eq!(
+            ordered.identity(),
+            [
+                0xab, 0xc7, 0x10, 0x11, 0x85, 0xa4, 0x39, 0xe8, 0xb7, 0xd5, 0xef, 0x6c, 0xc3, 0xab,
+                0x45, 0xec, 0xf8, 0x7f, 0xe1, 0x61, 0xf1, 0xe1, 0x2d, 0x77, 0x4e, 0x82, 0x3d, 0x25,
+                0x6e, 0x0a, 0xaf, 0x6f
+            ]
+        );
+        assert_eq!(
+            receipt(vec![]).unwrap().identity(),
+            [
+                0x66, 0xfd, 0x0b, 0xeb, 0xf1, 0xaf, 0x9a, 0xc2, 0x43, 0x2f, 0x91, 0x5f, 0xd0, 0x82,
+                0x91, 0x3e, 0x0e, 0xec, 0x57, 0xdc, 0x18, 0x46, 0x15, 0x46, 0xd7, 0x2f, 0xd7, 0xdd,
+                0x21, 0x78, 0x65, 0xe9
+            ]
+        );
         assert_eq!(ordered, receipt(vec![second, first.clone()]).unwrap());
         assert_ne!(
             ordered.identity(),

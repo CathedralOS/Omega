@@ -1,6 +1,6 @@
 //! Build selects its required entry slot before source settlement. Native
 //! planning later sees the corresponding accepted declaration and call plans.
-use declaration_contracts::selection::RootBinding;
+use source_compiler::RootBinding;
 use diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

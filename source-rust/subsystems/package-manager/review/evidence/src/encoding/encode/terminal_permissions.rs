@@ -11,7 +11,7 @@ use crate::encoding::{
     TERMINAL_PERMISSION_POLICY_MAGIC,
 };
 use crate::record::{PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions};
-use effects::TerminalAuthorityClass;
+use semantic_vocabulary::TerminalAuthorityClass;
 
 impl PackagePolicyTerminalPermissions {
     encode_canonical_component!(

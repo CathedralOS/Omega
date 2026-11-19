@@ -115,7 +115,7 @@ pub use source_compiler::WireCompatibilityDemand;
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 mod program_entry_selection;
-pub use declaration_contracts::selection::RootBinding;
+pub use source_compiler::RootBinding;
 pub use program_entry_selection::{SelectedProgramEntry, selected_program_entry_machine};
 
 #[cfg(test)]

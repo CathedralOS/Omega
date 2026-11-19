@@ -426,7 +426,7 @@ pub(crate) fn plan_inputs_and_review(
         })?;
         for row in &leaf.plan.rows {
             let requirement = leaf.plan.identities.text(row.declared_requirement_identity);
-            let permission = effects::ServiceTerminalAuthorityPermission::new(
+            let permission = host_provider_inputs::ServiceTerminalAuthorityPermission::new(
                 leaf.plan.schema_identity_digest(),
                 identities.intern(requirement),
                 permitted.clone(),
@@ -454,7 +454,7 @@ fn package_authority_permissions(
 ) -> Result<
     (
         terminal_psi::TerminalIdentityTable,
-        Vec<effects::ServiceTerminalAuthorityPermission>,
+        Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
     ),
     String,
 > {

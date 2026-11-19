@@ -20,11 +20,10 @@ resolved bindings even when no receiving policy was supplied.
 use std::collections::BTreeSet;
 
 use diagnostics::Diagnostic;
-pub use effects::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
-use effects::{
-    ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition,
-    TerminalAuthorityPermissionPolicyIdentity,
-};
+pub use host_provider_inputs::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
+use host_provider_inputs::ServiceTerminalAuthorityPermission;
+use semantic_vocabulary::TerminalAuthorityDisposition;
+use terminal_authority_receipts::TerminalAuthorityPermissionPolicyIdentity;
 use semantic_vocabulary::provider_identity::ServiceSchemaDigest;
 
 pub(crate) const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;

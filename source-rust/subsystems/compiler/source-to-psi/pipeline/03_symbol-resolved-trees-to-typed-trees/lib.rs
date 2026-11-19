@@ -16,5 +16,6 @@ use typed_trees::source_state;
 #[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
 
+pub mod product_declarations;
 #[path = "src/lib.rs"]
 pub mod typing;

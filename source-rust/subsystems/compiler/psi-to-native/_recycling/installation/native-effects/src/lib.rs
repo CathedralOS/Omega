@@ -44,22 +44,14 @@ pub use provider_evidence::executable_scopes::{
     resolve_authored_behavior_exclusion,
 };
 
-pub(crate) use provider_evidence::SelectedProviderClosureDigest;
-pub use provider_evidence::authority::{
-    CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
-    CheckedSyscallArgumentContractIdentity, CompilerAccessorScalarOperation,
-    CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    CompilerPrimitiveIntegerComparisonOperation, NormalizedForeignArgumentContract,
-    NormalizedForeignTerminalMechanismIdentity, PortableFilesystemAuthorityFacet,
-    ServiceTerminalAuthorityPermission, SyscallTerminalMechanismIdentity, TerminalAuthorityClass,
-    TerminalAuthorityClosureCustody, TerminalAuthorityClosureLeaf,
-    TerminalAuthorityClosureLeafOrigin, TerminalAuthorityClosureReviewReceipt,
-    TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
-    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
+pub use host_provider_inputs::ServiceTerminalAuthorityPermission;
+pub use native_intrinsics::{
+    CompilerAccessorScalarOperation, CompilerIntrinsicExecutionIdentity, CompilerNumericType,
+    CompilerPrimitiveFloatBinaryOperation, CompilerPrimitiveIntegerComparisonOperation,
     compiler_accessor_scalar_contract_identity, compiler_intrinsic_execution_identity_bytes,
     primitive_float_operation_tag, primitive_integer_comparison_operation_tag,
-    terminal_mechanism_identity_bytes,
 };
+pub(crate) use provider_evidence::SelectedProviderClosureDigest;
 pub use provider_evidence::component_eras::{
     EraEntryError, EraQuiescenceError, EraRetirementError,
 };
@@ -73,6 +65,18 @@ pub use provider_evidence::{
     AssumedBindingContractSelection, InstallationReachResolution,
     SelectedExternalRequirementApplication, SelectedProviderPlanCandidate,
     SelectedProviderPlanFacts, SelectedRequirementSpecialization,
+};
+pub use semantic_vocabulary::{
+    PortableFilesystemAuthorityFacet, TerminalAuthorityClass, TerminalAuthorityDisposition,
+};
+pub use terminal_authority_receipts::{
+    CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
+    CheckedSyscallArgumentContractIdentity, NormalizedForeignArgumentContract,
+    NormalizedForeignTerminalMechanismIdentity, SyscallTerminalMechanismIdentity,
+    TerminalAuthorityClosureCustody, TerminalAuthorityClosureLeaf,
+    TerminalAuthorityClosureLeafOrigin, TerminalAuthorityClosureReviewReceipt,
+    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
+    TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
 };
 
 #[cfg(test)]

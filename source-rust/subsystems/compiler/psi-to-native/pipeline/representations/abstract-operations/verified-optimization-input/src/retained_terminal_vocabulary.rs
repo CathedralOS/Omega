@@ -688,7 +688,7 @@ mod providers {
         promise
     });
 
-    record_variants!(effects::TerminalAuthorityClass {
+    record_variants!(semantic_vocabulary::TerminalAuthorityClass {
         0 => FilesystemContentRead,
         1 => FilesystemContentWrite,
         2 => FilesystemMetadataQuery,
@@ -1216,7 +1216,7 @@ mod recovered {
         }
     }
 
-    impl RecordValue for effects::TerminalAuthorityDisposition {
+    impl RecordValue for semantic_vocabulary::TerminalAuthorityDisposition {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             output.sequence(self.classes().len())?;
             for class in self.classes() {
@@ -1230,7 +1230,7 @@ mod recovered {
         }
     }
 
-    impl RecordValue for effects::ServiceTerminalAuthorityPermission {
+    impl RecordValue for host_provider_inputs::ServiceTerminalAuthorityPermission {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.service_schema().write(output)?;
             self.requirement_identity().write(output)?;

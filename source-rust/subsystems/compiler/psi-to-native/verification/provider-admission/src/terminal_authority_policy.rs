@@ -37,9 +37,12 @@ use classification::{
     CLOSED_POLICY_ROW_COUNT, classify_compiler_intrinsic, classify_from_inventory,
     committed_policy_mechanisms,
 };
-use effects::{
-    CheckedPhysicalOperationIdentity, NormalizedForeignArgumentContract, TerminalAuthorityClass,
-    TerminalAuthorityDisposition, TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
+use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+use terminal_authority_receipts::{
+    CheckedPhysicalOperationIdentity,
+    NormalizedForeignArgumentContract,
+    TerminalAuthorityPolicyIdentity,
+    TerminalMechanismIdentity,
     terminal_mechanism_identity_bytes,
 };
 use native_intrinsics::{CompilerAccessorScalarOperation, CompilerIntrinsicExecutionIdentity};
@@ -454,7 +457,7 @@ mod interrupt_control_tests {
         TerminalAuthorityPermissionPolicyRow, terminal_authority_permission_policy_with_rows,
     };
     use super::*;
-    use effects::{
+    use terminal_authority_receipts::{
         TerminalAuthorityClosureLeaf,
         TerminalAuthorityClosureLeafOrigin,
         TerminalAuthorityClosureReviewReceipt,
