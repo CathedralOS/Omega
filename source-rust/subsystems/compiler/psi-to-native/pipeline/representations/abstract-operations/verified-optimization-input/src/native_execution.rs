@@ -176,7 +176,7 @@ impl TerminalNativeRealizationProposal {
                 "native proposal belongs to another canonical artifact",
             )]);
         }
-        let targets = terminal_installation::terminal_target_context(
+        let targets = psi_target_layouts::terminal_target_context(
             artifact.view(),
             self.target_profile().target_name(),
         );
@@ -468,12 +468,12 @@ impl PreparedNativeExecution {
         profile.admit_address_representation().map_err(fail)?;
         let artifact = self.authorization.artifact();
         let targets =
-            terminal_installation::terminal_target_context(artifact.view(), profile.target_name());
+            psi_target_layouts::terminal_target_context(artifact.view(), profile.target_name());
         let facts = profile
             .layout_target_facts()
             .ok_or_else(|| fail("selected native target has no representation facts".into()))?;
         let layouts =
-            terminal_installation::admit_target_layouts(artifact.view(), &targets, &facts)
+            psi_target_layouts::admit_target_layouts(artifact.view(), &targets, &facts)
                 .map_err(|error| fail(error.to_string()))?;
         self.scope
             .scalar_application_demand(artifact.semantic_module(), &layouts)

@@ -12,9 +12,8 @@
 
 use abstract_operations::AbstractOperationPlan;
 use operation_evidence::provider_calls::InstalledAssumedBindingEvidence;
-use terminal_installation::{
-    AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
-};
+use psi_target_layouts::{AdmittedTargetLayouts, TerminalTargetContext};
+use terminal_installation::AdmittedScalarApplications;
 
 mod emission_admission;
 pub mod hosted_receiver;

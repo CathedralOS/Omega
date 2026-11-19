@@ -17,8 +17,9 @@ use abstract_operations::AbstractOperationPlan;
 use calling_conventions::BoundaryCallingApplication;
 use component_description::VerifiedComponent;
 use effects::provider_plan::ProviderPlanDigest;
+use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use terminal_installation::{AdmittedComponentProvider, TerminalTargetContext};
+use terminal_installation::AdmittedComponentProvider;
 use terminal_psi::TerminalModule;
 
 use crate::{

@@ -275,6 +275,7 @@ dependencies = [
  "package-compilation",
  "products",
  "provider-admission",
+ "psi-target-layouts",
  "runtime-abi",
  "semantic-vocabulary",
  "source-admission",
@@ -474,6 +475,16 @@ version = "0.1.0"
 dependencies = [
  "record-storage",
  "wire",
+]
+
+[[package]]
+name = "psi-target-layouts"
+version = "0.1.0"
+dependencies = [
+ "layout-plans",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -1542,6 +1553,7 @@ dependencies = [
  "provider-admission",
  "provider-stack-contribution",
  "psi-authorization",
+ "psi-target-layouts",
  "psi-to-admitted-native-inputs",
  "published-object-verification",
  "register-environment",
@@ -1632,6 +1644,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "provider-admission",
+ "psi-target-layouts",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -2241,6 +2254,7 @@ dependencies = [
  "optimization-unit-semantics",
  "provider-correspondence",
  "provider-stack-contribution",
+ "psi-target-layouts",
  "runtime-abi",
  "semantic-vocabulary",
  "service-surface",
@@ -2319,6 +2333,7 @@ dependencies = [
  "provider-admission",
  "provider-correspondence",
  "psi-authorization",
+ "psi-target-layouts",
  "psi-to-admitted-native-inputs",
  "runtime-abi",
  "semantic-vocabulary",
@@ -3400,6 +3415,7 @@ dependencies = [
  "language-core",
  "layout-plans",
  "numerics",
+ "psi-target-layouts",
  "record-storage",
  "resource-bounds",
  "semantic-vocabulary",
@@ -3452,6 +3468,7 @@ dependencies = [
  "optimization-selections",
  "provider-admission",
  "psi-authorization",
+ "psi-target-layouts",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -3520,6 +3537,7 @@ dependencies = [
  "orchestration",
  "platform-custody",
  "provider-admission",
+ "psi-target-layouts",
  "published-runtime-input",
  "runtime-abi",
  "semantic-vocabulary",
@@ -3754,6 +3772,7 @@ dependencies = [
  "operation-evidence",
  "operation-operands",
  "psi-authorization",
+ "psi-target-layouts",
  "record-storage",
  "component-description",
  "diagnostics",

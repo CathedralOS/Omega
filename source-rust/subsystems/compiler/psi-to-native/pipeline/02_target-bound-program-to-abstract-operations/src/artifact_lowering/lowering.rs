@@ -1869,7 +1869,7 @@ pub(crate) fn lower_selected_module(
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
     scope: Option<&crate::artifact_lowering::NativeExecutionScope>,
     scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
-    layouts: Option<&terminal_installation::AdmittedTargetLayouts>,
+    layouts: Option<&psi_target_layouts::AdmittedTargetLayouts>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
     if !module.scalar_applications.conditions.is_empty() && scalar_applications.is_none() {
         return Err(LoweringError::UnclosedScalarConditions);

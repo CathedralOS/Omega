@@ -29,11 +29,11 @@ pub(super) fn evaluate_terminal_calling_policy(
         return Err("calling policy target differs from its materialized signature".into());
     }
     let selected =
-        terminal_installation::terminal_target_context(artifact.view(), target.target_name());
+        psi_target_layouts::terminal_target_context(artifact.view(), target.target_name());
     let facts = target
         .layout_target_facts()
         .ok_or("calling policy target has no layout facts")?;
-    let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selected, &facts)
+    let layouts = psi_target_layouts::admit_target_layouts(artifact.view(), &selected, &facts)
         .map_err(|error| format!("calling policy target layouts: {error:?}"))?;
     let selected_entry = selected
         .entry(selected.terminal_psi(), artifact.semantic_module(), entry)
