@@ -28,15 +28,15 @@ its arguments, including the mutable output, stay explicit under
 [dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
 and [named implementations](../../../../wiki/spec/language/conformances.md#data-and-code-are-independent).
 
-## Machine values in the root, local and call-result programs
+## Dispatch with machine values
 
-The root and local programs store `UnitCombine::combine` and
-`OtherCombine::combine` as machine values with the same input and result
-contracts. `probe` declares `invokes selected` because it calls its argument
-through a local alias. The call-result program returns each selected machine
-from `get_selector` before calling it. Both invalid programs pass 39 where the
-callable requires 40. The sample gate passes each project's own source files
-to the compiler. The other places still use the older syntax.
+The root and local examples store `UnitCombine::combine` and `OtherCombine::combine`
+as machine values with the same input and result contracts. The local helper
+declares `invokes selected` because it calls its argument through an alias. The
+call-result example returns each selected machine from `get_selector`. The field
+example reads the machine from a record and checks that both neighboring fields
+keep their original values. Each invalid example passes 39 where the callable
+requires 40. The remaining examples still use the older syntax.
 
 ## Places and controls
 
