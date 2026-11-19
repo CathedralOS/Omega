@@ -36,7 +36,7 @@ pub struct StageSource<'a> {
 }
 
 pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>> {
-    publish_stage(source).map(|(artifact, _)| artifact)
+    publish_stage(source, None).map(|(artifact, _)| artifact)
 }
 
 /// Source choices for one deployment, judged by the same stage that published the Psi.
@@ -65,7 +65,7 @@ pub fn compile_for_target(
             "source program did not select deployment target `{target}`"
         ))]);
     }
-    let (artifact, checked) = publish_stage(source)?;
+    let (artifact, checked) = publish_stage(source, None)?;
     let demand = checked
         .prepare_provider_demand(target)?
         .receive(checked.terminal_publication(), Some(target))?;
@@ -79,8 +79,13 @@ pub fn compile_for_target(
     })
 }
 
+pub fn inspect(source: StageSource<'_>, machine: &str) -> Result<PublishedPsi, Vec<Diagnostic>> {
+    publish_stage(source, Some(machine)).map(|(artifact, _)| artifact)
+}
+
 fn publish_stage(
     source: StageSource<'_>,
+    inspection: Option<&str>,
 ) -> Result<(PublishedPsi, product_source::CompletedProductSource), Vec<Diagnostic>> {
     let mut observer = UnmeasuredProduction;
     let parsed = lex_and_parse(&source, &mut observer)?;
@@ -91,7 +96,7 @@ fn publish_stage(
         continuation,
         source.selections,
         source.build_accounting.unwrap_or(&standalone),
-        None,
+        inspection,
         None,
         &mut observer,
     )?;

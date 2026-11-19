@@ -343,6 +343,15 @@ fn begin_local_project_preparation_in_storage(
 }
 
 impl LocalProjectPreparation {
+    pub fn require_unlocked_anonymous(&self) -> Result<(), PrepareLocalProjectError> {
+        if self.accepted.is_some() {
+            return Err(PrepareLocalProjectError::Locked(
+                "the accepted package lock requires its named root Build declaration".into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn entry_path(&self) -> PathBuf {
         self.canonical_root.join(&self.entry_relative)
     }

@@ -1,9 +1,7 @@
 //! Prepare a saved or source program for the selected execution engine, then run
 //! the same target-bound Psi artifact with its published provisions.
 use crate::saved_program::{ExecutionProduct, SavedProgramError};
-use compiler::CompileReport;
 use diagnostics::Diagnostic;
-use orchestration::{BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use package_compilation::build_execution::BuildSnapshotRequest;
 use product_publication::{
     CompletedProduct, RetainedNativeArtifact, RetainedNativeProgramIdentity,
@@ -15,12 +13,10 @@ use terminal_runtime::{
     TerminalRuntimeRequest,
 };
 
-pub(super) enum RunProduct {
-    Saved {
-        root: PathBuf,
-        product: CompletedProduct,
-    },
-    Project(CompileReport),
+pub(super) struct RunProduct {
+    root: PathBuf,
+    product: CompletedProduct,
+    test_roster: Vec<String>,
 }
 
 pub(super) struct RunArtifact<'product> {
@@ -31,18 +27,9 @@ pub(super) struct RunArtifact<'product> {
 
 impl RunProduct {
     pub(super) fn artifact(&self) -> Option<RunArtifact<'_>> {
-        let (native, portable, image) = match self {
-            Self::Project(report) => (
-                report.retained_native_program(),
-                report.artifact(),
-                report.retained_native_artifact(),
-            ),
-            Self::Saved { product, .. } => (
-                product.retained_native_program(),
-                product.artifact(),
-                product.retained_native_artifact(),
-            ),
-        };
+        let native = self.product.retained_native_program();
+        let portable = self.product.artifact();
+        let image = self.product.retained_native_artifact();
         Some(RunArtifact {
             artifact: native.as_ref().map(|p| p.psi_artifact()).or(portable)?,
             native_identity: native.map(|p| p.identity()),
@@ -51,10 +38,7 @@ impl RunProduct {
     }
 
     fn runtime(&self) -> Option<&TerminalRuntimeProvisions> {
-        match self {
-            Self::Saved { product, .. } => product.runtime_provisions(),
-            Self::Project(report) => report.published_runtime_provisions(),
-        }
+        self.product.runtime_provisions()
     }
 
     pub(super) fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe] {
@@ -64,48 +48,21 @@ impl RunProduct {
     }
 
     pub(super) fn test_roster(&self) -> Vec<String> {
-        match self {
-            Self::Saved { .. } => Vec::new(),
-            Self::Project(report) => report
-                .test_roster()
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-        }
+        self.test_roster.clone()
     }
 
     pub(super) fn publish(self, directory: &Path) -> Result<(Self, PathBuf), String> {
-        match self {
-            Self::Saved { root, product } => {
-                let published = product.publish(&root, directory)?;
-                let path = published
-                    .checked_native_executable_path()
-                    .ok_or("native publication did not retain executable custody")?
-                    .to_owned();
-                Ok((
-                    Self::Saved {
-                        root,
-                        product: published,
-                    },
-                    path,
-                ))
-            }
-            Self::Project(report) => {
-                let (published, path) =
-                    orchestration::publication::publish_native_artifact(report, directory)?;
-                Ok((Self::Project(published), path))
-            }
-        }
+        let product = self.product.publish(&self.root, directory)?;
+        let path = product.checked_native_executable_path()
+            .ok_or("native publication did not retain executable custody")?.to_owned();
+        Ok((Self { product, ..self }, path))
     }
 
     pub(super) fn validate_component_process_inputs(
         &self,
         executable: &Path,
     ) -> Result<(), String> {
-        match self {
-            Self::Saved { product, .. } => product.validate_component_process_inputs(executable),
-            Self::Project(report) => report.validate_component_process_inputs(executable),
-        }
+        self.product.validate_component_process_inputs(executable)
     }
 }
 
@@ -159,7 +116,8 @@ pub(super) fn compile(
             other => vec![Diagnostic::error(other.to_string())],
         })?;
         (
-            RunProduct::Saved {
+            RunProduct {
+                test_roster: Vec::new(),
                 root: root_path,
                 product,
             },
@@ -174,46 +132,28 @@ pub(super) fn compile(
                 "execution of a saved Psi program requires producer trust",
             )]);
         }
-        let targets = match target_name.as_deref() {
-            Some(name) => BuildTargets::Single(
-                target::TargetProfile::from_omega_target_name(Some(name))
-                    .map_err(|diagnostic| vec![diagnostic])?,
-            ),
-            None => BuildTargets::Host,
-        };
-        let outcomes = orchestration::build(BuildRequest {
-            stage_validators: Default::default(),
-            root_path,
-            build_directory: Some(build_directory),
-            targets,
-            product: ProjectProduct::Native {
-                installation_assumptions: Vec::new(),
-                destination: match requested {
-                    ExecutionProduct::Native => NativeDestination::Retained,
-                    ExecutionProduct::Runtime => NativeDestination::RuntimeAdmission,
-                },
-                private_entry_ram,
+        let profile = target::TargetProfile::from_omega_target_name(target_name.as_deref())
+            .map_err(|error| vec![error])?;
+        let planned = crate::project_sources::open_product(
+            &root_path, &[profile], false, false, Some(&build_directory), build_snapshot,
+        )?;
+        let stage = planned.product_stage(&[profile])?;
+        let program = stage.program(profile, Vec::new())?;
+        let request = match requested {
+            ExecutionProduct::Native => compiler::CompileRequest::Native {
+                program, entry_memory: &private_entry_ram,
             },
-            timings: false,
-            offline: false,
-            verify: false,
-            require_package_project: false,
-            optimization_rollback: Default::default(),
-            build_snapshot,
-        })
-        .map_err(BuildError::into_diagnostics)?;
-        let [outcome]: [_; 1] = outcomes.try_into().map_err(|_| {
-            vec![Diagnostic::error(
-                "execution requires exactly one project Build outcome",
-            )]
-        })?;
-        let target_name = outcome.target.target_name();
-        let outcome = outcome.result.map_err(BuildError::into_diagnostics)?;
-        let report = outcome
-            .into_report()
-            .map_err(BuildError::into_diagnostics)?
-            .report;
-        (RunProduct::Project(report), target_name)
+            ExecutionProduct::Runtime => compiler::CompileRequest::Runtime {
+                program, entry_memory: &private_entry_ram,
+            },
+        };
+        let product = match compiler::compile(request)? {
+            compiler::Artifact::Native(product) | compiler::Artifact::Runtime(product) => product,
+            compiler::Artifact::Psi(_) => {
+                return Err(vec![Diagnostic::error("execution request produced only portable Psi")]);
+            }
+        };
+        (RunProduct { root: root_path, product, test_roster: Vec::new() }, profile.target_name())
     };
     let interpretations = reference_inputs
         .into_iter()

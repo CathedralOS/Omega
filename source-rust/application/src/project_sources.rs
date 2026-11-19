@@ -101,7 +101,15 @@ impl SourceHost<'_, '_> {
         acquired: AcquiredBuildSource,
         snapshot: Option<BuildSnapshotRequest>,
     ) -> Result<ResolvedProject, PackageCommandError> {
-        let mut root = self.execute(entry, &acquired, snapshot, false)?;
+        let root = self.execute(entry, &acquired, snapshot, false)?;
+        self.join(acquired, root)
+    }
+
+    fn join(
+        &mut self,
+        acquired: AcquiredBuildSource,
+        mut root: ReturnedPlanningStage,
+    ) -> Result<ResolvedProject, PackageCommandError> {
         let declaration = acquired.declare_build(root.returned())?;
         let root_identity = declaration.identity();
         let mut returns = Vec::<(_, ReturnedPlanningStage)>::new();
@@ -194,4 +202,74 @@ impl SourceHost<'_, '_> {
             .acquisitions
             .complete_workspace(members, observations)?)
     }
+}
+
+/// Resolve and execute the authored Build once for the entire deployment set.
+/// The returned Product keeps the same source capture, grant joins and Build return.
+pub(crate) fn open_product(
+    root: &Path,
+    profiles: &[TargetProfile],
+    offline: bool,
+    verify: bool,
+    build_directory: Option<&Path>,
+    snapshot: Option<BuildSnapshotRequest>,
+) -> Result<planning::PlannedProduct, Vec<diagnostics::Diagnostic>> {
+    use package_compilation::build_execution::BuildSnapshotCapture;
+    use package_manager::operations::begin_local_project_preparation;
+    let error = |error: PackageCommandError| {
+        error.compilation_failure().cloned().map(|failure| failure.into_diagnostics())
+            .unwrap_or_else(|| vec![diagnostics::Diagnostic::error(error.to_string())])
+    };
+    let profile = TargetProfile::host_if_supported().ok_or_else(|| {
+        vec![diagnostics::Diagnostic::error("project Build execution needs a supported host")]
+    })?;
+    let preparation = begin_local_project_preparation(root, profiles, offline)
+        .map_err(|e| error(e.into()))?;
+    let workspace = project_build::output_directory::base(root, build_directory);
+    let mut session = PackageBuildSession::create(&workspace.join("package-manager"))
+        .map_err(|e| error(e.into()))?;
+    let result = (|| -> Result<_, PackageCommandError> {
+        let selected = match snapshot.as_ref().map(|snapshot| snapshot.capture()) {
+            Some(BuildSnapshotCapture::Scoped(selected)) => Some(selected),
+            _ => None,
+        };
+        let Some(preparation) = preparation else {
+            let capture = match selected {
+                Some(selection) => package_compilation::capture_selected_anonymous_compilation_source(root, selection),
+                None => package_compilation::capture_anonymous_compilation_source(root),
+            }.map_err(|rows| { let mut text = String::new(); let _ = diagnostics::write_diagnostics(&mut text, &rows); text })?;
+            let stage = planning::prepare(PlanningRequest {
+                root, sources: PlanningSources::Captured(&capture),
+                execution: session.source_build_inputs(profile, snapshot, false)?,
+                artifact_only: false,
+            }, Default::default(), Default::default())?;
+            return Ok(planning::interpret(stage, &mut ())?.open_product(None)?);
+        };
+        let acquired = match selected {
+            Some(selection) => preparation.acquire_selected_root(selection)?,
+            None => preparation.acquire_root()?,
+        };
+        let mut acquisitions = preparation.source_acquisitions()?;
+        let acquired = acquisitions.retain_root(acquired)?;
+        let mut host = SourceHost {
+            session: &mut session, acquisitions: &mut acquisitions, profile, observed: Vec::new(),
+        };
+        let entry = preparation.entry_path();
+        let returned = host.execute(&entry, &acquired, snapshot, false)?;
+        if returned.returned().declaration().is_none() {
+            preparation.require_unlocked_anonymous()?;
+            return Ok(returned.open_product(None)?);
+        }
+        let resolved = host.join(acquired, returned)?;
+        let project = preparation.complete_source_resolution(resolved.sources)?;
+        for &profile in profiles {
+            // The graph, exact compiler, and accepted target belong to this invocation.
+            // Fresh verification never imports cached judgments into the source compiler.
+            if !verify {
+                project.accepted_root_permissions(profile)?;
+            }
+        }
+        Ok(resolved.root.open_product(Some(&resolved.inputs))?)
+    })();
+    session.dispose(result).map_err(error)
 }

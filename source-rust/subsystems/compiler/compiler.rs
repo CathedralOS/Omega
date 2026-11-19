@@ -20,7 +20,7 @@ pub use native_compiler::{
     SourceNativeTarget, stage_validators,
 };
 use source_compiler as source_to_psi;
-pub use source_compiler::{PublishedPsi, StageSource};
+pub use source_compiler::{PublishedPsi, StageSource, inspect};
 
 pub enum CompileRequest<'a> {
     Psi(StageSource<'a>),
