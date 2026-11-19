@@ -626,8 +626,8 @@ the grammar had missed; all 132 parse now.
 | F6 | language/patterns.md:82, language/reflection.md:77 | Fragments were statements. | Bare expressions listed one per line. | The Statements fragment accepts an expression wherever it ends. Files are unaffected. |
 | F7 | resources/content_custody.md:129 | A clause fragment ended at its last clause. | A final `;`, as on a bodyless declaration. | The Clauses fragment accepts one. |
 
-Two things came up that are questions, not fixes. Both are in PLAN.md's
-owner questions.
+Two things came up that were questions for the owners, not fixes. Both are
+answered, and are owner questions 5 and 6 in PLAN.md.
 
 - **Comparisons chained.** Every operator grouped to the left, so
   `0 <= index < length` parsed, as `(0 <= index) < length`: a true-or-false
@@ -635,8 +635,8 @@ owner questions.
   comparison is not the operand of another without parentheses. None of the
   132 examples was affected.
 - **`&&` is one token.** A reference to a reference has to be written
-  `& &T`, and a borrow of a borrow `& &x`. Splitting the token in type and
-  prefix position would remove the corner. V1's lexer has the same token.
+  `& &T`, and a borrow of a borrow `& &x`. Asked as owner question 6 and
+  answered 2026-11-18: leave it as it is.
 
 ## Decisions
 
