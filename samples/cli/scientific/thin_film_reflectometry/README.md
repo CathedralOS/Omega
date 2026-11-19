@@ -1,5 +1,7 @@
 # Thin film reflectometry
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A nonabsorbing, normal-incidence optical stack calculator. This is a complete
 bounded stdin application with explicit entries on Linux x86_64, Windows x86_64
 and macOS arm64. Numerical qualification currently runs on Linux x86_64.

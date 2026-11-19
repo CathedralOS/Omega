@@ -1,5 +1,7 @@
 # Calibrated Welch spectral power
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This Omega program estimates a measured time series' one-sided power spectral
 density in physical units squared per Hz. It accepts supplied calibration,
 fixed FFT sizes 8, 16, 32 or 64, rectangular or periodic Hann windows, and any

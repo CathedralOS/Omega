@@ -1,5 +1,7 @@
 # Stiff reaction kinetics
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A runtime-configured mass-action network with three species and three reactions.
 The sample integrates supplied concentrations to a supplied observation time
 using a second-order, two-stage SDIRK method, analytic Jacobians, damped Newton

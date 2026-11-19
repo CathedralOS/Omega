@@ -1,5 +1,7 @@
 # Bounded spatial diffusion / Poisson
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This sample solves `-div(k grad u) + reaction*u = f` on the unit square.
 A uniform cell-centred finite-volume mesh has at most 12 by 12 cells. Sparse
 CSR assembly holds at most 720 entries and 145 row offsets. All four sides

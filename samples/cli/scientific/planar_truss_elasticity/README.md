@@ -1,5 +1,7 @@
 # Planar truss elasticity (W2-07)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A bounded, small-displacement, linear-elastic planar truss solver. Axial bars
 carry tension and compression; joints have no bending stiffness. The model uses
 consistent arbitrary units, zero prescribed displacement, and positive EA.

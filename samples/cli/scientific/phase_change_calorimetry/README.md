@@ -1,5 +1,7 @@
 # Phase change calorimetry
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 Two insulated lumped bodies exchange heat through constant conductance G. This
 educational model assumes uniform body temperature, reversible equilibrium
 phase change, constant mass and heat capacity in both sensible phases, and no

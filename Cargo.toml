@@ -193,20 +193,7 @@ members = [
     "tools/xtask",
     "tools/benchmark",
     "tools/compiler",
-    "samples/cli/scientific/sample-runner",
-    "samples/cli/scientific/thin_film_reflectometry/validation",
-    "samples/cli/scientific/laminate_stiffness_response/validation",
-    "samples/cli/scientific/layered_seismic_refraction/validation",
-    "samples/cli/scientific/molecular_pair_distribution/validation",
-    "samples/cli/scientific/nonlinear_diode_sweep/validation/terminal-driver",
-    "samples/cli/scientific/wavelet_transient_denoising/validation",
-    "samples/cli/scientific/hidden_markov_inference/validation/terminal-driver",
-    "samples/cli/scientific/conservative_advection/validation",
-    "samples/cli/scientific/spectral_power/validation",
-    "samples/cli/scientific/spatial_diffusion/validation",
-    "samples/cli/scientific/travel_time_tomography/validation/terminal",
-    "samples/cli/scientific/spectrometer_attribution",
-    "samples/cli/scientific/pareto_experiment_selection/validation",
+    "samples/cli/scientific/capture-check",
 ]
 resolver = "3"
 

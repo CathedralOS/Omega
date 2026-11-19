@@ -1,5 +1,7 @@
 # Bounded spectrometer attribution (IND19)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This complete Omega application attributes regions in a synthetic spectrum to
 an input reference-line catalog. It has no active-worker dependencies, private
 package dependencies, external instruments, or services. All acquisition,

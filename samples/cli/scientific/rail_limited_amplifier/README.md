@@ -1,5 +1,7 @@
 # Rail limited amplifier (NEW034)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This complete Omega application reads a bounded circuit configuration from stdin,
 computes the piecewise DC equilibria, and emits sampled output and feedback traces,
 clipping states, final-phase settling and recovery metrics. It owns its parser,

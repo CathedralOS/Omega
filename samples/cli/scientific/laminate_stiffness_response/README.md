@@ -1,5 +1,7 @@
 # Laminate stiffness response (NEW074)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 The original 16-case native and Terminal termination evidence is retained in the
 recovery record. Current qualification compares native output and actual captured
 Terminal output with the unchanged independent oracle. See `VALIDATION.md` for

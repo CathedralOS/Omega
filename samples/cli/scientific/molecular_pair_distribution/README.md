@@ -1,5 +1,7 @@
 # Molecular pair distribution in a periodic cube
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 Read whitespace-separated signed decimal integers:
 
 ```

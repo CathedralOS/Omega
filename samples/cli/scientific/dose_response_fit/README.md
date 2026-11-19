@@ -1,5 +1,7 @@
 # Dose-response fit
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A synthetic Omega console application reads dose, replicate and control observations,
 fits a bounded four-parameter logistic curve, and reports its half-dose, Hill slope,
 asymptotes, predictions, residuals, SSE, convergence and profile intervals.

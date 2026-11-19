@@ -1,5 +1,7 @@
 # Uncertain event chronology (NEW068)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 Reconcile three synthetic quantized event timestamps A, B, C, each on the
 integer clock ticks 0 through 9. Bounds are inclusive; a precedence record
 (source, destination, lag) means destination >= source + lag. This deliberately

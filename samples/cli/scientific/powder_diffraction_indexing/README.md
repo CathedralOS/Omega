@@ -1,5 +1,7 @@
 # Bounded cubic powder diffraction indexing
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 Input is whitespace-separated `wavelength peak_count angular_tolerance` followed
 by 3–6 strictly increasing **2θ angles in degrees**. Wavelength is 0.5–2.5 Å,
 angles lie strictly between 0 and 180°, and tolerance is strictly positive and

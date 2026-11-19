@@ -1,5 +1,7 @@
 # Bounded resource scheduler (IND02)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This complete console application computes an optimal nonpreemptive schedule
 for up to four tasks, two renewable resources and finish-to-start precedence.
 It owns its model, parser, search, verifier and rendering. Its only product

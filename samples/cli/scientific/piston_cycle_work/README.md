@@ -1,5 +1,7 @@
 # Piston cycle work (NEW029)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A complete bounded stage runner using declared scientific sample models.
 Pressure is in kPa and volume in litres; their product is joules. Positive work
 is work by the piston. This is a quasi-static imposed pressure path, not a gas

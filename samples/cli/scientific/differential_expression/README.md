@@ -1,5 +1,7 @@
 # Two-group differential expression
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A bounded two-group count-data application with six biological replicates and
 8 genes. Input is six group labels (0 = reference, 1 = contrast), followed by
 48 integer counts in gene-major order, separated by whitespace and terminated

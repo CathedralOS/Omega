@@ -1,5 +1,7 @@
 # Sequential germination probability inference
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This independent Bernoulli assay model assumes every seed has the same unknown
 probability p, trials are independent conditional on p, and batches provide
 counts of successes and trials. A Beta(alpha,beta) prior becomes

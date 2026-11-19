@@ -1,5 +1,7 @@
 # Travel time tomography (NEW087)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A complete synthetic two-cell inverse application: read three ray length/time
 observations, minimize the sum of squared time residuals subject to per-cell
 slowness bounds, and print the recovered field, signed residuals, objective,

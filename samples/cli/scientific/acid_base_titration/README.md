@@ -1,5 +1,7 @@
 # Ideal diprotic acid titration
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 Read an ideal H₂A acid solution and independently specified cumulative additions
 of a strong monovalent base. Volumes are litres; concentrations and output
 species are mol/L. This is a bounded ideal-equilibrium demonstration: complete

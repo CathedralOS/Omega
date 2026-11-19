@@ -1,5 +1,7 @@
 # Layered seismic refraction (W2-17)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A bounded surface-source/surface-receiver travel-time application for one to
 four isotropic horizontal layers. Velocities strictly increase with depth.
 The final layer is a half-space; every earlier layer has positive thickness.
