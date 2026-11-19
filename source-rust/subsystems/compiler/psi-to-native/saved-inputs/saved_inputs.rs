@@ -1,3 +1,6 @@
+//! Capture or reopen an OMGNTI41 native derivation record for an authorized Psi program.
+#![forbid(unsafe_code)]
+
 /*
   Compiler-private binary persistence (`OMGNTI41`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
@@ -599,8 +602,8 @@ mod entry {
     }
 
     impl EntryRecord {
-        pub fn borrowed(&self) -> crate::entry_settlement::NativeProgramEntrySettlement<'_> {
-            crate::entry_settlement::NativeProgramEntrySettlement {
+        pub fn borrowed(&self) -> verified_optimization_input::entry_settlement::NativeProgramEntrySettlement<'_> {
+            verified_optimization_input::entry_settlement::NativeProgramEntrySettlement {
                 source: &self.source,
                 semantic_calling_application: self.semantic.as_ref(),
                 physical_calling_application: self.physical.as_ref(),
@@ -610,7 +613,7 @@ mod entry {
             }
         }
         pub fn write_borrowed(
-            entry: crate::entry_settlement::NativeProgramEntrySettlement<'_>,
+            entry: verified_optimization_input::entry_settlement::NativeProgramEntrySettlement<'_>,
             output: &mut RecordWriter,
         ) -> Result<(), RecordError> {
             entry.source().write(output)?;
@@ -841,7 +844,7 @@ mod entry {
                 identities.build(),
             )
             .expect("free hosted entry signature");
-            let entry = crate::entry_settlement::NativeProgramEntrySettlement::new(&source, None);
+            let entry = verified_optimization_input::entry_settlement::NativeProgramEntrySettlement::new(&source, None);
             let mut output = RecordWriter::new(RecordLimits::default());
             EntryRecord::write_borrowed(entry, &mut output).expect("entry encoding");
             let bytes = output.finish();
@@ -874,19 +877,19 @@ mod entry {
 mod records {
     macro_rules! record_fields {
     ($value:path { $($field:ident),* $(,)? }) => {
-        impl $crate::retained_terminal_codec::value::RecordValue for $value {
-            fn write(&self, output: &mut $crate::retained_terminal_codec::value::RecordWriter)
-                -> Result<(), $crate::retained_terminal_codec::value::RecordError>
+        impl $crate::value::RecordValue for $value {
+            fn write(&self, output: &mut $crate::value::RecordWriter)
+                -> Result<(), $crate::value::RecordError>
             {
                 let Self { $($field),* } = self;
-                $($crate::retained_terminal_codec::value::RecordValue::write($field, output)?;)*
+                $($crate::value::RecordValue::write($field, output)?;)*
                 Ok(())
             }
-            fn read(input: &mut $crate::retained_terminal_codec::value::RecordReader<'_>)
-                -> Result<Self, $crate::retained_terminal_codec::value::RecordError>
+            fn read(input: &mut $crate::value::RecordReader<'_>)
+                -> Result<Self, $crate::value::RecordError>
             {
                 input.record(|input| Ok(Self {
-                    $($field: $crate::retained_terminal_codec::value::RecordValue::read(input)?),*
+                    $($field: $crate::value::RecordValue::read(input)?),*
                 }))
             }
         }
@@ -1347,11 +1350,10 @@ mod value {
         }
     }
 }
-#[path = "retained_terminal_vocabulary.rs"]
 mod vocabulary;
 
-use crate::RetainedTerminalArtifact;
-use crate::native_proposal::{
+use verified_optimization_input::RetainedTerminalArtifact;
+use verified_optimization_input::native_proposal::{
     TerminalNativeProposalRequest, project_terminal_native_realization_proposal,
 };
 use diagnostics::Diagnostic;
@@ -1970,7 +1972,7 @@ pub fn recover_native_derivation_inputs(
         direct_boundary_leaves: leaves.iter().collect(),
         target_profile: profile,
         boundaries:
-            crate::settlement::boundary_application_settlement::BoundaryApplicationSettlement {
+            verified_optimization_input::settlement::boundary_application_settlement::BoundaryApplicationSettlement {
                 selected_provider_plans: &selected,
                 selected_provider_provenance: intrinsic_provenance
                     .iter()

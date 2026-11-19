@@ -1057,6 +1057,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "saved-native-inputs"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "behavior-exclusion-requests",
+ "calling-conventions",
+ "diagnostics",
+ "direct-boundary-bindings",
+ "installation-conditions",
+ "language-core",
+ "layout-plans",
+ "native-binding-admission",
+ "native-intrinsics",
+ "numeric-literals",
+ "numerics",
+ "operation-evidence",
+ "optimization-selections",
+ "program-entry-contracts",
+ "provider-acceptance",
+ "provider-admission",
+ "provider-plans",
+ "psi-authorization",
+ "psi-provider-selections",
+ "record-storage",
+ "selected-provider-plans",
+ "semantic-vocabulary",
+ "service-surface",
+ "source-text",
+ "target",
+ "target-provider-admission",
+ "terminal-codec",
+ "terminal-psi",
+ "verified-optimization-input",
+]
+
+[[package]]
 name = "selected-provider-plans"
 version = "0.1.0"
 dependencies = [
@@ -4068,7 +4104,6 @@ dependencies = [
  "boundary-applications",
  "calling-conventions",
  "direct-boundary-bindings",
- "installation-conditions",
  "native-behavior-exclusions",
  "native-binding-admission",
  "native-intrinsics",
@@ -4081,12 +4116,9 @@ dependencies = [
  "psi-provider-selections",
  "psi-scalar-applications",
  "psi-target-layouts",
- "record-storage",
  "component-description",
  "diagnostics",
  "function-identity",
- "language-core",
- "layout-plans",
  "legalized-operations",
  "numeric-literals",
  "numerics",
@@ -4098,8 +4130,6 @@ dependencies = [
  "runtime-abi",
  "selected-provider-plans",
  "semantic-vocabulary",
- "service-surface",
- "source-text",
  "target",
  "target-operations",
  "target-provider-admission",

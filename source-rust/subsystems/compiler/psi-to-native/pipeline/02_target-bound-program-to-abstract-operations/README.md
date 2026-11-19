@@ -45,12 +45,9 @@ the shared input owner.
   package permissions and prepares callbacks, imports and builtins for
   admission. Derived import evidence stays invocation-owned through admission
   and emission; the compiler forwards this stage's request rather than copying
-  its fields. The [codec](../representations/abstract-operations/verified-optimization-input/src/retained_terminal_codec.rs)
-  that saves derivation inputs, which contain no source, lives beside
-  `RetainedTerminalArtifact` in the shared input owner, so a saved product is
-  recovered without running this stage. Recovery runs them through the same
-  shared proposal operation without source. The in-memory retained product
-  encodes no separate native authority record.
+  its fields. The [saved-input codec](../../saved-inputs/saved_inputs.rs)
+  writes the selected derivation and reopens it against the authorized program
+  using the same proposal checks.
 - [native_execution_scope.rs](admit_providers.rs) is the complete
   native entry point. Canonical input preparation, provider settlement and
   installation, and mechanism and exclusion review produce one admitted input

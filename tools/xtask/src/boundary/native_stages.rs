@@ -48,6 +48,7 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
         (ENTRY_PLANNING, ENTRY),
         (VERIFIED_INPUT, ENTRY),
         (IMAGE_EMISSION, ENTRY),
+        (native!("/saved-inputs"), ENTRY),
         (ENCODING, AARCH64),
         (ENCODING, X86),
         (
