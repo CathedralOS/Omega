@@ -60,7 +60,7 @@ pub(crate) fn check_fragment(
     output: &mut TypedStage,
 ) -> Result<(), TypeError> {
     let mut body = BodyTyper::new(unit, catalog, output);
-    body.check_block(0, None, false).map(|_| ())
+    body.check_block(0, Default::default(), false).map(|_| ())
 }
 pub(crate) fn check_callable(
     unit: &ResolvedSourceFile<'_>,
@@ -159,7 +159,7 @@ pub(crate) fn check_declaration(
                 let result = &signature
                     .ok_or_else(|| TypeError::unsupported(source, node_index))?
                     .result;
-                body.check_block(part, Some(result), true)?;
+                body.check_block(part, Some(result).into(), true)?;
             }
             _ => {}
         }

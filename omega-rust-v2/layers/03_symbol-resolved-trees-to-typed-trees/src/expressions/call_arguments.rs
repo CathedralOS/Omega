@@ -1,3 +1,4 @@
+use super::destination::Destination;
 use crate::evaluation::check_static_indices::IndexEvaluations;
 use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::{Access, ObligationKind, Site, TypeError, ValueType};
@@ -93,7 +94,7 @@ impl BodyTyper<'_, '_> {
     pub(super) fn argument_operand(
         &mut self,
         node: usize,
-        expected: Option<&ValueType>,
+        destination: Destination<'_>,
     ) -> Result<CallOperand, TypeError> {
         let root = self.unit.file.ungroup(node);
         if self.unit.file.nodes[root].kind == NodeKind::FieldAccess
@@ -104,7 +105,7 @@ impl BodyTyper<'_, '_> {
             operand.read_from = place;
             Ok(operand)
         } else {
-            let value = self.type_expression_with_expected_type(node, expected)?;
+            let value = self.type_at_destination(node, destination, false)?;
             Ok(self.call_operand(node, value))
         }
     }

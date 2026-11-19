@@ -66,6 +66,17 @@ impl ValueType {
             )
         })
     }
+    pub(crate) fn depends_on_unsupplied_parameter(
+        &self,
+        declaration: &DeclarationId,
+        supplied: usize,
+    ) -> bool {
+        self.components().any(|part| match part {
+            Self::Parameter { owner, index } => owner.as_ref() == declaration && *index >= supplied,
+            Self::StaticFormula { term, .. } => term.depends_on_unsupplied_parameter(declaration, supplied),
+            _ => false,
+        })
+    }
     pub(crate) fn depends_on_call_input(&self) -> bool {
         self.components().any(|ty| {
             matches!(

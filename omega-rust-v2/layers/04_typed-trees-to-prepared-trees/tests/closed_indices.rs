@@ -676,6 +676,294 @@ fn a_computed_result_domain_selects_the_exact_overload() {
 }
 
 #[test]
+fn an_operand_waits_for_its_common_result_domain_context() {
+    const DEFINITIONS: &str = "domain<const K:bool> u8::Label<K>;
+        machine enabled()->bool{true}
+        machine pick(x:u8)->u8 in Label<true>{x as +Label<true>}
+        machine pick(x:u8)->u8{x}";
+    const SINKS: &str = "machine sink(x:u8 in Label<enabled()>,y:bool){}
+        machine sink(x:u8 in Label<true>,y:u8){}";
+    for operand in [
+        "pick(x)",
+        "(pick(x))",
+        "match true {true -> pick(x), false -> pick(x),}",
+    ] {
+        let source = format!("{SINKS}\nmachine run(x:u8){{sink({operand},true)}}");
+        for files in [
+            [("definitions.omg", DEFINITIONS), ("run.omg", source.as_str())],
+            [("run.omg", source.as_str()), ("definitions.omg", DEFINITIONS)],
+        ] {
+            let package = resolve_files(&files);
+            let TypingProgress::Pending(pending) = type_source_package_for_preparation(&package, &TypingEnvironment::default()).unwrap() else {
+                panic!("the common expected type still depends on enabled()");
+            };
+            let [StaticValueDemand::Closed(request)] = pending.demands() else {
+                panic!("expected exactly the undecided result-domain index");
+            };
+            assert_eq!(request.expression.span.slice(source.as_bytes()), Some(b"enabled()".as_slice()));
+            assert!(
+                pending
+                    .trees()
+                    .calls
+                    .iter()
+                    .all(|call| !matches!(call.machine.path.as_str(), "pick" | "sink"))
+            );
+            let prepared = prepare_source_package(&package).unwrap();
+            let typed = prepared.typed();
+            let expected = typed
+                .signatures
+                .iter()
+                .find(|signature| signature.machine.path == "pick" && !signature.result.domains().is_empty())
+                .unwrap();
+            let calls: Vec<_> = typed
+                .calls
+                .iter()
+                .filter(|call| call.machine.path == "pick")
+                .collect();
+            assert_eq!(calls.len(), operand.matches("pick").count());
+            assert!(calls.iter().all(|call| call.machine == expected.machine));
+            let expected_sink = typed
+                .signatures
+                .iter()
+                .find(|signature| signature.machine.path == "sink" && signature.parameters[1].1 == ValueType::Bool)
+                .unwrap();
+            let sink = typed
+                .calls
+                .iter()
+                .find(|call| call.machine.path == "sink")
+                .unwrap();
+            assert_eq!(sink.machine, expected_sink.machine);
+        }
+    }
+}
+
+#[test]
+fn a_pending_context_reaches_the_operands_of_its_prospective_signatures() {
+    let source = "domain<const K:bool> u8::Label<K>;
+        machine enabled()->bool{true}
+        machine leaf(x:u8)->u8 in Label<true>{x as +Label<true>}
+        machine relay(x:u8 in Label<true>)->u8 in Label<true>{x}
+        machine relay(x:bool)->u8{0u8}
+        machine sink(x:u8 in Label<enabled()>,y:bool){}
+        machine sink(x:u8 in Label<true>,y:u8){}
+        machine run(x:u8){sink(relay(leaf(x)),true)}";
+    let prepared = prepare(source).unwrap();
+    let typed = prepared.typed();
+    for name in ["leaf", "relay"] {
+        let selected = typed
+            .calls
+            .iter()
+            .find(|call| call.machine.path == name)
+            .unwrap();
+        assert_eq!(selected.result.domains().len(), 1);
+    }
+}
+
+#[test]
+fn a_nested_literal_can_supply_the_subject_of_a_pending_result_domain() {
+    let source = "domain<K:u8> u8::Label<K>;
+        machine seed()->u8{2}
+        machine pick(n:u8)->u8 in Label<n>{0u8 as +Label<n>}
+        machine sink(x:u8 in Label<seed()>,y:bool){}
+        machine sink(x:u8 in Label<2>,y:u8){}
+        machine run(){sink(pick(2),true)}";
+    for program in [source.to_owned(), source.replace("Label<seed()>", "Label<2>")] {
+        let prepared = prepare(&program).unwrap();
+        let typed = prepared.typed();
+        let pick = typed
+            .calls
+            .iter()
+            .find(|call| call.machine.path == "pick")
+            .unwrap();
+        let sink = typed
+            .calls
+            .iter()
+            .find(|call| call.machine.path == "sink")
+            .unwrap();
+        let selected_sink = typed
+            .signatures
+            .iter()
+            .find(|signature| signature.machine == sink.machine)
+            .unwrap();
+        assert_eq!(pick.result.domains(), selected_sink.parameters[0].1.domains());
+    }
+}
+
+#[test]
+fn an_array_element_inherits_its_result_domain_from_a_pending_extent() {
+    let definitions = "domain<const K:bool> u8::Label<K>;
+        data Id<T> = T;
+        data Tagged = Id<u8 in Label<true> >;
+        machine n()->u64{1}
+        machine m()->u64{1}
+        machine pick(x:u8)->u8 in Label<true>{x as +Label<true>}";
+    for other in ["", "machine sink(x:[Tagged;m()],y:u8){}"] {
+        let source = format!(
+            "{definitions}\n{other}\n
+            machine sink(x:[Tagged;n()],y:bool){{}}
+            machine run(x:u8){{sink([pick(x)],true)}}"
+        );
+        let literal = source
+            .replace("[Tagged;n()]", "[Tagged;1]")
+            .replace("[Tagged;m()]", "[Tagged;1]");
+        for program in [&source, &literal] {
+            let prepared = prepare(program).unwrap();
+            let pick = prepared
+                .typed()
+                .calls
+                .iter()
+                .find(|call| call.machine.path == "pick")
+                .unwrap();
+            assert_eq!(pick.result.domains().len(), 1);
+        }
+    }
+}
+
+#[test]
+fn arrays_without_a_typed_element_wait_for_their_context() {
+    for (array, length) in [("[]", 0), ("[3]", 1)] {
+        let source = format!(
+            "machine n()->u64{{{length}}} machine m()->u64{{{length}}}
+            machine sink(x:[u8;n()],y:bool){{}}
+            machine sink(x:[u8;m()],y:u8){{}}
+            machine run(){{sink({array},true)}}"
+        );
+        let literal = source
+            .replace("[u8;n()]", &format!("[u8;{length}]"))
+            .replace("[u8;m()]", &format!("[u8;{length}]"));
+        for program in [&source, &literal] {
+            let prepared = prepare(program).unwrap();
+            let sink = prepared
+                .typed()
+                .calls
+                .iter()
+                .find(|call| call.machine.path == "sink")
+                .unwrap();
+            let signature = prepared
+                .typed()
+                .signatures
+                .iter()
+                .find(|signature| signature.machine == sink.machine)
+                .unwrap();
+            assert!(matches!(signature.parameters[0].1, ValueType::Array(_, extent) if extent == length));
+        }
+    }
+}
+
+#[test]
+fn a_static_context_is_available_when_another_parameter_binds_a_type() {
+    let source = "domain<const K:bool> u8::Label<K>;
+        machine enabled()->bool{true}
+        machine pick(x:u8)->u8 in Label<true>{x as +Label<true>}
+        machine sink<T>(x:u8 in Label<enabled()>,y:T){}
+        machine sink(x:u8 in Label<true>,y:u8){}
+        machine run(x:u8){sink(pick(x),true)}";
+    for program in [
+        source.to_owned(),
+        source.replace("Label<enabled()>", "Label<true>"),
+    ] {
+        let prepared = prepare(&program).unwrap();
+        let sink = prepared
+            .typed()
+            .calls
+            .iter()
+            .find(|call| call.machine.path == "sink")
+            .unwrap();
+        assert_eq!(sink.type_arguments, [ValueType::Bool]);
+    }
+}
+
+#[test]
+fn supplied_recursive_arguments_keep_their_context_when_other_arguments_are_inferred() {
+    let definitions = "domain<const B:bool> u8::Label<B>;
+        machine pick<const B:bool>(v:u8)->u8 in Label<B>{v as +Label<B>}";
+    let recursive_declarations = [
+        "machine recur<const B:bool>(v:u8 in Label<B>){recur::<B>(pick::<B>(0u8));}",
+        "machine recur<const B:bool,T>(v:u8 in Label<B>,tag:T){recur::<B>(pick::<B>(0u8),true);}",
+    ];
+    for declaration in recursive_declarations {
+        let source = format!("{definitions}\n{declaration}");
+        let prepared = prepare(&source).unwrap();
+        let typed = prepared.typed();
+        let recurse = typed
+            .calls
+            .iter()
+            .find(|call| call.machine.path == "recur")
+            .unwrap();
+        let pick = typed
+            .calls
+            .iter()
+            .find(|call| call.machine.path == "pick")
+            .unwrap();
+        assert_eq!(recurse.type_arguments[0], pick.type_arguments[0]);
+        assert_eq!(pick.result.domains().len(), 1);
+    }
+}
+
+#[test]
+fn known_leading_operands_can_rule_out_a_call_before_context_is_requested() {
+    let source = "domain<const K:bool> u8::Label<K>;
+        machine enabled()->bool requires false {true}
+        machine pick(x:u8)->u8 in Label<true>{x as +Label<true>}
+        machine sink(tag:u8,x:u8 in Label<enabled()>){}
+        machine sink(tag:u16,x:u8 in Label<true>){}
+        machine run(x:u8){sink(false,pick(x))}";
+    let error = prepare(source).unwrap_err();
+    assert_eq!(error.message, "no matching overload for sink with leading operand types (bool)");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"sink".as_slice()));
+}
+
+#[test]
+fn false_context_from_static_evaluation_agrees_with_the_literal_diagnostic() {
+    let source = "domain<const K:bool> u8::Label<K>;
+        machine enabled()->bool{false}
+        machine pick(x:u8)->u8 in Label<true>{x as +Label<true>}
+        machine sink(x:u8 in Label<enabled()>,y:bool){}
+        machine sink(x:u8 in Label<true>,y:u8){}
+        machine run(x:u8){sink(pick(x),true)}";
+    for program in [
+        source.to_owned(),
+        source.replace("Label<enabled()>", "Label<false>"),
+    ] {
+        let error = prepare(&program).unwrap_err();
+        assert_eq!(error.message, "no matching overload for pick(u8)");
+        assert_eq!(error.span.slice(program.as_bytes()), Some(b"pick".as_slice()));
+    }
+}
+
+#[test]
+fn a_failed_known_operand_refuses_the_nested_call_before_preparation() {
+    let source = "domain<const K:bool> u8::Label<K>;
+        machine enabled()->bool requires false {true}
+        machine pick(x:u8)->u8 in Label<true>{x as +Label<true>}
+        machine sink(x:u8 in Label<enabled()>,y:bool){}
+        machine sink(x:u8 in Label<true>,y:u8){}
+        machine run(){sink(pick(false),true)}";
+    let error = prepare(source).unwrap_err();
+    assert_eq!(error.message, "no matching overload for pick(bool)");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"pick".as_slice()));
+}
+
+#[test]
+fn distinct_known_contexts_rule_out_a_common_destination_in_any_order() {
+    const SETUP: &str = "domain<const K:bool> u8::Label<K>;
+        machine enabled()->bool requires false {true}
+        machine pick(x:u8)->u8 in Label<true>{x as +Label<true>}
+        machine run(x:u8){sink(pick(x),true)}";
+    const OVERLOADS: [&str; 3] = [
+        "machine sink(x:u8 in Label<enabled()>, y:bool){}",
+        "machine sink(x:u8 in Label<true>, y:u8){}",
+        "machine sink(x:u8 in Label<false>, y:u16){}",
+    ];
+    for order in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]] {
+        let source = format!("{SETUP}\n{}\n{}\n{}", OVERLOADS[order[0]], OVERLOADS[order[1]], OVERLOADS[order[2]]);
+        let error = prepare(&source).unwrap_err();
+        assert_eq!(error.message, "no matching overload for pick(u8)");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(b"pick".as_slice()));
+    }
+}
+
+#[test]
 fn a_static_producer_cannot_supply_an_index_needed_to_type_its_own_body() {
     let source = "data Flag<const B:bool> [copy] {}
         machine enabled()->bool{choose(Flag::<enabled()>{})}

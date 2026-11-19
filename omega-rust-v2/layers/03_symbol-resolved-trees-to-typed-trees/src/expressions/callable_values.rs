@@ -176,7 +176,7 @@ impl BodyTyper<'_, '_> {
             return Err(TypeError::at(source, node_index, "incorrect callback arity"));
         }
         for (position, (&arg, p)) in source.nodes[args].children.iter().zip(params).enumerate() {
-            let operand = self.argument_operand(arg, Some(p))?;
+            let operand = self.argument_operand(arg, Some(p).into())?;
             self.admit_argument(node_index, position, &operand, p)?;
         }
         let entry = self.invocation_target(callee);
