@@ -21,11 +21,9 @@ pub(super) fn install(base: &str) -> String {
 }
 
 pub(super) fn module_source() -> String {
-    format!(
-        "module Optimizations;\n{}{}",
-        enable_machine(),
-        REPORT_MACHINE
-    )
+    let mut text = enable_machine();
+    text.push_str(REPORT_MACHINE);
+    text
 }
 
 fn declarations() -> String {
@@ -47,7 +45,7 @@ fn enable_machine() -> String {
     );
     for (slot, optimization) in Optimization::ALL.into_iter().enumerate() {
         text.push_str(&format!(
-            "        Optimization::{} -> {slot}u64\n",
+            "        Optimization::{} -> {slot}u64,\n",
             optimization.build_case_name()
         ));
     }

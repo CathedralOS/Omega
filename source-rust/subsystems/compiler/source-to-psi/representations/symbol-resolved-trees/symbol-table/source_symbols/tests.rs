@@ -2239,27 +2239,27 @@ mod source_scoped_bindings {
                 true,
             ),
             (
-                "<build-prelude:Build>",
+                "<build-prelude>/Build/mod.omg",
                 source_admission::SourceOrigin::Toolchain,
                 true,
             ),
             (
-                "<build-prelude:Build>",
+                "<build-prelude>/Build/mod.omg",
                 source_admission::SourceOrigin::User,
                 false,
             ),
             (
-                "<build-prelude:Build>",
+                "<build-prelude>/Build/mod.omg",
                 source_admission::SourceOrigin::ToolchainContract,
                 false,
             ),
             (
-                "<build-prelude-other:Build>",
+                "<build-prelude-other>/Build/mod.omg",
                 source_admission::SourceOrigin::Toolchain,
                 false,
             ),
             (
-                "<build-prelude:Build>/nested",
+                "<build-prelude>/Build/nested/mod.omg",
                 source_admission::SourceOrigin::Toolchain,
                 false,
             ),

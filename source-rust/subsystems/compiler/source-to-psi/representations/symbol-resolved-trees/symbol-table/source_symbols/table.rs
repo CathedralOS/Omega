@@ -2032,28 +2032,8 @@ mod source_queries {
             self.symbol_provenance_source_span(symbol)
                 .and_then(|span| self.source_file(span))
                 .is_some_and(|file| {
-                    // The producer emits root data/protocol declarations and
-                    // ordinary code modules as one virtual-source bundle.
-                    let mut components = file.path.components();
-                    let unit = match components.next() {
-                        Some(std::path::Component::Normal(unit)) if components.next().is_none() => {
-                            unit.to_str()
-                        }
-                        _ => None,
-                    };
                     file.origin == source_admission::SourceOrigin::Toolchain
-                        && unit.is_some_and(|unit| {
-                            unit == "<build-prelude>"
-                                || unit
-                                    .strip_prefix("<build-prelude:")
-                                    .and_then(|module| module.strip_suffix('>'))
-                                    .is_some_and(|module| {
-                                        !module.is_empty()
-                                            && module.bytes().all(|byte| {
-                                                byte.is_ascii_alphanumeric() || byte == b'_'
-                                            })
-                                    })
-                        })
+                        && source_admission::source_identity::is_build_prelude_path(&file.path)
                 })
         }
 

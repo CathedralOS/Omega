@@ -1338,7 +1338,7 @@ fn append_build_prelude(
     };
     let admitted = storage.admit_source(
         SourceContents {
-            path: PathBuf::from(build_source::BUILD_PRELUDE_PATH),
+            path: PathBuf::from(source_admission::source_identity::BUILD_PRELUDE_ROOT),
             source: Arc::from(prelude.source.declarations),
             scope: source_provenance::DependencyScope::Build,
         },
@@ -1362,7 +1362,9 @@ fn append_build_prelude(
     for (namespace, text) in prelude.source.modules {
         let admitted = storage.admit_source(
             SourceContents {
-                path: PathBuf::from(format!("<build-prelude:{namespace}>")),
+                path: Path::new(source_admission::source_identity::BUILD_PRELUDE_ROOT)
+                    .join(namespace)
+                    .join("mod.omg"),
                 source: Arc::from(text),
                 scope: source_provenance::DependencyScope::Build,
             },

@@ -18,7 +18,7 @@ pub struct BuildPrelude {
 pub fn build_prelude() -> BuildPrelude {
     let mut modules: Vec<_> = BUILD_MODULES
         .iter()
-        .map(|&(namespace, body)| (namespace, format!("module {namespace};\n{body}")))
+        .map(|&(namespace, body)| (namespace, body.to_owned()))
         .collect();
     modules.push(("Optimizations", optimizations::module_source()));
     BuildPrelude {
@@ -148,34 +148,34 @@ public machine build_selection_receiver<'activation, 'storage>(builder: @'activa
 }
 public machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
     match cause {
-        CrashCause::Trap -> 0u64
-        CrashCause::Abort -> 1u64
+        CrashCause::Trap -> 0u64,
+        CrashCause::Abort -> 1u64,
     }
 }
 public machine build_exclusion_physical_code(authority: PhysicalAuthorityClass) -> u64 {
     match authority {
-        PhysicalAuthorityClass::FilesystemContentRead -> 0u64
-        PhysicalAuthorityClass::FilesystemContentWrite -> 1u64
-        PhysicalAuthorityClass::FilesystemMetadataQuery -> 2u64
-        PhysicalAuthorityClass::DirectoryEnumeration -> 3u64
-        PhysicalAuthorityClass::FilesystemNamespaceMutation -> 4u64
-        PhysicalAuthorityClass::FilesystemMetadataMutation -> 5u64
-        PhysicalAuthorityClass::ProcessOutput -> 6u64
-        PhysicalAuthorityClass::ProcessTermination -> 7u64
-        PhysicalAuthorityClass::MachineControl -> 8u64
-        PhysicalAuthorityClass::PortIo -> 9u64
-        PhysicalAuthorityClass::InterruptControl -> 10u64
-        PhysicalAuthorityClass::InterruptEntry -> 11u64
-        PhysicalAuthorityClass::RootMemoryAccess -> 12u64
-        PhysicalAuthorityClass::ProcessInput -> 13u64
+        PhysicalAuthorityClass::FilesystemContentRead -> 0u64,
+        PhysicalAuthorityClass::FilesystemContentWrite -> 1u64,
+        PhysicalAuthorityClass::FilesystemMetadataQuery -> 2u64,
+        PhysicalAuthorityClass::DirectoryEnumeration -> 3u64,
+        PhysicalAuthorityClass::FilesystemNamespaceMutation -> 4u64,
+        PhysicalAuthorityClass::FilesystemMetadataMutation -> 5u64,
+        PhysicalAuthorityClass::ProcessOutput -> 6u64,
+        PhysicalAuthorityClass::ProcessTermination -> 7u64,
+        PhysicalAuthorityClass::MachineControl -> 8u64,
+        PhysicalAuthorityClass::PortIo -> 9u64,
+        PhysicalAuthorityClass::InterruptControl -> 10u64,
+        PhysicalAuthorityClass::InterruptEntry -> 11u64,
+        PhysicalAuthorityClass::RootMemoryAccess -> 12u64,
+        PhysicalAuthorityClass::ProcessInput -> 13u64,
     }
 }
 // This conversion is ordinary checked source, preserving the exact enum's
 // meaning without teaching a host adapter to infer a case from storage bits.
 public machine build_selection_independent(mode: CompositionMode) -> bool {
     transition mode {
-        CompositionMode::Fused -> fused()
-        CompositionMode::Independent -> independent()
+        CompositionMode::Fused -> fused(),
+        CompositionMode::Independent -> independent(),
     }
     machine fused() -> bool { false }
     machine independent() -> bool { true }
@@ -225,7 +225,7 @@ public data ElfInterpreterSelection<'storage> {
     linux_x86_64: @'storage [u8];
 }
 // Compiler-owned test registration facet (wiki/spec/build/testing.md).
-// `builder.tests.group<Requirement>()` registers one exact ordinary trait
+// `builder.tests.group::<Requirement>()` registers one exact ordinary trait
 // machine requirement as a test group; its operand is a designated product
 // reference, never an executed call. `disabled` defaults to false, so a
 // zero-initialized Build never silently disables its registered groups.
@@ -367,8 +367,8 @@ public machine prepare_dependency(builder: @mut Build, registered: DependencyReg
 
 machine request_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], source: Source) -> DependencyRegistration reaches BuildRequestOperations {
     transition source {
-        Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location)
-        Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection)
+        Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location),
+        Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection),
     }
 }
 
@@ -378,8 +378,8 @@ machine request_path(builder: @Build, build_scope: bool, explicit_alias: bool, a
 
 machine request_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], selection: PackageSelection) -> DependencyRegistration reaches BuildRequestOperations {
     transition selection {
-        PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, "")
-        PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package)
+        PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, ""),
+        PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package),
     }
 }
 
@@ -477,8 +477,8 @@ public machine fail(output: @mut BuildOutput, obligation: RequiredOutput, diagno
 public machine complete(output: @mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     let ready: bool = BuildFilesystemOperations::can_complete(output, @obligation, file);
     transition ready {
-        true -> BuildOutput::seal(output, obligation, file)
-        false -> BuildOutput::retry(obligation, file)
+        true -> BuildOutput::seal(output, obligation, file),
+        false -> BuildOutput::retry(obligation, file),
     }
 }
 

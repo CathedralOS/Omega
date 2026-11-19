@@ -697,6 +697,13 @@ impl SourceStorage {
         }
 
         if origin_override == Some(SourceOrigin::Toolchain) {
+            if source_admission::source_identity::is_build_prelude_path(path) {
+                return (
+                    PathBuf::from(source_admission::source_identity::BUILD_PRELUDE_ROOT),
+                    None,
+                    SourceOrigin::Toolchain,
+                );
+            }
             return (
                 self.toolchain_root.clone().unwrap_or_default(),
                 None,
