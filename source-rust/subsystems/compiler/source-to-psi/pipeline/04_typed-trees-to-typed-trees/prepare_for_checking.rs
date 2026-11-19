@@ -5,6 +5,7 @@
 
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationRequest;
+use crate::source_judgment::{FrozenSource, JudgedSource, SettledSource};
 use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -93,23 +94,9 @@ pub struct SourcePreparationRequest<'request> {
     pub accounting: crate::compile_time::SourceCompletionAccounting,
 }
 
-pub struct FrozenSource {
-    pub program: Arc<crate::source_state::FrozenTypedTrees>,
-    pub accounting: crate::compile_time::SourceCompletionAccounting,
-    /// Actual demand before named uses became literals. This is result
-    /// correspondence data, not declaration-selection or execution authority.
-    pub constants: Vec<crate::ConstantRead>,
-}
-
-pub struct JudgedSource {
-    pub accepted: crate::AcceptedTerminalSource,
-    pub accounting: crate::compile_time::SourceCompletionAccounting,
-    pub constants: Vec<crate::ConstantRead>,
-}
-
 pub use source_completion_accounting::SourcePreparationFailure;
 
-impl SourcePreparationRequest<'_> {
+impl<'request> SourcePreparationRequest<'request> {
     /// Complete preparation and let the lowered-form checker judge this exact
     /// request. Build execution receives the accepted program and actual costs.
     pub fn judge(
@@ -117,25 +104,14 @@ impl SourcePreparationRequest<'_> {
         publication: terminal_codec::TerminalPublication,
     ) -> Result<JudgedSource, SourcePreparationFailure> {
         let compilation = self.compilation;
-        let FrozenSource {
-            program,
-            accounting,
-            constants,
-        } = self.prepare()?;
-        match crate::judge_terminal_source(program, compilation, publication) {
-            Ok(accepted) => Ok(JudgedSource {
-                accepted,
-                accounting,
-                constants,
-            }),
-            Err(diagnostics) => Err(SourcePreparationFailure {
-                diagnostics,
-                accounting,
-            }),
-        }
+        self.settle()?.judge(compilation, publication)
     }
 
     pub(crate) fn prepare(self) -> Result<FrozenSource, SourcePreparationFailure> {
+        self.settle()?.freeze()
+    }
+
+    fn settle(self) -> Result<SettledSource<'request>, SourcePreparationFailure> {
         let mut accounting = self.accounting;
         let result = (|| -> Result<_, Vec<Diagnostic>> {
             // Opaque property receipts came from the deleted checker. Supplying one
@@ -192,41 +168,14 @@ impl SourcePreparationRequest<'_> {
                     ))]
                 },
             )?;
-            let preparation = crate::preparation::PreparationRequest::settled()
-                .with_wire_compatibility_demands(self.admission.wire_demands);
-            let (program, _) = crate::preparation::prepare_typed_trees(program, &preparation)?;
-            let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
-            let mut declarations = program.const_declarations().iter().collect::<Vec<_>>();
-            declarations.sort_unstable_by_key(|declaration| key(declaration.symbol));
-            let constants = constants
-                .into_iter()
-                .map(|symbol| {
-                    let index = declarations
-                        .binary_search_by_key(&key(symbol), |declaration| key(declaration.symbol))
-                        .map_err(|_| {
-                            vec![Diagnostic::error(
-                                "source preparation lost a demanded constant declaration",
-                            )]
-                        })?;
-                    let declaration = declarations[index];
-                    Ok(crate::ConstantRead {
-                        name: program.symbols.name(symbol).to_owned(),
-                        declaration: crate::source_symbols::retain_declaration(
-                            &program.symbols,
-                            symbol,
-                        )
-                        .ok(),
-                        value: declaration.evaluated_value.clone(),
-                    })
-                })
-                .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-            Ok((Arc::new(program), constants))
+            Ok((program, constants))
         })();
         match result {
-            Ok((program, constants)) => Ok(FrozenSource {
+            Ok((program, demanded_constants)) => Ok(SettledSource {
                 program,
                 accounting,
-                constants,
+                demanded_constants,
+                wire_demands: self.admission.wire_demands,
             }),
             Err(diagnostics) => Err(SourcePreparationFailure {
                 diagnostics,

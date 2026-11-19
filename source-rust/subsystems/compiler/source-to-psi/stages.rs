@@ -36,10 +36,8 @@ pub(crate) use typed_trees_to_typed_trees::preparation;
 #[cfg(any(test, feature = "test-support"))]
 pub use typed_trees_to_typed_trees::preparation;
 
-use crate::product::source_judgment;
+use crate::source_judgment;
 pub use source_judgment::SourcePublication;
-#[cfg(not(any(test, feature = "test-support")))]
-pub(crate) use source_judgment::judge_terminal_source;
 #[cfg(any(test, feature = "test-support"))]
 pub use source_judgment::{judge_source_roster, judge_terminal_source};
 
@@ -75,7 +73,9 @@ pub use source_checking::{ProductRepresentationInput, SourcePreparationFailure};
 #[cfg(not(any(test, feature = "test-support")))]
 pub(crate) use source_checking::{SourceAdmission, SourcePreparationRequest};
 #[cfg(any(test, feature = "test-support"))]
-pub use source_checking::{FrozenSource, JudgedSource, SourceAdmission, SourcePreparationRequest};
+pub use source_checking::{SourceAdmission, SourcePreparationRequest};
+#[cfg(any(test, feature = "test-support"))]
+pub use source_judgment::{FrozenSource, JudgedSource};
 
 pub use source_compilation::{
     AdmittedProductPolicy, CompletedSource, PreparedSource, ProductPolicyRequest,

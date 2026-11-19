@@ -17,7 +17,6 @@ pub mod provider_choices;
 pub mod provider_declarations;
 pub(crate) mod provider_settlement;
 pub mod retained_application;
-pub(crate) mod source_judgment;
 pub mod source_targets;
 
 pub use native_bindings::{NativeBindingInputs, PackageNativeBindings};

@@ -12,6 +12,7 @@ pub use build_invocation::{BuildInvocationJudgment, BuildStageSource, CheckedBui
 mod package_handoff;
 pub use package_handoff::{PackageHandoffDeclarations, package_handoff_declarations};
 
+mod source_judgment;
 mod stages;
 pub use stages::*;
 

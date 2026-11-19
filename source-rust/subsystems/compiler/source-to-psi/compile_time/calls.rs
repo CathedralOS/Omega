@@ -207,30 +207,25 @@ impl PreparedBuildMachineProgram {
             selected,
         )
         .map_err(invocation_error)?;
-        // The call's source reaches the checker the way every program does,
-        // through typed preparation; there is no second way to freeze it.
-        let (source, _) = crate::preparation::prepare_typed_trees(
-            source,
-            &crate::preparation::PreparationRequest::settled(),
-        )?;
-        let source = Arc::new(source);
-        let accepted = crate::judge_terminal_source(
-            source,
-            crate::production::TerminalSourceCompilation {
-                declaration_metadata: &[],
-                entries: &[caller],
-                // Evaluating this call requests its dependency closure, not a
-                // full check of the requester's package or standalone source.
-                subjects: &[],
-                purpose: self.purpose,
-                selected: &[],
-                bindings: &[],
-                calling: None,
-                providers: None,
-                supplies,
-            },
-            self.publication,
-        )?;
+        let accepted = crate::source_judgment::SettledSource::materialized_call(source)
+            .judge(
+                crate::production::TerminalSourceCompilation {
+                    declaration_metadata: &[],
+                    entries: &[caller],
+                    // Evaluating this call requests its dependency closure, not a
+                    // full check of the requester's package or standalone source.
+                    subjects: &[],
+                    purpose: self.purpose,
+                    selected: &[],
+                    bindings: &[],
+                    calling: None,
+                    providers: None,
+                    supplies,
+                },
+                self.publication,
+            )
+            .map_err(|failure| failure.diagnostics)?
+            .accepted;
         let entry = accepted
             .entry()
             .ok_or_else(|| invocation_error("source invocation has no accepted entry"))?;
