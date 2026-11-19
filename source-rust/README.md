@@ -28,6 +28,6 @@ Each compiler keeps its driver files at its root and its numbered transformation
 
 [Compiler foundations](subsystems/compiler/foundation) hold compiler identities and vocabulary used across these boundaries. The [Rust foundation](foundation) provides cross-subsystem facilities, including arenas, exact arithmetic, record storage, byte encoding and [host filesystem operations](foundation/filesystem/src/lib.rs).
 
-`_recycling/` directories retain material for reference or rewrite. A returning implementation gets an active owner and is compiled there. The [admission check](../tools/ci/check_recycling.py) rejects active Cargo or Rust paths into the drawer.
+The [repository archive](../_recycling/) retains material for reference or rewrite. A returning implementation gets an active owner and is compiled there. The [admission check](../tools/ci/check_recycling.py) rejects active Cargo or Rust paths into the drawer.
 
 Cargo's CLI package is `omega` in [application](application/Cargo.toml). Compiler integration tests live in [subsystems/compiler/tests](subsystems/compiler/tests/README.md), with shared programs under [tests/fixtures](../tests/fixtures). Repository commands and validation policy are in [AGENTS.md](../AGENTS.md).

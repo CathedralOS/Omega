@@ -28,10 +28,10 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 2
-      - name: Check active Cargo and Rust paths against the recycling directories
+      - name: Check the repository archive and its boundary with active code
         run: |
           # A symlink can redirect an existing module or path dependency without editing its caller.
-          if git diff --quiet HEAD^1 HEAD -- ':(glob)**/*.rs' ':(glob)**/Cargo.toml' tools/ci/check_recycling.py tools/ci/test_check_recycling.py .github/workflows/admission.yml &&
+          if git diff --quiet HEAD^1 HEAD -- ':(glob)**/*.rs' ':(glob)**/Cargo.toml' ':(glob)**/_recycling/**' tools/ci/check_recycling.py tools/ci/test_check_recycling.py .github/workflows/admission.yml &&
              ! git diff --raw HEAD^1 HEAD | grep -E '^:(120000 |[0-9]+ 120000 )' >/dev/null; then
             exit 0
           fi

@@ -2,8 +2,8 @@
 
 The [review contract](../../../../../../../wiki/spec/packages/review.md) defines review's
 meaning. This note maps it to where the compiler keeps that data. Start at [capture.rs](capture.rs);
-[record](../../src/record) does not depend on compiler state. Supported forms and
-private size limits live in [EVIDENCE_SCHEMA.md](../../EVIDENCE_SCHEMA.md).
+[record](../../../../../../../source-rust/subsystems/package-manager/review/evidence/src/record) does not depend on compiler state. Supported forms and
+private size limits live in [EVIDENCE_SCHEMA.md](../../../../../../../source-rust/subsystems/package-manager/review/evidence/EVIDENCE_SCHEMA.md).
 
 ## Immutable custody and supplied semantics
 

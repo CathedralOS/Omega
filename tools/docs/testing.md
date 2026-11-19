@@ -467,7 +467,7 @@ and the reviewed field and export inventory. Run `mbx xtask check-boundary
 representation audit. The inventory retains the reviewed signatures for the
 maintained successors of V1 files. Retired orchestration, driver, product and
 package-review capture implementations and the deleted provider-planner façade
-have their historical judgments under `source-rust/_recycling/`. Changes to a
+have their historical judgments under `_recycling/source-rust/`. Changes to a
 maintained signature still require review. [Dependency rules](../xtask/src/boundary.rs)
 · [Transitive graph checks](../xtask/src/boundary/linear_pipeline.rs)
 · [Reviewed inventory](../xtask/pipeline-contracts.json)

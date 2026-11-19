@@ -217,8 +217,8 @@ A cache miss identifies the package occurrence and target that require a fresh
 review. The current project Build and source compilation APIs still need to
 issue the complete checked policy, provider nominations and generated handoff
 for that occurrence. The previous scheduler and projection are preserved under
-[`v1-project-admission`](_recycling/v1-project-admission) and
-[`v1-project-review`](_recycling/v1-project-review).
+[`v1-project-admission`](../../../_recycling/source-rust/subsystems/package-manager/v1-project-admission) and
+[`v1-project-review`](../../../_recycling/source-rust/subsystems/package-manager/v1-project-review).
 
 Acquisition binds each returned package declaration and dependency ledger to
 the same immutable capture that admitted its Build. A staged Build can name
