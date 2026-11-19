@@ -156,23 +156,6 @@ fn recover_source_metadata_identity(
     ))
 }
 
-fn encode_captured_inventory(inventory: &BuildCapturedSourceInventory, out: &mut Vec<u8>) {
-    crate::codec_bytes::push_encoded(out, inventory.entry_count().to_le_bytes());
-    crate::codec_bytes::push_encoded(out, inventory.file_bytes().to_le_bytes());
-    encode_source_metadata_identity(&inventory.source_metadata_identity(), out);
-}
-
-fn recover_captured_inventory(cursor: &mut Cursor) -> Option<BuildCapturedSourceInventory> {
-    let entry_count = cursor.u64()?;
-    let file_bytes = cursor.u64()?;
-    let source_metadata_identity = recover_source_metadata_identity(cursor)?;
-    Some(BuildCapturedSourceInventory {
-        entry_count,
-        file_bytes,
-        source_metadata_identity,
-    })
-}
-
 fn encode_staged_output_tree(tree: &BuildStagedOutputTree, out: &mut Vec<u8>) {
     let commitment = tree.commitment();
     out.extend_from_slice(&commitment.digest());
@@ -379,7 +362,7 @@ pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut V
     match summary.captured_source_inventory() {
         Some(inventory) => {
             out.push(1);
-            encode_captured_inventory(&inventory, out);
+            inventory.encode(out);
         }
         None => out.push(0),
     }
@@ -388,7 +371,7 @@ pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut V
     for inventory in named {
         push_framed(out, inventory.name());
         crate::codec_bytes::push_encoded(out, inventory.root_identity().to_le_bytes());
-        encode_captured_inventory(&inventory.inventory(), out);
+        inventory.inventory().encode(out);
     }
     let handoffs = summary.included_source_handoffs();
     crate::codec_bytes::push_encoded(out, (handoffs.len() as u64).to_le_bytes());
@@ -448,7 +431,7 @@ pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservati
     };
     let captured_source_inventory = match cursor.u8()? {
         0 => None,
-        1 => Some(recover_captured_inventory(cursor)?),
+        1 => Some(BuildCapturedSourceInventory::recover(cursor)?),
         _ => return None,
     };
     let named_count = cursor_count(cursor)?;
@@ -456,7 +439,7 @@ pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservati
     for _ in 0..named_count {
         let name = cursor.framed()?.to_vec();
         let root_identity = cursor.u32()?;
-        let inventory = recover_captured_inventory(cursor)?;
+        let inventory = BuildCapturedSourceInventory::recover(cursor)?;
         named_input_inventories.push(BuildNamedInputInventory {
             name,
             root_identity,
@@ -570,7 +553,7 @@ fn encode_grant(grant: &RestrictedBuildGrant, out: &mut Vec<u8>) {
     match grant.captured() {
         Some(inventory) => {
             out.push(1);
-            encode_captured_inventory(&inventory, out);
+            inventory.encode(out);
         }
         None => out.push(0),
     }
@@ -590,7 +573,7 @@ fn recover_grant(cursor: &mut Cursor) -> Option<RestrictedBuildGrant> {
     };
     let captured = match cursor.u8()? {
         0 => None,
-        1 => Some(recover_captured_inventory(cursor)?),
+        1 => Some(BuildCapturedSourceInventory::recover(cursor)?),
         _ => return None,
     };
     Some(RestrictedBuildGrant::from_retained(

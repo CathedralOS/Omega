@@ -1,0 +1,14 @@
+[package]
+name = "build-consent"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "requests.rs"
+
+[dependencies]
+build-output = { path = "../../build-output" }
+evaluation-contracts = { path = "../usage" }
+filesystem-authority = { path = "../filesystem" }
+target = { path = "../../../psi-to-native/targets/target" }

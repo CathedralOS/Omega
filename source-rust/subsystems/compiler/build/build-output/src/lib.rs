@@ -47,6 +47,7 @@ mod tree_from_entries;
 
 pub use capture::capture;
 pub use captured_source::{
+    BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
     CapturedBuildSourceInput, CapturedSourceEntry, CapturedSourceEntryKind, SourceSnapshotEntry,
     SourceSnapshotError, SourceSnapshotMetadata,
 };

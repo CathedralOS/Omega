@@ -332,7 +332,7 @@ impl BuildMachineFilesystemScope {
         self.named_inputs
             .iter()
             .find(|input| input.root == root)
-            .map(|input| captured_inventory(&input.input))
+            .map(|input| input.input.inventory())
     }
 
     pub(crate) fn named_input_inventories(&self) -> Vec<BuildNamedInputInventory> {
@@ -341,7 +341,7 @@ impl BuildMachineFilesystemScope {
             .map(|input| BuildNamedInputInventory {
                 name: input.name.clone(),
                 root_identity: input.root.get(),
-                inventory: captured_inventory(&input.input),
+                inventory: input.input.inventory(),
             })
             .collect()
     }
@@ -398,7 +398,7 @@ impl BuildMachineFilesystemScope {
     }
 
     pub fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
-        self.captured_source_input.as_ref().map(captured_inventory)
+        self.captured_source_input.as_ref().map(CapturedBuildSourceInput::inventory)
     }
 
     pub(crate) fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
@@ -625,10 +625,10 @@ impl BuildMachineFilesystemScope {
         &self,
     ) -> Option<BuildCanonicalSourceMetadataIdentity> {
         match &self.canonical_source_metadata {
-            Some(metadata) => Some(BuildCanonicalSourceMetadataIdentity {
-                policy_version: metadata.policy_version(),
-                source_content_commitment: *metadata.source_content_commitment(),
-            }),
+            Some(metadata) => Some(BuildCanonicalSourceMetadataIdentity::new(
+                metadata.policy_version(),
+                *metadata.source_content_commitment(),
+            )),
             None => None,
         }
     }
@@ -654,18 +654,5 @@ impl BuildMachineFilesystemScope {
             return Ok(None);
         };
         capture(&self.build_dir, sponsor).map(Some)
-    }
-}
-
-fn captured_inventory(input: &CapturedBuildSourceInput) -> BuildCapturedSourceInventory {
-    BuildCapturedSourceInventory {
-        entry_count: input.entry_count(),
-        file_bytes: input.file_bytes(),
-        source_metadata_identity: BuildCanonicalSourceMetadataIdentity::new(
-            input.canonical_source_metadata().policy_version(),
-            *input
-                .canonical_source_metadata()
-                .source_content_commitment(),
-        ),
     }
 }

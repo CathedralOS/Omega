@@ -19,6 +19,7 @@ members = [
     "source-rust/subsystems/compiler/build/build-settings",
     "source-rust/subsystems/compiler/build/build-settings/normalized",
     "source-rust/subsystems/compiler/build/evaluation/accounting",
+    "source-rust/subsystems/compiler/build/evaluation/consent",
     "source-rust/subsystems/compiler/build/evaluation/admission",
     "source-rust/subsystems/compiler/build/evaluation/filesystem",
     "source-rust/subsystems/compiler/build/evaluation/invocations",

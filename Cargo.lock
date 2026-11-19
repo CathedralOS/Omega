@@ -240,6 +240,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-consent"
+version = "0.1.0"
+dependencies = [
+ "build-output",
+ "evaluation-contracts",
+ "filesystem-authority",
+ "target",
+]
+
+[[package]]
 name = "build-declarations"
 version = "0.1.0"
 dependencies = [
@@ -2244,6 +2254,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "artifacts",
+ "build-consent",
  "build-declarations",
  "build-output",
  "build-time-values",

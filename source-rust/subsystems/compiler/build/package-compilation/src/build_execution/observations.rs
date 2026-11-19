@@ -5,6 +5,7 @@
 // a build evaluation settles its filesystem and output obligations.
 
 use build_output::BuildStagedOutputTree;
+pub use build_output::{BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory};
 
 pub use evaluation_contracts::BuildEvaluationUsage;
 pub use filesystem_authority::{
@@ -22,30 +23,6 @@ pub use filesystem_authority::{
 };
 
 pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 82;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildCanonicalSourceMetadataIdentity {
-    pub(crate) policy_version: u32,
-    pub(crate) source_content_commitment: [u8; 32],
-}
-
-impl BuildCanonicalSourceMetadataIdentity {
-    #[doc(hidden)]
-    pub const fn new(policy_version: u32, source_content_commitment: [u8; 32]) -> Self {
-        Self {
-            policy_version,
-            source_content_commitment,
-        }
-    }
-
-    pub const fn policy_version(self) -> u32 {
-        self.policy_version
-    }
-
-    pub const fn source_content_commitment(self) -> [u8; 32] {
-        self.source_content_commitment
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BuildActivation {
@@ -149,27 +126,6 @@ impl BuildFilesystemOperationAttempt {
 
     pub fn grant_refusals(&self) -> &[BuildFilesystemGrantRefusal] {
         &self.grant_refusals
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildCapturedSourceInventory {
-    pub(crate) entry_count: u64,
-    pub(crate) file_bytes: u64,
-    pub(crate) source_metadata_identity: BuildCanonicalSourceMetadataIdentity,
-}
-
-impl BuildCapturedSourceInventory {
-    pub const fn source_metadata_identity(self) -> BuildCanonicalSourceMetadataIdentity {
-        self.source_metadata_identity
-    }
-
-    pub const fn entry_count(self) -> u64 {
-        self.entry_count
-    }
-
-    pub const fn file_bytes(self) -> u64 {
-        self.file_bytes
     }
 }
 
