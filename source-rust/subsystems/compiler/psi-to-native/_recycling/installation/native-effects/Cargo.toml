@@ -9,6 +9,7 @@ name = "effects"
 path = "src/lib.rs"
 
 [dependencies]
+provider-plans = { path = "../../../../build/providers/plans" }
 host-provider-inputs = { path = "../../../pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../source-to-psi/language/application-identity" }

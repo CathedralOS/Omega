@@ -7,10 +7,8 @@ coordinates are stored as `ProviderIdentityId` handles into the declaration's
 identity table.
 */
 
-use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
-use crate::provider_evidence::providers::provider_plan::{
-    ProviderIdentityId, ProviderIdentityTable, ProviderPlanRow,
-};
+use crate::digest_encoder::ProviderPlanDigestEncoder;
+use crate::{ProviderIdentityId, ProviderIdentityTable, ProviderPlanRow};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundaryCallingPlanCommitment([u8; 32]);
@@ -54,16 +52,16 @@ impl BoundaryCallingPlanPromise {
 
 pub use semantic_vocabulary::provider_identity::{ProviderPlanDigest, ServiceSchemaDigest};
 
-pub use declaration_contracts::service_surface::ServiceEntryAuthorityFlow;
-pub use declaration_contracts::service_surface::ServiceEntryClaim;
-pub use declaration_contracts::service_surface::ServiceMethod;
-pub use declaration_contracts::service_surface::ServiceProgressEstablishmentRoute;
-pub use declaration_contracts::service_surface::ServiceProgressEstablishmentRouteKind;
-pub use declaration_contracts::service_surface::ServiceProgressPremise;
-pub use declaration_contracts::service_surface::ServiceProgressSubject;
-pub use declaration_contracts::service_surface::ServiceReceiverApplication;
-pub use declaration_contracts::service_surface::ServiceResultClaim;
-pub use declaration_contracts::service_surface::ServiceSurface;
+pub use service_surface::ServiceEntryAuthorityFlow;
+pub use service_surface::ServiceEntryClaim;
+pub use service_surface::ServiceMethod;
+pub use service_surface::ServiceProgressEstablishmentRoute;
+pub use service_surface::ServiceProgressEstablishmentRouteKind;
+pub use service_surface::ServiceProgressPremise;
+pub use service_surface::ServiceProgressSubject;
+pub use service_surface::ServiceReceiverApplication;
+pub use service_surface::ServiceResultClaim;
+pub use service_surface::ServiceSurface;
 
 #[derive(Debug, Clone, Default)]
 pub struct ServiceSchema {
@@ -202,24 +200,18 @@ impl ServiceSchema {
     }
 
     pub fn identity_digest(&self) -> ServiceSchemaDigest {
-        self.digest_with_calling(true)
+        let mut encoder = ProviderPlanDigestEncoder::for_service_schema();
+        self.declaration
+            .encode_contract(&mut encoder, |method, encoder| {
+                encoder.calling_applications(
+                    self.calling_for_requirement(method.requirement_identity),
+                );
+            });
+        ServiceSchemaDigest::from_digest(encoder.finish())
     }
 
     pub fn declaration_identity_digest(&self) -> ServiceSchemaDigest {
         ServiceSchemaDigest::from_digest(self.declaration.declaration_commitment())
-    }
-
-    fn digest_with_calling(&self, include_calling: bool) -> ServiceSchemaDigest {
-        let mut encoder = ProviderPlanDigestEncoder::for_service_schema();
-        self.declaration
-            .encode_contract(&mut encoder, |method, encoder| {
-                encoder.calling_applications(if include_calling {
-                    self.calling_for_requirement(method.requirement_identity)
-                } else {
-                    Vec::new()
-                });
-            });
-        ServiceSchemaDigest::from_digest(encoder.finish())
     }
 }
 
@@ -332,7 +324,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn complete_service_contract_v7_retains_type_signatures_and_calling_suffixes() {
+    fn published_service_contracts_retain_type_signatures_and_target_calling_suffixes() {
         use sha2::{Digest, Sha256};
         let mut schema = schema("Child", 1, false);
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
@@ -347,8 +339,8 @@ mod tests {
             parameter_index: 0,
             carrier_identity: enter.parameter_type_identities[0],
             domain: "Permitted".into(),
-            predicate_presence: declaration_contracts::DomainPredicatePresence::Present,
-            effective_carry: declaration_contracts::CarryPolicy::PERMISSIVE,
+            predicate_presence: language_core::DomainPredicatePresence::Present,
+            effective_carry: language_core::CarryPolicy::PERMISSIVE,
             authority_flow: ServiceEntryAuthorityFlow::Accepts,
         });
         enter.completion = semantic_vocabulary::BoundaryCompletion::External(
@@ -358,14 +350,14 @@ mod tests {
         enter.result_type_identity = result;
         enter.result_claims.push(ServiceResultClaim {
             domain: "Returned".into(),
-            effective_carry: declaration_contracts::CarryPolicy::STRICT,
+            effective_carry: language_core::CarryPolicy::STRICT,
         });
         enter.service_reach.push("Svc".into());
-        enter.synchronous_invocations.push(
-            declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+        enter
+            .synchronous_invocations
+            .push(service_surface::ServiceSynchronousInvocation::Service(
                 "before_return".into(),
-            ),
-        );
+            ));
         enter.may_suspend = true;
         enter.terminates_guarantee = true;
         enter.declared_type_signature = [31; 32];
@@ -416,27 +408,24 @@ mod tests {
             }
             text
         };
-        // The fixed v6 vectors check the unchanged prefix. The v7 trailer
-        // adds the two declared signatures in canonical method order.
-        let declaration_digest = "a66a39489639c6cf8fbc7f63c4234ffd87b436d6daceeda49be8263baabcfab3";
-        let calling_digest = "3a55a5fe79f31b50f1c5ea99fa150791d5d394824f3340bdfae513f0b1abea66";
+        // Frozen output of the original declaration and target-schema writers.
+        // Both include membership rosters and tagged synchronous invocations.
+        let declaration_digest = "3929c5e580268b9147a3401c3082b6d18cee8c72df8208b90b920408a1953a7b";
+        let calling_digest = "35e4895258a53784acaf36d6ff7f3dcd22377b73dd56c16cc22c2c7f42d8d048";
         let mut bytes = Vec::new();
         schema.declaration.encode_contract(&mut bytes, |_, output| {
             output.extend_from_slice(&0u64.to_le_bytes())
         });
         let trailer = [vec![32; 32], vec![31; 32]].concat();
-        assert_eq!(bytes.len(), 819 + trailer.len());
-        assert_eq!(&bytes[819..], trailer.as_slice());
+        assert_eq!(bytes.len(), 900);
+        assert!(bytes.ends_with(&trailer));
         let mut digest = Sha256::new();
-        digest.update(b"omega.service-schema.sha256.v6\0");
-        digest.update(&bytes[..819]);
-        assert_eq!(hexadecimal(digest.finalize().into()), declaration_digest);
-        let mut digest = Sha256::new();
-        digest.update(b"omega.service-schema.sha256.v10\0");
+        digest.update(b"omega.service-schema.sha256.v9\0");
         digest.update(&bytes);
+        assert_eq!(hexadecimal(digest.finalize().into()), declaration_digest);
         assert_eq!(
             hexadecimal(*schema.declaration_identity_digest().as_bytes()),
-            hexadecimal(digest.finalize().into())
+            declaration_digest
         );
         let mut encoded = super::ProviderPlanDigestEncoder::for_service_schema_preimage();
         schema
@@ -447,12 +436,11 @@ mod tests {
                 );
             });
         let preimage = encoded.finish_preimage();
-        let prefix =
-            &preimage[b"omega.service-schema.sha256.v10\0".len()..preimage.len() - trailer.len()];
-        let mut historical = Sha256::new();
-        historical.update(b"omega.service-schema.sha256.v6\0");
-        historical.update(prefix);
-        assert_eq!(hexadecimal(historical.finalize().into()), calling_digest);
+        assert!(preimage.starts_with(b"omega.service-schema.sha256.v10\0"));
+        assert_eq!(
+            hexadecimal(Sha256::digest(&preimage).into()),
+            calling_digest
+        );
         assert_eq!(
             &preimage[preimage.len() - trailer.len()..],
             trailer.as_slice()
@@ -617,7 +605,7 @@ mod tests {
         let unselected = ServiceSchema::from_declaration(first.declaration.clone());
         assert_eq!(
             first.declaration_identity_digest(),
-            unselected.identity_digest()
+            unselected.declaration_identity_digest()
         );
     }
 

@@ -1,6 +1,6 @@
 //! Source-free provider schema identity contract used by the public runtime facade.
 //! Separate owning tables must compare canonical identities, not mint positions.
-use effects::provider_plan::{
+use provider_plans::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceSchema, ServiceSurface,
 };
 

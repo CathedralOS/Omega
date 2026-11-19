@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+provider-plans = { path = "../../../../build/providers/plans" }
 psi-scalar-applications = { path = "../../../../psi/scalar-applications" }
 psi-provider-selections = { path = "../../../../psi/providers" }
 psi-entry-memory = { path = "../../../../psi/access/entry-memory" }

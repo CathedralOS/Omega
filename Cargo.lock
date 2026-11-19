@@ -456,6 +456,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-plans"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "component-description",
+ "language-core",
+ "semantic-vocabulary",
+ "service-surface",
+ "sha2",
+ "target",
+ "terminal-psi",
+ "wire",
+]
+
+[[package]]
 name = "psi-entry-memory"
 version = "0.1.0"
 dependencies = [
@@ -753,6 +768,7 @@ version = "0.1.0"
 dependencies = [
  "host-provider-inputs",
  "application-identity",
+ "provider-plans",
  "record-storage",
  "component-description",
  "declaration-contracts",
@@ -1153,7 +1169,7 @@ dependencies = [
 name = "ind11-terminal-validation"
 version = "0.1.0"
 dependencies = [
- "effects",
+ "provider-plans",
  "sample-runner",
 ]
 
@@ -1510,6 +1526,7 @@ dependencies = [
  "optimization-core",
  "platform-custody",
  "provider-admission",
+ "provider-plans",
  "provider-stack-contribution",
  "psi-entry-memory",
  "psi-provider-selections",

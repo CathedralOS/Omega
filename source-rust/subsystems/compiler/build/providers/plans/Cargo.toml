@@ -1,0 +1,21 @@
+[package]
+name = "provider-plans"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "provider_plan.rs"
+
+[dependencies]
+application-identity = { path = "../../../psi/application-identity" }
+language-core = { path = "../../../foundation/language-core" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+service-surface = { path = "../../../psi/service-surface" }
+target = { path = "../../../psi-to-native/targets/target" }
+terminal-psi = { path = "../../../psi" }
+wire = { path = "../../../../../foundation/wire" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+component-description = { path = "../../../psi/component-description" }

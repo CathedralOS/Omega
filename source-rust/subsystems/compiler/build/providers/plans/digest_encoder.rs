@@ -1,18 +1,15 @@
-/*
-We define the domain-separated SHA-256 encoder (`ProviderPlanDigestEncoder`)
-and the shared framed-feed combinator trait (`DigestFeed`) for `ProviderPlan`
-and `ServiceSchema` commitments. Interned identities always feed their
-canonical resolved text rather than process-local table ordinals.
-*/
+//! Write the same canonical plan and service-schema bytes for hashing and retention.
 
-use crate::provider_evidence::providers::provider_plan::{ProviderBinding, ProviderIdentityTable};
+use crate::{ProviderBinding, ProviderIdentityTable};
 use sha2::Digest;
 use sha2::Sha256;
 
-pub(crate) trait DigestFeed {
-    fn raw(&mut self, bytes: &[u8]);
+pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v8\0";
 
-    fn byte(&mut self, value: u8) {
+pub(crate) struct ProviderPlanDigestEncoder(Sha256, Option<Vec<u8>>);
+
+impl ProviderPlanDigestEncoder {
+    pub(super) fn byte(&mut self, value: u8) {
         self.raw(&[value]);
     }
 
@@ -20,11 +17,11 @@ pub(crate) trait DigestFeed {
         self.byte(u8::from(value));
     }
 
-    fn len(&mut self, value: usize) {
+    pub(super) fn len(&mut self, value: usize) {
         self.raw(&(value as u64).to_le_bytes());
     }
 
-    fn u64(&mut self, value: u64) {
+    pub(super) fn u64(&mut self, value: u64) {
         self.raw(&value.to_le_bytes());
     }
 
@@ -37,23 +34,10 @@ pub(crate) trait DigestFeed {
         self.raw(bytes);
     }
 
-    fn string(&mut self, value: &str) {
+    pub(super) fn string(&mut self, value: &str) {
         self.bytes(value.as_bytes());
     }
 
-    fn strings(&mut self, values: &[String]) {
-        self.len(values.len());
-        for value in values {
-            self.string(value);
-        }
-    }
-}
-
-pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v8\0";
-
-pub(crate) struct ProviderPlanDigestEncoder(Sha256, Option<Vec<u8>>);
-
-impl DigestFeed for ProviderPlanDigestEncoder {
     fn raw(&mut self, bytes: &[u8]) {
         self.0.update(bytes);
         if let Some(preimage) = &mut self.1 {
@@ -62,9 +46,9 @@ impl DigestFeed for ProviderPlanDigestEncoder {
     }
 }
 
-impl declaration_contracts::service_surface::ServiceContractSink for ProviderPlanDigestEncoder {
+impl service_surface::ServiceContractSink for ProviderPlanDigestEncoder {
     fn service_contract_bytes(&mut self, bytes: &[u8]) {
-        DigestFeed::raw(self, bytes);
+        self.raw(bytes);
     }
 }
 

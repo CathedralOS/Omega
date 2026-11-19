@@ -9,4 +9,4 @@ pub mod foreign_locator {
         NormalizedForeignLocator, normalize_foreign_locator,
     };
 }
-pub mod provider_plan;
+pub use provider_plans as provider_plan;

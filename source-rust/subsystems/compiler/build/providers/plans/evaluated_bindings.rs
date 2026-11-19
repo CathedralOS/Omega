@@ -6,10 +6,8 @@ foreign imports and syscalls (`EvaluatedForeignImport`, `EvaluatedForeignSyscall
 the exact normalized locator or syscall coordinate before construction.
 */
 
-use crate::provider_evidence::providers::foreign_locator::{
-    ForeignLocatorIdentityDigest, NormalizedForeignLocator,
-};
 use target::TargetProfile;
+use target::{ForeignLocatorIdentityDigest, NormalizedForeignLocator};
 
 macro_rules! evaluated_binding_digest {
     ($name:ident) => {
@@ -157,11 +155,7 @@ impl BuildNativeBindingOrigin {
         }
         Ok(requirement)
     }
-    fn feed(
-        &self,
-        requirement: &str,
-        digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder,
-    ) {
+    fn feed(&self, requirement: &str, digest: &mut wire::digest_encoder::DomainDigestEncoder) {
         digest.bytes(requirement.as_bytes());
         digest.raw(&self.source_occurrence_digest);
         digest.raw(&self.terminal_code.vocabulary_marker.get().to_le_bytes());
@@ -248,7 +242,7 @@ impl EvaluatedBindingReceipt {
                 "native Build receipt has duplicate origin or no immutable supplier".into(),
             );
         }
-        let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
+        let mut digest = wire::digest_encoder::DomainDigestEncoder::new(
             b"omega.build-native-binding-receipt.sha256.v1\0",
         );
         digest.raw(&self.identity);
@@ -336,7 +330,7 @@ fn receipt_identity_digest(
     materialization_digest: EvaluatedBindingMaterializationDigest,
     locator_identity_digest: ForeignLocatorIdentityDigest,
 ) -> [u8; 32] {
-    let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
+    let mut digest = wire::digest_encoder::DomainDigestEncoder::new(
         b"omega.evaluated-binding-receipt.sha256.v1\0",
     );
     match producer_package {
@@ -367,10 +361,7 @@ fn receipt_identity_digest(
     digest.finish()
 }
 
-fn receipt_hash_bytes(
-    digest: &mut crate::provider_evidence::digest_encoder::DomainDigestEncoder,
-    bytes: &[u8],
-) {
+fn receipt_hash_bytes(digest: &mut wire::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
     digest.bytes(bytes);
 }
 
