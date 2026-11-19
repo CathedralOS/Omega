@@ -1037,7 +1037,7 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let mut activity = ProofSearchActivity::default();
     let mut active = Prover::new(&context, &assumptions, &[], &values, &mut activity);
     active.active_cuts.push(ActiveCut {
-        proposition: cut,
+        proposition: cut.clone(),
         origin: None,
     });
     assert!(active.split(&Proposition::Truth).is_none());
@@ -1048,6 +1048,32 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let unknown = Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(7));
     assert!(failed.split(&unknown).is_none());
     assert_eq!(failed.activity.disjunction_materializations, 0);
+
+    let Proposition::Disjunction(parts) = cut else {
+        unreachable!("the test premise is a disjunction");
+    };
+    let wrapped = Proposition::Disjunction(vec![
+        Proposition::Conjunction(vec![parts[0].clone(), Proposition::Truth]),
+        parts[1].clone(),
+    ]);
+    let assumptions = [wrapped.clone()];
+    let mut activity = ProofSearchActivity::default();
+    let mut active = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    assert!(active.facts.iter().any(|fact| {
+        matches!(fact.proposition, Proposition::Disjunction(_)) && fact.proposition != wrapped
+    }));
+    let original = active
+        .facts
+        .iter()
+        .find(|fact| fact.proposition == wrapped)
+        .unwrap();
+    active.active_cuts.push(ActiveCut {
+        proposition: wrapped,
+        origin: original.disjunction_origin(&active.facts),
+    });
+    assert!(active.split(&Proposition::Truth).is_none());
+    assert_eq!(active.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert_eq!(active.activity.disjunction_materializations, 0);
 }
 
 #[test]
