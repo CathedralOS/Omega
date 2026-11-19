@@ -16,7 +16,8 @@ source-admission = { path = "source-to-psi/inputs/source-admission" }
 source-compiler = { path = "source-to-psi" }
 source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }
-terminal-codec = { path = "representations/psi/codec" }
+terminal-codec = { path = "psi/codec" }
+psi-authorization = { path = "psi/authorization" }
 terminal-installation = { path = "psi-admission" }
 
 [dev-dependencies]

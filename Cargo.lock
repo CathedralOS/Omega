@@ -24,10 +24,10 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
+ "psi-authorization",
  "semantic-vocabulary",
  "source-compiler",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "target-bound-program-to-abstract-operations",
  "terminal-semantics",
@@ -456,12 +456,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-authorization"
+version = "0.1.0"
+dependencies = [
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
 name = "psi-to-admitted-native-inputs"
 version = "0.1.0"
 dependencies = [
  "backend-plan",
+ "psi-authorization",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
 ]
 
@@ -529,6 +537,7 @@ dependencies = [
  "provider-admission",
  "provider-choices",
  "provider-correspondence",
+ "psi-authorization",
  "psi-to-admitted-native-inputs",
  "published-object-verification",
  "record-storage",
@@ -1512,6 +1521,7 @@ dependencies = [
  "post-allocation-machine-to-framed-machine",
  "program-entry-plan",
  "provider-admission",
+ "psi-authorization",
  "psi-to-admitted-native-inputs",
  "published-object-verification",
  "register-environment",
@@ -1731,6 +1741,7 @@ dependencies = [
  "package-manager",
  "platform-custody",
  "products",
+ "psi-authorization",
  "resolver-execution",
  "semantic-vocabulary",
  "sha2",
@@ -2254,6 +2265,7 @@ dependencies = [
  "program-entry-plan",
  "provider-admission",
  "provider-correspondence",
+ "psi-authorization",
  "psi-to-admitted-native-inputs",
  "runtime-abi",
  "semantic-vocabulary",
@@ -3339,6 +3351,7 @@ dependencies = [
  "installation-evidence",
  "optimization-selections",
  "provider-admission",
+ "psi-authorization",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -3634,6 +3647,7 @@ dependencies = [
  "boundary-applications",
  "calling-conventions",
  "operation-operands",
+ "psi-authorization",
  "record-storage",
  "component-description",
  "declaration-contracts",

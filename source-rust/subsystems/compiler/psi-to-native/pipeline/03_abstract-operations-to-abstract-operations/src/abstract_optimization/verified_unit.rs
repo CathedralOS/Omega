@@ -492,9 +492,9 @@ impl VerifiedPsiOptimizationUnit {
 #[cfg(test)]
 fn authorize_fixture(
     artifact: terminal_codec::CanonicalTerminalArtifact,
-) -> terminal_installation::AuthorizedTerminalArtifact {
-    let producer = terminal_installation::HostProducerTrust::accept("controlled test producer");
-    terminal_installation::authorize_terminal_artifact(
+) -> psi_authorization::AuthorizedTerminalArtifact {
+    let producer = psi_authorization::HostProducerTrust::accept("controlled test producer");
+    psi_authorization::authorize_terminal_artifact(
         std::sync::Arc::new(artifact),
         Some(&producer),
     )

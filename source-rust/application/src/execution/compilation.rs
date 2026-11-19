@@ -37,7 +37,7 @@ pub(super) struct ProbeCompilation {
 }
 
 pub(super) fn compile(
-    artifact: Option<terminal_installation::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
     build_snapshot: Option<compiler::BuildSnapshotRequest>,
     options: CompileOptions,

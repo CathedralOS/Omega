@@ -13,10 +13,9 @@ mod error {
     use crate::artifact_lowering::lowering::LoweringError;
 
     #[derive(Debug)]
-    pub enum ArtifactLoweringError {
-        TargetSelectionRequired,
+    pub enum ArtifactLoweringError {        TargetSelectionRequired,
         TargetContext(String),
-        HostAuthorization(terminal_installation::ArtifactTrustError),
+        HostAuthorization(psi_authorization::ArtifactTrustError),
         AccessViewInputsRequireCustodyLowering,
         AccessViewEstablishmentUnexpected {
             machine: semantic_vocabulary::MachineId,
@@ -164,7 +163,7 @@ mod native {
     }
 
     pub(crate) struct NativeScopePreparation {
-        authorization: terminal_installation::AuthorizedTerminalArtifact,
+        authorization: psi_authorization::AuthorizedTerminalArtifact,
         profile: target::TargetProfile,
         entry: semantic_vocabulary::MachineId,
         pub(crate) targets: TerminalTargetContext,
@@ -175,7 +174,7 @@ mod native {
 
     impl NativeScopePreparation {
         pub(crate) fn prepare(
-            authorization: &terminal_installation::AuthorizedTerminalArtifact,
+            authorization: &psi_authorization::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             selection: &NativeExecutionSelection<'_>,
@@ -363,7 +362,7 @@ mod native {
         }
 
         pub fn prepare(
-            artifact: &terminal_installation::AuthorizedTerminalArtifact,
+            artifact: &psi_authorization::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             establishments: &[TerminalAccessViewEstablishment],
@@ -382,7 +381,7 @@ mod native {
         }
 
         pub fn prepare_with_private_entry_ram(
-            artifact: &terminal_installation::AuthorizedTerminalArtifact,
+            artifact: &psi_authorization::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
@@ -608,7 +607,7 @@ mod native {
     }
 
     pub(super) fn lower_decoded_native_module(
-        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AuthorizedTerminalArtifact,
         entry: semantic_vocabulary::MachineId,
         selections: Option<TerminalTargetContext>,
     ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
@@ -618,7 +617,7 @@ mod native {
     }
 
     fn retain_native_plan(
-        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AuthorizedTerminalArtifact,
         plan: AbstractOperationPlan,
         selections: Option<TerminalTargetContext>,
     ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
@@ -635,10 +634,9 @@ mod native {
     #[cfg(test)]
     fn authorize_test_artifact(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-    ) -> terminal_installation::AuthorizedTerminalArtifact {
-        let producer =
-            terminal_installation::HostProducerTrust::accept("controlled native fixture");
-        terminal_installation::authorize_terminal_artifact(
+    ) -> psi_authorization::AuthorizedTerminalArtifact {
+        let producer = psi_authorization::HostProducerTrust::accept("controlled native fixture");
+        psi_authorization::authorize_terminal_artifact(
             std::sync::Arc::new(artifact.clone()),
             Some(&producer),
         )
@@ -1122,7 +1120,7 @@ pub use scalar_applications::NativeScalarApplications;
 /// Lowers an exact host-authorized product, with optional seals kept by its host.
 /// Neither seals nor canonical decoding supply producer trust.
 pub fn lower_artifact(
-    authorization: &terminal_installation::AuthorizedTerminalArtifact,
+    authorization: &psi_authorization::AuthorizedTerminalArtifact,
     evidence: Option<terminal_codec::EvidenceSeals>,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
     let Some(terminal_psi::TargetMachineCallable::Machine(entry)) =

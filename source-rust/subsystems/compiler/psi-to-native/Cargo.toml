@@ -62,6 +62,7 @@ runtime-abi = { path = "targets/runtime-abi" }
 target = { path = "targets/target" }
 terminal-codec = { path = "../psi/codec" }
 terminal-psi = { path = "../psi" }
+psi-authorization = { path = "../psi/authorization" }
 terminal-installation = { path = "../psi-admission" }
 verified-optimization-input = { path = "pipeline/representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }

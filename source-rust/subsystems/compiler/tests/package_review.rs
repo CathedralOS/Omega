@@ -1059,8 +1059,8 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         Some("provider installation belongs to a different target"),
     );
     let reach = folded_entry.clone().unwrap();
-    let producer = terminal_installation::HostProducerTrust::accept("package review fixture");
-    let authorized = terminal_installation::authorize_terminal_artifact(
+    let producer = psi_authorization::HostProducerTrust::accept("package review fixture");
+    let authorized = psi_authorization::authorize_terminal_artifact(
         std::sync::Arc::clone(source.artifact()),
         Some(&producer),
     )
@@ -1683,8 +1683,8 @@ fn saved_program_uses_the_hosts_evaluated_native_binding() {
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&std::fs::read(&saved).unwrap())
             .unwrap();
-    let producer = terminal_installation::HostProducerTrust::accept("fixture source compiler");
-    let authorized = terminal_installation::authorize_terminal_artifact(
+    let producer = psi_authorization::HostProducerTrust::accept("fixture source compiler");
+    let authorized = psi_authorization::authorize_terminal_artifact(
         std::sync::Arc::new(artifact),
         Some(&producer),
     )

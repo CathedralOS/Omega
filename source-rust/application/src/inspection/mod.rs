@@ -121,7 +121,7 @@ pub(crate) fn read_artifact(path: &std::path::Path) -> std::io::Result<Vec<u8>> 
 pub(crate) fn open_trusted_program(
     path: &std::path::Path,
     trusted_artifact: Option<&str>,
-) -> Result<terminal_installation::AuthorizedTerminalArtifact, Vec<Diagnostic>> {
+) -> Result<psi_authorization::AuthorizedTerminalArtifact, Vec<Diagnostic>> {
     let expected = trusted_artifact.ok_or_else(|| vec![Diagnostic::error("saved Psi execution requires --trusted-artifact with the manifest identity supplied by the trusted producer")])?;
     let bytes = read_artifact(path).map_err(|error| {
         vec![Diagnostic::error(format!(
@@ -136,9 +136,9 @@ pub(crate) fn open_trusted_program(
             "saved Psi manifest differs from the artifact authorized by this host",
         )]);
     }
-    let producer = terminal_installation::HostProducerTrust::accept(
+    let producer = psi_authorization::HostProducerTrust::accept(
         "trusted producer of the host-pinned artifact",
     );
-    terminal_installation::authorize_terminal_artifact(decoded.artifact, Some(&producer))
+    psi_authorization::authorize_terminal_artifact(decoded.artifact, Some(&producer))
         .map_err(|reason| vec![Diagnostic::error(reason.to_string())])
 }

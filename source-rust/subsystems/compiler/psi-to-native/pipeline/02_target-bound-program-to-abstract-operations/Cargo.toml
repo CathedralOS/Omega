@@ -17,6 +17,7 @@ runtime-abi = { path = "../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 terminal-codec = { path = "../../../psi/codec" }
+psi-authorization = { path = "../../../psi/authorization" }
 terminal-installation = { path = "../../../psi-admission" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }

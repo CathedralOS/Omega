@@ -27,7 +27,7 @@ pub(crate) mod native_admission {
     }
 
     pub fn admit_native_realization<'execution>(
-        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AuthorizedTerminalArtifact,
         request: &NativeAdmissionRequest<'_, 'execution>,
     ) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
         let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(

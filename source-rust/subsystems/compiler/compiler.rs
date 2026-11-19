@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use diagnostics::Diagnostic;
-use terminal_installation::{
+use psi_authorization::{
     AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 

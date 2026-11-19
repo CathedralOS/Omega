@@ -90,6 +90,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence",
+    "source-rust/subsystems/compiler/psi/authorization",
     "source-rust/subsystems/compiler/psi/codec",
     "source-rust/subsystems/compiler/psi/layout",
     "source-rust/subsystems/compiler/psi/layout/integer-defaults",

@@ -165,7 +165,7 @@ impl VerifiedPsiOptimizationInput {
     /// `retain_*` and `attach_*` methods as each admission step succeeds.
     pub fn lowered(
         plan: AbstractOperationPlan,
-        artifact: terminal_installation::AuthorizedTerminalArtifact,
+        artifact: psi_authorization::AuthorizedTerminalArtifact,
         target_context: Option<TerminalTargetContext>,
     ) -> Result<Self, &'static str> {
         if plan.psi != artifact.artifact().view().identity() {
@@ -356,7 +356,7 @@ impl VerifiedPsiOptimizationInput {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationContext {
-    artifact: terminal_installation::AuthorizedTerminalArtifact,
+    artifact: psi_authorization::AuthorizedTerminalArtifact,
 }
 
 impl VerifiedPsiOptimizationContext {
@@ -368,7 +368,7 @@ impl VerifiedPsiOptimizationContext {
         self.artifact.artifact().closed_module()
     }
 
-    pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
         &self.artifact
     }
 }
@@ -382,7 +382,7 @@ pub struct AdmittedLoweringFacts {
     entry: semantic_vocabulary::MachineId,
     native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
     selected_provider_closure: Option<[u8; 32]>,
-    artifact: terminal_installation::AuthorizedTerminalArtifact,
+    artifact: psi_authorization::AuthorizedTerminalArtifact,
     program_entry: Option<SelectedProgramEntryCall>,
     assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
     target_context: Option<TerminalTargetContext>,
@@ -623,7 +623,7 @@ impl AdmittedLoweringFacts {
         self.artifact.artifact().closed_module()
     }
 
-    pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
         &self.artifact
     }
 

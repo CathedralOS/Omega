@@ -5,7 +5,7 @@ use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
 
 pub struct PreparedNativeExecution {
-    authorization: terminal_installation::AuthorizedTerminalArtifact,
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
     evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
     scope: crate::NativeExecutionScope,
     selection: effects::SelectedProviderPlanFacts,
@@ -21,7 +21,7 @@ impl TerminalNativeRealizationProposal {
     /// demand. Component calls replace the local implementations they name.
     pub fn prepare_native_execution(
         &self,
-        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AuthorizedTerminalArtifact,
         components: &[&crate::AdmittedNativeComponentCall<'_>],
     ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
         let scope = self.execution_scope(authorization.artifact(), components)?;
@@ -32,7 +32,7 @@ impl TerminalNativeRealizationProposal {
     /// settle its provider demand.
     pub fn prepare_native_callable_execution(
         &self,
-        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AuthorizedTerminalArtifact,
         entry: terminal_psi::TargetMachineCallable,
     ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
         let scope = self.callable_execution_scope(authorization.artifact(), entry, None)?;
@@ -45,7 +45,7 @@ impl TerminalNativeRealizationProposal {
     /// this demand covers the entry with or without them.
     pub fn entry_scalar_demand(
         &self,
-        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AuthorizedTerminalArtifact,
     ) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<Diagnostic>> {
         let demand = self
             .prepare_native_execution(authorization, &[])?
@@ -58,7 +58,7 @@ impl TerminalNativeRealizationProposal {
     /// condition.
     pub fn callable_scalar_demand(
         &self,
-        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AuthorizedTerminalArtifact,
         entries: &[terminal_psi::TargetMachineCallable],
     ) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<Diagnostic>> {
         let mut demand = Vec::new();
@@ -74,7 +74,7 @@ impl TerminalNativeRealizationProposal {
     }
 
     fn required(
-        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AuthorizedTerminalArtifact,
         demand: Vec<semantic_vocabulary::ScalarApplicationId>,
     ) -> Option<Vec<semantic_vocabulary::ScalarApplicationId>> {
         requires_scalar_values(authorization.artifact(), &demand).then_some(demand)
@@ -297,7 +297,7 @@ impl TerminalNativeRealizationProposal {
     }
     pub fn prepare_native_provider_demand(
         &self,
-        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AuthorizedTerminalArtifact,
         mut scope: crate::NativeExecutionScope,
     ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
         let artifact = authorization.artifact();
@@ -480,7 +480,7 @@ impl PreparedNativeExecution {
             .map_err(fail)
     }
 
-    pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
         &self.authorization
     }
 
