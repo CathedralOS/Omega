@@ -2053,7 +2053,6 @@ dependencies = [
  "package-compilation",
  "package-manager",
  "platform-custody",
- "products",
  "project-build",
  "psi-authorization",
  "resolver-execution",
@@ -2410,7 +2409,6 @@ name = "product-publication"
 version = "0.1.0"
 dependencies = [
  "image",
- "image-emission",
  "image-macho",
  "native-artifact",
  "object-file",

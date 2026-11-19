@@ -5,11 +5,11 @@ use provider_plans::EvaluatedNativeBinding;
 
 pub(crate) fn settle<'execution>(
     input: &crate::AdmissionSource<'_>,
-    request: &crate::provider_admission::ProviderAdmissionRequest<'_, 'execution>,
+    request: &crate::ProviderAdmissionRequest<'_, 'execution>,
 ) -> Result<
     (
         Vec<crate::AdmittedBoundarySettlement<'execution>>,
-        Vec<crate::provider_admission::AdmittedTerminalMechanism>,
+        Vec<crate::AdmittedTerminalMechanism>,
     ),
     Vec<diagnostics::Diagnostic>,
 > {
@@ -89,7 +89,7 @@ pub(crate) fn settle<'execution>(
                             .into(),
                     ));
                 }
-                let physical = crate::provider_admission::normalized_foreign_terminal_mechanism(
+                let physical = crate::normalized_foreign_terminal_mechanism(
                     import.locator(),
                     &entry,
                 )
@@ -118,7 +118,7 @@ pub(crate) fn settle<'execution>(
                         "syscall has another exact kernel calling policy".into(),
                     ));
                 }
-                let physical = crate::provider_admission::conservative_syscall_terminal_mechanism(
+                let physical = crate::conservative_syscall_terminal_mechanism(
                     request.profile,
                     syscall.number(),
                     input.plan(),
@@ -154,7 +154,7 @@ pub(crate) fn settle<'execution>(
             },
             realization: BoundarySettlementRealization::NormalizedForeignCall(foreign),
         });
-        mechanisms.push(crate::provider_admission::AdmittedTerminalMechanism {
+        mechanisms.push(crate::AdmittedTerminalMechanism {
             boundary: row.boundary,
             mechanism: physical,
         });

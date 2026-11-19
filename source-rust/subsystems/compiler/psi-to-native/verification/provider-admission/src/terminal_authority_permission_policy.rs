@@ -167,7 +167,7 @@ fn permission_policy_identity(
 pub fn validate_retained_package_terminal_authority_permissions(
     retained: &[ServiceTerminalAuthorityPermission],
     retained_identities: &terminal_psi::TerminalIdentityTable,
-    accepted: &crate::provider_admission::TerminalAuthorityPermissionPolicy,
+    accepted: &crate::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();

@@ -12,6 +12,9 @@
 //! and its module publishes, the Terminal product is that artifact and its
 //! seals stay beside it for native planning. The shared source roster includes
 //! the Build-selected entry declaration before publication.
+#[path = "support/fixture_repository.rs"]
+mod fixture_repository;
+
 #[path = "support/artifact_trust.rs"]
 mod artifact_trust;
 
@@ -391,10 +394,7 @@ fn default_product(fixture: &str) -> artifact_lowering::RetainedTerminalArtifact
 }
 
 fn repo_root() -> &'static std::path::Path {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler crate is nested four levels under the repository")
+    fixture_repository::root()
 }
 
 #[test]

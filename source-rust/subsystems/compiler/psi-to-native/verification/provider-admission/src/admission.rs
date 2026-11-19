@@ -19,79 +19,15 @@ retained builtin proposals carry plan-index custody as proposals, never
 replacing independent native admission.
 */
 
-#[path = "access_lifecycles.rs"]
-mod access_lifecycles;
-#[path = "adapters.rs"]
-mod adapters;
-#[path = "callback_entries.rs"]
-mod callback_entries;
-#[path = "compiler_builtins.rs"]
-mod compiler_builtins;
-#[path = "model.rs"]
-mod model;
-#[path = "settlements.rs"]
-mod settlements;
-#[path = "source_evaluated_bindings.rs"]
-mod source_evaluated_bindings;
-#[path = "static_interrupts.rs"]
-mod static_interrupts;
-#[path = "terminal_authority_permission_policy.rs"]
-mod terminal_authority_permission_policy;
-#[path = "terminal_authority_policy.rs"]
-mod terminal_authority_policy;
-#[path = "terminal_authority_review.rs"]
-mod terminal_authority_review;
-
-pub use crate::AdmittedInstalledInterruptCohort;
-pub use adapters::{
-    AdmittedProgramProviderContext, retain_selected_provider_adapters,
-    selected_synchronous_call_graph,
+use crate::terminal_authority_review::reachability::AuthorityGraph;
+use crate::{
+    AdmissionSource, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
+    AdmittedProgramProviderContext, AdmittedProviderInstallation, ProviderAdmissionRequest,
+    access_lifecycles, callback_entries, compiler_builtins, settlements, static_interrupts,
+    terminal_authority_policy, terminal_authority_review,
 };
-pub use callback_entries::project_native_callback_arguments;
-pub use compiler_builtins::{
-    AdmittedTerminalIntrinsics, CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin,
-    TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement, admit_terminal_intrinsics,
-    derive_selected_intrinsic_settlement_proposals, numeric_boundary_execution,
-    prepare_retained_compiler_builtins, validate_external_provider_owners,
-};
-pub use model::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedCallbackEntry,
-    AdmittedFatalInterruptEntry, AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptHelper,
-    AdmittedInstalledInterruptScope, AdmittedInterruptContextAnchor,
-    AdmittedNativeCallbackArgument, InstalledInterruptNativeEntryProposal,
-    NativeBoundaryRealization, NativeCallbackArgumentProposal, NativeCompilerBuiltinSettlement,
-    NativeProviderSettlement, ProviderAdmissionRequest,
-};
-pub use source_evaluated_bindings::{
-    PreparedSourceEvaluatedBindings, SourceEvaluatedImportSettlement,
-    prepare_source_evaluated_bindings,
-};
-pub use terminal_authority_permission_policy::{
-    TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyRow,
-    terminal_authority_permission_policy_with_rows,
-};
-pub use terminal_authority_policy::{
-    TerminalAuthorityPolicy, current_terminal_authority_policy, filesystem_host_permission_rows,
-    terminal_authority_policy_with_rows, time_host_permission_rows,
-};
-pub(crate) use terminal_authority_policy::{
-    conservative_syscall_terminal_mechanism, normalized_foreign_terminal_mechanism,
-    normalized_foreign_terminal_mechanism_with_callback_materializations,
-};
-
-pub mod terminal_authority_permissions {
-    pub use super::terminal_authority_permission_policy::{
-        validate_package_terminal_authority_permission_custody,
-        validate_retained_package_terminal_authority_permissions,
-    };
-}
-
-use crate::AdmissionSource as NativeRealizationInput;
-use crate::AdmittedProviderInstallation;
 use ::diagnostics::Diagnostic;
 use application_identity::type_identity::callable_display_path as requirement_path;
-
-use terminal_authority_review::reachability::AuthorityGraph;
 
 pub fn realization_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
@@ -137,7 +73,9 @@ impl AdmittedNativeCallableAuthority {
         self.entry
     }
 
-    pub const fn review(&self) -> &terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt {
+    pub const fn review(
+        &self,
+    ) -> &terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt {
         &self.review
     }
 }
@@ -149,7 +87,8 @@ pub struct AdmittedNativeProviders<'execution> {
     pub(crate) native_callbacks: crate::AdmittedNativeCallbackCohort, // Scoped to this executable occurrence scope, never the full retained catalog.
     pub(crate) installed_interrupts: crate::AdmittedInstalledInterruptCohort,
     pub executions: Vec<&'execution dyn ProviderExecutionEvidence>,
-    pub terminal_authority_policy_identity: terminal_authority_receipts::TerminalAuthorityPolicyIdentity,
+    pub terminal_authority_policy_identity:
+        terminal_authority_receipts::TerminalAuthorityPolicyIdentity,
     pub terminal_authority_permission_policy_identity:
         Option<terminal_authority_receipts::TerminalAuthorityPermissionPolicyIdentity>, // `Some` only when a receiving permission policy was explicitly supplied.
     callable_authority: AdmittedNativeCallableAuthority,
@@ -204,7 +143,7 @@ pub(crate) struct AdmittedTerminalMechanism {
 }
 
 pub fn admit_native_providers<'request>(
-    input: &NativeRealizationInput,
+    input: &AdmissionSource,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
@@ -241,7 +180,8 @@ pub fn admit_native_providers<'request>(
         &installed_interrupts,
         request.terminal_authority_policy,
     )?;
-    let (native_settlements, native_mechanisms) = crate::native_binding_settlements::settle(input, request)?;
+    let (native_settlements, native_mechanisms) =
+        crate::native_binding_settlements::settle(input, request)?;
     require_reached_providers(
         input,
         request.profile,
@@ -422,7 +362,7 @@ pub fn admit_native_providers<'request>(
 }
 
 fn admit_checked_provider_installation(
-    input: &NativeRealizationInput,
+    input: &AdmissionSource,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
 ) -> Result<Option<AdmittedProviderInstallation>, Vec<Diagnostic>> {

@@ -1356,7 +1356,7 @@ use crate::native_proposal::{
 };
 use diagnostics::Diagnostic;
 use entry::EntryRecord;
-use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
+use provider_admission::TerminalAuthorityPermissionPolicy;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
@@ -1671,7 +1671,7 @@ fn capture(
         .without_checked_specializations()
         .write(&mut output)?;
     output.sequence(boundaries.selected_provider_provenance.len())?;
-    for provider_admission::provider_admission::CompilerIntrinsicPlanProvenance {
+    for provider_admission::CompilerIntrinsicPlanProvenance {
         plan,
         semantic_schema,
         row_executions,
@@ -1948,10 +1948,10 @@ pub fn recover_native_derivation_inputs(
         .transpose()
         .map_err(|reason| error(format!("recovered operation evidence: {reason}")))?
         .map(Arc::new);
-    provider_admission::provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permission_custody(
+    provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permission_custody(
         accepted_permissions.iter(), &accepted_identities)?;
     let accepted =
-        provider_admission::provider_admission::terminal_authority_permission_policy_with_rows(
+        provider_admission::terminal_authority_permission_policy_with_rows(
             accepted_permissions,
             accepted_identities,
         )
@@ -1975,7 +1975,7 @@ pub fn recover_native_derivation_inputs(
                 selected_provider_provenance: intrinsic_provenance
                     .iter()
                     .map(|row| {
-                        provider_admission::provider_admission::CompilerIntrinsicPlanProvenance {
+                        provider_admission::CompilerIntrinsicPlanProvenance {
                             plan: &row.plan,
                             semantic_schema: &row.semantic_schema,
                             row_executions: &row.row_executions,

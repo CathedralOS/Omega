@@ -16,7 +16,6 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-use ::provider_admission::provider_admission;
 use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
 use std::fs;

@@ -8,14 +8,16 @@
 //! twin whose policy is declared nowhere. A demanded domain also carries the
 //! plan its policy returned (`build_time_evaluation`, `domain_access_plans`).
 
+#[path = "support/fixture_repository.rs"]
+mod fixture_repository;
+
 use source_compiler::source_state::domain::{AccessPlanJudgment, CheckedIssuance, DomainIssuance};
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn fixture(name: &str) -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../tests/fixtures")
+    fixture_repository::root().join("tests/fixtures")
         .join(name)
         .join("main.omg")
 }

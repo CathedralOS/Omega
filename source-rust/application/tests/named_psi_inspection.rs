@@ -152,7 +152,7 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
     ];
     let consumer = TemporaryDirectory::create("saved-psi-consumer", false).unwrap();
     let program = consumer.path().join("relocated.psi");
-    let manifest = {
+    let (manifest, issued) = {
         let producer = TemporaryDirectory::create("saved-psi-producer", false).unwrap();
         for file in ["main.omg", "build.omg"] {
             std::fs::copy(fixture.join(file), producer.path().join(file)).unwrap();
@@ -179,9 +179,56 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
             .collect();
         assert_eq!(manifests.len(), targets.len(), "{stdout}");
         assert!(manifests.iter().all(|id| *id == manifests[0]), "{stdout}");
-        manifests[0].to_owned()
+        let file = std::fs::read(producer.path().join("saved/main.psi")).unwrap();
+        let published = CanonicalTerminalArtifact::from_bytes(&file).unwrap();
+        assert_eq!(published.manifest().identity().to_string(), manifests[0]);
+        (manifests[0].to_owned(), published)
     };
     assert_eq!(std::fs::read_dir(consumer.path()).unwrap().count(), 1);
+    let bytes = std::fs::read(&program).unwrap();
+    let reopened = CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    let metadata = reopened
+        .publication_metadata()
+        .expect("reopened entry publication");
+    assert_eq!(
+        metadata.machine_provenance(),
+        issued.publication_metadata().unwrap().machine_provenance()
+    );
+    let module = reopened.semantic_module();
+    let contract = module.program_entry_contract("linux_x86_64").unwrap();
+    let schema = contract.schema_declaration;
+    assert_eq!(
+        module.identities.text(schema),
+        Some("toolchain-contract::LinuxX86_64Application")
+    );
+    assert_eq!(
+        metadata.entry_schema_custody(schema).unwrap(),
+        semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract
+    );
+    let entry_declaration = module
+        .machine(contract.entry)
+        .unwrap()
+        .declaration
+        .as_ref()
+        .unwrap()
+        .semantic_declaration;
+    assert_ne!(entry_declaration, schema);
+    assert_eq!(
+        metadata
+            .entry_schema_custody(entry_declaration)
+            .unwrap_err(),
+        "selected declaration has no authenticated source custody"
+    );
+
+    // Equal saved bytes can be reopened in two independent invocations. One's
+    // calling-custody metadata cannot issue observations for the other's view.
+    assert_eq!(issued.manifest().identity(), reopened.manifest().identity());
+    assert_eq!(
+        reopened
+            .calling_declaration_owner(issued.view().into(), schema)
+            .unwrap_err(),
+        "source declaration custody belongs to another program or invocation"
+    );
     let command = |args: &[&str]| {
         omega(consumer.path())
             .env("OMEGA_LIBRARY_ROOT", consumer.path().join("absent-library"))

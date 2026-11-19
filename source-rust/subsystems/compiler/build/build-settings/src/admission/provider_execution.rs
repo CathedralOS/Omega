@@ -32,7 +32,7 @@ impl BuildProviderPlans {
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
     ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
-        use provider_admission::provider_admission as admission;
+        use provider_admission as admission;
         let module = artifact.module();
         let adapters =
             admission::retain_selected_provider_adapters(&self.selected).map_err(failure)?;

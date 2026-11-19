@@ -6,7 +6,7 @@ use super::callback_thunks::PlannedPrivateBody;
 use super::physical_body::PreparedPhysicalBody;
 use diagnostics::Diagnostic;
 use frame_planning::stack_demand::{StackDemand, derive_physical_stack_demand};
-use provider_admission::provider_admission::realization_error;
+use provider_admission::realization_error;
 
 pub(super) fn plan(
     body: &PreparedPhysicalBody,

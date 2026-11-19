@@ -26,7 +26,7 @@ fixture that imports `omega_language_std` needs a `build.omg` that depends on
 Nothing runs every fixture and nothing records outcomes. The owner's ruling
 of 2026-11-13 removed the fixture corpus in `tests/omega/`, its runner
 (`corpus_runner.rs`) and its ledger;
-[tests/README.md](../../../../../tests/README.md) says how to read a deleted
+[tests/README.md](../../../../tests/README.md) says how to read a deleted
 fixture from history. A file in a kept fixture that only the runner read (for
 example `expected_terminal_inspections.txt`) is now a note about the program,
 not a checked expected result.

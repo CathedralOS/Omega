@@ -2343,7 +2343,7 @@ fn saved_native_inputs_roundtrip_the_checked_product_on_every_host() {
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:
-            provider_admission::provider_admission::current_terminal_authority_policy(),
+            provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });
@@ -2564,7 +2564,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:
-            provider_admission::provider_admission::current_terminal_authority_policy(),
+            provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });
@@ -3322,11 +3322,11 @@ fn review_keeps_the_target_selected_fixed_layout_delivery_contract() {
 
     let main = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../samples/cli/facts/fixed_layout_storage/target_body/main.omg"
+        "/../../../samples/cli/facts/fixed_layout_storage/target_body/main.omg"
     ));
     let build = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../samples/cli/facts/fixed_layout_storage/target_body/build.omg"
+        "/../../../samples/cli/facts/fixed_layout_storage/target_body/build.omg"
     ));
     let (_workspace, _session, checked) = captured_review_compilation(main, build);
     let checked = checked.expect("the original Product reaches checked target supply");
@@ -3828,5 +3828,5 @@ machine main() {}
     session.close().unwrap();
 }
 
-#[path = "../../../../../tests/support/frontend.rs"]
+#[path = "../../../../tests/support/frontend.rs"]
 mod frontend_fixture;

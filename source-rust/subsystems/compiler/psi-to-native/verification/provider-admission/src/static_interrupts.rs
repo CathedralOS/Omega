@@ -25,7 +25,7 @@ use terminal_psi::OperationKind;
 
 use super::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism,
-    NativeRealizationInput, ProviderAdmissionRequest, SettledCompilerBuiltin,
+    AdmissionSource, ProviderAdmissionRequest, SettledCompilerBuiltin,
     TerminalAuthorityPolicy,
 };
 use crate::{AdmittedInstalledInterruptCohort, AdmittedInstalledInterruptEntry};
@@ -38,7 +38,7 @@ mod arrival_helpers;
 mod scopes;
 
 pub(super) fn require_helper_associations(
-    input: &NativeRealizationInput<'_>,
+    input: &AdmissionSource<'_>,
     request: &ProviderAdmissionRequest<'_, '_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     entry_custody: &super::callback_entries::PreparedEntries<'_>,
@@ -122,7 +122,7 @@ pub(super) fn require_helper_associations(
 }
 
 pub(super) fn admit(
-    input: &NativeRealizationInput<'_>,
+    input: &AdmissionSource<'_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
     installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
@@ -353,7 +353,7 @@ pub(super) fn admit(
 }
 
 pub(super) fn settle<'execution>(
-    input: &NativeRealizationInput<'_>,
+    input: &AdmissionSource<'_>,
     cohort: &AdmittedInstalledInterruptCohort,
     policy: &TerminalAuthorityPolicy,
 ) -> Result<

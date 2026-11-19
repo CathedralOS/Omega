@@ -1,7 +1,10 @@
 //! Indexed reads and length observations share the exact stored or reborrowed
 //! slice descriptor after the published program is reopened.
 
-use std::path::{Path, PathBuf};
+#[path = "support/fixture_repository.rs"]
+mod fixture_repository;
+
+use std::path::PathBuf;
 use terminal_codec::{CanonicalTerminalArtifact, ClosedTerminalModule, CodecError};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
@@ -13,11 +16,7 @@ use terminal_psi::{
 use terminal_work::WorkMeter;
 
 fn fixtures() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .unwrap()
-        .join("tests/fixtures")
+    fixture_repository::root().join("tests/fixtures")
 }
 
 #[test]

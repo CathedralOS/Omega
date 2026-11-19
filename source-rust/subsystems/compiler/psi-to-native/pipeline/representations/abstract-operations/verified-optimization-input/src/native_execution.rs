@@ -11,7 +11,7 @@ pub struct PreparedNativeExecution {
     selection: selected_provider_plans::SelectedProviderPlanFacts,
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     demands: BTreeSet<String>,
-    compiler_builtins: Vec<provider_admission::provider_admission::TerminalCompilerBuiltinProposal>,
+    compiler_builtins: Vec<provider_admission::TerminalCompilerBuiltinProposal>,
     local_adapters: Vec<provider_admission::SelectedProviderAdapter>,
     boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
 }
@@ -207,7 +207,7 @@ impl TerminalNativeRealizationProposal {
         &'a self,
         selection: &'a selected_provider_plans::SelectedProviderPlanFacts,
     ) -> Result<
-        Vec<provider_admission::provider_admission::CompilerIntrinsicPlanProvenance<'a>>,
+        Vec<provider_admission::CompilerIntrinsicPlanProvenance<'a>>,
         Vec<Diagnostic>,
     > {
         static NON_INTRINSIC_EXECUTION: [Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>; 1] =
@@ -233,7 +233,7 @@ impl TerminalNativeRealizationProposal {
                             )]
                         })?;
                     return Ok(
-                        provider_admission::provider_admission::CompilerIntrinsicPlanProvenance {
+                        provider_admission::CompilerIntrinsicPlanProvenance {
                             plan,
                             semantic_schema: &plan.schema,
                             row_executions,
@@ -260,7 +260,7 @@ impl TerminalNativeRealizationProposal {
                         }
                     };
                 Ok(
-                    provider_admission::provider_admission::CompilerIntrinsicPlanProvenance {
+                    provider_admission::CompilerIntrinsicPlanProvenance {
                         plan,
                         semantic_schema: &leaf.satisfied_schema,
                         row_executions,
@@ -274,7 +274,7 @@ impl TerminalNativeRealizationProposal {
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         scope: &crate::NativeExecutionScope,
         selection: &selected_provider_plans::SelectedProviderPlanFacts,
-        provenance: &[provider_admission::provider_admission::CompilerIntrinsicPlanProvenance<
+        provenance: &[provider_admission::CompilerIntrinsicPlanProvenance<
             '_,
         >],
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
@@ -375,7 +375,7 @@ impl TerminalNativeRealizationProposal {
             &intrinsic_provenance,
         )?;
         let compiler_builtins =
-            provider_admission::provider_admission::derive_selected_intrinsic_settlement_proposals(
+            provider_admission::derive_selected_intrinsic_settlement_proposals(
                 &selection,
                 intrinsic_provenance.into_iter(),
                 &demands,
@@ -520,7 +520,7 @@ impl PreparedNativeExecution {
     }
     pub fn compiler_builtins(
         &self,
-    ) -> &[provider_admission::provider_admission::TerminalCompilerBuiltinProposal] {
+    ) -> &[provider_admission::TerminalCompilerBuiltinProposal] {
         &self.compiler_builtins
     }
     pub fn local_adapters(&self) -> &[provider_admission::SelectedProviderAdapter] {

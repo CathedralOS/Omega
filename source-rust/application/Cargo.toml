@@ -23,7 +23,6 @@ bounded-process = { path = "../foundation/bounded-process" }
 compiler = { path = "../subsystems/compiler" }
 project-build = { path = "../subsystems/compiler/build" }
 optimization-requests = { path = "../subsystems/compiler/build/optimization-policy/requests" }
-products = { path = "../compilation/products" }
 artifacts = { path = "../subsystems/compiler/foundation/measurements" }
 platform-custody = { path = "../foundation/filesystem" }
 package-manager = { path = "../subsystems/package-manager" }

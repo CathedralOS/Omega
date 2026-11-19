@@ -14,6 +14,9 @@
 // its fixtures need.
 #![allow(dead_code)]
 
+#[path = "fixture_repository.rs"]
+mod fixture_repository;
+
 use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 use diagnostics::Diagnostic;
@@ -35,11 +38,7 @@ pub fn repo_root() -> PathBuf {
     if let Some(root) = std::env::var_os("OMEGA_CORPUS_ROOT") {
         return PathBuf::from(root);
     }
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler crate should live under omega-rust/omega/compilation/compiler")
-        .to_path_buf()
+    fixture_repository::root().to_path_buf()
 }
 
 pub fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {

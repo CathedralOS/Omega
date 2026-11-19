@@ -63,10 +63,14 @@ impl RunProduct {
             .unwrap_or_default()
     }
 
-    pub(super) fn test_roster(&self) -> &[products::TestRosterEntry] {
+    pub(super) fn test_roster(&self) -> Vec<String> {
         match self {
-            Self::Saved { .. } => &[],
-            Self::Project(report) => report.test_roster(),
+            Self::Saved { .. } => Vec::new(),
+            Self::Project(report) => report
+                .test_roster()
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
         }
     }
 

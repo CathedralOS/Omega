@@ -8,7 +8,7 @@ use artifact_lowering::ComponentNativeInputs;
 use artifact_lowering::admit_prepared_native_realization;
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
-use provider_admission::provider_admission::{
+use provider_admission::{
     AdmittedNativeCallableAuthority, SourceEvaluatedImportSettlement,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, realization_error,
 };

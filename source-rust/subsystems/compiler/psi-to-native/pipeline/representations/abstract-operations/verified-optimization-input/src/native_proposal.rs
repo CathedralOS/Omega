@@ -256,9 +256,9 @@ mod proposal {
             target_profile,
         )?;
         let checked_adapters =
-            provider_admission::provider_admission::retain_selected_provider_adapters(&selected)
+            provider_admission::retain_selected_provider_adapters(&selected)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
-        provider_admission::provider_admission::validate_external_provider_owners(
+        provider_admission::validate_external_provider_owners(
             terminal_module,
             &selected,
         )
@@ -299,7 +299,7 @@ mod proposal {
             &checked_adapters,
         )?;
         let callback_arguments =
-            provider_admission::provider_admission::project_native_callback_arguments(
+            provider_admission::project_native_callback_arguments(
                 terminal_module,
                 &callback_placements,
                 &callback_occurrences,

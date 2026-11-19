@@ -28,7 +28,7 @@ use published_object_verification::NativeStageReplay;
 
 use self::object_emission::emit_realization_object;
 use artifact_lowering::{AdmittedNativeRealization, admit_prepared_native_realization};
-use provider_admission::provider_admission::realization_error;
+use provider_admission::realization_error;
 
 struct AdmittedRealization<'request> {
     admitted: AdmittedNativeRealization<'request>,

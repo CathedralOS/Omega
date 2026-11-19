@@ -42,15 +42,15 @@ fn judge_frontier(name: &str, frontier: &compiler::TypedFrontier) -> RouteVerdic
 fn a_payload_read_requires_all_other_cases_to_be_excluded() {
     let positive = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../tests/fixtures/run/contracts/case_refutation/main.omg"
+        "/../../../tests/fixtures/run/contracts/case_refutation/main.omg"
     ));
     let negative = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../tests/fixtures/fail/contracts/case_refutation/main.omg"
+        "/../../../tests/fixtures/fail/contracts/case_refutation/main.omg"
     ));
     let expected = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../tests/fixtures/fail/contracts/case_refutation/expected.txt"
+        "/../../../tests/fixtures/fail/contracts/case_refutation/expected.txt"
     ));
 
     let found = verdict("case_refutation", positive);
@@ -317,7 +317,7 @@ fn native_and_psi_observe_ordered_field_tests_and_fallback_effects() {
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:
-            provider_admission::provider_admission::current_terminal_authority_policy(),
+            provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });

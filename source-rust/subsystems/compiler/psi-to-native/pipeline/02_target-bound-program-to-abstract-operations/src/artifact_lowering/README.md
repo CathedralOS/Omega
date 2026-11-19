@@ -54,7 +54,7 @@ established public names.
   native entry point. Canonical input preparation, provider settlement and
   installation, and mechanism and exclusion review produce one admitted input
   before stage 03.
-  [Provider admission](../../realization/provider-admission/src/provider_admission.rs)
+  [Provider admission](../../../../verification/provider-admission/src/lib.rs)
   derives each demanded leaf's mechanism and admits builtins through the
   receiving policy and target catalog; it reads the bindings the proposal
   derived instead of joining them again. stage 04 consumes these facts; neither

@@ -83,7 +83,10 @@ impl SyntaxParser<'_> {
                 self.parse_expression(predicate_context)?;
             }
             NodeKind::Crashes => {
-                self.parse_type(type_position)?;
+                // The cause names `Trap`, `Abort` or `none`, so it is a path type and not a full
+                // type: a `(` after it opens the guard, as in `crashes Trap (value == 0)`, instead
+                // of making the cause a family application that swallows the guard.
+                self.parse_path_type()?;
                 let at_boundary = self.at_end()
                     || self.nth_at_clause_keyword(0)
                     || [

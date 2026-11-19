@@ -63,7 +63,7 @@ use terminal_authority_receipts::TerminalAuthorityClosureReviewReceipt;
 use selected_provider_plans::SelectedProviderPlanFacts;
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
-use crate::provider_admission::AdmittedTerminalMechanism;
+use crate::AdmittedTerminalMechanism;
 use context::ReviewContext;
 use reviewer::Reviewer;
 
@@ -77,7 +77,7 @@ pub(crate) fn review_terminal_authority_closure(
     mechanisms: &[AdmittedTerminalMechanism],
     settlements: &[crate::AdmittedBoundarySettlement<'_>],
     installed_candidates: &[terminal_psi::ProviderCandidateConformance],
-    components: &[crate::provider_admission::NativeProviderSettlement<'_>],
+    components: &[crate::NativeProviderSettlement<'_>],
     installed_interrupts: &crate::AdmittedInstalledInterruptCohort,
 ) -> Result<TerminalAuthorityClosureReviewReceipt, String> {
     let context = ReviewContext::new(
