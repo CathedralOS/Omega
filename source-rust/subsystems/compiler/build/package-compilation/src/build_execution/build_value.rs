@@ -19,16 +19,15 @@ Provenance:
 
 mod configuration;
 mod initial;
-#[path = "../../../optimization-policy/mod.rs"]
 mod optimization;
 mod vocabulary;
 
 pub use configuration::{EvaluatedBuildSettings, X86DeploymentClaim};
-pub(super) use vocabulary::is_build_machine;
+pub(super) use vocabulary::{is_build_machine, is_exact_toolchain_build_prelude_data};
 
 use super::BuildMachineFilesystemScope;
 use diagnostics::Diagnostic;
-use source_compiler::evaluation::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use source_compiler::source_state::TypedTrees;
 
 #[derive(Debug, Clone, Copy)]

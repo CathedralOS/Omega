@@ -51,7 +51,6 @@ provider-choices = { path = "language/provider-choices" }
 wire = { path = "../../../foundation/wire" }
 arena = { path = "../../../foundation/arena" }
 artifact-evaluation = { path = "evaluation/artifact-evaluation" }
-build-time-values = { path = "evaluation/build-time-values" }
 record-storage = { path = "../../../foundation/record-storage" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 worker-budget = { path = "../foundation/worker-budget" }

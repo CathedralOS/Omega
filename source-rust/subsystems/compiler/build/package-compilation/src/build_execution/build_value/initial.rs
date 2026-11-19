@@ -14,7 +14,7 @@ use crate::build_execution::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
 use filesystem_authority::FilesystemGrantRootIdentity;
-use source_compiler::evaluation::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use source_compiler::source_state::TypedTrees;
 
 pub(super) fn initial_value(

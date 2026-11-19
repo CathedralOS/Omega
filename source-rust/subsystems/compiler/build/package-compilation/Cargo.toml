@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+build-time-values = { path = "../evaluation/values" }
 source-selection = { path = "../../../package-manager/source-acquisition/capture/selection" }
 language-core = { path = "../../foundation/language-core" }
 host-provider-inputs = { path = "../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }

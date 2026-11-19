@@ -11,7 +11,7 @@ mod vocabulary;
 
 use diagnostics::Diagnostic;
 use optimization_selections::OptimizationSelections;
-use source_compiler::evaluation::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use source_compiler::source_state::TypedTrees;
 
 use vocabulary::OptimizationBuildVocabulary;
