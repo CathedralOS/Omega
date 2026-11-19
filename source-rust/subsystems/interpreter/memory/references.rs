@@ -1263,7 +1263,7 @@ pub(crate) mod placed {
         pub(crate) fn establish_private_entry_ram(
             &mut self,
             recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
-            establishments: &[terminal_installation::TerminalAccessViewEstablishment],
+            establishments: &[terminal_semantics::entry_values::TerminalAccessViewEstablishment],
         ) -> Result<(), TerminalInterpretError> {
             for recipe in recipes {
                 if recipe.terminal() != self.program.identity.semantic()

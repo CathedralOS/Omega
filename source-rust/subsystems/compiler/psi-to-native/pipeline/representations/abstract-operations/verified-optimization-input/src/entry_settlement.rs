@@ -259,7 +259,7 @@ mod model {
     };
     use program_entry_plan::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
     use psi_entry_memory::CheckedPrivateEntryRamRecipe;
-    use terminal_installation::TerminalAccessViewEstablishment;
+    use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
     use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
     #[derive(Debug, Clone, Copy)]

@@ -1403,7 +1403,7 @@ pub(crate) mod values {
     use semantic_vocabulary::{StructuralCaseId, StructuralFieldId, StructuralTypeId};
     use terminal_psi::StructuralPathSegment;
 
-    pub use terminal_installation::{TerminalScalarValue, TerminalStructuralValue};
+    pub use terminal_semantics::entry_values::{TerminalScalarValue, TerminalStructuralValue};
 
     pub(crate) fn scalar_contents(value: TerminalScalarValue) -> crate::TerminalStorageContents {
         crate::TerminalStorageContents::Scalar {

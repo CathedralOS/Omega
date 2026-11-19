@@ -43,11 +43,11 @@ mod error {
     impl std::error::Error for ArtifactLoweringError {}
 }
 mod establishment {
-    pub use terminal_installation::TerminalAccessViewEstablishment;
+    pub use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
 
     use super::ArtifactLoweringError;
     use std::collections::BTreeSet;
-    use terminal_installation::TerminalStructuralValue;
+    use terminal_semantics::entry_values::TerminalStructuralValue;
     use terminal_psi::{StructuralAccess, TerminalModule};
 
     const fn exclusive(access: StructuralAccess) -> bool {
@@ -143,7 +143,7 @@ mod native {
     use abstract_operations::AbstractOperationPlan;
     use psi_target_layouts::TerminalTargetContext;
     use terminal_installation::AdmittedScalarApplications;
-    use terminal_installation::TerminalAccessViewEstablishment;
+    use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
     use verified_optimization_input::{
         VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
     };
@@ -460,7 +460,7 @@ mod native {
                     })?;
                     Ok(TerminalAccessViewEstablishment {
                         input: recipe.input().clone(),
-                        referent: terminal_installation::TerminalStructuralValue::minted(
+                        referent: terminal_semantics::entry_values::TerminalStructuralValue::minted(
                             identity,
                             recipe.schema(),
                             Vec::new(),

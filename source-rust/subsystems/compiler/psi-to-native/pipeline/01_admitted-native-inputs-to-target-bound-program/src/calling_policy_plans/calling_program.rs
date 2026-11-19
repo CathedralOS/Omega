@@ -212,11 +212,11 @@ impl CallingProgram {
             )?;
             for &application in demand.applications() {
                 let value = match completed.values().value(application) {
-                    Some(terminal_installation::TerminalScalarValue::Integer {
+                    Some(terminal_semantics::entry_values::TerminalScalarValue::Integer {
                         value: semantic_vocabulary::IntegerValue::Unsigned(value),
                         ..
                     }) => u64::try_from(value).map_err(|_| "calling ABI extent exceeds u64")?,
-                    Some(terminal_installation::TerminalScalarValue::Integer {
+                    Some(terminal_semantics::entry_values::TerminalScalarValue::Integer {
                         value: semantic_vocabulary::IntegerValue::Signed(value),
                         ..
                     }) => u64::try_from(value)
