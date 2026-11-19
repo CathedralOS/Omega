@@ -22,6 +22,8 @@ terminal-installation = { path = "psi-admission" }
 
 [dev-dependencies]
 evaluation-accounting = { path = "build/evaluation/accounting" }
+entry-planning = { path = "psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning" }
+native-encoding = { path = "psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding" }
 service-surface = { path = "psi/service-surface" }
 provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 native-scalar-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
