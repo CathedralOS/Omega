@@ -32,7 +32,7 @@ def check(omega, repository, workspace, mode):
     selected, alternative, application = (root / name for name in ("selected", "alternative", "app"))
     standard = repository / "source/library/std"
     contract = (standard / "uefi_x86_64_entry.omg").read_text(encoding="utf-8")
-    contract = contract.replace("use calling;", "use std::calling;")
+    contract = "use std;\n" + contract
     contract = contract.replace("public boundary data EfiSystemTable;", "public data EfiSystemTable { signature: u64; }")
     contract = contract.replace("\nUefiX86_64CallingPolicy satisfies", "\npublic UefiX86_64CallingPolicy satisfies")
     for name, package in (("selected", selected), ("alternative", alternative)):
@@ -46,8 +46,8 @@ def check(omega, repository, workspace, mode):
         write(package / "main.omg", "use entry;\n")
         body = contract
         if name == "alternative" and mode == "shared_requirement":
-            body = '''use omega::language::core::extent;
-use std::calling;
+            body = '''use omega::language::core::ProgramStorageEntry;
+use std::Calling;
 use selected::entry;
 boundary trait UefiApplication: ProgramStorageEntry + selected::entry::UefiPhysicalEntry + Calling<selected::entry::UefiX86_64CallingPolicy> { }
 '''
@@ -64,7 +64,8 @@ boundary trait UefiApplication: ProgramStorageEntry + selected::entry::UefiPhysi
     builder.freestanding = true;
 }}
 ''')
-    source = '''use omega::language::core::extent;
+    source = '''use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 use selected::entry;
 Adapter satisfies UefiPhysicalEntry {
     UefiPhysicalEntry::enter = physical;

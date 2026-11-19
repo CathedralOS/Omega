@@ -1,5 +1,6 @@
 use omega::language::core::ExtentRootProvider;
 use omega::language::core::ProgramStorageEntry;
+use omega_language_std;
 use omega_language_std::AbiValueClass;
 use omega_language_std::BoundaryEntryPlan;
 use omega_language_std::BoundaryPlanResult;
