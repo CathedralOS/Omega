@@ -760,3 +760,66 @@ fn alias_binder_roles_follow_the_imports_of_each_overload() {
         assert_eq!(run(&[("app", "main.omg", src)], &[]).unwrap_err().message, message);
     }
 }
+
+#[test]
+fn imported_overloads_come_only_from_the_requesters_selected_package() {
+    let imported = "use dep::math::score; machine caller() { score(1) }";
+    let bare = "machine caller() { score(1) }";
+    let overloads = "public machine score(n:u8) {} public machine score(n:u32) {}";
+    let other = "public machine score(n:bool) {}";
+    let call_start = imported.rfind("score").unwrap();
+    for (selected, inaccessible) in [("alpha", "beta"), ("beta", "alpha")] {
+        let edge = Dependency {
+            requester: "app",
+            alias: "dep",
+            package: selected,
+        };
+        let mut files = vec![
+            ("app", "main.omg", imported),
+            (selected, "math/api.omg", overloads),
+        ];
+        for extra in [None, Some((inaccessible, "math/api.omg", other))] {
+            files.extend(extra);
+            let stage = run(&files, &[edge]).unwrap();
+            let call = stage
+                .uses
+                .iter()
+                .find(|usage| usage.package == "app" && usage.file == "main.omg" && usage.span.get_start_offset() == call_start)
+                .unwrap();
+            assert_eq!(call.span.slice(imported.as_bytes()), Some("score".as_bytes()));
+            let Symbol::Candidates(candidates) = &call.target else {
+                panic!("expected both imported overloads: {call:?}");
+            };
+            assert_eq!(candidates.len(), 2);
+            assert!(
+                candidates
+                    .iter()
+                    .all(|id| id.package == selected && id.path == "math::score")
+            );
+            for operand in ["u8", "u32"] {
+                assert!(candidates.iter().any(|id| id.operands == [operand]), "{candidates:?}");
+            }
+        }
+
+        // Without a direct dependency the import fails, even if a different
+        // package has the same alias. Without the import the call itself fails.
+        let other_edge = Dependency {
+            requester: inaccessible,
+            ..edge
+        };
+        let error = run(&files, &[other_edge]).unwrap_err();
+        assert_eq!(
+            (error.package.as_str(), error.file.as_str(), error.message.as_str()),
+            ("app", "main.omg", "unavailable import dep::math::score")
+        );
+        assert_eq!(error.span.slice(imported.as_bytes()), Some("dep::math::score".as_bytes()));
+
+        files[0].2 = bare;
+        let error = run(&files, &[edge]).unwrap_err();
+        assert_eq!(
+            (error.package.as_str(), error.file.as_str(), error.message.as_str()),
+            ("app", "main.omg", "unresolved name score")
+        );
+        assert_eq!(error.span.slice(bare.as_bytes()), Some("score".as_bytes()));
+    }
+}

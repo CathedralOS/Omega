@@ -69,3 +69,34 @@ fn malformed_selection_rows_refuse_the_first_missing_part() {
         assert_eq!(error.get_span().slice(source.as_bytes()), Some(unexpected.as_bytes()), "{row}");
     }
 }
+
+#[test]
+fn bracketed_generic_arguments_have_the_same_shape_in_types_and_expressions() {
+    // One bare name inside brackets denotes a slice type. A comma, a call,
+    // or parentheses around that same name selects an array of values.
+    for (argument, outline) in [
+        ("[a]", "SliceType\n  '['\n  PathType 'a'\n  ']'"),
+        ("[u8; 4]", "ArrayType\n  '['\n  PathType 'u8'\n  ';'\n  Literal '4'\n  ']'"),
+        ("[a, b]", "ArrayLiteral\n  '['\n  PathExpression 'a'\n  ','\n  PathExpression 'b'\n  ']'"),
+        (
+            "[f(x)]",
+            "ArrayLiteral\n  '['\n  Call\n    PathExpression 'f'\n    Args\n      '('\n      PathExpression 'x'\n      ')'\n  ']'",
+        ),
+        ("[(a)]", "ArrayLiteral\n  '['\n  Paren\n    '('\n    PathExpression 'a'\n    ')'\n  ']'"),
+    ] {
+        let subtree = outline
+            .lines()
+            .map(|line| format!("        {line}\n"))
+            .collect::<String>();
+        for (source, argument_head) in [
+            (format!("const v: T<{argument}> = x;"), "TypeArgs\n        '<'"),
+            (format!("const v = f::<{argument}>;"), "ExpressionArgs\n        '::'\n        '<'"),
+        ] {
+            let tokens = lex(source.as_bytes()).unwrap();
+            let tree = parse_file(source.as_bytes(), &tokens).expect(&source);
+            let dump = dump_tree(source.as_bytes(), &tokens, &tree);
+            let expected = format!("      {argument_head}\n{subtree}        '>'\n");
+            assert!(dump.contains(&expected), "{source}\nexpected:\n{expected}\nactual:\n{dump}");
+        }
+    }
+}
