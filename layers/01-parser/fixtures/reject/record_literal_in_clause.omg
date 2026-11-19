@@ -1,3 +1,0 @@
-// In a clause a `{` opens the body, so a record literal there needs parentheses.
-machine f(p: Point) requires p == Point { x: 0 } {
-}

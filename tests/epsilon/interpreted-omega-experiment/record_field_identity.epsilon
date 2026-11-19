@@ -1,0 +1,32 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Left { value: i32; sibling: i32; }
+data Right { value: i32; sibling: i32; }
+data Pair { left: Left; right: Right; }
+data Main { console: Console; pair: Pair; }
+
+machine Main::main(&mut self) {
+  assert self.pair.left.value == 0;
+  assert self.pair.right.value == 0;
+  self.pair.left.value = 65;
+  self.pair.left.sibling = 11;
+  self.pair.right.value = 66;
+  self.pair.right.sibling = 12;
+  let snapshot: Pair = self.pair;
+  self.pair.left.value = 67;
+  self.pair.right.sibling = 13;
+  assert snapshot.left.value == 65;
+  assert snapshot.left.sibling == 11;
+  assert snapshot.right.value == 66;
+  assert snapshot.right.sibling == 12;
+  assert self.pair.left.value == 67;
+  assert self.pair.left.sibling == 11;
+  assert self.pair.right.value == 66;
+  assert self.pair.right.sibling == 13;
+  self.console.write_byte(snapshot.left.value);
+}

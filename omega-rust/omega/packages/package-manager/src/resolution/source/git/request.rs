@@ -1,0 +1,39 @@
+// We pair one validated `GitSourceRequest` with its `PackageSelection`.
+
+use crate::declarations::dependencies::read::PackageSelection;
+use source_acquisition::{GitSourceRequest, GitTransportProfile};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GitPackageSourceRequest {
+    acquisition: GitSourceRequest,
+    selection: PackageSelection,
+}
+
+impl GitPackageSourceRequest {
+    pub fn new(acquisition: GitSourceRequest, selection: PackageSelection) -> Self {
+        Self {
+            acquisition,
+            selection,
+        }
+    }
+
+    pub const fn acquisition(&self) -> &GitSourceRequest {
+        &self.acquisition
+    }
+
+    pub const fn selection(&self) -> &PackageSelection {
+        &self.selection
+    }
+
+    pub fn requested_locator(&self) -> &str {
+        self.acquisition.requested_locator()
+    }
+
+    pub fn requested_revision(&self) -> &str {
+        self.acquisition.requested_revision()
+    }
+
+    pub fn transport_profile(&self) -> GitTransportProfile {
+        self.acquisition.transport_profile()
+    }
+}

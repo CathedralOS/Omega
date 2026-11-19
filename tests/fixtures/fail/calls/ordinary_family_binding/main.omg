@@ -1,0 +1,14 @@
+// A leaf import retains both helper choices without exposing a value named kit.
+// Expected rejection: neither integer helper accepts the Boolean argument.
+use kit::pick;
+
+machine main() crashes Trap {
+    let first: u32 = kit::pick(9u32);
+    let second: u64 = kit::pick(true);
+    transition first == 17u32 && second == 64u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

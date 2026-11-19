@@ -1,0 +1,30 @@
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+// Differs from the parent probe only by a native binding. Artifact-only mode
+// builds no product for the binding to apply to, so the Build must be refused
+// instead of completing its output and dropping the binding.
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "invalid_artifact_native_binding");
+    Build::artifact_only(builder);
+    Build::bind<Distance::absolute>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5" } });
+    let obligation: RequiredOutput = BuildOutput::require(&mut builder.output, "blob.bin");
+    let path: BuildPath = BuildOutput::resolve(&builder.output, "blob.bin");
+    let writer: i32 = BuildOutput::create(&mut builder.output, path, 0);
+    _ = BuildOutput::write(&mut builder.output, writer, "blobdata\n");
+    let _sealed: i32 = BuildOutput::close(&mut builder.output, writer);
+    let settled: OutputCompletion = BuildOutput::complete(&mut builder.output, obligation, path);
+    settle(builder, settled);
+}
+
+machine settle(builder: &mut Build, completion: OutputCompletion) {
+    transition completion {
+        OutputCompletion::Sealed { receipt } -> sealed(builder)
+        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
+    }
+    machine sealed(builder: &mut Build) {
+    }
+    machine failed(builder: &mut Build, obligation: RequiredOutput) {
+        BuildOutput::fail(&mut builder.output, obligation, "require did not settle");
+    }
+}

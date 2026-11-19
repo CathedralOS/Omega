@@ -1,4 +1,0 @@
-error UnexpectedToken at 2:1 bytes 80..83
-  found: let
-  expected: a declaration
-  expected a declaration

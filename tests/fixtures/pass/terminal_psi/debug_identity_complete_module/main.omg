@@ -1,0 +1,31 @@
+// The debug map must bind the completed declaration and identity tables,
+// not the prefix that executable-body construction initially captured.
+machine constant() -> i32 { 42 }
+
+machine state_graph() -> u8 in Wrapping {
+    transition { _ -> finish(10u8 as +Wrapping) }
+    machine finish(value: u8 in Wrapping) -> u8 in Wrapping { value + 32 }
+}
+
+machine call_closure() -> i32 { constant() }
+
+machine main() crashes Trap {
+    transition constant() == 42 {
+        true -> check_graph()
+        _ -> bad()
+    }
+    machine check_graph() {
+        transition state_graph() == 42 {
+            true -> check_closure()
+            _ -> bad()
+        }
+    }
+    machine check_closure() {
+        transition call_closure() == 42 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

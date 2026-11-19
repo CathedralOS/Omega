@@ -1,0 +1,7 @@
+// Index 2 of a length-2 f64 array is rejected. No program entry.
+data Table {
+    moment: [f64; 2];
+}
+machine read(table: &Table) -> f64 {
+    table.moment[2]
+}

@@ -1,0 +1,395 @@
+/*
+Complete dependency-graph construction, validation, and canonical source-closure identity.
+
+Source acquisition executes declarations before `reconcile` builds the complete
+dependency closure. `ResolvedPackageClosure` validates that the graph is finite,
+reachable from the root, acyclic, free of duplicate `(purpose, alias)` bindings per
+requester, and free of conflicting source resolutions for any `PackageKey`.
+*/
+
+/*
+`accepted` compares executed closures against retained lock subjects without source
+acquisition, `git_pins` enforces repository-level pin preservation during selective
+updates, and `subject` projects the validated closure into a canonical review subject
+(`CanonicalSourceClosureSubject`).
+*/
+
+mod accepted;
+mod git_pins;
+pub(crate) mod reconcile;
+mod root_request;
+pub(crate) mod subject;
+
+use crate::declarations::BuildDeclarationKind;
+use crate::declarations::dependencies::DependencyPurpose;
+use crate::declarations::{AliasName, PackageKey};
+pub(crate) use accepted::{
+    admit_locked_build_activation, admit_locked_issued_source_request, admit_locked_source_request,
+    mutable_local_graph_matches,
+};
+pub(crate) use git_pins::{GitDependencyPins, GitResolutionOptions};
+pub(crate) use reconcile::{
+    DependencyRequestPath, ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure,
+};
+pub(crate) use root_request::PackageRootSourceRequest;
+use source_acquisition::{IdentityError, ImmutableSourceResolution};
+use std::collections::{BTreeMap, BTreeSet};
+pub(crate) use subject::{
+    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
+    CanonicalRootSourceRequest, CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectError,
+    CanonicalSourceClosureSubjectFingerprint, CanonicalSourceClosureSubjectLimits,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ResolvedSourceIdentity {
+    key: PackageKey,
+    resolution: ImmutableSourceResolution,
+}
+
+impl ResolvedSourceIdentity {
+    pub fn new(
+        key: PackageKey,
+        resolution: ImmutableSourceResolution,
+    ) -> Result<Self, IdentityError> {
+        if !resolution.matches_lineage(key.source_lineage()) {
+            return Err(IdentityError::ResolutionLineageMismatch);
+        }
+
+        Ok(Self { key, resolution })
+    }
+
+    pub(crate) fn from_validated_parts(
+        key: PackageKey,
+        resolution: ImmutableSourceResolution,
+    ) -> Self {
+        debug_assert!(resolution.matches_lineage(key.source_lineage()));
+        Self { key, resolution }
+    }
+
+    pub(crate) fn index_in(packages: &[Self], key: &PackageKey) -> Option<usize> {
+        packages
+            .binary_search_by(|source| source.key().cmp(key))
+            .ok()
+    }
+
+    pub(crate) fn exact_index_in(packages: &[Self], identity: &Self) -> Option<usize> {
+        Self::index_in(packages, identity.key()).filter(|position| &packages[*position] == identity)
+    }
+
+    pub fn key(&self) -> &PackageKey {
+        &self.key
+    }
+
+    pub fn resolution(&self) -> &ImmutableSourceResolution {
+        &self.resolution
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ResolvedDependency {
+    purpose: DependencyPurpose,
+    dependency_index: usize, // zero-based position in the requester's authored rows for this purpose scope
+    alias: AliasName,
+    target: PackageKey,
+}
+
+impl ResolvedDependency {
+    pub fn new(
+        purpose: DependencyPurpose,
+        dependency_index: usize,
+        alias: AliasName,
+        target: PackageKey,
+    ) -> Self {
+        Self {
+            purpose,
+            dependency_index,
+            alias,
+            target,
+        }
+    }
+
+    pub const fn purpose(&self) -> DependencyPurpose {
+        self.purpose
+    }
+
+    pub const fn dependency_index(&self) -> usize {
+        self.dependency_index
+    }
+
+    pub fn alias(&self) -> &AliasName {
+        &self.alias
+    }
+
+    pub fn target(&self) -> &PackageKey {
+        &self.target
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ResolvedPackageNode {
+    source: ResolvedSourceIdentity,
+    dependencies: Vec<ResolvedDependency>,
+}
+
+impl ResolvedPackageNode {
+    pub fn new(source: ResolvedSourceIdentity, dependencies: Vec<ResolvedDependency>) -> Self {
+        Self {
+            source,
+            dependencies,
+        }
+    }
+
+    pub fn source(&self) -> &ResolvedSourceIdentity {
+        &self.source
+    }
+
+    pub fn dependencies(&self) -> &[ResolvedDependency] {
+        &self.dependencies
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ResolvedPackageClosure {
+    root: PackageKey,
+    root_role: BuildDeclarationKind,
+    packages: Vec<ResolvedPackageNode>,
+    package_indices: BTreeMap<PackageKey, usize>,
+}
+
+impl ResolvedPackageClosure {
+    pub fn new(
+        root: PackageKey,
+        root_role: BuildDeclarationKind,
+        packages: Vec<ResolvedPackageNode>,
+    ) -> Result<Self, Vec<PackageClosureValidationError>> {
+        let mut errors = Vec::new();
+        let mut package_indices: BTreeMap<PackageKey, usize> = BTreeMap::new();
+
+        for (index, package) in packages.iter().enumerate() {
+            let key = package.source.key();
+            if let Some(previous_index) = package_indices.get(key).copied() {
+                let previous = &packages[previous_index];
+                if previous.source.resolution() == package.source.resolution() {
+                    errors
+                        .push(PackageClosureValidationError::DuplicatePackage { key: key.clone() });
+                } else {
+                    errors.push(PackageClosureValidationError::ConflictingResolution {
+                        key: key.clone(),
+                        first: previous.source.resolution().clone(),
+                        conflicting: package.source.resolution().clone(),
+                    });
+                }
+            } else {
+                package_indices.insert(key.clone(), index);
+            }
+
+            let mut aliases = BTreeSet::new();
+            for dependency in package.dependencies() {
+                if !aliases.insert((dependency.purpose(), dependency.alias().clone())) {
+                    errors.push(PackageClosureValidationError::DuplicateAlias {
+                        requester: key.clone(),
+                        purpose: dependency.purpose(),
+                        alias: dependency.alias().clone(),
+                    });
+                }
+            }
+        }
+
+        if root_role == BuildDeclarationKind::Workspace {
+            errors.push(PackageClosureValidationError::InvalidRootRole { role: root_role });
+        }
+
+        if !package_indices.contains_key(&root) {
+            errors.push(PackageClosureValidationError::MissingRoot { root: root.clone() });
+        }
+
+        for package in &packages {
+            for dependency in package.dependencies() {
+                if !package_indices.contains_key(dependency.target()) {
+                    errors.push(PackageClosureValidationError::MissingDependencyTarget {
+                        requester: package.source.key().clone(),
+                        purpose: dependency.purpose(),
+                        alias: dependency.alias().clone(),
+                        target: dependency.target().clone(),
+                    });
+                }
+            }
+        }
+
+        if package_indices.contains_key(&root) {
+            let reachable = reachable_packages(&root, &packages, &package_indices);
+            for key in package_indices.keys() {
+                if !reachable.contains(key) {
+                    errors.push(PackageClosureValidationError::UnreachablePackage {
+                        key: key.clone(),
+                    });
+                }
+            }
+        }
+
+        if let Some(cycle) = find_dependency_cycle(&packages, &package_indices) {
+            errors.push(PackageClosureValidationError::DependencyCycle { cycle });
+        }
+
+        if errors.is_empty() {
+            Ok(Self {
+                root,
+                root_role,
+                packages,
+                package_indices,
+            })
+        } else {
+            Err(errors)
+        }
+    }
+
+    pub fn root(&self) -> &PackageKey {
+        &self.root
+    }
+
+    pub const fn root_role(&self) -> BuildDeclarationKind {
+        self.root_role
+    }
+
+    pub fn packages(&self) -> &[ResolvedPackageNode] {
+        &self.packages
+    }
+
+    pub fn package(&self, key: &PackageKey) -> Option<&ResolvedPackageNode> {
+        self.package_position(key)
+            .map(|position| &self.packages[position])
+    }
+
+    pub(crate) fn package_position(&self, key: &PackageKey) -> Option<usize> {
+        self.package_indices.get(key).copied()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PackageClosureValidationError {
+    InvalidRootRole {
+        role: BuildDeclarationKind,
+    },
+    MissingRoot {
+        root: PackageKey,
+    },
+    DuplicatePackage {
+        key: PackageKey,
+    },
+    ConflictingResolution {
+        key: PackageKey,
+        first: ImmutableSourceResolution,
+        conflicting: ImmutableSourceResolution,
+    },
+    DuplicateAlias {
+        requester: PackageKey,
+        purpose: DependencyPurpose,
+        alias: AliasName,
+    },
+    MissingDependencyTarget {
+        requester: PackageKey,
+        purpose: DependencyPurpose,
+        alias: AliasName,
+        target: PackageKey,
+    },
+    UnreachablePackage {
+        key: PackageKey,
+    },
+    DependencyCycle {
+        cycle: Vec<PackageKey>, // first and last entries are the same package
+    },
+}
+
+fn reachable_packages(
+    root: &PackageKey,
+    packages: &[ResolvedPackageNode],
+    package_indices: &BTreeMap<PackageKey, usize>,
+) -> BTreeSet<PackageKey> {
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![root.clone()];
+
+    while let Some(key) = pending.pop() {
+        if !reachable.insert(key.clone()) {
+            continue;
+        }
+        let Some(index) = package_indices.get(&key) else {
+            continue;
+        };
+        for dependency in packages[*index].dependencies().iter().rev() {
+            if package_indices.contains_key(dependency.target()) {
+                pending.push(dependency.target().clone());
+            }
+        }
+    }
+
+    reachable
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VisitState {
+    Visiting,
+    Visited,
+}
+
+fn find_dependency_cycle(
+    packages: &[ResolvedPackageNode],
+    package_indices: &BTreeMap<PackageKey, usize>,
+) -> Option<Vec<PackageKey>> {
+    let mut states = BTreeMap::new();
+    let mut stack = Vec::new();
+
+    for key in package_indices.keys() {
+        if !states.contains_key(key)
+            && let Some(cycle) =
+                visit_for_cycle(key, packages, package_indices, &mut states, &mut stack)
+        {
+            return Some(cycle);
+        }
+    }
+
+    None
+}
+
+fn visit_for_cycle(
+    key: &PackageKey,
+    packages: &[ResolvedPackageNode],
+    package_indices: &BTreeMap<PackageKey, usize>,
+    states: &mut BTreeMap<PackageKey, VisitState>,
+    stack: &mut Vec<PackageKey>,
+) -> Option<Vec<PackageKey>> {
+    states.insert(key.clone(), VisitState::Visiting);
+    stack.push(key.clone());
+
+    let index = package_indices[key];
+    for dependency in packages[index].dependencies() {
+        let target = dependency.target();
+        if !package_indices.contains_key(target) {
+            continue;
+        }
+
+        match states.get(target) {
+            Some(VisitState::Visiting) => {
+                let cycle_start = stack
+                    .iter()
+                    .position(|candidate| candidate == target)
+                    .expect("a visiting package is present in the DFS stack");
+                let mut cycle = stack[cycle_start..].to_vec();
+                cycle.push(target.clone());
+                return Some(cycle);
+            }
+            Some(VisitState::Visited) => {}
+            None => {
+                if let Some(cycle) =
+                    visit_for_cycle(target, packages, package_indices, states, stack)
+                {
+                    return Some(cycle);
+                }
+            }
+        }
+    }
+
+    let removed = stack.pop();
+    debug_assert_eq!(removed.as_ref(), Some(key));
+    states.insert(key.clone(), VisitState::Visited);
+    None
+}

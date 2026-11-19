@@ -1,5 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "out_of_bounds.omg",
-  "rejection_contains": ["cannot prove index `16` is within length 16"]
-}

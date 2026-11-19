@@ -1,9 +1,0 @@
-regions=000000008
-region start=000000001 end=000000001 area_milli=000002000 centroid_micro=501000000 candidates=000000001 nearest=000000001 status=unique ids=000000001,
-region start=000000003 end=000000003 area_milli=000002000 centroid_micro=503000000 candidates=000000000 nearest=000000000 status=missing ids=
-region start=000000005 end=000000005 area_milli=000002000 centroid_micro=505000000 candidates=000000001 nearest=000000002 status=unique ids=000000002,
-region start=000000007 end=000000007 area_milli=000002000 centroid_micro=507000000 candidates=000000000 nearest=000000000 status=missing ids=
-region start=000000009 end=000000009 area_milli=000002000 centroid_micro=509000000 candidates=000000000 nearest=000000000 status=missing ids=
-region start=000000011 end=000000011 area_milli=000002000 centroid_micro=511000000 candidates=000000001 nearest=000000003 status=unique ids=000000003,
-region start=000000013 end=000000013 area_milli=000002000 centroid_micro=513000000 candidates=000000000 nearest=000000000 status=missing ids=
-region start=000000015 end=000000015 area_milli=000002000 centroid_micro=515000000 candidates=000000001 nearest=000000004 status=unique ids=000000004,

@@ -1,3 +1,0 @@
-(def grow ((n Int) (xs Int)) Int (if n (grow (- n 1) (pair n xs)) 42))
-
-(def main () Int (grow 32 0))

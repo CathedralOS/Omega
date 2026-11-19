@@ -1,3 +1,0 @@
-public machine value() -> i32 {
-    0
-}

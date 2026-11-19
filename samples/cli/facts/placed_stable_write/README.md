@@ -1,0 +1,96 @@
+# Access Stable write
+
+Fact: an exact permitted Stable field operation writes its original storage.
+
+Owning migration: **DOMAIN-ACCESS-AUTHORITY** in [TASKS.md](../../../../TASKS.md).
+This row exercises qualified access-view transport. A borrowed arrival
+retains its original backing, storage projection, access and established domain
+interpretation together. Every incoming path must justify the same interpretation
+before a call can consume it; the carrier type alone establishes none of these.
+Externally installed entry lending and its retirement remain separate acceptance
+of that task, exercised by `installed_entry_storage` and the source-access customer.
+
+This is a prerequisite of BUMP-ALLOCATOR-CANARY, not allocator completion.
+The [live linear owner control](controls/live_linear_owner/main.omg) keeps an
+owned linear value across field reads and writes, then explicitly retires it.
+Its ingress claim is not a completion receipt for those borrowed operations.
+The [reject twin](controls/live_linear_owner/invalid/main.omg) removes only the
+field's write permission. Both the written value and untouched companion are
+observed; the retained owner's payload is checked after the access operations.
+Each program starts with initialized ordinary RAM, obtains an exclusive qualified
+view, and writes 29 through its field accessor while a second, disjoint qualified
+view is held by the same invocation. The original RAM must contain 29 and
+the companion must retain 43 after the loans end. The runtime comparison is the observable oracle, not a
+post-hoc proof granting access to the write. Each reject twin changes only the
+plan's write permission, including its named constant in `const_name`.
+
+Run each place with `omega run --both <place>/main.omg`. All four hosted targets
+are bound; actual execution evidence currently covers macOS ARM64 only.
+
+| Place | Transport exercised |
+| --- | --- |
+| local | Local exclusive access loan |
+| field | Loan retained in and moved from a record field |
+| parameter | Access loan passed to an ordinary helper |
+| call_result | Loan returned through an explicit lifetime |
+| match_join | Borrowed source interpreted in either branch, then joined |
+| const_name | Named static permission consumed by the policy |
+| other_state | Loan transported to a later state |
+| other_machine | Exact operation inside a generic helper with an unrelated binder |
+| target_body | Loan passed into the execution-selected target body |
+
+## Requirements and evidence
+
+- Establishment: a domain-qualified view borrows already initialized storage. This
+  does not establish Vacant or Resident extent claims.
+- Identity and lifetime: the selected field target retains its plan, exact
+  accessor/value tuple, exclusive source loan and original backing.
+- Composition: the nine places transport that same write permission; no source
+  spelling authorizes a new primitive or a new physical allocation.
+- Soundness: every twin removes write permission.
+- Psi 06–08: the selected catalog target becomes the existing placed boundary
+  operation. Loan transport and retirement survive lowering into Terminal Psi;
+  both-engine execution must agree on the original-storage result.
+- Omega 00–02: the exact plan and actual backing determine provider admission,
+  field geometry and structural argument calling plans.
+- Omega 03–06: native address materialization must retain backing geometry through
+  joins and calls; a descriptor home is not its referent allocation.
+- Omega 07–09 and emission: the host image must execute the authored writeback
+  oracle, not merely publish or pass checking.
+
+## Host evidence and remaining scope
+
+The nine places execute with native/Terminal exit 0 on macOS ARM64; all nine
+permission twins reject. The native row is the measurement that the host image
+executes the writeback oracle; the check row alone would not move if a
+regression built and then exited wrongly.
+
+The obligation is construction-gated, and the probes that establish that are in [the
+discrimination record](DISCRIMINATION.md). The write is observable through the placed home:
+corrupting only the consumer's demanded value traps both engines (`native signal 5`, `interp
+crash: Trap`). Violating the construct's own licence refuses before runtime realization — a
+permission derived from a runtime-read plan value still runs, a folded-false permission refuses,
+and seeding the permission from a runtime parameter is inadmissible at the plan machine
+signature. No admissible seeding defers the licence to runtime, so no runtime trap exists for it;
+this is a construction-gate class, not a value/arithmetic bound. Additional corpus witnesses
+cover ordinary returned and stored backing references, static callbacks, and actual allocation
+alignment. One insufficient caller rejects even when another caller supplies aligned backing.
+This establishes permitted reads and writes over initialized Stable RAM, not destructive
+transfer, Vacant initialization, allocator conservation or reset. Build logs and actual producer
+identities stay in the qualification/claim record.
+
+The simultaneous-view repair retains a conservative pre-interpretation enclosure
+separately from scalar referents and lifetime dependencies. Inline returned
+views count as one completed argument while their producing input holds remain
+live against later arguments. The controls under `controls/` reject aliasing
+access views and later writes to either the selected or unselected input of a
+reference-returning call. An unrelated later write executes with both engines.
+These controls pin the distinction between pointer geometry and declared lifetime
+debt; an enclosure cannot supply value equality or access authority.
+
+Lowering retains the placed interpretation beside each exact captured borrowed
+source. A region-level result may conservatively overlap its entire original
+inline allocation; it cannot become an address or permission grant. Pointer
+crossings, unknown element families and unresolved roots remain conservative.
+The `placed_reference_results/two_live` pin distinguishes independent backing,
+while its overlap, stale-write and wrong-backing controls retain loan checks.

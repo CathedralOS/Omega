@@ -25,7 +25,7 @@ implementation of another while explicitly assuming a semantic relationship
 that ordinary conformance checking has not proved:
 
 ```omega
-Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder);
+Build::assume_binding_contract<Required::operation, Supplied::operation>(builder);
 ```
 
 The first ordinary argument is the mutable Build context; namespace qualification
@@ -56,8 +56,12 @@ public boundary trait RangeSupplier {
     machine supply(region: Range) -> Range crashes none;
 }
 
-public EchoSupplier satisfies RangeSupplier {
-    machine supply(region: Range) -> Range { region }
+public data EchoSupplier { }
+
+machine EchoSupplier::supply(region: Range) -> Range
+satisfies RangeSupplier::supply
+{
+    region
 }
 
 machine claim_memory(region: Range) -> Range in Writable
@@ -66,10 +70,10 @@ reaches WritableMemory
     WritableMemory::claim(region)
 }
 
-machine build(builder: @mut Build) {
+machine build(builder: &mut Build) {
     Build::application(builder, "memory_editor");
-    Build::select_provider::<RangeSupplier, EchoSupplier>(builder);
-    Build::assume_binding_contract::<WritableMemory::claim, RangeSupplier::supply>(builder);
+    Build::select_provider<RangeSupplier, EchoSupplier>(builder);
+    Build::assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>(builder);
 }
 ```
 

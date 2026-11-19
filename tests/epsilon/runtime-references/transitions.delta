@@ -1,0 +1,92 @@
+(def reference_test_subject_tag ((result EpsilonTransitionSubjectReferenceLookup)) Bytes
+  (bytes_single
+    (match result
+      (NoEpsilonTransitionSubjectReference 0)
+      ((OneEpsilonTransitionSubjectReference kind)
+        (match kind
+          (EpsilonScalarTransitionSubject 1)
+          ((EpsilonSumTransitionSubject owner) 2))))))
+
+(def reference_test_pattern_tag ((result EpsilonTransitionPatternKindLookup)) Bytes
+  (bytes_single
+    (match result
+      (NoEpsilonTransitionPatternKind 0)
+      ((OneEpsilonTransitionPatternKind kind)
+        (match kind
+          ((EpsilonScalarPatternSelector value) value)
+          (EpsilonTransitionWildcard 254)
+          ((EpsilonSumCasePattern owner caseValue) 255))))))
+
+(def reference_test_subject_query ((target EpsilonTerminal)
+  (rows EpsilonTransitionSubjectReferenceList) (extent Int)) Bytes
+  (let references EpsilonRuntimeReferences
+    (reference_test_index extent (reference_test_control
+      NoEpsilonStateApplicationReferences rows NoEpsilonTransitionPatternReferences))
+    (bytes_concat (reference_test_index_tag references)
+      (bytes_concat
+        (reference_test_subject_tag (epsilon_find_transition_subject_reference target rows))
+        (reference_test_subject_tag (epsilon_runtime_find_transition_subject target references))))))
+
+(def reference_test_subjects () Bytes
+  (let target EpsilonTerminal
+    (EpsilonTransitionTerminal 10 20 (EpsilonTrueExpression 11 12) NoEpsilonArms)
+    (let alternate EpsilonTerminal
+      (EpsilonTransitionTerminal 10 21 (EpsilonTrueExpression 11 12) NoEpsilonArms)
+      (let rows EpsilonTransitionSubjectReferenceList
+        (MoreEpsilonTransitionSubjectReferences
+          (EpsilonTransitionSubjectReferenceSyntax
+            (EpsilonReturnTerminal 10 20 NoEpsilonExpression) EpsilonScalarTransitionSubject)
+          (MoreEpsilonTransitionSubjectReferences
+            (EpsilonTransitionSubjectReferenceSyntax alternate EpsilonScalarTransitionSubject)
+            (MoreEpsilonTransitionSubjectReferences
+              (EpsilonTransitionSubjectReferenceSyntax target
+                (EpsilonSumTransitionSubject (reference_test_machine)))
+              (MoreEpsilonTransitionSubjectReferences
+                (EpsilonTransitionSubjectReferenceSyntax target EpsilonScalarTransitionSubject)
+                NoEpsilonTransitionSubjectReferences))))
+        (bytes_concat (reference_test_subject_query target rows 100)
+          (bytes_concat (reference_test_subject_query alternate rows 100)
+            (bytes_concat
+              (reference_test_subject_query
+                (EpsilonReturnTerminal 10 21 NoEpsilonExpression) rows 100)
+              (reference_test_subject_query target rows 20))))))))
+
+(def reference_test_pattern_query ((target EpsilonPattern)
+  (rows EpsilonTransitionPatternReferenceList) (extent Int)) Bytes
+  (let references EpsilonRuntimeReferences
+    (reference_test_index extent (reference_test_control
+      NoEpsilonStateApplicationReferences NoEpsilonTransitionSubjectReferences rows))
+    (bytes_concat (reference_test_index_tag references)
+      (bytes_concat
+        (reference_test_pattern_tag (epsilon_find_transition_pattern_complete target rows))
+        (reference_test_pattern_tag (epsilon_runtime_find_complete_transition_pattern target references))))))
+
+(def reference_test_patterns () Bytes
+  (let terminalValue EpsilonTerminal
+    (EpsilonTransitionTerminal 0 99 (EpsilonTrueExpression 1 2) NoEpsilonArms)
+    (let target EpsilonPattern (EpsilonTruePattern 10 11)
+      (let incomplete EpsilonTransitionPatternReferenceList
+        (MoreEpsilonTransitionPatternReferences
+          (EpsilonTransitionPatternNameResolved terminalValue target (EpsilonScalarPatternSelector 1))
+          (MoreEpsilonTransitionPatternReferences
+            (EpsilonTransitionPatternSubjectAdmitted terminalValue target (EpsilonScalarPatternSelector 2))
+            (MoreEpsilonTransitionPatternReferences
+              (EpsilonTransitionPatternIdentityOwned terminalValue target (EpsilonScalarPatternIdentity 3))
+              NoEpsilonTransitionPatternReferences)))
+        (let rows EpsilonTransitionPatternReferenceList
+          (MoreEpsilonTransitionPatternReferences
+            (EpsilonTransitionPatternComplete terminalValue (EpsilonFalsePattern 10 11)
+              (EpsilonScalarPatternSelector 4))
+            (MoreEpsilonTransitionPatternReferences
+              (EpsilonTransitionPatternComplete terminalValue (EpsilonTruePattern 10 12)
+                (EpsilonScalarPatternSelector 5))
+              (MoreEpsilonTransitionPatternReferences
+                (EpsilonTransitionPatternComplete terminalValue target (EpsilonScalarPatternSelector 6))
+                (MoreEpsilonTransitionPatternReferences
+                  (EpsilonTransitionPatternComplete terminalValue target (EpsilonScalarPatternSelector 7))
+                  incomplete))))
+          (bytes_concat (reference_test_pattern_query target incomplete 100)
+            (bytes_concat (reference_test_pattern_query target rows 100)
+              (bytes_concat (reference_test_pattern_query (EpsilonTruePattern 10 12) rows 100)
+                (bytes_concat (reference_test_pattern_query (EpsilonWildcardPattern 10 11) rows 100)
+                  (reference_test_pattern_query target rows 11))))))))))

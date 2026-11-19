@@ -1,0 +1,6 @@
+; Compare the left owner root against the final global witness identity.
+(def comparison_test_execute ((grounded Int)) Int
+  (let left_coordinate Int (comparison_test_left_coordinate grounded)
+    (comparison_test_sequence (comparison_start grounded)
+      (layout_word left_coordinate) (comparison_test_count grounded)
+      left_coordinate 601)))

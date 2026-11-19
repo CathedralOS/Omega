@@ -1,2 +1,0 @@
-// `use` takes no visibility in this grammar.
-public use topology;

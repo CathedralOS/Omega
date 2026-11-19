@@ -1,0 +1,3 @@
+checked compilation failed for package `invalid_use_dep_build`
+error: package import in 
+main.omg may not load dependency build file 

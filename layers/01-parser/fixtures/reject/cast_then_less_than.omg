@@ -1,4 +1,0 @@
-// In a type, `<` after a name opens generic arguments, after `as` too. Written `(a as u32) < b`.
-machine f(a: u64, b: u32) -> bool {
-    a as u32 < b
-}

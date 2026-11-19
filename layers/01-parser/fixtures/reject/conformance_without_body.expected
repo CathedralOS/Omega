@@ -1,4 +1,0 @@
-error UnexpectedToken at 1:32 bytes 31..32
-  found: ;
-  expected: `{`
-  expected `{`

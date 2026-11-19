@@ -1,0 +1,9 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "violates required fact",
+    "structurally false",
+    "-1.0"
+  ]
+}

@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "value call to `consume` violates required fact `value.value == 2`"
-  ]
-}

@@ -1,0 +1,1 @@
+partial exact division in machine `partial` ensures contract: the divisor must be proven nonzero

@@ -1,3 +1,0 @@
-error UnterminatedQuoted at 1:9 bytes 8..13
-  text: "abc;
-  quoted literal is never closed

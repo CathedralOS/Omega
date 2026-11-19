@@ -1,3 +1,0 @@
-// A value in a generic argument ends at `>`, so a greater-than comparison there needs parentheses.
-machine f(a: Buffer<N > 1>) {
-}

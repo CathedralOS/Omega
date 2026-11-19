@@ -1,0 +1,13 @@
+// A call that writes the element withdraws the entry requirement on its old
+// value, so `bytes[0] < 5` is reachable and its subtraction rejects.
+machine zero(slot: &mut u8) { slot = 0; }
+machine pick(bytes: &mut [u8]) -> u8
+requires bytes.len >= 1 && bytes[0] >= 10
+{
+    zero(&mut bytes[0]);
+    transition bytes[0] < 5 {
+        true -> (bytes[0] - 100u8)
+        false -> (bytes[0])
+    }
+}
+machine main() {}

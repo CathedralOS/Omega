@@ -1,2 +1,0 @@
-# Byte-level stdin fixtures pin CRLF, EOF and intentional capacity padding.
-data/*.stdin -text whitespace=-blank-at-eol

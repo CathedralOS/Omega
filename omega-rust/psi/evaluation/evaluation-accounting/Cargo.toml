@@ -1,0 +1,11 @@
+[package]
+name = "evaluation-accounting"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+evaluation-contracts = { path = "../evaluation-contracts" }
+[dev-dependencies]
+compiler-storage = { path = "../../foundation/compiler-storage" }
+semantic-vocabulary = { path = "../../compilation/representations/semantic-vocabulary" }

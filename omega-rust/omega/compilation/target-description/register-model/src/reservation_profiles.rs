@@ -1,0 +1,151 @@
+/*
+We define our register reservation overlays (`RegisterReservationOverlay`),
+active reservation profile selections (`RegisterReservationProfile`), and the
+validator (`validate_register_reservation_profile`) that binds a profile's
+active overlays to its validated physical register model and target.
+*/
+
+use crate::identities;
+use crate::identities::{PhysicalRegisterModelIdentity, RegisterReservationProfileIdentity};
+use crate::{RegisterUnitId, ValidatedPhysicalRegisterModel};
+use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReservationReason {
+    Architectural,
+    StackPointer,
+    FramePointer,
+    Platform,
+    Dispatch,
+    Metering,
+    Syscall,
+    InlineAssembly,
+    Backend,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegisterReservationOverlay {
+    pub name: String,
+    pub reason: ReservationReason,
+    pub units: Vec<RegisterUnitId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegisterReservationProfile {
+    pub name: String,
+    pub active_overlays: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedRegisterReservationProfile {
+    profile: RegisterReservationProfile,
+    target: target::NativeTarget,
+    physical: PhysicalRegisterModelIdentity,
+    reserved_units: Vec<RegisterUnitId>,
+    identity: RegisterReservationProfileIdentity,
+}
+
+impl ValidatedRegisterReservationProfile {
+    pub const fn profile(&self) -> &RegisterReservationProfile {
+        &self.profile
+    }
+
+    pub const fn target(&self) -> target::NativeTarget {
+        self.target
+    }
+
+    pub const fn physical_identity(&self) -> PhysicalRegisterModelIdentity {
+        self.physical
+    }
+
+    pub fn reserved_units(&self) -> &[RegisterUnitId] {
+        &self.reserved_units
+    }
+
+    pub const fn identity(&self) -> RegisterReservationProfileIdentity {
+        self.identity
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RegisterReservationProfileValidationError {
+    EmptyName,
+    TargetArchitectureMismatch,
+    NonCanonicalOverlayNames,
+    UnknownOverlay(String),
+}
+
+invalid_display!(
+    RegisterReservationProfileValidationError,
+    "invalid register reservation profile"
+);
+
+impl std::error::Error for RegisterReservationProfileValidationError {}
+
+pub fn validate_register_reservation_profile(
+    profile: RegisterReservationProfile,
+    target: target::NativeTarget,
+    model: &ValidatedPhysicalRegisterModel,
+) -> Result<ValidatedRegisterReservationProfile, RegisterReservationProfileValidationError> {
+    if profile.name.is_empty() {
+        return Err(RegisterReservationProfileValidationError::EmptyName);
+    }
+    if target.architecture != model.model().architecture {
+        return Err(RegisterReservationProfileValidationError::TargetArchitectureMismatch);
+    }
+    if profile
+        .active_overlays
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return Err(RegisterReservationProfileValidationError::NonCanonicalOverlayNames);
+    }
+    let overlays = model
+        .model()
+        .reservations
+        .iter()
+        .map(|overlay| (overlay.name.as_str(), overlay))
+        .collect::<BTreeMap<_, _>>();
+    let mut units = BTreeSet::new();
+    for name in &profile.active_overlays {
+        let Some(overlay) = overlays.get(name.as_str()) else {
+            return Err(RegisterReservationProfileValidationError::UnknownOverlay(
+                name.clone(),
+            ));
+        };
+        units.extend(overlay.units.iter().copied());
+    }
+    let reserved_units = units.into_iter().collect::<Vec<_>>();
+    let identity = identities::register_reservation_profile_identity(
+        target,
+        model.identity(),
+        &profile,
+        &reserved_units,
+    );
+    Ok(ValidatedRegisterReservationProfile {
+        profile,
+        target,
+        physical: model.identity(),
+        reserved_units,
+        identity,
+    })
+}
+
+pub fn sorted_units(units: impl IntoIterator<Item = RegisterUnitId>) -> Vec<RegisterUnitId> {
+    let mut units = units.into_iter().collect::<Vec<_>>();
+    units.sort_unstable();
+    units.dedup();
+    units
+}
+
+pub fn reservation_overlay(
+    name: &str,
+    reason: ReservationReason,
+    units: Vec<RegisterUnitId>,
+) -> RegisterReservationOverlay {
+    RegisterReservationOverlay {
+        name: name.into(),
+        reason,
+        units: sorted_units(units),
+    }
+}

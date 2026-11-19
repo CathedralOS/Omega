@@ -1,0 +1,3 @@
+public machine depapp_value() -> i32 {
+    9
+}

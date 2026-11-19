@@ -1,3 +1,0 @@
-error CodepointEscape at 1:10 bytes 9..11
-  text: \u
-  codepoint escapes are not supported; a quoted literal is bytes, so write \xNN

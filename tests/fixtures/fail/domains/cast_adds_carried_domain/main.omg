@@ -1,0 +1,10 @@
+// Rejected: `Km` is already attached to `both`, so `+Km` cannot add it.
+domain i32::Km;
+domain i32::Positive
+    requires self > 0;
+
+machine again(both: i32 in Km & Positive) -> i32 in Km & Positive {
+    both as +Km =Positive
+}
+
+machine main() { }

@@ -1,0 +1,1 @@
+contract arithmetic is not proved total before its condition

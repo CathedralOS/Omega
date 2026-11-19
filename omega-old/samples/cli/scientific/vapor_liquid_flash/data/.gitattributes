@@ -1,2 +1,0 @@
-# This fixture exercises actual CR bytes, so its frozen input must be byte exact.
-mixed_whitespace.txt -text

@@ -1,0 +1,24 @@
+// An element of a fixed array of two shared byte windows keeps its backing and one-byte extent when
+// lent to a callee, so the callee reads byte 11 from the first window and byte 29 from the second.
+// Place: local.
+// Expected exit: 0
+machine read(bytes: &[u8]) -> u8
+requires bytes.len == 1
+{
+    bytes[0]
+}
+
+machine main() crashes Trap {
+    let packet: [u8; 4] = [11, 23, 29, 31];
+    let windows: [&[u8]; 2] = [&packet[0..2], &packet[2..3]];
+    let first: &[u8] = windows[0];
+    let a: u8 = read(first);
+    let b: u8 = read(windows[1]);
+    let observed: bool = a == 11 && b == 29;
+    transition observed {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

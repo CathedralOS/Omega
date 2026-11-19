@@ -1,0 +1,31 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Cell { value: i32; }
+data Group { cell: Cell; cells: [Cell; 2]; }
+data Main { console: Console; first: Cell; second: Cell; group: Group; groups: [Group; 2]; }
+
+machine Main::main(&mut self) {
+  assert self.first.value == 0;
+  assert self.group.cells[1].value == 0;
+  assert self.groups[1].cell.value == 0;
+  self.first.value = 65;
+  self.second.value = 66;
+  self.group.cell.value = 67;
+  self.group.cells[0].value = 68;
+  self.group.cells[1].value = 69;
+  self.groups[0].cell.value = 70;
+  self.groups[1].cell.value = 71;
+  assert self.first.value == 65;
+  assert self.second.value == 66;
+  assert self.group.cell.value == 67;
+  assert self.group.cells[0].value == 68;
+  assert self.group.cells[1].value == 69;
+  assert self.groups[0].cell.value == 70;
+  assert self.groups[1].cell.value == 71;
+  self.console.write_byte(self.first.value);
+}

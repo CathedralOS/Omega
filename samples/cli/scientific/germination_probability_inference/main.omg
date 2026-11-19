@@ -1,0 +1,60 @@
+use omega::language::core::ProcessExit;
+// Independent Bernoulli germination assays with a common unknown probability.
+// Expected exit: 0.
+// Expected output contains: status=ok
+use omega_language_std::Console;
+use omega::language::core::F64::from_i32;
+use domain::input;
+use domain::input::Reader;
+use domain::input::Input;
+use domain::input::read_input;
+use domain::inference;
+use domain::inference::Posterior;
+use domain::inference::posterior;
+use domain::inference::predict;
+use domain::report;
+use domain::report::field;
+
+data Main { reader: Reader; bins: [f64; 33]; }
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    main.reader.consumed = 0;
+    let mut input: Input;
+    let valid: bool = block read_input(&mut main.reader, &mut input);
+    transition valid { true -> batches(main, &input, 4, input.values[0], input.values[1]) _ -> invalid(main) }
+    machine batches(main: &mut Main, input: &Input, position: i32 in Wrapping, alpha: i32 in Wrapping, beta: i32 in Wrapping) {
+        transition position >= 4 && position < 19 && position < input.count { true -> update(main, input, position, alpha, beta) _ -> prediction(main, input, alpha, beta) }
+    }
+    machine update(main: &mut Main, input: &Input, position: i32 in Wrapping, alpha: i32 in Wrapping, beta: i32 in Wrapping) {
+        let next_alpha: i32 in Wrapping = alpha + input.values[position];
+        let next_beta: i32 in Wrapping = beta + input.values[position + 1] - input.values[position];
+        let result: Posterior = posterior(next_alpha, next_beta);
+        field(&mut main.reader, "alpha=", F64::from_i32(next_alpha as i32));
+        field(&mut main.reader, "beta=", F64::from_i32(next_beta as i32));
+        field(&mut main.reader, "mean_pico=", result.mean * 1000000000000.0);
+        field(&mut main.reader, "variance_pico=", result.variance * 1000000000000.0);
+        field(&mut main.reader, "lower_pico=", result.lower * 1000000000000.0);
+        field(&mut main.reader, "upper_pico=", result.upper * 1000000000000.0);
+        field(&mut main.reader, "above_half_pico=", result.above_half * 1000000000000.0);
+        transition { _ -> batches(main, input, position + 2, next_alpha, next_beta) }
+    }
+    machine prediction(main: &mut Main, input: &Input, alpha: i32 in Wrapping, beta: i32 in Wrapping) {
+        predict(alpha, beta, input.values[3], &mut main.bins);
+        transition { _ -> bins(main, input.values[3], 0) }
+    }
+    machine bins(main: &mut Main, future: i32 in Wrapping, position: i32 in Wrapping) {
+        transition position >= 0 && position < 33 && position <= future { true -> emit(main, future, position) _ -> done(main) }
+    }
+    machine emit(main: &mut Main, future: i32 in Wrapping, position: i32 in Wrapping) {
+        field(&mut main.reader, "bin=", F64::from_i32(position as i32));
+        field(&mut main.reader, "probability_pico=", main.bins[position] * 1000000000000.0);
+        transition { _ -> bins(main, future, position + 1) }
+    }
+    machine done(main: &mut Main) { Console::write_line("status=ok"); ProcessExit::exit_process(0); }
+    machine invalid(main: &mut Main) { Console::write_line("ERROR invalid_input"); ProcessExit::exit_process(64); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

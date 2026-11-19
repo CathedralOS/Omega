@@ -1,7 +1,0 @@
-// Decision 2: arms are separated by commas. A newline is not a separator.
-machine f(n: u32) -> u32 {
-    match n {
-        0 -> zero()
-        _ -> other()
-    }
-}

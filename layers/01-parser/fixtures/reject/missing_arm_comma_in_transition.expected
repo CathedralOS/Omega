@@ -1,4 +1,0 @@
-error MissingArmComma at 3:32 bytes 119..120
-  found: 1
-  expected: `,` or `}`
-  arms are separated by commas; put `,` after the previous arm

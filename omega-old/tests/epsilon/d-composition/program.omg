@@ -1,3 +1,0 @@
-machine answer() -> u8 {
-    42
-}

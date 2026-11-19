@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "build_row_placement");
+    builder.freestanding = true;
+    Build::exclude_crash(builder, CrashCause::Abort);
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
+}

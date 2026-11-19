@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "atomic_global_order_operations");
-    Build::bind(builder, windows_x86_64::ProgramEntry, global_order_entry);
-    Build::bind(builder, linux_x86_64::ProgramEntry, global_order_entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, global_order_entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, global_order_entry);
-}

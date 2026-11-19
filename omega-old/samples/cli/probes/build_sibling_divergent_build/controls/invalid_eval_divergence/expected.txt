@@ -1,2 +1,0 @@
-cannot check prepared project: checked compilation failed for package `sibling_bad1` with 1 diagnostic(s)
-  error: required output `ghost.txt` of `build` failed: bad1 staged nothing

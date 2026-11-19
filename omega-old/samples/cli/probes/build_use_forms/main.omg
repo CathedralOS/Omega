@@ -1,7 +1,0 @@
-// Repeated `use` rows naming the same module are legal — imports
-// deduplicate rather than conflicting.
-use kit::main;
-use kit::main;
-machine entry() -> i32 {
-    v()
-}

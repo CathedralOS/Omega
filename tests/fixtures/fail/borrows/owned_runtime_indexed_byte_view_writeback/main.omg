@@ -1,0 +1,17 @@
+data Settings<'storage> { identifier: &'storage [u8]; }
+
+machine main() crashes Trap {
+    let mut settings: [Settings; 2] = [
+        Settings { identifier: "before" },
+        Settings { identifier: "longer" }
+    ];
+    let detached: Settings = settings[0];
+    let index: u64 = 1;
+    settings[index].identifier = "omega";
+    transition settings[0].identifier.len == 6 && settings[1].identifier.len == 5 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

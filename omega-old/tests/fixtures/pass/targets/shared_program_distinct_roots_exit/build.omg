@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "shared_program_distinct_roots_exit");
-    Build::bind(builder, windows_x86_64::ProgramEntry, normal);
-    Build::bind(builder, macos_arm64::ProgramEntry, normal);
-    Build::bind(builder, linux_x86_64::ProgramEntry, trapping);
-    Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
-}

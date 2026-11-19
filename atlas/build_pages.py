@@ -1,0 +1,426 @@
+#!/usr/bin/env python3
+"""Build atlas/index.html and atlas/pages from Markdown and explicit diagram semantics.
+
+Requires Python 3.10+, Markdown 3.7, and Graphviz's `dot`. The diagram reader
+deliberately accepts only the documented Mermaid flowchart subset and fails
+on other syntax; it must never silently omit an edge from an evidence page.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import html
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import textwrap
+from urllib.parse import quote, unquote, urlsplit
+import xml.etree.ElementTree as ET
+from artifacts.proposed import COMPILER_REVISION
+from artifacts.whole_map import render_architecture
+
+
+ATLAS = Path(__file__).resolve().parent
+HERE = ATLAS / "artifacts"
+ROOT = ATLAS.parent
+OUT = ATLAS / "pages"
+GITHUB = "https://github.com/CathedralOS/Omega"
+
+# One registry controls the output names, page numbering, and navigation.
+# Source prose lives in Markdown; the renderer supplies no design verdicts.
+PAGES = [
+    ("repository", "Codebase map", "subsystems/repository.md", "How the Rust reference compiler, Omega source, bootstrap, tools, and library fit together.", "Observed source map"),
+    ("psi", "Psi stages", "subsystems/psi.md", "From source text to accepted Psi, including the source drivers and the data they carry.", "Observed source map"),
+    ("omega", "Omega stages and realization", "subsystems/omega.md", "Provider settlement, native lowering, installation binding, emission, and explicit audits on one target.", "Observed source map"),
+    ("build-and-packages", "Build and packages", "subsystems/build-and-packages.md", "How package custody and Build evaluation become a compilation request and provider choices.", "Observed source map"),
+    ("cli", "CLI", "subsystems/cli.md", "How commands reach compilation, execution, inspection, and package operations.", "Observed source map"),
+    ("interpreter", "Psi interpreter", "subsystems/interpreter.md", "How portable Terminal Psi is loaded, supplied with runtime capabilities, and executed.", "Observed source map"),
+    ("bootstrap", "Bootstrap", "subsystems/bootstrap.md", "The construction routes and the evidence still needed for a complete compiler self-rebuild.", "Observed source map"),
+    ("tools", "Tools and verification", "subsystems/tools.md", "Repository commands, gates, and the difference between a source check and an execution result.", "Observed source map"),
+    ("library", "Bundled library", "subsystems/library.md", "Language declarations, target providers, and their use through Build and realization.", "Observed source map"),
+    ("pipeline-map", "Original pipeline map", "artifacts/pipeline-map/original.html", "Claude’s original authored presentation, preserved as a historical proposed design.", "Historical proposed design"),
+    ("pipeline-current", "Reviewed pipeline routes", "artifacts/pipeline-map/map.md", "Observed compilation routes, corrected value paths and the proposed ownership changes.", "Pre-migration routes and proposed changes"),
+    ("architecture", "Compiler map", "artifacts/architecture.md", "Trace the numbered implementation and compare it with the compiler before migration.", "Stages 00–10 and the historical map"),
+    ("foundation-backend-plan", "Compiler repair plan", "plans/foundation-and-backend.md", "The stage contracts, the earlier detours they replace, and the evidence from the running compiler.", "Migration plan and verification"),
+    ("questions", "Open questions", "questions.md", "Design choices that still need a ruling; recommendations remain proposals.", "Open decisions"),
+    ("rulings", "Owner rulings", "rulings.md", "The dated owner decisions the atlas must follow.", "Recorded owner decisions"),
+]
+PAGE_BY_SOURCE = {(ATLAS / p[2]).resolve(): p[0] + ".html" for p in PAGES}
+
+
+def mermaid_svg(source: str, diagram_id: str, spec: dict) -> str:
+    """Lay out a small, explicit flowchart with Graphviz; retain every label."""
+    lines = [line.strip().removesuffix(";") for line in source.splitlines()
+             if line.strip() and not line.lstrip().startswith("%%")]
+    if not lines or not re.fullmatch(r"(?:flowchart|graph) (LR|RL|TD|TB|BT)", lines[0]):
+        raise ValueError("diagram must start with flowchart LR, RL, TD, TB, or BT")
+    lines.pop(0)
+    direction = "LR"  # The portable design kit reads flows left to right.
+    nodes: dict[str, str] = {}
+    edges: list[tuple[str, str, str, str]] = []
+
+    def endpoint(text: str) -> tuple[str, str]:
+        match = re.match(r'([A-Za-z_][A-Za-z_0-9]*)(?:\[([^\]]*)\])?', text)
+        if not match:
+            raise ValueError(f"unsupported node syntax: {text!r}")
+        name, label = match.groups()
+        if label is not None:
+            label = label.strip().strip('"')
+            label = re.sub(r"<br\s*/?>", "\n", label).replace("\\n", "\n")
+            nodes[name] = html.unescape(label)
+        else:
+            nodes.setdefault(name, name)
+        return name, text[match.end():].strip()
+
+    for line in lines:
+        left, rest = endpoint(line)
+        while rest:
+            match = re.match(r"(-->|-\.->)\s*(?:\|([^|]*)\|\s*)?", rest)
+            if not match:
+                raise ValueError(f"unsupported edge or directive: {rest!r}")
+            arrow, label = match.groups()
+            right, rest = endpoint(rest[match.end():].strip())
+            edges.append((left, right, arrow, label or ""))
+            left = right
+    if not nodes:
+        raise ValueError("empty diagram")
+
+    def wrapped(value: str, width: int) -> str:
+        return "\n".join(textwrap.fill(line, width=width, break_long_words=False,
+                                      break_on_hyphens=False) for line in value.splitlines())
+
+    kinds = {name: spec.get("nodes", {}).get(name, spec["default_node"]) for name in nodes}
+    allowed = {"psi", "native", "hub", "proposed", "around"}
+    if set(kinds.values()) - allowed or set(spec.get("nodes", {})) - nodes.keys():
+        raise ValueError("diagram metadata names an unknown node or semantic kind")
+    edge_specs = spec.get("edges", {})
+    actual_edges = {f"{left}->{right}" for left, right, *_ in edges}
+    if set(edge_specs) - actual_edges:
+        raise ValueError("diagram metadata names an unknown edge")
+    dot = ["digraph atlas {", f"rankdir={direction};",
+           'graph [bgcolor="transparent", nodesep=0.35, ranksep=0.8, pad=0.12];',
+           'node [shape=box, fontname="Omega Serif", fontsize=13, margin="0.22,0.13", height=0.7];',
+           'edge [fontname="Omega Serif", fontsize=12, arrowhead=none];']
+    for name, label in nodes.items():
+        dot.append(f'{json.dumps(name)} [class="{kinds[name]}", label={json.dumps(wrapped(label, 25), ensure_ascii=False)}];')
+    for left, right, arrow, label in edges:
+        settings = edge_specs.get(f"{left}->{right}", {})
+        label = settings.get("label", label)
+        if not label:
+            raise ValueError(f"unlabeled handoff: {left}->{right}")
+        kind = settings.get("kind", "handoff")
+        if kind not in {"handoff", "checked", "bypass"}:
+            raise ValueError(f"unknown arrow meaning: {kind}")
+        style = "dashed" if arrow == "-.->" or kind == "bypass" else "solid"
+        dot.append(f'{json.dumps(left)} -> {json.dumps(right)} [class="{kind}", style={style}, label={json.dumps(wrapped(label, 20), ensure_ascii=False)}];')
+    dot.append("}")
+    result = subprocess.run(["dot", "-Tsvg"], input="\n".join(dot), text=True,
+                            capture_output=True, check=True)
+    svg = ET.fromstring(result.stdout)
+    ns = "{http://www.w3.org/2000/svg}"
+    for element in svg.iter():
+        element.tag = element.tag.removeprefix(ns)
+        if "id" in element.attrib:
+            element.set("id", diagram_id + "-" + element.get("id"))
+        for attr in ("fill", "stroke", "font-family", "font-size"):
+            element.attrib.pop(attr, None)
+    for graph in svg.findall("./g"):
+        for polygon in graph.findall("./polygon"):
+            graph.remove(polygon)
+    defs = ET.Element("defs")
+    for kind in ("handoff", "checked", "bypass"):
+        marker = ET.SubElement(defs, "marker", {
+            "id": diagram_id + "-arrow-" + kind, "viewBox": "0 0 10 10",
+            "refX": "10", "refY": "5", "markerWidth": "7", "markerHeight": "7",
+            "orient": "auto-start-reverse", "markerUnits": "userSpaceOnUse"})
+        ET.SubElement(marker, "path", {"d": "M0 0 L10 5 L0 10 z", "class": "arrow-" + kind})
+    svg.insert(0, defs)
+    for group in svg.iter("g"):
+        classes = group.get("class", "").split()
+        title = group.find("title")
+        if "node" in classes and title is not None:
+            group.set("data-node", title.text)
+        if "edge" in classes:
+            if title is not None:
+                start, end = title.text.split("->", 1)
+                group.set("data-from", start)
+                group.set("data-to", end)
+            kind = next(k for k in ("handoff", "checked", "bypass") if k in classes)
+            for path in group.findall("path"):
+                path.set("marker-end", f"url(#{diagram_id}-arrow-{kind})")
+    svg.set("xmlns", "http://www.w3.org/2000/svg")
+    svg.set("role", "img")
+    svg.set("aria-label", spec["claim"])
+    width = float(svg.get("viewBox").split()[2])
+    svg.set("style", f"min-width:{round(width)}px")
+    svg.attrib.pop("width", None)
+    svg.attrib.pop("height", None)
+    heading = ET.Element("title")
+    heading.text = spec["claim"]
+    svg.insert(0, heading)
+    return ET.tostring(svg, encoding="unicode")
+
+
+def source_url(path: Path, content_revision: str | None, output: Path) -> str:
+    if content_revision is None:
+        return quote(Path(os.path.relpath(path, output.parent)).as_posix(), safe="/")
+    return f"{GITHUB}/blob/{content_revision}/{quote(path.relative_to(ROOT).as_posix())}"
+
+
+def rewrite_links(body: str, source: Path, content_revision: str | None, output: Path) -> str:
+    def link(match: re.Match) -> str:
+        href = html.unescape(match.group(1))
+        parsed = urlsplit(href)
+        if parsed.scheme or parsed.netloc or not parsed.path:
+            return match.group(0)
+        target = (source.parent / unquote(parsed.path)).resolve()
+        fragment = "#" + parsed.fragment if parsed.fragment else ""
+        if target in PAGE_BY_SOURCE:
+            url = PAGE_BY_SOURCE[target] + fragment
+        elif target.is_relative_to(ATLAS):
+            url = source_url(target, content_revision, output) + fragment
+        else:
+            raise ValueError(f"Use a pinned GitHub source citation, not a current-checkout path: {source}: {href}")
+        return f'href="{html.escape(url, quote=True)}"'
+    return re.sub(r'href="([^"]+)"', link, body)
+
+
+def render_markdown(source: Path, page_id: str, content_revision: str | None, output: Path, specs: dict) -> tuple[str, str, int]:
+    import markdown
+    content = source.read_text(encoding="utf-8")
+    content = re.sub(r"\A# [^\n]+\n", "", content, count=1)
+    # A plan may have top-level part headings beneath its page title.
+    content = re.sub(r"^# ", "## ", content, flags=re.M)
+    diagrams: list[str] = []
+
+    def diagram(match: re.Match) -> str:
+        number = len(diagrams) + 1
+        code = match.group(1).strip()
+        spec = specs[f"{source.stem}-{number}"]
+        title = spec["claim"]
+        try:
+            svg = mermaid_svg(code, f"{page_id}-diagram-{number}", spec)
+        except (ValueError, subprocess.CalledProcessError) as error:
+            raise ValueError(f"{source}: diagram {number}: {error}") from error
+        diagrams.append(
+            '<figure class="diagram"><p class="diagram-hint">Scroll horizontally to follow the whole diagram.</p>'
+            '<div class="diagram-frame" tabindex="0" '
+            f'role="region" aria-label="{html.escape(title)}">{svg}</div>'
+            f'<figcaption>{html.escape(title)}</figcaption>'
+            '<details><summary>Diagram source</summary>'
+            f'<pre><code>{html.escape(code)}</code></pre></details></figure>'
+        )
+        return f"\n\nATLASDIAGRAM{number}END\n\n"
+
+    content = re.sub(r"^```mermaid\s*\n(.*?)^```\s*$", diagram, content, flags=re.M | re.S)
+    converter = markdown.Markdown(extensions=["tables", "sane_lists", "fenced_code", "toc"],
+                                  extension_configs={"toc": {"toc_depth": "2-3"}})
+    body = converter.convert(content)
+    body = rewrite_links(body, source, content_revision, output)
+    body = body.replace("<table>", '<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable table"><table>')
+    body = body.replace("</table>", "</table></div>")
+    for label, class_name in (("judgment", "flag"), ("unverified", "flag warn")):
+        body = body.replace(f"<em>{label}</em>", f'<span class="{class_name}">{label}</span>')
+    for i, svg in enumerate(diagrams, 1):
+        body = body.replace(f"<p>ATLASDIAGRAM{i}END</p>", svg)
+    return body, converter.toc, len(diagrams)
+
+
+def navigation(current: str, prefix="", include_home=True) -> str:
+    home = 'index.html' if prefix else '../index.html'
+    selected = ' aria-current="page"' if current == 'landing' else ''
+    parts = [f'<div class="nav-home"><a href="{home}"{selected}>Atlas overview →</a></div>'] if include_home else []
+    pages = {page[0]: page[1] for page in PAGES}
+    groups = (
+        ('Compiler', ('architecture', 'psi', 'omega', 'build-and-packages', 'interpreter', 'library')),
+        ('Repository', ('repository', 'cli', 'bootstrap', 'tools')),
+        ('Plans and evidence', ('pipeline-current', 'foundation-backend-plan', 'questions', 'rulings', 'pipeline-map')),
+    )
+    grouped = [page_id for _, ids in groups for page_id in ids]
+    if len(grouped) != len(pages) or set(grouped) != pages.keys():
+        raise ValueError('Navigation groups must include every registered page exactly once')
+    for heading, ids in groups:
+        parts.append(f'<section><h2>{heading}</h2><ul>')
+        for page_id in ids:
+            selected = ' aria-current="page"' if page_id == current else ''
+            parts.append(f'<li><a href="{prefix}{page_id}.html"{selected}>{html.escape(pages[page_id])}</a></li>')
+        parts.append('</ul></section>')
+    return '\n'.join(parts)
+
+
+def site_header(current: str, prefix: str) -> str:
+    pages = 'pages/' if not prefix else ''
+    links = [('architecture', 'Compiler map', pages+'architecture.html'),
+             ('foundation-backend-plan', 'Repair plan', pages+'foundation-backend-plan.html#start-with-the-extra-arrows'),
+             ('reference', 'Reference', prefix+'index.html#reference')]
+    primary = ''.join(f'<a href="{href}" class="{"is-active" if key==current else ""}">{label}</a>' for key,label,href in links)
+    return (f'<header class="site-header"><div class="site-bar"><a class="site-brand" href="{prefix}index.html">Ω / Atlas</a>'
+            f'<nav class="site-primary" aria-label="Primary navigation">{primary}</nav><div class="site-actions">'
+            '<details id="page-list" class="site-directory"><summary>All pages</summary><div class="directory-panel">'
+            '<label for="page-filter" class="eyebrow">Find a page</label><input id="page-filter" type="search" placeholder="Search Atlas…" autocomplete="off">'
+            f'<nav class="atlas-nav" aria-label="Atlas pages">{navigation(current,pages)}</nav><p id="no-pages" hidden>No matching pages.</p>'
+            '</div></details><button id="theme" type="button" aria-label="Switch between Limestone and Ink themes">Limestone / Ink</button></div></div></header>')
+
+
+def site_footer(prefix: str, readme: str) -> str:
+    pages = 'pages/' if not prefix else ''
+    return ('<footer class="site-footer"><div class="site-footer-inner"><nav class="footer-pages" aria-label="Atlas directory">'
+            + navigation('',pages,False)
+            + f'</nav><div class="footer-meta"><a href="{prefix}index.html">Ω / Atlas overview</a><a href="{readme}">Rebuild and evidence rules</a>'
+            '<span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>')
+
+
+def render_home() -> str:
+    references = (
+        ('psi','Psi source stages','Source, types and the checker'),
+        ('omega','Native compilation','Targets, instructions and executable code'),
+        ('interpreter','Psi interpreter','Portable execution and host capabilities'),
+        ('build-and-packages','Build and packages','Source custody, requests and providers'),
+        ('library','Bundled library','Declarations and target implementations'),
+        ('repository','Codebase map','Where each implementation lives'),
+        ('cli','CLI','Commands and their owners'),
+        ('bootstrap','Bootstrap','How the compiler is constructed'),
+        ('tools','Tools and verification','Repository checks and their evidence'),
+    )
+    cards=''.join(f'<a class="reference-link" href="pages/{key}.html"><strong>{title} →</strong><span>{description}</span></a>' for key,title,description in references)
+    return (HERE/'home.html').read_text().replace('{{reference_cards}}',cards)
+
+
+def require_commit(revision: str) -> None:
+    repository = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=ROOT, capture_output=True, text=True)
+    if repository.returncode or Path(repository.stdout.strip()).resolve() != ROOT:
+        raise ValueError("Full verification requires atlas/ at the root of its Omega repository. A standalone copy uses --offline to render and check.py --local-only for static checks.")
+    result = subprocess.run(["git", "cat-file", "-e", revision + "^{commit}"], cwd=ROOT, capture_output=True)
+    if result.returncode:
+        raise ValueError(f"Required Git commit {revision} is unavailable. Fetch it in this repository (git fetch origin {revision}) before full verification; standalone rendering uses --offline.")
+
+
+def check_content_revision(revision: str) -> None:
+    if not re.fullmatch("[0-9a-f]{40}", revision):
+        raise ValueError("atlas/content-revision.txt must contain a full commit SHA")
+    require_commit(revision)
+    exclusions = [":(exclude)atlas/pages", ":(exclude)atlas/index.html", ":(exclude)atlas/content-revision.txt"]
+    changed = subprocess.check_output(["git", "diff", "--name-only", revision, "--", "atlas", *exclusions], cwd=ROOT, text=True).splitlines()
+    untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard", "atlas"], cwd=ROOT, text=True).splitlines()
+    changed += [p for p in untracked if not p.startswith("atlas/pages/") and p not in ("atlas/index.html", "atlas/content-revision.txt")]
+    if changed:
+        raise ValueError("Atlas source differs from its recorded content revision; commit sources, then use --content-revision HEAD. Draft previews use --draft.\n" + "\n".join(changed))
+
+
+
+def render_original(content_revision: str | None, output: Path) -> str:
+    """Keep the authored drawing intact; adapt only assets and a small status/nav strip."""
+    original = HERE / "pipeline-map/original.html"
+    raw = original.read_text()
+    if hashlib.sha256(original.read_bytes()).hexdigest() != "8c0035540a1b92d88db28322faee945938b809c242914f208b46baecc072333a":
+        raise ValueError("The original authored map is an immutable snapshot; edit its wrapper, not original.html")
+    page = re.sub(r'<link[^>]+https://fonts.googleapis.com[^>]+>\n?', '', raw)
+    page = re.sub(r'@font-face.*?\n(?=body \{)', ':root { --serif: var(--font-serif); --mono: var(--font-mono); }\n\n', page, count=1, flags=re.S)
+    page = page.replace('<style>', '<link rel="stylesheet" href="../design/tokens.css">\n<style>', 1)
+    page = page.replace('</style>', (HERE/'navigation.css').read_text()+'\n</style>', 1)
+    publication = 'Draft preview' if content_revision is None else f'Atlas content <a href="{GITHUB}/tree/{content_revision}/atlas">{content_revision[:12]}</a>'
+    strip = f'<aside class="history-note" aria-label="Historical design status"><strong>Historical original · 2026-11-17</strong> · {publication}<br>Original drawing, labels and estimates preserved. Read the <a href="pipeline-current.html">reviewed account</a> for corrected claims. <a href="{source_url(original,content_revision,output)}">Preserved source</a>.</aside>'
+    page = page.replace('<div class="page">', site_header('pipeline-map','../')+strip+'<div class="page" id="main">', 1)
+    page = page.replace('g.hidden = !box.checked;', 'g.toggleAttribute("hidden", !box.checked);')
+    page = page.replace('</body>', site_footer('../',source_url(ATLAS/'README.md',content_revision,output))+'<script>'+(HERE/'page.js').read_text()+'</script>\n</body>')
+    assert re.findall(r'<svg\b.*?</svg>', page, re.S) == re.findall(r'<svg\b.*?</svg>', raw, re.S), 'authored drawings changed'
+    return page
+
+def build_all(content_revision: str | None, site: Path) -> Path:
+    import markdown
+    manifest_path = ATLAS / "evidence/data/manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    counts = json.loads((ATLAS / "evidence/data/counts.json").read_text())
+    specs = json.loads((HERE / "diagrams.json").read_text())
+    revision = manifest["source_revision"]
+    template = (HERE / "page_template.html").read_text()
+    style = (HERE / "style.css").read_text() + "\n" + (HERE / "architecture.css").read_text() + "\n" + (HERE/'navigation.css').read_text()
+    script = (HERE / "page.js").read_text() + "\n" + (HERE / "explorer.js").read_text() + "\n" + (HERE / "connected.js").read_text()
+    pages = site / "pages"
+    pages.mkdir(parents=True, exist_ok=True)
+    built = []
+    values = [(manifest["metadata_summary"]["workspace_packages"], "Cargo workspace packages")]
+    values += [(counts["groups"][group]["all_rs_lines"], label) for group, label in (
+        ("foundation", "foundation · all Rust lines"), ("backend", "backend · all Rust lines"),
+        ("realization", "realization · all Rust lines"))]
+    glance = '<div class="glance">' + "".join(
+        f'<div><b>{value:,}</b><span>{html.escape(label)}</span></div>' for value, label in values) + "</div>"
+    glance = '<details class="measurement"><summary>Snapshot measurements and counting rules</summary>' + glance + '<p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>'
+    landing = ("landing", "See how Omega fits together.", "artifacts/home.html", "Explore the numbered compiler and the architecture it replaces.", "Compiler architecture & repair plans")
+    for number, (page_id, title, source_name, description, status) in enumerate([landing, *PAGES]):
+        output = site / "index.html" if page_id == "landing" else pages / f"{page_id}.html"
+        source = ATLAS / source_name
+        if page_id == "pipeline-map":
+            page = render_original(content_revision, output)
+            output.write_text(page, encoding="utf-8")
+            built.append({"page": output.relative_to(site).as_posix(), "source": "artifacts/pipeline-map/original.html", "diagrams": len(re.findall(r"<svg\b", page)), "sha256": hashlib.sha256(page.encode()).hexdigest(), "historical_revision": "4dcadfb359b143f87df4cda6d2b0c5b55203e7ef"})
+            continue
+        body,toc,diagrams = (render_home(),'',0) if page_id=='landing' else render_markdown(source,page_id,content_revision,output,specs)
+        prefix = "" if page_id == "landing" else "../"
+        explorer = render_architecture(ATLAS, "") if page_id == "architecture" else ""
+        extra_diagrams = 2 if explorer else 0
+        diagrams += extra_diagrams
+        if explorer:
+            body = '<details class="architecture-notes"><summary>About the map and snapshot</summary>' + glance + body + '</details>'
+        publication = "Uncommitted draft preview" if content_revision is None else f'Atlas content <a href="{GITHUB}/tree/{content_revision}/atlas"><code>{content_revision[:12]}</code></a>'
+        replacements = {
+            "TITLE": html.escape(title), "DESCRIPTION": html.escape(description), "STYLE": style,
+            "SCRIPT": script, "CANVAS_BUNDLE": f'<script src="{os.path.relpath(ATLAS / "design/diagram-zoom.js", output.parent).replace(chr(92), "/")}"></script>' if explorer else "", "STATUS": html.escape(status), "PAGE_NUMBER": str(number),
+            "PAGE_COUNT": str(len(PAGES)), "REVISION": revision[:12], "PUBLICATION": publication,
+            "REVISION_URL": f"{GITHUB}/tree/{revision}", "MANIFEST_URL": source_url(manifest_path, content_revision, output),
+            "IMPLEMENTATION_PIN": f'<span>Numbered implementation <a href="{GITHUB}/tree/{COMPILER_REVISION}"><code>{COMPILER_REVISION[:11]}</code></a></span>' if page_id in ("landing", "architecture", "foundation-backend-plan") else "",
+            "SOURCE_URL": source_url(source, content_revision, output), "COUNTS": glance if page_id in ("pipeline-current", "foundation-backend-plan") else "",
+            "EXPLORER": explorer, "PAGE_CLASS": "overview-page" if explorer else "home-page" if page_id=='landing' else "",
+            "HEADER": site_header(page_id,prefix), "FOOTER": site_footer(prefix,source_url(ATLAS/'README.md',content_revision,output)),
+            "BACK": '' if page_id=='landing' else f'<a class="back-link" href="{prefix}index.html">← Atlas overview</a>',
+            "NAV": navigation(page_id, "pages/" if page_id == "landing" else ""),
+            "TOC": ('<aside class="page-sections"><details class="contents" open><summary>On this page</summary>' + toc + '</details></aside>') if toc and not explorer else "",
+            "BODY": body, "README_URL": source_url(ATLAS / "README.md", content_revision, output),
+            "PREFIX": prefix, "NUMBER_LABEL": f"page {number} of {len(PAGES)}" if number else f"{len(PAGES)} subject pages",
+        }
+        page = re.sub(r"%%([A-Z_]+)%%", lambda match: replacements[match.group(1)], template)
+        output.write_text(page, encoding="utf-8")
+        built.append({"page": output.relative_to(site).as_posix(), "source": source_name, "diagrams": diagrams,
+                      "sha256": hashlib.sha256(page.encode()).hexdigest()})
+    build_manifest = {"source_revision": revision, "content_revision": content_revision, "pages": built,
+                      "evidence_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                      "markdown_version": markdown.__version__,
+                      "graphviz_version": subprocess.run(["dot", "-V"], capture_output=True, text=True, check=True).stderr.strip()}
+    (pages / "build.json").write_text(json.dumps(build_manifest, indent=2) + "\n")
+    print(f"Built {len(PAGES)} subject pages, landing and {sum(p['diagrams'] for p in built)} SVG diagrams; code snapshot {revision[:12]}")
+    return site / "index.html"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--content-revision", help="Record an already committed atlas source revision, then build")
+    mode.add_argument("--draft", action="store_true", help="Preview current files under artifacts/out without claiming a content revision")
+    mode.add_argument("--offline", action="store_true", help="Rebuild a standalone atlas copy using its recorded content pin, without Git verification")
+    args = parser.parse_args()
+    if args.draft:
+        import shutil
+        output = HERE / "out"
+        shutil.copytree(ATLAS / "design", output / "design", dirs_exist_ok=True)
+        print(build_all(None, output))
+        return
+    pin = ATLAS / "content-revision.txt"
+    revision = subprocess.check_output(["git", "rev-parse", args.content_revision + "^{commit}"], cwd=ROOT, text=True).strip() if args.content_revision else pin.read_text().strip()
+    if args.offline:
+        if not re.fullmatch("[0-9a-f]{40}", revision):
+            parser.error("atlas/content-revision.txt must contain a full commit SHA")
+        print("Offline render: atlas content and compiler source verification NOT RUN. Use check.py --local-only for static checks.")
+    else:
+        check_content_revision(revision)
+    if args.content_revision:
+        pin.write_text(revision + "\n")
+    print(build_all(revision, ATLAS))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except ValueError as error:
+        raise SystemExit(str(error)) from error

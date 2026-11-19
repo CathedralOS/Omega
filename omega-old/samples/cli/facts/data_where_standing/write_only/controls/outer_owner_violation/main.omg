@@ -1,5 +1,0 @@
-public data Cell [copy] { value: i32; }
-public data Middle [copy] requires self.cell.value <= 60 { cell: Cell; }
-public data Outer [copy] requires self.middle.cell.value <= 20 { middle: Middle; }
-public machine corrupt(outer: &write Outer) { outer.middle.cell.value = 30; }
-machine main() {}

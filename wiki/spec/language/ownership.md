@@ -22,7 +22,7 @@ every field satisfies the ordinary copy rules. Copying the record duplicates
 its shared loan carriers, not its referents; it preserves their exact backing,
 qualification, provenance, and lifetime obligations. It grants neither a longer
 lifetime nor additional carry or cross-activation sharing permission. Exclusive
-`@mut` and `@write` fields do not qualify. A record still requires an explicit
+`&mut` and `&write` fields do not qualify. A record still requires an explicit
 `[copy]` declaration; copyable fields do not change the affine default.
 
 Machine-valued fields and `some` packages follow these same multiplicity rules.
@@ -118,12 +118,12 @@ reconstruction and publication.
 Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established
 ordinary local's owned storage requires a `mut` binding. This covers direct
 assignment, writes to owned fields or array elements, and formation of
-`@mut` or `@write` loans to those places. A callee cannot grant writable
+`&mut` or `&write` loans to those places. A callee cannot grant writable
 access that the caller's place lacks. Initialization remains subject to the
 ordinary establishment rules.
 
 Binding mutability is not deep immutability. A non-`mut` local holding an
-existing `@mut T` or `@write T` may use or reborrow that reference's
+existing `&mut T` or `&write T` may use or reborrow that reference's
 authorized referent without making its own carrier mutable. Replacing the
 carrier and writing through it are distinct operations. The same distinction
 applies when a reference is reached through a record field.
@@ -156,15 +156,11 @@ for mutation, without changing what the programs do.
 
 ## Borrows and aliases
 
-A reference type and a borrow expression both start with `@`. Each `@` adds
-one layer: `@@T` is a reference to a reference, and `@@x` borrows a borrow.
-The word `mut` or `write` specifies the access granted by that layer.
-
 | Source access | Authority |
 | --- | --- |
-| `@T` | Shared observation under its loan contract. |
-| `@mut T` | Exclusive observation and mutation. |
-| `@write T` | Exclusive mutation without observation of existing content. |
+| `&T` | Shared observation under its loan contract. |
+| `&mut T` | Exclusive observation and mutation. |
+| `&write T` | Exclusive mutation without observation of existing content. |
 
 These are ordinary loan modes, not exemptions from
 [domain-owned access policy](domains.md#domain-owned-read-and-write-authority).
@@ -183,7 +179,7 @@ overlap incompatibly. A by-value reference transfers or copies its loan carrier,
 not ownership of its referent. Borrowed arguments continue to denote the original
 storage, not a caller-side snapshot chosen because the referent is small.
 
-`@write T` requires an existing valid `T`, not vacant construction storage.
+`&write T` requires an existing valid `T`, not vacant construction storage.
 Explicit attenuation from mutable access cannot be reversed into readable access.
 Exclusivity prevents reading old contents through a second alias. Metadata,
 written inputs, and supplied proof facts may support a write; loading the referent
@@ -199,7 +195,7 @@ that local and of every loan derived from it, not at the end of the enclosing
 block:
 
 ```omega
-let first: @mut u8 = @mut items[0];
+let first: &mut u8 = &mut items[0];
 first = 0;
 items[0] = 1;        // accepted: `first` is not used again
 ```
@@ -220,7 +216,7 @@ exception and does not allow reclaiming backing still needed by its callee.
 
 ## Borrowed-storage invariant windows
 
-An owned move out of a place reached through `@mut` may temporarily leave that
+An owned move out of a place reached through `&mut` may temporarily leave that
 place unestablished. This is an ownership invariant window, not permanent
 ownership of the borrowed referent or a new source mode. The move transfers the
 removed value's exact custody to its destination and records a restoration
@@ -231,7 +227,7 @@ While the window is open, the absent subtree cannot be read, borrowed as a value
 moved again, or disposed. Ancestors are unavailable for whole-value observation,
 calls, transfer, and cleanup. Disjoint established siblings remain usable under
 ordinary loan and dependent-fact rules. Existing restrictions on partial moves,
-including nominal whole-value cleanup, still apply; `@write` does not gain
+including nominal whole-value cleanup, still apply; `&write` does not gain
 permission to extract old content.
 
 Assignment of a valid owned replacement to the exact vacant place closes the
@@ -268,11 +264,11 @@ must independently reconstruct the window rather than trust producer approval.
 ## Consumers and cleanup
 
 Ownership is determined by each ordinary parameter's type: `value: T` receives
-an owned value; `value: @T` and `value: @mut T` receive references. A qualified
+an owned value; `value: &T` and `value: &mut T` receive references. A qualified
 machine name adds no hidden argument or ownership category. All calls preserve
 the parameter's ordinary transfer, loan, cleanup and disposition obligations.
 For example, `Resource::close(move resource)` transfers to a consuming
-`resource: Resource` parameter; `Resource::inspect(@resource)` does not.
+`resource: Resource` parameter; `Resource::inspect(&resource)` does not.
 There is no terminal-consumer annotation and no inference from the machine's name.
 
 A call returning an outcome containing the obligation transfers it back. A

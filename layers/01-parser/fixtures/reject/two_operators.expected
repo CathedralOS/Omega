@@ -1,4 +1,0 @@
-error UnexpectedToken at 2:13 bytes 40..41
-  found: *
-  expected: an expression
-  expected an expression

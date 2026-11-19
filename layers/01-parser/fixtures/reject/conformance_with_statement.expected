@@ -1,4 +1,0 @@
-error UnexpectedToken at 2:5 bytes 38..41
-  found: let
-  expected: a machine, selection row or `}`
-  expected a machine, selection row or `}`

@@ -1,2 +1,0 @@
-# Frozen missing-digit input intentionally places a space between '-' and LF.
-data/missing_digit.txt whitespace=-blank-at-eol

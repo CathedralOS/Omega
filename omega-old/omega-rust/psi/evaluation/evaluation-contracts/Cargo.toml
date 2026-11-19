@@ -1,9 +1,0 @@
-[package]
-name = "evaluation-contracts"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[dependencies]
-compiler-storage = { path = "../../foundation/compiler-storage" }
-semantic-vocabulary = { path = "../../compilation/representations/semantic-vocabulary" }

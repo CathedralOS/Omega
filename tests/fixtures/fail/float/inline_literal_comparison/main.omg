@@ -1,0 +1,11 @@
+machine same64(value: f64) -> f64 { value }
+
+machine main() crashes Trap {
+    let chosen: f64 = same64(2.5f64);
+    transition chosen == 2.5f32 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

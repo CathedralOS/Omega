@@ -1,0 +1,15 @@
+// Invalid: the C policy places scalars and their arrays only, so a record field
+// without its own selected representation has no C layout. The query is
+// refused with the policy's invalid result rather than given a fabricated size.
+use omega::language::core::CLayout;
+data Record [copy] { first: u8; second: u64; last: u16; }
+data Nested [copy] { inner: Record; tail: u8; }
+machine main() crashes Trap {
+    let bytes: u64 = size_of<CLayout<Nested>>();
+    transition bytes == 24u64 && align_of<CLayout<Nested>>() == 8u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

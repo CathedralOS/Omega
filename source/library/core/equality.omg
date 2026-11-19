@@ -1,0 +1,5 @@
+// Only this bundled declaration permits structural equality synthesis.
+// Named implementations still supply ordinary checked comparison machines.
+public trait Equatable<T> {
+    machine equals(left: &T, right: &T) -> bool;
+}

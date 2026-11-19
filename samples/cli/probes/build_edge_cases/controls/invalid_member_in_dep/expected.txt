@@ -1,0 +1,1 @@
+a workspace declaration does not name a Product source owner

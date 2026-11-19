@@ -1,0 +1,1043 @@
+//! Publish the declared meaning of each qualification once, and intern the
+//! complete sets used by lowering. Source handles are construction coordinates;
+//! only exact application identities and module-local domain IDs leave this stage.
+
+use semantic_vocabulary::{
+    DomainSemanticId, MachineId, ScalarDomainId, ScalarQualificationSetId, ScalarType,
+    StructuralDomainId, StructuralTypeId,
+};
+use terminal_check_tables::{Checked, Construct};
+use terminal_psi::{
+    NominalDeclarationIdentity, ScalarDomainDeclaration, ScalarDomainEstablishmentRoute,
+    ScalarDomainPredicate, ScalarQualificationCatalog, ScalarQualificationSet,
+    StructuralDomainDeclaration, StructuralDomainPredicate, StructuralEstablishmentRoute,
+    StructuralQualificationChange, TerminalIdentityIndex, TerminalIdentityTable,
+    TerminalIdentityTableBuilder,
+};
+
+use crate::lowering::body::{DomainInstance, DomainSet, Policy, Qualification, ValueType};
+use crate::lowering::{Unserved, refuse};
+
+/// Structural declarations retain the exact source and carrier that produced
+/// each row. The qualification owner extends this catalog during lowering.
+#[derive(Default)]
+pub(crate) struct StructuralDomains {
+    pub declarations: Vec<StructuralDomainDeclaration>,
+    pub source_bindings: Vec<(DomainInstance, StructuralTypeId, StructuralDomainId)>,
+}
+
+pub(crate) fn domain_identity(
+    typed: &crate::source_state::TypedTrees,
+    sources: &[(source_text::SourceId, [u8; 32])],
+    instance: DomainInstance,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
+    let declaration =
+        crate::lowering::declare::nominal(typed, sources, instance.declaration, identities)?;
+    let exact = identities
+        .text(declaration)
+        .ok_or("domain application lost its retained declaration identity")?;
+    let identity = typed.domain_application_identity(
+        instance.declaration,
+        instance.identity,
+        exact,
+        sources,
+    )?;
+    Ok(identities.intern(&identity))
+}
+
+/// Publish the complete evaluated rules after callable declarations exist.
+/// Binding here uses the same source records and application commitments as
+/// normal lowering; the snapshot's descriptive bytes alone grant nothing.
+pub(crate) fn publish_access_plans(
+    diagnostic: MachineId,
+    source: &crate::lowering::read::Program<'_>,
+    module: &mut terminal_psi::TerminalModule,
+) -> Checked<()> {
+    use crate::source_state::domain::AccessPlanJudgment;
+    let unavailable = |detail| {
+        refuse(
+            diagnostic,
+            Construct::Machine,
+            Unserved::Declaration(detail),
+        )
+    };
+    let typed = source.typed;
+    let mut identities = std::mem::take(&mut module.identities).into_builder();
+    let result = (|| {
+        let sources = match source_admission::source_identity::toolchain_source_identities(
+            typed.symbols.source_files(),
+        ) {
+            Ok(sources) => sources,
+            Err(_) if identities.is_invocation_scoped() => Vec::new(),
+            Err(_) => return Err(unavailable("access rules lost their source identity")),
+        };
+        let domains = source
+            .declared_domains
+            .iter()
+            .filter_map(|declared| {
+                let ValueType::Record(carrier, _, _) = declared.carrier else {
+                    return None;
+                };
+                Some((declared.instance, carrier, false))
+            })
+            .chain(
+                source
+                    .byte_domains
+                    .iter()
+                    .map(|declared| (declared.source, declared.carrier, true)),
+            );
+        for (instance, carrier, byte_domain) in domains {
+            let definition = source.domain_theory(diagnostic, instance)?;
+            let Some(policy) = &definition.access_policy else {
+                continue;
+            };
+            let AccessPlanJudgment::Checked(checked) = &policy.plan else {
+                continue;
+            };
+            let identity =
+                domain_identity(typed, &sources, instance, &mut identities).map_err(unavailable)?;
+            let identity = if byte_domain {
+                let carrier_identity = module
+                    .structural_type(carrier)
+                    .ok_or_else(|| unavailable("byte access rules lost their exact carrier"))?
+                    .identity;
+                crate::lowering::lower::places::byte_domain_identity(
+                    &mut identities,
+                    identity,
+                    carrier_identity,
+                )
+                .map_err(unavailable)?
+            } else {
+                identity
+            };
+            let mut matches = module
+                .structural_domains
+                .iter_mut()
+                .filter(|row| row.identity == identity && row.carrier == carrier);
+            let domain = matches
+                .next()
+                .ok_or_else(|| unavailable("access rules lost their exact declared domain"))?;
+            if matches.next().is_some() || domain.access_policy.is_some() {
+                return Err(unavailable(
+                    "access rules have more than one canonical domain owner",
+                ));
+            }
+            let subject = typed
+                .closed_data_definition(definition.target_type)
+                .ok_or_else(|| unavailable("access rules have no exact subject declaration"))?;
+            let authority = crate::source_state::reflection::construction::schema_query_authority(
+                typed,
+                definition.symbol,
+                subject.symbol,
+            )
+            .map_err(|_| unavailable("access rules lost their original query author"))?;
+            if checked.normalized.schema.authority() != &authority {
+                return Err(unavailable(
+                    "access rules changed their subject query's original visibility",
+                ));
+            }
+            let regions = source.access_plan_regions(
+                diagnostic,
+                carrier,
+                definition.target_type,
+                &checked.normalized.schema,
+                &mut identities,
+            )?;
+            let mut requested = Vec::new();
+            requested.extend(checked.normalized.issuance.iter().flatten().cloned());
+            for (_, callers) in checked
+                .normalized
+                .readers
+                .iter()
+                .chain(&checked.normalized.writers)
+            {
+                requested.extend(callers.iter().cloned());
+            }
+            requested.sort_unstable();
+            requested.dedup();
+            let bindings =
+                crate::source_state::reflection::construction::callable_description_sources(
+                    typed, &requested,
+                )
+                .map_err(|_| {
+                    unavailable("access caller descriptions lost their exact source applications")
+                })?;
+            let mut callers = Vec::with_capacity(bindings.len());
+            for (description, selected, _) in bindings {
+                let route = crate::lowering::declare::access_caller_route(
+                    typed,
+                    &sources,
+                    &selected,
+                    &mut identities,
+                )
+                .map_err(unavailable)?;
+                callers.push((description.clone(), route));
+            }
+            callers.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+            let bound = checked.normalized.clone().try_bind(
+                |node| {
+                    regions
+                        .binary_search_by_key(&node, |(node, _)| *node)
+                        .map(|index| regions[index].clone())
+                        .map_err(|_| unavailable("access rule has no exact canonical region"))
+                },
+                |description| {
+                    callers
+                        .binary_search_by(|(candidate, _)| candidate.cmp(&description))
+                        .map(|index| callers[index].clone())
+                        .map_err(|_| unavailable("access rule has no complete canonical caller"))
+                },
+            )?;
+            domain.access_policy = Some(bound);
+        }
+        Ok(())
+    })();
+    module.identities = identities.build();
+    result
+}
+
+#[derive(Default)]
+pub(crate) struct Qualifications {
+    pub catalog: ScalarQualificationCatalog,
+    pub identities: TerminalIdentityTableBuilder,
+    last_semantic_domain: u64,
+    domains: Vec<(DomainInstance, ScalarDomainId)>,
+    policies: Vec<(ScalarType, Policy, ScalarDomainId)>,
+    issuers: Vec<(MachineId, ScalarDomainId, u32)>,
+    /// The module's structural domain catalog, in identity order.
+    pub structural: Vec<StructuralDomainDeclaration>,
+    /// Each used record domain by its declaration, and its catalog identity.
+    structural_domains: Vec<(DomainInstance, StructuralTypeId, StructuralDomainId)>,
+    structural_issuers: Vec<(MachineId, StructuralDomainId, u32)>,
+    /// Explicit structural casts, in machine and edge order.
+    pub structural_changes: Vec<StructuralQualificationChange>,
+}
+
+/// Which declared route an issuer restriction names.
+#[derive(Clone, Copy)]
+enum RouteKind {
+    ExactMachine,
+    CheckedRequirement,
+    BoundaryRequirement,
+}
+
+/// A domain's issuer restriction in canonical order, and each body that may
+/// issue through it with the ordinal of its route there. `None` is no
+/// restriction; `Some` of nothing permits nobody. One builder serves both
+/// domain families, so a scalar and a record domain written the same way
+/// have the same routes.
+fn establishment_routes<R: Ord>(
+    typed: &crate::source_state::TypedTrees,
+    source: &crate::lowering::read::Program<'_>,
+    sources: &[(source_text::SourceId, [u8; 32])],
+    builder: &mut TerminalIdentityTableBuilder,
+    definition: &crate::source_state::domain::DomainDefinition,
+    unavailable: &impl Fn(&'static str) -> terminal_check_tables::Refusal,
+    make: impl Fn(RouteKind, NominalDeclarationIdentity, TerminalIdentityIndex) -> R,
+) -> Checked<Option<(Vec<R>, Vec<(MachineId, u32)>)>> {
+    let routes = match definition.issuance() {
+        crate::source_state::domain::DomainIssuance::Unrestricted => return Ok(None),
+        crate::source_state::domain::DomainIssuance::Planned(_) => {
+            return Err(unavailable(
+                "domain access plan has no closed issuance declaration",
+            ));
+        }
+        crate::source_state::domain::DomainIssuance::Only(routes) => routes,
+    };
+    let mut retained = Vec::with_capacity(routes.len());
+    let mut issuers = Vec::new();
+    for route in routes {
+        let ordinal = u32::try_from(retained.len())
+            .map_err(|_| unavailable("domain issuer ordinal overflow"))?;
+        match route {
+            declaration_contracts::DomainEstablishmentRoute::ExactMachine { machine } => {
+                issuers.extend(
+                    source.symbols.iter().filter_map(|(body, symbol)| {
+                        (*symbol == *machine).then_some((body, ordinal))
+                    }),
+                );
+                let declaration =
+                    crate::lowering::declare::semantic_identity(typed, *machine, builder)
+                        .map_err(unavailable)?;
+                let machine = typed
+                    .machine_by_symbol(*machine)
+                    .ok_or_else(|| unavailable("domain issuer has no declaration"))?;
+                let callable = typed
+                    .machine_callable_identity_text(machine)
+                    .filter(|text| !text.is_empty())
+                    .ok_or_else(|| unavailable("domain issuer has no callable identity"))?;
+                retained.push(make(
+                    RouteKind::ExactMachine,
+                    NominalDeclarationIdentity::new(declaration),
+                    builder.intern(&callable),
+                ));
+            }
+            declaration_contracts::DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition,
+                requirement,
+            }
+            | declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: trait_definition,
+                requirement,
+            } => {
+                let boundary = matches!(
+                    route,
+                    declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement { .. }
+                );
+                let (owner, declared) = typed
+                    .trait_machine_signature(*requirement)
+                    .filter(|(owner, _)| {
+                        owner.symbol == *trait_definition && owner.is_boundary == boundary
+                    })
+                    .ok_or_else(|| {
+                        unavailable("domain route lost its exact requirement declaration")
+                    })?;
+                let callable = typed.trait_requirement_callable_identity_text(owner, declared);
+                if callable.is_empty() {
+                    return Err(unavailable("domain requirement has no callable identity"));
+                }
+                let declaration = NominalDeclarationIdentity::new(
+                    crate::lowering::declare::nominal(typed, sources, *requirement, builder)
+                        .map_err(unavailable)?,
+                );
+                let requirement_identity = builder.intern(&callable);
+                if boundary {
+                    retained.push(make(
+                        RouteKind::BoundaryRequirement,
+                        declaration,
+                        requirement_identity,
+                    ));
+                } else {
+                    for (body, symbol) in source.symbols.iter() {
+                        if typed.machine_by_symbol(*symbol).is_some_and(|machine| {
+                            typed
+                                .machine_trait_conformances(machine)
+                                .iter()
+                                .any(|edge| {
+                                    edge.symbol == *trait_definition
+                                        && edge.requirement_symbol == *requirement
+                                })
+                        }) {
+                            issuers.push((body, ordinal));
+                        }
+                    }
+                    retained.push(make(
+                        RouteKind::CheckedRequirement,
+                        declaration,
+                        requirement_identity,
+                    ));
+                }
+            }
+        }
+    }
+    let mut ordered: Vec<_> = retained.into_iter().enumerate().collect();
+    ordered.sort_unstable_by(|(_, left), (_, right)| left.cmp(right));
+    if ordered.windows(2).any(|pair| pair[0].1 == pair[1].1) {
+        return Err(unavailable("domain repeats an establishment route"));
+    }
+    for (_, ordinal) in &mut issuers {
+        *ordinal = u32::try_from(
+            ordered
+                .iter()
+                .position(|(original, _)| *original == *ordinal as usize)
+                .ok_or_else(|| unavailable("domain issuer order lost its route"))?,
+        )
+        .map_err(|_| unavailable("domain issuer ordinal overflow"))?;
+    }
+    Ok(Some((
+        ordered.into_iter().map(|(_, route)| route).collect(),
+        issuers,
+    )))
+}
+
+impl Qualifications {
+    pub fn runtime_membership(
+        &self,
+        machine: MachineId,
+        membership: &crate::lowering::body::RuntimeMembership,
+    ) -> Checked<terminal_psi::RuntimeDomainMembership> {
+        use crate::lowering::body::RuntimeMembershipSubject;
+        let unavailable = |what| refuse(machine, Construct::Machine, Unserved::Contract(what));
+        Ok(match &membership.subject {
+            RuntimeMembershipSubject::Scalar(subject) => {
+                let domain = self
+                    .domains
+                    .iter()
+                    .find(|(instance, _)| *instance == membership.domain)
+                    .map(|(_, domain)| *domain)
+                    .ok_or_else(|| {
+                        unavailable("runtime scalar membership lost its exact domain")
+                    })?;
+                terminal_psi::RuntimeDomainMembership::Scalar {
+                    subject: subject.clone(),
+                    domain,
+                }
+            }
+            RuntimeMembershipSubject::Structural {
+                root,
+                path,
+                version,
+                carrier,
+            } => {
+                let domain = self
+                    .structural_domains
+                    .iter()
+                    .find(|(instance, actual, _)| {
+                        *instance == membership.domain && actual == carrier
+                    })
+                    .map(|(_, _, domain)| *domain)
+                    .ok_or_else(|| {
+                        unavailable(
+                            "runtime structural membership lost its exact domain and carrier",
+                        )
+                    })?;
+                terminal_psi::RuntimeDomainMembership::Structural {
+                    root: *root,
+                    path: path.clone(),
+                    version: *version,
+                    domain,
+                }
+            }
+        })
+    }
+
+    pub fn declare(
+        diagnostic: MachineId,
+        source: Option<&crate::lowering::read::Program<'_>>,
+        identities: TerminalIdentityTable,
+        structural: StructuralDomains,
+    ) -> Checked<Self> {
+        let mut result = Self {
+            identities: identities.into_builder(),
+            last_semantic_domain: structural
+                .declarations
+                .iter()
+                .map(|domain| domain.semantic_domain.get())
+                .max()
+                .unwrap_or(0),
+            structural: structural.declarations,
+            structural_domains: structural.source_bindings,
+            ..Self::default()
+        };
+        let Some(source) = source else {
+            return Ok(result);
+        };
+        let typed = source.typed;
+        let sources = match source_admission::source_identity::toolchain_source_identities(
+            typed.symbols.source_files(),
+        ) {
+            Ok(sources) => sources,
+            // An invocation-local identity is not a portable claim about
+            // anonymous source. `nominal` retains that exact local scope.
+            Err(_) if result.identities.is_invocation_scoped() => Vec::new(),
+            Err(detail) => {
+                return Err(terminal_check_tables::Refusal {
+                    reason: terminal_check_tables::RefusalReason::Unsupported,
+                    machine: diagnostic,
+                    concerns: Construct::Machine,
+                    source_span: None,
+                    detail: format!("scalar domain source identity: {detail}"),
+                });
+            }
+        };
+        let unavailable = |detail| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(detail),
+            )
+        };
+        // The same logical domain can be displayed by several descriptor
+        // carriers. Prepare its semantic ID once; each carrier still retains
+        // its own declaration and must pass the existing theory comparison.
+        let key = |instance: DomainInstance| {
+            (
+                instance.declaration.arena_index(),
+                instance.declaration.generation(),
+                instance.identity.0,
+            )
+        };
+        let mut structural_instances: Vec<_> = source
+            .declared_domains
+            .iter()
+            .filter(|declared| matches!(declared.carrier, ValueType::Record(..)))
+            .map(|declared| key(declared.instance))
+            .collect();
+        structural_instances.sort_unstable();
+        structural_instances.dedup();
+        let mut structural_semantics: Vec<_> = structural_instances
+            .into_iter()
+            .map(|instance| (instance, None))
+            .collect();
+        for declared in &source.declared_domains {
+            let symbol = declared.instance;
+            let carrier = match declared.carrier {
+                ValueType::Scalar(carrier, _) => carrier,
+                ValueType::Record(_, _, _) => {
+                    let position = structural_semantics
+                        .binary_search_by_key(&key(symbol), |(instance, _)| *instance)
+                        .map_err(|_| {
+                            unavailable("structural domain lost its prepared semantic identity")
+                        })?;
+                    let semantic_domain = match structural_semantics[position].1 {
+                        Some(id) => id,
+                        None => {
+                            let id = result.next_semantic_domain(&unavailable)?;
+                            structural_semantics[position].1 = Some(id);
+                            id
+                        }
+                    };
+                    result.declare_structural(
+                        diagnostic,
+                        source,
+                        &sources,
+                        declared,
+                        semantic_domain,
+                    )?;
+                    continue;
+                }
+                ValueType::Rigid(_) => {
+                    return Err(unavailable("domain retains an unresolved carrier"));
+                }
+            };
+            let semantic_domain = result.next_semantic_domain(&unavailable)?;
+            let builder = &mut result.identities;
+            let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
+                .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
+            let definition = source.domain_theory(diagnostic, symbol)?;
+            if definition.access_policy.as_ref().is_some_and(|policy| {
+                matches!(&policy.plan, crate::source_state::domain::AccessPlanJudgment::Checked(plan)
+                    if plan.normalized.has_operation_rules())
+            }) {
+                return Err(unavailable(
+                    "scalar domain access rules need retained operation checking",
+                ));
+            }
+            let identity =
+                domain_identity(typed, &sources, symbol, builder).map_err(unavailable)?;
+            let mut predicate =
+                declared
+                    .predicate
+                    .clone()
+                    .map(|proposition| ScalarDomainPredicate {
+                        subject: semantic_vocabulary::ValueId::new(1).expect("one is a subject"),
+                        proposition,
+                    });
+            let establishment_routes = match establishment_routes(
+                typed,
+                source,
+                &sources,
+                builder,
+                definition,
+                &unavailable,
+                |kind, declaration, identity| match kind {
+                    RouteKind::ExactMachine => ScalarDomainEstablishmentRoute::ExactMachine {
+                        declaration,
+                        machine_identity: identity,
+                    },
+                    RouteKind::CheckedRequirement => {
+                        ScalarDomainEstablishmentRoute::CheckedRequirement {
+                            declaration,
+                            requirement_identity: identity,
+                        }
+                    }
+                    RouteKind::BoundaryRequirement => {
+                        ScalarDomainEstablishmentRoute::BoundaryRequirement {
+                            declaration,
+                            requirement_identity: identity,
+                        }
+                    }
+                },
+            )? {
+                None => None,
+                Some((routes, issuers)) => {
+                    result.issuers.extend(
+                        issuers
+                            .into_iter()
+                            .map(|(body, ordinal)| (body, id, ordinal)),
+                    );
+                    Some(routes)
+                }
+            };
+            if predicate.is_none()
+                && establishment_routes
+                    .as_ref()
+                    .is_some_and(|routes| !routes.is_empty())
+            {
+                predicate = Some(ScalarDomainPredicate {
+                    subject: semantic_vocabulary::ValueId::new(1).expect("one is a subject"),
+                    proposition: semantic_vocabulary::Proposition::Truth,
+                });
+            }
+            result.catalog.domains.push(ScalarDomainDeclaration {
+                required_memberships: Some(Vec::new()),
+                predicate,
+                id,
+                semantic_domain,
+                identity,
+                carrier,
+                establishment_routes,
+            });
+            result.domains.push((symbol, id));
+        }
+        Ok(result)
+    }
+
+    fn next_semantic_domain(
+        &mut self,
+        unavailable: &impl Fn(&'static str) -> terminal_check_tables::Refusal,
+    ) -> Checked<DomainSemanticId> {
+        self.last_semantic_domain = self
+            .last_semantic_domain
+            .checked_add(1)
+            .ok_or_else(|| unavailable("semantic domain identity overflow"))?;
+        DomainSemanticId::new(self.last_semantic_domain)
+            .ok_or_else(|| unavailable("semantic domain identity overflow"))
+    }
+
+    /// A cast's predicate/issuer completion and a result's forwarding retain
+    /// their exact values and edges. The checker judges them against the
+    /// declared theory and actual callable, independently of the reader.
+    pub fn complete(
+        &mut self,
+        machine: &terminal_psi::TerminalMachine,
+        coercions_start: usize,
+    ) -> Checked<()> {
+        use terminal_psi::{
+            ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite, Terminator,
+        };
+        let mut returns = Vec::new();
+        let mut values: Vec<_> =
+            terminal_semantics::scalar_qualifications::values(machine).collect();
+        values.sort_unstable_by_key(|value| value.id);
+        let value = |id| {
+            values
+                .binary_search_by_key(&id, |value| value.id)
+                .ok()
+                .map(|index| values[index])
+        };
+        let coercions = self
+            .catalog
+            .coercions
+            .get(coercions_start..)
+            .ok_or_else(|| {
+                refuse(
+                    machine.id,
+                    Construct::Machine,
+                    Unserved::Type("qualification slice is outside its producer"),
+                )
+            })?;
+        for coercion in coercions {
+            if coercion.machine != machine.id {
+                return Err(refuse(
+                    machine.id,
+                    Construct::Edge(coercion.edge),
+                    Unserved::Type("qualification slice contains another machine"),
+                ));
+            }
+            let source = value(coercion.source).ok_or_else(|| {
+                refuse(
+                    machine.id,
+                    Construct::Edge(coercion.edge),
+                    Unserved::Type("qualification source"),
+                )
+            })?;
+            let destination = value(coercion.destination).ok_or_else(|| {
+                refuse(
+                    machine.id,
+                    Construct::Edge(coercion.edge),
+                    Unserved::Type("qualification destination"),
+                )
+            })?;
+            let before = self.members(machine.id, source.qualifications)?;
+            for id in self
+                .members(machine.id, destination.qualifications)?
+                .iter()
+                .filter(|id| !before.contains(id))
+            {
+                let domain = self
+                    .catalog
+                    .domains
+                    .iter()
+                    .find(|domain| domain.id == *id)
+                    .ok_or_else(|| {
+                        refuse(
+                            machine.id,
+                            Construct::Edge(coercion.edge),
+                            Unserved::Type("qualification domain"),
+                        )
+                    })?;
+                let origin = if domain.establishment_routes.is_some() {
+                    match self
+                        .issuers
+                        .iter()
+                        .find(|(issuer, declared, _)| *issuer == machine.id && *declared == *id)
+                        .map(|(_, _, route)| *route)
+                    {
+                        Some(route) => ScalarReturnOrigin::Established { route },
+                        None => ScalarReturnOrigin::Forwarded,
+                    }
+                } else if domain.predicate.is_some() {
+                    ScalarReturnOrigin::Proved
+                } else {
+                    continue;
+                };
+                returns.push(ScalarReturnQualification {
+                    site: ScalarReturnSite::Completion {
+                        argument_ordinal: coercion.argument_ordinal,
+                    },
+                    machine: machine.id,
+                    edge: coercion.edge,
+                    source: source.id,
+                    result: destination.id,
+                    domain: *id,
+                    origins: vec![origin],
+                });
+            }
+        }
+        if let Some(result) = machine.result.scalar_ref() {
+            for domain in
+                self.catalog
+                    .sets
+                    .iter()
+                    .filter(|set| set.id == result.qualifications)
+                    .flat_map(|set| &set.domains)
+                    .filter(|id| {
+                        self.catalog.domains.iter().any(|domain| {
+                            domain.id == **id && domain.establishment_routes.is_some()
+                        })
+                    })
+            {
+                for block in &machine.blocks {
+                    if let Terminator::Return { edge, value, .. } = block.terminator {
+                        returns.push(ScalarReturnQualification {
+                            site: ScalarReturnSite::NormalExit,
+                            machine: machine.id,
+                            edge,
+                            source: value,
+                            result: result.id,
+                            domain: *domain,
+                            origins: vec![ScalarReturnOrigin::Forwarded],
+                        });
+                    }
+                }
+            }
+        }
+        returns.sort_unstable_by_key(|row| (row.machine, row.edge, row.domain));
+        self.catalog.returns.extend(returns);
+        Ok(())
+    }
+
+    /// Retain the generic predicate over the domain's own carrier for
+    /// declaration formation. Field sites separately prove the same clauses
+    /// at their declared storage paths (`RecordType::requires`).
+    fn declare_structural(
+        &mut self,
+        diagnostic: MachineId,
+        source: &crate::lowering::read::Program<'_>,
+        sources: &[(source_text::SourceId, [u8; 32])],
+        declared: &crate::lowering::read::DeclaredDomain,
+        semantic_domain: DomainSemanticId,
+    ) -> Checked<()> {
+        let typed = source.typed;
+        let unavailable = |detail| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(detail),
+            )
+        };
+        let symbol = declared.instance;
+        let ValueType::Record(carrier, _, _) = declared.carrier else {
+            return Err(unavailable("structural domain has a nonstructural carrier"));
+        };
+        let definition = source.domain_theory(diagnostic, symbol)?;
+        // A complete empty theory has an explicit Truth predicate in the
+        // saved representation. None continues to mean unavailable theory.
+        let predicate = declared
+            .predicate
+            .clone()
+            .or_else(|| {
+                declared
+                    .complete_predicate_theory
+                    .then_some(semantic_vocabulary::Proposition::Truth)
+            })
+            .map(|proposition| {
+                Ok::<_, terminal_check_tables::Refusal>(StructuralDomainPredicate {
+                    subject: crate::lowering::body::self_place()
+                        .ok_or_else(|| unavailable("record domain subject identity"))?,
+                    proposition,
+                })
+            })
+            .transpose()?;
+        let id = StructuralDomainId::new(self.structural.len() as u64 + 1)
+            .ok_or_else(|| unavailable("record domain identity overflow"))?;
+        let identity =
+            domain_identity(typed, sources, symbol, &mut self.identities).map_err(unavailable)?;
+        let identity = if source.records.get(carrier).is_some_and(|record| {
+            matches!(record.shape,
+            crate::lowering::StorageShape::ByteSequence(bytes) if bytes.is_shared_readable_view())
+        }) {
+            let carrier_identity = self.identities.intern(
+                &source
+                    .records
+                    .get(carrier)
+                    .ok_or_else(|| unavailable("byte domain lost its descriptor carrier"))?
+                    .identity,
+            );
+            crate::lowering::lower::places::byte_domain_identity(
+                &mut self.identities,
+                identity,
+                carrier_identity,
+            )
+            .map_err(unavailable)?
+        } else {
+            identity
+        };
+        // A governed domain's access plan decides who may issue it. An
+        // evaluated plan reads as its routes below; a plan nobody has run
+        // shows no machine to be an issuer, so the lowered form permits
+        // nobody. Its values still pass whole through formals, results and
+        // fields.
+        let planned = matches!(
+            definition.issuance(),
+            crate::source_state::domain::DomainIssuance::Planned(_)
+        );
+        let establishment_routes = if planned {
+            Some(Vec::new())
+        } else {
+            match establishment_routes(
+                typed,
+                source,
+                sources,
+                &mut self.identities,
+                definition,
+                &unavailable,
+                |kind, declaration, identity| match kind {
+                    RouteKind::ExactMachine => StructuralEstablishmentRoute::ExactMachine {
+                        declaration,
+                        machine_identity: identity,
+                    },
+                    RouteKind::CheckedRequirement => {
+                        StructuralEstablishmentRoute::CheckedRequirement {
+                            declaration,
+                            requirement_identity: identity,
+                        }
+                    }
+                    RouteKind::BoundaryRequirement => {
+                        StructuralEstablishmentRoute::BoundaryRequirement {
+                            declaration,
+                            requirement_identity: identity,
+                        }
+                    }
+                },
+            )? {
+                None => None,
+                Some((routes, issuers)) => {
+                    self.structural_issuers.extend(
+                        issuers
+                            .into_iter()
+                            .map(|(body, ordinal)| (body, id, ordinal)),
+                    );
+                    Some(routes)
+                }
+            }
+        };
+        let subject_owner = typed
+            .closed_data_definition(definition.target_type)
+            .map_or(definition.symbol, |subject| subject.symbol);
+        let subject_identity = crate::source_state::reflection::construction::schema_type_identity(
+            typed,
+            definition.target_type,
+            subject_owner,
+        )
+        .map_err(|_| unavailable("domain lost its exact selected subject application"))?;
+        self.structural.push(StructuralDomainDeclaration {
+            subject_identity: self.identities.intern(&subject_identity),
+            access_policy: None,
+            required_memberships: Some(Vec::new()),
+            complete_predicate_theory: declared.complete_predicate_theory,
+            predicate,
+            id,
+            semantic_domain,
+            identity,
+            carrier,
+            content_projection: None,
+            byte_predicate: None,
+            establishment_routes,
+        });
+        self.structural_domains.push((symbol, carrier, id));
+        Ok(())
+    }
+
+    /// The whole-value domains a record type carries, sorted. A policy has no
+    /// meaning on a record.
+    pub fn structural(
+        &self,
+        machine: MachineId,
+        carrier: StructuralTypeId,
+        qualification: Qualification,
+    ) -> Checked<Vec<StructuralDomainId>> {
+        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        if qualification.policy.is_some() {
+            return Err(unavailable("arithmetic policy on a data type"));
+        }
+        let mut domains = Vec::with_capacity(DomainSet::CAPACITY);
+        for symbol in qualification.domains.members() {
+            let id = self
+                .structural_domains
+                .iter()
+                .find(|(declared, actual_carrier, _)| {
+                    *declared == symbol && *actual_carrier == carrier
+                })
+                .map(|(_, _, id)| *id)
+                .ok_or_else(|| {
+                    unavailable("data qualification has no retained domain declaration")
+                })?;
+            if self
+                .structural
+                .iter()
+                .find(|domain| domain.id == id)
+                .is_none_or(|domain| domain.carrier != carrier)
+            {
+                return Err(unavailable("data qualification has another carrier"));
+            }
+            domains.push(id);
+        }
+        domains.sort_unstable();
+        Ok(domains)
+    }
+
+    /// The establishment row `machine` owes for each routed domain a cast in
+    /// it adds: the route it issues by. A route-free domain needs none.
+    pub fn structural_establishments(
+        &self,
+        machine: MachineId,
+        added: &[StructuralDomainId],
+    ) -> Checked<Vec<terminal_psi::ResultQualificationEstablishment>> {
+        let mut rows = Vec::new();
+        for id in added {
+            let routed = self
+                .structural
+                .iter()
+                .find(|domain| domain.id == *id)
+                .is_some_and(|domain| domain.establishment_routes.is_some());
+            if !routed {
+                continue;
+            }
+            let Some(route) = self
+                .structural_issuers
+                .iter()
+                .find(|(issuer, domain, _)| *issuer == machine && *domain == *id)
+                .map(|(_, _, route)| *route)
+            else {
+                // An absent issuer row claims no new authority. The receiver
+                // must prove an existing fact on this cast's exact source.
+                continue;
+            };
+            rows.push(terminal_psi::ResultQualificationEstablishment { domain: *id, route });
+        }
+        rows.sort_unstable();
+        Ok(rows)
+    }
+
+    pub fn members(
+        &self,
+        machine: MachineId,
+        set: ScalarQualificationSetId,
+    ) -> Checked<&[ScalarDomainId]> {
+        if set.is_empty() {
+            return Ok(&[]);
+        }
+        self.catalog
+            .sets
+            .iter()
+            .find(|row| row.id == set)
+            .map(|row| row.domains.as_slice())
+            .ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("scalar qualification set has no declaration"),
+                )
+            })
+    }
+
+    pub fn scalar(
+        &mut self,
+        machine: MachineId,
+        carrier: ScalarType,
+        qualification: Qualification,
+    ) -> Checked<ScalarQualificationSetId> {
+        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        if qualification.is_none() {
+            return Ok(ScalarQualificationSetId::ZERO);
+        }
+        let mut domains = Vec::with_capacity(DomainSet::CAPACITY + 1);
+        for symbol in qualification.domains.members() {
+            let id = self
+                .domains
+                .iter()
+                .find(|(declared, _)| *declared == symbol)
+                .map(|(_, id)| *id)
+                .ok_or_else(|| {
+                    unavailable("scalar qualification has no retained domain declaration")
+                })?;
+            if self
+                .catalog
+                .domains
+                .iter()
+                .find(|domain| domain.id == id)
+                .is_none_or(|domain| domain.carrier != carrier)
+            {
+                return Err(unavailable("scalar qualification has another carrier"));
+            }
+            domains.push(id);
+        }
+        if let Some(policy) = qualification.policy {
+            let id = match self
+                .policies
+                .iter()
+                .find(|(ty, declared, _)| *ty == carrier && *declared == policy)
+            {
+                Some((_, _, id)) => *id,
+                None => {
+                    let ScalarType::Integer(_) = carrier else {
+                        return Err(unavailable("arithmetic policy on a noninteger carrier"));
+                    };
+                    let id = ScalarDomainId::new(self.catalog.domains.len() as u64 + 1)
+                        .ok_or_else(|| unavailable("scalar policy identity overflow"))?;
+                    let arithmetic = Policy::domain(Some(policy));
+                    let identity =
+                        terminal_semantics::scalar_qualifications::arithmetic_policy_identity(
+                            arithmetic,
+                        )
+                        .ok_or_else(|| unavailable("arithmetic policy identity"))?;
+                    let semantic_domain = self.next_semantic_domain(&unavailable)?;
+                    self.catalog.domains.push(ScalarDomainDeclaration {
+                        required_memberships: Some(Vec::new()),
+                        predicate: None,
+                        id,
+                        semantic_domain,
+                        identity: self.identities.intern(identity),
+                        carrier,
+                        establishment_routes: None,
+                    });
+                    self.policies.push((carrier, policy, id));
+                    id
+                }
+            };
+            domains.push(id);
+        }
+        domains.sort_unstable();
+        if let Some(set) = self.catalog.sets.iter().find(|set| set.domains == domains) {
+            return Ok(set.id);
+        }
+        let id = ScalarQualificationSetId::new(self.catalog.sets.len() as u64 + 1);
+        self.catalog
+            .sets
+            .push(ScalarQualificationSet { id, domains });
+        Ok(id)
+    }
+}

@@ -46,7 +46,7 @@ constructing a plan grants no reach and never edits a machine's reach row.
 Named decision: `required-issuance-choice`, settled 2026-11-10;
 [the design draft](../../drafts/designs/required_issuance_choice.md) records
 the migration. Every plan states who may introduce its domain qualification.
-`access::new_plan(@schema, issuance)` binds the semantic schema and that choice.
+`access::new_plan(&schema, issuance)` binds the semantic schema and that choice.
 The plan constructors and the view operations are ordinary machines of the
 core `access` module (`use omega::language::core::access;`); `AccessPlan` is
 data and owns none of them ([machines](../language/machines.md#static-declarations-and-explicit-state)).
@@ -58,7 +58,7 @@ data Issuance {
 }
 
 let plan: AccessPlan = access::new_plan(
-    @schema,
+    &schema,
     Issuance::Only { routes: [reflect::callable(choose_folder)] }
 );
 ```
@@ -108,10 +108,10 @@ The policy-construction operations are ordinary core/library APIs, not keywords:
 
 | Operation | Meaning |
 | --- | --- |
-| `access::allow_readers(@mut plan, region, callers)` | Restrict readers of this semantic region. |
-| `access::allow_writers(@mut plan, region, callers)` | Restrict writers of this semantic region. |
+| `access::allow_readers(&mut plan, region, callers)` | Restrict readers of this semantic region. |
+| `access::allow_writers(&mut plan, region, callers)` | Restrict writers of this semantic region. |
 
-`TypeSchema::root(@schema)` denotes the whole semantic subject. A field region comes
+`TypeSchema::root(&schema)` denotes the whole semantic subject. A field region comes
 from `reflect::field(Type::field)`, not a string, field ordinal, address or layout
 offset. Caller lists contain `reflect::callable(...)` results for exact machines
 or exact trait machine requirements. These are homogeneous `CallableInfo`
@@ -129,7 +129,7 @@ qualification; whole-object replacement of governed storage is a write to its
 affected fields, not fresh establishment exempt from policy.
 
 The policy may carry per-region observation demands using the existing Stable,
-External and Atomic operation descriptions below. `access::observe(@mut plan,
+External and Atomic operation descriptions below. `access::observe(&mut plan,
 field, behavior)` denotes ordinary construction of such a demand, not authority
 to implement it. Caller authorization has no special atomic grammar or second
 atomic caller allowlist: load needs read permission, store needs write permission,
@@ -141,7 +141,7 @@ custody are independently checked by their operation/backing contracts.
 and import rules apply. A domain-qualified value/view replaces the separate
 `Access<P, T>` surface; restricted projections and their checked operations remain.
 
-Ordinary `@T`, `@mut T`, and `@write T` loans, together with domain-owned access
+Ordinary `&T`, `&mut T`, and `&write T` loans, together with domain-owned access
 restrictions, suffice when the whole-value loan and ordinary projections express
 the intended operations. Access policies express field-specific operations,
 exposure, and observation behavior. Access or mutation outside ordinary Omega
@@ -244,7 +244,7 @@ that the schema describes the physical device.
 An access-qualified value/view interprets one exact qualified owned extent or
 ordinary borrow; the qualification adds no authority. There is no source
 `ExtentLoan` or accepted-admission
-object. Weakening a borrow to unqualified `@Extent` loses `Granted` and cannot
+object. Weakening a borrow to unqualified `&Extent` loses `Granted` and cannot
 establish an access view. Ordinary owned RAM remains ordinary `T` and lvalue
 borrows; access views retain the selected field policy and exact source authority.
 
@@ -263,7 +263,7 @@ loans would falsely promise stable/exclusive backing. It never turns hardware
 mutation into an ordinary exclusive reference merely by qualifying `T`.
 Borrowing a view descriptor mutably cannot enable a denied field operation or
 prove exclusive ownership of the device. There is no unwrap to unrestricted
-`@mut T`. Casts retain access and observation restrictions, including during an
+`&mut T`. Casts retain access and observation restrictions, including during an
 invariant window; a window relaxes predicate establishment, not authorization.
 An ordinary lender resumes its original access only after the complete temporary
 qualified loan cohort ends.
@@ -441,8 +441,8 @@ and read-patch-write reserve the whole container. Logically disjoint bitfields
 therefore cannot acquire overlapping exclusive RMW access. A destructive read
 returns one whole owned snapshot before pure field projection; it derives
 `DestructiveRead`, not `Readable`. Granular accessor requirements take explicit
-ordinary parameters: `Readable<Accessor, Value>::read(accessor: @Accessor)`,
-`DestructiveRead<Accessor, Value>::take(accessor: @mut Accessor)`, and mutable
+ordinary parameters: `Readable<Accessor, Value>::read(accessor: &Accessor)`,
+`DestructiveRead<Accessor, Value>::take(accessor: &mut Accessor)`, and mutable
 accessor parameters followed by the value for `Writable` and `Swappable`.
 `Accessor` and `Value` are ordinary declared trait parameters. Named
 implementations supply these operations; accessor data does not satisfy a

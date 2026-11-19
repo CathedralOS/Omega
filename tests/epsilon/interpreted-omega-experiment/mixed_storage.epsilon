@@ -1,0 +1,42 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+  byte_value: u8;
+  signed_value: i32;
+  byte_values: [u8; 2];
+  signed_values: [i32; 2];
+}
+
+machine Main::main(&mut self) {
+  assert self.byte_value == 0;
+  assert self.signed_value == 0;
+  assert self.byte_values[0] == 0;
+  assert self.signed_values[0] == 0;
+  self.byte_value = 255;
+  self.signed_value = -1;
+  self.byte_values[0] = 128;
+  self.signed_values[0] = 300;
+  self.byte_value = self.byte_value - 190;
+  assert self.signed_value == -1;
+  assert self.byte_values[0] == 128;
+  assert self.signed_values[0] == 300;
+  self.byte_values[1] = self.byte_value + 1;
+  self.signed_value = self.signed_value - 1;
+  self.signed_values[1] = self.signed_values[0] + 1;
+  assert self.byte_value == 65;
+  assert self.signed_value == -2;
+  assert self.byte_values[0] == 128;
+  assert self.byte_values[1] == 66;
+  assert self.signed_values[0] == 300;
+  assert self.signed_values[1] == 301;
+  let first: i32 = self.byte_value;
+  let second: i32 = self.byte_values[1];
+  self.console.write_byte(first);
+  self.console.write_byte(second);
+}

@@ -1,0 +1,560 @@
+//! The structural callable judgment used by specialization and record inspection.
+//! Both use the published contract even when a particular generated call could
+//! meet a stronger requirement. A comparison needing a proof stays deferred.
+
+use super::{Served, Stop, unserved};
+use crate::source_state::TypedTrees;
+use crate::source_state::callable_signature_shapes::CallableShapeMismatch;
+use crate::source_state::data::{
+    TypeParameter, TypeParameterKind, type_parameter_demands_stronger_properties,
+};
+use crate::source_state::expression::ExpressionNode;
+use crate::source_state::machine::Machine;
+use crate::source_state::signature::{SignatureContractKind, StateSignature};
+use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+use crate::source_state::types::TypeReferenceHandle;
+use symbols::SymbolHandle;
+
+/// What a binder-side declaration stands for while the callback is compared
+/// with the binder.
+#[derive(Clone, Copy)]
+pub(super) enum Bound {
+    /// An enclosing type parameter, bound at this call.
+    Type(TypeReferenceHandle),
+    /// The binder's type parameter, matched by the callback's own one.
+    Parameter(SymbolHandle),
+}
+
+/// A nominal parameter selects its requirement on the exact receiving trait
+/// application. A machine with the same signature can satisfy another trait.
+pub(super) fn require_nominal_selection(
+    program: &TypedTrees,
+    parameter: SymbolHandle,
+    chosen: SymbolHandle,
+    requirement: SymbolHandle,
+    receiving: SymbolHandle,
+    arguments: &[TypeReferenceHandle],
+) -> Served<()> {
+    let required = receiving_scope(program, parameter, receiving, arguments)?;
+    let matches = |scope: &AppliedTraitScope<'_>| scope.same_application(program, &required);
+    if program.symbols.get(chosen).kind == symbols::SymbolKind::MachineParameter {
+        let owner = program.symbols.get(chosen).parent;
+        let formals = program.declaration_type_parameters(owner);
+        let formal = formals.iter().find(|formal| formal.symbol == chosen);
+        let Some(TypeParameterKind::Machine {
+            contract:
+                crate::source_state::data::MachineParameterContract::Nominal {
+                    receiving_trait,
+                    receiving_arguments,
+                    requirement: supplied,
+                    ..
+                },
+        }) = formal.map(|formal| &formal.kind)
+        else {
+            return Err(Stop::Rejected(format!(
+                "forwarded callback `{}` has no binding to the required trait",
+                program.symbols.name(chosen),
+            )));
+        };
+        let scope = receiving_scope(program, chosen, *receiving_trait, receiving_arguments)?;
+        if *supplied != requirement || !matches(&scope) {
+            return Err(Stop::Rejected(format!(
+                "forwarded callback `{}` has another requirement binding",
+                program.symbols.name(chosen),
+            )));
+        }
+        return Ok(());
+    }
+    let callback = program
+        .machine_by_symbol(chosen)
+        .or_else(|| {
+            program
+                .unique_machine_by_entry_state_symbol(chosen)
+                .map(|(machine, _)| machine)
+        })
+        .ok_or(unserved("a nominal callback lost its selected machine"))?;
+    let selected_entry = program
+        .machine_states(callback)
+        .first()
+        .ok_or(unserved("a nominal callback has no entry state"))?;
+    let owned = program
+        .owned_conformance_realization(callback.symbol)
+        .filter(|(_, row)| {
+            row.requirement == requirement && row.realization_state == selected_entry.symbol
+        })
+        .and_then(|(conformance, _)| AppliedTraitScope::from_conformance(program, conformance));
+    let direct = program
+        .machine_trait_conformances(callback)
+        .iter()
+        .filter(|row| row.requirement_symbol == requirement)
+        .filter_map(|row| AppliedTraitScope::from_machine_conformance(program, callback, row));
+    if owned.into_iter().chain(direct).filter(matches).count() != 1 {
+        return Err(Stop::Rejected(format!(
+            "callback `{}` must satisfy the exact requirement of `{}` on its selected trait application",
+            program.symbols.name(callback.symbol),
+            program.symbols.name(parameter),
+        )));
+    }
+    Ok(())
+}
+
+fn receiving_scope<'program>(
+    program: &'program TypedTrees,
+    parameter: SymbolHandle,
+    receiving: SymbolHandle,
+    arguments: &[TypeReferenceHandle],
+) -> Served<AppliedTraitScope<'program>> {
+    let declaration = program
+        .trait_definition_by_symbol(receiving)
+        .ok_or(unserved(
+            "a nominal callback binder lost its receiving trait",
+        ))?;
+    AppliedTraitScope::new(
+        program,
+        declaration,
+        TraitApplicationArguments {
+            lexical_owner: program.symbols.get(parameter).parent,
+            enclosing_data_applications: &[],
+            arguments,
+            lifetimes: &[],
+        },
+    )
+    .ok_or(unserved(
+        "a nominal callback binder needs its complete receiving application",
+    ))
+}
+
+/// The callback must refine the published binder (generics.md). This checks
+/// the parts that need no proof: the same static parameter, the same
+/// parameter and result types once the call's arguments are substituted, no
+/// precondition the binder lacks, and no effect the binder rules out. A
+/// binder contract that only a refinement proof could discharge is unserved.
+pub(super) fn satisfies_binder(
+    program: &TypedTrees,
+    binder: &StateSignature,
+    machine: &Machine,
+    binder_description: &str,
+    bound: &[(SymbolHandle, Bound)],
+    applications: Option<&[TypeReferenceHandle]>,
+) -> Served<()> {
+    let substitutions = binder_shape(
+        program,
+        binder,
+        machine,
+        binder_description,
+        bound,
+        applications,
+    )?;
+    let callback = program.symbols.name(machine.symbol);
+    let refuse = |reason: &str| {
+        Stop::Rejected(format!(
+            "`{callback}` does not satisfy the callback binder of {binder_description}: {reason}"
+        ))
+    };
+    let required_parameters = program.state_signature_type_parameters(binder);
+    let entry = program
+        .machine_states(machine)
+        .first()
+        .ok_or(unserved("the callback has no entry"))?;
+    let binder_contracts = program.state_signature_contracts(binder);
+    if binder_contracts
+        .iter()
+        .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
+    {
+        return Err(unserved(
+            "a callback binder with its own contract needs a refinement proof",
+        ));
+    }
+    let contracts = program
+        .machine_contracts(machine)
+        .iter()
+        .chain(program.state_contracts(entry))
+        .collect::<Vec<_>>();
+    if contracts.iter().any(|contract| {
+        contract.kind == SignatureContractKind::Requires
+            && (!admits_types_only(program, contract)
+                || required_parameters.is_empty()
+                    && !program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .iter()
+                        .all(|fact| {
+                            let crate::source_state::domain::ProofFact::Expression(expression) =
+                                fact
+                            else {
+                                return false;
+                            };
+                            program.applied_static_type_predicate_value(*expression, &substitutions)
+                                == Some(true)
+                        }))
+    }) {
+        return Err(refuse(
+            "it declares a precondition on its inputs that the binder does not publish, so a caller of the binder could not establish it",
+        ));
+    }
+    // Only authored routes are known here. A private callback's inferred
+    // routes exist after lowering, so Terminal Psi closure compares them with
+    // the binder's `crashes none` (`ClosedReachMachineBinding`).
+    if contracts.iter().any(|contract| contract.is_crashes()) && binder.declares_no_crash_route {
+        return Err(refuse(
+            "it may crash, and the binder declares `crashes none`",
+        ));
+    }
+    if binder_contracts
+        .iter()
+        .any(|contract| contract.is_crashes())
+    {
+        return Err(unserved(
+            "a callback binder with explicit crash routes needs a refinement proof",
+        ));
+    }
+    if (machine.suspends && !binder.suspends) || (machine.blocks && !binder.blocks) {
+        return Err(refuse("it may suspend or block, and the binder does not"));
+    }
+    if binder.termination_guarantee != declaration_contracts::TerminationGuarantee::NoGuarantee {
+        return Err(unserved(
+            "a callback binder with a termination promise needs a refinement proof",
+        ));
+    }
+    Ok(())
+}
+
+/// Check callable types before copying a closed application. Its complete
+/// behavioral contract is retained separately for checked refinement.
+pub(super) fn binder_shape(
+    program: &TypedTrees,
+    binder: &StateSignature,
+    machine: &Machine,
+    binder_description: &str,
+    bound: &[(SymbolHandle, Bound)],
+    applications: Option<&[TypeReferenceHandle]>,
+) -> Served<Vec<(SymbolHandle, TypeReferenceHandle)>> {
+    let callback = program.symbols.name(machine.symbol);
+    let refuse = |reason: &str| {
+        Stop::Rejected(format!(
+            "`{callback}` does not satisfy the callback binder of {binder_description}: {reason}"
+        ))
+    };
+    let required_parameters = program.state_signature_type_parameters(binder);
+    let supplied_parameters = program.machine_callable_parameters(machine);
+    if !binder.conformance_bounds.is_empty()
+        || !binder.invokes.is_empty()
+        || !binder.native_callback_parameters.is_empty()
+        || required_parameters
+            .iter()
+            .any(|parameter| parameter.kind != TypeParameterKind::Type)
+    {
+        return Err(unserved(
+            "a callback binder needs a refinement proof for its full interface",
+        ));
+    }
+    if supplied_parameters.len() != required_parameters.len()
+        || !machine.conformance_bounds.is_empty()
+        || !supplied_parameters
+            .iter()
+            .zip(required_parameters)
+            .all(|(supplied, required)| {
+                supplied.kind == required.kind
+                    && properties_match(
+                        program,
+                        required,
+                        supplied,
+                        applications.filter(|_| required_parameters.len() == 1),
+                    )
+            })
+    {
+        return Err(refuse("its static parameters do not match the binder's"));
+    }
+    let mut map = bound.to_vec();
+    map.extend(
+        required_parameters
+            .iter()
+            .zip(supplied_parameters)
+            .map(|(required, supplied)| (required.symbol, Bound::Parameter(supplied.symbol))),
+    );
+    let entry = program
+        .machine_states(machine)
+        .first()
+        .ok_or(unserved("the callback has no entry"))?;
+    let required = program.state_signature_parameters(binder);
+    let supplied = program.state_parameters(entry);
+    if required.len() != supplied.len() {
+        return Err(refuse(&format!(
+            "the binder takes {} parameters and the callback takes {}",
+            required.len(),
+            supplied.len()
+        )));
+    }
+    let substitutions = map
+        .iter()
+        .filter_map(|(parameter, bound)| match bound {
+            Bound::Type(actual) => Some((*parameter, *actual)),
+            Bound::Parameter(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let corresponding_parameters = map
+        .iter()
+        .filter_map(|(parameter, bound)| match bound {
+            Bound::Parameter(supplied) => Some((*parameter, *supplied)),
+            Bound::Type(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let mismatches = program
+        .compare_callback_signature_types(
+            binder,
+            machine,
+            &substitutions,
+            &corresponding_parameters,
+        )
+        .map_err(unserved)?;
+    if let Some(mismatch) = mismatches.first() {
+        return Err(refuse(&match *mismatch {
+            CallableShapeMismatch::ParameterType { position } => format!(
+                "parameter {} `{}` does not have the type of the binder's `{}`",
+                position + 1,
+                supplied[position].name.as_str(),
+                required[position].name.as_str(),
+            ),
+            CallableShapeMismatch::ParameterMode { position } => format!(
+                "parameter {} `{}` does not have the passing mode of the binder's `{}`",
+                position + 1,
+                supplied[position].name.as_str(),
+                required[position].name.as_str(),
+            ),
+            CallableShapeMismatch::ReturnType => "its result type is not the binder's".to_owned(),
+            CallableShapeMismatch::ParameterArity { .. }
+            | CallableShapeMismatch::GenericArity { .. } => {
+                "its parameter count is not the binder's".to_owned()
+            }
+        }));
+    }
+    Ok(substitutions)
+}
+
+/// An ordinary callback must admit the binder's whole type family. A finite
+/// per-member expansion instead knows every application: extra multiplicity
+/// bounds must hold for every included field. This does not weaken any runtime
+/// precondition or permit a qualification change. Carry refinement still needs
+/// its ordinary evidence and is not inferred from field multiplicity.
+fn properties_match(
+    program: &TypedTrees,
+    required: &TypeParameter,
+    supplied: &TypeParameter,
+    applications: Option<&[TypeReferenceHandle]>,
+) -> bool {
+    if !type_parameter_demands_stronger_properties(required, supplied) {
+        return true;
+    }
+    if supplied.bounds.carry.is_some() && supplied.bounds.carry != required.bounds.carry {
+        return false;
+    }
+    applications.is_some_and(|types| {
+        types.iter().all(|reference| {
+            program
+                .type_reference_table
+                .contains_type_reference(*reference)
+                && program.stored_value_multiplicity(*reference) == supplied.bounds.multiplicity
+        })
+    })
+}
+
+/// Whether a `requires` clause only restricts which types the callback
+/// admits, such as `Kind == u32 || Kind == i32`. It names no runtime value,
+/// so a caller of the binder has nothing to establish: it is a fact about
+/// each field's application, and the specialization of every generated call
+/// rejects an application outside what the callback admits (reflection.md:
+/// "An unsupported included field rejects with its path and failed
+/// obligation").
+fn admits_types_only(
+    program: &TypedTrees,
+    contract: &crate::source_state::signature::SignatureContract,
+) -> bool {
+    use crate::source_state::domain::ProofFact;
+    let facts = program.proof_facts.span_or_empty(contract.facts);
+    !facts.is_empty()
+        && facts.iter().all(|fact| {
+            let ProofFact::Expression(root) = fact else {
+                return false;
+            };
+            let mut types_only = root.is_valid();
+            program.subtree_for_each(
+                *root,
+                crate::source_state::SubtreeEdges::default(),
+                |_, node| {
+                    types_only &= matches!(
+                        node,
+                        ExpressionNode::TypeExpression(_)
+                            | ExpressionNode::Boolean(_)
+                            | ExpressionNode::Binary(_)
+                            | ExpressionNode::Unary(_)
+                    );
+                },
+            );
+            types_only
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source_state::types::TypeReferenceNode;
+
+    #[test]
+    fn callback_binder_matches_named_outer_lifetimes_and_nested_type_arguments() {
+        use crate::source_state::name::Identifier;
+        use crate::source_state::signature::StateParameter;
+        use crate::source_state::state::State;
+        use crate::source_symbols::SymbolTableBuilder;
+        use symbols::{SymbolKind, SymbolNameRef};
+
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+        let callback = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("callback"));
+        let parameter = symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("T"));
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let mut outer = Machine {
+            symbol: owner,
+            name: Identifier::from("owner"),
+            lifetime_parameters: vec![Identifier::from("input")],
+            ..Default::default()
+        };
+        program.push_machine_state(
+            &mut outer,
+            State {
+                symbol: owner,
+                return_type: unit,
+                ..Default::default()
+            },
+        );
+        program.push_machine(outer);
+        let named = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: Some(Identifier::from("input")),
+            });
+        let elided = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: unit,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let generic = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: parameter,
+                name: Identifier::from("T"),
+            });
+        let required_result = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice {
+                element_type: generic,
+            });
+        let actual_result = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice { element_type: unit });
+        let binder = StateSignature {
+            symbol: owner,
+            parameters: program.state_parameters.insert_many([StateParameter {
+                type_reference: named,
+                ..Default::default()
+            }]),
+            return_type: required_result,
+            ..Default::default()
+        };
+        let parameters = program.state_parameters.insert_many([StateParameter {
+            type_reference: elided,
+            ..Default::default()
+        }]);
+        let mut machine = Machine {
+            symbol: callback,
+            name: Identifier::from("callback"),
+            ..Default::default()
+        };
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: callback,
+                parameters,
+                return_type: actual_result,
+                ..Default::default()
+            },
+        );
+        program.push_machine(machine.clone());
+        assert!(
+            satisfies_binder(
+                &program,
+                &binder,
+                &machine,
+                "test",
+                &[(parameter, Bound::Type(unit))],
+                None
+            )
+            .is_ok()
+        );
+        let mut wrong = machine.clone();
+        let wrong_parameters = program.state_parameters.insert_many([StateParameter {
+            type_reference: elided,
+            is_mutable: true,
+            ..Default::default()
+        }]);
+        wrong.states = Default::default();
+        program.push_machine_state(
+            &mut wrong,
+            State {
+                symbol: callback,
+                parameters: wrong_parameters,
+                return_type: actual_result,
+                ..Default::default()
+            },
+        );
+        assert!(
+            matches!(satisfies_binder(&program, &binder, &wrong, "test", &[(parameter, Bound::Type(unit))], None), Err(Stop::Rejected(message)) if message.contains("passing mode"))
+        );
+    }
+
+    #[test]
+    fn finite_callback_copy_bounds_keep_exclusive_references_affine() {
+        let mut program = TypedTrees::default();
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let mut reference = |access| {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: unit,
+                    access,
+                    lifetime: None,
+                })
+        };
+        let shared = reference(language_core::ReferenceAccess::Shared);
+        let exclusive = reference(language_core::ReferenceAccess::Mutable);
+        let required = TypeParameter::default();
+        let supplied = TypeParameter {
+            bounds: crate::source_state::data::DataProperties {
+                multiplicity: declaration_contracts::Multiplicity::Unrestricted,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(!properties_match(&program, &required, &supplied, None));
+        assert!(properties_match(
+            &program,
+            &required,
+            &supplied,
+            Some(&[shared])
+        ));
+        assert!(!properties_match(
+            &program,
+            &required,
+            &supplied,
+            Some(&[shared, exclusive])
+        ));
+        assert!(properties_match(&program, &required, &supplied, Some(&[])));
+    }
+}

@@ -1,0 +1,17 @@
+# Explicit field omission
+
+The LOWERED-FORM-CHECKER requirement is to accept a final `..` in record and case literals while checking every requested zero value. The marker fills omitted runtime fields with zero; it does not grant domain membership, issuer permission, references, callable values or proof evidence. Literals without the marker must supply every runtime field.
+
+[The positive](main.omg) constructs nested records, a selected second case and an omitted sum whose zero value uses its first declared case. Nonzero neighboring fields expose misplaced writes. Both match helpers are called with matching and fallback tags, including matching payloads under the wrong tag. A wrong value or tag traps. [The reject twin](../../../fail/literals/explicit_field_omission/main.omg) omits only the required nonzero key. Both programs bind all four hosted targets.
+
+The compiler preserves the marker through parsing, typed copies, reflection and expression identity. Ordinary record/case construction supplies each omitted value and checks the complete aggregate requirements. Qualified fields use the same predicate and issuer checks as an explicit domain addition. Only the selected payload is constructed. Source `zero_value<T>()` remains outside executable expression support.
+
+The governing rules are [explicit field omission](../../../../../wiki/spec/language/data_and_literals.md#explicit-field-omission), [default domains and zero initialization](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization) and [explicit erased bindings](../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings). Erased fields keep their existing construction rules.
+
+The unchanged positive runs with native/Psi agreement: both exit 0 with empty output in 14.669 seconds. The reject exits 1 in 12.880 seconds with exactly one diagnostic, beginning ``cannot prove requires clause 1 of a data type in machine `main` state `entry` local `packet`.`` This is the omitted key's `key != 0u32` obligation.
+
+These observations use the clean optimized macOS arm64 producer `cad2366713781f6e51c4f27991d2f936945e95f8`, 133,365,192 bytes, SHA256 `e018dec80c0bb999c12e9ceb60a40daeefde41dc61a69a0cb470d4d79bf1b95d`. The Cargo artifacts and matching fingerprints verify optimization level 1 for the CLI and compiler library. All four source-file hashes match the frozen pair at `07a6f1ec2244038a22044d5a76bde849d9699b84`. The verified baseline producer `a25d27cbdd02603d23be0146fefbcf3649ac7d71` refused the same positive at `..`; later backend changes were not reached by that parser refusal.
+
+Focused tests cover malformed markers and typed copies, complete zero types and forbidden backing, qualified first-case predicates and nested issuer permissions, and the existing mutation that deletes a nontrivial field predicate. The no-marker and planned-access refusal neighbors pass. Strict all-target Clippy passes for the touched crates; formatting, repository rules and boundary checks pass. Earlier parser/copy results apply to their unchanged code, while the final internal zero and source-refusal tests were rerun on this producer's source.
+
+Only macOS arm64 was executed. The other hosted targets are declared but unexecuted. Arrays and shared descriptors retain their existing guarded zero initialization. Implicit local zero initialization with routed fields and the broader LOWERED-FORM-CHECKER acceptance remain open.

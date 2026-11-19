@@ -1,5 +1,0 @@
-public machine value() -> i32
-ensures result == 7
-{
-    7
-}

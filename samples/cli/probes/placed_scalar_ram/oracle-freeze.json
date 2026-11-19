@@ -1,0 +1,22 @@
+{
+  "basis": "Initialized status41/transmit3; write9 and read41; explicit counter1; frozen before execution",
+  "files": {
+    "expected_stdout.txt": "0a33c7f454bb9f6afd578da4a633c8a1250869473aeb9cd0fc1f52b5d78d5d69",
+    "expected_stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+  },
+  "referenced_fixtures": {
+    "original_backing": {
+      "main.omg": "794d0d9d38481b67d6b10e143bdf02e335cf2a45167b77a85cd5c8e0c16176b0",
+      "expected_stdout.txt": "b6a5850e06a3cfde6cedcc4b0dc6fecae74086d484466d8d4c5c9b76ab74d462",
+      "expected_stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "scalar_types": {
+      "main.omg": "967a11edae69a36339bd3ee78b011612f62553c9299ea0dd5987444c9ab3f189",
+      "expected_stdout.txt": "cd421aeea26227bb15dd0df9a56498e78c7fb0c681dd726a19267b901108486b",
+      "expected_stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    }
+  }
+}

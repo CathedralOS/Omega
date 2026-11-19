@@ -1,0 +1,36 @@
+(def comparison_visit ((context Int) (left Int) (right Int) (depth Int)
+  (frames Int) (memo Int) (used Int) (coordinate Int)) Int
+  (if (lt used (comparison_limit))
+    (comparison_visit_charged context left right depth frames memo (+ used 1) coordinate)
+    (comparison_exhausted coordinate used)))
+
+(def comparison_visit_charged ((context Int) (left Int) (right Int) (depth Int)
+  (frames Int) (memo Int) (used Int) (coordinate Int)) Int
+  (if (eq left right)
+    (comparison_resume context depth frames memo used coordinate)
+    (let key Int (comparison_key context left right)
+      (if (comparison_memo_contains memo 0 (comparison_memo_extent context) key)
+        (comparison_resume context depth frames memo used coordinate)
+        (comparison_heads context
+          (grounded_term_lookup (comparison_grounded context) left)
+          (grounded_term_lookup (comparison_grounded context) right)
+          key depth frames memo used coordinate)))))
+
+(def comparison_heads ((context Int) (left Int) (right Int) (key Int)
+  (depth Int) (frames Int) (memo Int) (used Int) (coordinate Int)) Int
+  (if (eq (layout_word (+ left 4)) (layout_word (+ right 4)))
+    (if (eq (layout_word (+ left 8)) (layout_word (+ right 8)))
+      (comparison_arguments context key (+ left 16) (+ right 16)
+        (layout_word (+ left 12)) depth frames memo used coordinate)
+      (comparison_finish 0 context memo used))
+    (comparison_finish 0 context memo used)))
+
+(def comparison_arguments ((context Int) (key Int) (left Int) (right Int)
+  (remaining Int) (depth Int) (frames Int) (memo Int) (used Int) (coordinate Int)) Int
+  (if (eq remaining 0)
+    (comparison_resume context depth frames
+      (comparison_memo_insert memo 0 (comparison_memo_extent context) key context)
+      used coordinate)
+    (comparison_visit context (layout_word left) (layout_word right) (+ depth 1)
+      (comparison_pending key (+ left 4) (+ right 4) (- remaining 1) frames)
+      memo used coordinate)))

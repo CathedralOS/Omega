@@ -1,1 +1,0 @@
-cannot prove operation safety in machine `inspect`

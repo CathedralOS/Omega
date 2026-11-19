@@ -1,0 +1,11 @@
+// A saved tag cannot describe the replaced post-state subject.
+data Direction { case Low; case High; }
+data Holder { direction: Direction; }
+machine stale(holder: &mut Holder) -> u32
+ensures result == ((match holder.direction { Direction::Low -> 0u32, Direction::High -> 0x80u32 }) | 4u32)
+{
+    let selected: u32 = match holder.direction { Direction::Low -> 0u32, Direction::High -> 0x80u32 };
+    holder.direction = Direction::Low;
+    selected | 4u32
+}
+machine main() {}

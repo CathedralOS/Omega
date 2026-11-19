@@ -1,0 +1,23 @@
+; Test adapter, separate from generated functions and their closed runtime.
+(def ep_test_value ((outcome EpsilonCompiledOutcome)) Int
+  (match outcome
+    ((EpsilonCompiledScalar value) value)
+    (EpsilonCompiledResultless -98)
+    ((EpsilonCompiledTrap kind) -96)
+    ((EpsilonCompiledInternal offset) -95)))
+
+(def ep_test_byte ((value Int)) Bytes
+  (bytes_concat
+    (bytes_single (ep_test_value (ep_free_omega_is_whitespace value)))
+    (bytes_concat
+      (bytes_single (ep_test_value (ep_free_omega_is_identifier_start value)))
+      (bytes_concat
+        (bytes_single (ep_test_value (ep_free_omega_is_identifier_continue value)))
+        (bytes_single (+ 1 (ep_test_value (ep_free_omega_hex_value value))))))))
+
+(def ep_test_loop ((source Bytes) (cursor Int) (output Bytes)) Bytes
+  (if (eq cursor (bytes_length source)) output
+    (ep_test_loop source (+ cursor 1)
+      (bytes_concat output (ep_test_byte (bytes_get source cursor))))))
+
+(def main ((source Bytes)) Bytes (ep_test_loop source 0 ""))

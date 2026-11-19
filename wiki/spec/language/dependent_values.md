@@ -143,7 +143,7 @@ neither ZII nor layout obligations.
 <a id="mutable-receivers-and-declared-field-domains"></a>
 ### Mutable arguments and declared field domains
 
-An ordinary `value: @mut T` argument carries the declared field/default-domain
+An ordinary `value: &mut T` argument carries the declared field/default-domain
 obligations of `T` at call, entry, and return. The
 caller establishes them, the callee assumes them, and returning execution
 restores them under the ordinary invariant-window rules. Whether zero satisfies
@@ -216,7 +216,7 @@ Recoverable outcomes must satisfy the obligations of their actual handback;
 cleanup, suspension and crash retain their existing contracts.
 
 This distinction does not weaken a data type's default domain. A successor
-accepting `@mut Tree` still requires `Tree`'s default domain on arrival, even if
+accepting `&mut Tree` still requires `Tree`'s default domain on arrival, even if
 it promises that domain on completion. An unestablished whole, absent field or
 invalid reference cannot be passed as a valid value. For multi-step repair,
 the intermediate view must itself be valid under its weaker declared type.
@@ -238,8 +238,8 @@ walks the elements with ordinary recursive machines; collection invariants intro
 `forall`, `foreach`, or bracketed scalar-range type suffix.
 
 For example, a field `cells: [i32; 16]` can be constrained by
-`requires cells_valid(@cells) == true;`. The ordinary machine
-`cells_valid(cells: @[i32; 16]) -> bool` recognizes precisely arrays whose
+`requires cells_valid(&cells) == true;`. The ordinary machine
+`cells_valid(cells: &[i32; 16]) -> bool` recognizes precisely arrays whose
 elements are each zero or one. Its use in a proposition must meet the ordinary
 [semantic evaluation](evaluation.md) admission rules. This asserts its
 denotation, not an implicit runtime traversal on every write.
@@ -317,12 +317,12 @@ provably disjoint from the frame, aliases included. A checked body's frame is
 inferred, and it is part of the machine's published contract:
 
 ```omega
-public machine set_time(entry: @mut Entry, time: u64) {
+public machine set_time(entry: &mut Entry, time: u64) {
     entry.at = time;
 }
 // published frame: entry.at
 
-set_time(@mut e, 5);
+set_time(&mut e, 5);
 use(e.owner);        // facts about e.owner survive
 ```
 
@@ -382,18 +382,18 @@ and each application substitutes the selected callback's published frame:
 
 ```omega
 public machine apply<
-    const F: machine(entry: @mut Entry, time: u64) crashes none
->(entry: @mut Entry, time: u64) {
+    const F: machine(entry: &mut Entry, time: u64) crashes none
+>(entry: &mut Entry, time: u64) {
     F(entry, time);
 }
 
-apply::<set_time>(@mut e, 5);   // this application's frame is e.at
+apply<set_time>(&mut e, 5);   // this application's frame is e.at
 ```
 
 **Opaque calls.** A runtime callable value and a boundary operation have no
 body to infer from and no static selection to defer to, so their frame is the
 ceiling. Two existing tools narrow what a caller loses. Borrowing the
-subplace, `@mut entry.at`, narrows the ceiling itself and is the first
+subplace, `&mut entry.at`, narrows the ceiling itself and is the first
 choice. A requirement can also state the end state,
 `ensures entry.owner == old(entry.owner)`, which returns value facts to the
 caller. That postcondition permits a write between entry and return and

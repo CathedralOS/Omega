@@ -1,0 +1,3 @@
+fixture	bytes	sha256	status	stdout_hex
+writes_admitted.epsilon	624	26babcb53cb8422e0630cf2193c8dbfdb48f258259fe97290c53b322ef938b4c	0	000000000041
+writes_exhaustion.epsilon	578	178889eaf5505564dc1bd6dccbf376ca6768318502acda5e598e3eb50d375724	252	

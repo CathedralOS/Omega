@@ -1,0 +1,30 @@
+; Diagnostic only: framed sections are not an accepted theory or proof.
+(def $application () Int 1)
+(def main () Int
+  (let result Int (admit_derivation_request)
+    (let tag Int (first result)
+      (let payload Int (second result)
+        (let prefix Int (write tag)
+          (let observed Int
+            (if (eq tag 0)
+              (admission_test_frame payload)
+              (admission_test_failure payload))
+            (pair 0 1)))))))
+
+(def admission_test_frame ((frame Int)) Int
+  (let theory Int (admission_test_word (admission_theory_end frame) 4)
+    (let proposition Int (admission_test_word (admission_proposition_end frame) 4)
+      (admission_test_word (admission_certificate_end frame) 4))))
+
+(def admission_test_failure ((failure Int)) Int
+  (let code Int (admission_test_word (admission_failure_code failure) 4)
+    (let coordinate Int
+      (admission_test_word (admission_failure_coordinate failure) 4)
+      (let limit Int (admission_test_word (admission_failure_limit failure) 4)
+        (admission_test_word (admission_failure_requested failure) 4)))))
+
+(def admission_test_word ((value Int) (remaining Int)) Int
+  (if (eq remaining 0)
+    0
+    (let byte Int (write (% value 256))
+      (admission_test_word (/ value 256) (- remaining 1)))))

@@ -1,3 +1,0 @@
-data Lease [linear {
-    slot: u32;
-}

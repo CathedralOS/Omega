@@ -1,0 +1,54 @@
+machine counter(mut position: u32, step: u32) -> u32
+requires position <= 100 && step <= 100
+ensures result == position
+{
+    position = position + step;
+    position
+}
+
+machine clear(position: &mut u32) { position = 0; }
+
+machine through_helper(mut position: u32, step: u32) -> u32
+requires position <= 100 && step <= 100
+ensures embed(result) == embed(position) + embed(step)
+{
+    let answer: u32 = position + step;
+    position = answer;
+    clear(&mut position);
+    answer
+}
+
+machine keep(value: u32) -> u32 ensures result == value { value }
+
+machine forward(mut position: u32, step: u32) -> u32
+requires position <= 100 && step <= 100
+ensures embed(result) == embed(position) + embed(step)
+{
+    position = position + step;
+    keep(position)
+}
+
+data Token { marker: u32; }
+machine consume(token: Token) {}
+
+machine token_step(mut position: u32, token: Token) -> u32
+requires position <= 100
+ensures embed(result) == embed(position) + 1
+{
+    consume(token);
+    position = position + 1;
+    position
+}
+
+machine main() crashes Trap {
+    transition counter(3, 2) == 5
+        && through_helper(3, 2) == 5
+        && forward(3, 2) == 5
+        && token_step(3, Token { marker: 7 }) == 4
+    {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

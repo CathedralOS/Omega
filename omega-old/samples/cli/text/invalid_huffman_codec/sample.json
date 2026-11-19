@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "cannot prove the value of this cast is in the domain it adds in machine `main`",
-    "domain `u8::HuffmanSymbol` requires `self == 65 || self == 66 || self == 67 || self == 68 || self == 82`"
-  ]
-}

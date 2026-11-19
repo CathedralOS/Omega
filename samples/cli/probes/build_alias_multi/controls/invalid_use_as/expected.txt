@@ -1,0 +1,2 @@
+checked compilation failed for package `invalid_use_as`
+main.omg:1:15: expected `;`, found keyword `as`

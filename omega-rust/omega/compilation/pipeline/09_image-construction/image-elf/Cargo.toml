@@ -1,0 +1,23 @@
+[package]
+name = "image-elf"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image_elf"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../../target-description/calling-conventions" }
+machine-code = { path = "../../../representations/machine-code" }
+wire = { path = "../../../../../psi/foundation/wire" }
+arena = { path = "../../../../../psi/foundation/arena" }
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
+image = { path = "../image" }
+object-file = { path = "../../08_object-construction" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+target = { path = "../../../target-description/target" }
+
+[dev-dependencies]
+image-fixtures = { path = "../../../../../test-support/image-fixtures" }

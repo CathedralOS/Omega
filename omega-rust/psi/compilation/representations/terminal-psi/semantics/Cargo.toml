@@ -1,0 +1,30 @@
+[package]
+name = "terminal-semantics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_semantics"
+path = "src/lib.rs"
+
+[dependencies]
+access-vocabulary = { path = "../../access-vocabulary" }
+declaration-contracts = { path = "../../declaration-contracts" }
+schema-reflection = { path = "../../schema-reflection" }
+application-identity = { path = "../../application-identity" }
+layout-planning = { path = "../../../layout-planning" }
+resource-bounds = { path = "../storage-bounds" }
+numeric-literals = { path = "../../numeric-literals" }
+arena = { path = "../../../../foundation/arena" }
+source-text = { path = "../../../../foundation/source-text" }
+bignum = { path = "../../../../foundation/bignum" }
+wire = { path = "../../../../foundation/wire" }
+language-core = { path = "../../source-vocabulary" }
+layout-plans = { path = "../../storage-layout" }
+access-admission = { path = "../../../access-admission" }
+optimization = { path = "../../optimization-policy" }
+semantic-vocabulary = { path = "../../semantic-vocabulary" }
+numerics = { path = "../../scalar-values" }
+terminal-psi = { path = ".." }
+proof-admission = { path = "../../../proof-admission" }

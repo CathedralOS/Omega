@@ -1,0 +1,20 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Group { bytes: [u8; 2]; }
+data Main { console: Console; groups: [Group; 2]; }
+
+machine Main::main(&mut self) {
+  self.groups[1].bytes[0] = 68;
+  let selected: &[u8] = self.groups[self.base()].bytes[self.low()..self.high()];
+  assert selected.len == 1;
+  self.console.write_line(selected);
+}
+
+machine Main::base(&mut self) -> i32 { self.console.write_byte(65); return 1; }
+machine Main::low(&mut self) -> i32 { self.console.write_byte(66); return 0; }
+machine Main::high(&mut self) -> i32 { self.console.write_byte(67); return 1; }

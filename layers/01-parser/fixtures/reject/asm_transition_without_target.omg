@@ -1,3 +1,0 @@
-asm machine f {
-    transition -> ;
-}

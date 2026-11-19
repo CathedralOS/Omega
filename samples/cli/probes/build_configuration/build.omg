@@ -1,0 +1,15 @@
+// This Build sets its subsystem, identifier, ELF interpreter, x86 deployment
+// features and optimization options.
+machine build(builder: &mut Build) {
+    Build::application(builder, "build_configuration");
+    builder.subsystem = Subsystem::Gui;
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.subsystem = Subsystem::Console;
+    builder.subsystem = Subsystem::Unspecified { value: 7 };
+    builder.identifier = "com.example.build-configuration";
+    builder.elf_interpreter.linux_x86_64 = "/lib64/ld-linux-x86-64.so.2";
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+    Optimizations::enable(&mut builder.optimizations, Optimization::CopyPropagation);
+    Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
+    Optimizations::emit_report(&mut builder.optimizations);
+}

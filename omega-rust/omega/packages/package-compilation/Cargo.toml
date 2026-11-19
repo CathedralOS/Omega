@@ -1,0 +1,40 @@
+[package]
+name = "package-compilation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
+optimization-requests = { path = "../../compilation/products/optimization-requests" }
+evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }
+source-capture = { path = "../../../host-support/source-capture" }
+source-admission = { path = "../../../psi/compilation/representations/source-admission" }
+source-text = { path = "../../../psi/foundation/source-text" }
+evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
+wire = { path = "../../../psi/foundation/wire" }
+compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
+cap-fs-ext = "4.0.3"
+cap-std = "4.0.3"
+source-acquisition = { path = "../source-acquisition" }
+evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
+artifacts = { path = "../../compilation/products/measurements" }
+flow-effects = { path = "../../../psi/compilation/representations/source-effects" }
+optimization-core = { path = "../../compilation/representations/optimization-contracts" }
+arena = { path = "../../../psi/foundation/arena" }
+symbols = { path = "../../../psi/compilation/representations/declaration-identity" }
+source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
+build-declarations = { path = "../build-declarations" }
+build-output = { path = "../build-output" }
+platform-custody = { path = "../../host-support/platform-custody" }
+effects = { path = "../../compilation/representations/native-effects" }
+target = { path = "../../compilation/target-description/target" }
+filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+sha2 = "0.10.9"
+
+[target.'cfg(windows)'.dependencies]
+cap-primitives = "4.0.3"
+

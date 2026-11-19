@@ -1,3 +1,0 @@
-(def build ((n Int) (xs Int)) Int (if n (build (- n 1) (pair n xs)) xs))
-
-(def main () Int (let sunk Int (let dead Int (build 32 7) 0) (first (pair 42 sunk))))

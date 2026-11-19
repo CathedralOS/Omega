@@ -13,31 +13,14 @@ Omega is built for software where performance is critical and failure is costly,
 
 Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed alongside the language. Cathedral applies the design to kernel problems: managing memory, controlling hardware, and running untrusted software.
 
-**Pre-alpha.** The repository root contains the V2 compiler. It can tokenize Omega source, parse it and resolve names across files. The language overview below describes the intended guarantees and includes examples from V1. V2 uses `@` for a reference and `@mut` for a mutable reference. The [V1 compiler and its documentation](omega-old/README.md) are archived under `omega-old/`.
+**Pre-Alpha.** The Rust compiler is under active development. The language
+design is ahead of its implementation; native support is not finished.
 
-[Language guide](omega-old/wiki/language_guide/language_guide.md) ·
+[Language guide](wiki/language_guide/language_guide.md) ·
 [Specification](wiki/README.md#current-specification-subjects) ·
-[Examples](omega-old/samples) ·
-[VS Code highlighting](omega-old/tools/vscode-omega/README.md) ·
-[V2 development](#development)
-
-## Try the V2 compiler
-
-With stable Rust installed, run these commands from the repository root:
-
-```sh
-cargo run -p omega -- source parse layers/02-resolver/fixtures/accept/sibling_machine/combat/main.omg
-cargo test --workspace --locked
-```
-
-To check names across files, run from the example's package directory:
-
-```sh
-cd layers/02-resolver/fixtures/accept/sibling_machine
-cargo run -p omega -- source resolve combat/main.omg combat/scoring.omg
-```
-
-The resolver finds `score` in the sibling file. A successful check exits silently.
+[Examples](samples) ·
+[VS Code highlighting](tools/vscode-omega/README.md) ·
+[Contributing](#development)
 
 ## Failures Omega addresses
 
@@ -111,8 +94,8 @@ or an assertion asking the compiler to trust the programmer.
 
 Longer control flow uses nested machines and explicit transitions. Proved
 tail loops carry values and ownership without growing the call stack.
-[Machines](omega-old/wiki/language_guide/chapter_3_machines.md)
-[Nested machines and transitions](omega-old/wiki/language_guide/chapter_4_nested_machines_transitions.md)
+[Machines](wiki/language_guide/chapter_3_machines.md)
+[Nested machines and transitions](wiki/language_guide/chapter_4_nested_machines_transitions.md)
 
 ## Data
 The `data` keyword is the only way to describe data in Omega. A declaration
@@ -210,9 +193,9 @@ access may break it briefly and restore it. Setting health to
 Ordinary machines can also prove mathematical theorems, and suitable
 computations can run at compile time or be used in proofs without a separate
 implementation.
-[Domains](omega-old/wiki/language_guide/chapter_8_domains.md) ·
-[Invariant windows](omega-old/wiki/language_guide/chapter_11_invariant_windows.md) ·
-[Mathematical proofs](omega-old/wiki/language_guide/chapter_10_compile_time_proofs.md)
+[Domains](wiki/language_guide/chapter_8_domains.md) ·
+[Invariant windows](wiki/language_guide/chapter_11_invariant_windows.md) ·
+[Mathematical proofs](wiki/language_guide/chapter_10_compile_time_proofs.md)
 
 ## Advanced Data
 
@@ -264,7 +247,7 @@ The positional binding follows declaration order: request_id, requested_at_ms, s
 
 `Database`, `DatabaseError`, and the `database::` helper machines are application-defined; their implementations are omitted here. The helpers return `Result<User, DatabaseError>`, `Result<u64, DatabaseError>`, and `Result<bool, DatabaseError>`, respectively. Every arm therefore returns `Result<T, DatabaseError>` without a cast.
 
-GetUser carries only an ID, not a User: T describes what executing the command produces. The second construction is invalid on purpose: changing only its type argument breaks that relationship. The explicit `..` sets omitted metadata fields to zero; without it, every runtime field must be given. It does not bypass the case constraint. See [case constraints and GADT-style refinement](omega-old/wiki/language_guide/chapter_1_data_values_literals.md#constraints-on-individual-cases).
+GetUser carries only an ID, not a User: T describes what executing the command produces. The second construction is invalid on purpose: changing only its type argument breaks that relationship. The explicit `..` sets omitted metadata fields to zero; without it, every runtime field must be given. It does not bypass the case constraint. See [case constraints and GADT-style refinement](wiki/language_guide/chapter_1_data_values_literals.md#constraints-on-individual-cases).
 
 The `#N` identities are neither offsets nor runtime tags, and each payload numbers its fields separately. The two Command declarations above are alternative examples, not declarations for one module.
 
@@ -450,9 +433,9 @@ a field name.
 
 The same model extends to
 [memory authority without runtime domain tags](wiki/spec/resources/extents.md)
-and [provider selection under build policy](omega-old/wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
+and [provider selection under build policy](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md).
 [Device loans](wiki/spec/resources/device_access.md) ·
-[Concurrency](omega-old/wiki/language_guide/chapter_18_concurrency.md)
+[Concurrency](wiki/language_guide/chapter_18_concurrency.md)
 
 
 ## Checks across multiple binaries & services
@@ -502,7 +485,7 @@ decide which user may do what to which account.
 
 [Topology contract](wiki/spec/packages/topology.md) ·
 [Build isolation and outputs](wiki/spec/build/scoped_execution.md) ·
-[Implementation work](omega-old/TASKS.md#checked-boundary-topology)
+[Implementation work](TASKS.md#checked-boundary-topology)
 
 ## Omega's big bets
 
@@ -515,7 +498,7 @@ decide which user may do what to which account.
 | Coding intelligence becomes powerful and cheap. | Design around checking abundant generated code, not merely making it easier to write. |
 | Waste becomes unacceptable. | Stop treating garbage collection, emulation, and layers of bloat as unavoidable costs. |
 
-## V1 installation
+## Installation
 
 Published experimental bundles do not require Rust or a native linker.
 On Apple Silicon macOS or Linux with Homebrew:
@@ -525,12 +508,12 @@ brew install cathedralos/omega/omega
 ```
 
 Windows and other archive installs: [download a prerelease](https://github.com/CathedralOS/Omega/releases).
-See [installation, a first native program, and upgrades](omega-old/wiki/installation.md)
+See [installation, a first native program, and upgrades](wiki/installation.md)
 for supported hosts and instructions. Initial releases are unsigned and experimental.
 
-## Building V1 from source
+## Building from source
 
-Install Rust with `rustup`, clone this repository, and run the commands in this section from `omega-old/`.
+Install Rust with `rustup`, clone this repository, and run from its root.
 The checked-in toolchain file selects the required Rust version.
 
 Start with a small precondition-checking case:
@@ -565,12 +548,12 @@ Without these options, package inputs behave as before. They grant no
 extra host access and publish no companion outputs. A changed build policy
 still needs ordinary package acceptance.
 
-For a full application, start with the [CLI example](omega-old/samples/cli/basics/cli_mvp/README.md).
+For a full application, start with the [CLI example](samples/cli/basics/cli_mvp/README.md).
 Its instructions separate the intended result from current compiler
 limitations. The [command-line contract](wiki/spec/build/command_line.md) defines
 subsystem routing, optional source rewriting and independent validator selection.
 
-## V1 compiler pipeline
+## Compiler Pipeline
 
 Omega source compiles to **Psi**, a portable intermediate binary that can be
 lowered to **native code** or **run by an interpreter** for scripting.
@@ -591,9 +574,9 @@ Development tests compare
 native execution with the Psi interpreter using `omega run --both`.
 The compiler's transformations are still trusted; native/Psi agreement covers
 only the tested inputs and observations.
-[Follow the pipeline →](omega-old/omega-rust/pipeline.md#verification-placement)
+[Follow the pipeline →](omega-rust/pipeline.md#verification-placement)
 
-The separate [bootstrap chain](omega-old/bootstrap/README.md) aims to build the compiler
+The separate [bootstrap chain](bootstrap/README.md) aims to build the compiler
 from a small auditable starting point. You do not need it to work on the Rust
 implementation.
 
@@ -601,26 +584,23 @@ implementation.
 
 | If you want to… | Start here |
 | --- | --- |
-| Learn the language | [Language guide](omega-old/wiki/language_guide/language_guide.md) |
+| Learn the language | [Language guide](wiki/language_guide/language_guide.md) |
 | Look up an exact rule | [Language and toolchain specification](wiki/README.md) |
-| Explore programs and library code | [Samples](omega-old/samples) · [Bundled library](omega-old/source/library) |
-| Work on the current compiler | [V2 plan](PLAN.md) · [Compiler layers](layers/) · [Command-line application](application/) |
-| Read the self-hosted compiler sources | [Product source](omega-old/source/README.md) |
-| Understand bootstrap and trust | [Bootstrap](omega-old/bootstrap/README.md) |
-| Discuss a language change | [Proposals](omega-old/wiki/proposals/README.md) · [Open decisions](omega-old/OWNER_QUESTIONS.md) |
+| Explore programs and library code | [Samples](samples) · [Bundled library](source/library) |
+| Work on the current compiler | [Rust implementation](omega-rust/README.md) |
+| Read the self-hosted compiler sources | [Product source](source/README.md) |
+| Understand bootstrap and trust | [Bootstrap](bootstrap/README.md) |
+| Discuss a language change | [Proposals](wiki/proposals/README.md) · [Open decisions](OWNER_QUESTIONS.md) |
 
 ## Development
 
-V2 builds one compiler layer at a time. The [plan](PLAN.md) records each layer's status and design decisions. The [architecture diagrams](ARCHITECTURE.png) show how the layers fit together. Run `cargo test --workspace --locked` from the repository root to run the same tests as the required pull request check.
+Current work puts finishing the Rust compiler ahead of self-hosting and the
+bootstrap. The [compiler board](TASKS.md),
+[optimizer board](TASKS_OPTIMIZER.md), and
+[completion criteria](wiki/drafts/reference/rust_compiler_completion.md) describe the work.
 
-### V1 development archive
-
-V1 tracked the Rust compiler, self-hosting and bootstrap work separately. The [compiler board](omega-old/TASKS.md),
-[optimizer board](omega-old/TASKS_OPTIMIZER.md), and
-[completion criteria](omega-old/wiki/drafts/reference/rust_compiler_completion.md) describe the work.
-
-Read [repository conventions](omega-old/AGENTS.md#conventions-and-workflow) before changing
-code. [Local testing](omega-old/tools/docs/testing.md) covers focused checks and supported
+Read [repository conventions](AGENTS.md#conventions-and-workflow) before changing
+code. [Local testing](tools/docs/testing.md) covers focused checks and supported
 development hosts.
 
 ## License

@@ -1,9 +1,0 @@
-(def churn ((n Int) (saved Int)) Int
- (if n (let discard Int (pair n 77) (churn (- n 1) saved)) (first (second saved))))
-
-(def cross ((tree Int)) Int
-    (let ((a Int (churn 4000 tree)) (b Int (first (first tree)))) (+ a b)))
-
-(def main () Int
-    (let ((shared Int (pair 20 1)) (tree Int (pair shared shared))
-          (saved Int (pair tree 2)) (v Int (cross tree))) (+ v (second saved))))

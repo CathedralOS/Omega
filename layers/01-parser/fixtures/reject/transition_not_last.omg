@@ -1,5 +1,0 @@
-// A `transition` is the last statement of a body.
-machine f(n: u32) -> u32 {
-    transition n { 0 -> zero(), _ -> other() }
-    cleanup();
-}

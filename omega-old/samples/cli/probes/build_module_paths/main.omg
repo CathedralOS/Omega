@@ -1,4 +1,0 @@
-use deep::nested::main;
-machine entry() -> i32 {
-    helper()
-}

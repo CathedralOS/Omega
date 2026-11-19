@@ -1,0 +1,25 @@
+[package]
+name = "bio02-terminal-validation"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+products = { path = "../../../../../../omega-rust/omega/compilation/products" }
+compiler = { path = "../../../../../../omega-rust/omega/compilation/compiler" }
+terminal-runtime = { path = "../../../../../../omega-rust/omega/interpreter/terminal-runtime" }
+package-manager = { path = "../../../../../../omega-rust/omega/packages/package-manager" }
+orchestration = { path = "../../../../../../omega-rust/omega/build-system/orchestration" }
+target = { path = "../../../../../../omega-rust/omega/compilation/target-description/target" }
+terminal-interpreter = { path = "../../../../../../omega-rust/psi/interpreter" }
+
+[profile.dev]
+debug = 0
+opt-level = 1
+
+[profile.dev.package.proof-admission]
+opt-level = 3
+
+[profile.dev.package.sha2]
+opt-level = 3

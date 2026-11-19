@@ -1,0 +1,24 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Choice { case Value(value: i32); }
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+  assert recurse(2) == 183;
+  self.console.write_byte(65);
+}
+machine recurse(depth: i32) -> i32 {
+  transition depth { 0 -> return 60 _ -> step() }
+  state step() {
+    let copied: Choice = Choice::Value(depth + 60);
+    let subtotal: i32 = recurse(depth - 1);
+    assert read(copied) == depth + 60;
+    return subtotal + read(copied);
+  }
+}
+machine read(input: Choice) -> i32 { transition input { Choice::Value{value} -> return value } }

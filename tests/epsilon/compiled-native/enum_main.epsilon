@@ -1,0 +1,30 @@
+machine Main::main(&mut self) {
+    transition true {
+        true -> step(self.console.read_byte())
+        _ -> return
+    }
+    state step(byte: i32) {
+        transition byte == -1 {
+            true -> self.console.exit_process(42)
+            _ -> emit(byte)
+        }
+    }
+    state emit(byte: i32) {
+        self.console.write_byte(omega_is_whitespace(byte));
+        self.console.write_byte(omega_is_identifier_start(byte));
+        self.console.write_byte(omega_is_identifier_continue(byte));
+        self.console.write_byte(omega_hex_value(byte) + 1);
+        self.console.write_byte(omega_digit_in_base(byte, OmegaNumericBase::Binary));
+        self.console.write_byte(omega_digit_in_base(byte, OmegaNumericBase::Octal));
+        self.console.write_byte(omega_digit_in_base(byte, OmegaNumericBase::Decimal));
+        self.console.write_byte(omega_digit_in_base(byte, OmegaNumericBase::Hexadecimal));
+        self.console.write_byte(enum_forward(OmegaNumericBase::Binary, byte));
+        self.console.write_byte(enum_forward(OmegaNumericBase::Octal, byte));
+        self.console.write_byte(enum_forward(OmegaNumericBase::Decimal, byte));
+        self.console.write_byte(enum_forward(OmegaNumericBase::Hexadecimal, byte));
+        transition true {
+            true -> step(self.console.read_byte())
+            _ -> return
+        }
+    }
+}

@@ -1,0 +1,2 @@
+checked compilation failed for package `invalid_nested_entry`
+explicit nested `entry` / `public entry` machine members are retired

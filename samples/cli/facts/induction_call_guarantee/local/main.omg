@@ -1,0 +1,44 @@
+// An inductive call records its postcondition under the dispatch subject's
+// comparison. The caller reads that record.
+// Place: local.
+// Expected exit: 0
+machine gauss(n: u64 in Wrapping, acc: u64 in Wrapping) -> u64 in Wrapping
+terminates by n
+ensures result * 2 == acc * 2 + n * (n + 1)
+{
+    transition n > 0 {
+        true -> gauss(n - 1, acc + n)
+        false -> acc
+    }
+}
+
+machine use(n: u64 in Wrapping) -> u64 in Wrapping
+ensures result * 2 == n * (n + 1)
+{
+    let total: u64 in Wrapping = gauss(n, 0);
+    total
+}
+
+machine observe(total: u64 in Wrapping, n: u64 in Wrapping) -> bool
+requires total * 2 == n * (n + 1)
+{
+    true
+}
+
+machine hold(direct: bool) -> bool
+requires direct == true
+{
+    direct
+}
+
+machine main() crashes Trap {
+    let n: u64 in Wrapping = 4;
+    let total: u64 in Wrapping = use(n);
+    let direct: bool = observe(total, n);
+    transition hold(direct) {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,4 +1,0 @@
-// This unused declaration must be valid for every admitted T.
-// Expected: reject the normal return that loses possible linear contents.
-machine abandon<T>(value: T) {}
-machine main() {}

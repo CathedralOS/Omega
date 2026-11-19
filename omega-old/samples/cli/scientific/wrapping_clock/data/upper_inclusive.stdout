@@ -1,6 +1,0 @@
-row 1 raw 250 timestamp 250 elapsed 0 host 0
-row 2 raw 44 timestamp 300 elapsed 50 host 50
-wraps 1 dropped 0
-rate 2500/2500 host_units/tick
-drift 0/2500 ppm_vs_one
-max_residual 0/2500 host_units

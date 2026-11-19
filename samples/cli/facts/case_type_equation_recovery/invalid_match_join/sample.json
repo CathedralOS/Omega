@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "return value expects `T`, but the value is delivered as `bool`"
+  ]
+}

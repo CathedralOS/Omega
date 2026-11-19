@@ -14,7 +14,7 @@ exact `N`-byte fixed-array carrier as `[u8; N]`; its `.len` is `N`, and removing
 `D` with a cast changes no bits or geometry. A variable-fill owner must name
 an explicit variable-length carrier such as `FixedVec<u8, N> in D` or
 `Vec<u8> in D`. Ordinary accessor machines may lend that owner's live prefix as
-a qualified `@[u8] in D` view.
+a qualified `&[u8] in D` view.
 
 ## Declaration and membership
 
@@ -138,7 +138,7 @@ public domain Reservation::Issued
 ReservationAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
         access::new_plan(
-            @schema,
+            &schema,
             Issuance::Only { routes: [reflect::callable(Issues::issue)] }
         )
     }
@@ -252,14 +252,14 @@ public domain Cell::Controlled
 CellAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
         let mut plan: AccessPlan = access::new_plan(
-            @schema,
+            &schema,
             Issuance::Only { routes: [reflect::callable(Cell::create)] }
         );
         access::allow_readers(
-            @mut plan, TypeSchema::root(@schema), [reflect::callable(Cell::read)]
+            &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::read)]
         );
         access::allow_writers(
-            @mut plan, TypeSchema::root(@schema), [reflect::callable(Cell::set)]
+            &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::set)]
         );
         plan
     }
@@ -276,7 +276,7 @@ field-private modifier. Fields may use qualified types; a whole-value domain's
 policy may also name individual fields with `reflect::field(Type::field)`.
 
 Every plan [states its issuance](../resources/access.md#plans-and-admitted-supply):
-`access::new_plan(@schema, issuance)` takes `Issuance::Only` with the exact
+`access::new_plan(&schema, issuance)` takes `Issuance::Only` with the exact
 routes, where an empty list permits nobody, or `Issuance::Unrestricted`.
 Reader and writer lists are independent ceilings: omission leaves that axis
 unrestricted by this policy, an empty list permits nobody, and a nonempty list
@@ -319,7 +319,7 @@ projected writes, whole-value replacement of a governed place, and atomic stores
 requires write authority. Read-modify-write operations require both. Operations
 that return or inspect displaced content must also satisfy their observation and
 custody contracts. The operation's semantics determine its access, not whether
-its parameter spells `@` or `@mut`.
+its parameter spells `&` or `&mut`.
 
 An authorized route removes only its domain's access restriction for the supplied
 subject and applicable axis. It does not create backing, widen a borrow, bypass
@@ -788,7 +788,7 @@ the existing rules.
 ### Mutable views
 
 A cast applies to a reference by accounting for the domains displayed on its
-referent, with the same syntax: `@value as =Km -Positive`. A borrow groups
+referent, with the same syntax: `&value as =Km -Positive`. A borrow groups
 before `as`, so no parentheses are needed. The cast preserves the referent,
 lifetime and access mode, and it changes neither the stored owner's declared
 type nor the carrier's default domain. Adding a domain to a view follows
@@ -803,15 +803,15 @@ mutable reference, `-D` is accepted exactly when the lender could write
 [establishment rules](#domain-only-casts) for whatever the place then holds.
 
 ```omega
-machine reset(n: @mut i32) ensures n == 1 { n = 1; }
-machine scribble(n: @mut i32) { n = 0; }
+machine reset(n: &mut i32) ensures n == 1 { n = 1; }
+machine scribble(n: &mut i32) { n = 0; }
 
 let mut trip: i32 in Km & Positive = 5 as +Km +Positive;
 
-reset(@mut trip as -Km -Positive);
+reset(&mut trip as -Km -Positive);
 // `Km` returns with nothing to prove. `Positive` is proved by `n == 1`.
 
-scribble(@mut trip as -Km -Positive);
+scribble(&mut trip as -Km -Positive);
 measure(trip);
 // Rejected: `Positive` is not re-established for `trip` after `scribble`.
 ```

@@ -1,3 +1,0 @@
-// A generic argument that starts `Name<` is read as a type. A value there is written in parentheses.
-machine f(a: Buffer<Other<T>::SIZE + 1>) {
-}

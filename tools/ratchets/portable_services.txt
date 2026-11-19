@@ -1,0 +1,299 @@
+# Reviewed differences between std's target families, one per portable call
+# and fact. `mbx xtask check-portable-services` fails on a row it finds that is
+# not here, and on a row here that it no longer finds; delete stale rows.
+#
+# Format: Service.member | fact | targets that have it | reason | note
+# Reasons:
+#   noise    how a family talks to its OS (layout offsets, flag words, access
+#            masks, helper bounds, OS limits); the call means the same thing.
+#   allowed  a difference the portable contract permits, such as Unsupported.
+#   known    a real divergence; the note is the exact OWNER_CODE_CONCERNS.md
+#            heading that queues it. Fixing it removes the heading and the rows.
+# Spec: wiki/spec/build/platform_services.md#three-layers
+Clock.sleep | clamp narrow_u32_to_i32_wrapping | linux_x86_64,macos_arm64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+Clock.sleep | const sleep(..2147483647..) | windows_x86_64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+Clock.sleep | const sleep(..2147483648..) | windows_x86_64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+Clock.sleep | limit == 4294967295 | windows_x86_64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+Clock.sleep | limit > 2147483647 | linux_x86_64,macos_arm64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+FilesystemService.append | const create_file(..1048704..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.append | const writable(..2147483648..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.append | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.append | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.append | refuse InvalidInput | windows_x86_64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+FilesystemService.canonicalize | limit < 4096 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX realpath needs a PATH_MAX (4096) buffer, the OS limit there
+FilesystemService.canonicalize | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.canonicalize | limit < output.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.canonicalize | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.close | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.close | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.copy | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+FilesystemService.copy | clamp narrow_i32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.copy | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.copy | clamp narrow_u32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.copy | const create_file(..1048704..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.copy | const create_file(..1073741952..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.copy | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+FilesystemService.copy | const writable(..2147483648..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.copy | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.copy | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.copy | limit <= 4294967295 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.copy | limit == -4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX retries EINTR; Windows has no interrupted writes
+FilesystemService.copy | limit > 4294967295 | windows_x86_64 | noise | Windows writes in 4 GiB chunks and POSIX loops on short writes; both write everything
+FilesystemService.copy | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.copy | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+FilesystemService.create | clamp narrow_i32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.create | const create_file(..1048704..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.create | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+FilesystemService.create | const writable(..2147483648..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.create | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.create | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.create | refuse InvalidInput | windows_x86_64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+FilesystemService.create_dir | clamp narrow_i32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.create_dir | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.create_dir | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.create_dir_all | clamp narrow_i32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.create_dir_all | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.create_dir_all | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.create_dir_all | limit == 17 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX reads EEXIST from mkdir, then checks the existing kind as Windows does
+FilesystemService.create_dir_all | limit == 47 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX splits components at '/'
+FilesystemService.create_dir_all | limit == 58 | windows_x86_64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+FilesystemService.create_dir_all | limit == 63 | windows_x86_64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+FilesystemService.create_dir_all | limit >= 2 | windows_x86_64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+FilesystemService.create_dir_all | limit >= 3 | windows_x86_64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+FilesystemService.create_dir_all | limit >= 4 | windows_x86_64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+FilesystemService.create_dir_all | limit >= 8 | windows_x86_64 | noise | Windows parses drive letters and \\?\ and UNC roots before walking components
+FilesystemService.create_dir_all | refuse AlreadyExists | windows_x86_64 | noise | Windows checks a bare drive or UNC root itself; POSIX mkdir('/') gives EEXIST, then the same kind check
+FilesystemService.create_dir_all | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
+FilesystemService.create_dir_all | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.create_dir_all | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+FilesystemService.create_new | clamp narrow_i32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.create_new | const create_file(..1048704..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.create_new | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+FilesystemService.create_new | const writable(..2147483648..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.create_new | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.create_new | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.create_new | refuse InvalidInput | windows_x86_64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+FilesystemService.exists | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.exists | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.exists | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.exists | refuse Unsupported | windows_x86_64 | allowed | Windows metadata reports POSIX details as Unsupported, which Metadata.posix allows
+FilesystemService.hard_link | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.hard_link | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.lock | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.lock_shared | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.metadata | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.metadata | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.metadata | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.metadata | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
+FilesystemService.metadata | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.metadata | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+FilesystemService.metadata_path | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.metadata_path | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.metadata_path | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.metadata_path | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
+FilesystemService.metadata_path | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.metadata_path | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+FilesystemService.open | const create_file(..1048704..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.open | const writable(..2147483648..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.open | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.open | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.open | refuse InvalidInput | windows_x86_64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+FilesystemService.open_with | clamp narrow_i32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.open_with | const create_file(..1048704..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.open_with | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+FilesystemService.open_with | const writable(..2147483648..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.open_with | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.open_with | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+FilesystemService.read | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.read | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.read | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.read_all | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+FilesystemService.read_all | const create_file(..1048704..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.read_all | const writable(..2147483648..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.read_all | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_all | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_all | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.read_all | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.read_at | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+FilesystemService.read_at | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.read_at | limit <= 4294967295 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.read_at | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.read_at | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.read_dir_count | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+FilesystemService.read_dir_count | clamp narrow_i32_to_u64_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+FilesystemService.read_dir_count | clamp narrow_i64_to_u64_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+FilesystemService.read_dir_count | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
+FilesystemService.read_dir_count | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_count | const windows_filesystem_transferred(..9223372036854775807..) | windows_x86_64 | noise | Windows passes i64 maximum as the requested count of an enumeration read
+FilesystemService.read_dir_count | limit < 495 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_count | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_dir_count | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_dir_count | limit > 2 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_count | limit >= 1024 | macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+FilesystemService.read_dir_is_empty | clamp narrow_i64_to_i32_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+FilesystemService.read_dir_is_empty | clamp narrow_i64_to_u64_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+FilesystemService.read_dir_is_empty | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
+FilesystemService.read_dir_is_empty | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | const windows_filesystem_transferred(..9223372036854775807..) | windows_x86_64 | noise | Windows passes i64 maximum as the requested count of an enumeration read
+FilesystemService.read_dir_is_empty | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.read_dir_is_empty | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.read_dir_is_empty | limit < 489 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit < 510 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_dir_is_empty | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_dir_is_empty | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.read_dir_is_empty | limit == 4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit == 8 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit >= 1024 | macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_is_empty | limit >= 24 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+FilesystemService.read_dir_nth | clamp narrow_i64_to_i32_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+FilesystemService.read_dir_nth | clamp narrow_i64_to_u64_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+FilesystemService.read_dir_nth | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
+FilesystemService.read_dir_nth | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.read_dir_nth | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.read_dir_nth | limit < 489 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit < 510 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_dir_nth | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_dir_nth | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.read_dir_nth | limit <= 256 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.read_dir_nth | limit == 4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit == 8 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit >= 1024 | macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_dir_nth | limit >= 24 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.read_link | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+FilesystemService.read_link | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
+FilesystemService.read_link | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_link | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.read_link | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.remove | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.remove | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.remove_dir | const unlinkat(..512..) | linux_x86_64,linux_arm64 | noise | Linux AT_REMOVEDIR / AT_SYMLINK_NOFOLLOW flag words; macOS passes its own
+FilesystemService.remove_dir | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.remove_dir | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.remove_dir_all | clamp min_u64 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX caps a syscall count at its scratch or caller buffer after the shared count check
+FilesystemService.remove_dir_all | clamp narrow_i64_to_i32_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+FilesystemService.remove_dir_all | clamp narrow_i64_to_u64_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+FilesystemService.remove_dir_all | const min_u64(..2147483647..) | linux_x86_64,linux_arm64 | allowed | Linux caps one read at 2^31-1 bytes; the bounded-read contract allows the short read
+FilesystemService.remove_dir_all | const posix_filesystem_release_directory_stack(..4096..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
+FilesystemService.remove_dir_all | const read_dir(..512..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | const unlinkat(..512..) | linux_x86_64,linux_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit < 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.remove_dir_all | limit < 256 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.remove_dir_all | limit < 4096 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
+FilesystemService.remove_dir_all | limit < 489 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit < 510 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit < 512 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.remove_dir_all | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.remove_dir_all | limit <= 20 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit <= 21 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit <= 255 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX NAME_MAX of 255 bytes and its 256-byte name buffer, the OS limit there
+FilesystemService.remove_dir_all | limit <= 4095 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
+FilesystemService.remove_dir_all | limit <= 4096 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX 4096-level directory stack; Windows has 4096 handle frames as an array length (#3864)
+FilesystemService.remove_dir_all | limit == 4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit == 8 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit >= 1024 | macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit >= 18 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit >= 19 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | limit >= 24 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX getdents/getdirentries buffer, record offsets, d_type values and the . and .. entries
+FilesystemService.remove_dir_all | refuse Other | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed dirent record
+FilesystemService.rename | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.rename | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.set_file_owner | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.set_file_owner | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.set_file_owner | refuse Unsupported | windows_x86_64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+FilesystemService.set_file_permissions | clamp narrow_u32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.set_file_permissions | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.set_file_permissions | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.set_file_permissions | refuse Unsupported | windows_x86_64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+FilesystemService.set_len | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.set_len | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.set_len | refuse InvalidInput | windows_x86_64 | noise | Windows refuses a negative length itself; POSIX ftruncate gives EINVAL, also InvalidInput
+FilesystemService.set_owner | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.set_owner | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.set_owner | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.set_owner | refuse Unsupported | windows_x86_64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+FilesystemService.set_owner_no_follow | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.set_owner_no_follow | const fchownat(..256..) | linux_x86_64,linux_arm64 | noise | Linux AT_REMOVEDIR / AT_SYMLINK_NOFOLLOW flag words; macOS passes its own
+FilesystemService.set_owner_no_follow | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.set_owner_no_follow | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.set_owner_no_follow | refuse Unsupported | windows_x86_64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+FilesystemService.set_permissions | clamp narrow_u32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.set_permissions | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.set_permissions | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.set_permissions | refuse Unsupported | windows_x86_64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+FilesystemService.set_times | clamp narrow_i64_to_u8_wrapping | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX dirent and timespec decoders narrow fields of fixed width
+FilesystemService.set_times | clamp narrow_u64_to_i64_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.set_times | limit <= 1833029933770 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.set_times | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.set_times | limit == -11644473600 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.set_times | limit == 8 | macos_arm64 | noise | macOS timespec encoder writes 8-byte fields
+FilesystemService.set_times | limit > -11644473600 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.set_times | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.set_times | refuse InvalidInput | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.set_times | refuse Unsupported | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.symlink | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.symlink | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.symlink | refuse Unsupported | windows_x86_64 | allowed | Windows has no POSIX owners, modes or symlink creation here; the contract allows Unsupported
+FilesystemService.symlink_metadata | clamp narrow_i32_to_u32_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.symlink_metadata | const read_metadata_at(..256..) | linux_x86_64,linux_arm64 | noise | Linux AT_REMOVEDIR / AT_SYMLINK_NOFOLLOW flag words; macOS passes its own
+FilesystemService.symlink_metadata | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.symlink_metadata | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.symlink_metadata | refuse InvalidInput | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX guard against a malformed stat record (negative block counts); the OS never returns one
+FilesystemService.symlink_metadata | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.symlink_metadata | refuse Unsupported | linux_x86_64,linux_arm64,windows_x86_64 | allowed | creation time is Unsupported where the OS gives none (Linux stat); macOS has a birthtime
+FilesystemService.sync | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.sync | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.sync_data | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.sync_data | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.try_clone | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.try_clone | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.try_exists | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.try_exists | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.try_exists | limit == 2 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX maps ENOENT to false; Windows maps its not-found codes the same way
+FilesystemService.try_exists | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.try_exists | refuse Unsupported | windows_x86_64 | allowed | Windows metadata reports POSIX details as Unsupported, which Metadata.posix allows
+FilesystemService.try_lock | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.try_lock_shared | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.unlock | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.write | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.write | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.write | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+FilesystemService.write_all | clamp narrow_i32_to_u16_wrapping | macos_arm64 | noise | macOS record decoders narrow fields of fixed width
+FilesystemService.write_all | const create_file(..1048704..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.write_all | const open_create(..438..) | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX open mode 0666, filtered by the umask
+FilesystemService.write_all | const writable(..2147483648..) | windows_x86_64 | noise | Win32 CreateFileW access, share and flag words
+FilesystemService.write_all | limit < out.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.write_all | limit < path.len | linux_x86_64,linux_arm64,macos_arm64 | noise | bounds of the POSIX NUL-terminated path copy
+FilesystemService.write_all | limit == -4 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX retries EINTR; Windows has no interrupted writes
+FilesystemService.write_all | limit > 4294967295 | windows_x86_64 | noise | Windows writes in 4 GiB chunks and POSIX loops on short writes; both write everything
+FilesystemService.write_all | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.write_all | refuse InvalidInput | windows_x86_64 | noise | open_options_truncate_conflict guard; it cannot fire for these fixed options
+FilesystemService.write_at | limit <= 2147483648 | linux_x86_64,linux_arm64,macos_arm64 | noise | POSIX descriptor range check; Windows checks its zero handle (refuse BadDescriptor)
+FilesystemService.write_at | limit <= 4294967295 | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.write_at | refuse BadDescriptor | windows_x86_64 | noise | Windows refuses a zero handle itself; POSIX gets EBADF, also BadDescriptor
+FilesystemService.write_at | refuse InvalidInput | windows_x86_64 | known | Three more portable filesystem calls mean different things on Windows and POSIX
+FilesystemService.write_at | refuse Other | windows_x86_64 | noise | Windows guard against a malformed OS reply (count above request, negative length)
+TimeHost.monotonic_ticks | clamp narrow_i64_to_u64_saturating | linux_x86_64,linux_arm64,windows_x86_64 | noise | converting the OS clock record into raw platform units
+TimeHost.monotonic_ticks_per_second | clamp narrow_i64_to_u64_saturating | windows_x86_64 | noise | converting the OS clock record into raw platform units
+TimeHost.sleep | clamp narrow_u32_to_i32_wrapping | linux_x86_64,macos_arm64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+TimeHost.sleep | const sleep(..2147483647..) | windows_x86_64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+TimeHost.sleep | const sleep(..2147483648..) | windows_x86_64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+TimeHost.sleep | limit == 4294967295 | windows_x86_64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+TimeHost.sleep | limit > 2147483647 | linux_x86_64,macos_arm64 | noise | each family splits u32 maximum to fit its wait call (INFINITE on Windows, i32 poll on POSIX); all wait the full time
+TimeHost.wall_clock_raw | clamp narrow_i64_to_u64_saturating | linux_x86_64,linux_arm64 | noise | converting the OS clock record into raw platform units

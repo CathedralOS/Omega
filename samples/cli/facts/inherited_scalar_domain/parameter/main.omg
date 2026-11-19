@@ -1,0 +1,21 @@
+// Nested domain Nested requires self in Small, and inherited domain Nested::Inherited establishes self < 5, so 5 - held is exact.
+// Expected exit: 0.
+domain u64::Small requires self < 5;
+domain u64::Nested requires self in Small;
+domain u64::Nested::Inherited;
+
+machine consume(held: u64 in Nested::Inherited) -> u64 {
+    5 - held
+}
+machine relay(held: u64 in Nested::Inherited) -> u64 {
+    consume(held)
+}
+machine main() crashes Trap {
+    let held: u64 in Nested::Inherited = 3;
+    transition relay(held) == 2 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

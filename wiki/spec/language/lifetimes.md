@@ -14,12 +14,12 @@ repacking cannot extend those lifetimes. See [some packages](some_packages.md).
 
 Lifetime binders use tick spelling in the declaration's `<>` list alongside
 type, const and static-machine parameters. A reference places its lifetime
-before its access modifier: `@'buffer T`, `@'buffer mut T`, or
-`@'buffer write T`. Borrow-carrying data declares the lifetimes of its views:
+before its access modifier: `&'buffer T`, `&'buffer mut T`, or
+`&'buffer write T`. Borrow-carrying data declares the lifetimes of its views:
 
 ```omega
 data Message<'buffer> {
-    body: @'buffer [u8];
+    body: &'buffer [u8];
 }
 ```
 
@@ -94,11 +94,11 @@ shortens the promised lifetime to fit a local or input borrow. Instantiating a
 lifetime creates neither backing nor retention authority.
 
 ```omega
-machine package_name() -> @[u8] { "my_library" }
+machine package_name() -> &[u8] { "my_library" }
 
-machine kind_name<'name>(value: @Value) -> @'name [u8] { "record" }
+machine kind_name<'name>(value: &Value) -> &'name [u8] { "record" }
 
-machine leak<'name>(text: @[u8]) -> @'name [u8] { text }   // Rejected.
+machine leak<'name>(text: &[u8]) -> &'name [u8] { text }   // Rejected.
 ```
 
 `package_name` has no reference input, so its elided result lifetime is chosen

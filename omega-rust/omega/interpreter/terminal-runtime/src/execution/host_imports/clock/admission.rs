@@ -1,0 +1,190 @@
+// We select exact foreign clock implementations and validate their declarations
+// and ABIs. Kernel syscall numbers are platform data (Linux syscall_64.tbl and
+// asm-generic/unistd.h) rather than requirement names. Scalar carriers and thin
+// loan pointers follow the authored parameter order while storage permissions
+// are checked separately from native pointer representation.
+
+use calling_conventions::{CallSignature, ValueShape};
+use runtime_abi::NativeBorrowedStorageLayout;
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use target::TargetProfile;
+use target_operations::NormalizedForeignCallBinding;
+use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
+use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind};
+
+use super::super::unprovisioned;
+use super::windows::{self, WindowsWord};
+use super::{ClockImplementation, ClockNamespace, ClockOperation, TerminalRuntimeError, timespec};
+
+pub(super) fn select(
+    binding: &NormalizedForeignCallBinding,
+) -> Result<Option<(ClockNamespace, ClockImplementation)>, TerminalRuntimeError> {
+    if let Some(system_call) = binding.system_call() {
+        let implementation = match (system_call.target, system_call.number) {
+            (TargetProfile::LinuxX64, 228) | (TargetProfile::LinuxArm64, 113) => {
+                ClockImplementation::ReadTimespec
+            }
+            (TargetProfile::LinuxX64, 7) => ClockImplementation::Poll,
+            (TargetProfile::LinuxX64, 35) | (TargetProfile::LinuxArm64, 101) => {
+                ClockImplementation::Nanosleep
+            }
+            _ => return Ok(None),
+        };
+        return Ok(Some((ClockNamespace::Linux, implementation)));
+    }
+    let Some(locator) = binding.foreign_import_locator() else {
+        return Ok(None);
+    };
+    let target = locator.target();
+    if target == TargetProfile::WindowsX64 {
+        return windows::select(locator);
+    }
+    if !matches!(target, TargetProfile::MacosArm64 | TargetProfile::MacosX64) {
+        return Ok(None);
+    }
+    for (symbol, implementation) in [
+        (
+            b"_clock_gettime_nsec_np".as_slice(),
+            ClockImplementation::Read,
+        ),
+        (
+            b"_clock_gettime".as_slice(),
+            ClockImplementation::ReadTimespec,
+        ),
+        (b"_poll".as_slice(), ClockImplementation::Poll),
+        (b"_nanosleep".as_slice(), ClockImplementation::Nanosleep),
+    ] {
+        let offered = target::normalize_foreign_locator(
+            target::ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
+                symbol: symbol.to_vec(),
+            },
+            target,
+        )
+        .map_err(|_| {
+            TerminalRuntimeError::InvalidProvision("clock implementation has an invalid locator")
+        })?;
+        if offered == *locator {
+            return Ok(Some((ClockNamespace::Darwin, implementation)));
+        }
+    }
+    Ok(None)
+}
+
+pub(super) fn validate(
+    program: &TerminalProgram,
+    declaration: &BoundaryMachineDeclaration,
+    binding: &NormalizedForeignCallBinding,
+    signature: &TerminalImportSignature,
+    implementation: ClockImplementation,
+    namespace: ClockNamespace,
+    storage_layouts: &[NativeBorrowedStorageLayout],
+) -> Result<ClockOperation, TerminalRuntimeError> {
+    let invalid = unprovisioned("clock adapter differs from its exact admitted declaration/ABI");
+    let signed = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
+    let unsigned = IntegerType::new(IntegerSign::Unsigned, 32).map_err(|_| invalid())?;
+    let wide = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+    let signed_wide = IntegerType::new(IntegerSign::Signed, 64).map_err(|_| invalid())?;
+    let scalar = ScalarType::Integer;
+    let selector_valid = matches!(signature.scalar_parameters.as_slice(),
+        [ScalarType::Integer(integer)] if integer.bits() == Some(32) && !integer.is_address());
+    let status_valid = signature.result.is_unit()
+        || signature.result.scalar() == Some(scalar(signed))
+        || (matches!(namespace, ClockNamespace::Linux)
+            && signature.result.scalar() == Some(scalar(signed_wide)));
+    let (shape_valid, parameter_order) = match implementation {
+        ClockImplementation::WindowsWord(word) => (
+            signature.scalar_parameters.is_empty()
+                && windows::word_loan_valid(program, signature, word)
+                && match word {
+                    WindowsWord::FileTime => signature.result.is_unit(),
+                    WindowsWord::Counter | WindowsWord::Frequency => {
+                        signature.result.scalar() == Some(scalar(signed))
+                    }
+                },
+            vec![BoundaryParameterKind::Structural],
+        ),
+        ClockImplementation::WindowsSleep => (
+            signature.scalar_parameters == [scalar(unsigned)]
+                && signature.structural_parameters.is_empty()
+                && signature.result.is_unit(),
+            vec![BoundaryParameterKind::Scalar],
+        ),
+        ClockImplementation::Read => (
+            selector_valid
+                && signature.result.scalar() == Some(scalar(wide))
+                && signature.structural_parameters.is_empty(),
+            vec![BoundaryParameterKind::Scalar],
+        ),
+        ClockImplementation::ReadTimespec => (
+            selector_valid && status_valid,
+            vec![
+                BoundaryParameterKind::Scalar,
+                BoundaryParameterKind::Structural,
+            ],
+        ),
+        ClockImplementation::Nanosleep => (
+            signature.scalar_parameters == [scalar(wide)] && status_valid,
+            vec![
+                BoundaryParameterKind::Structural,
+                BoundaryParameterKind::Scalar,
+            ],
+        ),
+        ClockImplementation::Poll => (
+            matches!(signature.scalar_parameters.as_slice(), [pointer, count, timeout]
+                if *pointer == scalar(wide)
+                    && (*count == scalar(unsigned) || *count == scalar(wide))
+                    && *timeout == scalar(signed))
+                && status_valid
+                && signature.structural_parameters.is_empty(),
+            vec![BoundaryParameterKind::Scalar; 3],
+        ),
+    };
+    if !shape_valid || declaration.parameter_order != parameter_order {
+        return Err(invalid());
+    }
+    let operation = match implementation {
+        ClockImplementation::WindowsWord(word) => ClockOperation::WindowsWord(word),
+        ClockImplementation::WindowsSleep => ClockOperation::WindowsSleep,
+        ClockImplementation::Read => ClockOperation::Read,
+        ClockImplementation::Poll => ClockOperation::Poll,
+        ClockImplementation::ReadTimespec => ClockOperation::ReadTimespec(timespec::admit(
+            signature,
+            storage_layouts,
+            implementation,
+        )?),
+        ClockImplementation::Nanosleep => {
+            ClockOperation::Nanosleep(timespec::admit(signature, storage_layouts, implementation)?)
+        }
+    };
+    // ABI geometry comes from the same published program that owns this import.
+    let closed_module = program.closed_module().map_err(|_| invalid())?;
+    let closed_types = closed_module.closed_types();
+    let mut native_signature = CallSignature {
+        parameters: Vec::new(),
+        result: None,
+    };
+    let mut scalar_parameters = signature.scalar_parameters.iter();
+    for parameter in parameter_order {
+        let shape = match parameter {
+            BoundaryParameterKind::Scalar => {
+                let Some(ScalarType::Integer(integer)) = scalar_parameters.next() else {
+                    return Err(invalid());
+                };
+                let integer = closed_types.integer(*integer).map_err(|_| invalid())?;
+                ValueShape::for_closed_integer(integer).ok_or_else(invalid)?
+            }
+            BoundaryParameterKind::Structural => ValueShape::integer(8, 8),
+        };
+        native_signature.parameters.push(shape);
+    }
+    native_signature.result = match signature.result.scalar() {
+        Some(ScalarType::Integer(integer)) => {
+            let integer = closed_types.integer(integer).map_err(|_| invalid())?;
+            Some(ValueShape::for_closed_integer(integer).ok_or_else(invalid)?)
+        }
+        _ => None,
+    };
+    super::super::admit_exact_foreign_call(signature, declaration, binding, &native_signature)?;
+    Ok(operation)
+}

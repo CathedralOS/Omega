@@ -1,6 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "requires `input <= Units`, which the requirement does not imply"
-  ]
-}

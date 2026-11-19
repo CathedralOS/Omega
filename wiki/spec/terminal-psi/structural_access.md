@@ -267,7 +267,7 @@ passing a restricted field to a bare mutable byte view is rejected.
 
 ## Write-only authority
 
-`@write T` borrows an existing valid `T`; it is not uninitialized output storage.
+`&write T` borrows an existing valid `T`; it is not uninitialized output storage.
 Loan compatibility and permitted operations are separate. Content-independent
 place projection and metadata observation are permitted. Reading stored content,
 readable reborrowing, taking, swapping, and read-modify-write are not.
@@ -346,7 +346,7 @@ selector), reconstructed against the array its prefix resolves to. It reads
 `Case` step or leaf copy that needs one must still find a membership of a
 canonical place. The Boolean result still selects exactly one dispatch arm.
 Symbol resolution hoists such a dispatch subject into one shared
-`let __hoist = @context.items[context.w];` so the arms stay one exhaustive
+`let __hoist = &context.items[context.w];` so the arms stay one exhaustive
 dispatch; the Unit plan erases that borrow while nothing but the dispatch's
 transitions follows it, and each arm observes the element itself. Omega
 rebuilds the tag's address from declarations: the carrier's static offset
@@ -669,10 +669,6 @@ the root, though producers read a root sum's payload as parameters of its
 dispatch block. Unknown, erased, truncated, and non-record carriers reject;
 consumers must not infer a path from names or layout offsets. Terminal validation
 checks the declared path, exact scalar type and access independently.
-The lowered-form checker owns the case-refutation judgment but does not make it
-yet: it refuses a payload read that only a refutation would justify, such as
-the untested final arm of an exhaustive test chain (`TASKS.md`,
-**LOWERED-FORM-CHECKER**).
 
 Reading a nested field observes the original backing below that root, not a
 copied child or a new borrow. Independent validation retains the root's readable

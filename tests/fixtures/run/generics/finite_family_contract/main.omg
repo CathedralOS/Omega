@@ -1,0 +1,22 @@
+// Expected exit: 0.
+// A body over a finite type family is checked once for each type the family
+// lists, with `T` fixed to that type. `pick` admits `u8` and `u16`, and its
+// `ensures` says what it returns at each: a conjunct after `T == u8` is
+// typed with `T` fixed to `u8`. Both alternatives are checked, and both are
+// used here. The fail twin
+// `fail/generics/finite_family_contract_wrong_alternative` differs only in
+// the value `pick` returns at `u16`.
+machine pick<T>() -> T
+requires T == u8 || T == u16
+ensures (T == u8 && result == 7u8) || (T == u16 && result == 9u16)
+crashes none
+{
+    transition T == u8 { true -> (7u8) _ -> (9u16) }
+}
+machine main() crashes Trap {
+    let small: u8 = pick<u8>();
+    let wide: u16 = pick<u16>();
+    transition small == 7u8 && wide == 9u16 { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

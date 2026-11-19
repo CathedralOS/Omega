@@ -1,7 +1,0 @@
-// A plain package declares no application, so an executable root binding is
-// a row the request never asks for and must be rejected.
-
-machine build(builder: &mut Build) {
-    Build::package(builder, "invalid_package_binds_root");
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
-}

@@ -1,0 +1,15 @@
+// Selects one rule from each selected-instruction optimization phase and both
+// allocation-recovery rules. compiler/tests/selected_allocation_handoff.rs
+// rolls back every rule except the ones a test checks; together they would be
+// an unsupported composition.
+machine build(builder: &mut Build) {
+    Build::application(builder, "selected_allocation_low_pressure");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Optimizations::enable(&mut builder.optimizations, Optimization::SelectedIncomingWrappingAddZeroIdentityCopy);
+    Optimizations::enable(&mut builder.optimizations, Optimization::SelectedSameBlockCopyI64RemovalV1);
+    Optimizations::enable(&mut builder.optimizations, Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);
+    Optimizations::enable(&mut builder.optimizations, Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1);
+}

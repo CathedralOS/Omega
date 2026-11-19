@@ -1,0 +1,192 @@
+// We construct, validate, and finalize `CanonicalSourceClosureSubject` from
+// resolved target closures and recheck caller recovery limits over retained
+// typed fields without re-parsing or cloning a second subject.
+
+use super::{
+    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
+    CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
+    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
+};
+use crate::declarations::dependencies::read::DependencyProjections;
+use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
+use crate::resolution::source::PackageSourceNavigation;
+use target::TargetProfile;
+
+use super::encoding::{encode_subject, fingerprint};
+use super::usage::Budget;
+use super::validation::{canonical_root_request, validate_subject};
+
+impl CanonicalSourceClosureSubject {
+    pub(crate) fn validate_recovery_limits(
+        &self,
+        limits: CanonicalSourceClosureSubjectLimits,
+    ) -> Result<(), CanonicalSourceClosureSubjectError> {
+        let limits = limits.compiler_bounded();
+        if self.canonical_bytes.len() > limits.maximum_record_bytes {
+            return Err(CanonicalSourceClosureSubjectError::new(
+                "source-closure subject exceeds its record-byte limit",
+            ));
+        }
+        let mut budget = Budget::new(usize::MAX);
+        validate_subject(
+            &self.root,
+            &self.packages,
+            &self.package_navigations,
+            &self.package_dependency_projections,
+            &self.dependency_requests,
+            limits,
+            &mut budget,
+        )?;
+        super::catalog::validate(self, &self.catalog_dependencies, limits, &mut budget)
+    }
+
+    pub(crate) fn from_resolved(
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
+        limits: CanonicalSourceClosureSubjectLimits,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        let limits = limits.compiler_bounded();
+        let subject = Self::from_resolved_without_catalog(target_closure, limits)?;
+        let dependencies = super::catalog::project(target_closure, limits)?;
+        subject.with_catalog_dependencies(dependencies, limits, &mut Budget::new(usize::MAX))
+    }
+
+    pub(super) fn from_resolved_without_catalog(
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
+        limits: CanonicalSourceClosureSubjectLimits,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        let closure = target_closure.source_closure();
+        let root_view = closure.source_requests().root();
+        let root = CanonicalRootSourceSelection {
+            request: canonical_root_request(root_view.request()),
+            role: closure.root_role(),
+            selected: root_view.selected().clone(),
+        };
+        let mut packages = closure
+            .graph()
+            .packages()
+            .iter()
+            .map(|package| package.source().clone())
+            .collect::<Vec<_>>();
+        packages.sort_by(|left, right| left.key().cmp(right.key()));
+        let package_navigations = packages
+            .iter()
+            .map(|package| {
+                closure
+                    .custody(package.key())
+                    .expect("validated closure retains every package custody")
+                    .navigation()
+                    .clone()
+            })
+            .collect::<Vec<_>>();
+        let package_dependency_projections = packages
+            .iter()
+            .map(|package| {
+                closure
+                    .custody(package.key())
+                    .expect("validated closure retains every package custody")
+                    .dependency_projections()
+                    .clone()
+            })
+            .collect::<Vec<_>>();
+        let mut dependency_requests = closure
+            .source_requests()
+            .dependencies()
+            .map(|selection| CanonicalDependencySourceSelection {
+                requester: selection.requester().clone(),
+                purpose: selection.purpose(),
+                dependency_index: selection.dependency_index(),
+                request: CanonicalDependencySourceRequest::from(selection.request()),
+                alias: selection.alias().clone(),
+                selected: selection.selected().clone(),
+            })
+            .collect::<Vec<_>>();
+        dependency_requests.sort_by(|left, right| {
+            left.requester
+                .cmp(&right.requester)
+                .then(left.purpose.cmp(&right.purpose))
+                .then(left.dependency_index.cmp(&right.dependency_index))
+        });
+        Self::finish(
+            target_closure.target_profile(),
+            root,
+            packages,
+            package_navigations,
+            package_dependency_projections,
+            dependency_requests,
+            limits,
+            &mut Budget::new(usize::MAX),
+        )
+    }
+
+    pub(super) fn finish(
+        target_profile: TargetProfile,
+        root: CanonicalRootSourceSelection,
+        packages: Vec<ResolvedSourceIdentity>,
+        package_navigations: Vec<PackageSourceNavigation>,
+        package_dependency_projections: Vec<DependencyProjections>,
+        dependency_requests: Vec<CanonicalDependencySourceSelection>,
+        limits: CanonicalSourceClosureSubjectLimits,
+        budget: &mut Budget,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        let limits = limits.compiler_bounded();
+        validate_subject(
+            &root,
+            &packages,
+            &package_navigations,
+            &package_dependency_projections,
+            &dependency_requests,
+            limits,
+            budget,
+        )?;
+        let canonical_bytes = encode_subject(
+            target_profile,
+            &root,
+            &packages,
+            &package_navigations,
+            &package_dependency_projections,
+            &dependency_requests,
+            &[],
+            limits,
+            budget,
+        )?;
+        let fingerprint = fingerprint(&canonical_bytes);
+        Ok(Self {
+            target_profile,
+            root,
+            packages,
+            package_navigations,
+            package_dependency_projections,
+            dependency_requests,
+            catalog_dependencies: Vec::new(),
+            canonical_bytes,
+            fingerprint,
+        })
+    }
+
+    pub(super) fn with_catalog_dependencies(
+        mut self,
+        dependencies: Vec<super::CanonicalCatalogDependency>,
+        limits: CanonicalSourceClosureSubjectLimits,
+        budget: &mut Budget,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        super::catalog::validate(&self, &dependencies, limits, budget)?;
+        if dependencies.is_empty() {
+            return Ok(self);
+        }
+        let bytes = encode_subject(
+            self.target_profile,
+            &self.root,
+            &self.packages,
+            &self.package_navigations,
+            &self.package_dependency_projections,
+            &self.dependency_requests,
+            &dependencies,
+            limits,
+            budget,
+        )?;
+        self.fingerprint = fingerprint(&bytes);
+        self.canonical_bytes = bytes;
+        self.catalog_dependencies = dependencies;
+        Ok(self)
+    }
+}

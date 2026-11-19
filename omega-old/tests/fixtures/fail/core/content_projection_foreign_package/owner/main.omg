@@ -1,3 +1,0 @@
-public data ByteUnit {}
-public data Region [linear] {}
-public domain Region::Owned;

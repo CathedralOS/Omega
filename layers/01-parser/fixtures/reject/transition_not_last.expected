@@ -1,4 +1,0 @@
-error TransitionNotLast at 4:5 bytes 129..136
-  found: cleanup
-  expected: `}`
-  a `transition` must be the last statement of a body

@@ -1,0 +1,2103 @@
+/*
+We test physical evidence derivation, structural argument custody joins,
+admitted-provider and hosted-builtin settlement identity encoding, and exact
+physical child coordinate validation across single-field mutations.
+*/
+#[test]
+fn reference_projection_identity_is_distinct_from_owned_paths() {
+    use terminal_psi::StructuralPathSegment;
+    let identity = |path: &[StructuralPathSegment]| {
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+        crate::physical::derivation::hashing::hash_structural_path(&mut digest, path);
+        digest.finish()
+    };
+    let reference = identity(&[StructuralPathSegment::Referent]);
+    assert_ne!(reference, identity(&[]));
+    assert_ne!(
+        reference,
+        identity(&[StructuralPathSegment::Field(
+            terminal_psi::TerminalIdentityIndex(1)
+        )])
+    );
+    assert_ne!(reference, identity(&[StructuralPathSegment::FixedIndex(3)]));
+}
+use crate::NativeSelectedProviderPlanDigest;
+use crate::physical::NativeOptimizationProjection;
+use crate::physical::NativePhysicalOccurrence;
+use crate::physical::derivation::evidence::PhysicalChildCoordinate;
+use crate::physical::derivation::evidence::boundary_occurrence_identity;
+use crate::physical::derivation::evidence::operator_occurrence_identity;
+use crate::physical::derivation::evidence::validate_exact_physical_child_coordinates;
+use crate::physical::derivation::settlement_identity::admitted_provider_settlement_identity;
+use crate::physical::derivation::settlement_identity::hosted_builtin_settlement_identity;
+use crate::physical::native_optimization_projection;
+use crate::physical::optimized_boundary_occurrence;
+use crate::physical::optimized_operator_occurrence;
+use optimization_core::NativeOptimizationProjectionIdentity;
+use optimization_core::OptimizedBoundaryOccurrenceIdentity;
+use optimization_core::OptimizedOperatorOccurrenceIdentity;
+use semantic_vocabulary::IntegerSign;
+use semantic_vocabulary::IntegerType;
+use semantic_vocabulary::MachineId;
+use semantic_vocabulary::ScalarType;
+use target::NativeTarget;
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+
+fn fixture_terminal(program_fingerprint: [u8; 32]) -> (TerminalPsiIdentity, MachineId) {
+    (
+        TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes(program_fingerprint),
+        },
+        MachineId::new(1).expect("machine"),
+    )
+}
+
+fn physical_projection() -> NativeOptimizationProjection {
+    let (terminal, machine) = fixture_terminal([19; 32]);
+    let operator = optimized_operator_occurrence(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(2).expect("operator"),
+        0,
+        OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"operator survivor"),
+    );
+    let boundary = optimized_boundary_occurrence(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(3).expect("boundary operation"),
+        semantic_vocabulary::BoundaryMachineId::new(4).expect("boundary"),
+        1,
+        OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"boundary survivor"),
+    );
+    native_optimization_projection(
+        terminal,
+        vec![operator],
+        vec![boundary],
+        NativeOptimizationProjectionIdentity::from_canonical_bytes(b"physical projection"),
+    )
+}
+
+fn exact_coordinates(projection: &NativeOptimizationProjection) -> [PhysicalChildCoordinate; 2] {
+    [
+        PhysicalChildCoordinate {
+            projection: projection.identity(),
+            occurrence: NativePhysicalOccurrence::Operator(
+                projection.operator_occurrences()[0].identity(),
+            ),
+            parent_role: 1,
+        },
+        PhysicalChildCoordinate {
+            projection: projection.identity(),
+            occurrence: NativePhysicalOccurrence::Boundary(
+                projection.boundary_occurrences()[0].identity(),
+            ),
+            parent_role: 2,
+        },
+    ]
+}
+
+#[test]
+fn equal_boundary_requirements_at_distinct_operations_have_distinct_occurrences() {
+    let (terminal, machine) = fixture_terminal([7; 32]);
+    let boundary = semantic_vocabulary::BoundaryMachineId::new(2).expect("boundary");
+    let first = boundary_occurrence_identity(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(3).expect("first operation"),
+        boundary,
+        0,
+    );
+    let second = boundary_occurrence_identity(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(4).expect("second operation"),
+        boundary,
+        1,
+    );
+
+    assert_ne!(first, second);
+}
+
+#[test]
+fn physical_cleanup_identity_keeps_edge_action_and_call_family() {
+    use crate::physical::derivation::hashing::hash_call_site_owner;
+    use crate::physical::identity_bytes::append_boundary_occurrence_identity;
+    use semantic_vocabulary::{BoundaryMachineId, EdgeId, InvocationSite, OperationId};
+    let (_, machine) = fixture_terminal([7; 32]);
+    let boundary = BoundaryMachineId::new(2).unwrap();
+    let edge = EdgeId::new(7).unwrap();
+    let sites = [
+        InvocationSite::Cleanup {
+            edge,
+            action_ordinal: 0,
+        },
+        InvocationSite::Cleanup {
+            edge,
+            action_ordinal: 1,
+        },
+        InvocationSite::Cleanup {
+            edge: EdgeId::new(8).unwrap(),
+            action_ordinal: 0,
+        },
+        InvocationSite::Operation(OperationId::new(7).unwrap()),
+        InvocationSite::ExternalCompletion(edge),
+        InvocationSite::InvokeNoNormal(edge),
+    ];
+    let encoded: Vec<_> = sites
+        .into_iter()
+        .map(|site| {
+            let mut bytes = Vec::new();
+            append_boundary_occurrence_identity(&mut bytes, machine, site, boundary, 3);
+            let mut digest =
+                crate::digest_encoder::DomainDigestEncoder::new(b"cleanup-owner-control");
+            hash_call_site_owner(&mut digest, &site.into());
+            (bytes, digest.finish())
+        })
+        .collect();
+    for (index, (bytes, digest)) in encoded.iter().enumerate() {
+        for (other_bytes, other_digest) in &encoded[index + 1..] {
+            assert_ne!(bytes, other_bytes);
+            assert_ne!(digest, other_digest);
+        }
+    }
+}
+
+#[test]
+fn operator_occurrence_identity_binds_exact_terminal_operation() {
+    let (terminal, machine) = fixture_terminal([11; 32]);
+    let first = operator_occurrence_identity(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(3).expect("first operation"),
+        0,
+    );
+    let second = operator_occurrence_identity(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(4).expect("second operation"),
+        1,
+    );
+
+    assert_ne!(first, second);
+}
+
+#[test]
+fn physical_children_require_an_exact_survivor_bijection() {
+    let projection = physical_projection();
+    let [operator, boundary] = exact_coordinates(&projection);
+    assert!(validate_exact_physical_child_coordinates(&projection, [operator, boundary]).is_ok());
+
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [operator]),
+        Err("native physical evidence does not cover the exact surviving occurrence set")
+    );
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [operator, operator, boundary]),
+        Err("native physical evidence contains duplicate optimized occurrences")
+    );
+
+    let padded = PhysicalChildCoordinate {
+        projection: projection.identity(),
+        occurrence: NativePhysicalOccurrence::Operator(
+            OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"stale occurrence"),
+        ),
+        parent_role: 1,
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [operator, boundary, padded]),
+        Err("native physical child swapped or substituted its semantic parent role")
+    );
+
+    let detached = PhysicalChildCoordinate {
+        projection: NativeOptimizationProjectionIdentity::from_canonical_bytes(
+            b"detached projection",
+        ),
+        ..operator
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [detached, boundary]),
+        Err("native physical child is detached from its optimized projection")
+    );
+
+    let role_swapped = PhysicalChildCoordinate {
+        parent_role: 2,
+        ..operator
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [role_swapped, boundary]),
+        Err("native physical child swapped or substituted its semantic parent role")
+    );
+}
+
+#[test]
+fn structural_boundary_settlement_identity_binds_the_complete_result_declaration() {
+    use semantic_vocabulary::{
+        BoundedIntegerType, IntegerValue, OperationId, PlaceId, StructuralCaseId,
+        StructuralFieldId, StructuralTypeId,
+    };
+    use terminal_psi::{
+        BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
+        StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let structural_type = StructuralTypeId::new(1).unwrap();
+    let original = machine_code::BoundaryStructuralResultRecord {
+        defining_operation: OperationId::new(3).unwrap(),
+        result: StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place: PlaceId::new(1).unwrap(),
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
+            claims: Vec::new(),
+        },
+        declaration: StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
+            requires: Vec::new(),
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            scalar_restriction: None,
+            id: structural_type,
+            identity: terminal_psi::TerminalIdentityIndex(2),
+            shape: StructuralTypeShape::Sum {
+                cases: vec![
+                    StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
+                        id: StructuralCaseId::new(1).unwrap(),
+                        identity: terminal_psi::TerminalIdentityIndex(3),
+                        fields: Vec::new(),
+                    },
+                    StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
+                        id: StructuralCaseId::new(2).unwrap(),
+                        identity: terminal_psi::TerminalIdentityIndex(4),
+                        fields: vec![StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
+                            inline_carrier: None,
+                            storage: None,
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: terminal_psi::TerminalIdentityIndex(5),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::BoundedInteger(
+                                BoundedIntegerType::new(
+                                    integer,
+                                    IntegerValue::Signed(0),
+                                    IntegerValue::Signed(255),
+                                )
+                                .unwrap(),
+                            ),
+                        }],
+                    },
+                ],
+            },
+        },
+        layout: calling_conventions::evaluate_conventional_sum_layout(
+            &[],
+            &[
+                Vec::new(),
+                vec![calling_conventions::ValueShape::integer(4, 4)],
+            ],
+        )
+        .unwrap(),
+        home_byte_offset: 16,
+    };
+    let projection = physical_projection();
+    let identity = |result: &machine_code::BoundaryStructuralResultRecord| {
+        hosted_builtin_settlement_identity(
+            &projection.boundary_occurrences()[0],
+            "Input::read",
+            NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            NativeTarget::linux_x64(),
+            [3, 3],
+            None,
+            &crate::CompilerBuiltinResult::Structural(result.clone()),
+        )
+        .unwrap()
+    };
+    let expected = identity(&original);
+    for mutation in 0..7 {
+        let mut changed = original.clone();
+        let StructuralTypeShape::Sum { cases } = &mut changed.declaration.shape else {
+            panic!("sum")
+        };
+        match mutation {
+            0 => changed.declaration.identity = terminal_psi::TerminalIdentityIndex(991),
+            1 => cases[1].identity = terminal_psi::TerminalIdentityIndex(992),
+            2 => cases[1].id = StructuralCaseId::new(3).unwrap(),
+            3 => cases[1].fields[0].identity = terminal_psi::TerminalIdentityIndex(993),
+            4 => cases[1].fields[0].id = StructuralFieldId::new(2).unwrap(),
+            5 => {
+                cases[1].fields[0].field_type = StructuralFieldType::BoundedInteger(
+                    BoundedIntegerType::new(
+                        integer,
+                        IntegerValue::Signed(-1),
+                        IntegerValue::Signed(256),
+                    )
+                    .unwrap(),
+                )
+            }
+            _ => {
+                cases[1].fields[0].field_type =
+                    StructuralFieldType::Scalar(ScalarType::Integer(integer))
+            }
+        }
+        assert_eq!(
+            changed.layout, original.layout,
+            "unchanged layout cannot mask semantic drift"
+        );
+        assert_ne!(
+            identity(&changed),
+            expected,
+            "declaration mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
+    use semantic_vocabulary::{
+        BoundaryMachineId, ClaimId, EdgeId, IntegerValue, OperationId, PlaceId, ServiceId,
+        StructuralCaseId, StructuralTypeId, ValueId,
+    };
+    use target_operations::{
+        BoundaryScalarArgument, ClaimCompletionOnlyRealization, MetadataOnlyPortRealization,
+    };
+    use terminal_psi::{
+        CompletionReceipt, EntryClaim, StructuralAccess, StructuralArgument,
+        StructuralCaseDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    };
+
+    let projection = physical_projection();
+    let occurrence = &projection.boundary_occurrences()[0];
+    let record = machine_code::ProviderExecutionRecord::new(7, 11, 13, 17, 19).unwrap();
+    let execution = target_operations::ProviderExecutionBinding::from_execution_record(
+        target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+        11,
+        13,
+        17,
+        19,
+    )
+    .unwrap();
+    let claim = ClaimId::new(23).unwrap();
+    let argument = StructuralArgument {
+        place: PlaceId::new(29).unwrap(),
+        path: vec![terminal_psi::StructuralPathSegment::Field(
+            terminal_psi::TerminalIdentityIndex(6),
+        )],
+        access: StructuralAccess::Owned,
+    };
+    let source = target_operations::CompletionClaimSource {
+        claim,
+        entry: Some(EntryClaim {
+            claim,
+            input: argument.place,
+            path: Vec::new(),
+        }),
+        content: None,
+    };
+    let receipt = CompletionReceipt {
+        claim,
+        argument_index: 0,
+        path: Vec::new(),
+    };
+    let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let byte_sequence = machine_code::BoundaryByteSequenceArgumentRecord {
+        argument: argument.clone(),
+        literal_operation: OperationId::new(47).unwrap(),
+        structural_type: StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
+            requires: Vec::new(),
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            scalar_restriction: None,
+            id: StructuralTypeId::new(73).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(7),
+            shape: StructuralTypeShape::Sum {
+                cases: vec![StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
+                    id: StructuralCaseId::new(1).unwrap(),
+                    identity: terminal_psi::TerminalIdentityIndex(7),
+                    fields: Vec::new(),
+                }],
+            },
+        },
+        bytes: b"payload".to_vec(),
+        code_offset: 9,
+        code_byte_count: 3,
+        data_offset: 4,
+        data_byte_count: 7,
+    };
+    let scalar_result =
+        machine_code::BoundaryResultRecord::Scalar(machine_code::BoundaryScalarResultRecord {
+            value: ValueId::new(67).unwrap(),
+            scalar_type: u8_type,
+            placement: calling_conventions::ValuePlacement {
+                shape: calling_conventions::ValueShape::integer(1, 1),
+                locations: vec![calling_conventions::ValueLocation::Register {
+                    register: calling_conventions::MachineRegister::X86Rax,
+                    value_byte_offset: 0,
+                    byte_size: 1,
+                }],
+            },
+            return_edge: EdgeId::new(71).unwrap(),
+        });
+    let completion = machine_code::BoundarySettlementRecord {
+        invocation_site: OperationId::new(41).unwrap().into(),
+        boundary: BoundaryMachineId::new(43).unwrap(),
+        execution: machine_code::BoundaryExecutionRecord::AdmittedProvider(record),
+        realization: target_operations::BoundaryRealization::ClaimCompletionOnly(
+            ClaimCompletionOnlyRealization,
+        ),
+        scalar_arguments: Vec::new(),
+        runtime_scalar_arguments: Vec::new(),
+        arguments: vec![argument.clone()],
+        byte_sequence_arguments: vec![byte_sequence],
+        completion_claim_sources: vec![source.clone()],
+        completion_receipts: vec![receipt.clone()],
+        completion_provider_custody: vec![machine_code::CompletionProviderCustodyBinding {
+            source: source.clone(),
+            receipt,
+            provider_execution: record,
+        }],
+        native_result: machine_code::BoundaryResultRecord::Unit,
+        operation_ordinal: 5,
+        code_offset: 8,
+        byte_count: 0,
+    };
+    let identity = |settlement: &machine_code::BoundarySettlementRecord,
+                    port_effect: Option<&machine_code::PortEffectRecord>,
+                    execution: target_operations::ProviderExecutionBinding| {
+        admitted_provider_settlement_identity(
+            occurrence,
+            "Extent::complete",
+            NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+            NativeTarget::linux_x64(),
+            execution,
+            settlement,
+            port_effect,
+        )
+        .unwrap()
+    };
+    let expected = identity(&completion, None, execution);
+
+    for mutation in 0..22 {
+        let mut changed = completion.clone();
+        match mutation {
+            0 => changed.invocation_site = OperationId::new(53).unwrap().into(),
+            1 => changed.boundary = BoundaryMachineId::new(59).unwrap(),
+            2 => {
+                changed.execution = machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                    machine_code::ProviderExecutionRecord::new(7, 11, 13, 17, 23).unwrap(),
+                )
+            }
+            3 => {
+                changed.execution = machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                )
+            }
+            4 => {
+                changed.realization = target_operations::BoundaryRealization::MetadataOnlyPort(
+                    MetadataOnlyPortRealization {
+                        effect_operation: OperationId::new(40).unwrap(),
+                        service: ServiceId::new(3).unwrap(),
+                        port: 0x3f8,
+                        value: 0x51,
+                    },
+                )
+            }
+            5 => changed.scalar_arguments.push(BoundaryScalarArgument {
+                source_value: ValueId::new(31).unwrap(),
+                scalar_type: u8_type,
+                immediate: IntegerValue::Unsigned(7),
+                destination: calling_conventions::MachineRegister::X86Rdi,
+            }),
+            6 => {
+                changed
+                    .runtime_scalar_arguments
+                    .push(machine_code::ForeignCallScalarArgumentRecord {
+                    parameter_index: 0,
+                    source:
+                        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
+                            source_value: ValueId::new(37).unwrap(),
+                            scalar_type: ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                            ),
+                            instruction: selected_instructions::SelectedInstructionId(41),
+                        },
+                    placement: calling_conventions::ValuePlacement {
+                        shape: calling_conventions::ValueShape::integer(4, 4),
+                        locations: vec![calling_conventions::ValueLocation::Register {
+                            register: calling_conventions::MachineRegister::X86Rax,
+                            value_byte_offset: 0,
+                            byte_size: 4,
+                        }],
+                    },
+                    code_offset: 2,
+                    byte_count: 4,
+                })
+            }
+            7 => changed.arguments[0].access = StructuralAccess::SharedBorrow,
+            8 => changed.arguments.push(argument.clone()),
+            9 => changed.byte_sequence_arguments[0].bytes = b"other".to_vec(),
+            10 => changed.byte_sequence_arguments[0].data_byte_count += 1,
+            11 => changed.completion_claim_sources[0].entry = None,
+            12 => changed.completion_claim_sources.push(source.clone()),
+            13 => changed.completion_receipts[0].argument_index = 1,
+            14 => changed.completion_receipts.push(CompletionReceipt {
+                claim: ClaimId::new(61).unwrap(),
+                argument_index: 1,
+                path: Vec::new(),
+            }),
+            15 => {
+                changed.completion_provider_custody[0]
+                    .provider_execution
+                    .boundary_contract_report_fingerprint = 23
+            }
+            16 => {
+                changed.completion_provider_custody[0]
+                    .receipt
+                    .argument_index = 7
+            }
+            17 => changed.native_result = scalar_result.clone(),
+            18 => changed.operation_ordinal += 1,
+            19 => changed.code_offset += 1,
+            20 => changed.byte_count += 1,
+            _ => changed.completion_provider_custody.clear(),
+        }
+        assert_ne!(
+            identity(&changed, None, execution),
+            expected,
+            "settlement mutation {mutation}"
+        );
+    }
+
+    for mutation in 0..5 {
+        let changed = match mutation {
+            0 => admitted_provider_settlement_identity(
+                &optimized_boundary_occurrence(
+                    occurrence.terminal(),
+                    occurrence.machine(),
+                    OperationId::new(9).unwrap(),
+                    occurrence.boundary(),
+                    occurrence.operation_ordinal(),
+                    OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"other occurrence"),
+                ),
+                "Extent::complete",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                &completion,
+                None,
+            )
+            .unwrap(),
+            1 => admitted_provider_settlement_identity(
+                occurrence,
+                "Extent::other",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                &completion,
+                None,
+            )
+            .unwrap(),
+            2 => admitted_provider_settlement_identity(
+                occurrence,
+                "Extent::complete",
+                NativeSelectedProviderPlanDigest::from_digest([8; 32]),
+                NativeTarget::linux_x64(),
+                execution,
+                &completion,
+                None,
+            )
+            .unwrap(),
+            3 => admitted_provider_settlement_identity(
+                occurrence,
+                "Extent::complete",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]),
+                NativeTarget::windows_x64(),
+                execution,
+                &completion,
+                None,
+            )
+            .unwrap(),
+            _ => identity(
+                &completion,
+                None,
+                target_operations::ProviderExecutionBinding::from_execution_record(
+                    target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+                    11,
+                    13,
+                    17,
+                    29,
+                )
+                .unwrap(),
+            ),
+        };
+        assert_ne!(changed, expected, "binding input mutation {mutation}");
+    }
+
+    let port_effect = machine_code::PortEffectRecord {
+        psi_operation: OperationId::new(40).unwrap(),
+        service: ServiceId::new(3).unwrap(),
+        port: 0x3f8,
+        value: 0x51,
+        operation_ordinal: 4,
+        code_offset: 6,
+        byte_count: 2,
+    };
+    let port = machine_code::BoundarySettlementRecord {
+        realization: target_operations::BoundaryRealization::MetadataOnlyPort(
+            MetadataOnlyPortRealization {
+                effect_operation: OperationId::new(40).unwrap(),
+                service: ServiceId::new(3).unwrap(),
+                port: 0x3f8,
+                value: 0x51,
+            },
+        ),
+        scalar_arguments: Vec::new(),
+        runtime_scalar_arguments: Vec::new(),
+        arguments: Vec::new(),
+        byte_sequence_arguments: Vec::new(),
+        completion_claim_sources: Vec::new(),
+        completion_receipts: Vec::new(),
+        completion_provider_custody: Vec::new(),
+        ..completion.clone()
+    };
+    let port_expected = identity(&port, Some(&port_effect), execution);
+    assert_ne!(port_expected, identity(&port, None, execution));
+    for mutation in 0..7 {
+        let mut changed = port_effect.clone();
+        match mutation {
+            0 => changed.psi_operation = OperationId::new(43).unwrap(),
+            1 => changed.service = ServiceId::new(5).unwrap(),
+            2 => changed.port += 1,
+            3 => changed.value += 1,
+            4 => changed.operation_ordinal += 1,
+            5 => changed.code_offset += 1,
+            _ => changed.byte_count += 1,
+        }
+        assert_ne!(
+            identity(&port, Some(&changed), execution),
+            port_expected,
+            "port-effect mutation {mutation}"
+        );
+    }
+    for mutation in 0..4 {
+        let mut changed = port.clone();
+        let target_operations::BoundaryRealization::MetadataOnlyPort(realization) =
+            &mut changed.realization
+        else {
+            panic!("metadata-only port settlement")
+        };
+        match mutation {
+            0 => realization.effect_operation = OperationId::new(43).unwrap(),
+            1 => realization.service = ServiceId::new(5).unwrap(),
+            2 => realization.port += 1,
+            _ => realization.value += 1,
+        }
+        assert_ne!(
+            identity(&changed, Some(&port_effect), execution),
+            port_expected,
+            "metadata-port realization mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
+    use calling_conventions::{MachineRegister, ValueLocation, ValuePlacement, ValueShape};
+    use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
+    use terminal_psi::{
+        BoundaryParameterKind, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
+    };
+
+    use crate::physical::derivation::foreign_calls::normalized_foreign_structural_parameter_shapes;
+
+    fn operand_binding(
+        placements: &[ValuePlacement],
+    ) -> target_operations::NormalizedForeignCallBinding {
+        let mut boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            calling_conventions::CallingPolicy::LinuxSyscallX86_64,
+            &calling_conventions::CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("empty test boundary plan")
+        .plan()
+        .clone();
+        boundary_entry_plan.call.parameters = placements.to_vec();
+        target_operations::NormalizedForeignCallBinding {
+            boundary_entry_plan,
+            mechanism: target_operations::NormalizedForeignCallMechanism::SystemCall(
+                target_operations::NormalizedSystemCallBinding {
+                    target: target::TargetProfile::LinuxX64,
+                    number: 0,
+                    requirement_identity: "test-only::operand-view".to_owned(),
+                    execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                        report: 7,
+                        commitment: [7; 32],
+                    },
+                },
+            ),
+        }
+    }
+
+    let pointer = ValueShape::integer(8, 8);
+    let parameter =
+        |place: u64, position: u32, access: StructuralAccess| StructuralParameterDeclaration {
+            place: PlaceId::new(place).unwrap(),
+            position,
+            structural_type: StructuralTypeId::new(40 + place).unwrap(),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
+        };
+    let argument = |place: u64, field: &str, access: StructuralAccess| StructuralArgument {
+        place: PlaceId::new(place).unwrap(),
+        path: vec![StructuralPathSegment::Field(
+            terminal_psi::TerminalIdentityIndex(match field {
+                "other" => 10,
+                _ => 0,
+            }),
+        )],
+        access,
+    };
+    let caller_parameters = vec![
+        parameter(101, 0, StructuralAccess::SharedBorrow),
+        parameter(102, 1, StructuralAccess::MutableBorrow),
+    ];
+    let parameters = vec![
+        parameter(201, 0, StructuralAccess::SharedBorrow),
+        parameter(202, 1, StructuralAccess::MutableBorrow),
+    ];
+    let arguments = vec![
+        argument(101, "header", StructuralAccess::SharedBorrow),
+        argument(102, "payload", StructuralAccess::MutableBorrow),
+    ];
+    let placement = |register: MachineRegister| ValuePlacement {
+        shape: pointer,
+        locations: vec![ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }],
+    };
+    let placements = vec![
+        placement(MachineRegister::X86Rdi),
+        placement(MachineRegister::X86Rsi),
+    ];
+
+    let signature = |arguments: &[StructuralArgument],
+                     parameters: &[StructuralParameterDeclaration],
+                     placements: &[ValuePlacement]| {
+        let binding = operand_binding(placements);
+        normalized_foreign_structural_parameter_shapes(
+            arguments,
+            parameters,
+            &caller_parameters,
+            &vec![BoundaryParameterKind::Structural; parameters.len()],
+            false,
+            &binding.operand_placements(),
+            pointer,
+        )
+    };
+
+    assert_eq!(
+        signature(&arguments, &parameters, &placements),
+        Ok(Some(vec![pointer, pointer]))
+    );
+    assert_eq!(signature(&[], &[], &[]), Ok(Some(Vec::new())));
+
+    assert_eq!(
+        signature(&arguments[..1], &parameters, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    assert_eq!(
+        signature(&[], &parameters, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    assert_eq!(
+        signature(&arguments, &parameters, &placements[..1]),
+        Err("normalized foreign D41 child changed its structural call custody")
+    );
+
+    let mut duplicated = parameters.clone();
+    duplicated[1].position = 0;
+    assert_eq!(
+        signature(&arguments, &duplicated, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    let mut padded = placements.clone();
+    padded.push(placement(MachineRegister::X86Rdx));
+    assert_eq!(
+        signature(&arguments, &parameters, &padded),
+        Err("normalized foreign D41 child changed its structural call custody")
+    );
+
+    let mut substituted = arguments.clone();
+    substituted[0].access = StructuralAccess::MutableBorrow;
+    assert_eq!(
+        signature(&substituted, &parameters, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    let mut narrow = placements.clone();
+    narrow[0] = ValuePlacement {
+        shape: ValueShape::integer(4, 4),
+        locations: vec![ValueLocation::Register {
+            register: MachineRegister::X86Rdi,
+            value_byte_offset: 0,
+            byte_size: 4,
+        }],
+    };
+    assert_eq!(
+        signature(&arguments, &parameters, &narrow),
+        Err("normalized foreign D41 child changed its structural call custody")
+    );
+    let mut indirect = placements.clone();
+    indirect[0].locations = vec![ValueLocation::Indirect {
+        pointer: calling_conventions::IndirectPointerLocation::Register(MachineRegister::X86Rdi),
+        copy_stack_byte_offset: None,
+        byte_size: 8,
+        alignment: 8,
+    }];
+    assert_eq!(
+        signature(&arguments, &parameters, &indirect),
+        Err("normalized foreign D41 child changed its structural call custody")
+    );
+
+    let mut swapped_positions = parameters.clone();
+    swapped_positions[0].position = 1;
+    swapped_positions[1].position = 0;
+    assert_eq!(
+        signature(&arguments, &swapped_positions, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+    let mut swapped_arguments = arguments.clone();
+    swapped_arguments.swap(0, 1);
+    assert_eq!(
+        signature(&swapped_arguments, &parameters, &placements),
+        Err("normalized foreign D41 child changed its structural call occurrence")
+    );
+
+    let interleaved_order = [
+        BoundaryParameterKind::Scalar,
+        BoundaryParameterKind::Structural,
+        BoundaryParameterKind::Scalar,
+        BoundaryParameterKind::Structural,
+    ];
+    let mut interleaved_placements = vec![
+        narrow[0].clone(),
+        placements[0].clone(),
+        narrow[0].clone(),
+        placements[1].clone(),
+    ];
+    assert_eq!(
+        normalized_foreign_structural_parameter_shapes(
+            &arguments,
+            &parameters,
+            &caller_parameters,
+            &interleaved_order,
+            false,
+            &operand_binding(&interleaved_placements).operand_placements(),
+            pointer,
+        ),
+        Ok(Some(vec![pointer, pointer]))
+    );
+    interleaved_placements.swap(0, 1);
+    assert!(
+        normalized_foreign_structural_parameter_shapes(
+            &arguments,
+            &parameters,
+            &caller_parameters,
+            &interleaved_order,
+            false,
+            &operand_binding(&interleaved_placements).operand_placements(),
+            pointer,
+        )
+        .is_err()
+    );
+
+    assert_eq!(
+        normalized_foreign_structural_parameter_shapes(
+            &arguments,
+            &parameters,
+            &caller_parameters,
+            &[BoundaryParameterKind::Structural; 2],
+            true,
+            &operand_binding(&placements).operand_placements(),
+            pointer,
+        ),
+        Ok(None)
+    );
+    let owned_parameters = vec![
+        parameter(201, 0, StructuralAccess::Owned),
+        parameter(202, 1, StructuralAccess::Owned),
+    ];
+    let owned_arguments = vec![
+        argument(101, "header", StructuralAccess::Owned),
+        argument(102, "payload", StructuralAccess::Owned),
+    ];
+    assert_eq!(
+        signature(&owned_arguments, &owned_parameters, &placements),
+        Ok(None)
+    );
+    let mut affine = parameters.clone();
+    affine[0].multiplicity = StructuralMultiplicity::Affine;
+    assert_eq!(signature(&arguments, &affine, &placements), Ok(None));
+    let mut qualified = parameters.clone();
+    qualified[0]
+        .qualifications
+        .push(StructuralDomainId::new(3).unwrap());
+    let mut projected_qualified = parameters.clone();
+    projected_qualified[0]
+        .projected_qualifications
+        .push(StructuralPathQualification {
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(6),
+            )],
+            domain: StructuralDomainId::new(5).unwrap(),
+        });
+    for qualified in [&qualified, &projected_qualified] {
+        assert_eq!(
+            signature(&arguments, qualified, &placements),
+            Ok(Some(vec![pointer, pointer]))
+        );
+        assert_eq!(
+            signature(&arguments, qualified, &narrow),
+            Err("normalized foreign D41 child changed its structural call custody")
+        );
+    }
+    let mut indexed = arguments.clone();
+    indexed[0].path.push(StructuralPathSegment::FixedIndex(0));
+    assert_eq!(signature(&indexed, &parameters, &placements), Ok(None));
+    let mut root_path = arguments.clone();
+    root_path[0].path.clear();
+    assert_eq!(signature(&root_path, &parameters, &placements), Ok(None));
+    let mut foreign_root = arguments.clone();
+    foreign_root[0].place = PlaceId::new(999).unwrap();
+    assert_eq!(signature(&foreign_root, &parameters, &placements), Ok(None));
+}
+
+#[test]
+fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
+    use semantic_vocabulary::{OperationId, PlaceId, StructuralDomainId, StructuralTypeId};
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
+    };
+
+    use crate::physical::derivation::settlement_identity::admitted_provider_boundary_trait_settlement_identity;
+
+    let projection = physical_projection();
+    let occurrence = &projection.boundary_occurrences()[0];
+    let execution = target_operations::ProviderExecutionBinding::from_execution_record(
+        target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+        11,
+        13,
+        17,
+        19,
+    )
+    .unwrap();
+    let locator = target::normalize_foreign_locator(
+        target::ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: b"ReadFile".to_vec(),
+        },
+        target::TargetProfile::WindowsX64,
+    )
+    .expect("valid normalized Windows import");
+    let mechanism = |locator: &target::NormalizedForeignLocator, admission: [u8; 32]| {
+        let commitment = task_plans::SameStackProviderPlanCommitment::from_digest(admission);
+        let identities = terminal_psi::TerminalIdentityTable::from(vec![
+            String::new(),
+            "Input::read".to_owned(),
+        ]);
+        let requirement_index = identities
+            .index_of("Input::read")
+            .expect("test requirement identity must intern");
+        let contribution = task_plans::admit_same_stack_contribution(
+            task_plans::SameStackContributionAdmissionCandidate {
+                provider_plan_report_identity: 7,
+                provider_plan_commitment: commitment,
+                requirement_identity: requirement_index,
+                receipt:
+                    task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(3)
+                        .unwrap(),
+                bytes: 64,
+                alignment: 16,
+            },
+            7,
+            commitment,
+            requirement_index,
+        )
+        .unwrap();
+        target_operations::NormalizedForeignCallMechanism::Import {
+            locator: locator.clone(),
+            same_stack_contribution: contribution,
+        }
+    };
+    let parameter =
+        |place: u64, position: u32, access: StructuralAccess| StructuralParameterDeclaration {
+            place: PlaceId::new(place).unwrap(),
+            position,
+            structural_type: StructuralTypeId::new(40 + place).unwrap(),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
+        };
+    let structural_parameters = vec![
+        parameter(201, 0, StructuralAccess::SharedBorrow),
+        parameter(202, 1, StructuralAccess::MutableBorrow),
+    ];
+    let structural_arguments = vec![
+        StructuralArgument {
+            place: PlaceId::new(101).unwrap(),
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(8),
+            )],
+            access: StructuralAccess::SharedBorrow,
+        },
+        StructuralArgument {
+            place: PlaceId::new(102).unwrap(),
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(9),
+            )],
+            access: StructuralAccess::MutableBorrow,
+        },
+    ];
+    let identity = |arguments: &[StructuralArgument],
+                    parameters: &[StructuralParameterDeclaration]| {
+        admitted_provider_boundary_trait_settlement_identity(
+            occurrence,
+            "Input::read",
+            NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+            NativeTarget::linux_x64(),
+            execution.into(),
+            [9; 32],
+            &mechanism(&locator, [11; 32]),
+            arguments,
+            parameters,
+        )
+    };
+    let expected = identity(&structural_arguments, &structural_parameters);
+    assert_ne!(expected, identity(&[], &[]));
+
+    for mutation in 0..6 {
+        let mut changed = structural_arguments.clone();
+        match mutation {
+            0 => changed[0].place = PlaceId::new(103).unwrap(),
+            1 => {
+                changed[0].path = vec![StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(10),
+                )]
+            }
+            2 => changed[0].access = StructuralAccess::Owned,
+            3 => changed[0].path.push(StructuralPathSegment::FixedIndex(0)),
+            4 => changed.swap(0, 1),
+            _ => {
+                changed.pop();
+            }
+        }
+        assert_ne!(
+            identity(&changed, &structural_parameters),
+            expected,
+            "structural argument mutation {mutation}"
+        );
+    }
+
+    for mutation in [0, 2, 3, 4, 5, 6, 7] {
+        let mut changed = structural_parameters.clone();
+        match mutation {
+            0 => changed[0].position = 7,
+            2 => changed[0].structural_type = StructuralTypeId::new(91).unwrap(),
+            3 => changed[0].multiplicity = StructuralMultiplicity::Affine,
+            4 => changed[0].access = StructuralAccess::Owned,
+            5 => changed[0]
+                .qualifications
+                .push(StructuralDomainId::new(3).unwrap()),
+            6 => changed[0]
+                .projected_qualifications
+                .push(StructuralPathQualification {
+                    path: vec![StructuralPathSegment::Field(
+                        terminal_psi::TerminalIdentityIndex(6),
+                    )],
+                    domain: StructuralDomainId::new(5).unwrap(),
+                }),
+            _ => changed[0].place = PlaceId::new(203).unwrap(),
+        }
+        assert_ne!(
+            identity(&structural_arguments, &changed),
+            expected,
+            "structural parameter mutation {mutation}"
+        );
+    }
+
+    for mutation in 0..8 {
+        let changed = match mutation {
+            0 => admitted_provider_boundary_trait_settlement_identity(
+                &optimized_boundary_occurrence(
+                    occurrence.terminal(),
+                    occurrence.machine(),
+                    OperationId::new(9).unwrap(),
+                    occurrence.boundary(),
+                    occurrence.operation_ordinal(),
+                    OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"other occurrence"),
+                ),
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+                NativeTarget::linux_x64(),
+                execution.into(),
+                [9; 32],
+                &mechanism(&locator, [11; 32]),
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            1 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::other",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+                NativeTarget::linux_x64(),
+                execution.into(),
+                [9; 32],
+                &mechanism(&locator, [11; 32]),
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            2 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([8; 32]).into(),
+                NativeTarget::linux_x64(),
+                execution.into(),
+                [9; 32],
+                &mechanism(&locator, [11; 32]),
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            3 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+                NativeTarget::windows_x64(),
+                execution.into(),
+                [9; 32],
+                &mechanism(&locator, [11; 32]),
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            4 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+                NativeTarget::linux_x64(),
+                target_operations::ProviderExecutionBinding::from_execution_record(
+                    target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+                    11,
+                    13,
+                    17,
+                    29,
+                )
+                .unwrap()
+                .into(),
+                [9; 32],
+                &mechanism(&locator, [11; 32]),
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            5 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+                NativeTarget::linux_x64(),
+                execution.into(),
+                [10; 32],
+                &mechanism(&locator, [11; 32]),
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            6 => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+                NativeTarget::linux_x64(),
+                execution.into(),
+                [9; 32],
+                &mechanism(&locator, [12; 32]),
+                &structural_arguments,
+                &structural_parameters,
+            ),
+            _ => admitted_provider_boundary_trait_settlement_identity(
+                occurrence,
+                "Input::read",
+                NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+                NativeTarget::linux_x64(),
+                execution.into(),
+                [9; 32],
+                &mechanism(
+                    &target::normalize_foreign_locator(
+                        target::ForeignLocatorCandidate::PeByName {
+                            library: b"kernel32.dll".to_vec(),
+                            export: b"WriteFile".to_vec(),
+                        },
+                        target::TargetProfile::WindowsX64,
+                    )
+                    .expect("valid normalized Windows import"),
+                    [11; 32],
+                ),
+                &structural_arguments,
+                &structural_parameters,
+            ),
+        };
+        assert_ne!(changed, expected, "binding input mutation {mutation}");
+    }
+    let kernel = target_operations::NormalizedSystemCallBinding {
+        target: target::TargetProfile::LinuxX64,
+        number: 0,
+        requirement_identity: "Input::read".to_owned(),
+        execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+            report: 7,
+            commitment: [7; 32],
+        },
+    };
+    let kernel_identity = |kernel| {
+        admitted_provider_boundary_trait_settlement_identity(
+            occurrence,
+            "Input::read",
+            NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+            NativeTarget::linux_x64(),
+            execution.into(),
+            [9; 32],
+            &target_operations::NormalizedForeignCallMechanism::SystemCall(kernel),
+            &structural_arguments,
+            &structural_parameters,
+        )
+    };
+    let kernel_expected = kernel_identity(kernel.clone());
+    assert_ne!(
+        kernel_expected, expected,
+        "import and kernel roles are distinct"
+    );
+    for mutation in 0..5 {
+        let mut changed = kernel.clone();
+        match mutation {
+            0 => changed.target = target::TargetProfile::LinuxArm64,
+            1 => changed.number = 211,
+            2 => changed.requirement_identity = "Input::other".to_owned(),
+            3 => {
+                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                    report, ..
+                } = &mut changed.execution
+                {
+                    *report += 1;
+                }
+            }
+            _ => {
+                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                    commitment,
+                    ..
+                } = &mut changed.execution
+                {
+                    commitment[0] ^= 1;
+                }
+            }
+        }
+        assert_ne!(
+            kernel_expected,
+            kernel_identity(changed),
+            "kernel mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn physical_child_identity_binds_every_retained_field() {
+    use boundary_applications::{
+        BoundaryApplication, BoundaryApplicationRealization,
+        BoundaryApplicationRealizationCompanion, BoundaryOperatorRequirement,
+        NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
+        TerminalBoundaryApplicationDemands, TerminalBoundaryApplicationRealizations,
+    };
+    use semantic_vocabulary::{IntegerValue, OperationId, ValueId};
+    use target_operations::{
+        BoundaryRealization, BoundaryScalarArgument, CompilerBuiltinExecution,
+    };
+
+    use crate::physical::derivation::evidence::physical_child_identity;
+    use crate::physical::native_byte_span;
+    use crate::{
+        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole, CompilerBuiltinResult,
+        CompilerBuiltinScalarArgument, NativeCompilerBuiltinCatalogIdentity, PhysicalChildParent,
+        PhysicalRelocationDisposition,
+    };
+
+    let (terminal, machine) = fixture_terminal([7; 32]);
+    let operation = OperationId::new(41).expect("operation");
+    let demands = TerminalBoundaryApplicationDemands::new(
+        terminal,
+        vec![TerminalBoundaryApplicationDemand::new(
+            operation,
+            BoundaryOperatorRequirement::new(
+                NominalDeclarationIdentity::new(terminal_psi::TerminalIdentityIndex(13)),
+                "operator::call()->u64".to_owned(),
+                None,
+            )
+            .unwrap(),
+            BoundaryApplication::Empty,
+        )],
+    )
+    .unwrap();
+    let coverage_parent = |selected_plan_digest: [u8; 32]| {
+        let realizations = TerminalBoundaryApplicationRealizations::new(
+            &demands,
+            vec![
+                BoundaryApplicationRealizationCompanion::new(
+                    operation,
+                    selected_plan_digest,
+                    BoundaryApplicationRealization::NongenericCheckedBody {
+                        realization_machine: NominalDeclarationIdentity::new(
+                            terminal_psi::TerminalIdentityIndex(14),
+                        ),
+                        realization_state: NominalDeclarationIdentity::new(
+                            terminal_psi::TerminalIdentityIndex(15),
+                        ),
+                        realization_contract_commitment: [3; 32],
+                    },
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap();
+        let mut references = realizations.coverage_references(&demands).unwrap();
+        let [reference] = references.as_mut_slice() else {
+            panic!("one D29 coverage reference")
+        };
+        PhysicalChildParent::OperatorApplicationCoverage(*reference)
+    };
+    let settlement_parent = |identity: [u8; 32]| {
+        PhysicalChildParent::BoundaryTraitSettlement(
+            BoundaryTraitSettlementParts {
+                occurrence: optimized_boundary_occurrence(
+                    terminal,
+                    machine,
+                    OperationId::new(43).expect("boundary operation"),
+                    semantic_vocabulary::BoundaryMachineId::new(44).expect("boundary"),
+                    0,
+                    OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(
+                        b"boundary settlement occurrence",
+                    ),
+                ),
+                requirement_identity: "Process::exit".to_owned(),
+                selected_supply: NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+                target: NativeTarget::linux_x64(),
+                role: BoundaryTraitSettlementRole::CompilerBuiltin {
+                    catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
+                    execution: CompilerBuiltinExecution::HostedExitProcessI32,
+                    realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
+                    scalar_argument: Some(CompilerBuiltinScalarArgument::Immediate(
+                        BoundaryScalarArgument {
+                            source_value: ValueId::new(45).unwrap(),
+                            scalar_type: ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                            ),
+                            immediate: IntegerValue::Signed(0),
+                            destination: calling_conventions::MachineRegister::X86Rdi,
+                        },
+                    )),
+                    result: CompilerBuiltinResult::Unit,
+                },
+                identity,
+            }
+            .into(),
+        )
+    };
+
+    let parent = coverage_parent([5; 32]);
+    let projection = physical_projection().identity();
+    let occurrence = NativePhysicalOccurrence::Operator(
+        physical_projection().operator_occurrences()[0].identity(),
+    );
+    let machine_span = native_byte_span(8, 5);
+    let object_span = native_byte_span(104, 5);
+    let final_image_span = native_byte_span(232, 5);
+    let coordinates = |parent: &PhysicalChildParent,
+                       projection: NativeOptimizationProjectionIdentity,
+                       occurrence: NativePhysicalOccurrence,
+                       machine_span: crate::NativeByteSpan,
+                       object_span: crate::NativeByteSpan,
+                       final_image_span: crate::NativeByteSpan,
+                       machine_bytes_digest: [u8; 32],
+                       object_bytes_digest: [u8; 32],
+                       final_image_bytes_digest: [u8; 32],
+                       relocation: PhysicalRelocationDisposition| {
+        physical_child_identity(
+            parent,
+            projection,
+            occurrence,
+            &[machine_span],
+            &[object_span],
+            &[final_image_span],
+            machine_bytes_digest,
+            object_bytes_digest,
+            final_image_bytes_digest,
+            &relocation,
+        )
+    };
+    let identity = |parent: &PhysicalChildParent,
+                    projection: NativeOptimizationProjectionIdentity,
+                    occurrence: NativePhysicalOccurrence,
+                    custody: [crate::NativeByteSpan; 3]| {
+        let [machine_span, object_span, final_image_span] = custody;
+        coordinates(
+            parent,
+            projection,
+            occurrence,
+            machine_span,
+            object_span,
+            final_image_span,
+            [0xA1; 32],
+            [0xA2; 32],
+            [0xA3; 32],
+            PhysicalRelocationDisposition::ResolvedInternalCall,
+        )
+    };
+    let digest_mutation = |machine_digest: [u8; 32],
+                           object_digest: [u8; 32],
+                           final_image_digest: [u8; 32],
+                           relocation: PhysicalRelocationDisposition| {
+        coordinates(
+            &parent,
+            projection,
+            occurrence,
+            machine_span,
+            object_span,
+            final_image_span,
+            machine_digest,
+            object_digest,
+            final_image_digest,
+            relocation,
+        )
+    };
+    let expected = identity(
+        &parent,
+        projection,
+        occurrence,
+        [machine_span, object_span, final_image_span],
+    );
+
+    // Linking moves only final-image coordinates; producer and object spans
+    // remain in the private body's own namespace.
+    let child = crate::NativePhysicalChild::from_replayed_parts(crate::NativePhysicalChildParts {
+        parent: parent.clone(),
+        projection,
+        occurrence,
+        machine_spans: vec![machine_span],
+        object_spans: vec![object_span],
+        final_image_spans: vec![final_image_span],
+        machine_bytes_digest: [0xA1; 32],
+        object_bytes_digest: [0xA2; 32],
+        final_image_bytes_digest: [0xA3; 32],
+        relocation: PhysicalRelocationDisposition::ResolvedInternalCall,
+        identity: expected,
+    });
+    let original =
+        crate::physical::native_physical_evidence(physical_projection(), vec![child], [0; 32]);
+    let mut linked = original.clone();
+    super::evidence::relocate_final_spans(&mut linked, 512).unwrap();
+    assert_eq!(linked.children()[0].machine_spans(), &[machine_span]);
+    assert_eq!(linked.children()[0].object_spans(), &[object_span]);
+    assert_eq!(
+        linked.children()[0].final_image_spans(),
+        &[native_byte_span(744, 5)]
+    );
+    assert_eq!(linked.children()[0].parent(), &parent);
+    assert_ne!(linked.children()[0].identity(), &expected);
+    assert!(super::evidence::relocate_final_spans(&mut original.clone(), usize::MAX).is_err());
+
+    for mutation in 0..15 {
+        let changed = match mutation {
+            0 => identity(
+                &coverage_parent([6; 32]),
+                projection,
+                occurrence,
+                [machine_span, object_span, final_image_span],
+            ),
+            1 => identity(
+                &settlement_parent(parent.identity()),
+                projection,
+                occurrence,
+                [machine_span, object_span, final_image_span],
+            ),
+            2 => identity(
+                &parent,
+                NativeOptimizationProjectionIdentity::from_canonical_bytes(b"detached projection"),
+                occurrence,
+                [machine_span, object_span, final_image_span],
+            ),
+            3 => identity(
+                &parent,
+                projection,
+                NativePhysicalOccurrence::Boundary(
+                    OptimizedBoundaryOccurrenceIdentity::from_bytes(occurrence.identity()),
+                ),
+                [machine_span, object_span, final_image_span],
+            ),
+            4 => identity(
+                &parent,
+                projection,
+                NativePhysicalOccurrence::Operator(
+                    OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"stale occurrence"),
+                ),
+                [machine_span, object_span, final_image_span],
+            ),
+            5 => identity(
+                &parent,
+                projection,
+                occurrence,
+                [native_byte_span(9, 5), object_span, final_image_span],
+            ),
+            6 => identity(
+                &parent,
+                projection,
+                occurrence,
+                [native_byte_span(8, 6), object_span, final_image_span],
+            ),
+            7 => identity(
+                &parent,
+                projection,
+                occurrence,
+                [machine_span, native_byte_span(105, 5), final_image_span],
+            ),
+            8 => identity(
+                &parent,
+                projection,
+                occurrence,
+                [machine_span, native_byte_span(104, 6), final_image_span],
+            ),
+            9 => identity(
+                &parent,
+                projection,
+                occurrence,
+                [machine_span, object_span, native_byte_span(233, 5)],
+            ),
+            10 => identity(
+                &parent,
+                projection,
+                occurrence,
+                [machine_span, object_span, native_byte_span(232, 6)],
+            ),
+            11 => digest_mutation(
+                [0xB1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            12 => digest_mutation(
+                [0xA1; 32],
+                [0xB2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            13 => digest_mutation(
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xB3; 32],
+                PhysicalRelocationDisposition::ResolvedInternalCall,
+            ),
+            _ => digest_mutation(
+                [0xA1; 32],
+                [0xA2; 32],
+                [0xA3; 32],
+                PhysicalRelocationDisposition::DirectInstructionBytes,
+            ),
+        };
+        assert_ne!(changed, expected, "child field mutation {mutation}");
+    }
+}
+
+#[test]
+fn physical_child_identity_binds_the_normalized_foreign_relocation() {
+    use function_identity::MachineFunctionIdentity;
+    use object_file::{ObjectSymbolHandle, RelocationKind, RelocationOrigin};
+    use semantic_vocabulary::{IntegerValue, ValueId};
+    use target_operations::{
+        BoundaryRealization, BoundaryScalarArgument, CompilerBuiltinExecution,
+    };
+
+    use crate::physical::derivation::evidence::physical_child_identity;
+    use crate::physical::{
+        native_byte_span, normalized_foreign_call_relocation,
+        normalized_foreign_callback_relocation,
+    };
+    use crate::{
+        BoundaryTraitSettlementParts, BoundaryTraitSettlementRole, CompilerBuiltinResult,
+        CompilerBuiltinScalarArgument, NativeCompilerBuiltinCatalogIdentity,
+        NormalizedForeignCallbackRelocations, PhysicalChildParent, PhysicalRelocationDisposition,
+    };
+
+    let projection = physical_projection();
+    let parent = PhysicalChildParent::BoundaryTraitSettlement(
+        BoundaryTraitSettlementParts {
+            occurrence: projection.boundary_occurrences()[0],
+            requirement_identity: "Process::exit".to_owned(),
+            selected_supply: NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
+            target: NativeTarget::linux_x64(),
+            role: BoundaryTraitSettlementRole::CompilerBuiltin {
+                catalog: NativeCompilerBuiltinCatalogIdentity::HostedV1,
+                execution: CompilerBuiltinExecution::HostedExitProcessI32,
+                realization: BoundaryRealization::HostedExitProcessI32(Default::default()),
+                scalar_argument: Some(CompilerBuiltinScalarArgument::Immediate(
+                    BoundaryScalarArgument {
+                        source_value: ValueId::new(45).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                        ),
+                        immediate: IntegerValue::Signed(0),
+                        destination: calling_conventions::MachineRegister::X86Rdi,
+                    },
+                )),
+                result: CompilerBuiltinResult::Unit,
+            },
+            identity: [21; 32],
+        }
+        .into(),
+    );
+    let occurrence =
+        NativePhysicalOccurrence::Boundary(projection.boundary_occurrences()[0].identity());
+    let machine_span = native_byte_span(8, 5);
+    let object_span = native_byte_span(104, 5);
+    let final_image_span = native_byte_span(232, 5);
+    let child_identity = |relocation: PhysicalRelocationDisposition| {
+        physical_child_identity(
+            &parent,
+            projection.identity(),
+            occurrence,
+            &[machine_span],
+            &[object_span],
+            &[final_image_span],
+            [0xA1; 32],
+            [0xA2; 32],
+            [0xA3; 32],
+            &relocation,
+        )
+    };
+
+    let callback_relocation = |offset: usize| {
+        normalized_foreign_callback_relocation(
+            ObjectSymbolHandle::from_arena_index(17),
+            RelocationOrigin::Materialization {
+                object_symbol_handle: ObjectSymbolHandle::from_arena_index(19),
+            },
+            offset,
+            4,
+            0,
+            RelocationKind::X86_64Relative32,
+        )
+    };
+    let foreign = |locator_identity: [u8; 32],
+                   boundary_plan_identity: [u8; 32],
+                   object_symbol: ObjectSymbolHandle,
+                   origin: RelocationOrigin,
+                   offset: usize,
+                   byte_width: usize,
+                   addend: i64,
+                   kind: RelocationKind,
+                   callback: Option<NormalizedForeignCallbackRelocations>,
+                   final_image_symbol_identity: [u8; 32]| {
+        PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
+            normalized_foreign_call_relocation(
+                locator_identity,
+                boundary_plan_identity,
+                object_symbol,
+                origin,
+                offset,
+                byte_width,
+                addend,
+                kind,
+                callback.into_iter().collect(),
+                final_image_symbol_identity,
+            ),
+        )
+    };
+    let origin = |operation_identity: u64| RelocationOrigin::SemanticOperation {
+        function_symbol_handle: ObjectSymbolHandle::from_arena_index(5),
+        operation_identity,
+    };
+    let callback = Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
+        callback_function: MachineFunctionIdentity::default(),
+        relocation: callback_relocation(23),
+    });
+    let with_coordinates = |origin: RelocationOrigin,
+                            callback: Option<NormalizedForeignCallbackRelocations>,
+                            final_image_symbol_identity: [u8; 32]| {
+        foreign(
+            [9; 32],
+            [11; 32],
+            ObjectSymbolHandle::from_arena_index(3),
+            origin,
+            13,
+            4,
+            -4,
+            RelocationKind::X86_64Relative32,
+            callback,
+            final_image_symbol_identity,
+        )
+    };
+    let with_callback = |callback| with_coordinates(origin(7), callback, [29; 32]);
+    let with_custody = |locator: [u8; 32], boundary: [u8; 32], symbol| {
+        foreign(
+            locator,
+            boundary,
+            symbol,
+            origin(7),
+            13,
+            4,
+            -4,
+            RelocationKind::X86_64Relative32,
+            callback,
+            [29; 32],
+        )
+    };
+    let with_geometry = |offset, width, addend, kind| {
+        foreign(
+            [9; 32],
+            [11; 32],
+            ObjectSymbolHandle::from_arena_index(3),
+            origin(7),
+            offset,
+            width,
+            addend,
+            kind,
+            callback,
+            [29; 32],
+        )
+    };
+    let expected = child_identity(with_callback(callback));
+
+    for mutation in 0..15 {
+        let changed = match mutation {
+            0 => with_custody([10; 32], [11; 32], ObjectSymbolHandle::from_arena_index(3)),
+            1 => with_custody([9; 32], [12; 32], ObjectSymbolHandle::from_arena_index(3)),
+            2 => with_custody([9; 32], [11; 32], ObjectSymbolHandle::from_arena_index(4)),
+            3 => with_custody([9; 32], [11; 32], ObjectSymbolHandle::from_parts(3, 2)),
+            4 => with_coordinates(origin(8), callback, [29; 32]),
+            5 => with_coordinates(
+                RelocationOrigin::SemanticEdge {
+                    function_symbol_handle: ObjectSymbolHandle::from_arena_index(5),
+                    edge_identity: 7,
+                },
+                callback,
+                [29; 32],
+            ),
+            6 => with_coordinates(
+                RelocationOrigin::SemanticOperation {
+                    function_symbol_handle: ObjectSymbolHandle::from_arena_index(6),
+                    operation_identity: 7,
+                },
+                callback,
+                [29; 32],
+            ),
+            7 => with_geometry(14, 4, -4, RelocationKind::X86_64Relative32),
+            8 => with_geometry(13, 8, -4, RelocationKind::X86_64Relative32),
+            9 => with_geometry(13, 4, -8, RelocationKind::X86_64Relative32),
+            10 => with_geometry(13, 4, -4, RelocationKind::Aarch64Branch26),
+            11 => with_callback(None),
+            12 => with_callback(Some(
+                NormalizedForeignCallbackRelocations::Aarch64PageAddress {
+                    callback_function: MachineFunctionIdentity::default(),
+                    page: callback_relocation(23),
+                    page_offset: callback_relocation(23),
+                },
+            )),
+            13 => with_callback(Some(
+                NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                    callback_function: MachineFunctionIdentity::callback_thunk(
+                        terminal_psi::TerminalPsiIdentity {
+                            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes(
+                                [1; 32],
+                            ),
+                        },
+                        0,
+                    )
+                    .unwrap(),
+                    relocation: callback_relocation(23),
+                },
+            )),
+            _ => with_callback(Some(
+                NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                    callback_function: MachineFunctionIdentity::default(),
+                    relocation: callback_relocation(24),
+                },
+            )),
+        };
+        let changed = child_identity(changed);
+        assert_ne!(changed, expected, "relocation custody mutation {mutation}");
+    }
+
+    assert_ne!(
+        child_identity(with_coordinates(origin(7), callback, [30; 32])),
+        expected,
+        "final-image symbol identity mutation"
+    );
+}
+
+#[test]
+fn physical_child_coordinates_reject_repeated_and_cross_role_occurrences() {
+    let (terminal, machine) = fixture_terminal([19; 32]);
+    let operator = optimized_operator_occurrence(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(2).expect("operator"),
+        0,
+        OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"operator survivor"),
+    );
+    let boundary = optimized_boundary_occurrence(
+        terminal,
+        machine,
+        semantic_vocabulary::OperationId::new(3).expect("boundary operation"),
+        semantic_vocabulary::BoundaryMachineId::new(4).expect("boundary"),
+        1,
+        OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"boundary survivor"),
+    );
+    let repeated = native_optimization_projection(
+        terminal,
+        vec![operator, operator],
+        vec![boundary],
+        NativeOptimizationProjectionIdentity::from_canonical_bytes(b"repeated projection"),
+    );
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&repeated, Vec::new()),
+        Err("native physical evidence projection repeats an optimized occurrence")
+    );
+
+    let projection = physical_projection();
+    let [operator_coordinate, boundary_coordinate] = exact_coordinates(&projection);
+
+    assert_eq!(
+        validate_exact_physical_child_coordinates(
+            &projection,
+            [
+                operator_coordinate,
+                boundary_coordinate,
+                boundary_coordinate
+            ],
+        ),
+        Err("native physical evidence contains duplicate optimized occurrences")
+    );
+
+    let substituted = PhysicalChildCoordinate {
+        projection: projection.identity(),
+        occurrence: NativePhysicalOccurrence::Operator(
+            OptimizedOperatorOccurrenceIdentity::from_bytes(
+                projection.boundary_occurrences()[0].identity().bytes(),
+            ),
+        ),
+        parent_role: 1,
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(
+            &projection,
+            [operator_coordinate, boundary_coordinate, substituted],
+        ),
+        Err("native physical child swapped or substituted its semantic parent role")
+    );
+
+    let swapped = PhysicalChildCoordinate {
+        parent_role: 1,
+        ..boundary_coordinate
+    };
+    assert_eq!(
+        validate_exact_physical_child_coordinates(&projection, [operator_coordinate, swapped],),
+        Err("native physical child swapped or substituted its semantic parent role")
+    );
+}
+
+#[test]
+fn physical_evidence_gap_identity_binds_the_exact_subject() {
+    use crate::physical::NativePhysicalEvidenceGapSubject;
+    use crate::physical::derivation::hashing::physical_evidence_gap_identity;
+    use semantic_vocabulary::{EdgeId, ServiceId};
+    use target_operations::CallSiteOwner;
+
+    let projection = physical_projection();
+    let boundary = projection.boundary_occurrences()[0];
+    let operator = projection.operator_occurrences()[0];
+    let machine = semantic_vocabulary::MachineId::new(9).expect("machine");
+
+    let subjects = [
+        NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
+            machine,
+            owner: CallSiteOwner::CleanupAction {
+                edge: EdgeId::new(11).expect("edge"),
+                action_ordinal: 2,
+            },
+        },
+        NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization {
+            occurrence: boundary,
+        },
+        NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall {
+            occurrence: boundary,
+        },
+        NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence {
+            occurrence: boundary,
+        },
+        NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan {
+            occurrence: operator,
+        },
+        NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+            machine,
+            psi_operation: boundary.operation().expect("ordinary boundary operation"),
+            service: ServiceId::new(5).expect("service"),
+            port: 7,
+            value: 9,
+            operation_ordinal: 1,
+            code_offset: 2,
+            byte_count: 3,
+        },
+        NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction {
+            function: function_identity::MachineFunctionIdentity::callback_thunk(
+                projection.terminal(),
+                0,
+            )
+            .expect("private function"),
+        },
+        NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction {
+            function: function_identity::MachineFunctionIdentity::callback_thunk(
+                projection.terminal(),
+                1,
+            )
+            .expect("different private function"),
+        },
+    ];
+    for subject in &subjects {
+        assert_eq!(
+            physical_evidence_gap_identity(subject),
+            physical_evidence_gap_identity(subject)
+        );
+    }
+    for (left_index, left) in subjects.iter().enumerate() {
+        for (right_index, right) in subjects.iter().enumerate() {
+            if left_index != right_index {
+                assert_ne!(
+                    physical_evidence_gap_identity(left),
+                    physical_evidence_gap_identity(right),
+                    "subjects {left_index} and {right_index} must not collide"
+                );
+            }
+        }
+    }
+    let NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+        machine: moved_machine,
+        psi_operation,
+        service,
+        port,
+        value,
+        operation_ordinal,
+        code_offset,
+        ..
+    } = subjects[5]
+    else {
+        unreachable!("subjects[5] is an unowned port effect");
+    };
+    let moved = NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+        machine: moved_machine,
+        psi_operation,
+        service,
+        port,
+        value,
+        operation_ordinal,
+        code_offset,
+        byte_count: 4,
+    };
+    assert_ne!(
+        physical_evidence_gap_identity(&subjects[5]),
+        physical_evidence_gap_identity(&moved)
+    );
+    let other_owner = NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
+        machine,
+        owner: CallSiteOwner::Operation(
+            semantic_vocabulary::OperationId::new(13).expect("operation"),
+        ),
+    };
+    assert_ne!(
+        physical_evidence_gap_identity(&subjects[0]),
+        physical_evidence_gap_identity(&other_owner)
+    );
+}
+
+#[test]
+fn physical_evidence_gap_names_the_blocking_occurrence() {
+    use crate::physical::NativePhysicalEvidenceGapSubject;
+    use crate::physical::derivation::hashing::physical_evidence_gap_identity;
+    use crate::physical::native_physical_evidence_gap;
+    use semantic_vocabulary::EdgeId;
+    use target_operations::CallSiteOwner;
+
+    let projection = physical_projection();
+    let boundary = projection.boundary_occurrences()[0];
+    let operator = projection.operator_occurrences()[0];
+    let machine = semantic_vocabulary::MachineId::new(9).expect("machine");
+
+    let gap =
+        |subject| native_physical_evidence_gap(subject, physical_evidence_gap_identity(&subject));
+    let blocked = gap(
+        NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization {
+            occurrence: boundary,
+        },
+    );
+    assert_eq!(
+        blocked.occurrence(),
+        Some(NativePhysicalOccurrence::Boundary(boundary.identity()))
+    );
+    let blocked = gap(NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan {
+        occurrence: operator,
+    });
+    assert_eq!(
+        blocked.occurrence(),
+        Some(NativePhysicalOccurrence::Operator(operator.identity()))
+    );
+    assert_eq!(
+        gap(NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
+            machine,
+            owner: CallSiteOwner::CleanupAction {
+                edge: EdgeId::new(11).expect("edge"),
+                action_ordinal: 2,
+            },
+        })
+        .occurrence(),
+        None
+    );
+    assert_eq!(
+        gap(NativePhysicalEvidenceGapSubject::UnownedPortEffect {
+            machine,
+            psi_operation: boundary.operation().expect("ordinary boundary operation"),
+            service: semantic_vocabulary::ServiceId::new(5).expect("service"),
+            port: 7,
+            value: 9,
+            operation_ordinal: 1,
+            code_offset: 2,
+            byte_count: 3,
+        })
+        .occurrence(),
+        None
+    );
+}

@@ -1,0 +1,13 @@
+machine measure(path: &[u8], remaining: u32) -> u64 {
+    transition remaining > 0 {
+        true -> measure(path, remaining - 1)
+        false -> path.len
+    }
+}
+
+machine main() crashes Trap {
+    let count: u64 = measure("dir/file", 3);
+    transition count == 8 { true -> done() _ -> fail() }
+}
+machine done() {}
+machine fail() crashes Trap { crash Trap; }

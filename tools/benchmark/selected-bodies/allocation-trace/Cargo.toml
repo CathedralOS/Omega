@@ -1,0 +1,11 @@
+[package]
+name = "selected-body-allocation-trace"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Only the retained profiling patch's path dependencies make this helper a
+# workspace member. Reversing the patch removes it from ordinary build graphs.
+
+[lib]
+path = "src/lib.rs"

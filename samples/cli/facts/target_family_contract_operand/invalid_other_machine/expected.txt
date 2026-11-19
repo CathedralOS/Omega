@@ -1,0 +1,2 @@
+machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`
+which the requirement does not imply

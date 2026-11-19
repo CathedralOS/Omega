@@ -1,0 +1,111 @@
+// Interpret macOS CoreGraphics `_CGAffineTransformMake` (`AffineTransformImport`)
+// as a shared six-double C word-record admission returning a materialized
+// `TerminalAggregateValue`.
+
+use super::super::TerminalRuntimeError;
+use calling_conventions::BoundaryCallingApplication;
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ScalarType};
+use target::{ForeignLocatorCandidate, TargetProfile};
+use target_operations::NormalizedForeignCallBinding;
+use terminal_interpreter::{
+    TerminalAggregateValue, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalEffectResult, TerminalImportAdapter, TerminalImportSignature, TerminalProgram,
+    TerminalScalarValue,
+};
+use terminal_psi::BoundaryMachineDeclaration;
+
+pub(super) type AffineTransformImport = super::scalar_record::ScalarRecordAdmission<6>;
+
+impl AffineTransformImport {
+    pub(super) fn admit(
+        program: &TerminalProgram,
+        declaration: &BoundaryMachineDeclaration,
+        binding: &NormalizedForeignCallBinding,
+        application: Option<&BoundaryCallingApplication>,
+    ) -> Result<Option<Self>, TerminalRuntimeError> {
+        let Some(locator) = binding.foreign_import_locator() else {
+            return Ok(None);
+        };
+        if !cfg!(all(target_os = "macos", target_arch = "aarch64"))
+            || locator.target() != TargetProfile::MacosArm64
+        {
+            return Ok(None);
+        }
+        let expected = target::normalize_foreign_locator(
+            ForeignLocatorCandidate::MachODylibSymbol {
+                install_name:
+                    b"/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics"
+                        .to_vec(),
+                symbol: b"_CGAffineTransformMake".to_vec(),
+            },
+            TargetProfile::MacosArm64,
+        )
+        .map_err(|_| {
+            TerminalRuntimeError::InvalidProvision("CoreGraphics host locator is invalid")
+        })?;
+        if *locator != expected {
+            return Ok(None);
+        }
+        let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+        let admitted = super::scalar_record::admit_c_word_record(
+            program,
+            declaration,
+            binding,
+            application,
+            &[scalar; 6],
+            [scalar; 6],
+        )?;
+        Ok(Some(admitted))
+    }
+}
+
+import_signature_via_clone!(AffineTransformImport);
+
+impl TerminalEffectHandler for AffineTransformImport {
+    handle_effect_requires_dispatch!("affine construction requires result-aware dispatch");
+
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        let invalid =
+            super::refusal("affine construction differs from its admitted six-double contract");
+        let call = super::call_operands(effect, invalid)?;
+        if call.arguments.len() != 6
+            || !call.structural_arguments.is_empty()
+            || *call.result != self.signature.result
+        {
+            return Err(invalid());
+        }
+        let mut components = [0.0; 6];
+        for (component, argument) in components.iter_mut().zip(call.arguments) {
+            let TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(bits)) = argument else {
+                return Err(invalid());
+            };
+            *component = f64::from_bits(*bits);
+        }
+        let actual = runtime_abi::host_affine_transform(components)
+            .ok_or_else(|| TerminalEffectRejection::new("CoreGraphics C host is unavailable"))?;
+        let values = [actual.a, actual.b, actual.c, actual.d, actual.tx, actual.ty];
+        Ok(TerminalEffectResult::Aggregate(
+            TerminalAggregateValue::from_scalars(
+                self.structural_type,
+                None,
+                self.fields
+                    .into_iter()
+                    .zip(values)
+                    .map(|(field, value)| {
+                        (
+                            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                field,
+                            )],
+                            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(
+                                value.to_bits(),
+                            )),
+                        )
+                    })
+                    .collect(),
+            ),
+        ))
+    }
+}

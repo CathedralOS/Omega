@@ -1,0 +1,29 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Choice { case Value(value: i32); }
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+  self.console.write_byte(swap(Choice::Value(65), Choice::Value(66), Choice::Value(67)));
+}
+machine swap(first: Choice, second: Choice, marker: Choice) -> i32 {
+  transition 0 { 0 -> step(first, second, 0) }
+  state step(left: Choice, right: Choice, count: i32) {
+    transition count { 0 -> step(right, left, 1) _ -> done(left, right) }
+  }
+  state done(left: Choice, right: Choice) {
+    assert read(left) == 66;
+    assert read(right) == 65;
+    assert read(marker) == 67;
+    left = Choice::Value(68);
+    assert read(first) == 65;
+    assert read(second) == 66;
+    return read(right);
+  }
+}
+machine read(input: Choice) -> i32 { transition input { Choice::Value{value} -> return value } }

@@ -1,2 +1,0 @@
-public machine answer() -> u32 { 73u32 }
-machine private_answer() -> u32 { 73u32 }

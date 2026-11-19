@@ -1,8 +1,0 @@
-(def dup ((n Int) (start Int)) Int (if n (dup (- n 1) (pair start start)) start))
-
-(def peel ((n Int) (tree Int)) Int (if n (peel (- n 1) (second tree)) tree))
-
-(def churn ((n Int)) Int (if n (let unused Int (pair n 1) (churn (- n 1))) 1))
-
-(def main () Int (let ((rawAddress Int 805306368) (dag Int (dup 14 41)) (ignored Int (churn 1000)))
-    (+ (peel 14 dag) (eq rawAddress 805306368))))

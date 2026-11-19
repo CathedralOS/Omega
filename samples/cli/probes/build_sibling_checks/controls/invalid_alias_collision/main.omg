@@ -1,0 +1,5 @@
+use x::main;
+
+machine entry() -> i32 {
+    dep_value()
+}

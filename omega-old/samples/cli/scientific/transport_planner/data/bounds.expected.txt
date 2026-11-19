@@ -1,5 +1,0 @@
-OPTIMAL: shipments
-9 0 0
-0 9 0
-0 0 9
-total_cost -2673

@@ -1,0 +1,15 @@
+// A call borrows the descriptor slot while its payload stays borrowed.
+// Expected exit: 0
+machine retain(input: &mut &mut [u8]) {}
+
+machine main() crashes Trap {
+    let mut backing: [u8; 2] = [41u8, 19u8];
+    let mut window: &mut [u8] = &mut backing[..];
+    retain(&mut window);
+    transition window.len == 2u64 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

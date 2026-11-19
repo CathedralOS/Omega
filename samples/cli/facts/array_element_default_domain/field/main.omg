@@ -1,0 +1,44 @@
+// Every element of Tallies.values satisfies 0..16, so a runtime-indexed observation supplies both bounds before it indexes the 17-element mapping.
+// Expected exit: 0
+
+public data Tallies [copy]
+requires self.values[0] >= 0 && self.values[0] <= 16,
+    self.values[1] >= 0 && self.values[1] <= 16,
+    self.values[2] >= 0 && self.values[2] <= 16,
+    self.values[3] >= 0 && self.values[3] <= 16
+{ values: [i32; 4]; }
+
+public machine observe(tallies: &Tallies, index: u64) -> i32
+requires index < 4
+ensures result >= 0 && result <= 16
+{ tallies.values[index] }
+
+machine lookup(value: i32) -> i32
+requires value >= 0 && value <= 16
+{
+    let mapping: [i32; 17] = [0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0x50];
+    mapping[value as u64]
+}
+
+machine verify(tallies: &Tallies, reversed: bool) crashes Trap {
+    let first: i32 = lookup(observe(tallies, 0));
+    let second: i32 = lookup(observe(tallies, 1));
+    let third: i32 = lookup(observe(tallies, 2));
+    let fourth: i32 = lookup(observe(tallies, 3));
+    transition (!reversed && first == 0x40 && second == 0x4F && third == 0x50 && fourth == 0x48)
+        || (reversed && first == 0x48 && second == 0x50 && third == 0x4F && fourth == 0x40) {
+        true -> good()
+        false -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}
+
+data Envelope { tallies: Tallies; marker: u64; }
+machine main() crashes Trap {
+    let envelope: Envelope = Envelope { tallies: Tallies { values: [0, 15, 16, 8] }, marker: 0x35 };
+    verify(&envelope.tallies, false);
+    transition envelope.marker == 0x35 { true -> good() false -> bad() }
+    machine good() {}
+    machine bad() { crash Trap; }
+}

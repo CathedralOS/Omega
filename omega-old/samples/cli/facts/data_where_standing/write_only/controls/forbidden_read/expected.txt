@@ -1,1 +1,0 @@
-reads field `peer` from write-only parameter `counter`

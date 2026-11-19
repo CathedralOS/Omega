@@ -1,3 +1,0 @@
-error UnknownCharacter at 1:3 bytes 2..3
-  text: `
-  this character is not part of Omega's syntax

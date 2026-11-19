@@ -1,0 +1,14 @@
+(def admission_high_length_failure () Int
+  (if (lt (read 11) 128)
+    (if (lt (read 15) 128)
+      (if (lt (read 19) 128)
+        -1
+        19)
+      15)
+    11))
+
+(def admission_length ((offset Int)) Int
+  (+ (read offset)
+    (+ (* (read (+ offset 1)) 256)
+      (+ (* (read (+ offset 2)) 65536)
+        (* (read (+ offset 3)) 16777216)))))

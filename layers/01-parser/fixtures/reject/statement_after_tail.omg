@@ -1,5 +1,0 @@
-// An expression with no `;` is the body's result, so nothing executable follows it.
-machine f() -> u32 {
-    value
-    other();
-}

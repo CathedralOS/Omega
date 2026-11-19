@@ -1,1 +1,0 @@
-Build declared the application project role more than once (`invalid_double_application` and `invalid_double_application_again`)

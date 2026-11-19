@@ -1,4 +1,0 @@
-error UnexpectedToken at 2:1 bytes 12..19
-  found: machine
-  expected: a clause, `{` or `;`
-  expected a clause, `{` or `;`

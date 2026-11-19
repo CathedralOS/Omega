@@ -1,0 +1,122 @@
+use omega::language::core::ProcessExit;
+// With EOF, bounded input rejects explicitly.
+// Expected exit: 64.
+// Expected output contains: INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]
+use omega_language_std::Console;
+use model::audit;
+use model::audit::Contributor;
+use model::audit::Assembly;
+use model::audit::Audit;
+use model::audit::valid;
+use model::audit::lower_choice;
+use model::audit::upper_choice;
+use model::audit::calculate;
+use data::profiles;
+use data::profiles::load;
+use io::numbers;
+use io::numbers::Input;
+use io::numbers::read_integer;
+use io::numbers::write_integer;
+
+data Main {
+    input: Input;
+    assembly: Assembly;
+    audit: Audit;
+}
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    Console::write_line("dimensional_stack_audit: profile 1..6, temperature low, temperature high (one integer per line)");
+    block read_integer(&mut main.input);
+    transition main.input.valid && main.input.value >= 1 && main.input.value <= 6 {
+        true -> block profile(main)
+        false -> invalid(main)
+    }
+    machine profile(main: &mut Main) {
+        load(&mut main.assembly, main.input.value);
+        block read_integer(&mut main.input);
+        transition main.input.valid { true -> block temperature_low(main) false -> invalid(main) }
+    }
+    machine temperature_low(main: &mut Main) {
+        main.assembly.temperature_low = main.input.value;
+        block read_integer(&mut main.input);
+        transition main.input.valid { true -> temperature_high(main) false -> invalid(main) }
+    }
+    machine temperature_high(main: &mut Main) {
+        main.assembly.temperature_high = main.input.value;
+        let accepted: bool = valid(&main.assembly);
+        transition accepted { true -> audit(main) false -> invalid(main) }
+    }
+    machine audit(main: &mut Main) {
+        calculate(&main.assembly, &mut main.audit);
+        Console::write_line("fit_low_um");
+        write_integer(main.audit.low);
+        Console::write_line("fit_high_um");
+        write_integer(main.audit.high);
+        transition main.audit.status {
+            1 -> guaranteed(main)
+            3 -> impossible(main)
+            _ -> conditional(main)
+        }
+    }
+    machine guaranteed(main: &mut Main) {
+        Console::write_line("GUARANTEED");
+        transition { _ -> contributors(main, 0) }
+    }
+    machine impossible(main: &mut Main) {
+        Console::write_line("IMPOSSIBLE");
+        transition { _ -> contributors(main, 0) }
+    }
+    machine conditional(main: &mut Main) {
+        Console::write_line("CONDITIONAL");
+        transition { _ -> contributors(main, 0) }
+    }
+    machine contributors(main: &mut Main, index: u32) {
+        transition index < 3 { true -> lower(main, index) false -> done(main) }
+    }
+    machine lower(main: &mut Main, index: u32) requires index < 3 {
+        let value: Contributor = main.assembly.contributors[index];
+        let temperature: i32 in Saturating = lower_choice(main.audit.thermal, main.assembly.temperature_low, main.assembly.temperature_high);
+        let gauge_a: i32 in Saturating = lower_choice(main.audit.gauge_a, main.assembly.gauge_a_low, main.assembly.gauge_a_high);
+        let gauge_b: i32 in Saturating = lower_choice(main.audit.gauge_b, main.assembly.gauge_b_low, main.assembly.gauge_b_high);
+        let deviation: i32 in Saturating = 0 - value.tolerance + value.thermal * temperature + value.gauge_a * gauge_a + value.gauge_b * gauge_b;
+        transition main.audit.low < main.assembly.fit_low && deviation < 0 {
+            true -> lower_offender(main, index, deviation)
+            false -> upper(main, index)
+        }
+    }
+    machine lower_offender(main: &mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
+        Console::write_line("lower_offender_index_zero_based");
+        write_integer(index as i32 in Saturating);
+        Console::write_line("deviation_um");
+        write_integer(deviation);
+        transition { _ -> upper(main, index) }
+    }
+    machine upper(main: &mut Main, index: u32) requires index < 3 {
+        let value: Contributor = main.assembly.contributors[index];
+        let temperature: i32 in Saturating = upper_choice(main.audit.thermal, main.assembly.temperature_low, main.assembly.temperature_high);
+        let gauge_a: i32 in Saturating = upper_choice(main.audit.gauge_a, main.assembly.gauge_a_low, main.assembly.gauge_a_high);
+        let gauge_b: i32 in Saturating = upper_choice(main.audit.gauge_b, main.assembly.gauge_b_low, main.assembly.gauge_b_high);
+        let deviation: i32 in Saturating = value.tolerance + value.thermal * temperature + value.gauge_a * gauge_a + value.gauge_b * gauge_b;
+        transition main.audit.high > main.assembly.fit_high && deviation > 0 {
+            true -> upper_offender(main, index, deviation)
+            false -> contributors(main, index + 1)
+        }
+    }
+    machine upper_offender(main: &mut Main, index: u32, deviation: i32 in Saturating) requires index < 3 {
+        Console::write_line("upper_offender_index_zero_based");
+        write_integer(index as i32 in Saturating);
+        Console::write_line("deviation_um");
+        write_integer(deviation);
+        transition { _ -> contributors(main, index + 1) }
+    }
+    machine done(main: &mut Main) { ProcessExit::exit_process(0); }
+    machine invalid(main: &mut Main) {
+        Console::write_line("INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]");
+        ProcessExit::exit_process(64);
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

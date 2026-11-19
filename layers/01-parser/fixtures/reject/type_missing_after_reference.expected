@@ -1,4 +1,0 @@
-error UnexpectedToken at 1:15 bytes 14..15
-  found: )
-  expected: a type
-  expected a type

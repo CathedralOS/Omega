@@ -1,5 +1,0 @@
-// `transition` is the tail form only; in expression position the word is a name.
-machine f(n: u32) -> u32 {
-    let x = transition n { 0 -> 1, _ -> 2 };
-    x
-}

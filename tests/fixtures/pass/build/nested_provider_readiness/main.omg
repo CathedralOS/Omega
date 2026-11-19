@@ -1,0 +1,3 @@
+// Expected exit: 0
+// Product exists only after both nested Build readiness calls return 64.
+machine main() {}

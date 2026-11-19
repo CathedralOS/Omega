@@ -1,4 +1,0 @@
-error UnexpectedToken at 3:20 bytes 108..109
-  found: {
-  expected: an expression
-  expected an expression

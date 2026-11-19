@@ -1,0 +1,28 @@
+// One dependency reached by the same alias on both purposes: a build edge
+// and a product edge both named `kit` select the same staged package. The
+// build scope calls the dep's product machine through the build edge while
+// the product scope calls it through the product edge.
+
+use kit;
+
+machine build(builder: &mut Build)
+suspends
+{
+    Build::application(builder, "build_dual_purpose_alias");
+    let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
+    dependency::with_alias(&mut kit_dependency, "kit");
+    let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
+    let mut kit_dependency_2: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
+    dependency::with_alias(&mut kit_dependency_2, "kit");
+    let kit_registration_2: DependencyRegistration = Build::dependency(builder, kit_dependency_2);
+    suspend Build::prepare_dependency(builder, kit_registration);
+    let observed: i32 = kit::value();
+    transition observed == 7 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {
+    }
+    machine wrong() {
+    }
+}

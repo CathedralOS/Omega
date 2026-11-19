@@ -1,0 +1,470 @@
+//! A Build script cannot make, keep or take apart the compiler-owned `Build`
+//! value. The toolchain hands the script one `&mut Build` and afterwards
+//! decodes what the script left in it, so a `Build` that source produced
+//! itself would be read as if the toolchain had issued it.
+//!
+//! The rule is in `Build`'s declaration, not in the checker: its `seal`
+//! field is `BuildSeal in Issued`, `BuildSeal` is not `[copy]`, and `Issued`
+//! is governed by an access policy that names no source issuer
+//! (`wiki/spec/resources/access.md`, "Plans and admitted supply"). These
+//! tests compile a real project, with the toolchain's own Build prelude, and
+//! change one machine of its Build script at a time.
+
+// Compilation shares process-wide counters; run one at a time.
+static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// The Build script every program here shares: it only uses the `Build` it
+/// was lent.
+const BUILD: &str = "\
+machine build(builder: &mut Build) {
+    Build::application(builder, \"sealed\");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}
+";
+
+/// The messages `omega --check` would print for a project whose Build script
+/// is `BUILD` followed by `machines`; empty when the project compiles.
+fn refusals(name: &str, machines: &str) -> Vec<String> {
+    refusals_with_build(name, &format!("{BUILD}{machines}"))
+}
+
+fn refusals_with_build(name: &str, build: &str) -> Vec<String> {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let root =
+        std::env::temp_dir().join(format!("omega-build-value-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("staging directory");
+    let main = root.join("main.omg");
+    std::fs::write(&main, "machine main() { }\n").expect("staged program");
+    std::fs::write(root.join("build.omg"), build).expect("staged Build");
+    let mut session =
+        orchestration::BuildSession::create(&root.join("out")).expect("build session");
+    let preparation = package_manager::operations::begin_local_project_preparation(
+        &main,
+        &target::TargetProfile::ALL,
+        true,
+    )
+    .expect("project preparation")
+    .expect("a project with a Build script");
+    // What `omega --check` does first: type the project's Build program,
+    // have the checker judge it, and run it.
+    let resolved = orchestration::resolve_project_sources(
+        &mut session,
+        orchestration::ProjectSourceRequest {
+            preparation,
+            execution: Default::default(),
+            collect_timings: false,
+        },
+    );
+    let refusals = match resolved {
+        Ok(_) => Vec::new(),
+        Err(orchestration::ProjectSourceResolutionError::Compilation(error)) => error
+            .into_diagnostics()
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect(),
+        Err(other) => vec![other.to_string()],
+    };
+    drop(session);
+    let _ = std::fs::remove_dir_all(&root);
+    refusals
+}
+
+#[test]
+fn the_host_does_not_supply_a_build_to_a_shared_borrow_or_another_type() {
+    for (name, build, expected) in [
+        (
+            "shared_receiver",
+            "machine build(builder: &Build) { }",
+            "executable mutable borrow of Build",
+        ),
+        (
+            "other_receiver",
+            "data Other { }\nmachine build(builder: &mut Other) { }",
+            "exact toolchain Build type",
+        ),
+    ] {
+        let diagnostics = refusals_with_build(name, build);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.contains(expected)),
+            "{name}: {diagnostics:#?}"
+        );
+    }
+}
+/// The twin is stopped, for `expected`, before its Build script runs.
+fn refused_with(name: &str, machines: &str, expected: &str) {
+    let refusals = refusals(name, machines);
+    assert!(
+        refusals.iter().any(|refusal| refusal.contains(expected)),
+        "{name}: {refusals:#?}"
+    );
+}
+
+/// The control: nothing in the shared Build script is refused, so every
+/// refusal below belongs to the machine its twin adds.
+#[test]
+fn a_build_script_that_only_uses_the_build_it_was_lent_is_not_refused_for_it() {
+    let diagnostics = refusals("control", "");
+    assert!(
+        diagnostics.is_empty(),
+        "the checked Build should run with the value the compiler lent it: {diagnostics:#?}"
+    );
+}
+
+/// The twin is rejected as a wrong program: the message states `expected`
+/// and does not say the checker lacks support for it.
+fn rejected_with(name: &str, machines: &str, expected: &str) {
+    let refusals = refusals(name, machines);
+    assert!(
+        refusals
+            .iter()
+            .any(|refusal| refusal.contains(expected) && !refusal.contains("not supported")),
+        "{name}: {refusals:#?}"
+    );
+}
+
+/// The control: the shared Build script is accepted and runs, so every
+/// refusal below belongs to the machine its twin adds.
+#[test]
+fn a_build_script_that_only_uses_the_build_it_was_lent_runs() {
+    assert_eq!(refusals("control", ""), Vec::<String>::new());
+}
+/// Every field written out, the seal as a literal. A literal constructs the
+/// bare `BuildSeal`, which is not a `BuildSeal in Issued`.
+#[test]
+fn constructing_a_build_is_rejected() {
+    rejected_with(
+        "constructed",
+        "machine wrong() {
+    let optimizations: Optimizations;
+    let forged: Build = Build {
+        seal: BuildSeal { },
+        x86_deployment_features: X86DeploymentFeatures::Baseline,
+        subsystem: Subsystem::Console,
+        freestanding: false,
+        identifier: \"\",
+        elf_interpreter: ElfInterpreterSelection { linux_arm64: \"\", linux_x86_64: \"\" },
+        optimizations: optimizations,
+        source: BuildSource { },
+        inputs: BuildInputs { },
+        output: BuildOutput { },
+        log: BuildLog { },
+        product: BuildProduct { },
+        tests: BuildTests { disabled: false }
+    };
+}
+",
+        "this value's type carries no domain and the field it initializes declares \
+         `BuildSeal::Issued`",
+    );
+}
+
+/// Zero is not a seal the toolchain issued.
+#[test]
+fn zero_establishing_a_build_is_refused_by_name() {
+    refused_with(
+        "zeroed",
+        "machine wrong() -> bool {\n    let forged: Build;\n    forged.tests.disabled\n}\n",
+        "cast that adds a domain whose issuers are in an access plan",
+    );
+}
+
+/// The seal cannot be made from its carrier: nobody in source is an issuer.
+#[test]
+fn issuing_a_seal_is_refused_by_name() {
+    refused_with(
+        "issued",
+        "machine wrong(seal: BuildSeal) -> BuildSeal in Issued {\n    seal as +Issued\n}\n",
+        "cast that adds a domain whose issuers are in an access plan",
+    );
+}
+
+/// `BuildSeal` is not `[copy]`, and the script only ever holds a loan of
+/// the `Build` that owns it.
+#[test]
+fn taking_the_seal_out_of_the_lent_build_is_not_accepted() {
+    // Through `&mut` the move opens a window the script cannot close: the
+    // only value that fits the vacant place is another issued seal.
+    rejected_with(
+        "moved_out",
+        "machine wrong(builder: &mut Build) -> BuildSeal in Issued {\n    builder.seal\n}\n",
+        "the place does not hold a value again where the machine returns the borrow",
+    );
+    refused_with(
+        "copied_out",
+        "machine wrong(builder: &Build) {\n    let seal: BuildSeal in Issued = builder.seal;\n}\n",
+        "owned extraction from borrowed storage",
+    );
+}
+
+#[test]
+fn replacing_the_seal_is_rejected() {
+    rejected_with(
+        "replaced",
+        "machine wrong(builder: &mut Build) {\n    builder.seal = BuildSeal { };\n}\n",
+        "this value's type carries no domain and the place it is assigned to declares \
+         `BuildSeal::Issued`",
+    );
+}
+
+/// A machine that takes the plain carrier would be free to look inside it.
+#[test]
+fn lending_the_seal_as_its_plain_carrier_is_rejected() {
+    rejected_with(
+        "lent",
+        "machine peek(seal: &BuildSeal) { }
+machine wrong(builder: &Build) {
+    peek(&builder.seal)
+}
+",
+        "this value's type carries `BuildSeal::Issued` and the parameter it is passed for \
+         declares no domain",
+    );
+}
+
+/// The script holds a loan, so a `Build` to keep or to hand back would have
+/// to be taken out of it.
+#[test]
+fn storing_or_returning_the_lent_build_is_not_accepted() {
+    rejected_with(
+        "stored",
+        "data Kept<'storage> {
+    build: Build<'storage>;
+}
+machine wrong(builder: &mut Build) {
+    let kept: Kept = Kept { build: builder };
+}
+",
+        "an owned value was moved out of borrowed storage, and the place does not hold a value again",
+    );
+    // The result states the lent value's region, so it is the extraction
+    // itself, not an unrelated region, that is refused.
+    rejected_with(
+        "returned",
+        "machine wrong<'storage>(builder: &mut Build<'storage>) -> Build<'storage> {\n    builder\n}\n",
+        "an owned value was moved out of borrowed storage, and the place does not hold a value again",
+    );
+}
+
+/// What a borrowed Build may be kept in: a record holding the lent
+/// `&mut Build`, with every lifetime the field names stated
+/// (`wiki/spec/language/lifetimes.md`: a named data application must "match
+/// the declaration's lifetime arity"). A borrow is not a copy, so the seal
+/// stays where the toolchain issued it, and the Build can be driven through
+/// the record as through the parameter.
+const CONFIGURATION: &str = "\
+data Configuration<'activation, 'storage> { builder: &'activation mut Build<'storage>; }
+machine wrap<'activation, 'storage>(builder: &'activation mut Build<'storage>) -> Configuration<'activation, 'storage> {
+    Configuration { builder: builder }
+}
+";
+
+#[test]
+fn a_record_holding_the_lent_build_drives_it() {
+    let machines = format!(
+        "{CONFIGURATION}machine configure(builder: &mut Build) {{
+    let mut configuration: Configuration = wrap(builder);
+    bind_through(&mut configuration);
+}}
+machine bind_through(configuration: &mut Configuration) {{
+    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+}}
+"
+    );
+    assert_eq!(refusals("held", &machines), Vec::<String>::new());
+}
+
+/// A borrow is not a copy and cannot widen what it was lent: a record that
+/// keeps only shared access to the Build cannot hand it to an operation that
+/// writes the Build. Taking the Build or its seal out of a loan is refused
+/// by the tests above.
+#[test]
+fn a_record_holding_shared_access_to_the_build_cannot_write_it() {
+    rejected_with(
+        "held_shared",
+        "data Viewed<'activation, 'storage> { builder: &'activation Build<'storage>; }
+machine wrong(viewed: &mut Viewed) {
+    Build::application(viewed.builder, \"renamed\");
+}
+",
+        "the reference it is reached through grants shared access only",
+    );
+}
+
+/// A field that leaves out the Build's own lifetime does not say which of
+/// its owner's lifetimes the Build's views live for, and is refused by name.
+#[test]
+fn a_record_eliding_the_builds_lifetime_is_refused_by_name() {
+    refused_with(
+        "held_elided",
+        "data Configuration<'activation> { builder: &'activation mut Build; }
+machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'activation> {
+    Configuration { builder: builder }
+}
+",
+        "data field that elides a lifetime argument",
+    );
+}
+
+/// A helper that only holds the `Build` shared cannot bind an entry through
+/// it. entry_roots.md, "Source selection is not invocation": "The first
+/// argument explicitly supplies the current activation's mutable Build
+/// value; ordinary helpers may forward that value." The twin forwards it
+/// `&mut` and is accepted.
+#[test]
+fn binding_an_entry_needs_the_mutable_build_value() {
+    let helper = |access: &str, argument: &str| {
+        format!(
+            "machine helper(builder: &{access}Build) {{
+    Build::bind({argument}, linux_arm64::ProgramEntry, main);
+}}
+"
+        )
+    };
+    assert_eq!(
+        refusals("bind-mutable", &helper("mut ", "builder")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        refusals("bind-explicit-mutable", &helper("mut ", "&mut builder")),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "bind-shared",
+        &helper("", "builder"),
+        "as mutable through a shared reference, which grants no mutation",
+    );
+    rejected_with(
+        "bind-mutable-through-shared",
+        &helper("", "&mut builder"),
+        "as mutable through a shared reference, which grants no mutation",
+    );
+    rejected_with(
+        "bind-explicit-shared",
+        &helper("mut ", "&builder"),
+        "the caller lends only immutable access to this argument",
+    );
+    rejected_with(
+        "bind-explicit-write-only",
+        &helper("mut ", "&write builder"),
+        "the caller lends write-only access to this argument",
+    );
+}
+
+/// The same rule through a record that keeps the Build it was lent
+/// (`samples/cli/facts/build_activation_borrow`): binding through a stored
+/// `&mut Build` is the activation's mutable value forwarded, and through a
+/// stored `&Build` it is not, whether the record was built from the formal
+/// or from a local that held the exclusive reference first.
+#[test]
+fn binding_through_a_stored_build_reference_needs_it_stored_mutable() {
+    let holder = |access: &str, construction: &str| {
+        format!(
+            "data Configuration<'activation, 'storage> {{ builder: &'activation {access}Build<'storage>; }}
+machine bind_configuration(configuration: &mut Configuration) {{
+    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+}}
+machine helper(builder: &mut Build) {{
+    {construction}
+    bind_configuration(&mut configuration);
+}}
+"
+        )
+    };
+    let direct = "let mut configuration: Configuration = Configuration { builder: builder };";
+    let through_local = "let view: &mut Build = builder;
+    let mut configuration: Configuration = Configuration { builder: view };";
+    assert_eq!(
+        refusals("stored-mutable", &holder("mut ", direct)),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        refusals("stored-mutable-local", &holder("mut ", through_local)),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "stored-shared",
+        &holder("", direct),
+        "the reference it is reached through grants shared access only",
+    );
+    rejected_with(
+        "stored-shared-local",
+        &holder("", through_local),
+        "the reference it is reached through grants shared access only",
+    );
+}
+
+#[test]
+fn binding_requires_the_shared_cohort_to_end_before_exclusive_access() {
+    let helper = |operations: &str| {
+        format!(
+            "machine observe(builder: &Build) -> bool {{ builder.tests.disabled }}
+machine helper(builder: &mut Build) -> bool {{
+    let view: &Build = builder;
+    {operations}
+}}
+"
+        )
+    };
+    assert_eq!(
+        refusals(
+            "bind-after-observation",
+            &helper(
+                "let observed: bool = observe(view); Build::bind(builder, linux_arm64::ProgramEntry, main); observed"
+            ),
+        ),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "bind-during-observation",
+        &helper("Build::bind(builder, linux_arm64::ProgramEntry, main); observe(view)"),
+        "conflicting loans",
+    );
+}
+
+#[test]
+fn an_explicit_exclusive_argument_to_a_shared_formal_requires_the_cohort_to_end() {
+    let helper = |operations: &str| {
+        format!(
+            "machine observe(builder: &Build) -> bool {{ builder.tests.disabled }}
+machine observe_both(left: &Build, right: &Build) -> bool {{ left.tests.disabled && right.tests.disabled }}
+machine helper(builder: &mut Build) -> bool {{
+    let view: &Build = builder;
+    {operations}
+}}
+"
+        )
+    };
+    assert_eq!(
+        refusals(
+            "ordinary-exclusive-after-cohort",
+            &helper(
+                "let observed: bool = observe(view); let exclusive: bool = observe(&mut builder); observed && exclusive"
+            ),
+        ),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        refusals(
+            "ordinary-shared-during-cohort",
+            &helper("let shared: bool = observe(builder); observe(view) && shared"),
+        ),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "ordinary-exclusive-during-cohort",
+        &helper("let exclusive: bool = observe(&mut builder); observe(view) && exclusive"),
+        "conflicting loans",
+    );
+    rejected_with(
+        "ordinary-exclusive-beside-shared",
+        &helper(
+            "let observed: bool = observe(view); observe_both(&mut builder, builder) && observed",
+        ),
+        "conflicting loans",
+    );
+}

@@ -1,0 +1,11 @@
+// The self edge resolves to this package's own application declaration, so
+// the product row still fails the package-purpose check rather than
+// recursing into the requester.
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "invalid_self_edge");
+    let mut self_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "." });
+    dependency::with_alias(&mut self_dependency, "self");
+    let self_registration: DependencyRegistration = Build::dependency(builder, self_dependency);
+    builder.freestanding = true;
+}

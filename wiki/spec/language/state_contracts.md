@@ -410,8 +410,8 @@ terminates
 ensures result == value
 {
     transition fatal {
-        true -> ProcessExit::exit_process(1),
-        false -> value,
+        true -> ProcessExit::exit_process(1)
+        false -> value
     }
 }
 ```
@@ -440,7 +440,7 @@ other calls:
 ```omega
 // Assuming Storage::read permits both suspension and blocking:
 transition {
-    _ -> suspend block Storage::read(storage),
+    _ -> suspend block Storage::read(storage)
 }
 ```
 

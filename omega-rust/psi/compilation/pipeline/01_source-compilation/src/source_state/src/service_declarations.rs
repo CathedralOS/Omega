@@ -1,0 +1,3714 @@
+/*
+Boundary service declarations say which calls a provider promises to implement.
+We keep those contracts independent of target calling plans, retaining each exact
+typed declaration and application for later provider selection.
+*/
+
+#[path = "service_declarations/normal_memberships.rs"]
+mod normal_memberships;
+
+pub mod provider_declarations {
+    use declaration_contracts::provider_declarations::SelectedTargetMachineOrigin;
+    use declaration_contracts::trust_declarations::TrustDeclarations;
+    use diagnostics::Diagnostic;
+    use std::sync::{Arc, OnceLock};
+
+    pub fn closed_provider_requirements(
+        typed: &crate::source_state::TypedTrees,
+        template: &crate::source_state::machine::Machine,
+    ) -> Vec<crate::source_state::type_identity::CallableIdentityId> {
+        typed
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.template == template.symbol)
+            .filter_map(|receipt| typed.machine(receipt.instance))
+            .filter(|instance| {
+                instance.supply_mode
+                    == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+            })
+            .map(|instance| typed.machine_callable_identity(instance))
+            .filter(|identity| identity.is_valid())
+            .collect()
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct NamedProviderApplication {
+        pub declaration: symbols::SymbolHandle,
+        pub capture: arena::Handle<crate::source_state::CapturedMachineApplication>,
+    }
+
+    pub enum ProviderApplicationView {
+        None,
+        PhysicalLeaf,
+        External,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ProviderDeclarationOrigin {
+        Authored(symbols::SymbolHandle),
+        BuildNative {
+            requirement: symbols::SymbolHandle,
+            application: Option<
+                arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
+            >,
+        },
+        Toolchain,
+    }
+
+    pub struct ProviderDeclarationRow<'identity> {
+        pub requirement: symbols::SymbolHandle,
+        pub origin: ProviderDeclarationOrigin,
+        pub requirement_identity: &'identity str,
+        pub declared_requirement_identity: &'identity str,
+        pub application: ProviderApplicationView,
+    }
+
+    pub struct ProviderDeclarationRequest<'rows> {
+        pub rows: &'rows [ProviderDeclarationRow<'rows>],
+        pub named_application: Option<NamedProviderApplication>,
+        pub provider_application_identity: Option<&'rows str>,
+        pub installation_reach: bool,
+    }
+
+    pub fn closed_provider_leaf_applications(
+        typed: &crate::source_state::TypedTrees,
+        template: &str,
+    ) -> Result<
+        Vec<declaration_contracts::provider_declarations::ProviderRequirementApplication>,
+        Vec<String>,
+    > {
+        let mut identities = Vec::new();
+        let mut diagnostics = Vec::new();
+        for application in typed
+            .closed_requirement_applications()
+            .filter(|application| {
+                typed
+                    .trait_machine_signature(application.template)
+                    .is_some_and(|(owner, signature)| {
+                        typed.trait_requirement_callable_identity_text(owner, signature) == template
+                    })
+            })
+        {
+            let Some(owner) = typed.trait_definition_by_symbol(application.declaring_trait) else {
+                diagnostics.push("closed requirement application lost its declaring trait".into());
+                continue;
+            };
+            let identity =
+                typed.trait_requirement_callable_identity_text(owner, application.signature);
+            if !identity.is_empty() && identity != template {
+                let Some(receiving_application) = typed
+                    .type_identity_text(application.portable_trait_application_identity)
+                    .filter(|text| !text.is_empty())
+                else {
+                    diagnostics
+                        .push("provider receiving application has no portable identity".into());
+                    continue;
+                };
+                identities.push(
+                    declaration_contracts::provider_declarations::ProviderRequirementApplication {
+                        requirement: identity,
+                        receiving_application,
+                    },
+                );
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(identities)
+        } else {
+            Err(diagnostics)
+        }
+    }
+
+    pub fn requirement_reach(
+        typed: &crate::source_state::TypedTrees,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(String, bool, declaration_contracts::ServiceReachRowId)> {
+        if let Some((owner, requirement)) = typed.trait_machine_signature(symbol) {
+            return Some((
+                typed.trait_requirement_callable_identity_text(owner, requirement),
+                requirement.service_reach_is_installation_bound,
+                requirement.service_reach_row,
+            ));
+        }
+        let requirement = typed.machine_by_symbol(symbol)?;
+        if requirement.supply_mode != declaration_contracts::MachineSupplyMode::TopLevelRequirement
+        {
+            return None;
+        }
+        Some((
+            typed.machine_callable_identity_text(requirement)?,
+            requirement.service_reach_is_installation_bound,
+            requirement.service_reach_row,
+        ))
+    }
+    pub(crate) mod context {
+        use crate::source_state::TypedTrees;
+        use declaration_contracts::source_identity::DependencyScope;
+        use symbols::SymbolHandle;
+
+        #[derive(Copy, Clone)]
+        pub struct ProviderPlanningContext<'p> {
+            pub typed: &'p TypedTrees,
+            pub scope: DependencyScope,
+        }
+
+        impl<'p> ProviderPlanningContext<'p> {
+            pub const fn new(typed: &'p TypedTrees, scope: DependencyScope) -> Self {
+                Self { typed, scope }
+            }
+
+            pub fn contains(self, symbol: SymbolHandle) -> bool {
+                self.typed
+                    .symbols
+                    .symbol_is_in_dependency_scope(symbol, self.scope)
+            }
+        }
+    }
+    pub use context::ProviderPlanningContext;
+
+    /// Declaration catalogs share the exact immutable source owner. Preparing
+    /// them grants no checking or admission authority: the product factory must
+    /// separately retain the route's acceptance of that same source.
+    pub struct PreparedProviderInventory<
+        Owner: AsRef<crate::source_state::TypedTrees> = crate::source_state::FrozenTypedTrees,
+    > {
+        owner: Arc<Owner>,
+        origins: OnceLock<Vec<SelectedTargetMachineOrigin>>,
+        trust: OnceLock<Result<TrustDeclarations, Diagnostic>>,
+        services: Arc<super::PreparedServiceCatalog>,
+    }
+
+    impl<Owner: AsRef<crate::source_state::TypedTrees>> PreparedProviderInventory<Owner> {
+        pub fn new(
+            owner: Arc<Owner>,
+            exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+        ) -> Self {
+            let services = super::PreparedServiceCatalog::prepare(
+                ProviderPlanningContext::new(
+                    owner.as_ref().as_ref(),
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                ),
+                exact_toolchain_sources,
+            );
+            Self {
+                owner,
+                origins: OnceLock::new(),
+                trust: OnceLock::new(),
+                services: Arc::new(services),
+            }
+        }
+
+        pub fn program(&self) -> &Arc<Owner> {
+            &self.owner
+        }
+
+        pub fn retained_service_catalog(&self) -> Arc<super::PreparedServiceCatalog> {
+            Arc::clone(&self.services)
+        }
+
+        pub fn service_declarations(
+            &self,
+        ) -> impl Iterator<Item = super::PreparedServiceDeclaration<'_>> {
+            self.services.declared_traits()
+        }
+
+        pub fn services_for(&self, owner: &Owner) -> Result<super::ServiceCatalog<'_>, Diagnostic> {
+            self.require_owner(owner)?;
+            self.services.bind(ProviderPlanningContext::new(
+                self.owner.as_ref().as_ref(),
+                declaration_contracts::source_identity::DependencyScope::Product,
+            ))
+        }
+
+        pub fn origins_for(
+            &self,
+            owner: &Owner,
+        ) -> Result<&[SelectedTargetMachineOrigin], Diagnostic> {
+            self.require_owner(owner)?;
+            Ok(self.origins())
+        }
+
+        pub fn origins(&self) -> &[SelectedTargetMachineOrigin] {
+            self.origins.get_or_init(|| {
+                provider_target_declarations(
+                    self.owner.as_ref().as_ref(),
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                )
+            })
+        }
+
+        fn require_owner(&self, owner: &Owner) -> Result<(), Diagnostic> {
+            if !std::ptr::eq(self.owner.as_ref(), owner) {
+                return Err(Diagnostic::error(
+                    "provider declarations belong to another source program",
+                ));
+            }
+            Ok(())
+        }
+
+        /// Read the source census captured for this invocation before provider selection.
+        pub fn published_trust_declarations(&self) -> Result<&TrustDeclarations, Diagnostic> {
+            self.trust
+                .get()
+                .ok_or_else(|| {
+                    Diagnostic::error("root grants have no published source declarations")
+                })?
+                .as_ref()
+                .map_err(Clone::clone)
+        }
+
+        /// Retain every authored claim, including claims the program never uses.
+        /// Missing checked receipts remain explicit; only a requested claim
+        /// asks trust settlement to consume its template or contract evidence.
+        pub fn trust_declarations(&self) -> Result<&TrustDeclarations, Diagnostic> {
+            self.trust
+                .get_or_init(|| {
+                    use declaration_contracts::trust_declarations::{AcceptedMachineDeclaration, TrustDeclarationCardinality};
+                    let typed = self.owner.as_ref().as_ref();
+                    let machines = typed
+                        .machines()
+                        .iter()
+                        .filter(|machine| {
+                            machine.supply_mode
+                                == declaration_contracts::MachineSupplyMode::AdmissionClaim
+                        })
+                        .map(|machine| {
+                            let declaration_identity = typed
+                                .normalized_hermetic_symbol_identity(machine.symbol)
+                                .map_err(|reason| {
+                                    Diagnostic::error(format!(
+                                        "admitted machine `{}` has no exact declaration identity: {reason}",
+                                        machine.name,
+                                    ))
+                                })?;
+                            Ok(AcceptedMachineDeclaration {
+                                machine: machine.symbol,
+                                declaration_identity,
+                                package_identity: typed.symbols.symbol_package_identity(machine.symbol),
+                                name: machine.name.as_str().to_owned(),
+                                template: Err(TrustDeclarationCardinality::Missing),
+                                contract: Err(TrustDeclarationCardinality::Missing),
+                            })
+                        })
+                        .collect::<Result<Vec<_>, Diagnostic>>()?;
+                    Ok(TrustDeclarations {
+                        machines: machines.into_boxed_slice(),
+                    })
+                })
+                .as_ref()
+                .map_err(Clone::clone)
+        }
+    }
+
+    pub fn provider_target_declarations(
+        typed: &crate::source_state::TypedTrees,
+        scope: declaration_contracts::source_identity::DependencyScope,
+    ) -> Vec<declaration_contracts::provider_declarations::SelectedTargetMachineOrigin> {
+        typed
+            .machines()
+            .iter()
+            .filter(|machine| {
+                typed
+                    .symbols
+                    .symbol_is_in_dependency_scope(machine.symbol, scope)
+                    && (scope == declaration_contracts::source_identity::DependencyScope::Product
+                        || machine.target.is_none())
+            })
+            .filter_map(|machine| {
+                machine.authored_target.as_ref().map(|target| {
+                    declaration_contracts::provider_declarations::SelectedTargetMachineOrigin {
+                        machine: machine.symbol,
+                        target: target.as_str().to_owned(),
+                    }
+                })
+            })
+            .collect()
+    }
+
+    pub fn satisfaction_provider_declaration(
+        typed: &crate::source_state::TypedTrees,
+        machine: &crate::source_state::machine::Machine,
+    ) -> Option<symbols::SymbolHandle> {
+        let owner = typed.symbols.get(machine.symbol).declaration_owner;
+        if owner.is_valid() && typed.symbols.get(owner).kind == symbols::SymbolKind::Conformance {
+            return typed
+                .owned_conformance_realization(machine.symbol)
+                .map(|(implementation, _)| implementation.symbol);
+        }
+        let attached = machine.attached_data.as_ref()?;
+        let owner = typed.data_definition_by_symbol(machine.attached_data_symbol)?;
+        (owner.name == *attached).then_some(owner.symbol)
+    }
+
+    #[cfg(test)]
+    mod inventory_tests {
+        use super::PreparedProviderInventory;
+        use crate::source_state::{FrozenTypedTrees, TypedTrees};
+        use std::sync::Arc;
+
+        #[test]
+        fn catalogs_require_the_exact_immutable_owner_even_for_equal_source() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let other = Arc::new(owner.as_ref().clone());
+            let issued = [(source_text::SourceId(7), [0x31; 32])];
+            let mut registry = issued.to_vec();
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &registry);
+            registry[0] = (source_text::SourceId(22), [0xb7; 32]);
+            drop(registry);
+            assert!(Arc::ptr_eq(inventory.program(), &owner));
+            assert!(inventory.services_for(&owner).is_ok());
+            assert!(inventory.origins_for(&owner).is_ok());
+            assert!(inventory.services_for(&other).is_err());
+            assert!(inventory.origins_for(&other).is_err());
+            assert_eq!(
+                inventory
+                    .services_for(&owner)
+                    .unwrap()
+                    .exact_toolchain_sources(),
+                &issued,
+            );
+            let catalog = inventory.retained_service_catalog();
+            assert!(
+                catalog
+                    .bind(super::ProviderPlanningContext::new(
+                        owner.as_ref().as_ref(),
+                        declaration_contracts::source_identity::DependencyScope::Build,
+                    ))
+                    .is_err()
+            );
+        }
+
+        #[test]
+        fn retained_catalogs_and_empty_trust_are_shared_for_one_owner() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            assert!(Arc::ptr_eq(
+                &inventory.retained_service_catalog(),
+                &inventory.retained_service_catalog()
+            ));
+            assert!(inventory.published_trust_declarations().is_err());
+            let trust = inventory.trust_declarations().unwrap();
+            assert!(std::ptr::eq(
+                trust,
+                inventory.published_trust_declarations().unwrap()
+            ));
+            assert!(trust.machines.is_empty());
+            assert!(std::ptr::eq(trust, inventory.trust_declarations().unwrap()));
+        }
+
+        #[test]
+        fn malformed_claims_cannot_invent_a_declaration_identity() {
+            let mut symbols = crate::source_symbols::SymbolTableBuilder::new();
+            let first = symbols.insert_root(
+                symbols::SymbolKind::Machine,
+                symbols::SymbolNameRef::Static("First"),
+            );
+            let second = symbols.insert_root(
+                symbols::SymbolKind::Machine,
+                symbols::SymbolNameRef::Static("Second"),
+            );
+            let mut typed = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            for (symbol, name) in [(first, "First"), (second, "Second")] {
+                typed.push_machine(crate::source_state::machine::Machine {
+                    symbol,
+                    name: name.into(),
+                    supply_mode: declaration_contracts::MachineSupplyMode::AdmissionClaim,
+                    ..Default::default()
+                });
+            }
+            let inventory =
+                PreparedProviderInventory::new(Arc::new(FrozenTypedTrees::from(typed)), &[]);
+            let error = inventory.trust_declarations().unwrap_err();
+            assert!(error.message.contains("has no exact declaration identity"));
+            assert!(error.message.contains("First"));
+        }
+    }
+}
+
+pub mod projection {
+    pub(crate) mod applied_receivers {
+        use crate::source_state::trait_definition::AppliedTraitScope;
+        use declaration_contracts::service_surface::ServiceReceiverApplication;
+        use declaration_contracts::service_surface::identities::ProviderIdentityTable;
+        use diagnostics::Diagnostic;
+
+        pub fn collect_scopes<'program>(
+            program: &'program crate::source_state::TypedTrees,
+            root: AppliedTraitScope<'program>,
+        ) -> Result<Vec<AppliedTraitScope<'program>>, Diagnostic> {
+            // A repeated parent application has the same descendants. Keep
+            // its first declared order without walking every inheritance path.
+            fn collect<'program>(
+                program: &'program crate::source_state::TypedTrees,
+                scope: AppliedTraitScope<'program>,
+                scopes: &mut Vec<AppliedTraitScope<'program>>,
+                active: &mut Vec<symbols::SymbolHandle>,
+            ) -> Result<(), Diagnostic> {
+                let declaration = scope.declaration.symbol;
+                if active.contains(&declaration) {
+                    return Err(super::projection_failure(
+                        program,
+                        declaration,
+                        "applied trait traversal has an inherited declaration cycle",
+                    ));
+                }
+                if let Some(existing) = scopes
+                    .iter()
+                    .find(|existing| existing.declaration.symbol == declaration)
+                {
+                    return if existing.same_application(program, &scope) {
+                        Ok(())
+                    } else {
+                        Err(super::projection_failure(
+                            program,
+                            declaration,
+                            "the receiver is inherited with different applications",
+                        ))
+                    };
+                }
+                scopes.push(scope.clone());
+                active.push(declaration);
+                let parents = scope
+                    .parent_scopes(program)
+                    .map_err(|reason| super::projection_failure(program, declaration, reason))?;
+                for parent in parents {
+                    collect(program, parent, scopes, active)?;
+                }
+                active.pop();
+                Ok(())
+            }
+            let mut scopes = Vec::new();
+            collect(program, root, &mut scopes, &mut Vec::new())?;
+            Ok(scopes)
+        }
+
+        pub(crate) fn receiver_applications(
+            program: &crate::source_state::TypedTrees,
+            scopes: &[AppliedTraitScope<'_>],
+            identities: &mut ProviderIdentityTable,
+        ) -> Result<Vec<ServiceReceiverApplication>, Diagnostic> {
+            let mut applications = Vec::new();
+            // Parents still distinguish service contracts when they add no methods.
+            for scope in scopes {
+                let unavailable =
+                    |reason| super::projection_failure(program, scope.declaration.symbol, reason);
+                let mut argument_identities = Vec::new();
+                for parameter in program.trait_type_parameters(scope.declaration) {
+                    let Some(identity) =
+                        scope.portable_parameter_identity(program, parameter.symbol)
+                    else {
+                        return Ok(Vec::new());
+                    };
+                    let text = program.type_identity_text(identity).ok_or_else(|| {
+                        unavailable("a receiver type argument has no exact identity")
+                    })?;
+                    argument_identities.push(identities.intern(&text));
+                }
+                let Some(lifetimes) = scope.portable_lifetime_arguments(program) else {
+                    return Ok(Vec::new());
+                };
+                let lifetime_argument_identities = lifetimes
+                    .iter()
+                    .map(|identity| {
+                        Some(identities.intern(&program.type_identity_text(*identity)?))
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or_else(|| unavailable("a receiver lifetime has no exact identity"))?;
+                let mut requirement_identities = Vec::new();
+                scope.visit(program, &mut |declaring| {
+                    for signature in program.trait_machine_signatures(declaring.declaration) {
+                        let identity =
+                            identities.intern(&program.trait_requirement_callable_identity_text(
+                                declaring.declaration,
+                                signature,
+                            ));
+                        if !requirement_identities.contains(&identity) {
+                            requirement_identities.push(identity);
+                        }
+                    }
+                });
+                requirement_identities
+                    .sort_by(|left, right| identities.text(*left).cmp(identities.text(*right)));
+                let application = scope
+                    .portable_application_identity(program)
+                    .and_then(|identity| program.type_identity_text(identity))
+                    .ok_or_else(|| unavailable("the receiver application has no exact identity"))?;
+                applications.push(ServiceReceiverApplication {
+                    application: identities.intern(&application),
+                    trait_name: identities
+                        .intern(&program.trait_declaration_path(scope.declaration)),
+                    trait_package_identity: program
+                        .symbols
+                        .symbol_package_identity(scope.declaration.symbol),
+                    argument_identities,
+                    lifetime_argument_identities,
+                    requirement_identities,
+                });
+            }
+            if let Some(ancestors) = applications.get_mut(1..) {
+                ancestors.sort_by(|left, right| {
+                    identities
+                        .text(left.trait_name)
+                        .cmp(identities.text(right.trait_name))
+                        .then_with(|| {
+                            left.trait_package_identity
+                                .cmp(&right.trait_package_identity)
+                        })
+                });
+            }
+            Ok(applications)
+        }
+    }
+    pub(crate) mod correspondence {
+        use super::{ProjectedServiceSurface, ProviderSchemaDeclaration};
+        use crate::source_state::TypedTrees;
+        use diagnostics::Diagnostic;
+
+        type SourceKey = (symbols::SymbolHandle, symbols::SymbolHandle);
+        // Include generations in source order: reusing a slot does not reuse
+        // the declaration that used to occupy it.
+        fn source_key(source: SourceKey) -> ((u32, u32), (u32, u32)) {
+            (
+                (source.0.arena_index(), source.0.generation()),
+                (source.1.arena_index(), source.1.generation()),
+            )
+        }
+        type RequirementKey = (
+            Option<semantic_vocabulary::PackageKeyIdentity>,
+            crate::source_state::type_identity::CallableIdentityId,
+        );
+
+        struct SourceRequirementIdentity {
+            source: SourceKey,
+            identity: RequirementKey,
+        }
+
+        struct InheritedRequirements {
+            rows: Vec<SourceRequirementIdentity>,
+            by_source: Vec<usize>,
+            by_identity: Vec<usize>,
+        }
+
+        impl InheritedRequirements {
+            fn new(
+                program: &TypedTrees,
+                declarations: &[&crate::source_state::trait_definition::TraitDefinition],
+            ) -> Self {
+                let capacity = declarations
+                    .iter()
+                    .map(|declaration| program.trait_machine_signatures(declaration).len())
+                    .sum();
+                let mut rows = Vec::with_capacity(capacity);
+                for declaration in declarations {
+                    let package = program.symbols.symbol_package_identity(declaration.symbol);
+                    for candidate in program.trait_machine_signatures(declaration) {
+                        if program.symbols.symbol_package_identity(candidate.symbol) == package {
+                            rows.push(SourceRequirementIdentity {
+                                source: (declaration.symbol, candidate.symbol),
+                                identity: (
+                                    package,
+                                    program.trait_requirement_callable_identity(
+                                        declaration,
+                                        candidate,
+                                    ),
+                                ),
+                            });
+                        }
+                    }
+                }
+                // Keep the first source signature when malformed input repeats
+                // its coordinates, as the ordinary source lookup does. Equal
+                // canonical keys stay separate so ambiguity still refuses.
+                let mut by_source = (0..rows.len()).collect::<Vec<_>>();
+                by_source.sort_unstable_by_key(|position| {
+                    (source_key(rows[*position].source), *position)
+                });
+                let mut by_identity = (0..rows.len()).collect::<Vec<_>>();
+                by_identity.sort_unstable_by_key(|position| rows[*position].identity);
+                Self {
+                    rows,
+                    by_source,
+                    by_identity,
+                }
+            }
+
+            fn source_identity(
+                &self,
+                source: super::ServiceRequirementSource,
+            ) -> Option<crate::source_state::type_identity::CallableIdentityId> {
+                let key = (source.declaring_trait, source.symbol);
+                let first = self.by_source.partition_point(|position| {
+                    source_key(self.rows[*position].source) < source_key(key)
+                });
+                let row = &self.rows[*self.by_source.get(first)?];
+                (row.source == key).then_some(row.identity.1)
+            }
+
+            fn has_unique_source(
+                &self,
+                key: RequirementKey,
+                symbol: symbols::SymbolHandle,
+            ) -> bool {
+                let first = self
+                    .by_identity
+                    .partition_point(|position| self.rows[*position].identity < key);
+                let Some(position) = self.by_identity.get(first) else {
+                    return false;
+                };
+                let row = &self.rows[*position];
+                row.identity == key
+                    && row.source.1 == symbol
+                    && self
+                        .by_identity
+                        .get(first + 1)
+                        .is_none_or(|position| self.rows[*position].identity != key)
+            }
+        }
+
+        pub(crate) fn validate(
+            program: &TypedTrees,
+            projection: &ProjectedServiceSurface,
+        ) -> Result<(), Diagnostic> {
+            if projection.declaration.methods.len() != projection.requirements.len() {
+                return Err(Diagnostic::error(
+                    "service row lost its ordered source correspondence",
+                ));
+            }
+            if !matches!(
+                projection.schema,
+                ProviderSchemaDeclaration::BoundaryTrait(_)
+            ) {
+                return Ok(());
+            }
+            let mut pending = vec![projection.schema.symbol()];
+            let mut visited = Vec::new();
+            let mut declarations = Vec::new();
+            while let Some(symbol) = pending.pop() {
+                if visited.contains(&symbol) {
+                    continue;
+                }
+                visited.push(symbol);
+                let mut matches = program
+                    .traits()
+                    .iter()
+                    .filter(|declaration| declaration.symbol == symbol);
+                let Some(declaration) = matches.next() else {
+                    return Err(Diagnostic::error(
+                        "service inheritance has no exact declaration",
+                    ));
+                };
+                if matches.next().is_some() {
+                    return Err(Diagnostic::error(
+                        "service inheritance has ambiguous declarations",
+                    ));
+                }
+                declarations.push(declaration);
+                pending.extend(
+                    program
+                        .trait_requirements(declaration)
+                        .iter()
+                        .map(|parent| parent.symbol),
+                );
+            }
+            // A single row needs one scan. Repeated queries justify preparing
+            // the inherited family's exact keys once, without a program-wide
+            // cache or copies of the normalized identity text.
+            let inherited = (projection.requirements.len() > 1)
+                .then(|| InheritedRequirements::new(program, &declarations));
+            for (method, source) in projection
+                .declaration
+                .methods
+                .iter()
+                .zip(&projection.requirements)
+            {
+                let identity = if let Some(identity) = inherited
+                    .as_ref()
+                    .and_then(|inherited| inherited.source_identity(*source))
+                {
+                    identity
+                } else {
+                    // Keep the source owner's lookup and its exact refusal for
+                    // coordinates absent from the inherited declaration rows,
+                    // including refined and closed requirement applications.
+                    let owner = program
+                        .trait_definition_by_symbol(source.declaring_trait)
+                        .ok_or_else(|| {
+                            Diagnostic::error("service row lost its exact declaring trait")
+                        })?;
+                    let signature = program
+                        .trait_machine_signature_by_symbol(owner, source.symbol)
+                        .ok_or_else(|| {
+                            Diagnostic::error("service row lost its exact declared requirement")
+                        })?;
+                    program.trait_requirement_callable_identity(owner, signature)
+                };
+                let is_exact = if let Some(inherited) = &inherited {
+                    let key = (method.requirement_owner_package_identity, identity);
+                    inherited.has_unique_source(key, source.symbol)
+                } else {
+                    let mut matches = declarations.iter().flat_map(|declaration| {
+                        program
+                            .trait_machine_signatures(declaration)
+                            .iter()
+                            .filter_map(move |candidate| {
+                                (program.symbols.symbol_package_identity(declaration.symbol)
+                                    == method.requirement_owner_package_identity
+                                    && program.symbols.symbol_package_identity(candidate.symbol)
+                                        == method.requirement_owner_package_identity
+                                    && program.trait_requirement_callable_identity(
+                                        declaration,
+                                        candidate,
+                                    ) == identity)
+                                    .then_some(candidate.symbol)
+                            })
+                    });
+                    matches.next() == Some(source.symbol) && matches.next().is_none()
+                };
+                if !is_exact {
+                    return Err(Diagnostic::error(
+                        "service row has no unique exact inherited requirement",
+                    ));
+                }
+            }
+            Ok(())
+        }
+    }
+
+    // Schema reading and service publication use the same original parent
+    // applications; neither may flatten inherited members by their names.
+    pub use applied_receivers::collect_scopes as inherited_scopes;
+
+    use super::ProviderSchemaDeclaration;
+    use crate::source_state::boundary_completions::boundary_requirement_completion;
+    use crate::source_state::operator::boundary_operator_requirement_identity;
+    use crate::source_state::types::DomainConstraint;
+    use declaration_contracts::service_surface::identities::ProviderIdentityTable;
+    use std::sync::Arc;
+
+    pub struct ProjectedServiceSurface<'program> {
+        program: &'program crate::source_state::TypedTrees,
+        pub declaration: Arc<ServiceSurface>,
+        pub schema: ProviderSchemaDeclaration,
+        pub argument_owner: symbols::SymbolHandle,
+        pub requirements: Vec<ServiceRequirementSource>,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub struct ServiceRequirementSource {
+        pub declaring_trait: symbols::SymbolHandle,
+        pub symbol: symbols::SymbolHandle,
+    }
+
+    impl ProjectedServiceSurface<'_> {
+        pub fn validate_correspondence(&self) -> Result<(), diagnostics::Diagnostic> {
+            correspondence::validate(self.program, self)
+        }
+    }
+
+    use crate::source_state::provider_declarations::ProviderPlanningContext;
+    use crate::source_state::trait_definition::{AppliedTraitScope, AppliedTypeReference};
+    use declaration_contracts::service_surface::ServiceEntryAuthorityFlow;
+    use declaration_contracts::service_surface::ServiceEntryClaim;
+    use declaration_contracts::service_surface::ServiceProgressEstablishmentRoute;
+    use declaration_contracts::service_surface::ServiceProgressEstablishmentRouteKind;
+    use declaration_contracts::service_surface::ServiceProgressPremise;
+    use declaration_contracts::service_surface::ServiceProgressSubject;
+    use declaration_contracts::service_surface::ServiceResultClaim;
+    use declaration_contracts::service_surface::ServiceSurface;
+    use declaration_contracts::service_surface::{ServiceMethod, ServiceSynchronousInvocation};
+
+    pub(super) fn projection_failure(
+        program: &crate::source_state::TypedTrees,
+        symbol: symbols::SymbolHandle,
+        reason: impl std::fmt::Display,
+    ) -> diagnostics::Diagnostic {
+        let path = program.symbols.display_path(symbol, "::");
+        let diagnostic = diagnostics::Diagnostic::error(format!(
+            "cannot read service contract for `{path}`: {reason}"
+        ));
+        if let Some(span) = program.symbols.symbol_provenance_source_span(symbol) {
+            diagnostic.with_source_span(span)
+        } else {
+            diagnostic
+        }
+    }
+
+    pub fn from_typed<'program>(
+        context: ProviderPlanningContext<'program>,
+        trait_definition: &'program crate::source_state::trait_definition::TraitDefinition,
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
+        from_typed_application(context, AppliedTraitScope::abstract_scope(trait_definition))
+    }
+
+    pub fn from_typed_application<'program>(
+        context: ProviderPlanningContext<'program>,
+        root: AppliedTraitScope<'program>,
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
+        let program = context.typed;
+        let trait_definition = root.declaration;
+        let symbol = trait_definition.symbol;
+        if !trait_definition.is_boundary {
+            return Err(projection_failure(
+                program,
+                symbol,
+                "the trait is not a boundary",
+            ));
+        }
+        if !context.contains(symbol) {
+            return Err(projection_failure(
+                program,
+                symbol,
+                format_args!(
+                    "the trait is outside the {:?} dependency scope",
+                    context.scope
+                ),
+            ));
+        }
+        let mut methods = Vec::new();
+        let mut requirements = Vec::new();
+        let mut identities = ProviderIdentityTable::default();
+        let argument_owner = if program.trait_type_parameters(trait_definition).is_empty() {
+            trait_definition.symbol
+        } else {
+            root.argument_owner
+        };
+        let normal_memberships = super::normal_memberships::NormalMemberships::new(program);
+        let scopes = applied_receivers::collect_scopes(program, root)?;
+        for scope in scopes.iter().rev() {
+            collect_service_methods(
+                program,
+                scope,
+                &mut requirements,
+                &mut methods,
+                &mut identities,
+                &normal_memberships,
+            )?;
+        }
+        let receiver_applications =
+            applied_receivers::receiver_applications(program, &scopes, &mut identities)?;
+        Ok(ProjectedServiceSurface {
+            program,
+            schema: ProviderSchemaDeclaration::BoundaryTrait(trait_definition.symbol),
+            argument_owner,
+            requirements,
+            declaration: Arc::new(ServiceSurface {
+                trait_name: identities.intern(&program.trait_declaration_path(trait_definition)),
+                trait_package_identity: program
+                    .symbols
+                    .symbol_package_identity(trait_definition.symbol),
+                identities,
+                receiver_applications,
+                methods,
+            }),
+        })
+    }
+
+    pub fn from_typed_operator<'program>(
+        context: ProviderPlanningContext<'program>,
+        operator: &crate::source_state::operator::OperatorDefinition,
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
+        let program = context.typed;
+        if !context.contains(operator.symbol) || !operator.is_boundary {
+            return Err(projection_failure(
+                program,
+                operator.symbol,
+                "the operator is not an admitted boundary declaration",
+            ));
+        }
+        let mut identities = ProviderIdentityTable::default();
+        let requirement_identity =
+            identities.intern(&boundary_operator_requirement_identity(program, operator));
+        Ok(ProjectedServiceSurface {
+            program,
+            schema: ProviderSchemaDeclaration::BoundaryOperator(operator.symbol),
+            argument_owner: operator.symbol,
+            requirements: vec![ServiceRequirementSource {
+                declaring_trait: symbols::SymbolHandle::invalid(),
+                symbol: operator.symbol,
+            }],
+            declaration: Arc::new(ServiceSurface {
+                trait_name: requirement_identity,
+                receiver_applications: Vec::new(),
+                trait_package_identity: program.symbols.symbol_package_identity(operator.symbol),
+                methods: vec![ServiceMethod {
+                    completion: boundary_requirement_completion(program, operator.symbol),
+                    name: "realize".to_owned(),
+                    requirement_owner: boundary_operator_requirement_identity(program, operator),
+                    requirement_owner_package_identity: program
+                        .symbols
+                        .symbol_package_identity(operator.symbol),
+                    requirement_identity,
+                    parameter_count: program.operator_parameters(operator).len(),
+                    declared_type_signature:
+                        declaration_contracts::service_surface::declared_type_signature(
+                            program
+                                .operator_parameters(operator)
+                                .iter()
+                                .map(|parameter| {
+                                    program.package_qualified_type_identity_text(
+                                        parameter.type_reference,
+                                    )
+                                }),
+                            &program.package_qualified_type_identity_text(operator.return_type),
+                        )
+                        .map_err(|reason| projection_failure(program, operator.symbol, reason))?,
+                    parameter_type_identities: program
+                        .operator_parameters(operator)
+                        .iter()
+                        .map(|parameter| {
+                            identities.intern(
+                                &program.normalized_type_identity_text(parameter.type_reference),
+                            )
+                        })
+                        .collect(),
+                    entry_claims: Vec::new(),
+                    has_result: operator.return_type.is_valid(),
+                    result_type_identity: operator
+                        .return_type
+                        .is_valid()
+                        .then(|| {
+                            identities.intern(
+                                &program.normalized_type_identity_text(operator.return_type),
+                            )
+                        })
+                        .unwrap_or_default(),
+                    result_claims: Vec::new(),
+                    normal_result_memberships: super::normal_memberships::NormalMemberships::new(
+                        program,
+                    )
+                    .collect(operator.symbol, operator.contracts, None)
+                    .map_err(|reason| projection_failure(program, operator.symbol, reason))?,
+                    service_reach: Vec::new(),
+                    synchronous_invocations: Vec::new(),
+                    may_suspend: false,
+                    may_block: false,
+                    terminates_guarantee: false,
+                    termination_premises: Vec::new(),
+                }],
+                identities,
+            }),
+        })
+    }
+
+    pub fn from_typed_boundary_requirement<'program>(
+        context: ProviderPlanningContext<'program>,
+        requirement: &crate::source_state::machine::Machine,
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
+        if !context.contains(requirement.symbol)
+            || !requirement.symbol.is_valid()
+            || requirement.supply_mode
+                != declaration_contracts::MachineSupplyMode::TopLevelRequirement
+            || requirement.body_is_present
+        {
+            return Err(projection_failure(
+                context.typed,
+                requirement.symbol,
+                "the machine is not an admitted bodyless boundary requirement",
+            ));
+        }
+        project_boundary_machine_schema(
+            context,
+            requirement,
+            ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol),
+        )
+    }
+
+    pub fn project_boundary_machine_schema<'program>(
+        context: ProviderPlanningContext<'program>,
+        requirement: &crate::source_state::machine::Machine,
+        schema: ProviderSchemaDeclaration,
+    ) -> Result<ProjectedServiceSurface<'program>, diagnostics::Diagnostic> {
+        let program = context.typed;
+        let [entry] = program
+            .machine_states(requirement)
+            .as_array()
+            .ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no unique entry declaration",
+                )
+            })?;
+        let requirement_path = program.symbols.display_path(requirement.symbol, "::");
+        let (requirement_owner, method_name) =
+            requirement_path.rsplit_once("::").ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no exact owning path",
+                )
+            })?;
+        if requirement_owner.is_empty() || method_name.is_empty() {
+            return Err(projection_failure(
+                program,
+                requirement.symbol,
+                "the boundary machine has an empty owner or member identity",
+            ));
+        }
+        let requirement_identity = program
+            .machine_callable_identity_text(requirement)
+            .ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no exact callable identity",
+                )
+            })?;
+        let parameters = program.state_parameters(entry);
+        let (parameter_types, result_type) = program
+            .machine_definition_types(requirement)
+            .ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no complete declared type signature",
+                )
+            })?;
+        let published_termination = requirement
+            .termination_plan
+            .interface
+            .published()
+            .ok_or_else(|| {
+                projection_failure(
+                    program,
+                    requirement.symbol,
+                    "the boundary machine has no published termination interface",
+                )
+            })?;
+        let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
+        let mut identities = ProviderIdentityTable::default();
+        let requirement_identity_id = identities.intern(&requirement_identity);
+        let termination_premises = service_progress_premises_for_parameters(
+            program,
+            published_termination,
+            parameters,
+            &mut identities,
+        );
+        Ok(ProjectedServiceSurface {
+            program,
+            schema,
+            argument_owner: requirement.symbol,
+            requirements: vec![ServiceRequirementSource {
+                declaring_trait: symbols::SymbolHandle::invalid(),
+                symbol: requirement.symbol,
+            }],
+            declaration: Arc::new(ServiceSurface {
+                trait_name: if requirement.spelling.is_some() {
+                    requirement_identity_id
+                } else {
+                    identities.intern(&requirement_path)
+                },
+                trait_package_identity: package_identity,
+                receiver_applications: Vec::new(),
+                methods: vec![ServiceMethod {
+                    completion: boundary_requirement_completion(program, requirement.symbol),
+                    name: method_name.to_owned(),
+                    requirement_owner: requirement_owner.to_owned(),
+                    requirement_owner_package_identity: package_identity,
+                    requirement_identity: requirement_identity_id,
+                    parameter_count: parameters.len(),
+                    declared_type_signature:
+                        declaration_contracts::service_surface::declared_type_signature(
+                            parameter_types.iter(),
+                            &result_type,
+                        )
+                        .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
+                    parameter_type_identities: parameters
+                        .iter()
+                        .map(|parameter| {
+                            identities.intern(
+                                &program.normalized_type_identity_text(parameter.type_reference),
+                            )
+                        })
+                        .collect(),
+                    entry_claims: Vec::new(),
+                    has_result: entry.return_type.is_valid(),
+                    result_type_identity: entry
+                        .return_type
+                        .is_valid()
+                        .then(|| {
+                            identities
+                                .intern(&program.normalized_type_identity_text(entry.return_type))
+                        })
+                        .unwrap_or_default(),
+                    result_claims: Vec::new(),
+                    normal_result_memberships: super::normal_memberships::NormalMemberships::new(
+                        program,
+                    )
+                    .collect(entry.symbol, entry.contracts, None)
+                    .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
+                    service_reach: service_reach_row_names(program, requirement.service_reach_row),
+                    synchronous_invocations: machine_synchronous_invocations(program, requirement)
+                        .ok_or_else(|| {
+                            projection_failure(
+                                program,
+                                requirement.symbol,
+                                "normal requirement lost its synchronous invocation roster",
+                            )
+                        })?,
+                    may_suspend: requirement.suspends,
+                    may_block: requirement.blocks,
+                    terminates_guarantee: published_termination.promises_termination(),
+                    termination_premises,
+                }],
+                identities,
+            }),
+        })
+    }
+
+    fn collect_service_methods(
+        program: &crate::source_state::TypedTrees,
+        scope: &AppliedTraitScope<'_>,
+        requirements: &mut Vec<ServiceRequirementSource>,
+        methods: &mut Vec<ServiceMethod>,
+        identities: &mut ProviderIdentityTable,
+        normal_memberships: &super::normal_memberships::NormalMemberships<'_>,
+    ) -> Result<(), diagnostics::Diagnostic> {
+        let trait_definition = scope.declaration;
+        for signature in program.trait_machine_signatures(trait_definition) {
+            let requirement_identity = identities.intern(
+                &program.trait_requirement_callable_identity_text(trait_definition, signature),
+            );
+            if methods
+                .iter()
+                .any(|method| method.requirement_identity == requirement_identity)
+            {
+                continue;
+            }
+            let (parameter_types, result_type, _) = program
+                .requirement_definition_types(scope, signature)
+                .ok_or_else(|| {
+                    projection_failure(
+                        program,
+                        signature.symbol,
+                        "boundary method has no complete applied signature type identity",
+                    )
+                })?;
+            requirements.push(ServiceRequirementSource {
+                declaring_trait: trait_definition.symbol,
+                symbol: signature.symbol,
+            });
+            methods.push(ServiceMethod {
+                completion: boundary_requirement_completion(program, signature.symbol),
+                name: signature.name.as_str().to_owned(),
+                requirement_owner: program.trait_declaration_path(trait_definition),
+                requirement_owner_package_identity: program
+                    .symbols
+                    .symbol_package_identity(trait_definition.symbol),
+                requirement_identity,
+                parameter_count: program.state_signature_parameters(signature).iter().count(),
+                declared_type_signature:
+                    declaration_contracts::service_surface::declared_type_signature(
+                        parameter_types.iter(),
+                        &result_type,
+                    )
+                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
+                parameter_type_identities: program
+                    .state_signature_parameters(signature)
+                    .iter()
+                    .map(|parameter| {
+                        identities.intern(
+                            &program
+                                .type_identity_text(
+                                    scope.type_identity(program, parameter.type_reference),
+                                )
+                                .unwrap_or_default(),
+                        )
+                    })
+                    .collect(),
+                entry_claims: service_entry_claims(program, scope, signature, identities),
+                has_result: signature.return_type.is_valid(),
+                result_type_identity: signature
+                    .return_type
+                    .is_valid()
+                    .then(|| {
+                        identities.intern(
+                            &program
+                                .type_identity_text(
+                                    scope.type_identity(program, signature.return_type),
+                                )
+                                .unwrap_or_default(),
+                        )
+                    })
+                    .unwrap_or_default(),
+                result_claims: service_result_claims(program, scope, signature),
+                normal_result_memberships: normal_memberships
+                    .collect(signature.symbol, signature.contracts, Some(scope))
+                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
+                service_reach: service_reach_names(program, trait_definition, signature),
+                synchronous_invocations: synchronous_invocations(program, signature)
+                    .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
+                may_suspend: signature.suspends,
+                may_block: signature.blocks,
+                terminates_guarantee: signature.termination_guarantee.promises_termination(),
+                termination_premises: service_progress_premises(program, signature, identities),
+            });
+        }
+        Ok(())
+    }
+
+    fn service_progress_premises(
+        program: &crate::source_state::TypedTrees,
+        signature: &crate::source_state::signature::StateSignature,
+        identities: &mut ProviderIdentityTable,
+    ) -> Vec<ServiceProgressPremise> {
+        service_progress_premises_for_parameters(
+            program,
+            &signature.termination_guarantee,
+            program.state_signature_parameters(signature),
+            identities,
+        )
+    }
+
+    fn service_progress_premises_for_parameters(
+        program: &crate::source_state::TypedTrees,
+        guarantee: &declaration_contracts::TerminationGuarantee,
+        parameters: arena::RootRows<'_, crate::source_state::signature::StateParameter>,
+        identities: &mut ProviderIdentityTable,
+    ) -> Vec<ServiceProgressPremise> {
+        let declaration_contracts::TerminationGuarantee::Terminates { premises } = guarantee else {
+            return Vec::new();
+        };
+        premises
+            .iter()
+            .map(|premise| {
+                let position = crate::source_state::signature::state_parameter_position(
+                    parameters,
+                    premise.subject.root,
+                )
+                .expect("normalized public progress premise must be parameter-rooted");
+                let subject = ServiceProgressSubject::Parameter(position);
+                let profile = program
+                    .semantic_domains
+                    .name(premise.profile)
+                    .expect("normalized progress premise must name a registered profile")
+                    .to_owned();
+                ServiceProgressPremise {
+                    profile,
+                    subject,
+                    subject_projections: premise
+                        .subject
+                        .projections
+                        .iter()
+                        .map(|symbol| program.symbols.display_path(*symbol, "::"))
+                        .collect(),
+                    establishment_routes: service_progress_establishment_routes(
+                        program,
+                        premise.profile,
+                        identities,
+                    ),
+                }
+            })
+            .collect()
+    }
+
+    fn service_progress_establishment_routes(
+        program: &crate::source_state::TypedTrees,
+        profile: declaration_contracts::SemanticDomainId,
+        identities: &mut ProviderIdentityTable,
+    ) -> Vec<ServiceProgressEstablishmentRoute> {
+        let domain = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.semantic_id == profile)
+            .expect("normalized progress premise must name one declared profile domain");
+        debug_assert_eq!(
+            domain.classification,
+            Some(declaration_contracts::DomainClassification::ProgressProfile)
+        );
+        let mut routes = domain
+            .establishment_routes
+            .iter()
+            .filter(|route| {
+                !matches!(
+                    route,
+                    declaration_contracts::DomainEstablishmentRoute::ExactMachine { .. }
+                )
+            })
+            .map(|route| {
+                let owner = program
+                    .trait_definition_by_symbol(route.source_symbol())
+                    .expect("normalized progress establishment route must name one trait owner");
+                let requirement = program
+                    .trait_machine_signature_by_symbol(owner, route.requirement_symbol())
+                    .expect("normalized progress establishment route must name one requirement");
+                let kind = match route {
+                    declaration_contracts::DomainEstablishmentRoute::CheckedRequirement {
+                        ..
+                    } => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                    declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement {
+                        ..
+                    } => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                    declaration_contracts::DomainEstablishmentRoute::ExactMachine { .. } => {
+                        unreachable!("exact-machine routes are filtered above")
+                    }
+                };
+                ServiceProgressEstablishmentRoute {
+                    kind,
+                    requirement_identity: identities.intern(
+                        &program.trait_requirement_callable_identity_text(owner, requirement),
+                    ),
+                }
+            })
+            .collect::<Vec<_>>();
+        routes.sort_by(|left, right| {
+            left.kind.cmp(&right.kind).then_with(|| {
+                identities
+                    .text(left.requirement_identity)
+                    .cmp(identities.text(right.requirement_identity))
+            })
+        });
+        routes.dedup();
+        routes
+    }
+
+    fn service_entry_claims(
+        program: &crate::source_state::TypedTrees,
+        scope: &AppliedTraitScope<'_>,
+        signature: &crate::source_state::signature::StateSignature,
+        identities: &mut ProviderIdentityTable,
+    ) -> Vec<ServiceEntryClaim> {
+        let mut claims = Vec::new();
+        for (parameter_index, parameter) in program
+            .state_signature_parameters(signature)
+            .iter()
+            .enumerate()
+        {
+            let reference = scope.type_reference(program, parameter.type_reference);
+            if reference.multiplicity(program) != declaration_contracts::Multiplicity::Linear {
+                continue;
+            }
+            append_routed_entry_claims(
+                program,
+                reference,
+                parameter_index,
+                scope.declaration.symbol,
+                signature.symbol,
+                identities,
+                &mut claims,
+            );
+        }
+        claims.sort_by(|left, right| {
+            left.parameter_index
+                .cmp(&right.parameter_index)
+                .then_with(|| {
+                    identities
+                        .text(left.carrier_identity)
+                        .cmp(identities.text(right.carrier_identity))
+                })
+                .then_with(|| left.domain.cmp(&right.domain))
+        });
+        claims.dedup_by(|left, right| {
+            left.parameter_index == right.parameter_index
+                && identities.text(left.carrier_identity) == identities.text(right.carrier_identity)
+                && left.domain == right.domain
+        });
+        claims
+    }
+
+    fn service_result_claims(
+        program: &crate::source_state::TypedTrees,
+        scope: &AppliedTraitScope<'_>,
+        signature: &crate::source_state::signature::StateSignature,
+    ) -> Vec<ServiceResultClaim> {
+        let reference = scope.type_reference(program, signature.return_type);
+        if !reference.reference.is_valid()
+            || reference.multiplicity(program) != declaration_contracts::Multiplicity::Linear
+        {
+            return Vec::new();
+        }
+        let mut claims = Vec::new();
+        append_bodyless_result_claims(
+            program,
+            reference,
+            scope.declaration.symbol,
+            signature.symbol,
+            &mut claims,
+        );
+        claims.sort_by(|left, right| left.domain.cmp(&right.domain));
+        claims.dedup_by(|left, right| left.domain == right.domain);
+        claims
+    }
+
+    fn for_each_establishing_domain<'scope, Visitor>(
+        program: &crate::source_state::TypedTrees,
+        reference: AppliedTypeReference<'scope>,
+        boundary_trait: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+        visit: &mut Visitor,
+    ) where
+        Visitor: FnMut(AppliedTypeReference<'scope>, &DomainConstraint),
+    {
+        use crate::source_state::types::{TypeConstraintNode, TypeReferenceNode};
+
+        match program.type_reference_node(reference.reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                for_each_establishing_domain(
+                    program,
+                    reference.child(program, *referee),
+                    boundary_trait,
+                    requirement,
+                    visit,
+                );
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let subject = reference.child(program, *base_type);
+                for_each_establishing_domain(program, subject, boundary_trait, requirement, visit);
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    let TypeConstraintNode::Domain(domain) = constraint else {
+                        continue;
+                    };
+                    if domain.symbol.is_valid() && domain.establishment_routes.iter().any(|route| {
+                        matches!(
+                            route,
+                            declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement {
+                                boundary_trait: route_trait,
+                                requirement: route_requirement,
+                            } if *route_trait == boundary_trait && *route_requirement == requirement
+                        )
+                    }) {
+                        visit(subject, domain);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn domain_claim_name(
+        program: &crate::source_state::TypedTrees,
+        domain: &DomainConstraint,
+    ) -> String {
+        domain
+            .semantic_id
+            .is_valid()
+            .then(|| program.semantic_domains.name(domain.semantic_id))
+            .flatten()
+            .unwrap_or_else(|| domain.name.as_str())
+            .to_owned()
+    }
+
+    fn append_bodyless_result_claims(
+        program: &crate::source_state::TypedTrees,
+        reference: AppliedTypeReference<'_>,
+        boundary_trait: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+        claims: &mut Vec<ServiceResultClaim>,
+    ) {
+        for_each_establishing_domain(
+            program,
+            reference,
+            boundary_trait,
+            requirement,
+            &mut |_, domain| {
+                if domain.predicate_presence
+                    != declaration_contracts::DomainPredicatePresence::Absent
+                {
+                    return;
+                }
+                claims.push(ServiceResultClaim {
+                    domain: domain_claim_name(program, domain),
+                    effective_carry: declaration_contracts::CarryPolicy::STRICT,
+                });
+            },
+        );
+    }
+
+    fn append_routed_entry_claims(
+        program: &crate::source_state::TypedTrees,
+        reference: AppliedTypeReference<'_>,
+        parameter_index: usize,
+        boundary_trait: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+        identities: &mut ProviderIdentityTable,
+        claims: &mut Vec<ServiceEntryClaim>,
+    ) {
+        for_each_establishing_domain(
+            program,
+            reference,
+            boundary_trait,
+            requirement,
+            &mut |subject, domain| {
+                claims.push(ServiceEntryClaim {
+                    parameter_index,
+                    carrier_identity: identities.intern(
+                        &program
+                            .type_identity_text(subject.type_identity(program))
+                            .unwrap_or_default(),
+                    ),
+                    domain: domain_claim_name(program, domain),
+                    predicate_presence: domain.predicate_presence,
+                    effective_carry: declaration_contracts::CarryPolicy::STRICT,
+                    authority_flow: ServiceEntryAuthorityFlow::Accepts,
+                });
+            },
+        );
+    }
+
+    fn service_reach_names(
+        program: &crate::source_state::TypedTrees,
+        trait_definition: &crate::source_state::trait_definition::TraitDefinition,
+        signature: &crate::source_state::signature::StateSignature,
+    ) -> Vec<String> {
+        let mut services = program
+            .service_reach_rows
+            .services(signature.service_reach_row)
+            .to_vec();
+        if trait_definition.is_boundary
+            && let Some(service) = program
+                .service_reaches
+                .id_for_symbol(trait_definition.symbol)
+        {
+            program
+                .service_reaches
+                .extend_closure(service, &mut services);
+        }
+        services.sort_by_key(|service| service.0);
+        services.dedup();
+        let mut names = services
+            .into_iter()
+            .filter_map(|service| program.service_reaches.definition(service))
+            .map(|definition| definition.name.clone())
+            .collect::<Vec<_>>();
+        names.sort_unstable();
+        names.dedup();
+        names
+    }
+
+    fn service_reach_row_names(
+        program: &crate::source_state::TypedTrees,
+        row: declaration_contracts::ServiceReachRowId,
+    ) -> Vec<String> {
+        let mut names = program
+            .service_reach_rows
+            .services(row)
+            .iter()
+            .filter_map(|service| program.service_reaches.definition(*service))
+            .map(|definition| definition.name.clone())
+            .collect::<Vec<_>>();
+        names.sort_unstable();
+        names.dedup();
+        names
+    }
+
+    fn synchronous_invocations(
+        program: &crate::source_state::TypedTrees,
+        signature: &crate::source_state::signature::StateSignature,
+    ) -> Result<Vec<ServiceSynchronousInvocation>, String> {
+        invocation_entries(
+            program,
+            crate::source_state::invocations::declared_signature_invocations(program, signature)?,
+            program.state_signature_parameters(signature).len(),
+        )
+        .ok_or_else(|| "an invoked target has no exact service or parameter identity".into())
+    }
+
+    fn machine_synchronous_invocations(
+        program: &crate::source_state::TypedTrees,
+        machine: &crate::source_state::machine::Machine,
+    ) -> Option<Vec<ServiceSynchronousInvocation>> {
+        let entry = program.machine_states(machine).first()?;
+        invocation_entries(
+            program,
+            crate::source_state::invocations::declared_machine_invocations(program, machine)
+                .ok()?,
+            program.state_parameters(entry).len(),
+        )
+    }
+
+    fn invocation_entries(
+        program: &crate::source_state::TypedTrees,
+        targets: Vec<flow_effects::InvocationTarget>,
+        parameter_count: usize,
+    ) -> Option<Vec<ServiceSynchronousInvocation>> {
+        let mut entries = targets
+            .into_iter()
+            .map(|target| match target {
+                flow_effects::InvocationTarget::Parameter(position) => ((position as usize)
+                    < parameter_count)
+                    .then_some(ServiceSynchronousInvocation::Parameter(position)),
+                flow_effects::InvocationTarget::Service(symbol) => program
+                    .traits()
+                    .iter()
+                    .find(|definition| definition.symbol == symbol)
+                    .map(|definition| {
+                        ServiceSynchronousInvocation::Service(
+                            program.trait_declaration_path(definition),
+                        )
+                    }),
+            })
+            .collect::<Option<Vec<_>>>()?;
+        entries.sort_unstable();
+        entries.dedup();
+        Some(entries)
+    }
+}
+pub use projection::ProjectedServiceSurface;
+pub(crate) mod catalog {
+    use super::projection::{self, ServiceRequirementSource};
+    use super::{ProjectedServiceSurface, ProviderSchemaDeclaration};
+    use crate::source_state::ScalarAccessorDeclaration;
+    use crate::source_state::provider_declarations::ProviderPlanningContext;
+    use crate::source_state::trait_definition::AppliedTraitScope;
+    use crate::source_state::type_identity::TypeIdentityId;
+    use crate::source_state::types::TypeReferenceHandle;
+    use arena::{Arena, Handle, HandleSpan};
+    use declaration_contracts::service_surface::ServiceSurface;
+    use diagnostics::Diagnostic;
+    use semantic_vocabulary::PackageKeyIdentity;
+    use std::sync::Arc;
+    use symbols::SymbolHandle;
+
+    pub struct PreparedServiceRequirement {
+        pub source: ServiceRequirementSource,
+        pub nominal_identity: Result<String, Diagnostic>,
+    }
+
+    impl Default for PreparedServiceRequirement {
+        fn default() -> Self {
+            Self {
+                source: ServiceRequirementSource::default(),
+                nominal_identity: Err(missing_declaration_owner()),
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum ServiceOrigin {
+        Declaration(ProviderSchemaDeclaration),
+        Application {
+            declaration: SymbolHandle,
+            argument_owner: SymbolHandle,
+            application: TypeIdentityId,
+        },
+        Named {
+            declaration: SymbolHandle,
+            capture: Handle<crate::source_state::CapturedMachineApplication>,
+            receiver: SymbolHandle,
+        },
+    }
+
+    struct ServiceRecord {
+        origin: ServiceOrigin,
+        schema: ProviderSchemaDeclaration,
+        argument_owner: SymbolHandle,
+        package: Option<PackageKeyIdentity>,
+        path: String,
+        nominal_identity: Result<String, Diagnostic>,
+        declaration: Option<Arc<ServiceSurface>>,
+        requirements: HandleSpan<PreparedServiceRequirement>,
+        arguments: HandleSpan<TypeReferenceHandle>,
+        correspondence: Result<(), Diagnostic>,
+    }
+
+    impl Default for ServiceRecord {
+        fn default() -> Self {
+            let schema = ProviderSchemaDeclaration::BoundaryTrait(SymbolHandle::invalid());
+            Self {
+                origin: ServiceOrigin::Declaration(schema),
+                schema,
+                argument_owner: SymbolHandle::invalid(),
+                package: None,
+                path: String::new(),
+                nominal_identity: Err(missing_declaration_owner()),
+                declaration: None,
+                requirements: HandleSpan::default(),
+                arguments: HandleSpan::default(),
+                correspondence: Ok(()),
+            }
+        }
+    }
+
+    pub struct PreparedServiceCatalog {
+        owner_identity: u64,
+        owner_address: usize,
+        scope: declaration_contracts::source_identity::DependencyScope,
+        exact_toolchain_sources: Box<[(source_text::SourceId, [u8; 32])]>,
+        records: Arena<ServiceRecord>,
+        requirements: Arena<PreparedServiceRequirement>,
+        arguments: Arena<TypeReferenceHandle>,
+        signatures: Arc<super::signatures::PreparedBoundarySignatures>,
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct ServiceCatalog<'catalog> {
+        context: ProviderPlanningContext<'catalog>,
+        catalog: &'catalog Arc<PreparedServiceCatalog>,
+    }
+
+    #[derive(Clone)]
+    pub struct RetainedServiceSurface {
+        catalog: Arc<PreparedServiceCatalog>,
+        record: Handle<ServiceRecord>,
+    }
+
+    impl std::fmt::Debug for RetainedServiceSurface {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter
+                .debug_struct("RetainedServiceSurface")
+                .field("owner", &self.catalog.owner_identity)
+                .field("record", &self.record)
+                .finish()
+        }
+    }
+
+    impl RetainedServiceSurface {
+        pub fn surface(&self) -> Result<PreparedServiceSurface<'_>, Diagnostic> {
+            self.catalog
+                .required_surface(self.catalog.records.get(self.record))
+        }
+    }
+
+    pub struct PreparedServiceDeclaration<'catalog> {
+        pub schema: ProviderSchemaDeclaration,
+        pub package: Option<PackageKeyIdentity>,
+        pub path: &'catalog str,
+        pub nominal_identity: &'catalog Result<String, Diagnostic>,
+        pub surface: Result<PreparedServiceSurface<'catalog>, Diagnostic>,
+    }
+
+    pub struct PreparedServiceSurface<'catalog> {
+        pub schema: ProviderSchemaDeclaration,
+        pub argument_owner: SymbolHandle,
+        pub package: Option<PackageKeyIdentity>,
+        pub path: &'catalog str,
+        pub declaration: &'catalog Arc<ServiceSurface>,
+        pub nominal_identity: &'catalog Result<String, Diagnostic>,
+        pub requirements: &'catalog [PreparedServiceRequirement],
+        pub boundary_arguments: &'catalog [TypeReferenceHandle],
+        correspondence: &'catalog Result<(), Diagnostic>,
+    }
+
+    impl PreparedServiceSurface<'_> {
+        pub fn exact_requirements(&self) -> Result<Vec<SymbolHandle>, Diagnostic> {
+            self.correspondence.as_ref().map_err(Clone::clone)?;
+            Ok(self
+                .requirements
+                .iter()
+                .map(|requirement| requirement.source.symbol)
+                .collect())
+        }
+    }
+
+    impl PreparedServiceCatalog {
+        pub fn prepare(
+            context: ProviderPlanningContext<'_>,
+            exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+        ) -> Self {
+            let signatures = Arc::new(super::signatures::PreparedBoundarySignatures::prepare(
+                context.typed,
+            ));
+            Self::assemble(context, signatures, exact_toolchain_sources)
+        }
+
+        fn assemble(
+            context: ProviderPlanningContext<'_>,
+            signatures: Arc<super::signatures::PreparedBoundarySignatures>,
+            exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+        ) -> Self {
+            let program = context.typed;
+            let mut catalog = Self {
+                owner_identity: program.identity.get(),
+                owner_address: std::ptr::from_ref(program) as usize,
+                scope: context.scope,
+                exact_toolchain_sources: exact_toolchain_sources.into(),
+                records: Arena::new(),
+                requirements: Arena::new(),
+                arguments: Arena::new(),
+                signatures,
+            };
+
+            for declaration in program.traits().iter().filter(|declaration| {
+                declaration.is_boundary && context.contains(declaration.symbol)
+            }) {
+                let schema = ProviderSchemaDeclaration::BoundaryTrait(declaration.symbol);
+                catalog.retain(
+                    context,
+                    exact_toolchain_sources,
+                    ServiceOrigin::Declaration(schema),
+                    schema,
+                    projection::from_typed(context, declaration),
+                    &[],
+                );
+            }
+
+            for root in program.applied_trait_roots() {
+                root.visit(program, &mut |scope| {
+                    if !scope.declaration.is_boundary || !context.contains(scope.declaration.symbol)
+                    {
+                        return;
+                    }
+                    let schema = ProviderSchemaDeclaration::BoundaryTrait(scope.declaration.symbol);
+                    let origin = ServiceOrigin::Application {
+                        declaration: scope.declaration.symbol,
+                        argument_owner: scope.argument_owner,
+                        application: scope.application_identity(program).unwrap_or_default(),
+                    };
+                    if catalog.has_origin(origin) {
+                        return;
+                    }
+                    catalog.retain(
+                        context,
+                        exact_toolchain_sources,
+                        origin,
+                        schema,
+                        projection::from_typed_application(context, scope.clone()),
+                        &[],
+                    );
+                });
+            }
+
+            for declaration in program
+                .conformances()
+                .iter()
+                .filter(|declaration| context.contains(declaration.symbol))
+            {
+                catalog.retain_named(
+                    context,
+                    exact_toolchain_sources,
+                    declaration.symbol,
+                    Handle::default(),
+                    AppliedTraitScope::from_conformance(program, declaration),
+                    program.type_reference_handles(declaration.arguments),
+                );
+            }
+            for (capture, application) in program.captured_machine_applications.iter() {
+                let Some(declaration) = program
+                    .conformance_by_symbol(application.conformance_application.declaration)
+                    .filter(|declaration| context.contains(declaration.symbol))
+                else {
+                    continue;
+                };
+                catalog.retain_named(
+                    context,
+                    exact_toolchain_sources,
+                    declaration.symbol,
+                    capture,
+                    application
+                        .conformance_application
+                        .trait_scope
+                        .scope(program),
+                    program.type_reference_handles(declaration.arguments),
+                );
+            }
+
+            for operator in program
+                .operators()
+                .iter()
+                .filter(|operator| operator.is_boundary && context.contains(operator.symbol))
+            {
+                let schema = ProviderSchemaDeclaration::BoundaryOperator(operator.symbol);
+                catalog.retain(
+                    context,
+                    exact_toolchain_sources,
+                    ServiceOrigin::Declaration(schema),
+                    schema,
+                    projection::from_typed_operator(context, operator),
+                    &[],
+                );
+            }
+            for machine in program.machines().iter().filter(|machine| {
+                context.contains(machine.symbol)
+                    && machine.supply_mode
+                        == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                    && !machine.body_is_present
+            }) {
+                let schema = ProviderSchemaDeclaration::BoundaryRequirement(machine.symbol);
+                catalog.retain(
+                    context,
+                    exact_toolchain_sources,
+                    ServiceOrigin::Declaration(schema),
+                    schema,
+                    projection::from_typed_boundary_requirement(context, machine),
+                    &[],
+                );
+            }
+            catalog.retain_sealed(context, exact_toolchain_sources);
+            catalog
+        }
+
+        pub fn declared_traits(&self) -> impl Iterator<Item = PreparedServiceDeclaration<'_>> {
+            self.records
+                .iter()
+                .filter(|(_, record)| {
+                    matches!(
+                        record.origin,
+                        ServiceOrigin::Declaration(ProviderSchemaDeclaration::BoundaryTrait(_))
+                    )
+                })
+                .map(move |(_, record)| PreparedServiceDeclaration {
+                    schema: record.schema,
+                    package: record.package,
+                    path: &record.path,
+                    nominal_identity: &record.nominal_identity,
+                    surface: self.required_surface(record),
+                })
+        }
+
+        pub fn bind<'catalog>(
+            self: &'catalog Arc<Self>,
+            context: ProviderPlanningContext<'catalog>,
+        ) -> Result<ServiceCatalog<'catalog>, Diagnostic> {
+            if self.owner_identity != context.typed.identity.get()
+                || self.owner_address != std::ptr::from_ref(context.typed) as usize
+                || self.scope != context.scope
+            {
+                return Err(Diagnostic::error(
+                    "service catalog belongs to another source snapshot or dependency purpose",
+                ));
+            }
+            Ok(ServiceCatalog {
+                context,
+                catalog: self,
+            })
+        }
+
+        fn record(&self, origin: ServiceOrigin) -> Handle<ServiceRecord> {
+            let mut matching = self
+                .records
+                .iter()
+                .filter(|(_, record)| record.origin == origin);
+            let Some((record, _)) = matching.next() else {
+                return Handle::default();
+            };
+            if matching.next().is_some() {
+                return Handle::default();
+            }
+            record
+        }
+
+        fn lookup(&self, origin: ServiceOrigin) -> Option<PreparedServiceSurface<'_>> {
+            self.view(self.records.get(self.record(origin)))
+        }
+    }
+
+    impl<'catalog> ServiceCatalog<'catalog> {
+        pub fn signatures(self) -> &'catalog super::signatures::PreparedBoundarySignatures {
+            &self.catalog.signatures
+        }
+
+        pub fn context(self) -> ProviderPlanningContext<'catalog> {
+            self.context
+        }
+
+        /// The issued registry used to construct this catalog's exact source identities.
+        pub fn exact_toolchain_sources(self) -> &'catalog [(source_text::SourceId, [u8; 32])] {
+            &self.catalog.exact_toolchain_sources
+        }
+
+        pub fn declaration(
+            self,
+            schema: ProviderSchemaDeclaration,
+        ) -> Option<PreparedServiceSurface<'catalog>> {
+            self.catalog.lookup(ServiceOrigin::Declaration(schema))
+        }
+
+        pub fn retain_application(
+            self,
+            scope: AppliedTraitScope<'_>,
+        ) -> Option<RetainedServiceSurface> {
+            let origin = ServiceOrigin::Application {
+                declaration: scope.declaration.symbol,
+                argument_owner: scope.argument_owner,
+                application: scope.application_identity(self.context.typed)?,
+            };
+            let record = self.catalog.record(origin);
+            self.catalog.view(self.catalog.records.get(record))?;
+            Some(RetainedServiceSurface {
+                catalog: Arc::clone(self.catalog),
+                record,
+            })
+        }
+
+        /// Join a service namespace's exact applications in one catalog walk.
+        /// Equivalent declaration/application views share the same surface;
+        /// disagreement or missing source metadata cannot supply a schema.
+        pub fn retain_service_applications(
+            self,
+            applications: &[(SymbolHandle, &str)],
+        ) -> Result<Vec<RetainedServiceSurface>, Diagnostic> {
+            let mut wanted = applications
+                .iter()
+                .enumerate()
+                .map(|(position, (symbol, application))| {
+                    (
+                        (symbol.arena_index(), symbol.generation(), *application),
+                        position,
+                    )
+                })
+                .collect::<Vec<_>>();
+            wanted.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+            if wanted.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return Err(Diagnostic::error(
+                    "service namespace repeats an exact schema application",
+                ));
+            }
+            let mut retained = vec![None::<RetainedServiceSurface>; applications.len()];
+            for (handle, record) in self.catalog.records.iter() {
+                let Some(application) = record
+                    .declaration
+                    .as_ref()
+                    .and_then(|surface| surface.root_application_identity())
+                else {
+                    continue;
+                };
+                let symbol = record.schema.symbol();
+                let key = (symbol.arena_index(), symbol.generation(), application);
+                let Ok(position) = wanted.binary_search_by(|candidate| candidate.0.cmp(&key))
+                else {
+                    continue;
+                };
+                let selected = wanted[position].1;
+                let surface = self.catalog.required_surface(record)?;
+                surface.exact_requirements()?;
+                let nominal = surface.nominal_identity.as_ref().map_err(Clone::clone)?;
+                if let Some(previous) = &retained[selected] {
+                    let previous = previous.surface()?;
+                    if previous.declaration != surface.declaration
+                        || previous.nominal_identity.as_ref().map_err(Clone::clone)? != nominal
+                    {
+                        return Err(Diagnostic::error(
+                            "service application has conflicting complete source schemas",
+                        ));
+                    }
+                } else {
+                    retained[selected] = Some(RetainedServiceSurface {
+                        catalog: Arc::clone(self.catalog),
+                        record: handle,
+                    });
+                }
+            }
+            retained.into_iter().map(|surface| surface.ok_or_else(|| {
+                Diagnostic::error("service namespace has no complete prepared schema for its exact application")
+            })).collect()
+        }
+
+        pub fn declared_traits(self) -> impl Iterator<Item = PreparedServiceDeclaration<'catalog>> {
+            self.catalog.declared_traits()
+        }
+    }
+
+    impl PreparedServiceCatalog {
+        fn view<'catalog>(
+            &'catalog self,
+            record: &'catalog ServiceRecord,
+        ) -> Option<PreparedServiceSurface<'catalog>> {
+            Some(PreparedServiceSurface {
+                schema: record.schema,
+                argument_owner: record.argument_owner,
+                package: record.package,
+                path: &record.path,
+                declaration: record.declaration.as_ref()?,
+                nominal_identity: &record.nominal_identity,
+                requirements: self.requirements.span_or_empty(record.requirements),
+                boundary_arguments: self.arguments.span_or_empty(record.arguments),
+                correspondence: &record.correspondence,
+            })
+        }
+
+        fn required_surface<'catalog>(
+            &'catalog self,
+            record: &'catalog ServiceRecord,
+        ) -> Result<PreparedServiceSurface<'catalog>, Diagnostic> {
+            self.view(record).ok_or_else(|| {
+                record
+                    .correspondence
+                    .as_ref()
+                    .err()
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        Diagnostic::error("retained service declaration lost its prepared surface")
+                    })
+            })
+        }
+
+        fn has_origin(&self, origin: ServiceOrigin) -> bool {
+            if matches!(origin, ServiceOrigin::Application { application, .. } if !application.is_valid())
+            {
+                return false;
+            }
+            self.records
+                .iter()
+                .any(|(_, record)| record.origin == origin)
+        }
+
+        fn retain(
+            &mut self,
+            context: ProviderPlanningContext<'_>,
+            exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+            origin: ServiceOrigin,
+            schema: ProviderSchemaDeclaration,
+            projected: Result<ProjectedServiceSurface<'_>, Diagnostic>,
+            arguments: &[TypeReferenceHandle],
+        ) {
+            let mut record = ServiceRecord {
+                origin,
+                schema,
+                package: context
+                    .typed
+                    .symbols
+                    .symbol_package_identity(schema.symbol()),
+                path: context.typed.symbols.display_path(schema.symbol(), "::"),
+                nominal_identity: exact_identity(
+                    context.typed,
+                    schema.symbol(),
+                    exact_toolchain_sources,
+                ),
+                arguments: self.arguments.insert_many(arguments.iter().copied()),
+                ..ServiceRecord::default()
+            };
+            let projected = match projected {
+                Ok(projected) => projected,
+                Err(diagnostic) => {
+                    record.correspondence = Err(diagnostic);
+                    self.records.insert(record);
+                    return;
+                }
+            };
+            record.correspondence = projected.validate_correspondence();
+            record.argument_owner = projected.argument_owner;
+            record.requirements =
+                self.requirements
+                    .insert_many(projected.requirements.into_iter().map(|source| {
+                        PreparedServiceRequirement {
+                            nominal_identity: exact_identity(
+                                context.typed,
+                                source.symbol,
+                                exact_toolchain_sources,
+                            ),
+                            source,
+                        }
+                    }));
+            record.declaration = Some(projected.declaration);
+            self.records.insert(record);
+        }
+
+        fn retain_named<'program>(
+            &mut self,
+            context: ProviderPlanningContext<'program>,
+            exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+            declaration: SymbolHandle,
+            capture: Handle<crate::source_state::CapturedMachineApplication>,
+            root: Option<AppliedTraitScope<'program>>,
+            arguments: &[TypeReferenceHandle],
+        ) {
+            let Some(root) = root else {
+                return;
+            };
+            let mut receivers = Vec::new();
+            root.visit(context.typed, &mut |scope| {
+                if scope.declaration.is_boundary
+                    && context.contains(scope.declaration.symbol)
+                    && !receivers.contains(&scope.declaration.symbol)
+                {
+                    receivers.push(scope.declaration.symbol);
+                }
+            });
+            for receiver in receivers {
+                let schema = ProviderSchemaDeclaration::BoundaryTrait(receiver);
+                let projected = root
+                    .declaring_scope(context.typed, receiver)
+                    .ok_or_else(|| {
+                        projection::projection_failure(
+                            context.typed,
+                            receiver,
+                            "the named application has no exact declaring scope",
+                        )
+                    })
+                    .and_then(|scope| projection::from_typed_application(context, scope));
+                self.retain(
+                    context,
+                    exact_toolchain_sources,
+                    ServiceOrigin::Named {
+                        declaration,
+                        capture,
+                        receiver,
+                    },
+                    schema,
+                    projected,
+                    arguments,
+                );
+            }
+        }
+
+        fn retain_sealed(
+            &mut self,
+            context: ProviderPlanningContext<'_>,
+            exact_toolchain_sources: &[(source_text::SourceId, [u8; 32])],
+        ) {
+            let program = context.typed;
+            let mut symbols = Vec::new();
+            for view in &program.access_view_plans {
+                for field in &view.fields {
+                    for target in &field.accessor_targets {
+                        for symbol in [target.machine_symbol, target.state_symbol] {
+                            if !symbols.contains(&symbol) {
+                                symbols.push(symbol);
+                            }
+                        }
+                    }
+                }
+            }
+            for symbol in symbols {
+                let declaration =
+                    ScalarAccessorDeclaration::authenticate(program, symbol).map(|declaration| {
+                        declaration.filter(|declaration| context.contains(declaration.machine()))
+                    });
+                if let Ok(Some(declaration)) = &declaration {
+                    let schema = ProviderSchemaDeclaration::SealedAccessor(declaration.machine());
+                    if !self.has_origin(ServiceOrigin::Declaration(schema)) {
+                        let projected = program
+                            .machine(declaration.machine())
+                            .ok_or_else(|| {
+                                projection::projection_failure(
+                                    program,
+                                    schema.symbol(),
+                                    "the sealed accessor has no source machine",
+                                )
+                            })
+                            .and_then(|machine| {
+                                projection::project_boundary_machine_schema(
+                                    context, machine, schema,
+                                )
+                            });
+                        self.retain(
+                            context,
+                            exact_toolchain_sources,
+                            ServiceOrigin::Declaration(schema),
+                            schema,
+                            projected,
+                            &[],
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn exact_identity(
+        typed: &crate::source_state::TypedTrees,
+        symbol: SymbolHandle,
+        sources: &[(source_text::SourceId, [u8; 32])],
+    ) -> Result<String, Diagnostic> {
+        typed
+            .exact_owner_nominal_identity(symbol, sources)
+            .and_then(|identity| typed.type_identity_text(identity))
+            .ok_or_else(missing_declaration_owner)
+    }
+
+    fn missing_declaration_owner() -> Diagnostic {
+        Diagnostic::error("service declaration has no exact package or toolchain owner")
+    }
+}
+pub mod signatures {
+    use crate::source_state::TypedTrees;
+    use crate::source_state::provider_declarations::ProviderPlanningContext;
+    use crate::source_state::types::TypeReferenceHandle;
+    use application_identity::callback_declarations::BOUNDARY_NATIVE_PARAMETER_CAPACITY;
+    use application_identity::callback_declarations::BoundaryCallbackBinderDeclaration;
+    use application_identity::callback_declarations::BoundaryDirectCallbackDeclaration;
+    use application_identity::callback_declarations::BoundaryRuntimeFormal;
+    use application_identity::callback_declarations::BoundaryTelescope;
+    use arena::Arena;
+    use semantic_vocabulary::{
+        PackageKeyIdentity, callback_requirement_id, nominal_callback_binder_id,
+        nominal_callback_native_parameter_id,
+    };
+    use symbols::SymbolHandle;
+
+    pub(crate) mod abi_signatures {
+        use super::{BoundarySignatureDeclaration, PreparedBoundarySignatures};
+        use crate::source_state::TypedTrees;
+        use crate::source_state::data::{TypeParameter, TypeParameterKind};
+        use crate::source_state::types::TypeReferenceHandle;
+        use application_identity::callback_declarations::BoundaryTelescope;
+        pub use semantic_vocabulary::CallingStaticOperand;
+        use semantic_vocabulary::{CallingGenericFormal, CallingOperandKind, CallingSignatureId};
+        use symbols::SymbolHandle;
+
+        #[derive(Clone)]
+        pub struct PreparedAbiStorage {
+            pub parameters: Vec<TypeReferenceHandle>,
+            pub result: TypeReferenceHandle,
+            pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+        }
+
+        pub struct PreparedAbiSource {
+            pub source: SymbolHandle,
+            pub formals: Vec<CallingGenericFormal>,
+            pub default_eligible: bool,
+            pub physical_owner: Result<semantic_vocabulary::CallingDeclarationOwner, String>,
+            pub telescope: Result<BoundaryTelescope, String>,
+            pub storage: Result<PreparedAbiStorage, String>,
+        }
+
+        pub struct PreparedBoundaryAbiSignature {
+            pub id: CallingSignatureId,
+            pub requirement_identity: String,
+            pub declaring_application: String,
+            pub operands: Vec<CallingStaticOperand>,
+            pub projections: Vec<PreparedAbiSource>,
+        }
+
+        impl PreparedBoundaryAbiSignature {
+            /// Build and Product are separate checked programs even when their
+            /// copies of a declaration have the same portable ABI key.
+            pub fn projections_in_context<'a>(
+                &'a self,
+                typed: &'a TypedTrees,
+                context: declaration_contracts::source_identity::DependencyScope,
+            ) -> impl Iterator<Item = &'a PreparedAbiSource> {
+                self.projections.iter().filter(move |projection| {
+                    projection.source.is_valid()
+                        && typed
+                            .symbols
+                            .symbol_is_in_dependency_scope(projection.source, context)
+                })
+            }
+        }
+
+        pub(crate) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTrees) {
+            let mut rows = Vec::new();
+            let mut boundaries = Vec::new();
+            for declaration in catalog.declarations() {
+                let (outer, open) = default_scope(typed, declaration);
+                let projection = if open {
+                    Err("declaration ABI requires its complete declaring and non-callback local application".into())
+                } else {
+                    declaration
+                        .projection
+                        .as_ref()
+                        .map_err(Clone::clone)
+                        .map(|prepared| PreparedAbiStorage {
+                            parameters: prepared.parameter_types.clone(),
+                            result: prepared.return_type,
+                            substitutions: Vec::new(),
+                        })
+                };
+                let id = insert(typed, &mut rows, declaration, outer, Vec::new(), projection);
+                boundaries.push((declaration.symbol, Ok(id)));
+            }
+
+            for closed in typed.closed_requirement_applications() {
+                let Some(declaration) = catalog
+                    .declarations()
+                    .find(|row| row.symbol == closed.template)
+                else {
+                    continue;
+                };
+                let prepared = (|| {
+                    let outer = typed
+                        .type_identity_text(closed.portable_trait_application_identity)
+                        .filter(|identity| !identity.is_empty())
+                        .ok_or("declaration ABI lost its portable declaring application")?
+                        .to_owned();
+                    let (_, signature) = typed
+                        .trait_machine_signature(closed.template)
+                        .ok_or("declaration ABI lost its exact template")?;
+                    let parameters = typed.state_signature_type_parameters(signature);
+                    let bindings = typed.static_machine_application_bindings(closed.application);
+                    if parameters.len() != bindings.len()
+                        || parameters.len() != closed.portable_local_arguments.len()
+                        || parameters
+                            .iter()
+                            .zip(bindings)
+                            .any(|(parameter, binding)| parameter.symbol != binding.parameter)
+                    {
+                        return Err(
+                    "declaration ABI static operands differ from the complete declared telescope"
+                        .to_owned(),
+                );
+                    }
+                    let mut operands = Vec::new();
+                    for (ordinal, ((parameter, identity), argument)) in parameters
+                        .iter()
+                        .zip(closed.portable_local_arguments)
+                        .zip(closed.local_arguments)
+                        .enumerate()
+                    {
+                        if callback_binder(declaration, parameter).is_some() {
+                            continue;
+                        }
+                        operands.push(CallingStaticOperand {
+                            ordinal: u32::try_from(ordinal)
+                                .map_err(|_| "declaration ABI has too many static operands")?,
+                            kind: operand_kind(&parameter.kind),
+                            identity: typed
+                                .requirement_argument_identity_text(*argument, *identity)
+                                .filter(|identity| !identity.is_empty())
+                                .ok_or("declaration ABI lost a portable static operand")?
+                                .to_owned(),
+                        });
+                    }
+                    let scope = closed
+                        .trait_scope
+                        .scope(typed)
+                        .ok_or("declaration ABI lost its retained declaring scope")?;
+                    let logical = typed
+                        .applied_callable_signature(&scope, closed.template)
+                        .or_else(|| {
+                            (scope.substitutions.is_empty()
+                                && scope.declaration.lifetime_parameters.is_empty())
+                            .then_some(signature)
+                        })
+                        .ok_or("declaration ABI lost its callback-independent logical signature")?;
+                    let substitutions = parameters
+                        .iter()
+                        .zip(closed.local_arguments)
+                        .filter(|(parameter, _)| callback_binder(declaration, parameter).is_none())
+                        .filter_map(|(parameter, actual)| {
+                            actual.static_operand().map(|actual| (parameter, actual))
+                        })
+                        .map(|(parameter, actual)| {
+                            let formal = typed
+                                .applied_signature_parameter(signature, logical, parameter.symbol)
+                                .ok_or(
+                                    "declaration ABI lost a non-callback formal correspondence",
+                                )?;
+                            Ok((formal, actual))
+                        })
+                        .collect::<Result<Vec<_>, &str>>()?;
+                    let runtime_projection = closed
+                        .local_arguments
+                        .iter()
+                        .any(|argument| argument.static_operand().is_none());
+                    Ok(insert(
+                        typed,
+                        &mut rows,
+                        declaration,
+                        outer,
+                        operands,
+                        Ok(PreparedAbiStorage {
+                            parameters: typed
+                                .state_signature_parameters(if runtime_projection {
+                                    closed.signature
+                                } else {
+                                    logical
+                                })
+                                .iter()
+                                .map(|parameter| parameter.type_reference)
+                                .collect(),
+                            result: if runtime_projection {
+                                closed.signature.return_type
+                            } else {
+                                logical.return_type
+                            },
+                            substitutions: if runtime_projection {
+                                Vec::new()
+                            } else {
+                                substitutions
+                            },
+                        }),
+                    ))
+                })();
+                boundaries.push((closed.signature.symbol, prepared));
+            }
+
+            let roots = typed.applied_trait_roots().into_iter().chain(
+                typed
+                    .captured_machine_applications
+                    .iter()
+                    .filter_map(|(_, application)| {
+                        application.conformance_application.trait_scope.scope(typed)
+                    }),
+            );
+            for root in roots {
+                root.visit(typed, &mut |scope| {
+                    if !scope.declaration.is_boundary {
+                        return;
+                    }
+                    for declared in typed.trait_machine_signatures(scope.declaration) {
+                        let Some(declaration) = catalog
+                            .declarations()
+                            .find(|row| row.symbol == declared.symbol)
+                        else {
+                            continue;
+                        };
+                        if typed
+                            .state_signature_type_parameters(declared)
+                            .iter()
+                            .any(|parameter| callback_binder(declaration, parameter).is_none())
+                        {
+                            continue;
+                        }
+                        let Some(outer) = scope
+                            .portable_application_identity(typed)
+                            .and_then(|identity| typed.type_identity_text(identity))
+                            .filter(|identity| !identity.is_empty())
+                        else {
+                            continue;
+                        };
+                        let signature = typed
+                            .applied_callable_signature(scope, declaration.symbol)
+                            .or_else(|| {
+                                (scope.substitutions.is_empty()
+                                    && scope.declaration.lifetime_parameters.is_empty())
+                                .then_some(declared)
+                            });
+                        let projection = signature
+                            .map(|signature| PreparedAbiStorage {
+                                parameters: typed
+                                    .state_signature_parameters(signature)
+                                    .iter()
+                                    .map(|parameter| parameter.type_reference)
+                                    .collect(),
+                                result: signature.return_type,
+                                substitutions: Vec::new(),
+                            })
+                            .ok_or_else(|| {
+                                "declaration ABI lost its applied logical signature".to_owned()
+                            });
+                        insert(
+                            typed,
+                            &mut rows,
+                            declaration,
+                            outer.to_owned(),
+                            Vec::new(),
+                            projection,
+                        );
+                    }
+                });
+            }
+
+            let governing_application = |machine: &crate::source_state::machine::Machine| {
+                let mut applications = typed
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .filter_map(|conformance| {
+                        crate::source_state::machine::resolve_satisfied_declaration(
+                            typed,
+                            machine,
+                            conformance,
+                        )
+                    })
+                    .filter_map(|declaration| {
+                        boundaries
+                            .iter()
+                            .find(|(symbol, _)| *symbol == declaration.symbol())
+                            .map(|(_, application)| application.clone())
+                    });
+                match (applications.next(), applications.next()) {
+                    (Some(application), None) => Some(application),
+                    _ => None,
+                }
+            };
+            let mut inherited = Vec::new();
+            for machine in typed.machines() {
+                if machine.body_is_present
+                    || boundaries
+                        .iter()
+                        .any(|(symbol, _)| *symbol == machine.symbol)
+                {
+                    continue;
+                }
+                let application = if machine.target_family_interface {
+                    let members = typed
+                        .target_machine_families
+                        .iter()
+                        .find(|family| family.canonical == machine.symbol)
+                        .map_or(&[][..], |family| family.members.as_slice());
+                    let mut applications = members
+                        .iter()
+                        .filter_map(|member| typed.machine_by_symbol(member.machine))
+                        .map(governing_application);
+                    match applications.next() {
+                        Some(Some(first))
+                            if applications.all(|other| other.as_ref() == Some(&first)) =>
+                        {
+                            Some(first)
+                        }
+                        _ => None,
+                    }
+                } else if matches!(
+                    machine.supply_mode,
+                    declaration_contracts::MachineSupplyMode::ExternalRealization { .. }
+                        | declaration_contracts::MachineSupplyMode::Boundary
+                ) {
+                    governing_application(machine)
+                } else {
+                    None
+                };
+                if let Some(application) = application {
+                    inherited.push((machine.symbol, application));
+                }
+            }
+            boundaries.extend(inherited);
+
+            let mut applications = Vec::new();
+            for (handle, application) in catalog.calling.applications() {
+                let prepared = (|| {
+                    let declaration = catalog
+                        .applied_declaration(application)
+                        .ok_or("calling census lost its exact signature declaration")?;
+                    let scope = application
+                        .declaring_scope
+                        .as_ref()
+                        .and_then(|scope| scope.scope(typed))
+                        .ok_or("calling census lost its exact declaring scope")?;
+                    let outer = scope
+                        .portable_application_identity(typed)
+                        .and_then(|identity| typed.type_identity_text(identity))
+                        .filter(|identity| !identity.is_empty())
+                        .ok_or("calling census lost its portable declaring application")?
+                        .to_owned();
+                    let (_, declared) = typed
+                        .trait_machine_signature(declaration.symbol)
+                        .ok_or("calling census lost its exact template")?;
+                    let locals = typed.state_signature_type_parameters(declared);
+                    if locals
+                        .iter()
+                        .all(|parameter| callback_binder(declaration, parameter).is_some())
+                    {
+                        let signature = typed
+                            .applied_callable_signature(&scope, declaration.symbol)
+                            .or_else(|| {
+                                (scope.substitutions.is_empty()
+                                    && scope.declaration.lifetime_parameters.is_empty())
+                                .then_some(declared)
+                            });
+                        let projection = signature
+                            .map(|signature| PreparedAbiStorage {
+                                parameters: typed
+                                    .state_signature_parameters(signature)
+                                    .iter()
+                                    .map(|parameter| parameter.type_reference)
+                                    .collect(),
+                                result: signature.return_type,
+                                substitutions: Vec::new(),
+                            })
+                            .ok_or_else(|| {
+                                "declaration ABI lost its applied logical signature".to_owned()
+                            });
+                        let id =
+                            insert(typed, &mut rows, declaration, outer, Vec::new(), projection);
+                        return Ok(vec![id]);
+                    }
+                    Ok(rows
+                        .iter()
+                        .filter(|row| {
+                            row.requirement_identity == declaration.requirement_identity
+                                && row.declaring_application == outer
+                                && !row.operands.is_empty()
+                        })
+                        .map(|row| row.id)
+                        .collect())
+                })();
+                applications.push((handle, prepared));
+            }
+            for (application, ids) in applications {
+                catalog.calling.set_abi_signatures(application, ids);
+            }
+            catalog.abi_signatures = rows;
+            catalog.boundary_abis = boundaries;
+        }
+
+        fn default_scope(
+            typed: &TypedTrees,
+            declaration: &BoundarySignatureDeclaration,
+        ) -> (String, bool) {
+            let Some((owner, signature)) = typed.trait_machine_signature(declaration.symbol) else {
+                return (declaration.requirement_identity.clone(), false);
+            };
+            let scope =
+                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner);
+            let outer = scope
+                .portable_application_identity(typed)
+                .and_then(|identity| typed.type_identity_text(identity))
+                .unwrap_or_default()
+                .to_owned();
+            let open = !typed.trait_type_parameters(owner).is_empty()
+                || !owner.lifetime_parameters.is_empty()
+                || typed
+                    .state_signature_type_parameters(signature)
+                    .iter()
+                    .any(|parameter| callback_binder(declaration, parameter).is_none());
+            (outer, open)
+        }
+
+        fn callback_binder(
+            declaration: &BoundarySignatureDeclaration,
+            parameter: &TypeParameter,
+        ) -> Option<semantic_vocabulary::StaticMachineBinderId> {
+            let prepared = declaration.projection.as_ref().ok()?;
+            prepared
+                .callback_sources
+                .iter()
+                .zip(&prepared.telescope.binders)
+                .find(|(source, _)| source.parameter_symbol == parameter.symbol)
+                .map(|(_, binder)| binder.binder)
+        }
+
+        fn operand_kind(kind: &TypeParameterKind) -> CallingOperandKind {
+            match kind {
+                TypeParameterKind::Type => CallingOperandKind::Type,
+                TypeParameterKind::Const { .. } => CallingOperandKind::Const,
+                TypeParameterKind::Value { .. } => CallingOperandKind::Value,
+                TypeParameterKind::Machine { .. } => CallingOperandKind::Machine,
+                TypeParameterKind::Implementation => CallingOperandKind::Implementation,
+                TypeParameterKind::Proposition { .. } => CallingOperandKind::Proposition,
+            }
+        }
+
+        fn insert(
+            typed: &TypedTrees,
+            rows: &mut Vec<PreparedBoundaryAbiSignature>,
+            declaration: &BoundarySignatureDeclaration,
+            declaring_application: String,
+            operands: Vec<CallingStaticOperand>,
+            projection: Result<PreparedAbiStorage, String>,
+        ) -> CallingSignatureId {
+            let id = CallingSignatureId::for_application(
+                &declaration.requirement_identity,
+                &declaring_application,
+                operands
+                    .iter()
+                    .map(|operand| (operand.ordinal, operand.kind, operand.identity.as_str())),
+            );
+            let formals = typed
+                .trait_machine_signature(declaration.symbol)
+                .map(|(_, signature)| {
+                    typed
+                        .state_signature_type_parameters(signature)
+                        .iter()
+                        .enumerate()
+                        .map(|(ordinal, parameter)| CallingGenericFormal {
+                            ordinal: ordinal as u32,
+                            kind: operand_kind(&parameter.kind),
+                            callback: callback_binder(declaration, parameter),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let projection = PreparedAbiSource {
+                source: declaration.symbol,
+                formals,
+                default_eligible: declaration.default_eligible,
+                physical_owner: physical_owner(typed, declaration),
+                telescope: declaration
+                    .projection
+                    .as_ref()
+                    .map(|prepared| prepared.telescope.clone())
+                    .map_err(Clone::clone),
+                storage: projection,
+            };
+            if let Some(row) = rows.iter_mut().find(|row| {
+                row.id == id
+                    && row.requirement_identity == declaration.requirement_identity
+                    && row.declaring_application == declaring_application
+                    && row.operands == operands
+            }) {
+                row.projections.push(projection);
+                return id;
+            }
+            rows.push(PreparedBoundaryAbiSignature {
+                id,
+                requirement_identity: declaration.requirement_identity.clone(),
+                declaring_application,
+                operands,
+                projections: vec![projection],
+            });
+            id
+        }
+
+        fn physical_owner(
+            typed: &TypedTrees,
+            declaration: &BoundarySignatureDeclaration,
+        ) -> Result<semantic_vocabulary::CallingDeclarationOwner, String> {
+            use semantic_vocabulary::CallingDeclarationOwner;
+            if let Some((owner, _)) = typed.trait_machine_signature(declaration.symbol) {
+                return if owner.is_boundary {
+                    Ok(CallingDeclarationOwner::BoundaryTrait)
+                } else {
+                    Err(format!(
+                        "selected boundary entry requirement owner `{}` is not an exact boundary trait",
+                        typed.trait_declaration_path(owner)
+                    ))
+                };
+            }
+            if typed
+                .machine_by_symbol(declaration.symbol)
+                .is_some_and(|machine| {
+                    machine.supply_mode
+                        == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                })
+            {
+                return Ok(CallingDeclarationOwner::TopLevelRequirement);
+            }
+            Err("declaration ABI has no exact physical calling owner".into())
+        }
+    }
+    pub mod calling_applications {
+        use super::BoundarySignatureDeclaration;
+        use crate::source_state::TypedTrees;
+        use crate::source_state::boundary_values::BoundaryTypeBinding;
+        use crate::source_state::trait_definition::{
+            AppliedTraitScope, TraitApplicationArguments, TraitApplicationEnvironment,
+        };
+        use crate::source_state::types::TypeReferenceHandle;
+        use arena::{Arena, Handle, HandleSpan};
+        use diagnostics::Diagnostic;
+        use symbols::SymbolHandle;
+
+        pub struct PreparedCallingRequest {
+            pub boundary: SymbolHandle,
+            /// The exact ordinary parent relationship this owner consumes.
+            pub relationship: SymbolHandle,
+            pub name: String,
+            pub span: source_text::SourceSpan,
+            instances: Result<HandleSpan<PreparedCallingInstance>, Vec<Diagnostic>>,
+        }
+
+        impl Default for PreparedCallingRequest {
+            fn default() -> Self {
+                Self {
+                    boundary: SymbolHandle::invalid(),
+                    relationship: SymbolHandle::invalid(),
+                    name: String::new(),
+                    span: source_text::SourceSpan::default(),
+                    instances: Ok(HandleSpan::default()),
+                }
+            }
+        }
+
+        pub struct PreparedCallingInstance {
+            pub argument_owner: SymbolHandle,
+            pub policy: Result<crate::source_state::trait_definition::Supply, String>,
+            arguments: HandleSpan<TypeReferenceHandle>,
+            signatures: HandleSpan<PreparedAppliedBoundarySignature>,
+        }
+
+        impl Default for PreparedCallingInstance {
+            fn default() -> Self {
+                Self {
+                    argument_owner: SymbolHandle::invalid(),
+                    policy: Err("calling application is absent".into()),
+                    arguments: HandleSpan::default(),
+                    signatures: HandleSpan::default(),
+                }
+            }
+        }
+
+        #[derive(Default)]
+        pub struct PreparedAppliedBoundarySignature {
+            declaration: Handle<BoundarySignatureDeclaration>,
+            bindings: HandleSpan<BoundaryTypeBinding>,
+            pub declaring_scope: Option<TraitApplicationEnvironment>,
+            pub abi_signatures: Vec<semantic_vocabulary::CallingSignatureId>,
+            pub abi_refusal: Option<String>,
+        }
+
+        #[derive(Default)]
+        pub struct PreparedCallingApplications {
+            requests: Arena<PreparedCallingRequest>,
+            instances: Arena<PreparedCallingInstance>,
+            signatures: Arena<PreparedAppliedBoundarySignature>,
+            arguments: Arena<TypeReferenceHandle>,
+            bindings: Arena<BoundaryTypeBinding>,
+        }
+
+        impl PreparedCallingApplications {
+            pub(crate) fn prepare(
+                typed: &TypedTrees,
+                declarations: &Arena<BoundarySignatureDeclaration>,
+            ) -> Self {
+                let vocabularies =
+                    crate::source_state::calling_vocabulary::standard_calling_vocabularies(typed);
+                let mut prepared = Self::default();
+                if vocabularies.is_empty() {
+                    return prepared;
+                }
+                for boundary in typed
+                    .traits()
+                    .iter()
+                    .filter(|definition| definition.is_boundary)
+                {
+                    let relationships = typed
+                        .trait_requirements(boundary)
+                        .iter()
+                        .filter(|requirement| {
+                            vocabularies
+                                .iter()
+                                .any(|(calling, _)| requirement.symbol == calling.symbol)
+                        })
+                        .collect::<Vec<_>>();
+                    let Some(relationship) = relationships.first() else {
+                        continue;
+                    };
+                    let span = relationship.source_span;
+                    let instances = (|| {
+                        if relationships.len() != 1 {
+                            return Err(vec![Diagnostic::error(format!(
+                        "boundary trait `{}` selects {} Calling<Policy> policies; exactly one concrete policy may define a boundary contract",
+                        boundary.name, relationships.len(),
+                    )).with_source_span(span)]);
+                        }
+                        let arguments = typed
+                            .type_reference_table
+                            .type_reference_handles(relationship.arguments);
+                        if arguments.len() != 1 {
+                            return Err(vec![Diagnostic::error(format!(
+                        "boundary trait `{}` has a Calling relationship with {} policy arguments; expected one",
+                        boundary.name, arguments.len(),
+                    )).with_source_span(span)]);
+                        }
+                        let Some((calling, policy)) = vocabularies
+                            .iter()
+                            .find(|(calling, _)| calling.symbol == relationship.symbol)
+                            .copied()
+                        else {
+                            return Err(vec![
+                                Diagnostic::error("calling relationship lost its exact vocabulary")
+                                    .with_source_span(span),
+                            ]);
+                        };
+                        let instances =
+                            boundary_policy_instances(typed, boundary).map_err(|reason| {
+                                vec![
+                        Diagnostic::error(format!(
+                            "boundary trait `{}` cannot evaluate Calling<Policy>: {reason}",
+                            boundary.name
+                        ))
+                        .with_source_span(span),
+                    ]
+                            })?;
+                        let mut retained = Vec::with_capacity(instances.len());
+                        for instance in instances {
+                            let policy = prepared_policy_machine(
+                                typed,
+                                boundary,
+                                &instance.arguments,
+                                instance.argument_owner,
+                                calling,
+                                policy,
+                            );
+                            let mut signatures = Vec::new();
+                            collect_boundary_signatures(
+                                typed,
+                                boundary,
+                                &instance.arguments,
+                                instance.argument_owner,
+                                &mut signatures,
+                            )
+                            .map_err(|reason| {
+                                vec![Diagnostic::error(reason).with_source_span(span)]
+                            })?;
+                            let signatures = signatures
+                                .into_iter()
+                                .map(|signature| {
+                                    let declaration = declarations
+                                        .iter()
+                                        .find(|(_, declaration)| {
+                                            declaration.symbol == signature.signature.symbol
+                                                && declaration.requirement_identity
+                                                    == signature.requirement_identity
+                                        })
+                                        .map(|(handle, _)| handle)
+                                        .unwrap_or_default();
+                                    let bindings =
+                                        prepared.bindings.insert_many(signature.bindings);
+                                    PreparedAppliedBoundarySignature {
+                                        declaration,
+                                        bindings,
+                                        declaring_scope: Some(signature.scope),
+                                        abi_signatures: Vec::new(),
+                                        abi_refusal: None,
+                                    }
+                                })
+                                .collect::<Vec<_>>();
+                            let signatures = prepared.signatures.insert_many(signatures);
+                            let arguments = prepared.arguments.insert_many(instance.arguments);
+                            retained.push(PreparedCallingInstance {
+                                argument_owner: instance.argument_owner,
+                                policy,
+                                arguments,
+                                signatures,
+                            });
+                        }
+                        Ok(prepared.instances.insert_many(retained))
+                    })();
+                    prepared.requests.insert(PreparedCallingRequest {
+                        boundary: boundary.symbol,
+                        relationship: relationship.symbol,
+                        name: boundary.name.as_str().to_owned(),
+                        span,
+                        instances,
+                    });
+                }
+                prepared
+            }
+
+            pub fn requests(&self) -> impl Iterator<Item = &PreparedCallingRequest> {
+                self.requests.iter().map(|(_, request)| request)
+            }
+
+            pub fn instances(
+                &self,
+                request: &PreparedCallingRequest,
+            ) -> Result<&[PreparedCallingInstance], Vec<Diagnostic>> {
+                let instances = request.instances.as_ref().map_err(Clone::clone)?;
+                Ok(self.instances.span_or_empty(*instances))
+            }
+
+            pub fn arguments(&self, instance: &PreparedCallingInstance) -> &[TypeReferenceHandle] {
+                self.arguments.span_or_empty(instance.arguments)
+            }
+
+            pub fn signatures(
+                &self,
+                instance: &PreparedCallingInstance,
+            ) -> &[PreparedAppliedBoundarySignature] {
+                self.signatures.span_or_empty(instance.signatures)
+            }
+
+            pub fn bindings(
+                &self,
+                signature: &PreparedAppliedBoundarySignature,
+            ) -> &[BoundaryTypeBinding] {
+                self.bindings.span_or_empty(signature.bindings)
+            }
+
+            pub(crate) fn declaration(
+                &self,
+                signature: &PreparedAppliedBoundarySignature,
+            ) -> Handle<BoundarySignatureDeclaration> {
+                signature.declaration
+            }
+
+            pub(crate) fn applications(
+                &self,
+            ) -> impl Iterator<
+                Item = (
+                    Handle<PreparedAppliedBoundarySignature>,
+                    &PreparedAppliedBoundarySignature,
+                ),
+            > {
+                self.signatures.iter()
+            }
+
+            pub(crate) fn set_abi_signatures(
+                &mut self,
+                application: Handle<PreparedAppliedBoundarySignature>,
+                ids: Result<Vec<semantic_vocabulary::CallingSignatureId>, String>,
+            ) {
+                let application = self.signatures.get_mut(application);
+                match ids {
+                    Ok(ids) => application.abi_signatures = ids,
+                    Err(reason) => application.abi_refusal = Some(reason),
+                }
+            }
+        }
+
+        struct BoundarySignatureInstance<'input> {
+            signature: &'input crate::source_state::signature::StateSignature,
+            requirement_identity: String,
+            bindings: Vec<BoundaryTypeBinding>,
+            scope: TraitApplicationEnvironment,
+        }
+
+        struct BoundaryPolicyInstance {
+            pub arguments: Vec<TypeReferenceHandle>,
+            pub argument_owner: symbols::SymbolHandle,
+        }
+
+        fn boundary_policy_instances(
+            typed: &TypedTrees,
+            boundary: &crate::source_state::trait_definition::TraitDefinition,
+        ) -> Result<Vec<BoundaryPolicyInstance>, String> {
+            let parameters = typed.trait_type_parameters(boundary);
+            if parameters.is_empty() {
+                return Ok(vec![BoundaryPolicyInstance {
+                    arguments: Vec::new(),
+                    argument_owner: boundary.symbol,
+                }]);
+            }
+
+            let mut instances = Vec::new();
+            for conformance in typed
+                .conformances()
+                .iter()
+                .filter(|conformance| conformance.trait_symbol == boundary.symbol)
+            {
+                let arguments = typed
+                    .type_reference_table
+                    .type_reference_handles(conformance.arguments)
+                    .to_vec();
+                if arguments.len() != parameters.len() {
+                    return Err(format!(
+                        "conformance `{} satisfies {}` supplies {} argument(s), expected {}",
+                        typed.symbols.display_path(conformance.symbol, "::"),
+                        conformance.trait_name,
+                        arguments.len(),
+                        parameters.len()
+                    ));
+                }
+                instances.push(BoundaryPolicyInstance {
+                    arguments,
+                    argument_owner: conformance.symbol,
+                });
+            }
+
+            // A closed application the program names directly, as in
+            // `Owner<Arguments>::member(...)`, may be supplied by a native
+            // Build binding instead of a named implementation. It is then an
+            // application of this boundary that no conformance covers, and
+            // its declared policy must be evaluated for it all the same, so
+            // each such application is an instance too. An application some
+            // conformance already covers keeps that conformance's instance.
+            // These are the applied roots the service catalog also reads, so
+            // an application has an instance exactly when it has a surface.
+            let portable =
+                |scope: &crate::source_state::trait_definition::AppliedTraitScope<'_>| {
+                    scope
+                        .portable_application_identity(typed)
+                        .and_then(|identity| typed.type_identity_text(identity))
+                };
+            let mut covered = typed
+                .conformances()
+                .iter()
+                .filter(|conformance| conformance.trait_symbol == boundary.symbol)
+                .filter_map(|conformance| {
+                    crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+                        typed,
+                        conformance,
+                    )
+                    .and_then(|scope| scope.declaring_scope(typed, boundary.symbol))
+                    .and_then(|scope| portable(&scope))
+                })
+                .collect::<Vec<_>>();
+            for root in typed.applied_trait_roots() {
+                root.visit(typed, &mut |scope| {
+                    // Only a use that applies the boundary by itself: its one
+                    // frame of substitutions is then the boundary's arguments.
+                    if scope.declaration.symbol != boundary.symbol
+                        || scope.substitution_scope_starts != [0]
+                        || scope.substitutions.len() != parameters.len()
+                    {
+                        return;
+                    }
+                    let Some(identity) = portable(scope) else {
+                        return;
+                    };
+                    if covered.contains(&identity) {
+                        return;
+                    }
+                    covered.push(identity);
+                    instances.push(BoundaryPolicyInstance {
+                        arguments: scope
+                            .substitutions
+                            .iter()
+                            .map(|(_, argument)| *argument)
+                            .collect(),
+                        argument_owner: scope.argument_owner,
+                    });
+                });
+            }
+
+            Ok(instances)
+        }
+
+        fn prepared_policy_machine(
+            typed: &TypedTrees,
+            boundary: &crate::source_state::trait_definition::TraitDefinition,
+            boundary_arguments: &[TypeReferenceHandle],
+            argument_owner: symbols::SymbolHandle,
+            calling_trait: &crate::source_state::trait_definition::TraitDefinition,
+            calling_policy: &crate::source_state::trait_definition::TraitDefinition,
+        ) -> Result<crate::source_state::trait_definition::Supply, String> {
+            use crate::source_state::trait_definition::{
+                AppliedTraitScope, TraitApplicationArguments,
+            };
+            let boundary_scope = AppliedTraitScope::new(
+                typed,
+                boundary,
+                TraitApplicationArguments {
+                    lexical_owner: argument_owner,
+                    enclosing_data_applications: &[],
+                    arguments: boundary_arguments,
+                    lifetimes: &[],
+                },
+            )
+            .ok_or("calling policy has no complete boundary application")?;
+            let calling_scope = boundary_scope
+                .declaring_scope(typed, calling_trait.symbol)
+                .ok_or("calling policy has no unique exact Calling application")?;
+            // The authored trait application already fixes its implementation
+            // operand by declaration identity. This is nomination, not a legacy
+            // checked-application receipt; invocation checks the actual policy
+            // with its concrete input before any calling promise is published.
+            let Some([parameter]) = typed.trait_type_parameters(calling_trait).as_array() else {
+                return Err("Calling must declare one exact implementation parameter".into());
+            };
+            let conformance = calling_scope
+                .named_implementation_argument(typed, parameter.symbol)
+                .map_err(str::to_owned)?;
+            let trait_definition = typed
+                .trait_definition_by_symbol(conformance.trait_symbol)
+                .ok_or_else(|| {
+                    format!(
+                        "conformance `{}` names unresolved trait `{}`",
+                        conformance
+                            .alias
+                            .as_ref()
+                            .map_or("<unnamed-conformance>", |name| name.as_str()),
+                        conformance.trait_name
+                    )
+                })?;
+            if trait_definition.symbol != calling_policy.symbol || !conformance.arguments.is_empty()
+            {
+                return Err(
+                    "calling policy must explicitly select a complete CallingPolicy implementation"
+                        .to_owned(),
+                );
+            }
+            let requirements = typed.trait_machine_signatures(calling_policy);
+            let Some([requirement]) = requirements.as_array() else {
+                return Err(
+                    "CallingPolicy must declare exactly one canonical plan requirement".to_owned(),
+                );
+            };
+            if requirement.name.as_str() != "plan" {
+                return Err("CallingPolicy has no canonical plan requirement".to_owned());
+            }
+            let rows = conformance
+                .rows
+                .iter()
+                .filter(|row| {
+                    row.declaring_trait == calling_policy.symbol
+                        && row.requirement == requirement.symbol
+                })
+                .collect::<Vec<_>>();
+            let [row] = rows.as_slice() else {
+                return Err(
+                    "calling policy implementation must retain exactly one CallingPolicy::plan row"
+                        .to_owned(),
+                );
+            };
+            let machine = typed
+                .machine(row.realization_machine)
+                .ok_or_else(|| "calling policy row has no exact realization machine".to_owned())?;
+            if typed
+                .machine_states(machine)
+                .first()
+                .is_none_or(|state| state.symbol != row.realization_state)
+            {
+                return Err(
+                    "calling policy row must select its realization machine's entry state"
+                        .to_owned(),
+                );
+            }
+            if !typed.machine_type_parameters(machine).is_empty()
+                || !machine.conformance_bounds.is_empty()
+            {
+                return Err("generic calling-policy realization requires an explicitly specialized machine before policy evaluation".to_owned());
+            }
+            Ok(crate::source_state::trait_definition::Supply {
+                slot: requirement.symbol,
+                provider: conformance.symbol,
+            })
+        }
+
+        fn collect_boundary_signatures<'a>(
+            typed: &'a TypedTrees,
+            definition: &'a crate::source_state::trait_definition::TraitDefinition,
+            arguments: &[TypeReferenceHandle],
+            argument_owner: SymbolHandle,
+            signatures: &mut Vec<BoundarySignatureInstance<'a>>,
+        ) -> Result<(), String> {
+            let root = AppliedTraitScope::new(
+                typed,
+                definition,
+                TraitApplicationArguments {
+                    lexical_owner: argument_owner,
+                    enclosing_data_applications: &[],
+                    arguments,
+                    lifetimes: &[],
+                },
+            )
+            .ok_or("calling census lost its complete boundary application")?;
+            let mut seen = Vec::new();
+            let mut refusal = None;
+            root.visit_parents_first(typed, &mut |scope| {
+                if !scope.declaration.is_boundary || refusal.is_some() {
+                    return;
+                }
+                let Some(application) = scope.portable_application_identity(typed) else {
+                    refusal = Some(
+                        "calling census cannot retain its complete declaring application"
+                            .to_owned(),
+                    );
+                    return;
+                };
+                for signature in typed.trait_machine_signatures(scope.declaration) {
+                    if seen.contains(&(signature.symbol, application)) {
+                        continue;
+                    }
+                    seen.push((signature.symbol, application));
+                    let bindings = scope
+                        .substitutions
+                        .iter()
+                        .map(|(parameter, actual)| BoundaryTypeBinding {
+                            parameter_symbol: *parameter,
+                            actual: *actual,
+                        })
+                        .collect();
+                    signatures.push(BoundarySignatureInstance {
+                        signature,
+                        requirement_identity: typed
+                            .trait_requirement_callable_identity_text(scope.declaration, signature),
+                        bindings,
+                        scope: scope.environment(),
+                    });
+                }
+            });
+            refusal.map_or(Ok(()), Err)
+        }
+    }
+    pub use abi_signatures::{
+        CallingStaticOperand, PreparedAbiSource, PreparedAbiStorage, PreparedBoundaryAbiSignature,
+    };
+
+    pub struct BoundaryCallbackSource {
+        pub parameter_symbol: SymbolHandle,
+        pub requirement_trait: SymbolHandle,
+        pub requirement_machine: SymbolHandle,
+    }
+
+    pub struct PreparedBoundarySignature {
+        pub telescope: BoundaryTelescope,
+        pub callback_sources: Vec<BoundaryCallbackSource>,
+        pub parameter_types: Vec<TypeReferenceHandle>,
+        pub return_type: TypeReferenceHandle,
+    }
+
+    pub struct BoundarySignatureDeclaration {
+        pub default_eligible: bool,
+        pub symbol: SymbolHandle,
+        pub package: Option<PackageKeyIdentity>,
+        pub path: String,
+        pub method: String,
+        pub requirement_identity: String,
+        pub projection: Result<PreparedBoundarySignature, String>,
+    }
+
+    impl Default for BoundarySignatureDeclaration {
+        fn default() -> Self {
+            Self {
+                default_eligible: false,
+                symbol: SymbolHandle::invalid(),
+                package: None,
+                path: String::new(),
+                method: String::new(),
+                requirement_identity: String::new(),
+                projection: Err("boundary signature census has an absent declaration".into()),
+            }
+        }
+    }
+
+    pub struct PreparedBoundarySignatures {
+        declarations: Arena<BoundarySignatureDeclaration>,
+        calling: calling_applications::PreparedCallingApplications,
+        abi_signatures: Vec<PreparedBoundaryAbiSignature>,
+        boundary_abis: Vec<(
+            SymbolHandle,
+            Result<semantic_vocabulary::CallingSignatureId, String>,
+        )>,
+    }
+
+    impl PreparedBoundarySignatures {
+        pub(crate) fn prepare(typed: &TypedTrees) -> Self {
+            let product = ProviderPlanningContext::new(
+                typed,
+                declaration_contracts::source_identity::DependencyScope::Product,
+            );
+            let mut declarations = Arena::new();
+            for definition in typed.traits() {
+                for signature in typed.trait_machine_signatures(definition) {
+                    let requirement_identity =
+                        typed.trait_requirement_callable_identity_text(definition, signature);
+                    let projection =
+                        prepare_trait_signature(typed, signature, &requirement_identity);
+                    declarations.insert(BoundarySignatureDeclaration {
+                        default_eligible: product.contains(definition.symbol),
+                        symbol: signature.symbol,
+                        package: typed.symbols.symbol_package_identity(definition.symbol),
+                        path: typed.trait_declaration_path(definition),
+                        method: signature.name.as_str().to_owned(),
+                        requirement_identity,
+                        projection,
+                    });
+                }
+            }
+            for machine in typed.machines().iter().filter(|machine| {
+                machine.supply_mode == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+            }) {
+                let Some([entry]) = typed.machine_states(machine).as_array() else {
+                    continue;
+                };
+                let requirement_identity = typed
+                    .machine_callable_identity_text(machine)
+                    .unwrap_or_default();
+                let projection =
+                    prepare_top_level_signature(typed, machine, entry, &requirement_identity);
+                declarations.insert(BoundarySignatureDeclaration {
+                    default_eligible: product.contains(machine.symbol),
+                    symbol: machine.symbol,
+                    package: typed.symbols.symbol_package_identity(machine.symbol),
+                    path: typed.symbols.display_path(machine.symbol, "::"),
+                    method: entry.name.as_str().to_owned(),
+                    requirement_identity,
+                    projection,
+                });
+            }
+            let calling =
+                calling_applications::PreparedCallingApplications::prepare(typed, &declarations);
+            let mut prepared = Self {
+                declarations,
+                calling,
+                abi_signatures: Vec::new(),
+                boundary_abis: Vec::new(),
+            };
+            abi_signatures::prepare(&mut prepared, typed);
+            prepared
+        }
+
+        pub fn declarations(&self) -> impl Iterator<Item = &BoundarySignatureDeclaration> {
+            self.declarations.iter().map(|(_, declaration)| declaration)
+        }
+
+        pub fn calling(&self) -> &calling_applications::PreparedCallingApplications {
+            &self.calling
+        }
+
+        pub fn abi_signatures(&self) -> &[PreparedBoundaryAbiSignature] {
+            &self.abi_signatures
+        }
+
+        pub fn abi_for_boundary(
+            &self,
+            source: SymbolHandle,
+        ) -> Option<&Result<semantic_vocabulary::CallingSignatureId, String>> {
+            self.boundary_abis
+                .iter()
+                .find(|(owner, _)| *owner == source)
+                .map(|(_, application)| application)
+        }
+
+        pub fn applied_declaration(
+            &self,
+            signature: &calling_applications::PreparedAppliedBoundarySignature,
+        ) -> Option<&BoundarySignatureDeclaration> {
+            let declaration = self.calling.declaration(signature);
+            declaration
+                .is_valid()
+                .then(|| self.declarations.get(declaration))
+        }
+    }
+
+    fn prepare_top_level_signature(
+        typed: &TypedTrees,
+        machine: &crate::source_state::machine::Machine,
+        entry: &crate::source_state::state::State,
+        owner: &str,
+    ) -> Result<PreparedBoundarySignature, String> {
+        if machine.body_is_present
+            || !machine.lifetime_parameters.is_empty()
+            || !typed.machine_type_parameters(machine).is_empty()
+        {
+            return Err("compatibility calling plans require one nongeneric bodyless top-level boundary requirement".into());
+        }
+        let parameters = typed.state_parameters(entry);
+        if parameters.len() > BOUNDARY_NATIVE_PARAMETER_CAPACITY {
+            return Err(format!(
+                "top-level boundary requirement has {} native parameters; calling policies currently support at most {BOUNDARY_NATIVE_PARAMETER_CAPACITY}",
+                parameters.len()
+            ));
+        }
+        let parameters = parameters
+            .iter()
+            .enumerate()
+            .map(|(ordinal, parameter)| {
+                Ok(BoundaryRuntimeFormal {
+                    identity: nominal_callback_native_parameter_id(owner, parameter.name.as_str()),
+                    native_ordinal: u32::try_from(ordinal).map_err(
+                        |_| "top-level boundary requirement has too many runtime parameters",
+                    )?,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok(PreparedBoundarySignature {
+            telescope: BoundaryTelescope {
+                parameters,
+                ..Default::default()
+            },
+            callback_sources: Vec::new(),
+            parameter_types: typed
+                .state_parameters(entry)
+                .iter()
+                .map(|parameter| parameter.type_reference)
+                .collect(),
+            return_type: entry.return_type,
+        })
+    }
+
+    fn prepare_trait_signature(
+        typed: &TypedTrees,
+        signature: &crate::source_state::signature::StateSignature,
+        owner: &str,
+    ) -> Result<PreparedBoundarySignature, String> {
+        let mut binders = Vec::new();
+        let mut callback_sources = Vec::new();
+        let mut static_machine_ordinal = 0u32;
+        let invocations =
+            crate::source_state::invocations::declared_signature_invocations(typed, signature)?;
+        for parameter in typed.state_signature_type_parameters(signature) {
+            let crate::source_state::data::TypeParameterKind::Machine { contract } =
+                &parameter.kind
+            else {
+                continue;
+            };
+            let ordinal = static_machine_ordinal;
+            static_machine_ordinal = static_machine_ordinal.checked_add(1).ok_or_else(|| {
+                "boundary signature has too many static machine binders".to_owned()
+            })?;
+            let crate::source_state::data::MachineParameterContract::Nominal {
+                trait_definition,
+                requirement,
+                ..
+            } = contract
+            else {
+                continue;
+            };
+            let owner_trait = typed
+                .trait_definition_by_symbol(*trait_definition)
+                .ok_or_else(|| "nominal callback binder lost its declaring trait".to_owned())?;
+            let requirement_row = typed
+                .trait_machine_signature_by_symbol(owner_trait, *requirement)
+                .ok_or_else(|| "nominal callback binder lost its exact requirement".to_owned())?;
+            let requirement_identity =
+                typed.trait_requirement_callable_identity_text(owner_trait, requirement_row);
+            binders.push(BoundaryCallbackBinderDeclaration {
+                binder: nominal_callback_binder_id(owner, ordinal, parameter.name.as_str()),
+                requirement: callback_requirement_id(&requirement_identity),
+                static_machine_ordinal: ordinal,
+                requirement_identity,
+                invokes_synchronously: invocations
+                    .contains(&flow_effects::InvocationTarget::Service(*trait_definition)),
+            });
+            callback_sources.push(BoundaryCallbackSource {
+                parameter_symbol: parameter.symbol,
+                requirement_trait: *trait_definition,
+                requirement_machine: *requirement,
+            });
+        }
+        let runtime_parameters = typed.state_signature_parameters(signature);
+        let total = runtime_parameters
+            .len()
+            .checked_add(signature.native_callback_parameters.len())
+            .ok_or_else(|| "boundary native parameter telescope length overflow".to_owned())?;
+        if total > BOUNDARY_NATIVE_PARAMETER_CAPACITY {
+            return Err(format!(
+                "boundary signature has {total} native parameters; calling policies currently support at most {BOUNDARY_NATIVE_PARAMETER_CAPACITY}"
+            ));
+        }
+        let mut direct_callbacks = Vec::new();
+        for direct in &signature.native_callback_parameters {
+            let ordinal = usize::try_from(direct.native_ordinal)
+                .map_err(|_| "native callback parameter ordinal exceeds usize".to_owned())?;
+            if ordinal >= total {
+                return Err(format!(
+                    "native callback parameter `{}` has telescope position {}, outside {} declared native parameters",
+                    direct.name, direct.native_ordinal, total
+                ));
+            }
+            if direct_callbacks
+                .iter()
+                .any(|prior: &BoundaryDirectCallbackDeclaration| {
+                    prior.native_ordinal == direct.native_ordinal
+                        || prior.name == direct.name.as_str()
+                })
+                || runtime_parameters
+                    .iter()
+                    .any(|runtime| runtime.name.as_str() == direct.name.as_str())
+            {
+                return Err(format!(
+                    "native callback parameter `{}` repeats a native telescope position or declared parameter name",
+                    direct.name
+                ));
+            }
+            let parameter = typed
+                .state_signature_type_parameters(signature)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == direct.binder.as_str())
+                .ok_or_else(|| {
+                    format!(
+                        "native callback parameter `{}` names unknown machine binder `{}`",
+                        direct.name, direct.binder
+                    )
+                })?;
+            let binder = callback_sources.iter().position(|source| source.parameter_symbol == parameter.symbol)
+            .and_then(|position| binders.get(position))
+            .ok_or_else(|| format!("native callback parameter `{}` binder `{}` does not have one exact nominal callback requirement", direct.name, direct.binder))?;
+            if direct_callbacks
+                .iter()
+                .any(|prior| prior.binder == binder.binder)
+            {
+                return Err(format!(
+                    "native callback binder `{}` is assigned to more than one declared native callback parameter",
+                    direct.binder
+                ));
+            }
+            direct_callbacks.push(BoundaryDirectCallbackDeclaration {
+                name: direct.name.as_str().to_owned(),
+                identity: nominal_callback_native_parameter_id(owner, direct.name.as_str()),
+                native_ordinal: direct.native_ordinal,
+                binder: binder.binder,
+                requirement: binder.requirement,
+            });
+        }
+        direct_callbacks.sort_unstable_by_key(|parameter| parameter.native_ordinal);
+        let mut native_ordinal = 0u32;
+        let mut parameters = Vec::with_capacity(runtime_parameters.len());
+        for parameter in runtime_parameters {
+            while direct_callbacks
+                .iter()
+                .any(|direct| direct.native_ordinal == native_ordinal)
+            {
+                native_ordinal = native_ordinal
+                    .checked_add(1)
+                    .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
+            }
+            parameters.push(BoundaryRuntimeFormal {
+                identity: nominal_callback_native_parameter_id(owner, parameter.name.as_str()),
+                native_ordinal,
+            });
+            native_ordinal = native_ordinal
+                .checked_add(1)
+                .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
+        }
+        Ok(PreparedBoundarySignature {
+            telescope: BoundaryTelescope {
+                parameters,
+                binders,
+                direct_callbacks,
+            },
+            callback_sources,
+            parameter_types: runtime_parameters
+                .iter()
+                .map(|parameter| parameter.type_reference)
+                .collect(),
+            return_type: signature.return_type,
+        })
+    }
+}
+pub use catalog::{
+    PreparedServiceCatalog, PreparedServiceDeclaration, PreparedServiceRequirement,
+    PreparedServiceSurface, RetainedServiceSurface, ServiceCatalog, exact_identity,
+};
+
+pub use declaration_contracts::service_surface::ProviderSchemaDeclaration;

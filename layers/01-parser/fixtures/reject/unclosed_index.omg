@@ -1,3 +1,0 @@
-machine f(view: @[u8]) {
-    _ = view[1;
-}

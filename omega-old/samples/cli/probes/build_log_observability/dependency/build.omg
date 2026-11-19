@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "observed_kernel");
-    BuildLog::write_line(&mut builder.log, "dependency: activation observed");
-}

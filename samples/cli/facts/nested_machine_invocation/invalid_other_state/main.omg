@@ -1,0 +1,15 @@
+// A nested machine preserves its enclosing type when returning an explicitly supplied value.
+// Rejected: a Boolean is not the enclosing arbitrary type T.
+machine identity<T>(value: T) -> T {
+    keep(value)
+    machine keep(item: T) -> T { true }
+}
+machine main() crashes Trap {
+    transition { _ -> check() }
+    machine check() crashes Trap {
+        let result: u64 = identity<u64>(42);
+    transition result == 42 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+    }
+}

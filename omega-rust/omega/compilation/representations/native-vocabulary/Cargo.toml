@@ -1,0 +1,19 @@
+[package]
+name = "native-vocabulary"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "native_vocabulary"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../../../psi/foundation/arena" }
+compiler-storage = { path = "../../../../psi/foundation/compiler-storage" }
+wire = { path = "../../../../psi/foundation/wire" }
+optimization-core = { path = "../optimization-contracts" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-wire = { path = "../../../../psi/compilation/representations/terminal-psi/wire" }

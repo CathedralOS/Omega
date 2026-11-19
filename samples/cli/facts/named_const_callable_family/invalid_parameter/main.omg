@@ -1,0 +1,40 @@
+// A named constant supplies the open-Const length of a callable family, and the
+// selected callback measures that exact length.
+// Place: parameter.
+// Expected exit: 0
+const FOUR: u64 = 5;
+const TWO: u64 = 2;
+
+machine measure<'borrow, const Length: u64>(value: &'borrow [u8; Length]) -> u64 { Length }
+
+machine apply<const Count: u64, machine Callback>(value: &[u8; Count]) -> u64
+requires machine Callback(value: &[u8; Count]) -> u64;
+{ Callback(value) }
+
+machine hold(first: u64, second: u64) -> bool
+requires first == 4
+requires second == 2
+{
+    true
+}
+
+machine observe_four(values: &[u8; 4]) -> u64 {
+    apply<FOUR, measure>(values)
+}
+
+machine observe_two(values: &[u8; 2]) -> u64 {
+    apply<TWO, measure>(values)
+}
+
+machine main() crashes Trap {
+    let four: [u8; 4] = [1u8, 2u8, 3u8, 4u8];
+    let two: [u8; 2] = [5u8, 6u8];
+    let first: u64 = observe_four(&four);
+    let second: u64 = observe_two(&two);
+    transition hold(first, second) && first == 4 && second == 2 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

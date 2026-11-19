@@ -1,2 +1,0 @@
-# This invalid fixture intentionally contains 600 whitespace bytes.
-data/overlong.stdin -whitespace

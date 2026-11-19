@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "field `value` stores a boolean into a `u64` field, which holds a numeric value"
+  ]
+}

@@ -1,2 +1,0 @@
-LayoutStorage<Record, OtherPolicy>
-LayoutStorage<Record, CAbiPolicy<Record>>

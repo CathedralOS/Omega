@@ -1,0 +1,16 @@
+// Index 4 is outside a two-element const-generic weight array.
+data Elements<const Count: u64> {
+    weights: [f64; Count];
+}
+
+machine poke(elements: &mut Elements<2>) {
+    elements.weights[4] = 1.0;
+}
+
+data Main {
+    elements: Elements<2>;
+}
+
+machine Main::main(main: &mut Main) {
+    poke(&mut main.elements);
+}

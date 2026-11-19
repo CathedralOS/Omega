@@ -1,6 +1,0 @@
-// Intended invalid: the third element of a two-element fixed array is absent.
-// This complete entrypoint must reject on the bounds rule, before realization.
-machine main() {
-    let values: [u64; 2] = [1, 2];
-    let observed: u64 = values[2];
-}

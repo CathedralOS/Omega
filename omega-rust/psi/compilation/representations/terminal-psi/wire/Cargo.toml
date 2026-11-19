@@ -1,0 +1,34 @@
+[package]
+name = "terminal-wire"
+autotests = false
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_wire"
+path = "src/lib.rs"
+
+[dependencies]
+access-vocabulary = { path = "../../access-vocabulary" }
+declaration-contracts = { path = "../../declaration-contracts" }
+schema-reflection = { path = "../../schema-reflection" }
+application-identity = { path = "../../application-identity" }
+numeric-literals = { path = "../../numeric-literals" }
+bignum = { path = "../../../../foundation/bignum" }
+wire = { path = "../../../../foundation/wire" }
+language-core = { path = "../../source-vocabulary" }
+arena = { path = "../../../../foundation/arena" }
+semantic-vocabulary = { path = "../../semantic-vocabulary" }
+optimization = { path = "../../optimization-policy" }
+numerics = { path = "../../scalar-values" }
+proof-admission = { path = "../../../proof-admission" }
+terminal-psi = { path = ".." }
+terminal-semantics = { path = "../semantics" }
+
+access-admission = { path = "../../../access-admission" }
+layout-plans = { path = "../../storage-layout" }
+
+[features]
+# Lets terminal-codec's tests encode deliberately malformed modules.
+test-support = []

@@ -1,9 +1,0 @@
-// Filesystem capability identities are independent of operating-system
-// provider interfaces. Naming a reach acquires no authority or provider slot;
-// selected physical mechanisms retain their separate admission evidence.
-public boundary trait FilesystemContentRead { }
-public boundary trait FilesystemContentWrite { }
-public boundary trait FilesystemMetadataQuery { }
-public boundary trait FilesystemMetadataMutation { }
-public boundary trait DirectoryEnumeration { }
-public boundary trait FilesystemNamespaceMutation { }

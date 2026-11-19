@@ -1,3 +1,0 @@
-error MissingRadixDigits at 1:9 bytes 8..10
-  text: 0x
-  a radix prefix must be followed by at least one digit

@@ -1,6 +1,0 @@
-// Intended-invalid complete control: a four-layer store has no fifth slot.
-data LayerStore { speeds: [i64; 4]; }
-machine main() {
-    let store: LayerStore;
-    let forbidden: i64 = store.speeds[4];
-}

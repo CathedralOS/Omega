@@ -1,0 +1,1 @@
+exact arithmetic in machine `add` state `entry` terminal expression may overflow `i32`

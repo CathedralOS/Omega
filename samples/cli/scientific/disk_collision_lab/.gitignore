@@ -1,0 +1,7 @@
+/build/
+/omega.lock
+/omega.review*
+/__pycache__/
+**/build/
+**/omega.lock
+**/omega.review*

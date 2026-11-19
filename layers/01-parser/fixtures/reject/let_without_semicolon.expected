@@ -1,4 +1,0 @@
-error UnexpectedToken at 3:5 bytes 39..40
-  found: a
-  expected: `;`
-  expected `;`

@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "build_freestanding_depend");
+    let dep_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "dep" }));
+}

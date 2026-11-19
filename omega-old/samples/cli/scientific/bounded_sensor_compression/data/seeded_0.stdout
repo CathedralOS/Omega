@@ -1,8 +1,0 @@
-bytes: 83 67 1 16 0 255 177 7 255 196 14 255 84 8 255 195 12 255 70 3 255 5 9 255 107 5 255 237 14 255 143 5 255 148 3 255 97 15 255 63 4 255 161 12 91 255 201 2 255 211 11
-reconstruction: 1969 3780 2132 3267 838 2309 1387 3821 1423 916 3937 1087 3233 3197 713 3027
-raw_bytes: 32
-encoded_bytes: 51
-worst_bytes: 53
-tolerance_units: 0
-max_error_units: 0
-certificate: verified against original records

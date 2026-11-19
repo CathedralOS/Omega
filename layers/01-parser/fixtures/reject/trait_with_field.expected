@@ -1,4 +1,0 @@
-error UnexpectedToken at 2:5 bytes 17..22
-  found: count
-  expected: `machine` or `}`
-  expected `machine` or `}`

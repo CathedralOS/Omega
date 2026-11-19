@@ -1,0 +1,3 @@
+(def derivation_reflexivity ((record Int) (session Int)) Int
+  (derivation_require session (layout_word (+ record 8))
+    (layout_word (+ record 12)) (+ record 12)))

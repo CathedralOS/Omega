@@ -1,2 +1,0 @@
-the type arguments of this application do not meet its requirement
-observe$specialized$named(name(u8))

@@ -1,0 +1,39 @@
+use omega::language::core::byte_observation;
+
+domain [u8; 4]::Ascii requires byte_observation::ascii_only(&self[..]);
+domain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);
+
+data Label requires used <= 4 {
+    storage: [u8; 4] in Ascii;
+    other: [u8; 4];
+    used: u64;
+}
+
+machine label_live(label: &Label) -> bool {
+    let raw: &[u8] = &label.other[..label.used];
+    matches_a1(raw as +Ascii)
+}
+
+machine matches_a1(prefix: &[u8] in Ascii) -> bool {
+    let len: u64 = prefix.len;
+    let raw: &[u8] = prefix as -Ascii;
+    raw == "A1" && len == 2
+}
+
+machine entry_start() crashes Trap {
+    let label: Label = Label {
+        storage: [65u8, 49u8, 0u8, 0u8] as +Ascii,
+        other: [255u8, 49u8, 0u8, 0u8],
+        used: 2
+    };
+    let other: Label = Label {
+        storage: [90u8, 50u8, 0u8, 0u8] as +Ascii,
+        other: [255u8, 49u8, 0u8, 0u8],
+        used: 2
+    };
+    transition label_live(&label) && !label_live(&other) {
+        true -> {}
+        false -> fail()
+    }
+    machine fail() crashes Trap { crash Trap; }
+}

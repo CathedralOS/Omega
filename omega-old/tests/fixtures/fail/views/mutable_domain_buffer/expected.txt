@@ -1,2 +1,0 @@
-cannot prove requires clause
-inside an open default-domain invariant window

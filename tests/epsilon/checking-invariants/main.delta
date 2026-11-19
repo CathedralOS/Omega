@@ -1,0 +1,5 @@
+; Ordinary Delta calls production checking helpers over synthetic syntax.
+(def main ((input Bytes)) Bytes
+  (bytes_concat
+    (checking_invariant_observe (checking_invariant_state_association))
+    (checking_invariant_observe (checking_invariant_state_conflict_order))))

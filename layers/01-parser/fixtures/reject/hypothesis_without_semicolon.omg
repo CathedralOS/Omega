@@ -1,5 +1,0 @@
-// A hypothesis is the one clause that ends in `;`.
-Folded satisfies Fold
-requires machine Step(value: T) -> T ensures valid(result)
-{
-}

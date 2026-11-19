@@ -1,0 +1,6 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "receives `values` as both mutable and read-only"
+  ]
+}

@@ -1,3 +1,0 @@
-"" "abc" "a\n\r\t\0\\\"b" "\x00\xfF\x7e"
-"héllo 日本" "// not a comment" "/* nor this */"
-"a""b"

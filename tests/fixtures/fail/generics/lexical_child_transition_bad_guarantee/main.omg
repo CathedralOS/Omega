@@ -1,0 +1,17 @@
+machine relay<Kind>(value: u64) -> u64 {
+    transition value == 7u64 { true -> child(value) false -> other() }
+
+    machine child(value: u64) -> u64 ensures result == 7u64 { value }
+    machine other() -> u64 { 99u64 }
+}
+
+machine main() crashes Trap {
+    let accepted: u64 = relay<u64>(7u64);
+    let declined: u64 = relay<u64>(8u64);
+    transition accepted == 7u64 && declined == 99u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
