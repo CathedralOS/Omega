@@ -336,3 +336,132 @@ fn annotated_integer_constants_cannot_supply_each_other_through_a_cycle() {
     assert!(cycle_uses.contains(&error.span.get_start_offset()));
     assert!(matches!(error.span.slice(source.as_bytes()), Some(b"FIRST" | b"SECOND")));
 }
+
+#[test]
+fn tail_helpers_use_the_selected_overload_and_each_callers_bound_operands() {
+    let helpers = "machine portion(d:u64,n:u64)->u64 requires d != 0 {n / d}
+                   machine portion(d:u8,n:u64)->u64 {91u64}
+                   machine width(total:u64, divisor:u64)->u64{portion(divisor,total + 3)}
+                   machine via(n:u64,d:u64)->u64{width(n,d)}";
+    let arrays = "const SIZE:u64=via(9,3);
+                  machine carry(x:[u8; SIZE], direct:[u8; via(9,3)])->[u8; 4]{x}";
+    for files in [
+        [("helpers.omg", helpers), ("arrays.omg", arrays)],
+        [("arrays.omg", arrays), ("helpers.omg", helpers)],
+    ] {
+        let prepared = prepare_files(files).unwrap();
+        let typed = prepared.typed();
+        let portion = typed
+            .calls
+            .iter()
+            .find(|call| call.machine.path == "portion" && call.caller.as_ref().is_some_and(|c| c.path == "width"))
+            .unwrap();
+        let word = ValueType::Integer {
+            signed: false,
+            width: Some(64),
+        };
+        let signature = typed
+            .signatures
+            .iter()
+            .find(|s| s.machine.path == "portion" && s.parameters[0].1 == word)
+            .unwrap();
+        assert_eq!(portion.machine, signature.machine);
+        let operands: Vec<_> = portion
+            .operands
+            .iter()
+            .map(|op| {
+                assert_eq!(op.site.file, "helpers.omg");
+                op.site.span.slice(helpers.as_bytes()).unwrap()
+            })
+            .collect();
+        assert_eq!(operands, [b"divisor".as_slice(), b"total + 3"]);
+        let size = &typed.constants[0];
+        assert_eq!(prepared.integer_constant(&size.declaration), Some(&4.into()));
+        let carry = prepared
+            .typed()
+            .signatures
+            .iter()
+            .find(|s| s.machine.path == "carry")
+            .unwrap();
+        let expected = ValueType::Array(Box::new(BYTE), 4);
+        assert_eq!(carry.result, expected);
+        assert!(carry.parameters.iter().all(|(_, ty)| ty == &expected));
+    }
+    let altered = helpers.replace("total + 3", "total + 9");
+    let error = prepare_files([("arrays.omg", arrays), ("helpers.omg", &altered)]).unwrap_err();
+    assert_eq!(error.message, "expected [u8; 4], found [u8; 6]");
+    assert_eq!(error.file, "arrays.omg");
+    assert_eq!(error.span.slice(arrays.as_bytes()), Some(b"x".as_slice()));
+    for demand in [
+        "const SIZE:u64=via(9,0);",
+        "machine consume(x:[u8; via(9,0)]){}",
+    ] {
+        let error = prepare_files([("arrays.omg", demand), ("helpers.omg", helpers)]).unwrap_err();
+        assert_eq!(
+            error.message,
+            "static evaluation cannot admit this invocation: the selected integer precondition is false for the supplied arguments\ncall chain: via -> width -> portion"
+        );
+        assert_eq!(error.file, "helpers.omg");
+        assert_eq!(error.span.get_start_offset(), helpers.find("portion(divisor,total + 3)").unwrap());
+        assert_eq!(error.span.slice(helpers.as_bytes()), Some(b"portion(divisor,total + 3)".as_slice()));
+    }
+}
+
+#[test]
+fn every_tail_helper_must_establish_termination() {
+    for (source, site, reason) in [
+        (
+            "public machine helper(n:u64)->u64 reaches none crashes none {n} machine width(n:u64)->u64{helper(n)} const SIZE:u64=width(4);",
+            "helper(n)",
+            "the selected public machine does not declare termination\ncall chain: width -> helper",
+        ),
+        (
+            "machine a(n:u64)->u64{b(n)} machine b(n:u64)->u64{a(n)} const SIZE:u64=a(4);",
+            "a(n)",
+            "a cyclic static invocation requires a checked termination proof\ncall chain: a -> b -> a",
+        ),
+    ] {
+        let error = prepare(source).unwrap_err();
+        assert_eq!(error.message, format!("static evaluation cannot admit this invocation: {reason}"));
+        assert_eq!(error.span.slice(source.as_bytes()), Some(site.as_bytes()));
+    }
+}
+
+#[test]
+fn tail_chain_distinguishes_an_arithmetic_failure_from_a_failed_guard() {
+    let source = "machine divide(n:u64,d:u64)->u64{n / d} machine inner(d:u64)->u64{(divide(12,d))}
+                  machine width(d:u64)->u64{inner(d)} machine consume(x:[u8; width(3)])->[u8; 4]{x}";
+    prepare(source).unwrap();
+    let bad = source.replace("width(3)", "width(0)");
+    let error = prepare(&bad).unwrap_err();
+    assert_eq!(
+        error.message,
+        "static evaluation cannot admit this invocation: integer division or remainder requires a nonzero divisor\ncall chain: width -> inner -> divide"
+    );
+    assert_eq!(error.span.slice(bad.as_bytes()), Some(b"divide(12,d)".as_slice()));
+}
+
+#[test]
+fn tail_cycle_detection_uses_declaration_identity_across_files() {
+    let first = ("a.omg", "machine first(n:u8)->u8{second(n)}");
+    let second = ("b.omg", "machine second(n:u8)->u8{third(n)}");
+    let demand = ("d.omg", "const SIZE:u8=first(7);");
+    for leaf in ["n +% 1", "first(n)"] {
+        let body = format!("machine third(n:u8)->u8{{{leaf}}}");
+        let third = ("c.omg", body.as_str());
+        for files in [[first, second, third, demand], [demand, third, second, first]] {
+            let result = prepare_files(files);
+            if leaf == "first(n)" {
+                let error = result.unwrap_err();
+                assert_eq!(error.file, "c.omg");
+                assert_eq!(error.span.slice(body.as_bytes()), Some(b"first(n)".as_slice()));
+                assert_eq!(
+                    error.message,
+                    "static evaluation cannot admit this invocation: a cyclic static invocation requires a checked termination proof\ncall chain: first -> second -> third -> first"
+                );
+            } else {
+                assert_integer_constant(&result.unwrap(), "SIZE", 8);
+            }
+        }
+    }
+}

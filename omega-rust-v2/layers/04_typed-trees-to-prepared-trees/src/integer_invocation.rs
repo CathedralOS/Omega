@@ -2,16 +2,18 @@
 //! admitted integer arithmetic. A local invocation must close every premise before a
 //! value can enter the prepared product.
 use crate::integer_arithmetic::IntegerRange;
+use crate::integer_constants::IntegerEvaluation;
 use num_bigint::BigInt;
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
-use omega_typer::{AppliedOperand, CallUse, NodeSemantics, ObligationKind, StaticIntegerRequest, TypedCall, TypedConstant, TypedTree, TypedTrees, ValueType};
-use std::collections::HashMap;
+use omega_typer::{AppliedOperand, CallUse, NodeSemantics, ObligationKind, StaticIntegerRequest, TypedCall, TypedTree, ValueType};
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub(super) enum EvaluationError {
     Refused(&'static str),
     NeedsConstant(DeclarationId),
+    AtCall(omega_typer::TypeError),
 }
 
 impl From<&'static str> for EvaluationError {
@@ -24,16 +26,19 @@ const UNSUPPORTED_BODY: &str = "the selected body is outside the total integer f
 const UNSUPPORTED_ARGUMENT: &str = "the static call has an argument without a supported closed value";
 const UNSUPPORTED_CONTRACT: &str = "the selected contract needs proof outside the total integer fragment";
 
-struct Evaluation<'a, 'text> {
-    trees: &'a TypedTrees<'text>,
-    definitions: &'a HashMap<&'a DeclarationId, &'a TypedConstant>,
-    frozen_constants: &'a HashMap<DeclarationId, BigInt>,
-}
-
 struct ParameterValue<'a> {
     binder: usize,
     carrier: &'a ValueType,
     value: BigInt,
+}
+
+enum CallResult<'a> {
+    Value(BigInt),
+    Tail {
+        tree: TypedTree<'a>,
+        node: usize,
+        arguments: Vec<ParameterValue<'a>>,
+    },
 }
 
 enum Scope<'a> {
@@ -42,35 +47,29 @@ enum Scope<'a> {
     Body(&'a [ParameterValue<'a>]),
 }
 
-pub(super) fn evaluate(
-    trees: &TypedTrees<'_>,
-    request: &StaticIntegerRequest,
-    owner_arguments: Option<&[ValueType]>,
-    definitions: &HashMap<&DeclarationId, &TypedConstant>,
-    frozen_constants: &HashMap<DeclarationId, BigInt>,
-) -> Result<BigInt, EvaluationError> {
-    IntegerRange::for_type(&request.carrier).ok_or("the requested carrier is outside the bounded integer fragment")?;
-    let tree = trees
-        .trees()
-        .nth(request.node.file)
-        .ok_or("the evaluation request has no typed source file")?;
-    Evaluation {
-        trees,
-        definitions,
-        frozen_constants,
+impl IntegerEvaluation<'_, '_> {
+    pub(super) fn evaluate_request(
+        &self,
+        request: &StaticIntegerRequest,
+        owner_arguments: Option<&[ValueType]>,
+    ) -> Result<BigInt, EvaluationError> {
+        IntegerRange::for_type(&request.carrier).ok_or("the requested carrier is outside the bounded integer fragment")?;
+        let tree = self
+            .trees
+            .trees()
+            .nth(request.node.file)
+            .ok_or("the evaluation request has no typed source file")?;
+        self.expression(
+            &tree,
+            request.node.node,
+            &request.carrier,
+            &Scope::Initializer {
+                root: request.node.node,
+                owner_arguments,
+            },
+        )
     }
-    .expression(
-        &tree,
-        request.node.node,
-        &request.carrier,
-        &Scope::Initializer {
-            root: request.node.node,
-            owner_arguments,
-        },
-    )
-}
 
-impl Evaluation<'_, '_> {
     fn expression(
         &self,
         tree: &TypedTree<'_>,
@@ -122,7 +121,7 @@ impl Evaluation<'_, '_> {
         scope: &Scope<'_>,
     ) -> Result<BigInt, EvaluationError> {
         if let Scope::Initializer { root, owner_arguments } = scope
-            && let Some(call) = selected_call(tree, tree.resolved().file.ungroup(node))?
+            && let Some(call) = selected_call(tree, tree.resolved().file.ungroup(node), CallUse::StaticArgument)?
         {
             return self.invoke(tree, call, *root, *owner_arguments, carrier);
         }
@@ -137,6 +136,70 @@ impl Evaluation<'_, '_> {
         owner_arguments: Option<&[ValueType]>,
         carrier: &ValueType,
     ) -> Result<BigInt, EvaluationError> {
+        let mut visited = HashSet::new();
+        let scope = Scope::Initializer { root, owner_arguments };
+        let mut result = self.run_call(request_tree, call, &scope, carrier, &mut visited)?;
+        let mut chain = vec![call.node];
+        loop {
+            let (tree, node, arguments) = match result {
+                CallResult::Value(value) => return Ok(value),
+                CallResult::Tail { tree, node, arguments } => (tree, node, arguments),
+            };
+            let file = tree.resolved().file;
+            chain.push(file.node_id(node));
+            let next = selected_call(&tree, node, CallUse::Execution)
+                .and_then(|helper| self.run_call(&tree, helper.ok_or(UNSUPPORTED_BODY)?, &Scope::Body(&arguments), carrier, &mut visited));
+            result = next.map_err(|error| match error {
+                EvaluationError::Refused(reason) => self.tail_refusal(file, node, reason, &chain),
+                other => other,
+            })?;
+        }
+    }
+
+    fn tail_refusal(
+        &self,
+        file: &omega_resolver::IndexedSource<'_>,
+        node: usize,
+        reason: &str,
+        chain: &[omega_resolver::TreeNodeId],
+    ) -> EvaluationError {
+        let site = omega_typer::Site {
+            package: file.package.into(),
+            file: file.path.into(),
+            span: file.span(node),
+        };
+        let mut error = crate::refusal(&site, reason);
+        error.message.push_str("\ncall chain: ");
+        for (index, occurrence) in chain.iter().enumerate() {
+            if index != 0 {
+                error.message.push_str(" -> ");
+            }
+            let tree = self
+                .trees
+                .trees()
+                .nth(occurrence.file)
+                .expect("visited call file");
+            let name = tree
+                .semantics_at(occurrence.node)
+                .find_map(|record| match record {
+                    NodeSemantics::Call(call) => Some(call.machine.path.as_str()),
+                    _ => None,
+                });
+            error
+                .message
+                .push_str(name.unwrap_or("<indirect or unsupported call>"));
+        }
+        EvaluationError::AtCall(error)
+    }
+
+    fn run_call<'a>(
+        &'a self,
+        request_tree: &TypedTree<'_>,
+        call: &TypedCall,
+        scope: &Scope<'_>,
+        carrier: &ValueType,
+        visited: &mut HashSet<omega_resolver::TreeNodeId>,
+    ) -> Result<CallResult<'a>, EvaluationError> {
         if call.machine.kind != NodeKind::Machine
             || call.evidence.is_some()
             || !call.type_arguments.is_empty()
@@ -149,10 +212,7 @@ impl Evaluation<'_, '_> {
         }
 
         let signature = self
-            .trees
-            .signatures
-            .iter()
-            .find(|signature| signature.machine == call.machine)
+            .signature(&call.machine)
             .ok_or("the selected declaration has no typed signature")?;
         let body_tree = self
             .trees
@@ -194,14 +254,16 @@ impl Evaluation<'_, '_> {
         if signature.parameters.len() != call.operands.len() || parameters.len() != call.operands.len() {
             return Err("the typed call and selected parameters disagree".into());
         }
-        let scope = Scope::Initializer { root, owner_arguments };
+        if !visited.insert(signature.node) {
+            return Err("a cyclic static invocation requires a checked termination proof".into());
+        }
         let arguments: Vec<_> = parameters
             .iter()
             .zip(&signature.parameters)
             .zip(&call.operands)
             .map(|((&binder, (_, carrier)), operand)| {
                 IntegerRange::for_type(carrier).ok_or("a selected parameter is outside the bounded integer fragment")?;
-                let value = self.argument(request_tree, operand, carrier, &scope)?;
+                let value = self.argument(request_tree, operand, carrier, scope)?;
                 let value = fits(value, carrier).ok_or("a closed argument is outside its selected carrier")?;
                 Ok(ParameterValue { binder, carrier, value })
             })
@@ -226,8 +288,6 @@ impl Evaluation<'_, '_> {
             }
         }
 
-        // A single tail expression in this scope cannot call or transfer
-        // control. Its only premises are discharged scalar values.
         let body = file
             .child(declaration, NodeKind::Body)
             .ok_or(UNSUPPORTED_BODY)?;
@@ -240,7 +300,18 @@ impl Evaluation<'_, '_> {
         if file.nodes[tail].kind != NodeKind::Tail {
             return Err(UNSUPPORTED_BODY.into());
         }
+        let node = file.ungroup(returned);
+        if file.nodes[node].kind == NodeKind::Call {
+            // Only the direct return transfers control. Its integer operands and
+            // all preconditions are checked in the environments that own them.
+            return Ok(CallResult::Tail {
+                tree: body_tree,
+                node,
+                arguments,
+            });
+        }
         self.expression(&body_tree, returned, carrier, &bound)
+            .map(CallResult::Value)
     }
 
     fn integer_precondition(
@@ -297,6 +368,9 @@ impl Evaluation<'_, '_> {
         let file = tree.resolved().file;
         if operand.node.file != file.node_id(0).file || operand.callable.is_some() {
             return Err("the static call does not have a local scalar operand".into());
+        }
+        if let Scope::Body(_) = scope {
+            return self.expression(tree, operand.node.node, carrier, scope);
         }
         match &operand.subject {
             ValueType::StaticInteger { value, carrier: selected } if selected.as_ref() == carrier => Ok(value.clone()),
@@ -366,7 +440,7 @@ impl Evaluation<'_, '_> {
                 return Err("the selected constant has a different carrier".into());
             }
             let value = self
-                .frozen_constants
+                .values
                 .get(declaration)
                 .ok_or_else(|| EvaluationError::NeedsConstant(declaration.clone()))?;
             return fits(value.clone(), carrier).ok_or_else(|| "the frozen constant exceeds its carrier".into());
@@ -434,13 +508,24 @@ fn landed_value(
 fn selected_call<'a>(
     tree: &'a TypedTree<'_>,
     node: usize,
+    use_site: CallUse,
 ) -> Result<Option<&'a TypedCall>, EvaluationError> {
     let mut selected = None;
     for record in tree.semantics_at(node) {
         if let NodeSemantics::Call(call) = record
-            && (call.use_site != CallUse::StaticArgument || selected.replace(call).is_some_and(|previous| previous != call))
+            && (call.use_site != use_site || selected.replace(call).is_some_and(|previous| previous != call))
         {
             return Err("the request does not select one ordinary integer invocation".into());
+        }
+    }
+    if use_site == CallUse::Execution {
+        let call = selected.ok_or(UNSUPPORTED_BODY)?;
+        for record in tree.semantics_at(node) {
+            match record {
+                NodeSemantics::Call(_) | NodeSemantics::Expression(_) => {}
+                NodeSemantics::Obligation(obligation) if matches!(&obligation.kind, ObligationKind::CallPrecondition(target) if target == &call.machine) => {}
+                _ => return Err(UNSUPPORTED_BODY.into()),
+            }
         }
     }
     Ok(selected)
