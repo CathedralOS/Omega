@@ -1,5 +1,5 @@
 //! Acquire one requested source frontier before source settlement parses it.
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
 use source_admission::SourceContents;
 use source_capture::SourceFileSystem;
@@ -36,7 +36,7 @@ pub(crate) fn load_source_files(
 #[cfg(test)]
 mod tests {
     use super::load_source_files;
-    use declaration_contracts::source_identity::DependencyScope;
+    use source_provenance::DependencyScope;
     use source_capture::SourceFileSystem;
     use source_compiler::UnmeasuredProduction;
     use std::io::Write;

@@ -26,7 +26,7 @@ impl PolicySource<'_> {
                 typed,
                 declaration.symbol,
                 &[Some(package)],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             )
             .map_err(unavailable)?
             {

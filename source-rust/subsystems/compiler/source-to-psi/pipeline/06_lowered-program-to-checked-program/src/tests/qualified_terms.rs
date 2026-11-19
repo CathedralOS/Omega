@@ -28,7 +28,10 @@ fn the_lowered_scalar_type_retains_its_declared_domain() {
 const UNIT_DOMAIN: &str = r#"
 domain u32::Span;
 machine relay(distance: u32 in Span) -> u32 in Span { distance }
-machine entry() -> u32 { relay(7u32 as +Span) as -Span }
+machine entry() -> u32 {
+    let distance: u32 in Span = relay(7u32 as +Span);
+    distance as -Span
+}
 "#;
 
 #[test]

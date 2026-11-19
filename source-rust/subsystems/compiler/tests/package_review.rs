@@ -2905,7 +2905,7 @@ fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
             None,
             source_admission::SourceOrigin::Toolchain,
             source_admission::SourceResolutionStratum::Base,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         )
         .source_id;
     let tokens = crate::frontend_fixture::Lexer::new(text)
@@ -2925,7 +2925,7 @@ fn build_constant_cleanup_history() -> products::SourceCompletionAccounting {
             compilation: source_compiler::TerminalSourceCompilation {
                 entries: &[entry],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Build,
+                purpose: source_provenance::DependencyScope::Build,
                 selected: &[],
                 declaration_metadata: &[],
                 bindings: &[],

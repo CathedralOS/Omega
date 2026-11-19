@@ -54,7 +54,7 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
                 Some(package),
                 origin,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             )
             .source_id;
         ids.push(id);
@@ -91,7 +91,7 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package)],
-            purpose: declaration_contracts::source_identity::DependencyScope::Build,
+            purpose: source_provenance::DependencyScope::Build,
             selected: &[],
             calling: None,
             providers: None,

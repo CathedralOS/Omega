@@ -10,7 +10,7 @@ source-selection = { path = "../../../package-manager/source-acquisition/capture
 language-core = { path = "../../foundation/language-core" }
 host-provider-inputs = { path = "../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
-declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
+source-provenance = { path = "../../foundation/source-provenance" }
 optimization-requests = { path = "../optimization-policy/requests" }
 evaluation-contracts = { path = "../evaluation/usage" }
 source-capture = { path = "../../../package-manager/source-acquisition/capture" }

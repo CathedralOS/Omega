@@ -332,7 +332,7 @@ fn direct_leaves(
                 },
                 crate::DirectBoundaryMechanism::Intrinsic,
                 direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(
-                    effects::external_providers::canonical_external_execution(row, target)?,
+                    provider_correspondence::external_providers::canonical_external_execution(row, target)?,
                 ),
             ),
             semantic_vocabulary::ExternalBindingIdentity::Syscall { number } => {

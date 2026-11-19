@@ -13,7 +13,7 @@ pub struct SelectedTrustEvidence<'a> {
 impl SelectedTrustEvidence<'_> {
     pub fn admit_root_grants(
         &self,
-        declarations: &declaration_contracts::trust_declarations::TrustDeclarations,
+        declarations: &symbols::trust_declarations::TrustDeclarations,
         grants: &[symbols::root_grants::AuthoredRootGrant],
         policy: super::RootTrustPolicy,
         artifact: Option<terminal_codec::TerminalArtifactView<'_>>,

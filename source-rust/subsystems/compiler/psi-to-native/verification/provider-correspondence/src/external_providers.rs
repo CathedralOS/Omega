@@ -6,11 +6,11 @@ binding kinds, and deployment targets establish the requirement association and
 reconcile portable numeric meanings with selected compiler intrinsics.
 */
 
-use crate::CompilerIntrinsicExecutionIdentity;
-use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use native_intrinsics::CompilerIntrinsicExecutionIdentity;
+use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use terminal_psi::{ExternalProviderConformance, TerminalIdentityTable};
 
-pub struct RequirementPlanIdentity<'a> {
+struct RequirementPlanIdentity<'a> {
     pub overload: &'a str,
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub schema: &'a str,
@@ -19,10 +19,10 @@ pub struct RequirementPlanIdentity<'a> {
 }
 
 impl RequirementPlanIdentity<'_> {
-    pub fn matches(
+    fn matches(
         &self,
         plan: &ProviderPlan,
-        method: &crate::provider_plan::ServiceMethod,
+        method: &provider_plans::ServiceMethod,
         row: &ProviderPlanRow,
     ) -> bool {
         plan.schema.declaration.trait_package_identity == self.package
@@ -39,7 +39,7 @@ impl RequirementPlanIdentity<'_> {
     }
 }
 
-pub fn matches_requirement_schema(
+fn matches_requirement_schema(
     candidate: &ExternalProviderConformance,
     identities: &TerminalIdentityTable,
     plan: &ProviderPlan,
@@ -73,7 +73,7 @@ pub fn matches_requirement_schema(
         .matches(plan, method, row)
 }
 
-pub fn selected_numeric_provider<'a>(
+pub(super) fn selected_numeric_provider<'a>(
     providers: &'a [ExternalProviderConformance],
     identities: &TerminalIdentityTable,
     requirement: &str,
@@ -138,7 +138,7 @@ pub fn matches_external_selection(
             .target
             .as_ref()
             .is_none_or(|target| *target == plan.target)
-        && candidate.binding == declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
+        && candidate.binding == semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
         && identities.text(candidate.realization.callable) == Some(machine)
         && candidate.realization_package == plan.origin_package_identity
         && match &candidate.provider {
@@ -151,7 +151,7 @@ pub fn matches_external_selection(
 }
 
 pub fn reconcile_numeric_meaning(
-    meaning: Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>,
+    meaning: Option<numerics::intrinsics::NumericIntrinsic>,
     selected: Option<CompilerIntrinsicExecutionIdentity>,
 ) -> Result<(), &'static str> {
     use CompilerIntrinsicExecutionIdentity as Execution;
@@ -184,7 +184,7 @@ pub fn canonical_external_execution(
         return Err("native intrinsic declaration belongs to another target".into());
     }
     if (declaration.sealed_intrinsic.is_some() || declaration.numeric_intrinsic.is_some())
-        && declaration.binding != declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
+        && declaration.binding != semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
     {
         return Err("canonical intrinsic meaning has another native binding mechanism".into());
     }
@@ -200,7 +200,7 @@ pub fn canonical_external_execution(
         .transpose()
 }
 
-pub fn sealed_native_execution(
+fn sealed_native_execution(
     meaning: terminal_psi::TerminalSealedNativeIntrinsic,
     target: &str,
 ) -> Result<CompilerIntrinsicExecutionIdentity, String> {
@@ -233,7 +233,7 @@ pub fn sealed_native_execution(
 }
 
 /// A physical selection must keep the meaning carried by its exact checked row.
-pub fn reconcile_sealed_execution(
+pub(super) fn reconcile_sealed_execution(
     expected: CompilerIntrinsicExecutionIdentity,
     retained: Option<CompilerIntrinsicExecutionIdentity>,
 ) -> Result<CompilerIntrinsicExecutionIdentity, &'static str> {
@@ -243,7 +243,7 @@ pub fn reconcile_sealed_execution(
     Ok(expected)
 }
 
-pub fn selected_sealed_native_provider<'a>(
+pub(super) fn selected_sealed_native_provider<'a>(
     providers: &'a [ExternalProviderConformance],
     identities: &TerminalIdentityTable,
     required_or_realized_declaration: &str,
@@ -256,8 +256,7 @@ pub fn selected_sealed_native_provider<'a>(
     };
     let mut rows = providers.iter().filter(|candidate| {
         candidate.sealed_intrinsic.is_some()
-            && candidate.binding
-                == declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic
+            && candidate.binding == semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
             && identities.text(candidate.realization.callable) == Some(machine.as_str())
             && (identities.text(candidate.requirement.identity())
                 == Some(required_or_realized_declaration)
@@ -294,8 +293,8 @@ pub fn selected_sealed_native_provider<'a>(
 #[cfg(test)]
 mod sealed_execution_tests {
     use super::{reconcile_sealed_execution, sealed_native_execution};
-    use crate::CompilerIntrinsicExecutionIdentity as Execution;
     use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
+    use native_intrinsics::CompilerIntrinsicExecutionIdentity as Execution;
     use terminal_psi::TerminalSealedNativeIntrinsic as Meaning;
 
     #[test]

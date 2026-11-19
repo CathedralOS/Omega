@@ -33,7 +33,6 @@ admission, terminal installation, and native code generation:
   reviewed physical mechanisms.
 */
 
-pub mod external_providers;
 mod provider_evidence;
 pub mod provider_grants;
 

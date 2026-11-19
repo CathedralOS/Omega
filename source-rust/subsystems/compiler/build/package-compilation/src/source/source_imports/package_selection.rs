@@ -17,7 +17,7 @@
 use super::paths::{identifier_path_text, is_bundled_core_path, is_bundled_omega_path};
 use crate::PackageCompilationInputs;
 use build_declarations::DependencyPurpose;
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
 use std::path::{Path, PathBuf};
 

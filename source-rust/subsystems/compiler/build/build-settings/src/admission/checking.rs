@@ -193,7 +193,7 @@ pub(crate) fn prepare_admitted_build(
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: subject.as_slice(),
-                purpose: declaration_contracts::source_identity::DependencyScope::Build,
+                purpose: source_provenance::DependencyScope::Build,
                 selected: &[],
                 calling: None,
                 providers: None,
@@ -334,7 +334,7 @@ mod tests {
                 None,
                 source_admission::SourceOrigin::Toolchain,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             )
             .source_id;
         let sources = std::sync::Arc::new(sources);
@@ -360,7 +360,7 @@ mod tests {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Build,
+                purpose: source_provenance::DependencyScope::Build,
                 selected: &[],
                 bindings: &[],
                 calling: None,

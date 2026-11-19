@@ -122,7 +122,7 @@ fn check_preserved_rejection() {
 
             entries: &[entry],
             subjects: &[frontier.subject],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             calling: None,
             providers: None,

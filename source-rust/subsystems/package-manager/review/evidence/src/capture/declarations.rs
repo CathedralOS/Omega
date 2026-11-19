@@ -88,7 +88,7 @@ impl<'a> PolicySource<'a> {
             self.typed(),
             symbol,
             &[Some(package)],
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         )
         .map_err(unavailable)
     }

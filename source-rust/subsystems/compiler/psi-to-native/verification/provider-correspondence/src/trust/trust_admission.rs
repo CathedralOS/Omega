@@ -5,10 +5,10 @@
 // admission equality and ordering. Native requirements bind the complete checked
 // promise and selected locator plan; report fingerprints supply no authority.
 
-use declaration_contracts::trust_declarations::AcceptedContractDeclaration;
-use declaration_contracts::trust_declarations::AcceptedTemplateDeclaration;
 use std::cmp::Ordering;
 use std::fmt;
+use symbols::trust_declarations::AcceptedContractDeclaration;
+use symbols::trust_declarations::AcceptedTemplateDeclaration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TrustAdmissionDigest([u8; 32]);

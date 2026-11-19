@@ -322,7 +322,7 @@ impl RealizedTargetSupply {
                 direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(retained) => {
                     if source.binding
                         != semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
-                        || effects::external_providers::canonical_external_execution(
+                        || provider_correspondence::external_providers::canonical_external_execution(
                             source,
                             &input.target,
                         )? != *retained

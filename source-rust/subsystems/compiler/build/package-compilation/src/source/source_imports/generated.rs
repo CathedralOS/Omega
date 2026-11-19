@@ -115,7 +115,7 @@ pub fn admit_generated_extension(
                 package_identity,
                 source_admission::SourceOrigin::User,
                 source_admission::SourceResolutionStratum::CurrentActivationExtension,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .map_err(|message| vec![Diagnostic::error(message)])?;
         retained.push((added.source_id, generated.clone()));
@@ -131,7 +131,7 @@ pub(crate) struct DependencyGeneratedSource<'source> {
     pub logical_path: std::path::PathBuf,
     pub source: &'source build_output::PackageGeneratedSource,
     pub package: semantic_vocabulary::PackageKeyIdentity,
-    pub scope: declaration_contracts::source_identity::DependencyScope,
+    pub scope: source_provenance::DependencyScope,
 }
 
 impl<'source> DependencyGeneratedSource<'source> {
@@ -142,7 +142,7 @@ impl<'source> DependencyGeneratedSource<'source> {
     ) -> Result<
         Vec<(
             std::path::PathBuf,
-            declaration_contracts::source_identity::DependencyScope,
+            source_provenance::DependencyScope,
         )>,
         Vec<Diagnostic>,
     > {
@@ -172,20 +172,20 @@ impl<'source> DependencyGeneratedSource<'source> {
 
 pub(crate) fn admit_dependency_build_handoffs(
     package_inputs: &crate::PackageCompilationInputs,
-    source_scope: declaration_contracts::source_identity::DependencyScope,
+    source_scope: source_provenance::DependencyScope,
 ) -> Result<Vec<DependencyGeneratedSource<'_>>, Vec<Diagnostic>> {
     let filesystem = package_inputs.source_filesystem();
     let mut entries = Vec::new();
     for (purpose, bundle) in package_inputs.dependency_build_handoff_instances() {
         let scope = match purpose {
             build_declarations::DependencyPurpose::Product => {
-                declaration_contracts::source_identity::DependencyScope::Product
+                source_provenance::DependencyScope::Product
             }
             build_declarations::DependencyPurpose::Build => {
-                declaration_contracts::source_identity::DependencyScope::Build
+                source_provenance::DependencyScope::Build
             }
         };
-        if source_scope == declaration_contracts::source_identity::DependencyScope::Build
+        if source_scope == source_provenance::DependencyScope::Build
             && scope != source_scope
         {
             continue;

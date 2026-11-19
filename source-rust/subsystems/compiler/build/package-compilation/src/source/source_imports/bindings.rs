@@ -9,7 +9,7 @@ use super::ReconciledPackageImportRequest;
 use super::SourceStorage;
 use super::paths::identifier_path_text;
 use crate::PackageCompilationInputs;
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
 use source_text::SourceId;
 use std::path::PathBuf;
