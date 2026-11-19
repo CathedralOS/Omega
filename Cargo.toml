@@ -110,6 +110,7 @@ members = [
     "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/bundled-declarations",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-typed-trees",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/05_typed-trees-to-lowered-program",

@@ -318,7 +318,6 @@ dependencies = [
 name = "bundled-declarations"
 version = "0.1.0"
 dependencies = [
- "declaration-contracts",
  "language-core",
 ]
 
@@ -3344,7 +3343,6 @@ dependencies = [
  "application-identity",
  "arena",
  "bignum",
- "bundled-declarations",
  "declaration-contracts",
  "flow-effects",
  "language-core",

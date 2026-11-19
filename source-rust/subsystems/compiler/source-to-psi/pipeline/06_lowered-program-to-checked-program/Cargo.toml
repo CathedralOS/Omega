@@ -39,7 +39,7 @@ terminal-work = { path = "../../../psi/work" }
 
 [dev-dependencies]
 bignum = { path = "../../../../../foundation/bignum" }
-bundled-declarations = { path = "../../inputs/bundled-declarations" }
+bundled-declarations = { path = "../02_syntax-trees-to-symbol-resolved-trees/bundled-declarations" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
 typed-trees-to-typed-trees = { path = "../04_typed-trees-to-typed-trees", features = ["test-support"] }

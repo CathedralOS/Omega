@@ -35,4 +35,4 @@ symbols = { path = "../../../../foundation/declaration-identity" }
 source-declarations = { path = "../../../language/source-declarations" }
 
 [dev-dependencies]
-bundled-declarations = { path = "../../../inputs/bundled-declarations" }
+bundled-declarations = { path = "../../02_syntax-trees-to-symbol-resolved-trees/bundled-declarations" }

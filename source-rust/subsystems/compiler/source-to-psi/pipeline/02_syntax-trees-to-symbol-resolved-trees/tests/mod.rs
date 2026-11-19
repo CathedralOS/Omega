@@ -1,4 +1,5 @@
 mod assembly_tests;
+mod bundled_revisions;
 mod call_result_selection_tests;
 mod domain_lookup_tests;
 mod pattern_binding_name_tests;
