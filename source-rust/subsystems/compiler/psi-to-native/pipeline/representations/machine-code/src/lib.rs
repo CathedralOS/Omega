@@ -542,4 +542,4 @@ pub mod program_context;
 
 pub mod hosted_entry;
 
-pub mod physical_stack;
+pub use native_stack_demand as physical_stack;

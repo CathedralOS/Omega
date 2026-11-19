@@ -1420,6 +1420,7 @@ name = "machine-code"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "native-stack-demand",
  "operation-evidence",
  "operation-operands",
  "record-storage",
@@ -1668,6 +1669,18 @@ dependencies = [
  "terminal-psi",
  "terminal-runtime",
  "verified-optimization-input",
+]
+
+[[package]]
+name = "native-stack-demand"
+version = "0.1.0"
+dependencies = [
+ "function-identity",
+ "provider-stack-contribution",
+ "semantic-vocabulary",
+ "target",
+ "target-vocabulary",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -2414,14 +2427,14 @@ name = "published-runtime-input"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
- "effects",
- "machine-code",
+ "native-stack-demand",
  "provider-admission",
+ "provider-stack-contribution",
+ "psi-entry-memory",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
- "target-operations",
- "task-plans",
+ "target-vocabulary",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",

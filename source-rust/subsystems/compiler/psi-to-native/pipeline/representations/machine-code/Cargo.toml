@@ -9,6 +9,7 @@ name = "machine_code"
 path = "src/lib.rs"
 
 [dependencies]
+native-stack-demand = { path = "stack-demand" }
 operation-evidence = { path = "../operation-evidence" }
 operation-operands = { path = "../operation-operands" }
 register-environment = { path = "../../../targets/register-environment" }
