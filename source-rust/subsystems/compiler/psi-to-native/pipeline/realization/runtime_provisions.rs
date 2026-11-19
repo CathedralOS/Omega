@@ -71,6 +71,19 @@ pub struct NativeForeignAdapterRequest {
 }
 
 impl NativeForeignAdapterRequest {
+    #[cfg(feature = "test-support")]
+    pub(crate) fn for_test(
+        bridge: calling_conventions::NativeForeignBridgeRequest,
+        locator: target::NormalizedForeignLocator,
+        application: [u8; 32],
+    ) -> Self {
+        Self {
+            bridge,
+            locator,
+            application,
+        }
+    }
+
     pub fn into_parts(
         self,
     ) -> (

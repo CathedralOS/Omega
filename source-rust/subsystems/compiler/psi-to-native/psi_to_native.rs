@@ -21,6 +21,7 @@ pub mod test_support {
     pub use crate::pipeline::observations::{
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
+    pub use crate::pipeline::realization::compile_runtime_foreign_adapter;
     pub use crate::pipeline::request::NativeCompileRequest;
     pub use crate::pipeline::{admit_runtime, compile};
 }

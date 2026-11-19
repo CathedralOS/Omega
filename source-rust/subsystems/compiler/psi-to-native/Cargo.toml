@@ -76,7 +76,7 @@ isa-aarch64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encodi
 isa-x86_64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
 encoding-admission = { path = "pipeline/representations/machine-code/encoding-admission" }
 instruction-selection = { package = "target-operations-to-selected-instructions", path = "pipeline/05_target-operations-to-selected-instructions", features = ["test-support"] }
-image-fixtures = { path = "../../../test-support/image-fixtures" }
+native-compiler = { path = ".", features = ["test-support"] }
 optimization-unit = { path = "pipeline/representations/abstract-operations/optimization-unit" }
 legalized-operations = { path = "pipeline/representations/target-operations/legalized-operations" }
 target-operations = { path = "pipeline/representations/target-operations" }

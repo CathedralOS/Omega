@@ -7,7 +7,7 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, IntegerValue, ScalarType,
     StructuralTypeId,
 };
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,

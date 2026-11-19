@@ -37,8 +37,8 @@ pub(super) fn prepare<'host, 'artifact>(
     let mut host_boundaries = host_imports::HostBoundarySelections::default();
     for provision in runtime.host_provisions().host() {
         if matches!(&provision.realization,
-            target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
-                if matches!(binding.mechanism, target_operations::NormalizedForeignCallMechanism::Component { .. }))
+            target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding)
+                if matches!(binding.mechanism, target_vocabulary::NormalizedForeignCallMechanism::Component { .. }))
         {
             return Err(TerminalRuntimeError::InvalidProvision(
                 "nested component execution requires its own retained installed product roster",

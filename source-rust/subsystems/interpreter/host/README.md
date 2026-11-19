@@ -14,6 +14,10 @@ canonical Terminal identity, replays the final image against its object, and
 reads root machine descriptors from the linked sections. A failed inspection
 is an execution error. The CLI reports it when running `--both`.
 
+[Clock bindings](clock/bindings.rs) and [filesystem bindings](filesystem/bindings.rs)
+admit the calls this host can service. The [native worker](native-worker/src/lib.rs)
+owns the operating-system clock calls and filesystem handles those bindings use.
+
 The language engine lives in `psi/interpreter`. Its low-level embedding API
 accepts explicit host environments. This crate supplies target-aware host
 bindings, private entry storage, finite input replay, buffered output, clocks

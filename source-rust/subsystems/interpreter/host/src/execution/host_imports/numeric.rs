@@ -9,7 +9,7 @@ use numerics::float_semantics::FloatClass;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use numerics::integer_carrier::{FixedInteger, IntegerSign};
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerValue, ScalarType};
-use target_operations::{
+use target_vocabulary::{
     IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatRoundingDirection,
     IeeeFloatToIntegerDomain, NearestIeeeFloatArithmeticRealization,
 };
@@ -49,7 +49,7 @@ impl NumericImport {
             let declaration = program.structural_type(result.structural_type).ok_or(
                 TerminalRuntimeError::InvalidProvision("classification result type is absent"),
             )?;
-            if target_operations::conventional_float_class_layout(declaration).is_none()
+            if target_vocabulary::conventional_float_class_layout(declaration).is_none()
                 || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
@@ -389,7 +389,7 @@ fn rejected(reason: &'static str) -> TerminalEffectRejection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use target_operations::IeeeFloatIntegerCarrier;
+    use target_vocabulary::IeeeFloatIntegerCarrier;
 
     #[test]
     fn integer_conversion_runtime_preserves_exact_trapping_and_saturating_outcomes() {

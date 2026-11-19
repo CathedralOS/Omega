@@ -41,7 +41,7 @@ use native_provider_runtime::{
 use published_runtime_input::RuntimeHostProvisions as TerminalRuntimeHostProvisions;
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{BoundaryMachineId, CanonicalStructuralPathSegment as Path, ScalarType};
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
