@@ -29,8 +29,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     let id = self.declaration(node_index)?;
                     catalog
                         .types
-                        .domains
-                        .expanded(
+                        .expanded_domain_at(
                             &DomainApplication {
                                 declaration: id.clone(),
                                 arguments: catalog
@@ -42,6 +41,8 @@ impl<'a> ResolvedSourceFile<'a> {
                             },
                             catalog.types.domains.carrier(id),
                             true,
+                            source,
+                            node_index,
                         )
                         .map_err(|m| TypeError::at(source, node_index, m))?;
                 }

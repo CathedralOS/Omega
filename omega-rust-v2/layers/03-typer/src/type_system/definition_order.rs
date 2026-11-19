@@ -110,17 +110,16 @@ pub(crate) fn index_type_definitions<'a>(
                 {
                     pending.push((ancestor, false));
                 }
-                for &other in &unit.file.nodes[node].children {
-                    if other != expression
-                        && unit.file.nodes[other].kind == PathType
-                        && let Some(Symbol::Declaration(domain)) = unit.symbol(other)
-                        && let Some(&dep) = declarations.get(domain)
-                    {
-                        pending.push((dep, false));
-                    }
-                }
             }
-            for n in expression..unit.file.nodes[expression].end {
+            let alias_terms = unit.file.nodes[node]
+                .children
+                .iter()
+                .copied()
+                .filter(|&other| unit.file.nodes[node].kind == Domain && other != expression && unit.file.nodes[other].kind == PathType);
+            for n in std::iter::once(expression)
+                .chain(alias_terms)
+                .flat_map(|part| part..unit.file.nodes[part].end)
+            {
                 match unit.symbol(n) {
                     Some(Symbol::Binding { span, .. }) => {
                         if let Some(&other) = by_binding.get(&(file, *span)) {
