@@ -1,0 +1,1 @@
+machine score() -> u32 { 7 }

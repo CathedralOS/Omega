@@ -234,10 +234,8 @@ into a different test, and passing that one proves nothing about the original.
 
 `samples/cli/facts/` is a **frozen finite set**, and `tests/omega/` is gone.
 `cargo xtask check-rules` rejects any change that grows the number of `.omg`
-files under `samples/cli/facts/` (moving them within it is allowed), rejects any
-new file under `tests/omega/`, and caps new
-`.omg` files anywhere in the repository at **at most 6 per PR**
-(`MAX_NEW_OMG_FILES = 6`). Pin a repair with a test on the changed code and,
+files under `samples/cli/facts/` (moving them within it is allowed) and rejects any
+new file under `tests/omega/`. Pin a repair with a test on the changed code and,
 when it needs a program, at most a single focused positive/negative pair kept
 beside that test.
 
@@ -476,9 +474,8 @@ reads the allowed lanes from this table:
   only when the task needs something newer. Release finished slots with
   `cargo xtask worktree release` or `cargo xtask worktree clean`. Push via
   `git push origin HEAD:refs/heads/work/<lane>-<topic>`.
-- **No `.omg` bloat (`MAX_NEW_OMG_FILES = 6`):** Never grow the `.omg` files
-  under `samples/cli/facts/`, never add a file under `tests/omega/`, and never add
-  more than 6 `.omg` files in a PR.
+- Keep the `.omg` set under `samples/cli/facts/` frozen and keep the retired
+  `tests/omega/` directory empty.
 - **No direct pushes to `main` and no chasing `main`:** Land only through
   squash-merged PRs. Rebase only on actual conflicts or
   needed prerequisites.

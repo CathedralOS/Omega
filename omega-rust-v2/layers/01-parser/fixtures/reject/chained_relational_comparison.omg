@@ -1,0 +1,4 @@
+// :ComparisonsDoNotChain. A comparison is not the operand of another without parentheses.
+machine f(a: u32, b: u32, c: u32) -> bool {
+    a < b < c
+}

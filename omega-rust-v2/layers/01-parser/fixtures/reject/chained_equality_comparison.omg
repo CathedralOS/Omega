@@ -1,0 +1,4 @@
+// :ComparisonsDoNotChain holds for `==` and `!=` as well.
+machine f(a: bool, b: bool, c: bool) -> bool {
+    a == b != c
+}

@@ -1,0 +1,4 @@
+error MissingArmComma at 5:9 bytes 144..145
+  found: _
+  expected: `,` or `}`
+  arms are separated by commas; put `,` after the previous arm

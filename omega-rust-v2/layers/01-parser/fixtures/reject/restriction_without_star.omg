@@ -1,0 +1,4 @@
+// A restricted alias holds `machine * clauses;` and nothing else.
+trait Local = Logger {
+    machine write();
+}

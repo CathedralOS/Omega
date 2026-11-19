@@ -1,0 +1,4 @@
+error SeparatorBeforeBody at 3:15 bytes 98..99
+  found: ,
+  expected: `{`
+  nothing goes between a header and its body; remove this `;` or `,`

@@ -1,0 +1,244 @@
+File
+  Machine
+    'machine'
+    Path 'statements'
+    Params
+      '('
+      Param
+        'value'
+        ':'
+        PathType 'Lease'
+      ','
+      Param
+        'view'
+        ':'
+        ReferenceType
+          '@'
+          'mut'
+          SliceType
+            '['
+            PathType 'u8'
+            ']'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Let
+        'let'
+        BindingPattern 'a'
+        '='
+        Literal '1'
+        ';'
+      Let
+        'let'
+        'mut'
+        BindingPattern 'b'
+        ':'
+        PathType 'u32'
+        '='
+        Literal '2'
+        ';'
+      Let
+        'let'
+        BindingPattern 'c'
+        ':'
+        QualifiedType
+          PathType 'i32'
+          'in'
+          PathType 'Km'
+        ';'
+      Let
+        'let'
+        'mut'
+        BindingPattern 'bytes'
+        ':'
+        ArrayType
+          '['
+          PathType 'u8'
+          ';'
+          Literal '38'
+          ']'
+        ';'
+      Let
+        'let'
+        RecordPattern
+          PathExpression 'Lease'
+          '{'
+          FieldPattern 'pool'
+          ','
+          FieldPattern 'slot'
+          '}'
+        '='
+        Move
+          'move'
+          PathExpression 'value'
+        ';'
+      Let
+        'let'
+        TuplePattern
+          '('
+          BindingPattern 'first'
+          ','
+          BindingPattern 'second'
+          ')'
+        '='
+        Call
+          PathExpression 'pair'
+          Args '(' ')'
+        ';'
+      Let
+        'let'
+        TuplePattern
+          '('
+          BindingPattern 'x'
+          ','
+          TuplePattern
+            '('
+            BindingPattern 'y'
+            ','
+            WildcardPattern '_'
+            ')'
+          ')'
+        ':'
+        PathType 'Nested'
+        '='
+        Call
+          PathExpression 'nested'
+          Args '(' ')'
+        ';'
+      Assign
+        PathExpression 'b'
+        '='
+        Binary
+          PathExpression 'a'
+          '+'
+          PathExpression 'b'
+        ';'
+      Assign
+        Index
+          PathExpression 'view'
+          '['
+          Literal '0'
+          ']'
+        '='
+        Literal '1u8'
+        ';'
+      Assign
+        FieldAccess
+          PathExpression 'value'
+          '.'
+          'slot'
+        '='
+        PathExpression 'slot'
+        ';'
+      Discard
+        '_'
+        '='
+        Call
+          FieldAccess
+            FieldAccess
+              PathExpression 'builder'
+              '.'
+              'tests'
+            '.'
+            'group'
+            ExpressionArgs
+              '::'
+              '<'
+              PathType 'Tests' '::' 'memory'
+              '>'
+          Args '(' ')'
+        ';'
+      ExpressionStatement
+        Call
+          PathExpression 'release'
+          Args
+            '('
+            PathExpression 'pool'
+            ')'
+        ';'
+      ExpressionStatement
+        Match
+          'match'
+          PathExpression 'b'
+          '{'
+          Arm
+            ValuePattern
+              Literal '0'
+            '->'
+            Call
+              PathExpression 'zero'
+              Args '(' ')'
+          ','
+          Arm
+            WildcardPattern '_'
+            '->'
+            Call
+              PathExpression 'other'
+              Args '(' ')'
+          '}'
+        ';'
+      Tail
+        PathExpression 'b'
+      '}'
+  Machine
+    'machine'
+    Path 'empty'
+    Params '(' ')'
+    Body '{' '}'
+  Machine
+    'machine'
+    Path 'only_tail'
+    Params '(' ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Tail
+        Literal '7'
+      '}'
+  Machine
+    'machine'
+    Path 'only_transition'
+    Params
+      '('
+      Param
+        'n'
+        ':'
+        PathType 'u32'
+      ')'
+    Result
+      '->'
+      PathType 'u32'
+    Body
+      '{'
+      Transition
+        'transition'
+        PathExpression 'n'
+        '{'
+        Arm
+          ValuePattern
+            Literal '0'
+          '->'
+          Call
+            PathExpression 'done'
+            Args '(' ')'
+        ','
+        Arm
+          WildcardPattern '_'
+          '->'
+          Call
+            PathExpression 'again'
+            Args
+              '('
+              Binary
+                PathExpression 'n'
+                '-'
+                Literal '1'
+              ')'
+        ','
+        '}'
+      '}'

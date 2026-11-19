@@ -1,0 +1,4 @@
+error UnexpectedToken at 2:1 bytes 87..94
+  found: machine
+  expected: a declaration
+  expected a declaration

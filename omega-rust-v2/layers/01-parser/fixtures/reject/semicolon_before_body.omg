@@ -1,0 +1,6 @@
+// Decision 4: nothing goes between a clause and the body.
+machine f(n: u32) -> u32
+requires n > 0;
+{
+    n
+}

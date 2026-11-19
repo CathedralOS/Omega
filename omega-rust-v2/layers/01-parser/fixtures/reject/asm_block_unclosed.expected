@@ -1,0 +1,4 @@
+error UnexpectedEnd at 4:1 bytes 37..37
+  found: <end of source>
+  expected: an instruction or `}`
+  the source ended where an instruction or `}` was expected

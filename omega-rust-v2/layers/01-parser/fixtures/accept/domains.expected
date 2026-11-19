@@ -1,0 +1,137 @@
+File
+  Domain
+    'domain'
+    PathType 'i32' '::' 'Km'
+    ';'
+  Domain
+    'domain'
+    PathType 'i32' '::' 'Positive'
+    Requires
+      'requires'
+      Binary
+        PathExpression 'self'
+        '>'
+        Literal '0'
+    ';'
+  Domain
+    'domain'
+    PathType 'i32' '::' 'Positive' '::' 'Small'
+    Requires
+      'requires'
+      Binary
+        PathExpression 'self'
+        '<'
+        Literal '10'
+    ';'
+  Domain
+    'public'
+    'domain'
+    PathType 'Reservation' '::' 'Issued'
+    Access
+      'access'
+      PathType 'ReservationAccess'
+    ';'
+  Domain
+    'domain'
+    GenericParams
+      '<'
+      TypeParam 'T'
+      '>'
+    PathType 'T' '::' 'Metres'
+    ';'
+  Domain
+    'domain'
+    GenericParams
+      '<'
+      TypeParam 'T'
+      ','
+      ConstParam
+        'const'
+        'U'
+        ':'
+        PathType 'Unit'
+      '>'
+    PathType
+      'T'
+      '::'
+      'Quantity'
+      TypeArgs
+        '<'
+        PathType 'U'
+        '>'
+    ';'
+  Domain
+    'public'
+    'domain'
+    PathType 'Socket' '::' 'Usable'
+    '='
+    PathType 'Socket' '::' 'Connected'
+    '&'
+    PathType 'Socket' '::' 'Authenticated'
+    ';'
+  Domain
+    'domain'
+    PathType 'Folder' '::' 'Writable'
+    Access
+      'access'
+      PathType
+        'IssuedBy'
+        TypeArgs
+          '<'
+          Call
+            PathExpression 'reflect' '::' 'callable'
+            Args
+              '('
+              PathExpression 'choose_folder'
+              ')'
+          '>'
+    ';'
+  Domain
+    'domain'
+    PathType 'Handle' '::' 'Open'
+    Access
+      'access'
+      PathType
+        'IssuedByAny'
+        TypeArgs
+          '<'
+          Literal '2'
+          ','
+          ArrayLiteral
+            '['
+            Call
+              PathExpression 'reflect' '::' 'callable'
+              Args
+                '('
+                PathExpression 'open_file'
+                ')'
+            ','
+            Call
+              PathExpression 'reflect' '::' 'callable'
+              Args
+                '('
+                PathExpression 'open_dir'
+                ')'
+            ']'
+          '>'
+    ';'
+  Domain
+    'domain'
+    PathType 'Cell' '::' 'Held'
+    Requires
+      'requires'
+      Binary
+        FieldAccess
+          PathExpression 'self'
+          '.'
+          'count'
+        '>'
+        Literal '0'
+    Access
+      'access'
+      PathType 'CellAccess'
+    DroppedBy
+      'dropped'
+      'by'
+      PathType 'release_cell'
+    ';'

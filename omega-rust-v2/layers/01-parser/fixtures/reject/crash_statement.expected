@@ -1,0 +1,4 @@
+error UnexpectedToken at 3:11 bytes 80..84
+  found: Trap
+  expected: `;`
+  expected `;`

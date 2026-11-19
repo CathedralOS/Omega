@@ -1,0 +1,4 @@
+error UnexpectedToken at 2:28 bytes 56..57
+  found: }
+  expected: a name or `_`
+  expected a name or `_`
