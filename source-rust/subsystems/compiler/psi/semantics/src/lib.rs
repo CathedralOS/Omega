@@ -86,6 +86,8 @@ pub use descriptors::descriptor_results;
 pub use references::resident_references::{
     resident_reference_plan, validate_resident_owner_fields,
 };
+mod owned_sequence_bounds;
+pub use owned_sequence_bounds::closed_owned_sequence_bounds;
 pub use storage::activation_storage;
 pub use storage::borrowed_storage;
 pub use storage::calling_storage::{

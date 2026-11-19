@@ -8,7 +8,7 @@ version.workspace = true
 path = "scope.rs"
 
 [dependencies]
-arena = { path = "../../../../../../foundation/arena" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 provider-admission = { path = "../../../verification/provider-admission" }
 provider-correspondence = { path = "../../../verification/provider-correspondence" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
@@ -17,6 +17,7 @@ terminal-codec = { path = "../../../../psi/codec" }
 terminal-psi = { path = "../../../../psi" }
 
 [dev-dependencies]
+terminal-semantics = { path = "../../../../psi/semantics" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../representations/function-identity" }
 psi-target-layouts = { path = "../../../../psi/layout/admission" }

@@ -8,59 +8,19 @@ pub use sequence_bounds::closed_owned_sequence_bounds;
 use target_vocabulary::publication::{EmittedCallbackOccurrence, EmittedExecutionScope};
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
-/// Sources of native calls for one checked proposal and entry.
-pub struct ScopeInputs<'a> {
-    pub artifact: terminal_codec::TerminalArtifactView<'a>,
-    pub entry: MachineId,
-    pub entry_call: Option<(BoundaryMachineId, MachineId)>,
-    pub adapters: &'a [SelectedProviderAdapter],
-    pub assumptions: &'a [(BoundaryMachineId, BoundaryMachineId)],
-    pub callbacks: &'a [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
+/// Follow the sealed proposal's edges before handing its selected execution to lowering.
+pub fn derive_native_scope(
+    request: ProposalScopeRequest<'_>,
+) -> Result<NativeExecutionScope, NativeExecutionScopeError> {
+    let reach = TargetReach::derive(request.inputs())?;
+    request
+        .bind_target_reach(reach.emitted, reach.selected_candidate_positions)
+        .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))
 }
 
-pub trait ScopeRequest {
-    fn inputs(&self) -> ScopeInputs<'_>;
-}
-
-/// The caller receives its original request together with the closure derived from that request.
-pub struct IssuedReach<R> {
-    request: R,
-    reach: TargetReach,
-}
-
-impl<R: ScopeRequest> IssuedReach<R> {
-    pub fn derive(request: R) -> Result<Self, NativeExecutionScopeError> {
-        let reach = TargetReach::derive(request.inputs())?;
-        Ok(Self { request, reach })
-    }
-    pub fn into_parts(self) -> (R, TargetReach) {
-        (self.request, self.reach)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetReach {
-    emitted: std::sync::Arc<EmittedExecutionScope>,
-    demands: terminal_psi::TerminalBoundaryApplicationDemands,
-    owned_sequence_bounds: Vec<(semantic_vocabulary::StructuralTypeId, u64)>,
+struct TargetReach {
+    emitted: EmittedExecutionScope,
     selected_candidate_positions: Vec<usize>,
-}
-
-impl TargetReach {
-    pub fn emitted(&self) -> &std::sync::Arc<EmittedExecutionScope> {
-        &self.emitted
-    }
-    pub fn demands(&self) -> &terminal_psi::TerminalBoundaryApplicationDemands {
-        &self.demands
-    }
-    pub fn owned_sequence_bounds(&self) -> &[(semantic_vocabulary::StructuralTypeId, u64)] {
-        &self.owned_sequence_bounds
-    }
-    pub fn contains_candidate_position(&self, position: usize) -> bool {
-        self.selected_candidate_positions
-            .binary_search(&position)
-            .is_ok()
-    }
 }
 
 #[derive(Debug)]
@@ -307,7 +267,7 @@ impl TargetReach {
                 }
             }
         }
-        let emitted = std::sync::Arc::new(EmittedExecutionScope::new(
+        let emitted = EmittedExecutionScope::new(
             machines,
             index.reached.into_iter().collect(),
             callbacks
@@ -320,21 +280,10 @@ impl TargetReach {
                     })
                 })
                 .collect(),
-        ));
+        );
         index.selected_candidate_positions.sort_unstable();
-        let owned_sequence_bounds =
-            closed_owned_sequence_bounds(module, |machine| emitted.contains_machine(machine))
-                .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))?;
-        let demands = module
-            .boundary_application_demands_for_machines(emitted.machines())
-            .and_then(|rows| {
-                terminal_psi::TerminalBoundaryApplicationDemands::new(artifact.identity(), rows)
-            })
-            .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))?;
         Ok(Self {
-            demands,
             emitted,
-            owned_sequence_bounds,
             selected_candidate_positions: index.selected_candidate_positions,
         })
     }

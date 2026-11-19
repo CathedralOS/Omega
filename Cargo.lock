@@ -1594,7 +1594,6 @@ dependencies = [
 name = "native-execution-scope"
 version = "0.1.0"
 dependencies = [
- "arena",
  "calling-conventions",
  "function-identity",
  "provider-admission",
@@ -1604,6 +1603,8 @@ dependencies = [
  "target-vocabulary",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
+ "verified-optimization-input",
 ]
 
 [[package]]
@@ -3809,7 +3810,6 @@ dependencies = [
  "legalized-operations",
  "native-behavior-exclusions",
  "native-binding-admission",
- "native-execution-scope",
  "native-intrinsics",
  "numeric-literals",
  "numerics",

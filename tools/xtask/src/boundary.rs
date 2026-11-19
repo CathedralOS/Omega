@@ -1049,8 +1049,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         )?);
         violations.extend(call_violations(
             &root,
-            &["IssuedReach::derive("],
-            &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution.rs"],
+            &[".bind_target_reach("],
+            &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope/scope.rs"],
             &[],
             "stage 01 issues reachability before a native body can be lowered",
         ));

@@ -1,10 +1,10 @@
 //! The target-selected reach and the checked proposal which issued it travel together through lowering.
 
-use ::native_execution_scope::{IssuedReach, ScopeInputs, ScopeRequest, closed_owned_sequence_bounds};
 use provider_admission::provider_installation::SelectedProviderAdapter;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use target_vocabulary::publication::EmittedExecutionScope;
 use terminal_psi::{OperationKind, TerminalModule};
+use terminal_semantics::closed_owned_sequence_bounds;
 struct ScalarDemand<'scope> {
     emitted: Option<&'scope EmittedExecutionScope>,
     owned_sequence_bounds: &'scope [(semantic_vocabulary::StructuralTypeId, u64)],
@@ -189,7 +189,10 @@ pub struct NativeExecutionScope {
     local_adapters: Vec<SelectedProviderAdapter>,
     entry_call: Option<crate::SelectedProgramEntryCall>,
     callbacks: Vec<provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal>,
-    pub(super) reach: ::native_execution_scope::TargetReach,
+    pub(super) emitted: std::sync::Arc<EmittedExecutionScope>,
+    owned_sequence_bounds: Vec<(semantic_vocabulary::StructuralTypeId, u64)>,
+    demands: terminal_psi::TerminalBoundaryApplicationDemands,
+    selected_candidate_positions: Vec<usize>,
 }
 
 /// Only the proposal can issue this request. The reachability stage returns it with its result.
@@ -204,36 +207,69 @@ pub struct ProposalScopeRequest<'a> {
     pub(super) completed_selection: Option<&'a selected_provider_plans::SelectedProviderPlanFacts>,
 }
 
-impl ScopeRequest for ProposalScopeRequest<'_> {
-    fn inputs(&self) -> ScopeInputs<'_> {
+/// Sources of native calls for one checked proposal and entry.
+pub struct ScopeInputs<'a> {
+    pub artifact: terminal_codec::TerminalArtifactView<'a>,
+    pub entry: MachineId,
+    pub entry_call: Option<(BoundaryMachineId, MachineId)>,
+    pub adapters: &'a [SelectedProviderAdapter],
+    pub assumptions: &'a [(BoundaryMachineId, BoundaryMachineId)],
+    pub callbacks: &'a [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
+}
+
+impl ProposalScopeRequest<'_> {
+    pub fn inputs(&self) -> ScopeInputs<'_> {
         ScopeInputs {
             artifact: self.artifact,
             entry: self.entry,
-            entry_call: self.entry_call.as_ref().map(|call| (call.boundary(), call.entry())),
+            entry_call: self
+                .entry_call
+                .as_ref()
+                .map(|call| (call.boundary(), call.entry())),
             adapters: &self.local_adapters,
             assumptions: &self.assumptions,
             callbacks: &self.proposal.occurrences().callbacks,
         }
     }
-}
 
-impl NativeExecutionScope {
-    pub fn from_issued(issued: IssuedReach<ProposalScopeRequest<'_>>) -> Self {
-        let (request, reach) = issued.into_parts();
+    /// Seal one stage-01 traversal against the program and deployment that requested it.
+    pub fn bind_target_reach(
+        self,
+        emitted: EmittedExecutionScope,
+        selected_candidate_positions: Vec<usize>,
+    ) -> Result<NativeExecutionScope, &'static str> {
+        let request = self;
+        let module = request.artifact.module();
+        if !emitted.contains_machine(request.entry) {
+            return Err("native execution scope omitted its selected entry");
+        }
+        let owned_sequence_bounds =
+            closed_owned_sequence_bounds(module, |machine| emitted.contains_machine(machine))?;
+        let demands = terminal_psi::TerminalBoundaryApplicationDemands::new(
+            request.artifact.identity(),
+            module.boundary_application_demands_for_machines(emitted.machines())?,
+        )?;
         let proposal = request.proposal;
         let selection = &proposal.providers().selection;
-        Self {
+        Ok(NativeExecutionScope {
             target_context: request.targets,
             entry: request.entry,
             source_provider_selection: selection.clone(),
-            selected_provider_closure: *request.completed_selection.unwrap_or(selection).identity_digest().as_bytes(),
+            selected_provider_closure: *request
+                .completed_selection
+                .unwrap_or(selection)
+                .identity_digest()
+                .as_bytes(),
             source_checked_entry: Some(proposal.program_entry().checked_entry().clone()),
             source_native_bindings: Some(proposal.providers().native_bindings.identity_digest()),
             entry_call: request.entry_call,
             local_adapters: request.local_adapters,
             callbacks: proposal.occurrences().callbacks.clone(),
-            reach,
-        }
+            emitted: std::sync::Arc::new(emitted),
+            owned_sequence_bounds,
+            demands,
+            selected_candidate_positions,
+        })
     }
 }
 
@@ -283,7 +319,7 @@ impl NativeExecutionScope {
     }
 
     pub fn owned_sequence_bounds(&self) -> &[(semantic_vocabulary::StructuralTypeId, u64)] {
-        self.reach.owned_sequence_bounds()
+        &self.owned_sequence_bounds
     }
 
     pub const fn entry(&self) -> MachineId {
@@ -370,23 +406,23 @@ impl NativeExecutionScope {
     }
 
     pub fn machines(&self) -> &[MachineId] {
-        self.reach.emitted().machines()
+        self.emitted.machines()
     }
 
     pub fn contains_machine(&self, machine: MachineId) -> bool {
-        self.reach.emitted().contains_machine(machine)
+        self.emitted.contains_machine(machine)
     }
 
     pub fn boundary_application_demands(
         &self,
     ) -> &terminal_psi::TerminalBoundaryApplicationDemands {
-        self.reach.demands()
+        &self.demands
     }
 
     fn scalar_demand(&self) -> ScalarDemand<'_> {
         ScalarDemand {
-            emitted: Some(self.reach.emitted()),
-            owned_sequence_bounds: self.reach.owned_sequence_bounds(),
+            emitted: Some(&self.emitted),
+            owned_sequence_bounds: &self.owned_sequence_bounds,
         }
     }
 
@@ -407,10 +443,12 @@ impl NativeExecutionScope {
     }
 
     pub fn contains_boundary(&self, boundary: BoundaryMachineId) -> bool {
-        self.reach.emitted().contains_boundary(boundary)
+        self.emitted.contains_boundary(boundary)
     }
 
     pub fn contains_candidate_position(&self, position: usize) -> bool {
-        self.reach.contains_candidate_position(position)
+        self.selected_candidate_positions
+            .binary_search(&position)
+            .is_ok()
     }
 }

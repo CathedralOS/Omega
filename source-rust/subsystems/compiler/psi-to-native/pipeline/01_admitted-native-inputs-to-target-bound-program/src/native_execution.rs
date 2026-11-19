@@ -1,15 +1,13 @@
 //! Issue the target-selected reach before the driver requests scalar values or lowers a body.
 use diagnostics::Diagnostic;
-use native_execution_scope::IssuedReach;
+use native_execution_scope::derive_native_scope;
 use verified_optimization_input::{
     AdmittedNativeComponentCall, NativeExecutionScope, PreparedNativeExecution,
     ProposalScopeRequest, TerminalNativeRealizationProposal,
 };
 
 fn issue_scope(request: ProposalScopeRequest<'_>) -> Result<NativeExecutionScope, Vec<Diagnostic>> {
-    IssuedReach::derive(request)
-        .map(NativeExecutionScope::from_issued)
-        .map_err(|reason| vec![Diagnostic::error(reason.to_string())])
+    derive_native_scope(request).map_err(|reason| vec![Diagnostic::error(reason.to_string())])
 }
 
 pub fn prepare_program(

@@ -35,7 +35,6 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
         ("source-rust/subsystems/package-manager", HOST_PROVIDERS),
         (ENTRY_PLANNING, ENTRY),
         (VERIFIED_INPUT, ENTRY),
-        (VERIFIED_INPUT, native!("/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope")),
         (IMAGE_EMISSION, ENTRY),
         (native!("/saved-inputs"), ENTRY),
         (ENCODING, AARCH64),

@@ -21,7 +21,7 @@ pub use emission_admission::{AdmittedPhysicalEntry, EmissionAdmission};
 pub mod publication;
 
 mod native_execution_scope;
-pub use native_execution_scope::{NativeExecutionScope, ProposalScopeRequest};
+pub use native_execution_scope::{NativeExecutionScope, ProposalScopeRequest, ScopeInputs};
 
 pub mod callback_settlement;
 pub mod component_inputs;

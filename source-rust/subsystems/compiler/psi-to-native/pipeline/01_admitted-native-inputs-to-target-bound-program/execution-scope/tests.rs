@@ -377,8 +377,11 @@ fn emission_records_a_callback_only_when_its_registrar_runs() {
         } else {
             &[]
         };
-        assert_eq!(scope.demands.rows(), expected);
-        assert_eq!(scope.demands.terminal_psi(), artifact.view().identity());
+        let demands = artifact
+            .semantic_module()
+            .boundary_application_demands_for_machines(scope.emitted.machines())
+            .unwrap();
+        assert_eq!(demands, expected);
         assert_eq!(scope.emitted.contains_machine(machine_id(3)), reached);
         assert_eq!(scope.emitted.callbacks().len(), usize::from(reached));
         if reached {
