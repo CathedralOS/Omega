@@ -6,17 +6,17 @@ use omega_resolver::DeclarationId;
 use omega_typer::{StaticIntegerRequest, TypeError, TypedConstant, TypedSignature, TypedTrees, ValueType};
 
 use crate::integer_invocation::EvaluationError;
-use crate::refusal;
+use crate::{PreparedValue, refusal};
 
 /// Values belong to this typing pass because it owns the selected calls.
-pub(super) struct IntegerEvaluation<'trees, 'text> {
+pub(super) struct ConstantEvaluation<'trees, 'text> {
     pub(super) trees: &'trees TypedTrees<'text>,
     pub(super) definitions: HashMap<&'trees DeclarationId, &'trees TypedConstant>,
-    pub(super) values: HashMap<DeclarationId, BigInt>,
+    pub(super) values: HashMap<DeclarationId, PreparedValue>,
     signatures: OnceCell<HashMap<&'trees DeclarationId, &'trees TypedSignature>>,
 }
 
-impl<'trees, 'text> IntegerEvaluation<'trees, 'text> {
+impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
     pub(super) fn new(trees: &'trees TypedTrees<'text>) -> Self {
         Self {
             trees,
@@ -50,14 +50,9 @@ impl<'trees, 'text> IntegerEvaluation<'trees, 'text> {
             .copied()
     }
 
-    pub(super) fn finish(mut self) -> Result<HashMap<DeclarationId, BigInt>, TypeError> {
+    pub(super) fn finish(mut self) -> Result<HashMap<DeclarationId, PreparedValue>, TypeError> {
         for constant in &self.trees.constants {
-            if matches!(
-                constant.initializer.carrier.carrier(),
-                ValueType::Integer { .. } | ValueType::IndexedInteger { .. }
-            ) {
-                self.materialize(constant)?;
-            }
+            self.materialize(constant)?;
         }
         Ok(self.values)
     }
@@ -104,7 +99,7 @@ impl<'trees, 'text> IntegerEvaluation<'trees, 'text> {
         let mut active = HashSet::from([&root.declaration]);
         while let Some(&constant) = stack.last() {
             let request = &constant.initializer;
-            match self.evaluate_request(request, None) {
+            match self.owned_value(request) {
                 Ok(value) => {
                     self.values.insert(constant.declaration.clone(), value);
                     active.remove(&constant.declaration);
@@ -115,7 +110,7 @@ impl<'trees, 'text> IntegerEvaluation<'trees, 'text> {
                 Err(EvaluationError::NeedsConstant(id)) => {
                     let dependency = self.definition(request, &id)?;
                     if !active.insert(&dependency.declaration) {
-                        return Err(refusal(&request.expression, "cyclic integer constant initializer"));
+                        return Err(refusal(&request.expression, "cyclic constant initializer"));
                     }
                     stack.push(dependency);
                 }

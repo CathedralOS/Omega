@@ -1,13 +1,15 @@
 //! Preparation evaluates local integer constants and the computations needed for closed type identity.
 #![forbid(unsafe_code)]
 
+mod constant_evaluation;
 mod integer_arithmetic;
-mod integer_constants;
+mod owned_values;
+pub use owned_values::PreparedValue;
 mod integer_invocation;
 
 use std::collections::HashMap;
 
-use integer_constants::IntegerEvaluation;
+use constant_evaluation::ConstantEvaluation;
 use num_bigint::BigInt;
 use omega_resolver::DeclarationId;
 use omega_typer::{
@@ -18,7 +20,7 @@ use omega_typer::{
 #[derive(Debug, Eq, PartialEq)]
 pub struct PreparedTrees<'text> {
     typed: TypedTrees<'text>,
-    integer_constants: HashMap<DeclarationId, BigInt>,
+    constants: HashMap<DeclarationId, PreparedValue>,
 }
 
 impl<'text> PreparedTrees<'text> {
@@ -31,7 +33,17 @@ impl<'text> PreparedTrees<'text> {
         &self,
         declaration: &DeclarationId,
     ) -> Option<&BigInt> {
-        self.integer_constants.get(declaration)
+        match self.constant(declaration)? {
+            PreparedValue::Integer(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn constant(
+        &self,
+        declaration: &DeclarationId,
+    ) -> Option<&PreparedValue> {
+        self.constants.get(declaration)
     }
 
     /// Extract the typed stage, dropping the prepared constant values.
@@ -53,13 +65,13 @@ pub fn prepare_source_package<'text>(source: &SourcePackage<'text>) -> Result<Pr
         };
         let pending = match type_source_package_for_preparation(source, &environment)? {
             TypingProgress::Complete(typed) => {
-                let integer_constants = IntegerEvaluation::new(&typed).finish()?;
-                return Ok(PreparedTrees { typed, integer_constants });
+                let constants = ConstantEvaluation::new(&typed).finish()?;
+                return Ok(PreparedTrees { typed, constants });
             }
             TypingProgress::Pending(pending) => pending,
         };
         let previous_count = evaluated_indices.len() + specialized_indices.len();
-        let mut evaluation = IntegerEvaluation::new(pending.trees());
+        let mut evaluation = ConstantEvaluation::new(pending.trees());
         for demand in pending.demands() {
             let (request, arguments) = match demand {
                 StaticIntegerDemand::Closed(request) => (request, None),

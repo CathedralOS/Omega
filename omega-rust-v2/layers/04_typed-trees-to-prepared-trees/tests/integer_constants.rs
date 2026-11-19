@@ -275,7 +275,7 @@ fn concrete_preconditions_compare_mathematical_values_and_check_every_clause() {
     }
     for (guard, reason) in [
         ("requires a < b requires b < 2", "precondition is false"),
-        ("requires (a < b) && (b > 0)", "needs proof outside"),
+        ("requires (a < b) && (b < 2)", "precondition is false"),
     ] {
         let source = format!("machine choose(a:i8,b:u16)->u8 {guard} {{3}} const VALUE:u8=choose(-1,2);");
         let error = prepare(&source).unwrap_err();
@@ -323,10 +323,7 @@ fn signed_quotient_and_remainder_keep_the_selected_overflow_policy() {
 fn annotated_integer_constants_cannot_supply_each_other_through_a_cycle() {
     let source = "const FIRST:u8=SECOND; const SECOND:u8=FIRST;";
     let error = prepare(source).unwrap_err();
-    assert_eq!(
-        error.message,
-        "static evaluation cannot admit this invocation: cyclic integer constant initializer"
-    );
+    assert_eq!(error.message, "static evaluation cannot admit this invocation: cyclic constant initializer");
     assert_eq!(error.package, "app");
     assert_eq!(error.file, "main.omg");
     let cycle_uses = [
@@ -534,4 +531,83 @@ fn every_crash_alternative_and_the_operation_itself_must_be_safe() {
             "static evaluation cannot admit this invocation: an unrepresentable quotient leaves the selected Trap route possible"
         );
     }
+}
+
+#[test]
+fn frozen_arrays_preserve_element_order_and_typed_dependencies() {
+    use omega_preparation::PreparedValue::{Array, Bool, Integer};
+    let source = "const TABLE:[[u8;2];2]=[ROW,[TWICE,4]]; const ROW:[u8;2]=[1,2];
+                  const TWICE:u8=add(1,2); machine add(x:u8,y:u8)->u8{x+y}
+                  const SELECTED:bool=OK; const OK:bool=3u8 < 4u8; const FLAGS:[bool;2]=[false,SELECTED];
+                  machine count(n:u64)->u64 requires SELECTED {n}
+                  machine consume(x:[u8; count(4)])->[u8;4]{x}";
+    let prepared = prepare(source).unwrap();
+    let get = |path| {
+        let id = &prepared
+            .typed()
+            .constants
+            .iter()
+            .find(|c| c.declaration.path == path)
+            .unwrap()
+            .declaration;
+        prepared.constant(id).unwrap()
+    };
+    let row = |a: u8, b: u8| Array(vec![Integer(a.into()), Integer(b.into())].into());
+    assert_eq!(get("TABLE"), &Array(vec![row(1, 2), row(3, 4)].into()));
+    assert_eq!(get("FLAGS"), &Array(vec![Bool(false), Bool(true)].into()));
+    let refused = source.replace("3u8 < 4u8", "4u8 < 4u8");
+    let error = prepare(&refused).unwrap_err();
+    assert!(error.message.contains("precondition is false"));
+    assert_eq!(error.span.slice(refused.as_bytes()), Some(b"count(4)".as_slice()));
+}
+
+#[test]
+fn unused_constants_must_still_produce_complete_values() {
+    for (source, reason) in [
+        ("const A:[bool;1]=B; const B:[bool;1]=A;", "cyclic constant initializer"),
+        ("const A:[u8;2]=[1,overflow(255)]; machine overflow(n:u8)->u8{n + 1}", "exact addition exceeds"),
+        ("const A:[bool;0]=[];", ""),
+        ("data Handle [linear] {} const A:[Handle;0]=[];", "array element type"),
+    ] {
+        let result = prepare(source);
+        if reason.is_empty() {
+            let result = result.unwrap();
+            assert_eq!(
+                result.constant(&result.typed().constants[0].declaration),
+                Some(&omega_preparation::PreparedValue::Array(vec![].into()))
+            );
+        } else {
+            assert!(result.unwrap_err().message.contains(reason), "{source}");
+        }
+    }
+}
+
+#[test]
+fn boolean_guards_only_demand_the_selected_operands() {
+    let source = "machine width(d:u64)->u64 requires d == 0 || (12u64 / d > 0) {4u64}
+                  const SIZE:u64=width(0); machine take(x:[u8; SIZE])->[u8;4]{x}";
+    prepare(source).unwrap();
+    let and = source.replace("d == 0 ||", "d != 0 &&");
+    assert!(
+        prepare(&and)
+            .unwrap_err()
+            .message
+            .contains("precondition is false")
+    );
+    let division = source.replace("d == 0 ||", "d != 0 ||");
+    assert!(
+        prepare(&division)
+            .unwrap_err()
+            .message
+            .contains("nonzero divisor")
+    );
+    let equality = "const A:bool=true; const B:bool=false; const C:bool=(A != B) == true;";
+    let result = prepare(equality).unwrap();
+    let c = result
+        .typed()
+        .constants
+        .iter()
+        .find(|c| c.declaration.path == "C")
+        .unwrap();
+    assert_eq!(result.constant(&c.declaration), Some(&omega_preparation::PreparedValue::Bool(true)));
 }

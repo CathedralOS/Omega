@@ -1,8 +1,9 @@
 //! The integer fragment executes immutable scalar reads, exact landings, and
 //! admitted integer arithmetic. A local invocation must close every premise before a
 //! value can enter the prepared product.
+use crate::PreparedValue;
+use crate::constant_evaluation::ConstantEvaluation;
 use crate::integer_arithmetic::IntegerRange;
-use crate::integer_constants::IntegerEvaluation;
 use num_bigint::BigInt;
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
@@ -22,11 +23,11 @@ impl From<&'static str> for EvaluationError {
     }
 }
 
-const UNSUPPORTED_BODY: &str = "the selected body is outside the total integer fragment";
+pub(super) const UNSUPPORTED_BODY: &str = "the selected body is outside the total integer fragment";
 const UNSUPPORTED_ARGUMENT: &str = "the static call has an argument without a supported closed value";
 const UNSUPPORTED_CONTRACT: &str = "the selected contract needs proof outside the total integer fragment";
 
-struct ParameterValue<'a> {
+pub(super) struct ParameterValue<'a> {
     binder: usize,
     carrier: &'a ValueType,
     value: BigInt,
@@ -41,13 +42,13 @@ enum CallResult<'a> {
     },
 }
 
-enum Scope<'a> {
+pub(super) enum Scope<'a> {
     Initializer { root: usize, owner_arguments: Option<&'a [ValueType]> },
     CallArgument,
     Body(&'a [ParameterValue<'a>]),
 }
 
-impl IntegerEvaluation<'_, '_> {
+impl ConstantEvaluation<'_, '_> {
     pub(super) fn evaluate_request(
         &self,
         request: &StaticIntegerRequest,
@@ -70,7 +71,7 @@ impl IntegerEvaluation<'_, '_> {
         )
     }
 
-    fn expression(
+    pub(super) fn expression(
         &self,
         tree: &TypedTree<'_>,
         node: usize,
@@ -293,7 +294,7 @@ impl IntegerEvaluation<'_, '_> {
             let [predicate] = *file.nodes[clause].children.as_slice() else {
                 return Err(UNSUPPORTED_CONTRACT.into());
             };
-            if !self.integer_precondition(&body_tree, predicate, &bound)? {
+            if !self.boolean_value(&body_tree, predicate, &bound)? {
                 return Err("the selected integer precondition is false for the supplied arguments".into());
             }
         }
@@ -358,7 +359,7 @@ impl IntegerEvaluation<'_, '_> {
                                 && matches!(obligation.kind, ObligationKind::TotalCrashGuard)
                         })
                         .ok_or("the selected crash guard has no typed predicate")?;
-                    if !self.integer_precondition(tree, obligation.node.node, scope)? {
+                    if !self.boolean_value(tree, obligation.node.node, scope)? {
                         continue;
                     }
                 }
@@ -372,56 +373,93 @@ impl IntegerEvaluation<'_, '_> {
         Ok(())
     }
 
-    fn integer_precondition(
+    pub(super) fn boolean_value(
         &self,
         tree: &TypedTree<'_>,
         predicate: usize,
         scope: &Scope<'_>,
     ) -> Result<bool, EvaluationError> {
+        enum Step {
+            Evaluate(usize),
+            ShortCircuit { right: usize, stop_at: bool },
+            Equal(bool),
+        }
         let file = tree.resolved().file;
-        let node = file.ungroup(predicate);
-        if let Some(Symbol::Builtin(name)) = tree.resolved().symbol(node) {
-            match name.as_str() {
-                "true" => return Ok(true),
-                "false" => return Ok(false),
-                _ => {}
+        let mut steps = vec![Step::Evaluate(predicate)];
+        let mut values = Vec::new();
+        while let Some(step) = steps.pop() {
+            match step {
+                Step::ShortCircuit { right, stop_at } => {
+                    if values.last() != Some(&stop_at) {
+                        values.pop();
+                        steps.push(Step::Evaluate(right));
+                    }
+                }
+                Step::Equal(expected) => {
+                    let right = values.pop().expect("visited right Boolean operand");
+                    let left = values.pop().expect("visited left Boolean operand");
+                    values.push((left == right) == expected);
+                }
+                Step::Evaluate(node) => {
+                    let node = file.ungroup(node);
+                    if let Some(value) = self.constant_reference(tree, node, &ValueType::Bool)? {
+                        let PreparedValue::Bool(value) = value else {
+                            return Err(UNSUPPORTED_CONTRACT.into());
+                        };
+                        values.push(*value);
+                        continue;
+                    }
+                    if let Some(Symbol::Builtin(name)) = tree.resolved().symbol(node)
+                        && matches!(name.as_str(), "true" | "false")
+                    {
+                        values.push(name == "true");
+                        continue;
+                    }
+                    let [left, right] = *file.nodes[node].children.as_slice() else {
+                        return Err(UNSUPPORTED_CONTRACT.into());
+                    };
+                    if file.nodes[node].kind != NodeKind::Binary {
+                        return Err(UNSUPPORTED_CONTRACT.into());
+                    }
+                    let mut operation = None;
+                    for record in tree.semantics_at(node) {
+                        match record {
+                            NodeSemantics::Operation(selected) if selected.result == ValueType::Bool && operation.is_none() => operation = Some(selected),
+                            NodeSemantics::Obligation(o) if matches!(o.kind, ObligationKind::TotalCrashGuard) => {}
+                            NodeSemantics::Expression(_) => {}
+                            _ => return Err(UNSUPPORTED_CONTRACT.into()),
+                        }
+                    }
+                    let selected = operation.ok_or(UNSUPPORTED_CONTRACT)?;
+                    let [left_type, right_type] = selected.operands.as_slice() else {
+                        return Err(UNSUPPORTED_CONTRACT.into());
+                    };
+                    let token = selected.token.as_str();
+                    if left_type == &ValueType::Bool && right_type == &ValueType::Bool {
+                        match token {
+                            "&&" | "||" => steps.push(Step::ShortCircuit { right, stop_at: token == "||" }),
+                            "==" | "!=" => steps.extend([Step::Equal(token == "=="), Step::Evaluate(right)]),
+                            _ => return Err(UNSUPPORTED_CONTRACT.into()),
+                        }
+                        steps.push(Step::Evaluate(left));
+                        continue;
+                    }
+                    // Integer operands retain their independently selected carriers.
+                    let left = self.expression(tree, left, left_type, scope)?;
+                    let right = self.expression(tree, right, right_type, scope)?;
+                    values.push(match token {
+                        "==" => left == right,
+                        "!=" => left != right,
+                        "<" => left < right,
+                        "<=" => left <= right,
+                        ">" => left > right,
+                        ">=" => left >= right,
+                        _ => return Err(UNSUPPORTED_CONTRACT.into()),
+                    });
+                }
             }
         }
-        let [left, right] = *file.nodes[node].children.as_slice() else {
-            return Err(UNSUPPORTED_CONTRACT.into());
-        };
-        if file.nodes[node].kind != NodeKind::Binary {
-            return Err(UNSUPPORTED_CONTRACT.into());
-        }
-        let mut operation = None;
-        for record in tree.semantics_at(node) {
-            match record {
-                NodeSemantics::Operation(selected) if selected.result == ValueType::Bool && operation.is_none() => operation = Some(selected),
-                NodeSemantics::Obligation(o) if matches!(o.kind, ObligationKind::TotalCrashGuard) => {}
-                NodeSemantics::Expression(_) => {}
-                _ => return Err(UNSUPPORTED_CONTRACT.into()),
-            }
-        }
-        let selected = operation.ok_or(UNSUPPORTED_CONTRACT)?;
-        let [left_type, right_type] = selected.operands.as_slice() else {
-            return Err(UNSUPPORTED_CONTRACT.into());
-        };
-        if IntegerRange::for_type(left_type).is_none() || IntegerRange::for_type(right_type).is_none() {
-            return Err(UNSUPPORTED_CONTRACT.into());
-        }
-        // Each operand has its own selected carrier. Compare mathematical
-        // values directly even when width or signedness differs.
-        let left = self.expression(tree, left, left_type, scope)?;
-        let right = self.expression(tree, right, right_type, scope)?;
-        Ok(match selected.token.as_str() {
-            "==" => left == right,
-            "!=" => left != right,
-            "<" => left < right,
-            "<=" => left <= right,
-            ">" => left > right,
-            ">=" => left >= right,
-            _ => return Err(UNSUPPORTED_CONTRACT.into()),
-        })
+        Ok(values.pop().expect("visited Boolean expression"))
     }
 
     fn argument(
@@ -490,25 +528,16 @@ impl IntegerEvaluation<'_, '_> {
         }
         let resolved = tree.resolved();
         let node = resolved.file.ungroup(node);
-        let mut selected_constant = None;
         for record in tree.semantics_at(node) {
             match record {
-                NodeSemantics::Constant(declaration) => selected_constant = Some(declaration),
-                NodeSemantics::Expression(_) | NodeSemantics::Landing(_) => {}
+                NodeSemantics::Constant(_) | NodeSemantics::Expression(_) | NodeSemantics::Landing(_) => {}
                 _ => return Err(UNSUPPORTED_BODY.into()),
             }
         }
-        if let Some(declaration) = selected_constant {
-            let Some(constant) = self.definitions.get(declaration) else {
-                return Err("the selected constant has no local typed initializer".into());
+        if let Some(value) = self.constant_reference(tree, node, carrier)? {
+            let PreparedValue::Integer(value) = value else {
+                return Err(UNSUPPORTED_BODY.into());
             };
-            if &constant.initializer.carrier != carrier {
-                return Err("the selected constant has a different carrier".into());
-            }
-            let value = self
-                .values
-                .get(declaration)
-                .ok_or_else(|| EvaluationError::NeedsConstant(declaration.clone()))?;
             return fits(value.clone(), carrier).ok_or_else(|| "the frozen constant exceeds its carrier".into());
         }
         if let Scope::Body(arguments) = scope
