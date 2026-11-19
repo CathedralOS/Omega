@@ -368,10 +368,5 @@ pub fn admit_prepared_native_realization<'execution>(
 }
 
 pub fn artifact_lowering_error(error: ArtifactLoweringError) -> Vec<Diagnostic> {
-    match error {
-        ArtifactLoweringError::HostAuthorization(error) => {
-            realization_error("host producer authorization", error)
-        }
-        error => realization_error("native artifact lowering", error),
-    }
+    realization_error("native artifact lowering", error)
 }

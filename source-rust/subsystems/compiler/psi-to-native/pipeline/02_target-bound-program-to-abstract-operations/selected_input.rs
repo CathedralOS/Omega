@@ -8,7 +8,6 @@ mod error {
         #[cfg(any(test, feature = "test-support"))]
         TargetSelectionRequired,
         TargetContext(String),
-        HostAuthorization(psi_authorization::ArtifactTrustError),
         AccessViewInputsRequireCustodyLowering,
         AccessViewEstablishmentUnexpected {
             machine: semantic_vocabulary::MachineId,
@@ -35,7 +34,6 @@ mod error {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
                 Self::TargetContext(reason) => f.write_str(reason),
-                Self::HostAuthorization(error) => write!(f, "{error}"),
                 Self::Lowering(error) => write!(f, "{error}"),
                 Self::AccessViewEstablishmentUnexpected { machine, position } => {
                     write!(f, "unexpected access view at {machine:?} input {position}")
@@ -200,22 +198,39 @@ mod native {
         pub entry_call: Option<&'request crate::SelectedProgramEntryCall>,
     }
 
-    pub(crate) struct NativeScopePreparation {
-        authorization: psi_authorization::AuthorizedTerminalArtifact,
-        profile: target::TargetProfile,
-        entry: semantic_vocabulary::MachineId,
-        pub(crate) targets: TerminalTargetContext,
-        pub(crate) layouts: psi_target_layouts::AdmittedTargetLayouts,
-        pub(crate) scope: Option<crate::NativeExecutionScope>,
-        pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
+    impl<'request> NativeExecutionSelection<'request> {
+        pub(crate) fn checked(
+            scope: &'request crate::NativeExecutionScope,
+            plans: &'request selected_provider_plans::SelectedProviderPlanFacts,
+            scalar_applications: Option<super::NativeScalarApplications<'request>>,
+        ) -> Self {
+            Self {
+                scope: Some(scope),
+                scalar_applications,
+                providers: scope.local_adapters(),
+                plans,
+                callbacks: scope.callbacks(),
+                entry_call: scope.entry_call(),
+            }
+        }
     }
 
-    impl NativeScopePreparation {
+    pub(crate) struct NativeScopePreparation<'request> {
+        authorization: &'request psi_authorization::AuthorizedTerminalArtifact,
+        selection: &'request NativeExecutionSelection<'request>,
+        profile: target::TargetProfile,
+        entry: semantic_vocabulary::MachineId,
+        targets: TerminalTargetContext,
+        layouts: psi_target_layouts::AdmittedTargetLayouts,
+        scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
+    }
+
+    impl<'request> NativeScopePreparation<'request> {
         pub(crate) fn prepare(
-            authorization: &psi_authorization::AuthorizedTerminalArtifact,
+            authorization: &'request psi_authorization::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
-            selection: &NativeExecutionSelection<'_>,
+            selection: &'request NativeExecutionSelection<'request>,
         ) -> Result<Self, ArtifactLoweringError> {
             let artifact = authorization.artifact();
             profile
@@ -240,7 +255,7 @@ mod native {
                 &target_facts,
             )
             .map_err(|error| ArtifactLoweringError::TargetContext(error.to_string()))?;
-            let scope = if let Some(scope) = selection.scope {
+            if let Some(scope) = selection.scope {
                 scope
                     .require_source_input(
                         artifact.view(),
@@ -257,13 +272,8 @@ mod native {
                         "native preparation changes its checked entry or callback inputs".into(),
                     ));
                 }
-                Some(scope.clone())
-            } else {
-                // Raw choices do not establish complete callback, entry and
-                // provider coverage. Keep the ordinary full-module contract.
-                None
-            };
-            let scalar_demand = match scope.as_ref() {
+            }
+            let scalar_demand = match selection.scope {
                 Some(scope) => scope.scalar_application_demand(module, &layouts),
                 None => crate::NativeExecutionScope::full_module_scalar_demand(
                     module, &layouts,
@@ -271,21 +281,20 @@ mod native {
             }
             .map_err(ArtifactLoweringError::TargetContext)?;
             Ok(Self {
-                authorization: authorization.clone(),
+                authorization,
+                selection,
                 profile,
                 entry,
                 targets: selections,
                 layouts,
-                scope,
                 scalar_demand,
             })
         }
 
         pub(crate) fn lower(
             self,
-            artifact: &terminal_codec::CanonicalTerminalArtifact,
             establishments: &[TerminalAccessViewEstablishment],
-            selection: &NativeExecutionSelection<'_>,
+            scalar_providers: &[crate::SelectedProviderAdapter],
             evidence: Option<&terminal_codec::EvidenceSeals>,
         ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
             let Self {
@@ -294,15 +303,14 @@ mod native {
                 entry,
                 targets: selections,
                 layouts,
-                scope,
+                selection,
                 scalar_demand,
             } = self;
-            authorization
-                .require_artifact(artifact)
-                .map_err(ArtifactLoweringError::HostAuthorization)?;
+            let artifact = authorization.artifact();
+            let scope = selection.scope;
             let module = artifact.semantic_module();
             let full_machines;
-            let machines = match scope.as_ref() {
+            let machines = match scope {
                 Some(scope) => scope.machines(),
                 None => {
                     full_machines = module
@@ -330,7 +338,8 @@ mod native {
                         profile,
                         &selections,
                         &layouts,
-                        selection,
+                        selection.plans,
+                        scalar_providers,
                         &scalar_demand,
                         machines,
                     )
@@ -357,7 +366,7 @@ mod native {
                 module,
                 entry,
                 structural_types,
-                scope.as_ref(),
+                scope,
                 scalar_applications,
                 Some(&layouts),
             )
@@ -385,10 +394,8 @@ mod native {
                     selection.entry_call.cloned(),
                     layouts,
                     scalar_applications.cloned(),
-                    scope
-                        .as_ref()
-                        .map(|scope| std::sync::Arc::new(scope.clone())),
-                    scope.as_ref().map_or_else(
+                    scope.cloned().map(std::sync::Arc::new),
+                    scope.map_or_else(
                         || *selection.plans.identity_digest().as_bytes(),
                         crate::NativeExecutionScope::selected_provider_closure,
                     ),
@@ -423,9 +430,8 @@ mod native {
             selection: &NativeExecutionSelection<'_>,
         ) -> Result<Self, ArtifactLoweringError> {
             NativeScopePreparation::prepare(artifact, profile, root, selection)?.lower(
-                artifact.artifact(),
                 establishments,
-                selection,
+                selection.providers,
                 None,
             )
         }
@@ -443,7 +449,7 @@ mod native {
             selection: &NativeExecutionSelection<'_>,
         ) -> Result<Self, ArtifactLoweringError> {
             NativeScopePreparation::prepare(artifact, profile, root, selection)?
-                .lower_with_private_entry_ram(artifact.artifact(), recipes, selection, None)
+                .lower_with_private_entry_ram(recipes, selection.providers, None)
         }
 
         pub fn plan(&self) -> &AbstractOperationPlan {
@@ -472,14 +478,14 @@ mod native {
         }
     }
 
-    impl NativeScopePreparation {
+    impl NativeScopePreparation<'_> {
         pub(crate) fn lower_with_private_entry_ram(
             self,
-            artifact: &terminal_codec::CanonicalTerminalArtifact,
             recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
-            selection: &NativeExecutionSelection<'_>,
+            scalar_providers: &[crate::SelectedProviderAdapter],
             evidence: Option<&terminal_codec::EvidenceSeals>,
         ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
+            let artifact = self.authorization.artifact();
             if recipes
                 .iter()
                 .any(|recipe| recipe.terminal() != artifact.view().identity())
@@ -521,7 +527,7 @@ mod native {
                     })
                 })
                 .collect::<Result<Vec<_>, ArtifactLoweringError>>()?;
-            let mut input = self.lower(artifact, &establishments, selection, evidence)?;
+            let mut input = self.lower(&establishments, scalar_providers, evidence)?;
             input.private_entry_ram = recipes.to_vec();
             Ok(input)
         }
@@ -959,7 +965,8 @@ mod scalar_applications {
             profile: target::TargetProfile,
             targets: &TerminalTargetContext,
             layouts: &AdmittedTargetLayouts,
-            selection: &super::NativeExecutionSelection<'_>,
+            plans: &selected_provider_plans::SelectedProviderPlanFacts,
+            scalar_providers: &[crate::SelectedProviderAdapter],
             scalar_demand: &[semantic_vocabulary::ScalarApplicationId],
             execution_machines: &[semantic_vocabulary::MachineId],
         ) -> Result<&'request AdmittedScalarApplications, String> {
@@ -1021,7 +1028,7 @@ mod scalar_applications {
             let providers = target_provider_admission::admit_selected_checked_providers(
                 artifact.view(),
                 profile.target_name(),
-                selection.plans,
+                plans,
             )?;
             if primary.providers() != &providers {
                 return Err(
@@ -1030,10 +1037,9 @@ mod scalar_applications {
             }
             let full_adapters =
                 provider_admission::retain_selected_provider_adapters(
-                    selection.plans,
+                    plans,
                 )?;
-            if selection
-                .providers
+            if scalar_providers
                 .iter()
                 .any(|adapter| !full_adapters.contains(adapter))
             {
