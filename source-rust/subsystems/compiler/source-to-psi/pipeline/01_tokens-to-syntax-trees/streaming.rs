@@ -326,7 +326,7 @@ impl SourceInput {
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/source_parsing.rs"]
+#[path = "streaming_tests.rs"]
 mod batch_tests;
 #[cfg(test)]
 #[path = "../../tests/unit/reused_sources.rs"]
