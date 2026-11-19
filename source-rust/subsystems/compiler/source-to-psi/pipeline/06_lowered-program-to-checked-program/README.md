@@ -1377,7 +1377,7 @@ The public compiler checks the lowered Product selected by its authored Build.
 Use `omega --check path/to/main.omg`. Stage fixtures exercise the checker
 directly on its lowered input. The retired `route_probe` supplied a synthetic
 entry and provider choices through V1's removed `CompilationSession`. Its
-measurement code lives in `source-rust/_recycling/compiler/v1-probes`.
+measurement code lives in `_recycling/source-rust/compiler/v1-probes`.
 
 ## Reusing a saved proof (experiment)
 

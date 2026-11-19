@@ -13,7 +13,7 @@ mbx build --release -p omega-bench
 
 The historical source comparison requires two retained V1 `route_probe` executables.
 Its implementation used the retired compilation session and is archived in
-`source-rust/_recycling/compiler/v1-probes`. The preparation and proof comparisons consume retained
+`_recycling/source-rust/compiler/v1-probes`. The preparation and proof comparisons consume retained
 `proof_preparation` and `proof_preparation_timing` executables. Stage 06 currently
 disables example targets during the compiler migration.
 

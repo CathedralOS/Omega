@@ -12,7 +12,7 @@ The native entry accepts an authorized Psi program, its deployment target and th
 | Complete the requested product | The [program driver](driver.rs) returns the interpreter’s provisions at runtime admission. An image request [collects the required bodies](emit_program.rs) and [stage 16](pipeline/16_objects-to-image/) publishes the finished image. [Entry signature and storage contract](representations/program-entry-contracts/program_entry.rs) · [Target arrival ABI](targets/calling-conventions/src/process_entry.rs) |
 | Verify an emitted object | An [explicit stage validator](verification/stage_validators.rs) requests originals from the emission and gives them to [published-object verification](verification/published-objects/). Its checks compare the root, callable and component objects against their own retained stage inputs before the caller releases the image. |
 
-The public standalone program file is the portable `.psi` artifact. The historical `OMGNTI41` record captured a native realization proposal for a particular artifact and target. Its reader and writer are retained in [the native derivation archive](_recycling/native-derivation-record/). [Portable Psi encoding](../../../../wiki/spec/terminal-psi/encoding.md)
+The public standalone program file is the portable `.psi` artifact. The historical `OMGNTI41` record captured a native realization proposal for a particular artifact and target. Its reader and writer are retained in [the native derivation archive](../../../../_recycling/source-rust/subsystems/compiler/psi-to-native/native-derivation-record/). [Portable Psi encoding](../../../../wiki/spec/terminal-psi/encoding.md)
 
 The program driver schedules specialized work around each body. Component export joins, callback thunks and target ABI adapters have their own inputs. [Component exports](emit_program/components/exports.rs) · [Callback thunks](emit_program/callback_thunks.rs) · [Foreign adapters](foreign_adapters.rs) · [Interpreter provisions](runtime_provisions.rs)
 
@@ -25,7 +25,7 @@ The program driver schedules specialized work around each body. Component export
 | Program records exchanged by stages | The corresponding form under [representations/](representations/). |
 | Target descriptions, calling conventions and registers | [targets/](targets/) |
 | Independent checks of provider, installation or emitted object evidence | [verification/](verification/) |
-| Implementations held for reference or migration | [_recycling/](_recycling/) |
+| Implementations held for reference or migration | [Native compiler archive](../../../../_recycling/source-rust/subsystems/compiler/psi-to-native/) |
 
 ELF, Mach-O and PE writer tests use fixed encoded inputs with known instruction bytes, relocations, register effects and stack use. The Cargo boundary check records which production packages can read each stage. [Writer fixtures](pipeline/16_objects-to-image/image/src/test_support.rs) · [Stage dependency check](../../../../tools/xtask/src/boundary/native_stages.rs)
 

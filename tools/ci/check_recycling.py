@@ -1,4 +1,4 @@
-"""Reject Cargo and Rust file references from live code into a _recycling directory."""
+"""Enforce the root archive layout and reject Cargo and Rust references into recycling."""
 
 import glob
 import os
@@ -187,15 +187,25 @@ def rust_paths(file, source, manifests):
 def violations(root, files):
     manifests = {file.parent for file in files if file.name == "Cargo.toml"}
     for file in sorted(files):
-        if "_recycling" in file.relative_to(root).parts:
+        relative = file.relative_to(root)
+        directories = relative.parts[:-1]
+        if relative.parts[0] != "omega-rust-v2" and "_recycling" in directories[1:]:
+            yield f"{relative}: nested _recycling directory; use the repository-root _recycling"
+            continue
+        if "_recycling" in directories:
+            continue
+        source = file.name == "Cargo.toml" or file.suffix == ".rs"
+        if not source and not file.is_symlink():
             continue
         if "_recycling" in Path(os.path.relpath(file.resolve(), root)).parts:
             yield f"{file.relative_to(root)} links into _recycling"
             continue
         if file.name == "Cargo.toml":
             edges = cargo_paths(file)
-        else:
+        elif file.suffix == ".rs":
             edges = rust_paths(file, file.read_text(), manifests)
+        else:
+            continue
         for kind, value in edges:
             # Cargo accepts slash-separated paths on all hosts. Recognize
             # Windows-authored paths when admission runs on Linux as well.
@@ -206,7 +216,7 @@ def violations(root, files):
 
 def main():
     root = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip())
-    tracked = subprocess.check_output(["git", "-C", root, "ls-files", "-z", "--", "Cargo.toml", "*/Cargo.toml", "*.rs"])
+    tracked = subprocess.check_output(["git", "-C", root, "ls-files", "-z"])
     files = {root / os.fsdecode(name) for name in tracked.split(b"\0") if name}
     failed = False
     for message in violations(root, files):

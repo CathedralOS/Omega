@@ -16,7 +16,7 @@ The [package review contract](../../../../../wiki/spec/packages/review.md) requi
 | Service and hosted-exit candidates | An accepted semantic binding must carry the exact supplier's declaration, compiled source and checked service schema. A nomination is independent of the consumer's later decision. |
 | Whole-package policy and its canonical byte count | The source publication must cover the complete declared inventory, including unused public declarations. Native selection must match the same source and target for provider and permission rows. The encoder measures the completed baseline against the caller's budget. |
 
-The V2 project path has no issuer that joins these facts for a complete checked occurrence. A saved Psi artifact and an evaluated Build each cover only a part of the contract. The previous projector and its runtime permission custody checks are retained together in [the V1 capture archive](_recycling/v1-product-capture/capture.md). Package review cannot use a partial baseline to accept a new occurrence. Existing lock rows and canonical records remain readable.
+The V2 project path has no issuer that joins these facts for a complete checked occurrence. A saved Psi artifact and an evaluated Build each cover only a part of the contract. The previous projector and its runtime permission custody checks are retained together in [the V1 capture archive](../../../../../_recycling/source-rust/subsystems/package-manager/review/evidence/v1-product-capture/capture.md). Package review cannot use a partial baseline to accept a new occurrence. Existing lock rows and canonical records remain readable.
 
 ### Target-entry proposals
 

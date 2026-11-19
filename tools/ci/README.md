@@ -7,7 +7,8 @@ there is no merge queue.
 ## Admission
 
 [Admission](../../.github/workflows/admission.yml) checks the paths in tracked
-Cargo manifests and Rust sources before merge. Active workspaces, dependencies,
+Cargo manifests and Rust sources before merge. Every tracked archive file
+belongs under the repository-root [`_recycling/`](../../_recycling/). Active workspaces, dependencies,
 Cargo targets and Rust modules or literal file includes must resolve outside
 `_recycling/`. The check follows literal `#[path]` attributes, including in
 `cfg_attr`, and the `include!`, `include_bytes!` and `include_str!` macros. It

@@ -399,7 +399,7 @@ mod tests {
     fn nested_stages_and_streaming_reject_indirect_production_edges() {
         const SHARED: &str = "shared";
         const ENCODER: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/test-encoder";
-        const FIXTURE: &str = "source-rust/_recycling/test-support/image-fixtures";
+        const FIXTURE: &str = "_recycling/source-rust/test-support/image-fixtures";
         let paths = NATIVE_STAGES
             .into_iter()
             .chain([SOURCE_DRIVER, native_stages::PRODUCT_PUBLICATION])

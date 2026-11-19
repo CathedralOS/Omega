@@ -163,7 +163,7 @@ overhead and the already borrowed typed policy are not counted.
 
 ## Current capture support
 
-[The V1 capture implementation](_recycling/v1-product-capture/capture.md) describes how capture tracks source and declaration
+[The V1 capture implementation](../../../../../_recycling/source-rust/subsystems/package-manager/review/evidence/v1-product-capture/capture.md) describes how capture tracks source and declaration
 ownership and joins nominal structure. The table below says what is supported
 now; it is not a history of schema versions. Supporting a declaration does not
 mean its selected application, executable call or native realization is supported.

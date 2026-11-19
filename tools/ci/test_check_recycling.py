@@ -48,9 +48,31 @@ class RecyclingBoundary(unittest.TestCase):
 
     def test_module_directory(self):
         files = {"src/lib.rs": "mod parent { mod r#_recycling; }", "src/parent/_recycling/mod.rs": ""}
-        self.assertEqual(len(self.check(files)), 1)
+        nested = "src/parent/_recycling/mod.rs: nested _recycling directory; use the repository-root _recycling"
+        errors = self.check(files)
+        self.assertIn(nested, errors)
+        self.assertTrue(any("Rust module points into _recycling" in error for error in errors))
         files["src/lib.rs"] = 'mod parent { #[path = "normal.rs"] mod _recycling; }'
-        self.assertEqual(self.check(files), [])
+        self.assertEqual(self.check(files), [nested])
+
+    def test_checkout_checks_all_tracked_directory_names(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            paths = ["docs/_recycling/design.md", "_recycling/owner/_recycling/dump.bin",
+                     "_recycling/owner/dump.bin", "assets/live.bin",
+                     "omega-rust-v2/owner/_recycling/legacy.bin", "notes/near_recycling/design.md"]
+            for name in paths:
+                path = repo / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"\xff")  # File contents are irrelevant to the layout.
+            subprocess.run(["git", "init", "--quiet"], cwd=repo, check=True)
+            subprocess.run(["git", "add", "--", *paths[2:]], cwd=repo, check=True)
+            check = [sys.executable, "-B", str(Path(__file__).with_name("check_recycling.py").resolve())]
+            self.assertEqual(subprocess.run(check, cwd=repo).returncode, 0)
+            subprocess.run(["git", "add", "--", *paths[:2]], cwd=repo, check=True)
+            refused = subprocess.run(check, cwd=repo, capture_output=True, text=True)
+            self.assertEqual(refused.returncode, 1)
+            self.assertCountEqual([row.split(":")[0] for row in refused.stderr.splitlines()], paths[:2])
 
     def test_checkout_command_checks_tracked_symlink_targets(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -60,12 +82,15 @@ class RecyclingBoundary(unittest.TestCase):
             (repo / "src").mkdir()
             (repo / "src/lib.rs").write_text("mod active;")
             (repo / "src/active.rs").symlink_to("../_recycling/impl.rs")
+            (repo / "src/active.bin").symlink_to("../_recycling/impl.rs")
             subprocess.run(["git", "init", "--quiet"], cwd=repo, check=True)
             subprocess.run(["git", "add", "."], cwd=repo, check=True)
             check = [sys.executable, "-B", str(Path(__file__).with_name("check_recycling.py").resolve())]
             refused = subprocess.run(check, cwd=repo / "src", capture_output=True, text=True)
             self.assertEqual(refused.returncode, 1)
             self.assertIn("src/active.rs links into _recycling", refused.stderr)
+            self.assertIn("src/active.bin links into _recycling", refused.stderr)
+            (repo / "src/active.bin").unlink()
             (repo / "src/active.rs").unlink()
             (repo / "src/active.rs").write_text("")
             self.assertEqual(subprocess.run(check, cwd=repo).returncode, 0)
