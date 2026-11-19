@@ -44,7 +44,7 @@ fn product<'a>(
             root_binding_requests: selections,
             provider_selections: &[],
             default_provider_selections: &[],
-            native_bindings: &[],
+            native_bindings: Default::default(),
             representations: Default::default(),
             layout_selection_authority: None,
             wire_demands: &[],

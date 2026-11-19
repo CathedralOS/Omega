@@ -8,6 +8,10 @@ use crate::source_state::service_declarations::{
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
+#[path = "prepare_and_check/native_bindings.rs"]
+mod native_bindings;
+pub use native_bindings::{NativeBindingInputs, PackageNativeBindings};
+
 pub struct ProductSourceInputs<'a> {
     pub targets: &'a [crate::source_targets::SourceTarget],
     pub calling_targets: &'a [&'a str],
@@ -17,7 +21,7 @@ pub struct ProductSourceInputs<'a> {
     pub provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
     /// Package-authenticated declarations and closed operands from dependency Builds.
     pub default_provider_selections: &'a [crate::evaluation::provider_declarations::RetainedProviderSelection],
-    pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
+    pub native_bindings: NativeBindingInputs<'a>,
     pub representations: crate::ProductRepresentationInput<'a>,
     pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
     pub wire_demands: &'a [crate::preparation::WireCompatibilityDemand],
@@ -63,6 +67,7 @@ impl CompletedProductSource {
 pub fn prepare_lower_and_check(
     mut typed: crate::source_state::TypedTrees,
     inputs: ProductSourceInputs<'_>,
+    native_supplies: Vec<crate::provider_choice_inputs::NativeBuildSupply>,
     build_accounting: &crate::evaluation::SourceCompletionAccounting,
     accounting: &mut crate::evaluation::SourceCompletionAccounting,
     inspection: Option<&str>,
@@ -87,6 +92,7 @@ pub fn prepare_lower_and_check(
         )?;
     let mut pass = ProductSourcePass {
         inputs,
+        native_supplies,
         root_bindings,
         default_provider_selections,
         inspection,
@@ -116,12 +122,13 @@ pub fn prepare_lower_and_check(
             .map(|target| (*target).to_owned())
             .collect(),
         explicit_providers: pass.inputs.provider_selections.to_vec(),
-        native_supplies: pass.inputs.native_bindings.to_vec(),
+        native_supplies: pass.native_supplies,
     })
 }
 
 struct ProductSourcePass<'a, 'f, O> {
     inputs: ProductSourceInputs<'a>,
+    native_supplies: Vec<crate::provider_choice_inputs::NativeBuildSupply>,
     root_bindings: Vec<crate::RootBinding>,
     default_provider_selections: Vec<crate::provider_choice_inputs::ProviderSelection>,
     inspection: Option<&'f str>,
@@ -166,8 +173,8 @@ fn prepare_and_judge(
     // for this package's entries (`judge_supplied_product`), where the
     // provider's own calls read each requirement it uses.
     let root = pass.inputs.subject;
-    let claimed = build
-        .native_bindings
+    let claimed = pass
+        .native_supplies
         .iter()
         .filter(|supply| root.is_none_or(|root| supply.selection.supplier_package == root))
         .collect::<Vec<_>>();
@@ -484,7 +491,7 @@ fn prepare_and_judge(
             targets: &targets,
             publication: terminal_publication,
             build: build.provider_selections,
-            native_bindings: build.native_bindings,
+            native_bindings: &pass.native_supplies,
             defaults: &provider_defaults,
             layout_deferred: &deferred_defaults,
             layout_prepared: chosen_defaults,
