@@ -28,6 +28,7 @@ We keep physical settlement separated by transport role:
 #[path = "settlements_source_imports.rs"]
 mod source_imports;
 
+use numeric_intrinsic_admission::signature::boundary_contract_matches_selected_schema;
 use crate::AdmittedBoundarySettlement;
 use crate::ProviderExecutionEvidence;
 use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
@@ -198,7 +199,7 @@ fn settle_boundary<'request>(
     }
     let mut admitted = Vec::with_capacity(matching_boundaries.len());
     for boundary in matching_boundaries {
-        if !super::compiler_builtins::boundary_contract_matches_selected_schema(
+        if !boundary_contract_matches_selected_schema(
             input.module(),
             boundary,
             selected_plan,
