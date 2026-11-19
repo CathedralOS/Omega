@@ -5,7 +5,7 @@
 // digest uses package identities and relative source paths so relocating a
 // checkout does not alter the semantic digest.
 
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use semantic_vocabulary::PackageKeyIdentity;
 use semantic_vocabulary::source_selections::CompositionMode;

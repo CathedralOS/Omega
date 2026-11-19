@@ -15,7 +15,7 @@ provider-plans = { path = "../../../compiler/build/providers/plans" }
 source-declarations = { path = "../../../compiler/source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
 service-surface = { path = "../../../compiler/psi/service-surface" }
 evaluation-receipts = { path = "../../../compiler/build/evaluation/receipts" }
-declaration-contracts = { path = "../../../compiler/source-to-psi/language/declaration-contracts" }
+source-provenance = { path = "../../../compiler/foundation/source-provenance" }
 application-identity = { path = "../../../compiler/psi/application-identity" }
 numeric-literals = { path = "../../../compiler/foundation/numeric-literals" }
 source-admission = { path = "../../../compiler/source-to-psi/pipeline/representations/source-files/custody" }

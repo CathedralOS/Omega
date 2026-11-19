@@ -65,7 +65,7 @@ pub(super) fn prepare(
     let source = accepted.source();
     let origins = super::callables::service_origins(
         accepted,
-        declaration_contracts::source_identity::DependencyScope::Product,
+        source_provenance::DependencyScope::Product,
     )?;
     let services = super::callables::service_identities(
         source,
@@ -345,7 +345,7 @@ fn declaration_coordinate(
 ) -> (
     &Path,
     &Path,
-    declaration_contracts::source_identity::DependencyScope,
+    source_provenance::DependencyScope,
     usize,
     usize,
 ) {
@@ -366,8 +366,8 @@ fn require_supported_inventory(
     let typed = declarations.typed();
     let owned = |symbol| {
         for purpose in [
-            declaration_contracts::source_identity::DependencyScope::Product,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Product,
+            source_provenance::DependencyScope::Build,
         ] {
             if source_compiler::source_state::source_subjects::contains(
                 typed,
@@ -395,7 +395,7 @@ fn require_supported_inventory(
                 typed,
                 declaration.symbol,
                 &[Some(package)],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             )
             .map_err(unavailable)?
         {
@@ -411,7 +411,7 @@ fn require_supported_inventory(
             typed,
             declaration.symbol,
             &[Some(package)],
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         )
         .map_err(unavailable)?
         {

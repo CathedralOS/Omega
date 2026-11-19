@@ -36,7 +36,7 @@ fn call_arguments_read_fields_beside_a_sibling_loan() {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -91,7 +91,7 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -333,7 +333,7 @@ fn a_borrowed_runtime_element_write_keeps_its_selector_beneath_the_backing() {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -417,7 +417,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization
@@ -499,7 +499,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization
@@ -648,7 +648,7 @@ machine main() crashes Trap {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization
@@ -738,7 +738,7 @@ machine main() crashes Trap {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &frontier.selected,
                     bindings: &frontier.bindings,
                     calling: None,
@@ -828,7 +828,7 @@ machine main() crashes Trap {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &frontier.selected,
                     bindings: &frontier.bindings,
                     supplies: &[],
@@ -922,7 +922,7 @@ machine main() crashes Trap {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &frontier.selected,
                     bindings: &frontier.bindings,
                     supplies: &[], // This source-only check runs no Build provider selections.
@@ -1028,7 +1028,7 @@ machine main() crashes Trap {
                     declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &frontier.selected,
                     bindings: &frontier.bindings,
                     supplies: &[],

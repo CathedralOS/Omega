@@ -36,7 +36,7 @@ impl NativeBuildOutputs {
                 || declaration.service_declaration == [0; 32]
                 || declaration.requirement.kind() != symbols::SymbolKind::State
                 || declaration.requirement.source().dependency_scope
-                    != declaration_contracts::source_identity::DependencyScope::Product
+                    != source_provenance::DependencyScope::Product
                 || declaration
                     .dependency_alias
                     .as_ref()

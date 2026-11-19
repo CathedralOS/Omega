@@ -52,7 +52,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization
@@ -318,7 +318,7 @@ fn named_predicate_terms_form_under_their_own_inputs() {
                     declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[subject],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &frontier.selected,
                     calling: frontier
                         .normalization

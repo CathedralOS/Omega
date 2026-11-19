@@ -376,12 +376,12 @@ impl ProductQueryInputs {
     /// (`wiki/spec/build/scoped_execution.md`, "Two checked contexts").
     fn mounted_for(
         &self,
-        scope: declaration_contracts::source_identity::DependencyScope,
+        scope: source_provenance::DependencyScope,
         alias: &str,
     ) -> Option<&ProductQueryDependency> {
         let staged: &[ProductQueryDependency] = match scope {
-            declaration_contracts::source_identity::DependencyScope::Product => &[],
-            declaration_contracts::source_identity::DependencyScope::Build => {
+            source_provenance::DependencyScope::Product => &[],
+            source_provenance::DependencyScope::Build => {
                 &self.build_dependencies
             }
         };
@@ -468,7 +468,7 @@ impl ProductQueryInputs {
     ) -> Result<
         Vec<(
             PathBuf,
-            declaration_contracts::source_identity::DependencyScope,
+            source_provenance::DependencyScope,
         )>,
         Vec<Diagnostic>,
     > {
@@ -497,7 +497,7 @@ impl ProductQueryInputs {
                     let (purpose, importer) = if mounted {
                         (
                             DependencyPurpose::Product,
-                            declaration_contracts::source_identity::DependencyScope::Product,
+                            source_provenance::DependencyScope::Product,
                         )
                     } else {
                         (
@@ -581,7 +581,7 @@ impl ProductQueryInputs {
                     // The Build sources of the unbound root keep their
                     // deferred imports while a query is answered.
                     let own_build_import = authored.scope
-                        == declaration_contracts::source_identity::DependencyScope::Build
+                        == source_provenance::DependencyScope::Build
                         && prefix == 0
                         && root == storage.default_package_root();
                     let paths = if own_build_import {
@@ -628,13 +628,13 @@ impl ProductQueryInputs {
         &self,
         frontier: Vec<(
             PathBuf,
-            declaration_contracts::source_identity::DependencyScope,
+            source_provenance::DependencyScope,
         )>,
         storage: &SourceStorage,
     ) -> Result<
         Vec<(
             PathBuf,
-            declaration_contracts::source_identity::DependencyScope,
+            source_provenance::DependencyScope,
         )>,
         Vec<Diagnostic>,
     > {

@@ -85,7 +85,7 @@ fn companion_root_names(root_name: Option<&str>) -> &'static [&'static str] {
 pub(crate) struct ProjectSourceSelection {
     sources: Vec<(
         std::path::PathBuf,
-        declaration_contracts::source_identity::DependencyScope,
+        source_provenance::DependencyScope,
     )>,
     build_path: Option<std::path::PathBuf>,
 }
@@ -114,9 +114,9 @@ impl ProjectSourceSelection {
             .map(|path| {
                 let canonical = filesystem.canonicalize(&path).ok();
                 let scope = if canonical.is_some() && canonical == build_path {
-                    declaration_contracts::source_identity::DependencyScope::Build
+                    source_provenance::DependencyScope::Build
                 } else {
-                    declaration_contracts::source_identity::DependencyScope::Product
+                    source_provenance::DependencyScope::Product
                 };
                 (path, scope)
             })
@@ -131,7 +131,7 @@ impl ProjectSourceSelection {
         &self,
     ) -> &[(
         std::path::PathBuf,
-        declaration_contracts::source_identity::DependencyScope,
+        source_provenance::DependencyScope,
     )] {
         &self.sources
     }
@@ -152,7 +152,7 @@ impl ProjectSourceSelection {
                             .canonicalize(&file.path)
                             .is_ok_and(|loaded| loaded == selected)
                             && file.dependency_scope
-                                == declaration_contracts::source_identity::DependencyScope::Build
+                                == source_provenance::DependencyScope::Build
                     })
                     .map(|file| file.source_id)
                     .ok_or_else(|| {

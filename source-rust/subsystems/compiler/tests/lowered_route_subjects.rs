@@ -248,7 +248,7 @@ fn route_verdict(
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &frontier.selected,
             calling: frontier
                 .normalization
@@ -621,7 +621,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[Some(another)],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &frontier.selected,
             calling: frontier
                 .normalization
@@ -664,7 +664,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[Some(another)],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[selected],
                 calling: frontier
                     .normalization
@@ -692,7 +692,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                     .is_some_and(|file| {
                         file.origin == source_admission::SourceOrigin::User
                             && file.dependency_scope
-                                == declaration_contracts::source_identity::DependencyScope::Product
+                                == source_provenance::DependencyScope::Product
                     })
         })
         .expect("the fixture declares `pick` beside its entry");
@@ -716,7 +716,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                 && definition.name.as_str() == "ProcessExit"
                 && typed.symbols.symbol_is_in_dependency_scope(
                     definition.symbol,
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 )
         })
         .expect("the Product library declares `ProcessExit`");
@@ -734,7 +734,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[Some(another)],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[exit.symbol, exit_process],
             bindings: &frontier.bindings,
             supplies: &[],
@@ -931,7 +931,7 @@ fn judged_frontier(name: &str, frontier: &compiler::TypedFrontier) -> Vec<Verdic
                 declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &frontier.selected,
                 calling: frontier
                     .normalization

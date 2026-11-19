@@ -356,7 +356,7 @@ pub fn published_slot_schemas(
             let projected = source_compiler::source_state::service_declarations::projection::from_typed_application(
                 source_compiler::source_state::provider_declarations::ProviderPlanningContext::new(
                     typed,
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 ),
                 scope,
             )

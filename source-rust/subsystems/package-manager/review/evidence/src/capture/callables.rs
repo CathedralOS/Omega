@@ -87,7 +87,7 @@ impl PolicySource<'_> {
             &exact_sources,
             &service_origins(
                 accepted,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             )?,
         )?;
         validate_body_effect_inventory(accepted.module())?;
@@ -542,7 +542,7 @@ impl PolicySource<'_> {
 /// there is no boundary method whose correspondence could name their owner.
 pub(super) fn service_origins(
     accepted: &source_compiler::AcceptedTerminalSource,
-    purpose: declaration_contracts::source_identity::DependencyScope,
+    purpose: source_provenance::DependencyScope,
 ) -> Result<Vec<(ServiceId, symbols::SymbolHandle)>, Vec<Diagnostic>> {
     use source_compiler::source_state::trait_definition::{
         AppliedTraitScope, TraitApplicationArguments,

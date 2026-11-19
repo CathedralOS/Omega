@@ -14,7 +14,7 @@
 //! bindings are still decided by admission.
 
 use super::frontier::RegisteredPackageRoot;
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
 use source_admission::LoadedSource;
 use source_capture::SourceFileSystem;

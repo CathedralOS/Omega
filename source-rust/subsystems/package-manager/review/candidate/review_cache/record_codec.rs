@@ -764,8 +764,8 @@ fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
         ConsumedSourceUnitKind::PackageGenerated(scope) => {
             out.push(1);
             out.push(match scope {
-                declaration_contracts::source_identity::DependencyScope::Product => 0,
-                declaration_contracts::source_identity::DependencyScope::Build => 1,
+                source_provenance::DependencyScope::Product => 0,
+                source_provenance::DependencyScope::Build => 1,
             });
         }
         ConsumedSourceUnitKind::ToolchainVirtual => out.push(2),
@@ -790,8 +790,8 @@ fn recover_consumed_unit(cursor: &mut ObservationCursor<'_>) -> Option<ConsumedS
     let kind = match cursor.u8()? {
         0 => ConsumedSourceUnitKind::PackageAuthored,
         1 => ConsumedSourceUnitKind::PackageGenerated(match cursor.u8()? {
-            0 => declaration_contracts::source_identity::DependencyScope::Product,
-            1 => declaration_contracts::source_identity::DependencyScope::Build,
+            0 => source_provenance::DependencyScope::Product,
+            1 => source_provenance::DependencyScope::Build,
             _ => return None,
         }),
         2 => ConsumedSourceUnitKind::ToolchainVirtual,
@@ -1055,7 +1055,7 @@ mod tests {
             ),
             (
                 ConsumedSourceUnitKind::PackageGenerated(
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 ),
                 Some(package),
                 None,
@@ -1063,7 +1063,7 @@ mod tests {
             ),
             (
                 ConsumedSourceUnitKind::PackageGenerated(
-                    declaration_contracts::source_identity::DependencyScope::Build,
+                    source_provenance::DependencyScope::Build,
                 ),
                 Some(package),
                 None,
