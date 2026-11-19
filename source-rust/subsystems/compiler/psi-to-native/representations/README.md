@@ -1,6 +1,6 @@
 # Native pipeline representations
 
-Six program families define the successive native forms. Stage 06 computes [allocation analyses](../pipeline/06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
+The numbered transformations exchange the six program families described here. The native [body driver](../compile_body.rs) runs the stages for each selected body. Stage 06 computes [allocation analyses](../pipeline/06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
 
 ## Program families and pipeline boundaries
 
@@ -22,7 +22,7 @@ Other packages separate shared records and preparation from program roots:
 - [Operation evidence](operation-evidence/src/lib.rs) identifies where a row came
   from and preserves its charged work, claim sources and ownership frontier.
   The optimizer and later forms can name this evidence without opening a function.
-- [Program entry contracts](program-entry-contracts/program_entry.rs) carry the selected source signature, physical arrival and storage plan from stage 01 through emission and saved-input replay.
+- [Program entry contracts](program-entry-contracts/program_entry.rs) carry the selected source signature, physical arrival and storage plan from stage 01 through emission and requested verification.
 - [Operation operands](operation-operands/src/lib.rs) hold the call targets,
   value bindings, integer operation policies and structural storage operands first produced during abstract lowering.
   Target and machine representations carry the same operands through later stages.
@@ -77,10 +77,10 @@ type; the folder is not one IR:
 
 | Program form | Root and operation |
 | --- | --- |
-| Framed machine program | [`FramedMachineProgram`](machine-code/src/layout.rs): current physical instructions and function contracts with concrete frame coordinates and protocol. [Backend machine emission](../../backend/machine-emission/src/function_realization.rs) computes it from one current physical program; stage 11 reads it. |
+| Framed machine program | [`FramedMachineProgram`](machine-code/src/layout.rs): current physical instructions and function contracts with concrete frame coordinates and protocol. [Frame planning](../pipeline/09_post-allocation-machine-to-framed-machine/src/lib.rs) selects the frame and [installation binding](../pipeline/10_framed-machine-to-bound-framed-machine/) binds the installed functions before encoding. |
 | Layout-independent selected-form encoding | [`EncodedMachineProgram`](machine-code/src/layout.rs), produced by [stage 11](../pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs), adds actual encoded rows while retaining the current instruction and frame columns. |
 | Function-relative resolved layout | [`ResolvedMachineProgram`](machine-code/src/layout.rs), produced by [stage 12](../pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs), adds exact layout rows. [stage 13](../pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs) rewrites that layout in the same current form. Final assembly reads the resolved form and checked publication receipts; original stage artifacts remain only in named independent replay custody. |
-| Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Backend machine emission](../../backend/machine-emission/src/lib.rs) owns function realization, fragment emission, frame application, and text placement; object and image owners consume their results. Fragment emission reads the resolved form plus [`EmissionFacts`](../../backend/machine-emission/src/emission_facts.rs), which the [native driver](../../native-compiler/src/pipeline.rs) copies out of stage 04's output: the admitted lowering facts and the optimized abstract program with its projection identities. Callable reach and the pre-physical root come from the current form's execution contracts. |
+| Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Stage 14](../pipeline/14_resolved-layout-to-placed-functions/src/function_realization.rs) produces the placed functions. [Stage 15](../pipeline/15_placed-functions-to-objects/) constructs their objects, which stage 16 consumes for image emission. The [body driver](../compile_body.rs) carries stage 04’s [emission facts](../pipeline/04_abstract-operations-to-target-operations/src/emission_facts.rs) with the lowered program. Callable reach and the pre-physical root come from the current form's execution contracts. |
 
 [`ResolvedMachineProgram`](machine-code/src/layout.rs)
 holds current physical instruction/contract, encoding, layout and frame
@@ -97,18 +97,7 @@ program with its callback placement. Admission, native program forms and object
 verification carry that same identity. The [object stage](../pipeline/15_placed-functions-to-objects/src/names.rs)
 gives a private callback its linker symbol when building an object.
 
-Target descriptions, calling conventions and physical register models live under
-[`targets/`](../targets/); provider-plan
-evidence lives in [`backend/plans/effects/`](../../backend/plans/effects/src/lib.rs),
-and artifact boundary coverage in
-[`backend/artifacts/boundary-applications/`](../../backend/artifacts/boundary-applications/src/lib.rs).
-Installation evidence and task activation plans have separate packages under
-`backend/runtime/`. Opaque representation-selection records live beside
-[representation planning](../../../../psi/compilation/validation/representation-planning/README.md) in its
-independent [`selections/` package](../../../../psi/compilation/validation/representation-planning/selections/src/lib.rs).
-Callers use these library packages directly. Keeping them out of
-`representations/` does not route callers through a coordinator, and it gives
-their raw records no authority.
+[Targets](../targets/) holds calling conventions and physical register models. Build retains the [provider plans](../../build/providers/plans/) and the native stages carry [boundary application evidence](operation-evidence/boundary-applications/boundary_applications.rs). [Installation admission](../verification/installation-admission/) checks handler and environment evidence. [Psi layout](../../psi/layout/README.md) owns portable layout records and their interpretation.
 
 ## Shared facts and real lowering boundaries
 
@@ -128,7 +117,7 @@ operands. Neither representation embeds a chain of transformation objects.
 Replay evidence is not another executable program.
 
 Unchanged structural declarations live in one shared
-[type catalog](abstract-operations/src/structural_type_catalog.rs).
+[type catalog](structural-storage/src/structural_type_catalog.rs).
 Function records and later native representations point to that catalog
 instead of copying its declarations. Editing a revision uses explicit
 copy-on-write; replay and encoded identity compare contents, never
@@ -136,9 +125,9 @@ allocation identity.
 
 Keep addressing compositional: operations take places and value sources,
 not one opcode for every source/destination pair.
-[Target structural values](target-operations/src/values.rs)
+[Target structural values](target-operations/target-vocabulary/src/values.rs)
 keep place identity, complete projection paths, access, qualifications,
-shapes and placements. [Scalar homes](target-operations/src/storage.rs)
+shapes and placements. [Scalar homes](target-operations/target-vocabulary/src/storage.rs)
 keep their scalar types and source identities. Resolve these facts from the
 checked representation and carry them; native consumers must not
 guess them from source spelling, pointer shape or a storage slot.
@@ -157,7 +146,7 @@ bytes and relocations from what was actually emitted, not a separate
 instruction-width table. The
 [text-section representation](machine-code/src/layout/text_section.rs)
 keeps the actual bytes, function/block/instruction spans and resolved
-internal-call targets. The [object handoff](../../backend/images/image-emission/src/function_fragments.rs)
+internal-call targets. The [object handoff](../pipeline/16_objects-to-image/image-emission/src/function_fragments.rs)
 passes admitted fragments to the image publisher and checks that result
 itself. Its relocation-free support does not imply resolving arbitrary
 external symbols or publishing components separately.

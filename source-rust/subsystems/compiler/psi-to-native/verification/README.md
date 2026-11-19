@@ -44,5 +44,4 @@ install a handler. Their callers need the checked records during compilation.
   The interpreter receives the checked component roster and host provisions.
 
 [Machine-code checks](../representations/machine-code/) compare a
-frame, instruction encoding or layout with its contract. [Object replay](../replay/)
-checks an emitted object against the original stage inputs kept for a validator request.
+frame, instruction encoding or layout with its contract. [Stage validators](stage_validators.rs) call [published-object verification](published-objects/) with the emitted object and the originals retained for that request. The normal emission path hands off the finished image directly.

@@ -1,6 +1,6 @@
 # Psi and Omega representation pipeline
 
-**Psi takes source files and publishes a portable Psi program. Omega takes that program for one target and produces a binary.** In an ordinary build the driver passes **Published Psi** directly to Omega in memory. Saving a `.psi` file is optional. Each numbered directory names the representation it consumes and the one it produces. Reuse the existing Rust crates. The Windows native pipeline now runs from stage 01 through stage 18. A stage that refuses a program reports a diagnostic and that route ends.
+**Psi takes source files and publishes a portable Psi program. Omega takes that program for one target and produces a binary.** In an ordinary build the driver passes **Published Psi** directly to Omega in memory. Saving a `.psi` file is optional. Each numbered directory names the representation it consumes and the one it produces. Reuse the existing Rust crates. The Windows sequence recorded during this migration used stages 01 through 18. The active Rust compiler uses source stages 00–07 and native stages 00–16. [Current source map](source-rust/subsystems/compiler/source-to-psi/README.md) · [Current native map](source-rust/subsystems/compiler/psi-to-native/README.md) A stage that refuses a program reports a diagnostic and that route ends.
 
 ## The rule for every compiler change
 

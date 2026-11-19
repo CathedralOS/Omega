@@ -353,6 +353,14 @@ refuses a second build or test run while one is active.
 - The [source compiler](source-rust/subsystems/compiler/source-to-psi/) owns target-neutral language semantics from source tokens through checked Psi publication. [Psi](source-rust/subsystems/compiler/psi/) owns the portable program and its encoding. [The interpreter](source-rust/subsystems/interpreter/) executes an admitted program with its supplied services. Keep target ABIs and machine encodings in the native compiler.
 - The [native compiler](source-rust/subsystems/compiler/psi-to-native/) consumes published Psi and owns target lowering, ABI calling plans, objects and images. [Build](source-rust/subsystems/compiler/build/) runs authored planning stages and requests compiler products. [The package manager](source-rust/subsystems/package-manager/) acquires and reviews the package graph. The [CLI](source-rust/application/) dispatches those operations.
 
+In each Rust compiler half, `pipeline/` contains the numbered transformations
+and `representations/` contains the forms they exchange. Follow source and
+native stage ordering from the driver files at each subsystem root. Compile-time
+constant and call evaluation belongs to the source compiler. Native code for the
+root entry, private callables and component exports goes through the shared body
+driver. Requested object verification consumes evidence from that emission.
+[Source map](source-rust/subsystems/compiler/source-to-psi/README.md) · [Native map](source-rust/subsystems/compiler/psi-to-native/README.md)
+
 ## Conventions and workflow
 
 - **Product and subsystem ownership:** Ship one `omega` binary with

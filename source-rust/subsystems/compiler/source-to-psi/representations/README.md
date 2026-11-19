@@ -1,6 +1,6 @@
 # Source pipeline representations
 
-Tokens, syntax trees, resolved trees, typed trees, and the lowered program are the forms passed between source stages. The checked result keeps the exact lowered program and its evidence. Stage 07 publishes the [Psi artifact](../../../representations/psi).
+Tokens, syntax trees, resolved trees, typed trees, and the lowered program are the forms passed between source stages. The checked result keeps the exact lowered program and its evidence. Stage 07 publishes the [Psi artifact](../../psi/).
 
 ## Program forms along the pipeline
 
@@ -13,18 +13,13 @@ shows which records its operations produce and what the next operation reads.
 | [Syntax trees](syntax-trees/syntax_trees.rs) | [Parser](../pipeline/01_tokens-to-syntax-trees/parser.rs) | [Name resolution](../pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.rs) |
 | [Resolved source](symbol-resolved-trees/lib.rs) and its [symbol table](symbol-resolved-trees/symbol-table/symbol_table.rs) | Name resolution | [Typing](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) |
 | [Typed source](typed-trees/src/lib.rs) | Typing | [Source preparation](../pipeline/04_typed-trees-to-typed-trees/README.md) and [structural lowering](../pipeline/05_typed-trees-to-lowered-program/src/lib.rs) |
-| [Terminal Psi](../../language/terminal-psi/src/lib.rs) | Structural lowering and the [lowered-form checker](../pipeline/06_lowered-program-to-checked-program/src/verdict.rs) | The [accepted-source factory](../pipeline/07_checked-program-to-psi/src/accepted.rs) passes its judgment to [stage 02 publication](../../../../omega/compilation/products/source-publication/src/lib.rs). |
+| [Terminal Psi](../../psi/src/lib.rs) | Structural lowering and the [lowered-form checker](../pipeline/06_lowered-program-to-checked-program/src/verdict.rs) | The [accepted-source factory](../pipeline/07_checked-program-to-psi/src/accepted.rs) passes its judgment to [stage 07 publication](../pipeline/07_checked-program-to-psi/src/source_publication.rs). |
 
 The [Terminal interpreter](../../../interpreter/README.md) runs the published
-program. Operational, invocation, capability and reach summaries live in
-[source effects](../../language/source-effects/src/lib.rs). [Optimization policy](../../../representations/psi/optimization-selections/src/lib.rs)
+program. The published program includes its operation, invocation, capability and reach summaries. [Optimization policy](../../psi/optimization-selections/src/lib.rs)
 defines pass selections and their identities.
 
-Terminal Psi also has separate companion packages: `codec/` for canonical
-artifacts, `semantics/` for operation judgments, `work/` for logical costs and
-bounds, and [`check-tables/`](../../language/terminal-psi/check-tables/README.md) for the
-lowered-form checker's tables. None is another IR stage. Their manifests keep
-the dependency boundary between the representation and the checker.
+The shared Psi representation has companion packages for [canonical encoding](../../psi/codec/), [operation semantics](../../psi/semantics/) and [logical work bounds](../../psi/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
 
 ## Records and facts
 
@@ -44,7 +39,7 @@ predicate, role, route, alias, classification and semantic-identity records.
 The [typed machine](typed-trees/src/calls_and_control_flow.rs) carries
 normalized supply, termination plan, service row and separate operational
 clauses. Shared vocabulary belongs in
-[semantic vocabulary](../../language/semantic-vocabulary/src/lib.rs). Having these records does not mean every later proof,
+[semantic vocabulary](../../foundation/semantic-records/src/lib.rs). Having these records does not mean every later proof,
 normalization or use is implemented.
 
 Flow-proven membership and a binding's qualification are different inputs.

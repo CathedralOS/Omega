@@ -555,8 +555,9 @@ subsystem routing, optional source rewriting and independent validator selection
 
 ## Compiler Pipeline
 
-Omega source compiles to **Psi**, a portable intermediate binary that can be
-lowered to **native code** or **run by an interpreter** for scripting.
+Omega checks source and publishes **Psi** in memory. The same compilation can
+pass that program directly to the native compiler or prepare it for the Psi
+interpreter. Use `--emit-psi` to save a portable `.psi` file for a later invocation.
 
 ```mermaid
 flowchart LR
