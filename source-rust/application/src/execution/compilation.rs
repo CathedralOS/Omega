@@ -1,47 +1,120 @@
-/*
-
-Build and Terminal Psi execution glue for `omega run`.
-
-We request a single-target `ProjectProduct::Native` build through
-`orchestration::build` (either `NativeDestination::Retained` for native /
-`--both` runs, or `NativeDestination::RuntimeAdmission` for `--engine psi`
-runs) and replay any supplied `reference_inputs` against the produced
-`CompileReport` before publication consumes the retained native payload.
-Consuming the exact `CompileReport` rather than re-checking source or
-interpreting Checked Psi ensures that Build-generated inputs, package bindings,
-and settled runtime provisions are identical between Terminal Psi and native
-execution.
-
-In `interpret_product`, a retained native build exposes its Terminal Psi
-artifact via `report.retained_native_program()`, whereas a `RuntimeAdmission`
-build exposes it directly via `report.artifact()`. We run that artifact with
-`TerminalNativeServiceDelegation::MatchingHost` (since `omega run` executes on
-the host) and `TerminalDomainExitDelegation::IsolatedContainingDomain` (so a
-guest exit or crash inside the interpreter does not terminate the `omega` CLI
-process itself).
-
-*/
-
+//! Prepare a saved or source program for the selected execution engine, then run
+//! the same target-bound Psi artifact with its published provisions.
+use crate::saved_program::{ExecutionProduct, SavedProgramError};
 use compiler::CompileReport;
 use diagnostics::Diagnostic;
 use orchestration::{BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use package_compilation::build_execution::BuildSnapshotRequest;
-use std::path::PathBuf;
+use product_publication::{
+    CompletedProduct, RetainedNativeArtifact, RetainedNativeProgramIdentity,
+    TerminalRuntimeProvisions,
+};
+use std::path::{Path, PathBuf};
 use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
     TerminalRuntimeRequest,
 };
 
+pub(super) enum RunProduct {
+    Saved {
+        root: PathBuf,
+        product: CompletedProduct,
+    },
+    Project(CompileReport),
+}
+
+pub(super) struct RunArtifact<'product> {
+    pub artifact: &'product terminal_codec::CanonicalTerminalArtifact,
+    pub native_identity: Option<RetainedNativeProgramIdentity>,
+    pub image: Option<&'product RetainedNativeArtifact>,
+}
+
+impl RunProduct {
+    pub(super) fn artifact(&self) -> Option<RunArtifact<'_>> {
+        let (native, portable, image) = match self {
+            Self::Project(report) => (
+                report.retained_native_program(),
+                report.artifact(),
+                report.retained_native_artifact(),
+            ),
+            Self::Saved { product, .. } => (
+                product.retained_native_program(),
+                product.artifact(),
+                product.retained_native_artifact(),
+            ),
+        };
+        Some(RunArtifact {
+            artifact: native.as_ref().map(|p| p.psi_artifact()).or(portable)?,
+            native_identity: native.map(|p| p.identity()),
+            image,
+        })
+    }
+
+    fn runtime(&self) -> Option<&TerminalRuntimeProvisions> {
+        match self {
+            Self::Saved { product, .. } => product.runtime_provisions(),
+            Self::Project(report) => report.published_runtime_provisions(),
+        }
+    }
+
+    pub(super) fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe] {
+        self.runtime()
+            .map(|provisions| provisions.execution().private_entry_ram())
+            .unwrap_or_default()
+    }
+
+    pub(super) fn test_roster(&self) -> &[products::TestRosterEntry] {
+        match self {
+            Self::Saved { .. } => &[],
+            Self::Project(report) => report.test_roster(),
+        }
+    }
+
+    pub(super) fn publish(self, directory: &Path) -> Result<(Self, PathBuf), String> {
+        match self {
+            Self::Saved { root, product } => {
+                let published = product.publish(&root, directory)?;
+                let path = published
+                    .checked_native_executable_path()
+                    .ok_or("native publication did not retain executable custody")?
+                    .to_owned();
+                Ok((
+                    Self::Saved {
+                        root,
+                        product: published,
+                    },
+                    path,
+                ))
+            }
+            Self::Project(report) => {
+                let (published, path) =
+                    orchestration::publication::publish_native_artifact(report, directory)?;
+                Ok((Self::Project(published), path))
+            }
+        }
+    }
+
+    pub(super) fn validate_component_process_inputs(
+        &self,
+        executable: &Path,
+    ) -> Result<(), String> {
+        match self {
+            Self::Saved { product, .. } => product.validate_component_process_inputs(executable),
+            Self::Project(report) => report.validate_component_process_inputs(executable),
+        }
+    }
+}
+
 pub(super) struct ProjectInput {
     pub root_path: PathBuf,
     pub build_directory: PathBuf,
     pub target_name: Option<String>,
-    pub private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
+    pub private_entry_ram: Vec<psi_entry_memory::PrivateEntryRamInitialization>,
     pub build_snapshot: Option<BuildSnapshotRequest>,
 }
 
 pub(super) struct ProbeCompilation {
-    pub report: CompileReport,
+    pub report: RunProduct,
     pub target_name: &'static str,
     pub interpretations: Vec<Result<TerminalRuntimeObservation, TerminalRuntimeError>>, // One reference run per supplied input, in input order.
 }
@@ -49,7 +122,7 @@ pub(super) struct ProbeCompilation {
 pub(super) fn compile(
     artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
     input: ProjectInput,
-    destination: NativeDestination,
+    requested: ExecutionProduct,
     reference_inputs: Vec<std::fs::File>,
     psi_work_budget: u64,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
@@ -69,17 +142,25 @@ pub(super) fn compile(
         let profile = target::TargetProfile::from_omega_target_name(target_name.as_deref())
             .map_err(|error| vec![error])?;
         let host = crate::saved_program::configured_host_packages()?;
-        let installation = crate::saved_program::installation(&artifact, profile, host.as_ref())?;
-        let report = orchestration::prepare_saved_program(
+        let product = crate::saved_program::prepare(
             artifact,
-            &root_path,
             profile,
-            installation,
-            destination,
+            host.as_ref(),
+            &Default::default(),
             &private_entry_ram,
+            requested,
         )
-        .map_err(BuildError::into_diagnostics)?;
-        (report, profile.target_name())
+        .map_err(|error| match error {
+            SavedProgramError::Diagnostics(diagnostics) => diagnostics,
+            other => vec![Diagnostic::error(other.to_string())],
+        })?;
+        (
+            RunProduct::Saved {
+                root: root_path,
+                product,
+            },
+            profile.target_name(),
+        )
     } else {
         if root_path
             .extension()
@@ -103,7 +184,10 @@ pub(super) fn compile(
             targets,
             product: ProjectProduct::Native {
                 installation_assumptions: Vec::new(),
-                destination,
+                destination: match requested {
+                    ExecutionProduct::Native => NativeDestination::Retained,
+                    ExecutionProduct::Runtime => NativeDestination::RuntimeAdmission,
+                },
                 private_entry_ram,
             },
             timings: false,
@@ -125,7 +209,7 @@ pub(super) fn compile(
             .into_report()
             .map_err(BuildError::into_diagnostics)?
             .report;
-        (report, target_name)
+        (RunProduct::Project(report), target_name)
     };
     let interpretations = reference_inputs
         .into_iter()
@@ -141,18 +225,17 @@ pub(super) fn compile(
 }
 
 pub(super) fn interpret_product(
-    report: &CompileReport,
+    report: &RunProduct,
     input: Option<Box<dyn std::io::Read + Send>>,
     target: &str,
     psi_work_budget: u64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    let artifact = report
-        .retained_native_program()
-        .map(|program| program.psi_artifact())
-        .or_else(|| report.artifact())
+    let program = report
+        .artifact()
         .ok_or(TerminalRuntimeError::InvalidProvision(
-            "report lost its produced Terminal artifact before execution",
+            "run lost its produced Terminal artifact before execution",
         ))?;
+    let runtime = report.runtime();
     project_build::published_terminal::execute_published_terminal(
         TerminalRuntimeRequest {
             entry: None,
@@ -165,8 +248,7 @@ pub(super) fn interpret_product(
                         reason: error.to_string(),
                     }
                 })?),
-                report
-                    .published_runtime_provisions()
+                runtime
                     .into_iter()
                     .flat_map(|runtime| runtime.published_native_adapters()),
             )),
@@ -174,14 +256,14 @@ pub(super) fn interpret_product(
             memory_ordering:
                 terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(target),
             provider_proposal: None,
-            artifact,
+            artifact: program.artifact,
             target: Some(target),
-            provisions: report.runtime_provisions(),
+            provisions: runtime.map(|provisions| provisions.execution()),
             work_budget: psi_work_budget,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: input,
             clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
         },
-        report.retained_native_artifact(),
+        program.image,
     )
 }

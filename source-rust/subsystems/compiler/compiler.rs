@@ -14,7 +14,14 @@ pub use native_compiler::{SavedProgramTarget as NativeTarget, TargetProviderInst
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource};
 
-pub enum CompileRequest<'a> {    Psi(StageSource<'a>),
+pub enum CompileRequest<'a> {
+    Psi(StageSource<'a>),
+    /// Admit the chosen entry and providers for execution on the Psi interpreter.
+    Runtime {
+        program: Program<'a>,
+        target: NativeTarget<'a>,
+        entry_memory: &'a [psi_entry_memory::PrivateEntryRamInitialization],
+    },
     Native {
         program: Program<'a>,
         target: NativeTarget<'a>,
@@ -30,12 +37,28 @@ pub enum Program<'a> {
 
 pub enum Artifact {
     Psi(PublishedPsi),
+    Runtime(product_publication::CompletedProduct),
     Native(product_publication::CompletedProduct),
 }
 
 pub fn compile(request: CompileRequest<'_>) -> Result<Artifact, Vec<Diagnostic>> {
     match request {
         CompileRequest::Psi(source) => source_to_psi::compile(source).map(Artifact::Psi),
+        CompileRequest::Runtime {
+            program,
+            target,
+            entry_memory,
+        } => {
+            let admitted = native_compiler::admit_published_runtime(
+                program.into_authorized_psi()?,
+                target,
+                entry_memory,
+                &mut Vec::new(),
+            )?;
+            Ok(Artifact::Runtime(
+                product_publication::CompletedProduct::from_runtime(admitted, None),
+            ))
+        }
         CompileRequest::Native {
             program,
             target,

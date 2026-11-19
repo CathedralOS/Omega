@@ -83,7 +83,7 @@ pub(crate) fn run(arguments: InspectTerminalArguments, diagnostics: DiagnosticOu
 }
 
 fn read_artifact_or_exit(path: &Path) -> Vec<u8> {
-    crate::inspection::read_artifact(path).unwrap_or_else(|error| {
+    crate::saved_program::input::read_artifact(path).unwrap_or_else(|error| {
         eprintln!("cannot read Psi artifact: {error}");
         std::process::exit(1);
     })
