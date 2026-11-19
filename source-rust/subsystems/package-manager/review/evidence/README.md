@@ -32,7 +32,7 @@ The ratified package workflow reviews compiler-derived reachability, unsafe API
 and assumption facts. The lock records pins, the dependency graph,
 accepted baselines and decisions; the project trusts whoever lands it. Compiler
 proof and reach checks and native artifact checks keep separate jobs.
-The [review specification](../../../../wiki/spec/packages/review.md) defines
+The [review specification](../../../../../wiki/spec/packages/review.md) defines
 those distinctions; [capture joins](capture.md) maps the compiler inputs and the
 source each one explains.
 
@@ -47,7 +47,7 @@ stored bytes.
 The representation record marks package-owned opaque data as `Unbound`, and
 separately records which opaque, conformance and carrier forms each public
 producer candidate makes available. Availability chooses nothing for a consumer
-and may coexist with `Unbound`. [Opaque consumer demand](../../../../wiki/spec/build/opaque_representations.md)
+and may coexist with `Unbound`. [Opaque consumer demand](../../../../../wiki/spec/build/opaque_representations.md)
 belongs to the consumer that selects it and exists only where a value actually
 crosses a boundary by value at run time. A demand keeps the exact boundary
 requirement application, the complete checked shape graph, every opaque carrier
@@ -224,7 +224,7 @@ with no nested envelopes or budget resets. Recovery checks that components
 agree on package and target, declaration scopes, canonical ordering and kept
 cross-component associations, then exact re-encoding, without an old checkout.
 This is not a lock or a policy decision: the manager's
-[lock format](../package-manager/src/lock/README.md) joins it to source pins,
+[lock format](../../lockfile/README.md) joins it to source pins,
 the graph and past decisions. Source locations, proof certificates,
 stand-down and discharge records, and replay receipts are left out.
 

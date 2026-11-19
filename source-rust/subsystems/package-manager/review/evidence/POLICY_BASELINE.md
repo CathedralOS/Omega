@@ -6,9 +6,9 @@ whoever lands accepted policy; these records neither certify acceptance nor
 prove an audit.
 
 The [evidence entrance](README.md) describes capture and encoding.
-The [lock owner](../package-manager/src/lock/README.md) joins sources to targets,
+The [lock owner](../../lockfile/README.md) joins sources to targets,
 frames historical decisions and sets overall recovery limits. The
-[lock specification](../../../../wiki/spec/packages/locks.md) defines what users see.
+[lock specification](../../../../../wiki/spec/packages/locks.md) defines what users see.
 
 ## Compiler projection and component recovery
 

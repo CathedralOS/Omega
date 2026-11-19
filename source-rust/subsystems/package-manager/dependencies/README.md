@@ -1,7 +1,7 @@
 # Package resolution
 
 [mod.rs](mod.rs) resolves sources and assembles the complete graph.
-[Source selection](../../../../../../wiki/spec/packages/sources.md) owns the
+[Source selection](../../../../wiki/spec/packages/sources.md) owns the
 public contract; acquisition keeps immutable trees and approves no package.
 
 [graph/git_pins.rs](graph/git_pins.rs) keeps two policies apart:
@@ -32,5 +32,5 @@ Locked recovery picks the recorded target policy before acquisition, then
 rebuilds the exact graph. Resume uses proposed pins, not current branch tips.
 Historical-source diagnostics obey the same offline option; missing old bytes
 still allow normalized policy comparison. The
-[command owner](../../README.md#install-and-update) documents CLI support
+[command owner](../README.md#install-and-update) documents CLI support
 and target selection; not every API policy has a command flag.

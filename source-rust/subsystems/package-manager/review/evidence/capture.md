@@ -1,6 +1,6 @@
 # Review capture joins
 
-The [review contract](../../../../wiki/spec/packages/review.md) defines review's
+The [review contract](../../../../../wiki/spec/packages/review.md) defines review's
 meaning. This note maps it to where the compiler keeps that data. Start at [src/capture.rs](src/capture.rs);
 [record](src/record) does not depend on compiler state. Supported forms and
 private size limits live in [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md).
@@ -23,7 +23,7 @@ proof arena.
 
 ## Source roles
 
-[Source capture](src/capture/source) keeps exact symbols and authored spans
+[Source capture](src/capture/declarations.rs) keeps exact symbols and authored spans
 beside semantic rows before canonical sorting. Paths are relative to
 exact package/toolchain owners. Package-less user source, a missing owner
 link or a changed owner never counts as exact toolchain origin.
@@ -52,7 +52,7 @@ reparse source text during projection.
 
 The `external_binding` row describes the accepted Build-owned contract.
 Capture still pairs legacy `via` keywords with declaration bindings;
-`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../../TASKS.md#pipeline-route)
+`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../../../TASKS.md#priority-human-set-only)
 replaces that. An untaken Build call has no evaluated binding record, and
 product selections grant no call authority while Build runs. A schema change
 keeps exact old/new identities rather than passing a legacy declaration
@@ -72,7 +72,7 @@ when equal semantic routes deduplicate.
 
 ## Structural identity
 
-[Semantic capture](src/capture/semantics) links authored nominal types
+[Semantic capture](src/capture/declarations.rs) links authored nominal types
 through exact package ownership or private source identity. Only the
 canonical source commitment enters toolchain review bytes. Generic binders
 get no invented owner. Root builtin-type slots are chosen by compiler
