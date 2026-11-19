@@ -25,7 +25,7 @@ fn saved_program_owners_match_the_producers_canonical_revisions() {
             core_revision::PROCESS_EXIT,
         ),
     ] {
-        let actual = declaration_contracts::source_identity::toolchain_owned_identity_digest(
+        let actual = source_provenance::toolchain_owned_identity_digest(
             "core",
             vec![name.to_owned()],
             bytes(file),

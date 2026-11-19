@@ -11,7 +11,7 @@ evaluation-receipts = { path = "../../../compiler/build/evaluation/receipts" }
 declaration-contracts = { path = "../../../compiler/source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../compiler/psi/application-identity" }
 numeric-literals = { path = "../../../compiler/foundation/numeric-literals" }
-source-admission = { path = "../../../compiler/source-to-psi/inputs/source-admission" }
+source-admission = { path = "../../../compiler/source-to-psi/pipeline/representations/source-files/custody" }
 source-text = { path = "../../../../foundation/source-text" }
 wire = { path = "../../../../foundation/wire" }
 arena = { path = "../../../../foundation/arena" }

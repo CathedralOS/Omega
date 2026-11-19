@@ -1,7 +1,7 @@
-use declaration_contracts::source_identity::DependencyScope;
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
+use source_provenance::DependencyScope;
 use source_text::SourceId;
 
 const SOURCE: &str = "public machine fixture() {}\n";
@@ -26,7 +26,7 @@ fn source_commitments_preserve_the_published_framing() {
         ],
     );
     assert_eq!(
-        declaration_contracts::source_identity::toolchain_owned_identity_digest(
+        source_provenance::toolchain_owned_identity_digest(
             "core",
             vec!["identity".into(), "fixture.omg".into()],
             SOURCE.as_bytes(),
@@ -35,7 +35,7 @@ fn source_commitments_preserve_the_published_framing() {
         source_admission::source_identity::toolchain_source_identity_digest(&file).unwrap(),
     );
     assert_eq!(
-        declaration_contracts::entry_contract_identity::digest(
+        source_provenance::entry_contract_digest(
             "pkg::entry",
             "entry.omg",
             SOURCE.as_bytes()

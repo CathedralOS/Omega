@@ -1,6 +1,6 @@
 //! Exact source occurrence identity used by an entry contract's published row.
 //! Computing this digest grants no package authority or declaration acceptance.
-pub fn digest(manifest: &str, relative_source: &str, source: &[u8]) -> [u8; 32] {
+pub fn entry_contract_digest(manifest: &str, relative_source: &str, source: &[u8]) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let mut digest = Sha256::new();
     for bytes in [

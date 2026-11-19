@@ -10,7 +10,7 @@ declaration-contracts = { path = "../../source-to-psi/language/declaration-contr
 optimization-requests = { path = "../optimization-policy/requests" }
 evaluation-contracts = { path = "../evaluation/usage" }
 source-capture = { path = "../../../host-support/source-capture" }
-source-admission = { path = "../../source-to-psi/inputs/source-admission" }
+source-admission = { path = "../../source-to-psi/pipeline/representations/source-files/custody" }
 source-text = { path = "../../../../foundation/source-text" }
 evaluation-receipts = { path = "../evaluation/receipts" }
 wire = { path = "../../../../foundation/wire" }

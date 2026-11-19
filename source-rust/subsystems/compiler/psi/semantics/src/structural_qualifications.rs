@@ -2282,8 +2282,7 @@ fn read_machine_caller_declaration(
         ));
     };
     let declared = &described.machine[0];
-    let revision =
-        declaration_contracts::source_identity::toolchain_source_revision_digest(&description.1[2]);
+    let revision = source_provenance::toolchain_source_revision_digest(&description.1[2]);
     let same_owner = match (actual.0, declared.0) {
         (OwnerForm::Package, OwnerForm::Package) => actual.1 == declared.1,
         (OwnerForm::ToolchainSource, OwnerForm::Toolchain) => actual.1 == Some(revision),
@@ -2318,8 +2317,7 @@ fn machine_caller_application_matches(
         machine: Some(current.id),
         detail,
     };
-    let revision =
-        declaration_contracts::source_identity::toolchain_source_revision_digest(&description.1[2]);
+    let revision = source_provenance::toolchain_source_revision_digest(&description.1[2]);
     let declaration = current
         .declaration
         .as_ref()

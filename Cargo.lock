@@ -318,6 +318,7 @@ name = "bundled-declarations"
 version = "0.1.0"
 dependencies = [
  "language-core",
+ "source-provenance",
 ]
 
 [[package]]
@@ -666,8 +667,7 @@ dependencies = [
  "numerics",
  "record-storage",
  "semantic-vocabulary",
- "sha2",
- "source-files",
+ "source-provenance",
  "source-text",
  "symbols",
  "wire",
@@ -2701,6 +2701,7 @@ dependencies = [
  "language-core",
  "numerics",
  "record-storage",
+ "source-provenance",
  "wire",
 ]
 
@@ -2817,11 +2818,9 @@ dependencies = [
 name = "source-admission"
 version = "0.1.0"
 dependencies = [
- "arena",
- "declaration-contracts",
  "record-storage",
- "semantic-vocabulary",
  "source-files",
+ "source-provenance",
  "source-text",
  "symbols",
 ]
@@ -2877,6 +2876,7 @@ dependencies = [
  "source-files",
  "source-lexer",
  "source-parser",
+ "source-provenance",
  "source-syntax",
  "source-text",
  "symbol-resolved-trees",
@@ -2925,6 +2925,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "record-storage",
+ "source-provenance",
  "source-text",
 ]
 
@@ -2969,6 +2970,14 @@ dependencies = [
  "source-text",
  "syntax-trees",
  "tokens",
+]
+
+[[package]]
+name = "source-provenance"
+version = "0.1.0"
+dependencies = [
+ "record-storage",
+ "sha2",
 ]
 
 [[package]]
@@ -3355,6 +3364,7 @@ dependencies = [
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
+ "source-provenance",
  "source-text",
  "symbols",
  "wire",
@@ -3477,6 +3487,7 @@ dependencies = [
  "resource-bounds",
  "schema-reflection",
  "semantic-vocabulary",
+ "source-provenance",
  "source-text",
  "terminal-psi",
  "wire",

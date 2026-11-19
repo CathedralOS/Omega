@@ -29,3 +29,6 @@ flow-effects = { path = "../../source-to-psi/language/source-effects" }
 
 access-admission = { path = "../../source-to-psi/access-admission" }
 layout-plans = { path = "layout" }
+
+[dev-dependencies]
+source-provenance = { path = "../foundation/source-provenance" }

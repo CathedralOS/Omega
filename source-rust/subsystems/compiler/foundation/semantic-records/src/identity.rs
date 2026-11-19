@@ -114,18 +114,7 @@ pub enum BoundaryCompletion {
     External(ExternalCompletionKind),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PackageKeyIdentity([u8; 32]);
-
-impl PackageKeyIdentity {
-    pub fn from_digest(digest: [u8; 32]) -> Option<Self> {
-        (digest != [0; 32]).then_some(Self(digest))
-    }
-
-    pub const fn digest(self) -> [u8; 32] {
-        self.0
-    }
-}
+pub use source_provenance::PackageKeyIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub struct WorkScheduleIdentity(NonZeroU32);
@@ -419,21 +408,6 @@ semantic_id!(
     ProfileDecisionId,
     "Stable identity of an installation profile's acceptance decision."
 );
-
-impl record_storage::Record for PackageKeyIdentity {
-    fn write(
-        &self,
-        output: &mut record_storage::RecordWriter,
-    ) -> Result<(), record_storage::RecordError> {
-        record_storage::Record::write(&self.digest(), output)
-    }
-    fn read<Context>(
-        input: &mut record_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, record_storage::RecordError> {
-        Self::from_digest(record_storage::Record::read(input)?)
-            .ok_or_else(|| input.error("package identity has the reserved zero digest"))
-    }
-}
 
 #[cfg(test)]
 mod tests {

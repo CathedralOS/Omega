@@ -1,8 +1,48 @@
 //! Source provenance and its canonical identity encoding, without source custody.
 //! These records contain content digests and coordinates, never file contents,
 //! filesystem authority, declaration lookup or a source compiler continuation.
+#![forbid(unsafe_code)]
+
+mod entry_contract;
+pub use entry_contract::entry_contract_digest;
 use sha2::{Digest, Sha256};
-pub use source_files::DependencyScope;
+
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
+)]
+pub enum DependencyScope {
+    #[default]
+    Product,
+    Build,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PackageKeyIdentity([u8; 32]);
+
+impl PackageKeyIdentity {
+    pub fn from_digest(digest: [u8; 32]) -> Option<Self> {
+        (digest != [0; 32]).then_some(Self(digest))
+    }
+
+    pub const fn digest(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl record_storage::Record for PackageKeyIdentity {
+    fn write(
+        &self,
+        output: &mut record_storage::RecordWriter,
+    ) -> Result<(), record_storage::RecordError> {
+        record_storage::Record::write(&self.digest(), output)
+    }
+    fn read<Context>(
+        input: &mut record_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, record_storage::RecordError> {
+        Self::from_digest(record_storage::Record::read(input)?)
+            .ok_or_else(|| input.error("package identity has the reserved zero digest"))
+    }
+}
 
 const SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CONSUMED-SOURCE-CONTENT-V1\0";
 
@@ -18,7 +58,7 @@ pub enum ConsumedSourceUnitKind {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ConsumedSourceUnit {
     kind: ConsumedSourceUnitKind,
-    package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    package: Option<PackageKeyIdentity>,
     toolchain_namespace: Option<String>,
     relative_path: Vec<String>,
     byte_count: u64,
@@ -29,7 +69,7 @@ impl ConsumedSourceUnit {
     #[doc(hidden)]
     pub fn from_retained(
         kind: ConsumedSourceUnitKind,
-        package: Option<semantic_vocabulary::PackageKeyIdentity>,
+        package: Option<PackageKeyIdentity>,
         toolchain_namespace: Option<String>,
         relative_path: Vec<String>,
         byte_count: u64,
@@ -75,7 +115,7 @@ impl ConsumedSourceUnit {
         self.kind
     }
 
-    pub const fn package(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+    pub const fn package(&self) -> Option<PackageKeyIdentity> {
         self.package
     }
 

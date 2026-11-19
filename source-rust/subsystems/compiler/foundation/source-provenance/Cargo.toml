@@ -1,0 +1,12 @@
+[package]
+name = "source-provenance"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "source_provenance.rs"
+
+[dependencies]
+record-storage = { path = "../../../../foundation/record-storage" }
+sha2 = "0.10"
