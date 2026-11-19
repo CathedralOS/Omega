@@ -15,7 +15,7 @@ use std::sync::{Arc, OnceLock};
 use target::TargetProfile;
 use terminal_codec::CanonicalTerminalArtifact;
 
-fn open_project(path: &Path, target: TargetProfile) -> PlannedProduct {
+fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
     static LIBRARY: OnceLock<()> = OnceLock::new();
     LIBRARY.get_or_init(|| {
         package_compilation::toolchain_library::configure(
@@ -23,7 +23,7 @@ fn open_project(path: &Path, target: TargetProfile) -> PlannedProduct {
         )
         .unwrap()
     });
-    let project = begin_local_project_preparation(path, &[target], true)
+    let project = begin_local_project_preparation(path, targets, true)
         .unwrap()
         .unwrap();
     let acquired = project.acquire_root().unwrap();
@@ -51,11 +51,80 @@ fn open_project(path: &Path, target: TargetProfile) -> PlannedProduct {
 }
 
 #[test]
+fn one_portable_program_carries_the_four_selected_entry_contracts() {
+    let targets = [
+        TargetProfile::LinuxX64,
+        TargetProfile::LinuxArm64,
+        TargetProfile::MacosArm64,
+        TargetProfile::WindowsX64,
+    ];
+    let fixture = fixture_repository::root()
+        .join("tests/fixtures/run/calls/scalar_contract_route_exit/main.omg");
+    let project = open_project(&fixture, &targets);
+    let stage = project.product_stage(&targets).unwrap();
+    let Artifact::Psi(published) = compiler::compile(CompileRequest::Psi(stage.source())).unwrap()
+    else {
+        panic!("expected portable program");
+    };
+    let module = published.semantic_module();
+    let evidence = published.published_evidence().unwrap();
+    assert_eq!(evidence.module, published.manifest().semantic());
+    assert!(!evidence.seals.is_empty());
+    let mut expected = std::collections::BTreeSet::new();
+    for profile in targets {
+        let slot = profile.program_entry_slot();
+        let contract = module
+            .program_entry_contract(profile.target_name())
+            .unwrap();
+        let schema = &module
+            .service_schema(contract.schema_declaration, contract.schema_application)
+            .unwrap()
+            .surface;
+        for requirement in [
+            slot.semantic_arrival_requirement,
+            slot.physical_arrival_requirement.unwrap(),
+        ] {
+            let (owner, name) = requirement.rsplit_once("::").unwrap();
+            let mut matches = schema
+                .methods
+                .iter()
+                .filter(|method| method.requirement_owner == owner && method.name == name);
+            let method = matches.next().unwrap();
+            assert!(matches.next().is_none(), "ambiguous {requirement}");
+            expected.insert(schema.identity_text(method.requirement_identity).to_owned());
+        }
+    }
+    let actual: std::collections::BTreeSet<_> = module
+        .calling_abi_signatures
+        .iter()
+        .map(|abi| {
+            assert!(abi.storage.is_ok(), "{:?}", abi.storage);
+            abi.identity(&module.identities)
+                .unwrap()
+                .requirement_identity
+        })
+        .collect();
+    assert_eq!(expected.len(), 5);
+    assert_eq!(module.calling_abi_signatures.len(), expected.len());
+    assert_eq!(actual, expected);
+    let linear = module
+        .structural_types
+        .iter()
+        .find(|row| row.owns_linear_claim)
+        .unwrap();
+    assert_eq!(
+        linear.multiplicity,
+        terminal_psi::StructuralMultiplicity::Linear
+    );
+    assert!(!linear.is_copyable() && !linear.no_code_affine_cleanup && !linear.descriptor_cleanup);
+}
+
+#[test]
 fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
     let profile = TargetProfile::WindowsX64;
     let path = fixture_repository::root()
         .join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
-    let product = open_project(&path, profile);
+    let product = open_project(&path, &[profile]);
     let stage = product.product_stage(&[profile]).unwrap();
     let Artifact::Native(direct) = compiler::compile(CompileRequest::Native {
         program: stage.program(profile, vec![]).unwrap(),
@@ -161,6 +230,33 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
             .unwrap()
             .source_signature_identity()
     );
+    let module = reopened.semantic_module();
+    let contract = module
+        .program_entry_contract(profile.target_name())
+        .unwrap();
+    let entry = module.machine(contract.entry).unwrap();
+    assert_eq!(entry.id, runtime.entry());
+    let declared = &entry.declaration.as_ref().unwrap().machine;
+    let identity = module.identities.text(declared.identity()).unwrap();
+    let root = terminal_psi::PreparedNominalRoot::new(identity, "diagnostic alias", None).unwrap();
+    let receipt = terminal_codec::entry_receipt::prepare_program_entry_receipt(
+        &root,
+        runtime.source_signature_identity(),
+        &reopened,
+    )
+    .unwrap();
+    assert_eq!(receipt.terminal_entry(), runtime.entry());
+    assert_eq!(receipt.terminal_psi_identity(), runtime.identity());
+    let wrong_owner =
+        terminal_psi::PreparedNominalRoot::new("other-package::main", "main", None).unwrap();
+    assert!(
+        terminal_codec::entry_receipt::prepare_program_entry_receipt(
+            &wrong_owner,
+            runtime.source_signature_identity(),
+            &reopened,
+        )
+        .is_err()
+    );
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     {
         let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
@@ -179,7 +275,7 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
 }
 
 fn folded_product(path: &Path, profile: TargetProfile) -> product_publication::CompletedProduct {
-    let product = open_project(path, profile);
+    let product = open_project(path, &[profile]);
     let stage = product.product_stage(&[profile]).unwrap();
     let source = source_compiler::compile(stage.source()).unwrap();
     let original_bytes = source.to_bytes();
