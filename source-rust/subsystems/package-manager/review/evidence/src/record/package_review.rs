@@ -8,9 +8,14 @@
 
 use super::{PackagePolicyBaseline, SemanticBindingReviewCandidate};
 use package_compilation::{
-    AcceptedSemanticBinding, BuildEvaluationUsage, BuildObservationSummary, ConsumedSourceUnit,
-    PackageBuildHandoff, PackageSourceConsumptionCommitment, RestrictedBuildRequest,
+    BuildEvaluationUsage,
+    BuildObservationSummary,
+    ConsumedSourceUnit,
+    PackageBuildHandoff,
+    PackageSourceConsumptionCommitment,
+    RestrictedBuildRequest,
 };
+use provider_acceptance::AcceptedSemanticBinding;
 
 #[derive(Debug)]
 pub struct PackageReviewEvidence {

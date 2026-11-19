@@ -1,7 +1,10 @@
 //! Resolve Build requests for declarations from their authored source scope.
 
+mod authored_requests;
 mod root_bindings;
+mod root_grants;
 pub use root_bindings::{RootBinding, collect_root_bindings};
+pub use root_grants::collect_product_root_grants;
 
 use crate::declaration_selection::DescribedProductEntry;
 use crate::declaration_selection::DescribedProductProvider;

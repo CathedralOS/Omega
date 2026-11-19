@@ -2,7 +2,7 @@
 // Source, purpose, and target are supplied by the containing occurrence; ordinary compilation verifies those coordinates before using this data.
 
 use super::PackageLockError;
-use package_compilation::AcceptedSemanticBinding;
+use provider_acceptance::AcceptedSemanticBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AcceptedPackageCompilation {

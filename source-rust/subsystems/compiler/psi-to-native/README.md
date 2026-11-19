@@ -70,11 +70,10 @@ new review. A missing record, wrong target, unrelated entry or wrong
 installation refuses. A two-target request splits its supplied rows before
 native admission; neither target uses the other's assumptions.
 
-Embedders put bootstrap and installed-delivery records in
-`InstallationEnvironmentAssumption`. Use `encode_installation_assumptions` and
-`decode_installation_assumptions` from `products`, then supply the
-rows through `NativeProductRequest::installation_assumptions` or
-`CompileRequest::with_installation_assumptions`.
+The [installation conditions](verification/installation-admission/conditions/src/review.rs) library
+encodes and decodes reviewed bootstrap and interrupt-delivery records with
+`encode_installation_assumptions` and `decode_installation_assumptions`.
+The CLI passes these rows to source builds through the corresponding assumption file options.
 Saved native inputs keep the same rows. Recovery returns them apart from
 package permissions, and the ordinary `NativeCompileRequest` consumes them.
 The sealed installation scope keeps the requirement, replaying a private entry

@@ -24,9 +24,13 @@ pub(crate) use key::compiled_review_key;
 
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{
-    AcceptedSemanticBinding, CheckedSourceCacheLimits, ConsumedSourceUnit,
-    IndependentComponentDescription, PackageBuildHandoff, PackageSourceConsumptionCommitment,
+    CheckedSourceCacheLimits,
+    ConsumedSourceUnit,
+    IndependentComponentDescription,
+    PackageBuildHandoff,
+    PackageSourceConsumptionCommitment,
 };
+use provider_acceptance::AcceptedSemanticBinding;
 use record_codec::{decode_record, encode_record};
 use review_evidence::encoding::PackagePolicyRecoveryLimits;
 use review_evidence::record::PackagePolicyBaseline;

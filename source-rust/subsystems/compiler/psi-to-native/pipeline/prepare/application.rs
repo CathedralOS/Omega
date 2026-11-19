@@ -46,7 +46,7 @@ impl TerminalApplication {
 }
 
 pub fn admit_package_permissions(
-    permissions: Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
+    permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     identities: terminal_psi::TerminalIdentityTable,
 ) -> Result<TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
     use provider_admission::provider_admission::{

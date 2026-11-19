@@ -51,9 +51,7 @@ pub mod provider_selection_codec;
 #[path = "provider_selections.rs"]
 mod provider_selections;
 use evaluation_receipts::NativeBuildEvaluation;
-pub use native_bindings::{
-    NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,
-};
+pub use native_bindings::NativeBindingProducer;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,

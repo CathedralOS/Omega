@@ -9,7 +9,7 @@
 
 use crate::record::accessors::field_projection_accessors;
 use provider_plans::ServiceSchema;
-use package_compilation::AcceptedSemanticBinding;
+use provider_acceptance::AcceptedSemanticBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SemanticBindingReviewCandidate {
@@ -21,7 +21,7 @@ impl SemanticBindingReviewCandidate {
     pub fn new(binding: AcceptedSemanticBinding, service_schema: ServiceSchema) -> Self {
         debug_assert_eq!(
             binding.normalized_schema_digest(),
-            package_compilation::accepted_service_schema_digest(binding.role(), &service_schema,),
+            provider_acceptance::accepted_service_schema_digest(binding.role(), &service_schema,),
         );
         Self {
             binding,

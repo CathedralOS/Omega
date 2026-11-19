@@ -1230,7 +1230,7 @@ mod recovered {
         }
     }
 
-    impl RecordValue for host_provider_inputs::ServiceTerminalAuthorityPermission {
+    impl RecordValue for provider_acceptance::ServiceTerminalAuthorityPermission {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.service_schema().write(output)?;
             self.requirement_identity().write(output)?;

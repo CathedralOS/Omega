@@ -5,8 +5,9 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-host-provider-inputs = { path = "../../pipeline/00_psi-to-admitted-native-inputs/host-providers" }
+provider-acceptance = { path = "../../../build/providers/acceptance" }
 terminal-authority-receipts = { path = "authority" }
+numeric-intrinsic-admission = { path = "../numeric-intrinsics" }
 native-binding-admission = { path = "../native-bindings" }
 direct-boundary-bindings = { path = "../provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }
@@ -41,7 +42,6 @@ terminal-psi = { path = "../../../psi" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-semantics = { path = "../../../psi/semantics" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-effects = { path = "../../installation/native-effects" }
 target = { path = "../../targets/target" }
 
 [dev-dependencies]

@@ -17,9 +17,8 @@
 use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 use diagnostics::Diagnostic;
-use package_compilation::{
-    AcceptedSemanticBinding, PackageCompilationInputs, PackageSourceBinding,
-};
+use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use provider_acceptance::AcceptedSemanticBinding;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};

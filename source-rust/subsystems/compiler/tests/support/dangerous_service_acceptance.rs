@@ -46,7 +46,7 @@ pub struct RequiredDangerousServices {
 /// One exact call traversal is shared by every package in the fixture.
 pub struct DangerousServiceDiscovery {
     packages: Vec<(PackageKeyIdentity, RequiredDangerousServices)>,
-    direct_bindings: Vec<package_compilation::AcceptedSemanticBinding>,
+    direct_bindings: Vec<provider_acceptance::AcceptedSemanticBinding>,
 }
 
 fn unavailable(reason: impl std::fmt::Display) -> Vec<Diagnostic> {
@@ -218,7 +218,7 @@ impl DangerousServiceDiscovery {
         })
     }
 
-    pub fn direct_bindings(&self) -> &[package_compilation::AcceptedSemanticBinding] {
+    pub fn direct_bindings(&self) -> &[provider_acceptance::AcceptedSemanticBinding] {
         &self.direct_bindings
     }
 

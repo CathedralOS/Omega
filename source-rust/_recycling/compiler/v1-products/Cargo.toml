@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+installation-conditions = { path = "../../../subsystems/compiler/psi-to-native/verification/installation-admission/conditions" }
 optimization-selections = { path = "../../../subsystems/compiler/foundation/optimization-selections" }
 published-program = { path = "../published-program" }
 published-runtime-input = { path = "../representations/published-runtime-input" }
