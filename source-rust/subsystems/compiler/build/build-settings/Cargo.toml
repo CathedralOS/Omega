@@ -14,6 +14,7 @@ selected-provider-plans = { path = "../providers/selections" }
 psi-authorization = { path = "../../psi/authorization" }
 evaluation-admission = { path = "../evaluation/admission" }
 psi-provider-selections = { path = "../../psi/providers" }
+build-scalar-evaluation = { path = "../evaluation/scalars" }
 build-time-values = { path = "../evaluation/values" }
 psi-target-layouts = { path = "../../psi/layout/admission" }
 declaration-scope = { path = "../../foundation/declaration-scope" }

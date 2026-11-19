@@ -14,19 +14,19 @@
 //! issued it. That rule belongs to `Build`'s declaration: its one `seal`
 //! field is the toolchain's `BuildSeal`, which is not `[copy]`, in the
 //! toolchain's domain that an access policy governs
-//! ([access policies](../../../../../wiki/spec/resources/access.md)). The
+//! ([access policies](../../../../../../../../wiki/spec/resources/access.md)). The
 //! lowered-form checker admits no source issuer for such a domain and no
 //! zero-established or literal value of a record holding one, so the only
 //! `Build` a script holds is the one it was lent. That the declaration has
 //! this shape is checked here; the checker judges the program against it.
 
-use crate::source_state::TypedTrees;
-use crate::source_state::data::DataMember;
-use crate::source_state::domain::DomainIssuance;
-use crate::source_state::types::{
+use diagnostics::Diagnostic;
+use source_compiler::source_state::TypedTrees;
+use source_compiler::source_state::data::DataMember;
+use source_compiler::source_state::domain::DomainIssuance;
+use source_compiler::source_state::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use super::is_exact_toolchain_build_prelude_data;
@@ -35,7 +35,9 @@ use super::is_exact_toolchain_build_prelude_data;
 /// toolchain's `Build`. A program that does is refused when that
 /// declaration is not the vocabulary the host decodes or does not carry the
 /// seal that keeps source from producing a `Build`.
-pub fn admit_toolchain_build_activation(typed: &TypedTrees) -> Result<bool, Vec<Diagnostic>> {
+pub(super) fn admit_toolchain_build_activation(
+    typed: &TypedTrees,
+) -> Result<bool, Vec<Diagnostic>> {
     Ok(build_activation_symbol(typed)?.is_some())
 }
 /// The toolchain's `Build` declaration, when the program has one, after
@@ -116,8 +118,7 @@ fn is_issued_seal(typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     };
     let affine = typed.data_definitions().iter().any(|definition| {
         definition.symbol == *symbol
-            && definition.properties.multiplicity
-                != declaration_contracts::Multiplicity::Unrestricted
+            && definition.properties.multiplicity != language_core::Multiplicity::Unrestricted
     });
     let [TypeConstraintNode::Domain(domain)] = types.constraints(*constraints) else {
         return false;
@@ -153,8 +154,8 @@ public data Build<'storage> {
     /// `build` typed beside `prelude`, which is registered the way the
     /// toolchain registers its Build prelude.
     fn typed(build: &str, prelude: Option<&str>) -> TypedTrees {
-        let mut sources = crate::source_inputs::SourceMap::default();
-        let mut syntax: Option<syntax_trees::SyntaxTrees> = None;
+        let mut sources = source_compiler::source_inputs::SourceMap::default();
+        let mut loaded = Vec::new();
         let files = [
             Some((
                 "package/build.omg",
@@ -170,38 +171,36 @@ public data Build<'storage> {
             }),
         ];
         for (path, text, origin) in files.into_iter().flatten() {
-            let id = sources
-                .add_checked_instance(
-                    path.into(),
-                    text,
-                    "package".into(),
-                    None,
-                    origin,
-                    source_admission::SourceResolutionStratum::Base,
-                    declaration_contracts::source_identity::DependencyScope::Build,
-                )
-                .source_id;
-            let tokens = crate::evaluation::frontend_fixture::Lexer::new(text)
-                .tokenize()
-                .unwrap();
-            match &mut syntax {
-                None => {
-                    syntax = Some(
-                        crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(
-                            id, &tokens,
-                        )
-                        .unwrap(),
-                    );
-                }
-                Some(syntax) => {
-                    crate::evaluation::frontend_fixture::parse(syntax, id, &tokens).unwrap();
-                }
-            }
+            let file = sources.add_checked_instance(
+                path.into(),
+                text,
+                "package".into(),
+                None,
+                origin,
+                source_admission::SourceResolutionStratum::Base,
+                source_provenance::DependencyScope::Build,
+            );
+            loaded.push(source_admission::LoadedSource {
+                source_id: file.source_id,
+                path: file.path.clone(),
+                source: Arc::clone(&file.source),
+                origin: Some(file.origin),
+                scope: file.dependency_scope,
+            });
         }
-        let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
+        let lexed = source_compiler::lexing::lex(loaded.into_iter().collect()).unwrap();
+        let (pages, _) = source_compiler::parsing::parse(&lexed, Default::default())
+            .unwrap()
+            .into_parts();
+        let mut pages = pages.into_iter();
+        let mut syntax = pages.next().unwrap();
+        for page in pages {
+            syntax.adopt_page(page);
+        }
+        let mut request = source_compiler::resolution::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));
-        let resolved = crate::resolution::resolve(request).unwrap();
-        crate::typing::lower_symbol_resolved_trees(&resolved).unwrap()
+        let resolved = source_compiler::resolution::resolve(request).unwrap();
+        source_compiler::typing::lower_symbol_resolved_trees(&resolved).unwrap()
     }
 
     fn refusal(typed: &TypedTrees) -> String {
