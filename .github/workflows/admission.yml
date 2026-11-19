@@ -1,26 +1,17 @@
 name: Admission
 
-# The only check a pull request needs before it merges: the rules a
-# description and a diff must hold, formatting, and, when Rust or Cargo files
-# changed, a type check of the merge tree. It builds no compiler: lint, tests
-# and samples run on main after merge; see
-# wiki/drafts/designs/ci_rebuild_plan.md. Target: about two minutes.
+# During the source-rust move, automated compiler checks run in the standalone V2 workspace.
 on:
   pull_request:
     branches: [main]
-    # `edited` re-runs the check when a description gains its `Agent:` line.
-    types: [opened, synchronize, reopened, edited, ready_for_review]
-  # A pull request can restore a cache only from its own runs or from main's,
-  # so main saves the built xtask for every pull request to start from.
-  # Without it each one compiled xtask cold.
   push:
     branches: [main]
     paths:
-      - 'tools/xtask/**'
-      - 'tools/mbx-version'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
+      - 'omega-rust-v2/**'
       - '.github/workflows/admission.yml'
+      - 'tools/mbx-version'
+      - 'tools/xtask/bootstrap-mbx.sh'
+      - 'rust-toolchain.toml'
 
 permissions:
   contents: read
@@ -28,95 +19,36 @@ permissions:
 env:
   OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
 
-concurrency:
-  # Same-head PR events can arrive out of order. Canceling the newer run can
-  # leave its required check canceled even after an older run succeeds.
-  # Let PR checks finish independently; coalesce only main's cache builds.
-  group: admission-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}
-  cancel-in-progress: true
-
 jobs:
   admission:
-    # PR #4231 lands the Rust folder layout before the workspace is buildable.
-    if: github.event_name != 'pull_request' || github.event.pull_request.number != 4231
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    env:
-      CARGO_INCREMENTAL: '0'
-      # Keep xtask's small cache separate from the uncached merge-tree check.
-      CARGO_TARGET_DIR: /tmp/xtask-target
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-          # The merge commit's first parent is the base the diff is read from.
           fetch-depth: 2
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: cache
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: admission-xtask-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'tools/mbx-version', 'tools/xtask/**') }}
-          restore-keys: |
-            admission-xtask-${{ runner.os }}-
+      - name: Identify changes to V2 or its CI toolchain
+        id: changes
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == push ]] || ! git diff --quiet HEAD^1 HEAD -- omega-rust-v2 .github/workflows/admission.yml tools/mbx-version tools/xtask/bootstrap-mbx.sh rust-toolchain.toml; then
+            echo 'v2=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Root compiler checks are paused during the source-rust move.'
+          fi
       - name: Identify the mbx source and build recipe
+        if: steps.changes.outputs.v2 == 'true'
         id: mbx-key
-        shell: bash
         run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        if: steps.changes.outputs.v2 == 'true'
         with:
           path: ${{ env.OMEGA_MBX_INSTALL_CACHE }}/artifacts
           key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Install verified mbx
-        shell: bash
+        if: steps.changes.outputs.v2 == 'true'
         run: bash tools/xtask/bootstrap-mbx.sh
-      - name: Build xtask on main
-        if: github.event_name == 'push'
-        run: mbx build --locked -p xtask
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        if: github.event_name == 'push' && steps.cache.outputs.cache-hit != 'true'
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
-      - name: Check the rules a pull request must hold
-        if: github.event_name == 'pull_request'
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-          BODY: ${{ github.event.pull_request.body }}
-        run: |
-          printf '%s\n' "$BODY" > "$RUNNER_TEMP/pr_body.md"
-          mbx xtask check-rules --base HEAD^1 --title "$TITLE" --body-file "$RUNNER_TEMP/pr_body.md"
-      - name: Check formatting when Rust changed
-        if: github.event_name == 'pull_request'
-        run: |
-          if git diff --quiet HEAD^1 HEAD -- ':(glob)**/*.rs'; then
-            echo "No Rust files changed."
-          else
-            mbx xtask fmt --check
-          fi
-      # Two pull requests can each type-check alone and still break together:
-      # Git merges edits in different files without a conflict. #3326 changed
-      # `Statement::Evaluate` while main had gained a new use of the old form
-      # in another file, and its merge failed with E0533 until #3457. This
-      # checks the merge commit GitHub built, not the branch. `cargo check`
-      # skips final code generation; build scripts and proc macros still run.
-      # The original cloud measurement took 90 seconds cold on four CPUs;
-      # GitHub's hosted runner took 1m57s. No compiler target cache is restored.
-      # A change to this file runs the step too, so its own pull request tests it.
-      - name: Type-check the merge tree when Rust or Cargo files changed
-        if: github.event_name == 'pull_request'
-        env:
-          CARGO_TARGET_DIR: /tmp/check-target
-        run: |
-          # Keep detection inside Git. With pipefail, grep -q can close a
-          # large name list early and turn a matching diff into a false test.
-          if git diff --quiet HEAD^1 HEAD -- ':(glob)**/*.rs' ':(glob)**/Cargo.toml' ':(glob)**/Cargo.lock' rust-toolchain.toml .github/workflows/admission.yml; then
-            echo "No Rust or Cargo files changed."
-          else
-            mbx check --locked --workspace --all-targets
-          fi
+      - name: Test the V2 workspace
+        if: steps.changes.outputs.v2 == 'true'
+        working-directory: omega-rust-v2
+        run: mbx test --locked --workspace

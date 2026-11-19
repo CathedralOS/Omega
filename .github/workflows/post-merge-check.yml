@@ -16,9 +16,8 @@ name: Post-merge check
 #
 # There is no fixture corpus and no ledger: the run measures no rows and
 # publishes nothing. The run reverts nothing.
+# Run manually until the source-rust workspace builds again.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       full:

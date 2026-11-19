@@ -67,12 +67,9 @@ do not create releases or tags for it.
 
 ## Squash-merge after admission
 
-`admission` checks repository rules and formatting, and type-checks the merge
-commit (`mbx check --locked --workspace --all-targets`) when Rust or Cargo files
-changed. That catches two pull requests whose Rust merges without a Git
-conflict but no longer compiles. It does not build the compiler, run Clippy or
-test runtime behavior, so the author must finish the focused checks before
-merging.
+During the source-rust move, `admission` checks the merge commit for changes
+to V2 or its CI toolchain. When either changes it runs the V2 workspace tests.
+Other changes complete admission without building the root workspace.
 
 Inspect the checks and submitted head:
 
@@ -117,11 +114,9 @@ local source head need not be an ancestor of main.
 Only then note the result. Release the work claim when the original assignment's
 acceptance is complete; a checkpoint merge keeps outcome ownership.
 
-Watch the `post-merge-check` workflow, which checks main. It batches pending
-pushes, so a run canceled for a newer one measured nothing. Investigate real
-failures and fix regressions in a focused PR. Keep older results tied to
-the source and host that produced them; merging does not make them fresh
-results on main.
+During the source-rust migration, watch the V2 `admission` run on main for
+changes to the V2 workspace or its CI toolchain. Root post-merge checks and
+warm builds can be started manually once the root workspace builds again.
 
 Run the original program on the landed source and follow its next failure on
 the warm worktree. A pre-existing failure remains part of that assignment. If

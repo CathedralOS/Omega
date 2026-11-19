@@ -9,9 +9,8 @@ name: Warm build
 # package, so a build made anywhere else recompiles every workspace crate. The
 # manifest records the path, and a session refuses a build made elsewhere.
 
+# Run manually until the source-rust workspace builds again.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

@@ -156,7 +156,7 @@ program runs.
 
 The specification is the answer key. Read the page in `wiki/spec/` that covers
 the feature and build what it says. Test what you changed, then merge it;
-`main` is tested again after every merge.
+changes to V2 are tested again on `main` during the source-rust migration.
 
 The compiler used to have a second checker that worked on the earlier,
 tree-shaped form of the program. That checker has been removed. The
@@ -323,9 +323,10 @@ mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
 
-The only pre-merge check is `admission` (rules, formatting and, when Rust or
-Cargo files changed, a type check of the merge tree; about two minutes);
-`main` is checked after every merge.
+During the source-rust migration, the required `admission` job runs
+`mbx test --locked --workspace` in `omega-rust-v2/` for changes to V2 or its CI
+toolchain. Root workspace CI checks and automatic warm builds are paused.
+V2 changes are tested again on `main` after merge.
 
 When changing a shared Rust API or helper, search the whole repository for its
 consumers, including tests, examples and forwarding helpers. Run the affected
