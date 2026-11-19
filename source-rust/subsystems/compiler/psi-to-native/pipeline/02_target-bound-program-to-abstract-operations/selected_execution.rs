@@ -20,14 +20,11 @@ pub fn lower_native_callable(
         .require_artifact(artifact)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let checked_scope = proposal.callable_execution_scope(artifact, entry, Some(execution))?;
-    let selection = crate::NativeExecutionSelection {
-        scope: Some(&checked_scope),
+    let selection = crate::NativeExecutionSelection::checked(
+        &checked_scope,
+        &proposal.providers().selection,
         scalar_applications,
-        providers: checked_scope.local_adapters(),
-        plans: &proposal.providers().selection,
-        callbacks: checked_scope.callbacks(),
-        entry_call: checked_scope.entry_call(),
-    };
+    );
     let scope = crate::selected_input::NativeScopePreparation::prepare(
         execution.authorization(),
         proposal.target_profile(),
@@ -44,9 +41,8 @@ pub fn lower_native_callable(
     )?;
     let input = scope
         .lower(
-            artifact,
             &[],
-            &selection,
+            checked_scope.local_adapters(),
             execution.evidence().map(std::sync::Arc::as_ref),
         )
         .map_err(crate::admit_providers::artifact_lowering_error)?;
@@ -69,32 +65,22 @@ pub fn lower_native_execution(
     let authorization = execution.authorization();
     let artifact = authorization.artifact();
     let checked = execution.scope();
+    let selection = crate::NativeExecutionSelection::checked(
+        checked,
+        &proposal.providers().selection,
+        scalar_applications,
+    );
     let scope = crate::selected_input::NativeScopePreparation::prepare(
         authorization,
         proposal.target_profile(),
         terminal_psi::TargetMachineCallable::Machine(checked.entry()),
-        &crate::NativeExecutionSelection {
-            scope: Some(checked),
-            scalar_applications: None,
-            providers: checked.local_adapters(),
-            plans: &proposal.providers().selection,
-            callbacks: checked.callbacks(),
-            entry_call: checked.entry_call(),
-        },
+        &selection,
     )
     .map_err(crate::admit_providers::artifact_lowering_error)?;
     let input = scope
         .lower_with_private_entry_ram(
-            artifact,
             private_entry_ram,
-            &crate::NativeExecutionSelection {
-                scope: Some(execution.scope()),
-                scalar_applications,
-                providers: execution.local_adapters(),
-                plans: &proposal.providers().selection,
-                callbacks: &proposal.occurrences().callbacks,
-                entry_call: execution.scope().entry_call(),
-            },
+            execution.local_adapters(),
             execution.evidence().map(std::sync::Arc::as_ref),
         )
         .map_err(crate::admit_providers::artifact_lowering_error)?;
