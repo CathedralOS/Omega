@@ -70,7 +70,7 @@ machine entry() crashes Trap {
             super::build_purpose::roster(
                 &[entry],
                 &[],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         ))
@@ -238,7 +238,7 @@ machine entry() crashes Trap {
             super::build_purpose::roster(
                 &[entry],
                 &[],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -314,7 +314,7 @@ machine take(bytes: @[u8]) { }";
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 calling: None,
                 providers: None,

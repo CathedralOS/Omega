@@ -30,7 +30,7 @@ fn typed_at(
             None,
             origin,
             source_admission::SourceResolutionStratum::Base,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         )
         .source_id;
     let tokens = crate::checking::frontend_fixture::Lexer::new(text)
@@ -236,7 +236,7 @@ fn observed_typed(text: &str) -> crate::source_state::TypedTrees {
     super::build_purpose::frontier_with_core(
         text,
         "machine build_entry() {}",
-        declaration_contracts::source_identity::DependencyScope::Product,
+        source_provenance::DependencyScope::Product,
         &[(
             "byte_observation.omg",
             "byte_observation",
@@ -258,7 +258,7 @@ fn judge_observed(
             super::build_purpose::roster(
                 &[entry],
                 &[Some(super::build_purpose::package())],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )

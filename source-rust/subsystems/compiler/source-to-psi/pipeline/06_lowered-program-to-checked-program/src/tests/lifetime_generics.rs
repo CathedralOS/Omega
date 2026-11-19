@@ -222,7 +222,7 @@ machine entry() -> u32 {{ let holder: Holder = Holder {{ value: 3 }}; Source::ta
             super::build_purpose::roster(
                 &[entry],
                 &[None],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )

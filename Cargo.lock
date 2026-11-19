@@ -411,6 +411,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "bundled-declarations",
+ "lowered-program-to-checked-program",
  "record-storage",
  "declaration-contracts",
  "diagnostics",
@@ -433,7 +434,6 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
- "terminal-psi-to-checked-terminal-psi",
  "terminal-semantics",
  "tokens",
  "typed-trees",
@@ -1479,6 +1479,48 @@ name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
+
+[[package]]
+name = "lowered-program-to-checked-program"
+version = "0.1.0"
+dependencies = [
+ "application-identity",
+ "arena",
+ "bignum",
+ "bundled-declarations",
+ "diagnostics",
+ "language-core",
+ "numeric-literals",
+ "numerics",
+ "optimization",
+ "proof-admission",
+ "rayon",
+ "semantic-vocabulary",
+ "service-surface",
+ "source-admission",
+ "source-declarations",
+ "source-lexer",
+ "source-parser",
+ "source-provenance",
+ "source-symbol-table",
+ "source-text",
+ "symbol-resolved-trees-to-typed-trees",
+ "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
+ "terminal-work",
+ "tokens",
+ "typed-trees",
+ "typed-trees-to-lowered-program",
+ "typed-trees-to-typed-trees",
+ "wire",
+ "worker-budget",
+]
 
 [[package]]
 name = "machine-code"
@@ -3016,6 +3058,7 @@ dependencies = [
  "language-core",
  "layout-planning",
  "layout-plans",
+ "lowered-program-to-checked-program",
  "mimalloc",
  "numeric-literals",
  "numerics",
@@ -3046,7 +3089,6 @@ dependencies = [
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
- "terminal-psi-to-checked-terminal-psi",
  "terminal-semantics",
  "terminal-work",
  "tokens",
@@ -3585,46 +3627,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "verified-optimization-input",
-]
-
-[[package]]
-name = "terminal-psi-to-checked-terminal-psi"
-version = "0.1.0"
-dependencies = [
- "application-identity",
- "arena",
- "bignum",
- "bundled-declarations",
- "declaration-contracts",
- "diagnostics",
- "worker-budget",
- "language-core",
- "numeric-literals",
- "numerics",
- "optimization",
- "proof-admission",
- "rayon",
- "semantic-vocabulary",
- "source-admission",
- "source-declarations",
- "source-lexer",
- "source-parser",
- "source-text",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
- "terminal-check-tables",
- "terminal-codec",
- "terminal-interpreter",
- "terminal-psi",
- "terminal-semantics",
- "terminal-work",
- "tokens",
- "typed-trees",
- "typed-trees-to-lowered-program",
- "typed-trees-to-typed-trees",
- "wire",
 ]
 
 [[package]]

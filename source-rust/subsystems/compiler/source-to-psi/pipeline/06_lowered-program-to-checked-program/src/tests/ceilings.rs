@@ -23,7 +23,7 @@ fn judged(text: &str) -> RouteVerdict {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -383,7 +383,7 @@ machine entry() invokes Handler {}
     let surface = crate::source_state::service_declarations::projection::from_typed(
         crate::source_state::provider_declarations::ProviderPlanningContext::new(
             &program,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         registrar,
     )
@@ -431,7 +431,7 @@ machine entry() invokes Missing {}
     let refused = crate::source_state::service_declarations::projection::from_typed(
         crate::source_state::provider_declarations::ProviderPlanningContext::new(
             &program,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         registrar,
     )

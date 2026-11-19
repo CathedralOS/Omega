@@ -158,7 +158,7 @@ fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
             declaration_metadata: &[],
             entries: &[],
             subjects: &[None],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],

@@ -211,7 +211,7 @@ machine done() {{ }}
         roster(
             &[symbol(&typed, "build_entry")],
             &[Some(package())],
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         ),
         terminal_codec::TerminalPublication::Invocation,
     )

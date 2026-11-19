@@ -19,7 +19,7 @@ fn program_from_typed(
             super::build_purpose::roster(
                 &[entry],
                 &[Some(super::build_purpose::package())],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -202,7 +202,7 @@ fn canonical_process_exit_publishes_never_without_a_receiving_value() {
              let unreachable_value: u32 = finish(0); \
          }",
         "machine build_entry() {}",
-        declaration_contracts::source_identity::DependencyScope::Product,
+        source_provenance::DependencyScope::Product,
         &[
             (
                 "never.omg",

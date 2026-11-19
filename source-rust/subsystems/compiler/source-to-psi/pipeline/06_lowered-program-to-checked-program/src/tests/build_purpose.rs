@@ -3,7 +3,7 @@
 //! typed frontier, as a Build activation and its Product do.
 
 use super::*;
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use std::sync::Arc;
 
 const PRODUCT: &str = r#"

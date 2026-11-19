@@ -72,7 +72,6 @@ use semantic_vocabulary::{MachineId, ObligationId};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::program::{Elaboration, SourceOrigin};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
-use terminal_codec::ObligationEvidenceSeal;
 
 use crate::checking::{Discharge, describe, refusal};
 

@@ -130,7 +130,7 @@ ensures result.first == 0
                 roster(
                     &[entry],
                     &[Some(package())],
-                    declaration_contracts::source_identity::DependencyScope::Build,
+                    source_provenance::DependencyScope::Build,
                 ),
                 terminal_codec::TerminalPublication::Invocation,
             )

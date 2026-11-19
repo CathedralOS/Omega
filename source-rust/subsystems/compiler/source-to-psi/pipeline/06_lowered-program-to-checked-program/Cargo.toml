@@ -15,7 +15,7 @@ test-support = []
 
 [dependencies]
 service-surface = { path = "../../../psi/service-surface" }
-declaration-contracts = { path = "../../language/declaration-contracts" }
+source-provenance = { path = "../../../foundation/source-provenance" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-admission = { path = "../representations/source-files/custody" }
@@ -33,12 +33,12 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
 terminal-check-tables = { path = "../representations/lowered-program" }
 terminal-codec = { path = "../../../psi/codec" }
-terminal-interpreter = { path = "../../../../interpreter" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 terminal-work = { path = "../../../psi/work" }
 
 [dev-dependencies]
+terminal-interpreter = { path = "../../../../interpreter" }
 bignum = { path = "../../../../../foundation/bignum" }
 bundled-declarations = { path = "../02_syntax-trees-to-symbol-resolved-trees/bundled-declarations" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
