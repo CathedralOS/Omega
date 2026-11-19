@@ -36,15 +36,14 @@ pub(crate) type InvocationStates =
     BTreeMap<(DescriptorPosition, DescriptorInvocationOwner), State>;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum StorageResolution {
-    Unique(DescriptorLocation),
+pub(crate) enum StorageResolution {    Unique(DescriptorLocation),
     CapturedEntry {
         location: DescriptorLocation,
         entry: DescriptorLocation,
     },
     Projected(DescriptorCallOrigin),
     Alternatives(Vec<DescriptorCallOrigin>),
-    /// These preserve the legacy logical-coordinate query without claiming
+    /// These preserve the logical-coordinate query without claiming
     /// that its current/opaque pointer is a complete captured address.
     OpaqueLocation(DescriptorLocation, &'static str),
     OpaqueProjection(DescriptorCallOrigin, &'static str),
@@ -52,14 +51,47 @@ pub(crate) enum StorageResolution {
 }
 
 impl StorageResolution {
-    pub(crate) fn legacy(self) -> Self {
+    /// A logical name for alias and liveness queries, even when its current
+    /// pointer is unknown. This never establishes a captured address.
+    pub(super) fn local_coordinate(&self) -> Option<&DescriptorLocation> {
         match self {
-            Self::CapturedEntry { location, .. } | Self::OpaqueLocation(location, _) => {
-                Self::Unique(location)
+            Self::Unique(location)
+            | Self::CapturedEntry { location, .. }
+            | Self::OpaqueLocation(location, _) => Some(location),
+            Self::Projected(_)
+            | Self::OpaqueProjection(..)
+            | Self::Alternatives(_)
+            | Self::OpaqueAlternatives(..) => None,
+        }
+    }
+
+    /// Slot transfers and unknown-contents packets use the original carrier
+    /// for a singular projected address. A family has no single carrier.
+    pub(super) fn slot_coordinate(
+        self,
+        carrier: &DescriptorLocation,
+    ) -> Option<DescriptorLocation> {
+        match self {
+            Self::Unique(location)
+            | Self::CapturedEntry { location, .. }
+            | Self::OpaqueLocation(location, _) => Some(location),
+            Self::Projected(_) | Self::OpaqueProjection(..) => Some(carrier.clone()),
+            Self::Alternatives(_) | Self::OpaqueAlternatives(..) => None,
+        }
+    }
+
+    /// Contents and result summaries need one known backing. An opaque
+    /// coordinate cannot supply payload or be exported as a captured origin.
+    pub(super) fn captured_origin(&self) -> Option<Origin> {
+        match self {
+            Self::Unique(location) | Self::CapturedEntry { location, .. } => {
+                Some(Origin::Storage(location.clone()))
             }
-            Self::OpaqueProjection(origin, _) => Self::Projected(origin),
-            Self::OpaqueAlternatives(origins, _) => Self::Alternatives(origins),
-            other => other,
+            Self::Projected(origin) => Some(Origin::Backing(origin.clone())),
+            Self::Alternatives(_)
+            | Self::OpaqueLocation(..)
+            | Self::OpaqueProjection(..)
+            | Self::OpaqueAlternatives(..) => None,
         }
     }
 
@@ -834,14 +866,9 @@ impl<'a> Replay<'a> {
         location: &DescriptorLocation,
         completed: Option<(MachineId, DescriptorPosition)>,
     ) -> Option<DescriptorLocation> {
-        match self
-            .resolve_storage(machine, state, location, completed)?
-            .legacy()
-        {
-            StorageResolution::Unique(location) => Some(location),
-            StorageResolution::Projected(_) | StorageResolution::Alternatives(_) => None,
-            _ => unreachable!("legacy storage view has no capture account"),
-        }
+        self.resolve_storage(machine, state, location, completed)?
+            .local_coordinate()
+            .cloned()
     }
 
     pub(crate) fn canonical_storage_with_depth(
@@ -851,14 +878,9 @@ impl<'a> Replay<'a> {
         location: &DescriptorLocation,
         depth: &DescriptorReadDepth<'_>,
     ) -> Option<DescriptorLocation> {
-        match self
-            .resolve_storage_with_depth(machine, state, location, depth)?
-            .legacy()
-        {
-            StorageResolution::Unique(location) => Some(location),
-            StorageResolution::Projected(_) | StorageResolution::Alternatives(_) => None,
-            _ => unreachable!("legacy storage view has no capture account"),
-        }
+        self.resolve_storage_with_depth(machine, state, location, depth)?
+            .local_coordinate()
+            .cloned()
     }
 
     pub(crate) fn reference_backing_matches(
@@ -948,15 +970,17 @@ impl<'a> Replay<'a> {
         let mut unavailable = None;
         for resolution in resolutions {
             unavailable = unavailable.or(resolution.unavailable());
-            match resolution.legacy() {
-                StorageResolution::Unique(location) => {
+            match resolution {
+                StorageResolution::Unique(location)
+                | StorageResolution::CapturedEntry { location, .. }
+                | StorageResolution::OpaqueLocation(location, _) => {
                     origins.insert(self.storage_projection(machine, &location)?);
                 }
-                StorageResolution::Projected(origin) => {
+                StorageResolution::Projected(origin) | StorageResolution::OpaqueProjection(origin, _) => {
                     origins.insert(origin);
                 }
-                StorageResolution::Alternatives(alternatives) => origins.extend(alternatives),
-                _ => unreachable!("legacy storage view has no capture account"),
+                StorageResolution::Alternatives(alternatives)
+                | StorageResolution::OpaqueAlternatives(alternatives, _) => origins.extend(alternatives),
             }
         }
         match (origins.len(), unavailable) {
@@ -1002,29 +1026,25 @@ impl<'a> Replay<'a> {
         }
     }
 
-    pub(crate) fn legacy_storage_origin(
-        &self,
-        resolution: &StorageResolution,
-    ) -> Option<Origin> {
-        match resolution.clone().legacy() {
-            StorageResolution::Unique(location) => Some(Origin::Storage(location)),
-            StorageResolution::Projected(origin) => Some(Origin::Backing(origin)),
-            _ => None,
-        }
-    }
-
     fn storage_account_matches_reference(
         &self,
         machine: &DescriptorMachine,
         account: &StorageResolution,
         reference: StructuralTypeId,
     ) -> Option<bool> {
-        let origin = match account.clone().legacy() {
-            StorageResolution::Unique(location) => {
-                self.storage_projection(machine, &location)?
+        // This is a declared-type check. append_storage_capture retains the
+        // original capture or its reason for being opaque.
+        let origin = match account {
+            StorageResolution::Unique(location)
+            | StorageResolution::CapturedEntry { location, .. }
+            | StorageResolution::OpaqueLocation(location, _) => {
+                self.storage_projection(machine, location)?
             }
-            StorageResolution::Projected(origin) => origin,
-            _ => return None,
+            StorageResolution::Projected(origin)
+            | StorageResolution::OpaqueProjection(origin, _) => origin.clone(),
+            StorageResolution::Alternatives(_) | StorageResolution::OpaqueAlternatives(..) => {
+                return None;
+            }
         };
         let DescriptorCallOrigin::Argument { source, projection } = origin else {
             return None;
@@ -1745,16 +1765,8 @@ impl<'a> Replay<'a> {
         {
             return state.arrival_backing.get(location)?.clone();
         }
-        let location = match self
-            .resolve_storage_with_depth(machine, state, location, depth)?
-            .legacy()
-        {
-            StorageResolution::Unique(location) => location,
-            StorageResolution::Projected(_) | StorageResolution::Alternatives(_) => {
-                location.clone()
-            }
-            _ => unreachable!("legacy storage view has no capture account"),
-        };
+        let resolution = self.resolve_storage_with_depth(machine, state, location, depth)?;
+        let location = resolution.local_coordinate().unwrap_or(location).clone();
         let root = DescriptorLocation::whole(location.root);
         if let Some(carrier) =
             self.reference_referent_carrier(machine, state, &location, depth)?
@@ -1967,7 +1979,11 @@ impl<'a> Replay<'a> {
                         projection.has_captured_reference_crossing().unwrap_or(true).then_some(
                         "projected captured reference crossing needs its actual prestate")
                     });
-                    let origin = self.legacy_storage_origin(&account)?;
+                    let origin = match account {
+                        StorageResolution::OpaqueLocation(location, _) => Origin::Storage(location),
+                        StorageResolution::OpaqueProjection(origin, _) => Origin::Backing(origin),
+                        other => other.captured_origin()?,
+                    };
                     let mut values = self.project(
                         machine,
                         Some(BTreeSet::from([origin])),
@@ -2174,21 +2190,12 @@ impl<'a> Replay<'a> {
         let (before, base) = states;
         let reads = transfer.reads();
         let position = transfer.position();
-        let canonical = |location: &DescriptorLocation| {
-            if position.is_some() {
-                match self
-                    .resolve_storage(machine, before, location, None)?
-                    .legacy()
-                {
-                    StorageResolution::Unique(storage) => Some(storage),
-                    StorageResolution::Projected(_) => Some(location.clone()),
-                    StorageResolution::Alternatives(_) => None,
-                    _ => unreachable!("legacy storage view has no capture account"),
-                }
+        let canonical = |location: &DescriptorLocation| {            if position.is_some() {
+                self.resolve_storage(machine, before, location, None)?
+                    .slot_coordinate(location)
             } else {
                 Some(location.clone())
-            }
-        };
+            };
         // Moving an owned parameter ends its name for loan liveness, but
         // its entry value stays readable here: no operation reads a moved
         // value, and the machine's summary still reads the parameter at
@@ -3527,7 +3534,7 @@ impl<'a> Replay<'a> {
             return self.exported_result(
                 machine,
                 states,
-                &self.legacy_storage_origin(account)?,
+                &account.captured_origin()?,
                 slot,
                 depth,
             );
@@ -3754,7 +3761,7 @@ impl<'a> Replay<'a> {
                 ))
             }
             Origin::CapturedStorage(account) => {
-                self.exported(machine, &self.legacy_storage_origin(account)?)
+                self.exported(machine, &account.captured_origin()?)
             }
             Origin::Backing(DescriptorCallOrigin::Invocation {
                 carrier_type,
@@ -4149,7 +4156,7 @@ impl<'a> Replay<'a> {
                 Origin::CapturedStorage(account) => {
                     let mut origins = self.symbolic(
                         machine,
-                        BTreeSet::from([self.legacy_storage_origin(&account)?]),
+                        BTreeSet::from([account.captured_origin()?]),
                     )?;
                     (origins.len() == 1).then(|| origins.remove(0))
                 }

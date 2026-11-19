@@ -486,7 +486,7 @@ impl<'a> DescriptorAnalysis<'a> {
         location: &DescriptorLocation,
     ) -> Option<DescriptorLocation> {
         self.replay.prepare_states(identity)?;
-        match Self::prepared_storage(
+        Self::prepared_storage(
             &self.replay,
             &mut self.storage_queries,
             identity,
@@ -494,12 +494,8 @@ impl<'a> DescriptorAnalysis<'a> {
             location,
             true,
         )?
-        .legacy()
-        {
-            StorageResolution::Unique(location) => Some(location),
-            StorageResolution::Projected(_) | StorageResolution::Alternatives(_) => None,
-            _ => unreachable!("legacy storage view has no capture account"),
-        }
+        .local_coordinate()
+        .cloned()
     }
 
     /// One complete captured storage address, including indexed backing.
@@ -1547,8 +1543,7 @@ impl<'a> DescriptorAnalysis<'a> {
         mut residence_rules: Option<
             &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
         >,
-    ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError>
-    {
+    ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError> {
         let incomplete = |position| DescriptorGraphError::IncompleteMachine {
             machine: identity,
             position,
@@ -1629,12 +1624,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 {
                     observations.extend(origins.iter().filter_map(|origin| match origin {
                         Origin::Storage(location) => Some(location.clone()),
-                        Origin::CapturedStorage(account) => {
-                            match replay.legacy_storage_origin(account)? {
-                                Origin::Storage(location) => Some(location),
-                                _ => None,
-                            }
-                        }
+                        Origin::CapturedStorage(account) => account.local_coordinate().cloned(),
                         _ => None,
                     }));
                 }

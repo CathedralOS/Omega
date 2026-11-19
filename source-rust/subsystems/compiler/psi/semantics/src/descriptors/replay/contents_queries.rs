@@ -1,4 +1,4 @@
-use super::engine::{DescriptorReadDepth, Origin, State, StorageResolution, Value};
+use super::engine::{DescriptorReadDepth, Origin, State, Value};
 use super::*;
 use crate::descriptors::descriptor_lifetimes::descriptor_location;
 
@@ -135,14 +135,15 @@ impl Replay<'_> {
                     return None;
                 }
                 for origin in origins {
-                    let origin = match origin {
+                    let backing = match origin {
                         Origin::CapturedStorage(account) => {
-                            self.legacy_storage_origin(&account)?
+                            let Origin::Storage(backing) = account.captured_origin()? else {
+                                return None;
+                            };
+                            backing
                         }
-                        origin => origin,
-                    };
-                    let Origin::Storage(backing) = origin else {
-                        return None;
+                        Origin::Storage(backing) => backing,
+                        _ => return None,
                     };
                     if backing.path.is_empty()
                         && let Some((_, actual, step)) = machine.sequence_construction(
@@ -218,15 +219,9 @@ impl Replay<'_> {
         let expected = self.unknown_contents_type(machine, packet)?;
         let mut carrier = packet.clone();
         carrier.path.pop()?;
-        let mut canonical = match self
+        let mut canonical = self
             .resolve_storage(machine, state, &carrier, None)?
-            .legacy()
-        {
-            StorageResolution::Unique(location) => location,
-            StorageResolution::Projected(_) => carrier,
-            StorageResolution::Alternatives(_) => return None,
-            _ => unreachable!("legacy storage view has no capture account"),
-        };
+            .slot_coordinate(&carrier)?;
         canonical.path.push(DescriptorPathSegment::UnknownContents);
         (self.unknown_contents_type(machine, &canonical)? == expected).then_some(canonical)
     }
@@ -391,15 +386,9 @@ impl Replay<'_> {
         let _capture = reads.capture(depth.captured.get());
         let resolved = self.resolve_storage_with_depth(machine, state, queried, &reads);
         depth.absorb_summary_reads(&reads);
-        match resolved?.legacy() {
-            StorageResolution::Unique(location) => (!state
-                .has_selected_inline_contents(&location))
-            .then(|| state.slots.get(&location))?,
-            StorageResolution::Projected(_) | StorageResolution::Alternatives(_) => (!state
-                .has_selected_inline_contents(queried))
-            .then(|| state.slots.get(queried))?,
-            _ => unreachable!("legacy storage view has no capture account"),
-        }
+        let resolved = resolved?;
+        let coordinate = resolved.local_coordinate().unwrap_or(queried);
+        (!state.has_selected_inline_contents(coordinate)).then(|| state.slots.get(coordinate))?
     }
 
     fn read_incoming_contents(
@@ -757,7 +746,7 @@ impl Replay<'_> {
             return self.reference_targets(
                 machine,
                 state,
-                self.legacy_storage_origin(account)?,
+                account.captured_origin()?,
                 reference,
                 referent,
                 suffix,
@@ -1001,7 +990,7 @@ impl Replay<'_> {
             return self.view_element_targets(
                 machine,
                 state,
-                self.legacy_storage_origin(account)?,
+                account.captured_origin()?,
                 element,
                 suffix,
                 depth,

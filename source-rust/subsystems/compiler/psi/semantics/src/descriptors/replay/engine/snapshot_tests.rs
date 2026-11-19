@@ -1941,7 +1941,7 @@ fn incoming_reference_aliases_keep_the_original_referent_and_refuse_ambiguity() 
         replay
             .canonical_storage(&machine, &state, &asked, None)
             .is_some(),
-        "the legacy logical indirect coordinate is retained"
+        "the logical indirect coordinate is retained"
     );
     assert_eq!(
         replay.checked_storage_family(&machine, &state, opaque),
@@ -2057,13 +2057,29 @@ fn exact_incoming_contents_keep_entry_identity_without_blessing_unknown_state() 
         replay
             .canonical_storage(machine, &state, &current, None)
             .is_some(),
-        "legacy indirect coordinate remains representable"
+        "logical indirect coordinate remains representable"
     );
     assert!(
         replay
             .checked_storage_family(machine, &state, opaque.clone())
             .is_err(),
         "a current unknown pointer is not a captured entry value"
+    );
+    assert_eq!(
+        replay.resolved(machine, replay.captured_storage_origins(captured.clone())),
+        Some(expected.clone()),
+        "a retained incoming value can publish its captured address"
+    );
+    assert_eq!(
+        replay.resolved(machine, replay.captured_storage_origins(opaque.clone())),
+        None,
+        "an opaque coordinate cannot publish a symbolic backing"
+    );
+    assert!(
+        replay
+            .exported(machine, &Origin::CapturedStorage(opaque.clone()))
+            .is_none(),
+        "an opaque coordinate cannot become an exact stored result"
     );
     Arc::make_mut(&mut state.arrival_backing).insert(
         known.clone(),
@@ -2112,7 +2128,7 @@ fn exact_incoming_contents_keep_entry_identity_without_blessing_unknown_state() 
         replay
             .checked_storage_family(machine, &state, mixed)
             .is_err(),
-        "one unknown arrival poisons the family even when its legacy coordinate coincides"
+        "one unknown arrival poisons the family even when its logical coordinate coincides"
     );
 }
 
