@@ -366,7 +366,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         &crate::preparation::PreparationRequest::settled(),
     )
     .expect("ordinary preparation keeps the exact caller description");
-    let accepted = crate::production::AcceptedTerminalSource::judge(
+    let accepted = crate::judge_terminal_source(
         std::sync::Arc::new(source),
         request,
         terminal_codec::TerminalPublication::Portable,
@@ -633,7 +633,7 @@ machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
             &crate::preparation::PreparationRequest::settled(),
         )
         .expect("retain the same selected declarations and checked borrows");
-        let judged = crate::production::AcceptedTerminalSource::judge(
+        let judged = crate::judge_terminal_source(
             std::sync::Arc::new(prepared),
             request,
             terminal_codec::TerminalPublication::Portable,

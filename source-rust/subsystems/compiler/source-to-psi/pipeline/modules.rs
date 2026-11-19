@@ -39,16 +39,18 @@ pub(crate) use typed_trees_to_typed_trees::preparation;
 #[cfg(any(test, feature = "test-support"))]
 pub use typed_trees_to_typed_trees::preparation;
 
-pub use checked_program_to_psi::SourcePublication;
+#[path = "prepare_and_check/source_judgment.rs"]
+mod source_judgment;
+pub use source_judgment::{judge_source_roster, judge_terminal_source, SourcePublication};
 
-#[path = "07_checked-program-to-psi/provider_selections.rs"]
+#[path = "prepare_and_check/provider_settlement.rs"]
 pub(crate) mod source_supply;
 pub use source_supply::{
     ChosenDefaultLayout, ProductSupplySource, SourceSupplyTarget, SuppliedProduct, SupplyJudgment,
     TargetSupplySource, judge_supplied_product, prepare_supplied_target,
 };
 
-pub use checked_program_to_psi::source_roster::{
+pub use typed_trees_to_lowered_program::lowering::source_roster::{
     SourceCallingContext, SourceCallingInputs, SourceCompilationRoster, SourceNormalizationInputs,
     SourceProgramEntryInput,
 };

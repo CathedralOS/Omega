@@ -553,8 +553,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .declaration_metadata
                 .push(symbols::SymbolHandle::invalid());
             assert!(
-                executable_roster
-                    .judge(std::sync::Arc::clone(accepted.source()))
+                source_compiler::judge_source_roster(executable_roster, std::sync::Arc::clone(accepted.source()))
                     .is_err()
             );
         })

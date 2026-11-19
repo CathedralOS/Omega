@@ -2126,7 +2126,7 @@ machine entry() -> u64 crashes none {
             &crate::preparation::PreparationRequest::settled(),
         )
         .unwrap();
-        AcceptedTerminalSource::judge(
+        crate::judge_fixture(
             Arc::new(frozen),
             crate::lowering::Compilation {
                 declaration_metadata: &metadata,
@@ -2287,7 +2287,7 @@ machine entry() -> u32 crashes none {{
     ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
         let entry = program.realized_machine_named("entry").unwrap().symbol;
         let package = program.symbols.symbol_package_identity(entry).unwrap();
-        AcceptedTerminalSource::judge(
+        crate::judge_fixture(
             Arc::new(program),
             crate::lowering::Compilation {
                 declaration_metadata: &[],

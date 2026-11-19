@@ -641,8 +641,7 @@ fn process_exit_retains_its_external_demand_and_requires_supply() {
         ..Default::default()
     };
     let typed = Arc::new(frontier.typed);
-    let accepted = roster
-        .judge(Arc::clone(&typed))
+    let accepted = source_compiler::judge_source_roster(roster.clone(), Arc::clone(&typed))
         .expect("the actual ProcessExit program is accepted");
     let supply =
         prepare(&accepted, &[], &[]).expect("external completion is an ordinary provider demand");

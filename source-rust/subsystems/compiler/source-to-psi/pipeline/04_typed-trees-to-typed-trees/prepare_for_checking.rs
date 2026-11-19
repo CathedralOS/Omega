@@ -122,7 +122,7 @@ impl SourcePreparationRequest<'_> {
             accounting,
             constants,
         } = self.prepare()?;
-        match crate::AcceptedTerminalSource::judge(program, compilation, publication) {
+        match crate::judge_terminal_source(program, compilation, publication) {
             Ok(accepted) => Ok(JudgedSource {
                 accepted,
                 accounting,

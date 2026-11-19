@@ -35,42 +35,30 @@ impl SourcePublication {
         }
     }
 
-    /// Judge and retain one exact roster. A caller cannot attach unjudged
-    /// supplies to an independently obtained accepted source. Construction is
-    /// fresh, so a previously published artifact cannot survive a new judgment.
-    pub fn judge(
-        source: Arc<crate::source_state::FrozenTypedTrees>,
-        roster: SourceCompilationRoster,
+    /// The checker returns the exact lowered roster alongside its own verdicts.
+    pub fn from_judgment(
+        judgment: crate::checking::CheckedPublication<crate::lowering::LoweredSourcePublication>,
         optimizations: PsiOptimizationSelections,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let accepted = roster.judge(source)?;
+        let (accepted, roster) = crate::AcceptedTerminalSource::accept_judgment(judgment)?;
+        let roster = roster.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "source publication requires the checked product roster",
+            )]
+        })?;
         let mut publication = Self::new(optimizations);
-        publication.accepted = Some((accepted, roster));
+        publication.accepted = Some((Arc::new(accepted), roster));
         Ok(publication)
     }
 
-    /// Judge an executable child's descriptors before publication, preserving
-    /// the original roster and every chosen supply on the same frozen owner.
-    pub fn with_declaration_metadata(
-        &self,
-        declarations: &[symbols::SymbolHandle],
-    ) -> Result<Self, Vec<Diagnostic>> {
+    /// Read the original roster for a fresh judgment before any publication attempt.
+    pub fn unpublished_roster(&self) -> Result<&SourceCompilationRoster, Vec<Diagnostic>> {
         if self.program.get().is_some() {
             return Err(vec![Diagnostic::error(
                 "declaration metadata must be judged before Terminal publication",
             )]);
         }
-        let mut roster = self.roster()?.clone();
-        for declaration in declarations {
-            if !roster.declaration_metadata.contains(declaration) {
-                roster.declaration_metadata.push(*declaration);
-            }
-        }
-        Self::judge(
-            Arc::clone(self.accepted()?.source()),
-            roster,
-            self.optimizations.clone(),
-        )
+        self.roster()
     }
 
     /// The roster the retained judgment accepted.

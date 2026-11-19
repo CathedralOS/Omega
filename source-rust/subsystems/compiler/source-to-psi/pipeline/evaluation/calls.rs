@@ -214,7 +214,7 @@ impl PreparedBuildMachineProgram {
             &crate::preparation::PreparationRequest::settled(),
         )?;
         let source = Arc::new(source);
-        let accepted = crate::production::AcceptedTerminalSource::judge(
+        let accepted = crate::judge_terminal_source(
             source,
             crate::production::TerminalSourceCompilation {
                 declaration_metadata: &[],
