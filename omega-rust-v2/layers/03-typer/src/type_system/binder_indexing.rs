@@ -312,24 +312,6 @@ impl<'a> ResolvedSourceFile<'a> {
         }
         Ok(())
     }
-    pub fn index_aliases(
-        &self,
-        types: &mut TypeCatalog<'a>,
-    ) -> Result<(), TypeError> {
-        let source = &self.file;
-        for (node_index, _) in source
-            .nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, node)| node.kind == NodeKind::Data && node.leaves.iter().any(|w| w.text == "="))
-        {
-            if types.aliases.contains_key(self.declaration(node_index)?) {
-                continue;
-            }
-            self.index_alias(node_index, types)?;
-        }
-        Ok(())
-    }
     pub(super) fn index_alias(
         &self,
         node_index: usize,

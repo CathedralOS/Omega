@@ -1,7 +1,7 @@
-//! A binder may need an alias from another file, and the alias may itself need
-//! typed binders to interpret its arguments. Prepare those dependencies before
-//! reading the bound. Aliases unused by binders stay in ordinary alias indexing.
+//! Prepare binders, aliases and domains in dependency order, including declarations from other files.
+//! Width checks need typed binders. Ordinary domain carriers use the flattened aliases.
 use super::type_catalog::TypeCatalog;
+use super::width_obligations::collect_width_obligations;
 use crate::TypeError;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use omega_parser::NodeKind;
@@ -21,11 +21,12 @@ enum State {
     Complete,
 }
 
-pub(crate) fn index_binder_carriers<'a>(
+pub(crate) fn index_type_definitions<'a>(
     units: &[ResolvedSourceFile<'a>],
     types: &mut TypeCatalog<'a>,
+    output: &mut crate::TypedStage,
 ) -> Result<(), TypeError> {
-    use NodeKind::*;
+    use NodeKind::{ConstParam, Data, Domain, GenericParams, KindedParam, PathType};
     let mut definitions = Vec::new();
     let mut binders = Vec::new();
     let mut by_binding = HashMap::new();
@@ -75,7 +76,7 @@ pub(crate) fn index_binder_carriers<'a>(
     }
     let mut state = vec![State::Unseen; definitions.len()];
     let mut pending = Vec::new();
-    for root in binders {
+    let mut prepare = |root: usize, types: &mut TypeCatalog<'a>| -> Result<(), TypeError> {
         pending.push((root, false));
         while let Some((id, finish)) = pending.pop() {
             let Definition { file, node, expression } = definitions[id];
@@ -91,7 +92,14 @@ pub(crate) fn index_binder_carriers<'a>(
             }
             match state[id] {
                 State::Complete => continue,
-                State::Visiting => return Err(TypeError::at(&unit.file, expression, "cyclic type alias or binder kind")),
+                State::Visiting => {
+                    let reason = if unit.file.nodes[node].kind == Domain {
+                        "cyclic domain alias"
+                    } else {
+                        "cyclic type alias or binder kind"
+                    };
+                    return Err(TypeError::at(&unit.file, expression, reason));
+                }
                 State::Unseen => state[id] = State::Visiting,
             }
             pending.push((id, true));
@@ -139,6 +147,22 @@ pub(crate) fn index_binder_carriers<'a>(
                     _ => {}
                 }
             }
+        }
+        Ok(())
+    };
+    for root in binders {
+        prepare(root, types)?;
+    }
+    collect_width_obligations(units, types, output)?;
+    for (id, definition) in definitions.iter().enumerate() {
+        if units[definition.file].file.nodes[definition.node].kind == Data {
+            prepare(id, types)?;
+        }
+    }
+    types.flatten_plain_aliases();
+    for (id, definition) in definitions.iter().enumerate() {
+        if units[definition.file].file.nodes[definition.node].kind == Domain {
+            prepare(id, types)?;
         }
     }
     Ok(())

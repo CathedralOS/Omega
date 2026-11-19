@@ -10,6 +10,7 @@ include!("calls/data_and_places.rs");
 include!("calls/generic_applications.rs");
 include!("calls/mathematical_evidence.rs");
 include!("calls/numbers_and_operators.rs");
+include!("calls/result_domain_selection.rs");
 
 #[test]
 fn selects_by_operand_and_checks_the_selected_result() {
