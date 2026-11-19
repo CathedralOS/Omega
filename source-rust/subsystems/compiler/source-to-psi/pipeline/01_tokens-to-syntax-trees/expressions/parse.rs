@@ -286,7 +286,7 @@ enum ArgumentsPurpose {
         machine_arguments: Box<[StaticMachineArgument]>,
         context: PostfixContext,
     },
-    /// `Requirement<...>::operation(...)` written as a primary operand.
+    /// `Requirement::<...>::operation(...)` written as a primary operand.
     AppliedRequirement {
         receiver: ExpressionHandle,
         target: Identifier,
@@ -915,6 +915,44 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         }
     }
 
+    /// A bare type application can be a side of an equality. Parentheses may
+    /// enclose that side; a call's arguments or an index start a separate operand.
+    fn is_equality_operand(&self, mut rest: Input<'tokens, 'source>) -> bool {
+        let equality_follows = |input: Input<'_, '_>| {
+            input.at_punctuation(PunctuationKind::EqualEqual)
+                || input.at_punctuation(PunctuationKind::ExclamationEqual)
+        };
+        for frame in self.frames.iter().rev() {
+            if equality_follows(rest) {
+                return true;
+            }
+            match frame {
+                Frame::Chain { base, .. } if self.operators.len() > *base => {
+                    return self.operators.last().is_some_and(|pending| {
+                        matches!(
+                            pending.operator,
+                            BinaryOperator::Equal | BinaryOperator::NotEqual
+                        )
+                    });
+                }
+                Frame::Group if rest.at_punctuation(PunctuationKind::RightParen) => {
+                    rest = rest
+                        .take_punctuation(PunctuationKind::RightParen, ")")
+                        .expect("group closer");
+                }
+                Frame::Arguments(_)
+                | Frame::IndexStart(_)
+                | Frame::IndexEnd { .. }
+                | Frame::ArrayLiteral(_)
+                | Frame::StructLiteral(_)
+                | Frame::Match(_)
+                | Frame::DestructureField(_) => return false,
+                _ => {}
+            }
+        }
+        equality_follows(rest)
+    }
+
     fn primary(
         &mut self,
         syntax_trees: &mut SyntaxTrees,
@@ -1165,8 +1203,12 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
 
             if context.allows_type_expression()
                 && input.at_punctuation(PunctuationKind::Less)
-                && let Some((type_reference, rest)) =
-                    try_generic_type_operand(syntax_trees, start, !context.allows_struct_literal())
+                && let Some((type_reference, rest)) = try_generic_type_operand(
+                    syntax_trees,
+                    start,
+                    !context.allows_struct_literal(),
+                    |rest| self.is_equality_operand(rest),
+                )
             {
                 let expression = syntax_trees
                     .expressions

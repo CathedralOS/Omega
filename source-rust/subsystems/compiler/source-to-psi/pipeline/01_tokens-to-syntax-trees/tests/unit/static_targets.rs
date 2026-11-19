@@ -258,7 +258,7 @@ fn boolean_type_operands_preserve_constructor_and_value_contexts() {
         ),
         (
             "guard",
-            "machine choose<T>() -> bool { transition { T == Box<u64> -> true _ -> false } }",
+            "machine choose<T>() -> bool { transition { T == Box<u64> -> true, _ -> false } }",
         ),
         (
             "constructor",
@@ -407,6 +407,8 @@ fn explicit_arguments_belong_to_their_expression_path_component() {
 fn legacy_generic_calls_and_chained_comparisons_reject_at_parse_time() {
     for expression in [
         "id<u32>(x)",
+        "id<u32>",
+        "consume(id<u32>)",
         "library::id<u32>(x)",
         "receiver.id<u32>(x)",
         "id<T, U>()",
@@ -430,6 +432,8 @@ fn legacy_generic_calls_and_chained_comparisons_reject_at_parse_time() {
         }
     }
     for expression in [
+        "T == (Box<u64>)",
+        "(Box<u64>) != T",
         "a < (b)",
         "(a < b) == c",
         "a == (b < c)",

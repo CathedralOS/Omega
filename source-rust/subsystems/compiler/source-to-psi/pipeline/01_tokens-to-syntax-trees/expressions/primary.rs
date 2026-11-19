@@ -154,6 +154,7 @@ pub(crate) fn try_generic_type_operand<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     allow_body_delimiter: bool,
+    is_equality_operand: impl FnOnce(Input<'tokens, 'source>) -> bool,
 ) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
     let checkpoint = syntax.append_checkpoint();
     let accepted = (|| {
@@ -195,8 +196,10 @@ pub(crate) fn try_generic_type_operand<'tokens, 'source>(
             ]
             .into_iter()
             .any(|keyword| rest.at_contextual(keyword));
-        (accepted && (allow_body_delimiter || !rest.at_punctuation(PunctuationKind::LeftBrace)))
-            .then_some((reference, rest))
+        (accepted
+            && is_equality_operand(rest)
+            && (allow_body_delimiter || !rest.at_punctuation(PunctuationKind::LeftBrace)))
+        .then_some((reference, rest))
     })();
     if accepted.is_none() {
         syntax.rewind_appended(checkpoint);
