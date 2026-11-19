@@ -11,3 +11,28 @@ pub use source_symbol_table::source_inputs::InvocationSourceConsent;
 #[path = "evaluation/frontier.rs"]
 mod frontier;
 pub(crate) use frontier::PreCheckEvaluation;
+
+#[path = "evaluation/native_bindings.rs"]
+pub mod native_bindings;
+#[path = "evaluation/product_declarations.rs"]
+pub mod product_declarations;
+#[path = "evaluation/retained_product_application.rs"]
+pub mod retained_product_application;
+
+use crate::declaration_selection::{
+    BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+};
+use std::sync::Arc;
+
+pub fn build_requests_any(
+    declared: &[std::sync::Arc<ProductDeclarationRequest>],
+    executed: &[ExecutedProductSelection],
+    operations: &[BuildOperation],
+) -> bool {
+    declared
+        .iter()
+        .any(|request| operations.contains(&request.operation))
+        || executed
+            .iter()
+            .any(|event| operations.contains(&event.request.operation))
+}
