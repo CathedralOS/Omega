@@ -273,3 +273,6 @@ pub(crate) fn open_product(
     })();
     session.dispose(result).map_err(error)
 }
+
+#[cfg(test)]
+mod tests;
