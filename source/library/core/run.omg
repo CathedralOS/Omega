@@ -46,7 +46,7 @@ requires self.count == 1;
 public machine Run::initialize_cell<P, T, Role>(
     storage: Extent in Granted & Vacant, value: T
 ) -> AccessOutcome<
-    Run<P, T> in Live<P, T> @ Singleton<P, T>,
+    Run<P, T> in Live<P, T> & Singleton<P, T>,
     AccessReturn<Extent in Granted & Vacant, T>,
     AccessInitializationFailure
 >
@@ -82,7 +82,7 @@ ensures (match result {
 boundary machine Run::initialize_from_profile<P, T, Role>(
     storage: Extent in Granted & Vacant, value: T, profile: @ResourceProfile
 ) -> AccessOutcome<
-    Run<P, T> in Live<P, T> @ Singleton<P, T>,
+    Run<P, T> in Live<P, T> & Singleton<P, T>,
     AccessReturn<Extent in Granted & Vacant, T>,
     AccessInitializationFailure
 >;
