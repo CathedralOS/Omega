@@ -519,7 +519,26 @@ impl Prover<'_> {
         direction: Direction,
     ) -> Result<ProofNode, Unproven> {
         let subject = ScalarTerm::value(value, ScalarType::Integer(source_type));
-        let bound = self.bound(value, direction).ok_or("value has no bound")?;
+        let Some(bound) = self.bound(value, direction) else {
+            // Some carriers, including addresses, have mathematical bounds
+            // without a same-carrier scalar comparison rule. Ask the existing
+            // kernel judgment for this exact declared carrier and value.
+            let endpoint = match direction {
+                Direction::Lower => IntegerMathTerm::carrier_minimum(source_type),
+                Direction::Upper => IntegerMathTerm::carrier_maximum(source_type),
+            };
+            let goal = match direction {
+                Direction::Lower => Proposition::IntegerMathLessOrEqual(endpoint, term.clone()),
+                Direction::Upper => Proposition::IntegerMathLessOrEqual(term.clone(), endpoint),
+            };
+            proof_admission::decide_primitive(
+                self.context,
+                &goal,
+                PrimitiveJudgment::IntegerCarrierBound,
+            )
+            .map_err(|_| "the kernel refuses this mathematical carrier bound")?;
+            return Ok(primitive(goal, PrimitiveJudgment::IntegerCarrierBound));
+        };
         let literal = IntegerMathTerm::literal(bound.literal);
         let (restated, endpoint) = match direction {
             Direction::Upper => (
