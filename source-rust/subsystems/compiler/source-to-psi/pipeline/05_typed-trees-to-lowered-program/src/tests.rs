@@ -4236,7 +4236,7 @@ fn each_operation_that_forms_or_changes_a_constrained_value_owes_its_clauses() {
     let bytes = terminal_codec::encode_module(&elaboration.module).unwrap();
     let decoded = terminal_codec::decode_module(&bytes).unwrap();
     assert_eq!(
-        decoded.structural_types,
+        decoded.types.structural_types,
         elaboration.module.types.structural_types
     );
 }

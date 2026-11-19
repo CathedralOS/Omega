@@ -2834,7 +2834,7 @@ pub(crate) mod contents {
                 Arc::get_mut(&mut program)
                     .unwrap()
                     .fixture_module_mut()
-                    .structural_types
+                    .types.structural_types
                     .extend([
                         declaration(
                             record,

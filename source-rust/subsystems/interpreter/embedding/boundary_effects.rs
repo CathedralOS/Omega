@@ -3202,7 +3202,7 @@ pub(crate) mod results {
                 Arc::get_mut(&mut program)
                     .unwrap()
                     .fixture_module_mut()
-                    .structural_types
+                    .types.structural_types
                     .push(StructuralTypeDeclaration {
                         declaration_identity: Default::default(),
                         requires: Vec::new(),
@@ -3429,7 +3429,7 @@ pub(crate) mod results {
                     Arc::get_mut(&mut program)
                         .unwrap()
                         .fixture_module_mut()
-                        .structural_types
+                        .types.structural_types
                         .push(StructuralTypeDeclaration {
                             declaration_identity: Default::default(),
                             requires: Vec::new(),

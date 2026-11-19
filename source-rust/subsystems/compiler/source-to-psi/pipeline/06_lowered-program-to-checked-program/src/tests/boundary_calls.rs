@@ -1322,14 +1322,14 @@ machine entry() -> u32 crashes none {
     }
     let first = module.interfaces.calling_signatures[0].clone();
     let mut duplicate = module.clone();
-    duplicate.calling_signatures.insert(0, first.clone());
+    duplicate.interfaces.calling_signatures.insert(0, first.clone());
     assert_eq!(
         duplicate.boundary_calling_abi(first.boundary).unwrap_err(),
         "boundary has no unique Terminal calling declaration"
     );
     let mut missing = module.clone();
     missing
-        .calling_signatures
+        .interfaces.calling_signatures
         .retain(|row| row.boundary != first.boundary);
     assert_eq!(
         missing.boundary_calling_abi(first.boundary).unwrap_err(),

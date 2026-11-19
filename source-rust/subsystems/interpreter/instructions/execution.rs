@@ -861,7 +861,7 @@ pub(crate) mod capabilities {
             let boundary = BoundaryMachineId::new(1).unwrap();
             let catalogs = program.fixture_module_mut();
             let declaration = boundary_declaration(catalogs, boundary);
-            catalogs.boundary_machines.push(declaration);
+            catalogs.interfaces.boundary_machines.push(declaration);
             program
         }
 
@@ -900,7 +900,7 @@ pub(crate) mod capabilities {
             let provider_identity = intern_identity(catalogs, "graph provider");
             let candidate_identity = intern_identity(catalogs, "graph candidate");
             catalogs
-                .provider_candidates
+                .interfaces.provider_candidates
                 .push(terminal_psi::ProviderCandidateConformance {
                     boundary,
                     requirement_identity,
@@ -981,7 +981,7 @@ pub(crate) mod capabilities {
                 shape,
                 scalar_restriction: None,
             };
-            catalogs.structural_types = vec![
+            catalogs.types.structural_types = vec![
                 declaration(
                     scalar,
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(
@@ -1028,14 +1028,14 @@ pub(crate) mod capabilities {
             boundary.structural_parameters[0].access = StructuralAccess::Owned;
             boundary.structural_parameters[0].structural_type = array;
             assert!(!boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
-            catalogs.structural_types[2].shape = terminal_psi::StructuralTypeShape::FixedArray {
+            catalogs.types.structural_types[2].shape = terminal_psi::StructuralTypeShape::FixedArray {
                 element: descriptor,
                 length: terminal_psi::ArrayExtent::Literal(1),
             };
             assert!(boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
             boundary.structural_parameters[0].structural_type = borrowed;
             assert!(boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
-            catalogs.structural_types[1].shape = terminal_psi::StructuralTypeShape::Reference {
+            catalogs.types.structural_types[1].shape = terminal_psi::StructuralTypeShape::Reference {
                 referent: borrowed,
                 access: StructuralAccess::SharedBorrow,
             };
@@ -1067,7 +1067,7 @@ pub(crate) mod capabilities {
         ) {
             program
                 .fixture_module_mut()
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter_mut()
                 .find(|declaration| declaration.id == boundary)
                 .unwrap()
@@ -1097,11 +1097,11 @@ pub(crate) mod capabilities {
             );
             set_machine(&mut program, selected, machine(0, Vec::new()));
             let catalogs = program.fixture_module_mut();
-            catalogs.boundary_machines[0].kind =
+            catalogs.interfaces.boundary_machines[0].kind =
                 semantic_vocabulary::BoundaryRequirementKind::Trait;
-            catalogs.boundary_machines[0].service_reach_is_installation_bound = true;
+            catalogs.interfaces.boundary_machines[0].service_reach_is_installation_bound = true;
             let identity = intern_identity(catalogs, "X");
-            catalogs.services.push(terminal_psi::ServiceDeclaration {
+            catalogs.interfaces.services.push(terminal_psi::ServiceDeclaration {
                 id: service,
                 identity,
                 parents: Vec::new(),
@@ -1132,7 +1132,7 @@ pub(crate) mod capabilities {
             assert!(
                 matches!(check(&program, Some(&installation)), Err(TerminalInterpretError::InstallationServiceReach(reason)) if reason.contains("exceeds its published upper bound"))
             );
-            program.fixture_module_mut().boundary_machines[0].published_service_ceiling =
+            program.fixture_module_mut().interfaces.boundary_machines[0].published_service_ceiling =
                 vec![service];
             check(&program, Some(&installation))
                 .expect("the same selected row fits the wider bound");
@@ -1235,7 +1235,7 @@ pub(crate) mod capabilities {
             let missing = BoundaryMachineId::new(2).unwrap();
             program
                 .fixture_module_mut()
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter_mut()
                 .find(|declaration| declaration.id == external)
                 .unwrap()
@@ -1321,7 +1321,7 @@ pub(crate) mod capabilities {
             let mut program = program();
             let catalogs = program.fixture_module_mut();
             let declaration = boundary_declaration(catalogs, BoundaryMachineId::new(2).unwrap());
-            catalogs.boundary_machines.push(declaration);
+            catalogs.interfaces.boundary_machines.push(declaration);
             let slot = |catalogs: &mut terminal_psi::TerminalModule, slot| TerminalDynamicSlot {
                 slot,
                 declaring_trait_identity: intern_identity(catalogs, "graph interface"),
@@ -1334,14 +1334,14 @@ pub(crate) mod capabilities {
                 result_claim_paths: Vec::new(),
                 result_reference_regions: Vec::new(),
             };
-            catalogs.dynamic_dispatch.interfaces = (0..2)
+            catalogs.execution.dynamic_dispatch.interfaces = (0..2)
                 .map(|id| terminal_psi::TerminalDynamicInterface {
                     id,
                     identity: intern_identity(catalogs, &format!("interface {id}")),
                     slots: vec![slot(catalogs, 0), slot(catalogs, 1)],
                 })
                 .collect();
-            catalogs.dynamic_dispatch.tables = vec![
+            catalogs.execution.dynamic_dispatch.tables = vec![
                 terminal_psi::TerminalDynamicTable {
                     id: 0,
                     interface: 0,
@@ -1420,7 +1420,7 @@ pub(crate) mod capabilities {
         #[test]
         fn capability_graph_dynamic_call_refuses_external_completion_in_later_table() {
             let mut program = dynamic_program();
-            program.fixture_module_mut().dynamic_dispatch.tables[0].rows[0] =
+            program.fixture_module_mut().execution.dynamic_dispatch.tables[0].rows[0] =
                 Some(program.resolve_entry(None).unwrap());
             let boundary = install_process_exit_caller(&mut program, 2);
             assert_eq!(
@@ -1441,7 +1441,7 @@ pub(crate) mod capabilities {
             let kind = ExternalCompletionKind::ProcessExit;
             program
                 .fixture_module_mut()
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter_mut()
                 .find(|declaration| declaration.id == boundary)
                 .unwrap()
@@ -1558,7 +1558,7 @@ pub(crate) mod capabilities {
             let catalogs = program.fixture_module_mut();
             let identity = intern_identity(catalogs, "graph cleanup carrier");
             catalogs
-                .structural_types
+                .types.structural_types
                 .push(terminal_psi::StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     id: structural_type,

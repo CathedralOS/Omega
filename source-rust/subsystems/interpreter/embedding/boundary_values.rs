@@ -2003,7 +2003,7 @@ pub(crate) mod values {
                 Arc::get_mut(&mut program)
                     .unwrap()
                     .fixture_module_mut()
-                    .structural_types = declarations;
+                    .types.structural_types = declarations;
                 let mut execution =
                     crate::engine::execution::TerminalExecution::start_with_program(
                         program,
