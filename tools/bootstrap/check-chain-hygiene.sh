@@ -36,6 +36,10 @@ owner_roots() {
   printf '%s\n' "$owner_files" | awk -F/ 'NF >= 3 { print $2 }' | sort -u
 }
 
+host_scripts=$(find "$OMEGA_PATH_BOOTSTRAP" ! -type d \
+  \( -name '*.py' -o -name '*.sh' -o -name '*.ps1' \) -print)
+[ -z "$host_scripts" ] || fail "host scripts belong outside bootstrap/: $host_scripts"
+
 for required in \
   "$OMEGA_PATH_ALPHA" \
   "$OMEGA_PATH_BETA" \
@@ -74,7 +78,7 @@ done
   fail "Delta support-member source manifest is absent"
 [ -x "$OMEGA_REPO_ROOT/tools/bootstrap/check-chain-hygiene.sh" ] ||
   fail "bootstrap topology gate is not executable"
-[ -x "$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/alpha-beta-edge.sh" ] ||
+[ -x "$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/alpha-beta-edge.sh" ] ||
   fail "Alpha-to-Beta edge gate is not executable"
 xtask_usage=$("$_xtask_bin") ||
   fail "xtask binary did not report its commands"
@@ -108,7 +112,7 @@ printf '%s\n' "$xtask_usage" | grep -q 'source-closure' ||
   fail "source-closure materializer is absent from xtask"
 printf '%s\n' "$xtask_usage" | grep -q 'alpha-forge' ||
   fail "Alpha Windows listing forge is absent from xtask"
-[ -x "$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/source-closure.sh" ] ||
+[ -x "$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/source-closure.sh" ] ||
   fail "source-closure gate is not executable"
 [ -f "$OMEGA_PATH_OMEGA/application/construction/build.omg" ] || fail "Omega compiler construction build root is absent"
 [ -f "$OMEGA_PATH_OMEGA/application/construction/main.omg" ] || fail "Omega compiler construction entry is absent"

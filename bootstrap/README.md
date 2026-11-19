@@ -36,7 +36,8 @@ From the repository root on Linux x86-64, run
 `bootstrap/linux_x86_64/bootstrap . /tmp/omega-gamma` with a new output
 directory to build the native Gamma compiler offline. Put `--alpha` before
 `.` to build the Alpha-tape compiler. Both commands rebuild the Gamma compiler
-twice. The same entry accepts the Delta compiler source and an Epsilon evaluator
+twice with an empty `PATH`, using the embedded seeds and the supplied source files.
+The same entry accepts the Delta compiler source and an Epsilon evaluator
 compilation request. [Offline commands and inputs](linux_x86_64/README.md)
 
 The bootstrap compiler's job is to build the **Omega compiler** (C in older
@@ -49,9 +50,10 @@ A host Rust toolchain builds the Rust comparator, which can compile Omega
 sources during development. Record that dependency when reporting a
 Rust-assisted build. [Rust comparator](../omega-rust)
 
-Each path owns its construction tests and evidence. When promoting a chain, take its candidate tests and the [portable conformance checks](tests/conformance/README.md). The compiled routes share their in-repository comparison helpers in [compiled.py](tests/compiled.py). They also share the common seed and compiler sources described above. Retain only
-machinery needed by real successors or necessary validation. Record seed/trust
-assumptions, actual cold runs, development acceleration and failed experiments.
+Host-side tests, reference interpreters and development accelerators live under [tests/bootstrap](../tests/bootstrap/). When promoting a chain, take its candidate tests and the [portable conformance checks](../tests/bootstrap/conformance/README.md). The compiled routes share their comparison helpers in [compiled.py](../tests/bootstrap/compiled.py).
+
+Record seed and trust assumptions, actual cold runs, development acceleration
+and failed experiments.
 The [edge contracts](CONTRACT.md) describe the retained language edges.
 Scripts locate their sources through [`tools/bootstrap/paths.sh`](../tools/bootstrap/paths.sh).
 [Proof research](proofs/README.md) is optional for construction.

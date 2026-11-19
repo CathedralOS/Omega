@@ -20,7 +20,7 @@ still choose their inputs. `fmt` already defaulted to the current directory.
 
 Keep a Rust test’s inputs under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. Multiple owners can share the same input under the repository’s `tests/fixtures/`. Shared Rust harness code lives in `tests/support/`.
 
-Bootstrap candidates own their construction tests. The interpreted tree groups rung and cross-rung gates under `bootstrap/interpreted/tests/`. The portable [bootstrap checks](../../bootstrap/tests/conformance/README.md) and their expected outcomes can be copied alongside the selected chain. Retired gates and fixtures are available in [the archive](../../_recycling/tests/).
+Bootstrap tests live in `tests/bootstrap/`, grouped by candidate. The `interpreted/` suite contains its rung and cross-rung gates. The portable [bootstrap checks](../../tests/bootstrap/conformance/README.md) and their expected outcomes can be copied alongside the selected chain. Retired gates and fixtures are available in [the archive](../../_recycling/tests/).
 
 ## Validation scope
 
@@ -404,7 +404,7 @@ sh tools/bootstrap/check-chain-hygiene.sh
 ```
 
 ```bash
-sh bootstrap/interpreted/tests/alpha-beta-edge.sh --edge
+sh tests/bootstrap/interpreted/alpha-beta-edge.sh --edge
 ```
 
 The first is the single repository-topology gate. The second is the currently

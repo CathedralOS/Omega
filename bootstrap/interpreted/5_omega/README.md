@@ -48,14 +48,14 @@ manifest materializes 22,612 lines / 839,299 bytes with SHA-256
 The manifest itself is 1,674 bytes, SHA-256
 `8d587950e39ea9c2b0caab5b3e336c244d0bf419c6ee485f24b9e5b076a39cfc`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
-materialization and `bootstrap/interpreted/tests/omega-identity.sh` covers refusals.
+materialization and `tests/bootstrap/interpreted/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
 Earlier parser measurements remain historical observations of their original
 source subjects, not measurements of the current closure.
 The authoring files preserve one Epsilon translation unit and its packed
 diagnostic coordinates.
 
-The [source-to-executable gate](../tests/omega-executable/README.md)
+The [source-to-executable gate](../../../tests/bootstrap/interpreted/omega-executable/README.md)
 connects parsed scalar machines to checking and the shared Alpha encoder.
 Its public request route validates OCREQ shape and re-walks the bound subject;
 the complete OCREQ semantic admission phases remain unfinished as detailed below.
@@ -299,7 +299,7 @@ call invalidation, overlapping argument loans and local-backed tail transfers.
 The parser and compiler contain no special cases for these helper names.
 
 ```sh
-python3 bootstrap/compiled_vm/tests/source_test.py --omega-storage
+python3 tests/bootstrap/compiled_vm/source_test.py --omega-storage
 ```
 
 The `--omega-control` source-built customer extracts the exact canonical
@@ -310,7 +310,7 @@ source-owned controls exercise parallel transfers, skipped looping operands,
 nested comparisons, type/arity/range/grammar refusals and reset behavior:
 
 ```sh
-python3 bootstrap/compiled_vm/tests/source_test.py --omega-control
+python3 tests/bootstrap/compiled_vm/source_test.py --omega-control
 ```
 
 Extraction and request framing supply bytes, not language meaning; no compiler
@@ -321,7 +321,7 @@ semantics, nested argument calls, caller preservation, forward calls, state
 transfers, and refusal/reset behavior. Run it through the source-built peer:
 
 ```sh
-python3 bootstrap/compiled_vm/tests/source_test.py --omega-values
+python3 tests/bootstrap/compiled_vm/source_test.py --omega-values
 ```
 
 This reconstructs the source Gamma compiler and its successor evaluators before
@@ -329,7 +329,7 @@ running the manifested bootstrap compiler and executing its emitted artifacts.
 It does not use Python to supply language semantics. Python frames and checks
 bytes; the native Alpha seed and documented source/tape admission remain trust
 inputs. The development comparator can also run these controls with
-`python3 bootstrap/compiled_vm/tests/test.py --omega-values` and retains its separately
+`python3 tests/bootstrap/compiled_vm/test.py --omega-values` and retains its separately
 disclosed Python semantic dependency.
 
 The scalar failure paths also record the canonical OCOUT outcome tuple
@@ -832,7 +832,7 @@ The V1 product at `d8a8825e3c23` uses `@mut` for Omega borrows. Its
 The Epsilon code that implements the Omega compiler still uses Epsilon
 receivers and byte views spelled `&mut self` and `&[u8]`.
 
-At that revision, `bootstrap/interpreted/tests/epsilon/refinement/model.py` expects `@` in an
+At that revision, `_recycling/tests/epsilon/refinement/model.py` expects `@` in an
 Epsilon receiver. It rejected both the unmodified and integrated Epsilon
 compiler sources at packed byte 39,463, the receiver in
 `request_and_utf8.epsilon` line 27. Both observations were

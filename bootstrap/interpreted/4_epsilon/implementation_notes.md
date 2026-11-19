@@ -36,11 +36,11 @@ its parser, checking, execution and independent-model migration remains under
 wrappers contain only their native AST value and no duplicated cursor or span.
 The closure deliberately still has no `main` of its own: the canonical
 evaluator `main` is the bound edge source
-[`bootstrap/tests/conformance/epsilon/evaluator_entry.delta`](../../tests/conformance/epsilon/evaluator_entry.delta),
+[`tests/bootstrap/conformance/epsilon/evaluator_entry.delta`](../../../tests/bootstrap/conformance/epsilon/evaluator_entry.delta),
 appended after the packed closure to form the canonical Delta subject. Its
 receipt, EREQ request envelope, canonical observation grammar, and EEOUT
 refusal frame are defined in [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) and
-executed by `bootstrap/interpreted/tests/epsilon/evaluator-entry/run.sh`. The staging execution
+executed by `tests/bootstrap/interpreted/epsilon/evaluator-entry/run.sh`. The staging execution
 path starts from `Main::main` accepted by the current
 checking pipeline; the remaining conformance obligations below still apply.
 Local, machine-parameter, state-parameter, and transition-payload bindings retain
@@ -206,11 +206,11 @@ prove their semantics: contract-derived conformance and independent refinement
 remain required. The evaluator boundary and `main` are now realized by
 [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) within current construct coverage.
 Complete Omega D composition and independent `RunEpsilon` refinement are now
-exercised gates — [`bootstrap/interpreted/tests/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md)
+exercised gates — [`tests/bootstrap/interpreted/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md)
 runs the full eight-member D closure through the canonical edge, including
 `OmegaScalarCompiler::compile` emitting the exact Alpha tape, and compares
 the same base executions against the contract-derived model in
-[`bootstrap/interpreted/tests/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md).
+[`tests/bootstrap/interpreted/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md).
 The synthetic language corpus runs separately there. Resource containment beyond the derived
 lower-chain profile remains an implementation gap. New execution work
 must name a concrete failing program or required conformance/refinement
@@ -638,9 +638,9 @@ observation.
   ([`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md); the diagnostic edge's derived
   profile stays in [`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md));
 - composition with the exact Epsilon-written Omega D source is exercised by
-  [`bootstrap/interpreted/tests/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md);
+  [`tests/bootstrap/interpreted/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md);
 - the independent reconstruction of `CheckEpsilon`/`RunEpsilon` lives under
-  [`bootstrap/interpreted/tests/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md) and
+  [`tests/bootstrap/interpreted/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md) and
   checks direct `RunEpsilon` refinement and negative mutations byte-for-byte;
 - validating every Epsilon expression, statement, state, trap, and Console
   execution rule remains the standing conformance clause — implemented

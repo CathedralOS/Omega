@@ -37,12 +37,12 @@ DELTA_COMPILER_SUPPORT_PACKED_SIZE=2998
 DELTA_COMPILER_SUPPORT_PACKED_SHA256=cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255
 
 # Bound diagnostic prefix. The staged-compiler gate's
-# bootstrap/interpreted/tests/delta/staged-compiler/development_driver.gamma is a separate entry
+# tests/bootstrap/interpreted/delta/staged-compiler/development_driver.gamma is a separate entry
 # packed on top of the bound member closure as an unmarked raw-source
 # transformer; it never selects a compiler application profile, so the packed
 # development compiler is a diagnostic subject, not a second canonical
 # compiler. The identical pins in
-# bootstrap/interpreted/tests/delta/staged-compiler/{README.md,run.sh} and
+# tests/bootstrap/interpreted/delta/staged-compiler/{README.md,run.sh} and
 # tools/xtask/src/source_closure.rs are records of this one subject, not
 # independent identities. A digest here is an identity check on the entry
 # bytes; it is not a proof of the staged pipeline. Changing the driver changes

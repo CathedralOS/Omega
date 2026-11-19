@@ -16,7 +16,7 @@ state machines:
 - [omega-rust-v2/](omega-rust-v2/Cargo.toml) is a separate Cargo workspace.
 - `source/psi/` + `source/omega/` — the Omega-written product compiler.
 - `source/library/` — bundled `omega::` packages (`name.omg` or `name/mod.omg`).
-- `bootstrap/interpreted/{0_alpha,…,5_omega}/` — the trust-minimizing bootstrap chain (`bootstrap/proofs/` holds Gamma-written derivation checking; scripts resolve locations via `tools/bootstrap/paths.sh`).
+- `bootstrap/interpreted/{0_alpha,…,5_omega}/` — the trust-minimizing bootstrap chain (`bootstrap/proofs/` holds Gamma-written derivation checking; host-side checks live in `tests/bootstrap/` and resolve locations via `tools/bootstrap/paths.sh`).
 
 **Public naming:** Follow [public names](wiki/README.md#public-names): the portable
 IR, artifact, interpreter and CLI subsystem are **Psi**. **Terminal Psi** names
@@ -453,9 +453,9 @@ reads the allowed lanes from this table:
 
 | Lane | Responsibility and current path anchors |
 | --- | --- |
-| `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/interpreted/<N>_<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific tests. |
+| `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/interpreted/<N>_<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific checks under `tests/bootstrap/interpreted/`. |
 | `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/interpreted/5_omega/` and its tests. Never shorten to `omega`. |
-| `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `bootstrap/interpreted/tests/`, and `tools/bootstrap/`. |
+| `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `tests/bootstrap/interpreted/`, and `tools/bootstrap/`. |
 | `psi` | Target-neutral source semantics and Psi publication in `source-rust/subsystems/compiler/source-to-psi/`, portable Psi in its sibling `psi/`, and self-hosted `source/psi/`. |
 | `omega` | Native planning, representations and verification in `source-rust/subsystems/compiler/psi-to-native/`, or self-hosted `source/omega/`. |
 | `backend` | Native targets and ABIs under `psi-to-native/targets/`, and encoding, layout, objects and images in native stages 11–16. |

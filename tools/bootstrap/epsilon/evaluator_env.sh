@@ -28,8 +28,8 @@ EPSILON_EVALUATOR_PACKED_SHA256=a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d7
 # evaluator; compiling the bound evaluator plus this driver and the bound
 # Delta support section through the bound Delta compiler reconstructs exactly
 # one evaluator receipt, which those consumers then execute. The identical
-# pins in bootstrap/interpreted/tests/epsilon/interpreted-omega-experiment/{README.md,run.sh},
-# bootstrap/interpreted/tests/epsilon/array-storage/gate.py, and bootstrap/interpreted/tests/omega-*/gate.py are
+# pins in tests/bootstrap/interpreted/epsilon/interpreted-omega-experiment/{README.md,run.sh},
+# tests/bootstrap/interpreted/epsilon/array-storage/gate.py, and tests/bootstrap/interpreted/omega-*/gate.py are
 # records of this one obligation, not independent identities. A digest here is
 # an identity check on the driver or the reconstructed bytes; it is not a
 # proof of evaluation. Changing the driver or any bound input changes the
@@ -40,7 +40,7 @@ EPSILON_EVALUATOR_RECEIPT_SIZE=719006
 EPSILON_EVALUATOR_RECEIPT_SHA256=f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340
 
 # Bound canonical section-11 entry and its reconstructed obligation. The
-# canonical evaluator entry bootstrap/tests/conformance/epsilon/evaluator_entry.delta
+# canonical evaluator entry tests/bootstrap/conformance/epsilon/evaluator_entry.delta
 # is the evaluator's real `main`: appended after the packed evaluator it forms
 # the Delta subject whose compilation through the bound Delta compiler and
 # support section reconstructs exactly one canonical evaluator receipt - the
@@ -50,7 +50,7 @@ EPSILON_EVALUATOR_RECEIPT_SHA256=f368dfc90787025cdde8067ca81b83778ceec4779105532
 # closure because the closure's source inventory owns every .delta file under
 # bootstrap/interpreted/4_epsilon/; it sits beside its boundary gate under the same
 # placement rule as the diagnostic driver. The identical pins in
-# bootstrap/interpreted/tests/epsilon/evaluator-entry/{README.md,run.sh} and
+# tests/bootstrap/interpreted/epsilon/evaluator-entry/{README.md,run.sh} and
 # bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md are records of this one obligation,
 # not independent identities. A digest here is an identity check on the entry
 # source or the reconstructed bytes; it is not a proof of evaluation. Changing
@@ -141,7 +141,7 @@ require_epsilon_evaluator_receipt_identity() {
 # not run during materialization.
 require_epsilon_evaluator_entry_identity() {
   require_bound_identity "evaluator_entry.delta" \
-    "${OMEGA_PATH_EPSILON_EVALUATOR_ENTRY:-$OMEGA_REPO_ROOT/bootstrap/tests/conformance/epsilon/evaluator_entry.delta}" \
+    "${OMEGA_PATH_EPSILON_EVALUATOR_ENTRY:-$OMEGA_REPO_ROOT/tests/bootstrap/conformance/epsilon/evaluator_entry.delta}" \
     "$EPSILON_EVALUATOR_ENTRY_SIZE" "$EPSILON_EVALUATOR_ENTRY_SHA256" \
     "_recycling/tests/epsilon/evaluator-entry/README.md"
 }

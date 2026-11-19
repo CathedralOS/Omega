@@ -717,7 +717,7 @@ mod tests {
         let root = crate::repo_root().expect("test runs in the Omega workspace");
         let cases = [
             (
-                "bootstrap/interpreted/tests/epsilon-source-closure/fixture.sources",
+                "tests/bootstrap/interpreted/epsilon-source-closure/fixture.sources",
                 89usize,
                 "528f65b2e2d9666db1c1f3930c9f5784bbfc1497e3b7225b26cb3eee34d2924c",
                 None,
@@ -744,7 +744,7 @@ mod tests {
                 "bootstrap/interpreted/3_delta/implementation/implementation.gamma.sources",
                 151292,
                 "4e82f36aa94a5cad71297687e2643982d88942bda4750c877fe8d633308fb720",
-                Some("bootstrap/interpreted/tests/delta/staged-compiler/development_driver.gamma"),
+                Some("tests/bootstrap/interpreted/delta/staged-compiler/development_driver.gamma"),
             ),
             (
                 "bootstrap/interpreted/3_delta/support/support.gamma.sources",

@@ -1,6 +1,6 @@
 # Beta theory component profile
 
-[Theory and ownership](README.md) | [Executable gate](../tests/beta-encoding-theory/README.md)
+[Theory and ownership](README.md) | [Executable gate](../../../tests/bootstrap/proofs/beta-encoding-theory/README.md)
 
 This profile covers the current source-owned theory emitter and finite
 diagnostic equations. It is not a profile for the certificate producer or
@@ -74,14 +74,14 @@ ones not used by the final root.
 | Tiny end-to-end encode, rejected | 6,145 | 100,183 |
 
 The encoder batches are produced by
-[stepper.py](../tests/beta-encoding-theory/stepper.py), the generic
+[stepper.py](../../../tests/bootstrap/proofs/beta-encoding-theory/stepper.py), the generic
 formed-theory stepper that replays ground applications through their stated
 clauses and emits the ordinary certificate rows. Their equations are declared
-in [encoder.py](../tests/beta-encoding-theory/encoder.py); every
+in [encoder.py](../../../tests/bootstrap/proofs/beta-encoding-theory/encoder.py); every
 batch is checked by the unchanged generic checker. The largest encoder request
 is 418,156 bytes (the valid end-to-end encode).
 
-The [gate's work derivations](../tests/beta-encoding-theory/README.md)
+The [gate's work derivations](../../../tests/bootstrap/proofs/beta-encoding-theory/README.md)
 count clause selection, indexing, every visit/resumption, ground comparisons,
 explicit rules, and final-root checks independently of observed output. A Word
 unfolding includes seventeen template visits, seventeen resumptions, and sixteen
@@ -149,7 +149,7 @@ second time on Linux x86-64 at `87d8b22713ff` under Python 3.10: the
 sha256-pinned host-side theory reconstruction, the midpoint-split owner
 proposition, and the full emission completed in 23.8 seconds at ~2.3 GiB peak
 RSS with byte-identical section sizes and per-rule totals.
-The gated mode `bootstrap/proofs/tests/beta-encoding-theory/run.sh --full-subject`
+The gated mode `tests/bootstrap/proofs/beta-encoding-theory/run.sh --full-subject`
 reproduces the production on any host with python3 — no evaluator seed is
 materialized — pinning the theory reconstruction, both subject identities,
 and every emitted figure so the run fails loudly on drift. Under its

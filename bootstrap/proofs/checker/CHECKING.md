@@ -98,7 +98,7 @@ encoding certificate; these generic tests do not complete P1.
 
 ## Rule census on the complete certificate
 
-`bootstrap/proofs/tests/beta-encoding-theory/run.sh --full-subject` reproduces the
+`tests/bootstrap/proofs/beta-encoding-theory/run.sh --full-subject` reproduces the
 complete derivation on any python3 host and counts each rule's emitted rows.
 Measured census: 1,018,733 unfolding, 1,157,751 transitivity, 936,662
 congruence, 69,828 reflexivity, and 0 symmetry rows; maximum premise depth 204
@@ -221,7 +221,7 @@ and refused the recorded request at admission and at session reservation.
 
 Recorded consequences of the larger extents: the exact/adjacent pair
 boundary is no longer executable in gate time, so
-`bootstrap/proofs/tests/heap-boundary` and `bootstrap/interpreted/tests/epsilon/pair-boundary` now witness
+`tests/bootstrap/proofs/heap-boundary` and `tests/bootstrap/interpreted/epsilon/pair-boundary` now witness
 the retired-V4-arena crossing and keep the refusal fixture pinned for
 opt-in execution; the function census's 2,097,152-row physical table is
 reachable in principle within the request frame, so the count preflight is
