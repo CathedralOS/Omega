@@ -38,4 +38,3 @@ pub fn inspect_terminal(
         artifact: std::sync::Arc::clone(artifact.artifact()),
     })
 }
-

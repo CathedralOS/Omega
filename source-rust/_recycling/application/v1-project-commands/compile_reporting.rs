@@ -299,4 +299,3 @@ fn format_publication_lines(outcome: &BuildReport) -> String {
     }
     lines
 }
-
