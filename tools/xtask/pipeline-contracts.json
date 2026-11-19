@@ -815,7 +815,7 @@
       "consumers": [
         "native compiler callback planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
       "item": "function:handler_planning_order#1",
       "kind": "producer",
       "meaning": "Orders installed handlers before their installers and rejects cyclic resource demand.",
@@ -826,7 +826,7 @@
       "consumers": [
         "native compiler callback planning"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
       "item": "handler_planning_order::enum:State#1",
       "kind": "definition",
       "meaning": "The unseen, active and finished states for one installation in the dependency walk.",
@@ -837,7 +837,7 @@
       "consumers": [
         "physical planning unit tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
       "item": "module:tests#1",
       "kind": "test_support",
       "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
@@ -848,7 +848,7 @@
       "consumers": [
         "physical planning unit tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
       "item": "tests::function:nested_installations_use_bounded_heap_work#1",
       "kind": "test_support",
       "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
@@ -859,7 +859,7 @@
       "consumers": [
         "physical planning unit tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
       "item": "tests::function:shared_handlers_precede_each_installer_and_ordinary_callbacks_follow_root#1",
       "kind": "test_support",
       "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
@@ -870,7 +870,7 @@
       "consumers": [
         "physical planning unit tests"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/handler_order.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
       "item": "tests::use:super :: handler_planning_order#1",
       "kind": "test_support",
       "meaning": "Exercises the installation order using shared or cyclic handlers and a deep chain.",
@@ -20373,7 +20373,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/emit_program/handler_order.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks/handler_order.rs",
       "allowed_kinds": [
         "definition",
         "producer",
