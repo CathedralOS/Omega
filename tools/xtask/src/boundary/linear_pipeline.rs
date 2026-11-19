@@ -246,7 +246,7 @@ mod tests {
     fn a_shared_helper_cannot_reenter_a_driver_or_borrow_another_readers_permission() {
         let allowed = native_stages::scoped_readers()
             .into_iter()
-            .find(|edge| edge.owner.ends_with("/verified-optimization-input"))
+            .find(|edge| edge.owner.ends_with("/encoding-admission"))
             .unwrap();
         let driver = native_stages::DRIVER;
         let replay = native_stages::OBJECT_REPLAY;
@@ -256,23 +256,23 @@ mod tests {
                 pkg(
                     "optimizer",
                     NATIVE_STAGES[3],
-                    &[("checked", allowed.owner, None), ("helper", "other", None)],
+                    &[("encoding", allowed.owner, None), ("helper", "other", None)],
                 ),
                 pkg(
-                    "checked",
+                    "encoding",
                     allowed.owner,
-                    &[("entry", allowed.dependency, None)],
+                    &[("encoder", allowed.dependency, None)],
                 ),
                 pkg(
                     "helper",
                     "other",
                     &[
-                        ("entry", allowed.dependency, None),
+                        ("encoder", allowed.dependency, None),
                         ("driver", driver, None),
                         ("replay", replay, None),
                     ],
                 ),
-                pkg("entry", allowed.dependency, &[]),
+                pkg("encoder", allowed.dependency, &[]),
                 pkg("driver", driver, &[]),
                 pkg("replay", replay, &[]),
             ],
@@ -281,9 +281,9 @@ mod tests {
         assert!(
             !errors
                 .iter()
-                .any(|message| message.contains("optimizer -> checked -> entry"))
+                .any(|message| message.contains("optimizer -> encoding -> encoder"))
         );
-        for destination in ["entry", "driver", "replay"] {
+        for destination in ["encoder", "driver", "replay"] {
             assert!(
                 errors
                     .iter()
