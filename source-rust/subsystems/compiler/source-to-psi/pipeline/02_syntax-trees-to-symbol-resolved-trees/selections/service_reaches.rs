@@ -335,7 +335,7 @@ fn validate_machine_service_reaches(
 
     if matches!(
         machine.supply_mode,
-        declaration_contracts::MachineSupplyMode::ExternalRealization { .. }
+        source_declarations::MachineSupplyMode::ExternalRealization { .. }
     ) && is_authored
     {
         return Err(Diagnostic::error(format!(

@@ -55,30 +55,7 @@ mod carry_policies {
 }
 
 mod semantic_domains {
-    use crate::{DomainEstablishmentRoute, DomainPredicatePresence, QualificationEvidenceOrigin};
-
-    #[test]
-    fn establishment_routes_keep_source_and_requirement_identity_independent() {
-        let checked_trait = symbols::SymbolHandle::from_arena_index(9);
-        let checked_requirement = symbols::SymbolHandle::from_arena_index(10);
-        let checked = DomainEstablishmentRoute::CheckedRequirement {
-            trait_definition: checked_trait,
-            requirement: checked_requirement,
-        };
-        assert_eq!(checked.kind_name(), "checked_requirement");
-        assert_eq!(checked.source_symbol(), checked_trait);
-        assert_eq!(checked.requirement_symbol(), checked_requirement);
-
-        let boundary_trait = symbols::SymbolHandle::from_arena_index(11);
-        let requirement = symbols::SymbolHandle::from_arena_index(12);
-        let route = DomainEstablishmentRoute::BoundaryRequirement {
-            boundary_trait,
-            requirement,
-        };
-        assert_eq!(route.kind_name(), "boundary_requirement");
-        assert_eq!(route.source_symbol(), boundary_trait);
-        assert_eq!(route.requirement_symbol(), requirement);
-    }
+    use crate::{DomainPredicatePresence, QualificationEvidenceOrigin};
 
     #[test]
     fn domain_predicate_presence_distinguishes_bodyless_from_explicit_predicates() {

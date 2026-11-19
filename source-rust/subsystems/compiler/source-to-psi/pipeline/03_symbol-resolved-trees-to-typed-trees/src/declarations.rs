@@ -601,8 +601,8 @@ pub(crate) mod machine {
         lower_type_reference_into_table, retain_type_reference_selection,
     };
     use arena::HandleSpan;
-    use declaration_contracts::MachineSupplyMode;
     use diagnostics::Diagnostic;
+    use source_declarations::MachineSupplyMode;
     use symbols::SymbolHandle;
 
     pub(crate) mod generic_data {
@@ -1232,8 +1232,8 @@ pub(crate) mod machine {
         // closed builtin or authenticated catalog declaration gets a view tag.
         let explicit =
             match machine.selected_ranking_view {
-                declaration_contracts::RankingViewSelection::Builtin(view) => Some(view),
-                declaration_contracts::RankingViewSelection::Declaration(symbol) => lowerer
+                source_declarations::RankingViewSelection::Builtin(view) => Some(view),
+                source_declarations::RankingViewSelection::Declaration(symbol) => lowerer
                     .source_trees
                     .machines
                     .iter()
@@ -1272,7 +1272,7 @@ pub(crate) mod machine {
                 .position(|custody| custody.machine == machine.symbol)
         {
             lowerer.typed_trees.ranking_expression_custody[position].view =
-                declaration_contracts::RankingViewSelection::CanonicalDefault(witness.ranking_view);
+                source_declarations::RankingViewSelection::CanonicalDefault(witness.ranking_view);
         }
         typed_machine.body_status = typed::machine::MachineBodyStatus::Complete;
         Ok(())
@@ -2024,7 +2024,7 @@ pub(crate) mod state {
         };
 
         state.return_type.is_none()
-            && (machine.supply_mode != declaration_contracts::MachineSupplyMode::CheckedBody
+            && (machine.supply_mode != source_declarations::MachineSupplyMode::CheckedBody
                 || lowerer
                     .source_trees
                     .machine_state_handles(machine.states)

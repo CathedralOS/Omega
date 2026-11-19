@@ -751,7 +751,7 @@ mod tests {
                     None,
                     source_admission::SourceOrigin::User,
                     source_admission::SourceResolutionStratum::Base,
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 )
                 .source_id;
             let tokens = crate::resolution::frontend_fixture::Lexer::new(text)

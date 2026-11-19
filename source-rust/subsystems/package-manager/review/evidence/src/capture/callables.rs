@@ -132,15 +132,15 @@ impl PolicySource<'_> {
                 continue;
             }
             let (role, supply) = match declaration.supply_mode {
-                declaration_contracts::MachineSupplyMode::CheckedBody => (
+                source_declarations::MachineSupplyMode::CheckedBody => (
                     PackagePolicyCallableRole::Public,
                     PackageReviewCallableSupply::CheckedBody,
                 ),
-                declaration_contracts::MachineSupplyMode::Requirement => (
+                source_declarations::MachineSupplyMode::Requirement => (
                     PackagePolicyCallableRole::Public,
                     PackageReviewCallableSupply::Requirement,
                 ),
-                declaration_contracts::MachineSupplyMode::TopLevelRequirement => (
+                source_declarations::MachineSupplyMode::TopLevelRequirement => (
                     PackagePolicyCallableRole::Boundary,
                     PackageReviewCallableSupply::TopLevelRequirement,
                 ),
@@ -343,10 +343,10 @@ impl PolicySource<'_> {
             .interface
             .published()
             .map(|guarantee| match guarantee {
-                declaration_contracts::TerminationGuarantee::NoGuarantee => {
+                source_declarations::TerminationGuarantee::NoGuarantee => {
                     Ok(PackagePolicyTermination::NoGuarantee)
                 }
-                declaration_contracts::TerminationGuarantee::Terminates { premises }
+                source_declarations::TerminationGuarantee::Terminates { premises }
                     if premises.is_empty() =>
                 {
                     Ok(PackagePolicyTermination::Terminates {

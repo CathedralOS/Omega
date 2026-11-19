@@ -54,8 +54,8 @@ runs, and the host continues from it only if it ended at a preparation the
 host served (`TerminalBuildActivation::carry`).
 */
 
-use declaration_contracts::build_stage::BuildStage;
 use diagnostics::Diagnostic;
+use source_declarations::build_stage::BuildStage;
 use source_text::SourceId;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{

@@ -414,119 +414,6 @@ pub mod byte_predicates {
 }
 
 pub mod content;
-mod machine_termination {
-    use crate::RankingViewId;
-    use crate::{ExternalBindingId, ExternalBindingMechanism, SemanticDomainId};
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, record_storage::Record)]
-    pub enum MachineSupplyMode {
-        #[default]
-        CheckedBody,
-        Requirement,
-        TopLevelRequirement,
-        Boundary,
-        AdmissionClaim,
-        ExternalRealization {
-            binding: Option<ExternalBindingId>,
-            mechanism: Option<ExternalBindingMechanism>,
-        },
-        /// A bodyless declaration supplied by a closed compiler catalog.
-        /// Consumers still authenticate its exact custody and complete schema;
-        /// this source role does not assert a checked body or authorize supply.
-        CompilerProvided,
-    }
-
-    impl MachineSupplyMode {
-        pub const fn is_boundary_declaration(self) -> bool {
-            matches!(
-                self,
-                Self::TopLevelRequirement | Self::Boundary | Self::AdmissionClaim
-            )
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
-    pub enum TerminationGuarantee {
-        #[default]
-        NoGuarantee,
-        Terminates {
-            premises: Vec<ProgressPremise>,
-        },
-    }
-
-    impl TerminationGuarantee {
-        pub const fn promises_termination(&self) -> bool {
-            matches!(self, Self::Terminates { .. })
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-    pub struct ProgressPremise {
-        pub profile: SemanticDomainId,
-        pub subject: ProgressSubject,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-    pub struct ProgressSubject {
-        pub root: symbols::SymbolHandle,
-        pub projections: Vec<symbols::SymbolHandle>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
-    pub struct RankingWitness {
-        pub subjects: Vec<String>,
-        pub ranking_view: RankingViewId,
-        pub view_path: String,
-        pub view_arguments: Vec<String>,
-        pub rank_range: Option<RankRange>,
-    }
-
-    /// A ranking use retains what name resolution selected. A numeric view
-    /// tag alone is normalization metadata, never declaration authority.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, record_storage::Record)]
-    pub enum RankingViewSelection {
-        #[default]
-        Unresolved,
-        Declaration(symbols::SymbolHandle),
-        /// A closed view with no authored declaration, selected only after
-        /// ordinary declaration lookup found no shadowing declaration.
-        Builtin(RankingViewId),
-        /// The subject's typed carrier selected its stable default.
-        CanonicalDefault(RankingViewId),
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
-    pub struct RankRange {
-        pub floor: String,
-        pub ceiling: String,
-        pub ceiling_inclusive: bool,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
-    pub enum TerminationInterface {
-        #[default]
-        InternalDerived,
-        Published(TerminationGuarantee),
-    }
-
-    impl TerminationInterface {
-        pub fn published(&self) -> Option<&TerminationGuarantee> {
-            match self {
-                Self::InternalDerived => None,
-                Self::Published(guarantee) => Some(guarantee),
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
-    pub struct MachineTerminationPlan {
-        pub interface: TerminationInterface,
-        pub checked_summary: TerminationGuarantee,
-        pub implementation_witness: Option<RankingWitness>,
-    }
-
-
-}
 mod permissions {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, record_storage::Record)]
     pub enum PermissionEventKind {
@@ -611,93 +498,6 @@ pub mod quotient_correspondence {
     }
 }
 mod semantic_domains {
-    use crate::SemanticDomainId;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub enum DomainSemanticRole {
-        DenotationDimension,
-        ArithmeticPolicy,
-    }
-
-    impl DomainSemanticRole {
-        pub const fn as_str(self) -> &'static str {
-            match self {
-                Self::DenotationDimension => "denotation_dimension",
-                Self::ArithmeticPolicy => "arithmetic_policy",
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, record_storage::Record)]
-    pub struct DomainSemanticRoles {
-        pub denotation_dimension: Option<SemanticDomainId>,
-        pub arithmetic_policy: Option<SemanticDomainId>,
-    }
-
-    impl DomainSemanticRoles {
-        pub const fn is_empty(self) -> bool {
-            self.denotation_dimension.is_none() && self.arithmetic_policy.is_none()
-        }
-
-        pub const fn contribution(self, role: DomainSemanticRole) -> Option<SemanticDomainId> {
-            match role {
-                DomainSemanticRole::DenotationDimension => self.denotation_dimension,
-                DomainSemanticRole::ArithmeticPolicy => self.arithmetic_policy,
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum DomainEstablishmentRoute {
-        CheckedRequirement {
-            trait_definition: symbols::SymbolHandle,
-            requirement: symbols::SymbolHandle,
-        },
-        BoundaryRequirement {
-            boundary_trait: symbols::SymbolHandle,
-            requirement: symbols::SymbolHandle,
-        },
-        ExactMachine {
-            machine: symbols::SymbolHandle,
-        },
-    }
-
-    impl DomainEstablishmentRoute {
-        pub const fn kind_name(self) -> &'static str {
-            match self {
-                Self::CheckedRequirement { .. } => "checked_requirement",
-                Self::BoundaryRequirement { .. } => "boundary_requirement",
-                Self::ExactMachine { .. } => "exact_machine",
-            }
-        }
-
-        pub const fn source_symbol(self) -> symbols::SymbolHandle {
-            match self {
-                Self::CheckedRequirement {
-                    trait_definition, ..
-                } => trait_definition,
-                Self::BoundaryRequirement { boundary_trait, .. } => boundary_trait,
-                Self::ExactMachine { machine } => machine,
-            }
-        }
-
-        pub const fn established_declaration(self) -> symbols::SymbolHandle {
-            match self {
-                Self::CheckedRequirement { requirement, .. }
-                | Self::BoundaryRequirement { requirement, .. } => requirement,
-                Self::ExactMachine { machine } => machine,
-            }
-        }
-
-        pub const fn requirement_symbol(self) -> symbols::SymbolHandle {
-            match self {
-                Self::CheckedRequirement { requirement, .. }
-                | Self::BoundaryRequirement { requirement, .. } => requirement,
-                Self::ExactMachine { .. } => symbols::SymbolHandle::invalid(),
-            }
-        }
-    }
-
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub struct BoundaryQualificationIssuer {
         pub requirement_identity: String,
@@ -814,11 +614,6 @@ pub use language_core::{
     CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension, DataSupplyMode,
     DomainClassification, DomainPredicatePresence, Multiplicity, ReferenceAccess,
 };
-pub use machine_termination::{
-    MachineSupplyMode, MachineTerminationPlan, ProgressPremise, ProgressSubject,
-    RankRange, RankingViewSelection,
-    RankingWitness, TerminationGuarantee, TerminationInterface,
-};
 pub use permissions::{PermissionAccess, PermissionEventKind};
 pub use psi_effect_contracts::{PermissionArrival, SuspensionValueOrigin};
 pub type ScopedPermissionEventSource<Identity = symbols::SymbolHandle> =
@@ -831,10 +626,7 @@ pub use semantic_vocabulary::{ExternalBindingIdentity, ExternalBindingMechanism,
 pub type PermissionProvenance = ScopedPermissionProvenance<symbols::SymbolHandle>;
 pub type PermissionClaimIdentity = ScopedPermissionClaimIdentity<symbols::SymbolHandle>;
 pub type PermissionEventSource = ScopedPermissionEventSource<symbols::SymbolHandle>;
-pub use semantic_domains::{
-    BoundaryQualificationIssuer, DomainEstablishmentRoute, DomainSemanticRole, DomainSemanticRoles,
-    QualificationEvidenceOrigin,
-};
+pub use semantic_domains::{BoundaryQualificationIssuer, QualificationEvidenceOrigin};
 pub use semantic_vocabulary::{
     BlockingInterface, BlockingPlan, BlockingSummary, ServiceReachInterface, ServiceReachPlan,
     ServiceReachSummary, SuspensionInterface, SuspensionPlan, SuspensionSummary,
@@ -853,5 +645,3 @@ pub mod entry_contract_identity {
     pub use source_provenance::entry_contract_digest as digest;
 }
 pub use source_provenance as source_identity;
-
-pub mod build_stage;

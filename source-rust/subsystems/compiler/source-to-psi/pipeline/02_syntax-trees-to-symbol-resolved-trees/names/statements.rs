@@ -838,10 +838,10 @@ fn resolve_ranking_view(
     symbols: &SymbolTable,
     machine: symbols::SymbolHandle,
     members: &[crate::source_resolved::name::DiagnosticName],
-) -> declaration_contracts::RankingViewSelection {
+) -> source_declarations::RankingViewSelection {
     use crate::source_symbols::SymbolLookup;
-    use declaration_contracts::RankingViewSelection;
     use semantic_vocabulary::RankingViewId;
+    use source_declarations::RankingViewSelection;
     use symbols::SymbolKind;
     if members.is_empty() {
         return RankingViewSelection::Unresolved;

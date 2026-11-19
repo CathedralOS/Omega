@@ -251,7 +251,7 @@ fn establishment_routes<R: Ord>(
         let ordinal = u32::try_from(retained.len())
             .map_err(|_| unavailable("domain issuer ordinal overflow"))?;
         match route {
-            declaration_contracts::DomainEstablishmentRoute::ExactMachine { machine } => {
+            source_declarations::DomainEstablishmentRoute::ExactMachine { machine } => {
                 issuers.extend(
                     source.symbols.iter().filter_map(|(body, symbol)| {
                         (*symbol == *machine).then_some((body, ordinal))
@@ -273,17 +273,17 @@ fn establishment_routes<R: Ord>(
                     builder.intern(&callable),
                 ));
             }
-            declaration_contracts::DomainEstablishmentRoute::CheckedRequirement {
+            source_declarations::DomainEstablishmentRoute::CheckedRequirement {
                 trait_definition,
                 requirement,
             }
-            | declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement {
+            | source_declarations::DomainEstablishmentRoute::BoundaryRequirement {
                 boundary_trait: trait_definition,
                 requirement,
             } => {
                 let boundary = matches!(
                     route,
-                    declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement { .. }
+                    source_declarations::DomainEstablishmentRoute::BoundaryRequirement { .. }
                 );
                 let (owner, declared) = typed
                     .trait_machine_signature(*requirement)

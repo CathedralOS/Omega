@@ -489,8 +489,8 @@ impl Program<'_> {
         let machine = self.called_machine(call)?;
         let terminates = matches!(
             &machine.termination_plan.interface,
-            declaration_contracts::TerminationInterface::Published(
-                declaration_contracts::TerminationGuarantee::Terminates { premises }
+            source_declarations::TerminationInterface::Published(
+                source_declarations::TerminationGuarantee::Terminates { premises }
             ) if premises.is_empty()
         );
         if !machine.declares_no_crash_route || !terminates {

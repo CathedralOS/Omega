@@ -437,9 +437,9 @@ fn lower_lexical_machine_parts(
             .iter()
             .any(|clause| clause.via_expression.is_valid());
         if compiler_provided {
-            declaration_contracts::MachineSupplyMode::CompilerProvided
+            source_declarations::MachineSupplyMode::CompilerProvided
         } else if machine.target_family_interface {
-            declaration_contracts::MachineSupplyMode::Requirement
+            source_declarations::MachineSupplyMode::Requirement
         } else if crate::resolution::lowering::machine_supply::is_token_bearing_boundary_signature(
             machine,
         ) || (machine.bodyless
@@ -452,9 +452,9 @@ fn lower_lexical_machine_parts(
             // Named and token-bound catalog declarations have the same supply
             // meaning. Exact sealed source custody nominates the declaration;
             // typing and receiving still authenticate its full numeric contract.
-            declaration_contracts::MachineSupplyMode::TopLevelRequirement
+            source_declarations::MachineSupplyMode::TopLevelRequirement
         } else if let Some(binding) = inferred_float_binding {
-            declaration_contracts::MachineSupplyMode::ExternalRealization {
+            source_declarations::MachineSupplyMode::ExternalRealization {
                 binding: Some(binding),
                 mechanism: Some(semantic_vocabulary::ExternalBindingMechanism::CompilerIntrinsic),
             }
@@ -469,7 +469,7 @@ fn lower_lexical_machine_parts(
                     (Some(binding), Some(mechanism))
                 })
                 .unwrap_or((None, None));
-            declaration_contracts::MachineSupplyMode::ExternalRealization { binding, mechanism }
+            source_declarations::MachineSupplyMode::ExternalRealization { binding, mechanism }
         } else if machine.bodyless && machine.boundary {
             let authors_fact = syntax_items(syntax_trees)
                 .capability_contracts(machine.contracts)
@@ -479,16 +479,16 @@ fn lower_lexical_machine_parts(
                         && !contract.facts.is_empty()
                 });
             if compiler_owned_boundary(lowerer, syntax_trees, machine) {
-                declaration_contracts::MachineSupplyMode::Boundary
+                source_declarations::MachineSupplyMode::Boundary
             } else if authors_fact {
-                declaration_contracts::MachineSupplyMode::AdmissionClaim
+                source_declarations::MachineSupplyMode::AdmissionClaim
             } else {
-                declaration_contracts::MachineSupplyMode::Boundary
+                source_declarations::MachineSupplyMode::Boundary
             }
         } else if machine.boundary {
-            declaration_contracts::MachineSupplyMode::Boundary
+            source_declarations::MachineSupplyMode::Boundary
         } else {
-            declaration_contracts::MachineSupplyMode::CheckedBody
+            source_declarations::MachineSupplyMode::CheckedBody
         }
     };
     lowerer.pending_machine_service_reaches.push(
@@ -748,8 +748,8 @@ pub(crate) fn lower_generic_conformance_bounds(
 fn build_termination_plan(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
-) -> declaration_contracts::MachineTerminationPlan {
-    use declaration_contracts::{
+) -> source_declarations::MachineTerminationPlan {
+    use source_declarations::{
         MachineTerminationPlan, RankingWitness, TerminationGuarantee, TerminationInterface,
     };
 
@@ -782,9 +782,9 @@ fn build_termination_plan(
                 let ExpressionNode::Range(range) =
                     syntax_trees.expressions.expression(machine.ranking_range)
                 else {
-                    return declaration_contracts::RankRange::default();
+                    return source_declarations::RankRange::default();
                 };
-                declaration_contracts::RankRange {
+                source_declarations::RankRange {
                     floor: render_ranked_subject(syntax_trees, range.start),
                     ceiling: render_ranked_subject(syntax_trees, range.end),
                     ceiling_inclusive: range.end_inclusive,

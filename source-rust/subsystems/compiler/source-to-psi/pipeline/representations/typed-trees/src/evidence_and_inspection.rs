@@ -2071,7 +2071,7 @@ pub mod evidence {
         pub struct RankingExpressionCustody {
             pub machine: symbols::SymbolHandle,
             pub subjects: Vec<ExpressionHandle>,
-            pub view: declaration_contracts::RankingViewSelection,
+            pub view: source_declarations::RankingViewSelection,
             pub view_arguments: Vec<ExpressionHandle>,
             pub rank_range: Option<ExpressionHandle>,
         }
@@ -2883,7 +2883,7 @@ pub mod inspection {
             }
 
             pub(crate) fn semantic_roles_snapshot(
-                roles: declaration_contracts::DomainSemanticRoles,
+                roles: source_declarations::DomainSemanticRoles,
             ) -> DomainSemanticRolesSnapshot {
                 DomainSemanticRolesSnapshot {
                     denotation_dimension: roles.denotation_dimension.map(|semantic| semantic.0),
@@ -2892,7 +2892,7 @@ pub mod inspection {
             }
 
             pub(crate) fn establishment_route_snapshot(
-                route: declaration_contracts::DomainEstablishmentRoute,
+                route: source_declarations::DomainEstablishmentRoute,
             ) -> DomainEstablishmentRouteSnapshot {
                 let requirement = route.requirement_symbol();
                 DomainEstablishmentRouteSnapshot {
@@ -3486,7 +3486,7 @@ pub mod inspection {
                         })
                         .collect(),
                     termination: termination_interface_snapshot(
-                        &declaration_contracts::TerminationInterface::Published(
+                        &source_declarations::TerminationInterface::Published(
                             signature.termination_guarantee.clone(),
                         ),
                     ),
@@ -3678,9 +3678,9 @@ pub mod inspection {
             }
 
             fn machine_supply_snapshot(
-                supply: declaration_contracts::MachineSupplyMode,
+                supply: source_declarations::MachineSupplyMode,
             ) -> MachineSupplySnapshot {
-                use declaration_contracts::MachineSupplyMode;
+                use source_declarations::MachineSupplyMode;
                 match supply {
                     MachineSupplyMode::CheckedBody => MachineSupplySnapshot::CheckedBody,
                     MachineSupplyMode::Requirement => MachineSupplySnapshot::Requirement,
@@ -3700,10 +3700,10 @@ pub mod inspection {
             }
 
             fn termination_interface_snapshot(
-                interface: &declaration_contracts::TerminationInterface,
+                interface: &source_declarations::TerminationInterface,
             ) -> TerminationInterfaceSnapshot {
-                use declaration_contracts::TerminationGuarantee;
-                use declaration_contracts::TerminationInterface;
+                use source_declarations::TerminationGuarantee;
+                use source_declarations::TerminationInterface;
                 match interface {
                     TerminationInterface::InternalDerived => {
                         TerminationInterfaceSnapshot::InternalDerived

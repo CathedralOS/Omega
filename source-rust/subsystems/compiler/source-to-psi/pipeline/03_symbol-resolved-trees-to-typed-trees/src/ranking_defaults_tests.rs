@@ -1,7 +1,7 @@
 /* Default views belong to typed subject selection, not source-name guessing. */
 use crate::source_state::TypedTrees;
-use declaration_contracts::RankingWitness;
 use semantic_vocabulary::RankingViewId;
+use source_declarations::RankingWitness;
 
 fn resolve_and_type(source: &str) -> TypedTrees {
     let tokens = crate::typing::frontend_fixture::Lexer::new(source)

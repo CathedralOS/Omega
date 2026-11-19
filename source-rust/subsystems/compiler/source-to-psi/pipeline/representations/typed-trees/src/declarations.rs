@@ -115,7 +115,7 @@ pub mod boundary_completions {
                 && !signature.blocks
                 && signature.declares_no_crash_route
                 && matches!(&signature.termination_guarantee,
-                    declaration_contracts::TerminationGuarantee::Terminates { premises }
+                    source_declarations::TerminationGuarantee::Terminates { premises }
                     if premises.is_empty())
                 && exact_process_exit_signature(
                     program,
@@ -373,7 +373,7 @@ pub mod boundary_completions {
                         return_type: result,
                         declares_no_crash_route: true,
                         termination_guarantee:
-                            declaration_contracts::TerminationGuarantee::Terminates {
+                            source_declarations::TerminationGuarantee::Terminates {
                                 premises: Vec::new(),
                             },
                         ..Default::default()
@@ -1068,7 +1068,7 @@ pub mod domain {
     /// never read as `Unrestricted`.
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub enum CheckedIssuance {
-        Only(Vec<declaration_contracts::DomainEstablishmentRoute>),
+        Only(Vec<source_declarations::DomainEstablishmentRoute>),
         Unrestricted,
     }
 
@@ -1082,7 +1082,7 @@ pub mod domain {
         /// Exactly these origins: written on the declaration with the
         /// retired `established by` clause, or returned by the selected
         /// policy's evaluated plan (`CheckedDomainAccessPlan`).
-        Only(&'domain [declaration_contracts::DomainEstablishmentRoute]),
+        Only(&'domain [source_declarations::DomainEstablishmentRoute]),
         /// The selected policy's plan states the issuance, and no checked
         /// plan is recorded: no origin can be shown to be authorized, so a
         /// reader treats this as admitting nobody it can name, never as
@@ -1108,8 +1108,8 @@ pub mod domain {
         pub operators: HandleSpan<crate::source_state::operator::OperatorDefinition>,
         pub semantic_clause_token_count: usize,
         pub semantic_id: semantic_vocabulary::SemanticDomainId,
-        pub semantic_roles: declaration_contracts::DomainSemanticRoles,
-        pub establishment_routes: Vec<declaration_contracts::DomainEstablishmentRoute>,
+        pub semantic_roles: source_declarations::DomainSemanticRoles,
+        pub establishment_routes: Vec<source_declarations::DomainEstablishmentRoute>,
         pub access_policy: Option<DomainAccessPolicy>,
     }
 
@@ -1184,7 +1184,7 @@ pub mod domain {
         assert!(definition.has_complete_empty_theory());
         definition.semantic_clause_token_count = 4;
         definition.establishment_routes.push(
-            declaration_contracts::DomainEstablishmentRoute::ExactMachine {
+            source_declarations::DomainEstablishmentRoute::ExactMachine {
                 machine: symbols::SymbolHandle::invalid(),
             },
         );
@@ -1225,7 +1225,7 @@ pub mod domain {
                 operators: HandleSpan::empty(),
                 semantic_clause_token_count: 0,
                 semantic_id: semantic_vocabulary::SemanticDomainId::NULL,
-                semantic_roles: declaration_contracts::DomainSemanticRoles::default(),
+                semantic_roles: source_declarations::DomainSemanticRoles::default(),
                 establishment_routes: Vec::new(),
                 access_policy: None,
             }
@@ -2081,7 +2081,7 @@ pub mod intrinsic_requirements {
             requirement: &'typed crate::source_state::machine::Machine,
         ) -> Option<Self> {
             if requirement.supply_mode
-                != declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                != source_declarations::MachineSupplyMode::TopLevelRequirement
                 || requirement.body_is_present
                 || !typed.machine_type_parameters(requirement).is_empty()
             {
@@ -2590,7 +2590,7 @@ pub mod numeric_intrinsics {
             });
             if let Some(machine) = machine {
                 if machine.supply_mode
-                    != declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                    != source_declarations::MachineSupplyMode::TopLevelRequirement
                     || machine.body_is_present
                     || !self.machine_type_parameters(machine).is_empty()
                 {

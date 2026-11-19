@@ -74,9 +74,9 @@ pub fn access_borrow_factory_of(
         || machine.has_structural_type_equations
         || !machine.lifetime_parameters.is_empty()
         || machine.termination_plan
-            != (declaration_contracts::MachineTerminationPlan {
-                interface: declaration_contracts::TerminationInterface::Published(
-                    declaration_contracts::TerminationGuarantee::NoGuarantee,
+            != (source_declarations::MachineTerminationPlan {
+                interface: source_declarations::TerminationInterface::Published(
+                    source_declarations::TerminationGuarantee::NoGuarantee,
                 ),
                 ..Default::default()
             })
@@ -91,7 +91,7 @@ pub fn access_borrow_factory_of(
         || !machine.satisfies.is_empty()
         || !machine.conformance_bounds.is_empty()
         || !machine.ranking_subjects.is_empty()
-        || machine.supply_mode != declaration_contracts::MachineSupplyMode::Boundary
+        || machine.supply_mode != source_declarations::MachineSupplyMode::Boundary
     {
         return Err(malformed("noncanonical declaration or effect clauses"));
     }

@@ -439,19 +439,19 @@ fn require_exact_atomic_fence_row(
 mod compiler_machine_tests {
     use crate::resolution::{ResolutionRequest, resolve};
     use crate::source_inputs::SourceMap;
-    use declaration_contracts::source_identity::DependencyScope;
     use source_admission::{SourceOrigin, SourceResolutionStratum};
+    use source_provenance::DependencyScope;
     use std::path::PathBuf;
     use std::sync::Arc;
 
     const ATOMIC: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/atomic.omg"
+        "/../../../../../../source/library/core/atomic.omg"
     ));
 
     const ORDERING: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/fence_ordering.omg"
+        "/../../../../../../source/library/core/fence_ordering.omg"
     ));
 
     fn parse_into(
@@ -529,7 +529,7 @@ mod compiler_machine_tests {
             if origin == SourceOrigin::Toolchain {
                 let assembly = include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../source/library/core/assembly.omg"
+                    "/../../../../../../source/library/core/assembly.omg"
                 ));
                 syntax.extend_from(&parse_into(
                     &mut sources,
@@ -539,7 +539,7 @@ mod compiler_machine_tests {
                 ));
                 let interrupts = include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../source/library/core/interrupt.omg"
+                    "/../../../../../../source/library/core/interrupt.omg"
                 ));
                 syntax.extend_from(&parse_into(
                     &mut sources,
@@ -549,7 +549,7 @@ mod compiler_machine_tests {
                 ));
                 let representation = include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../source/library/core/representation.omg"
+                    "/../../../../../../source/library/core/representation.omg"
                 ));
                 let mut representation = parse_into(
                     &mut sources,
@@ -619,7 +619,7 @@ mod compiler_machine_tests {
         );
         assert_eq!(
             machine.supply_mode,
-            declaration_contracts::MachineSupplyMode::CompilerProvided
+            source_declarations::MachineSupplyMode::CompilerProvided
         );
         assert!(!machine.body_is_present);
         assert!(machine.symbol.is_valid());
@@ -636,7 +636,7 @@ mod compiler_machine_tests {
 
     const BYTE_OBSERVATION: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/byte_observation.omg"
+        "/../../../../../../source/library/core/byte_observation.omg"
     ));
 
     #[test]
@@ -651,13 +651,13 @@ mod compiler_machine_tests {
         for machine in &trees.machines {
             assert_eq!(
                 machine.supply_mode,
-                declaration_contracts::MachineSupplyMode::CompilerProvided
+                source_declarations::MachineSupplyMode::CompilerProvided
             );
             assert!(!machine.body_is_present);
             assert_eq!(machine.lifetime_parameters.len(), 1);
             assert!(matches!(machine.termination_plan.interface,
-                declaration_contracts::TerminationInterface::Published(
-                    declaration_contracts::TerminationGuarantee::Terminates { ref premises }
+                source_declarations::TerminationInterface::Published(
+                    source_declarations::TerminationGuarantee::Terminates { ref premises }
                 ) if premises.is_empty()));
         }
         assert!(trees.operators.is_empty());
@@ -767,11 +767,11 @@ mod compiler_machine_tests {
     fn existing_catalog_families_use_complete_machine_lowering() {
         const FLOAT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/float_operations.omg"
+            "/../../../../../../source/library/core/float_operations.omg"
         ));
         const NAT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/nat.omg"
+            "/../../../../../../source/library/core/nat.omg"
         ));
         for (text, path, name, arity) in [
             (FLOAT, "float_operations.omg", "Float::meaning32", 1),
@@ -805,7 +805,7 @@ mod compiler_machine_tests {
             assert_eq!(machine.name.as_str(), name);
             assert_eq!(
                 machine.supply_mode,
-                declaration_contracts::MachineSupplyMode::CompilerProvided
+                source_declarations::MachineSupplyMode::CompilerProvided
             );
             assert_eq!(machine.is_public, authored.is_public);
             assert!(!machine.body_is_present);
@@ -823,7 +823,7 @@ mod compiler_machine_tests {
     fn sealed_integer_conversion_overloads_keep_distinct_machine_symbols() {
         const FLOAT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/float_operations.omg"
+            "/../../../../../../source/library/core/float_operations.omg"
         ));
         let trees = resolved(FLOAT, "float_operations.omg", SourceOrigin::Toolchain)
             .expect("the real floating-point declaration family must resolve");

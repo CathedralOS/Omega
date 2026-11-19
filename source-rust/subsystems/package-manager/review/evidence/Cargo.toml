@@ -7,6 +7,7 @@ version.workspace = true
 
 
 [dependencies]
+source-declarations = { path = "../../../compiler/source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
 service-surface = { path = "../../../compiler/psi/service-surface" }
 evaluation-receipts = { path = "../../../compiler/build/evaluation/receipts" }
 declaration-contracts = { path = "../../../compiler/source-to-psi/language/declaration-contracts" }

@@ -2536,6 +2536,7 @@ dependencies = [
  "service-surface",
  "source-admission",
  "source-compiler",
+ "source-declarations",
  "source-text",
  "symbols",
  "target",
@@ -3074,7 +3075,6 @@ name = "symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "declaration-contracts",
  "diagnostics",
  "language-core",
  "numeric-literals",
@@ -3174,7 +3174,6 @@ dependencies = [
  "arena",
  "bignum",
  "bundled-declarations",
- "declaration-contracts",
  "diagnostics",
  "language-core",
  "numeric-literals",
@@ -3185,6 +3184,7 @@ dependencies = [
  "source-declarations",
  "source-lexer",
  "source-parser",
+ "source-provenance",
  "source-symbol-table",
  "source-text",
  "symbol-resolved-trees",

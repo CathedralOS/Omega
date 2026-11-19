@@ -6,9 +6,9 @@ use super::{Program, Slot};
 use crate::lowering::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
 use crate::lowering::{Unserved, refuse};
 use crate::source_state::machine::Machine;
-use declaration_contracts::RankingViewSelection;
 use semantic_vocabulary::RankingViewId;
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
+use source_declarations::RankingViewSelection;
 use terminal_check_tables::{Checked, Construct};
 
 impl Program<'_> {
@@ -47,7 +47,7 @@ impl Program<'_> {
                         unsupported("selected ranking declaration has no catalog row")
                     })?;
                 if declaration.supply_mode
-                    != declaration_contracts::MachineSupplyMode::CompilerProvided
+                    != source_declarations::MachineSupplyMode::CompilerProvided
                     || declaration.body_is_present
                     || !declaration.type_parameters.is_empty()
                     || !declaration.lifetime_parameters.is_empty()
@@ -66,8 +66,8 @@ impl Program<'_> {
                         .implementation_witness
                         .is_some()
                     || declaration.termination_plan.interface
-                        != declaration_contracts::TerminationInterface::Published(
-                            declaration_contracts::TerminationGuarantee::NoGuarantee,
+                        != source_declarations::TerminationInterface::Published(
+                            source_declarations::TerminationGuarantee::NoGuarantee,
                         )
                 {
                     return Err(unsupported(

@@ -20,8 +20,8 @@ use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::signature::{SignatureContract, SignatureContractKind};
 use crate::source_resolved::types::TypeReference;
 use crate::source_symbols::JoinedPath;
-use declaration_contracts::DomainEstablishmentRoute;
 use diagnostics::Diagnostic;
+use source_declarations::DomainEstablishmentRoute;
 use source_text::{SourceSpan, Span};
 use symbols::SymbolHandle;
 

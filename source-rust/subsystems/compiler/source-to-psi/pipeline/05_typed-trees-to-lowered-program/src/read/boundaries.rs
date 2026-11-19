@@ -30,8 +30,8 @@ impl Program<'_> {
                     !machine.body_is_present
                         && matches!(
                             machine.supply_mode,
-                            declaration_contracts::MachineSupplyMode::Boundary
-                                | declaration_contracts::MachineSupplyMode::ExternalRealization { .. }
+                            source_declarations::MachineSupplyMode::Boundary
+                                | source_declarations::MachineSupplyMode::ExternalRealization { .. }
                         )
                         && machine.attached_data_symbol == qualifier
                 }))
@@ -53,8 +53,8 @@ impl Program<'_> {
                 if machine.body_is_present
                     || !matches!(
                         machine.supply_mode,
-                        declaration_contracts::MachineSupplyMode::Boundary
-                            | declaration_contracts::MachineSupplyMode::ExternalRealization { .. }
+                        source_declarations::MachineSupplyMode::Boundary
+                            | source_declarations::MachineSupplyMode::ExternalRealization { .. }
                     )
                 {
                     return Ok(false);
@@ -142,8 +142,8 @@ impl Program<'_> {
                 !machine.body_is_present
                     && matches!(
                         machine.supply_mode,
-                        declaration_contracts::MachineSupplyMode::Boundary
-                            | declaration_contracts::MachineSupplyMode::ExternalRealization { .. }
+                        source_declarations::MachineSupplyMode::Boundary
+                            | source_declarations::MachineSupplyMode::ExternalRealization { .. }
                     )
             })
             .map_or(target, |machine| machine.symbol);

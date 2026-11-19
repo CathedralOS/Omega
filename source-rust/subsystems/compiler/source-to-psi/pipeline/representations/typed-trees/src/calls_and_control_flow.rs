@@ -94,7 +94,7 @@ pub mod calls {
             pub suspends: bool,
             pub blocks: bool,
             pub contracts: HandleSpan<SignatureContract>,
-            pub termination_guarantee: declaration_contracts::TerminationGuarantee,
+            pub termination_guarantee: source_declarations::TerminationGuarantee,
             /// The requirement wrote `crashes none`. It publishes no contract
             /// row, so this is what tells it from an omitted clause, which
             /// defers to the selected member's routes (generics.md).
@@ -122,7 +122,7 @@ pub mod calls {
                     suspends: false,
                     blocks: false,
                     contracts: HandleSpan::empty(),
-                    termination_guarantee: declaration_contracts::TerminationGuarantee::NoGuarantee,
+                    termination_guarantee: source_declarations::TerminationGuarantee::NoGuarantee,
                     declares_no_crash_route: false,
                 }
             }
@@ -597,7 +597,7 @@ pub mod control_flow {
             pub is_public: bool,
             pub interface_exposure:
                 crate::declaration_selection::AuthoredDeclarationSelectionExposure,
-            pub supply_mode: declaration_contracts::MachineSupplyMode,
+            pub supply_mode: source_declarations::MachineSupplyMode,
             pub purpose: MachinePurpose,
             pub target: Option<Identifier>,
             pub authored_target: Option<Identifier>,
@@ -605,7 +605,7 @@ pub mod control_flow {
             pub body_is_present: bool,
             pub body_status: MachineBodyStatus,
             pub structural_type_equations_pending: bool,
-            pub termination_plan: declaration_contracts::MachineTerminationPlan,
+            pub termination_plan: source_declarations::MachineTerminationPlan,
             pub service_reach_row: semantic_vocabulary::ServiceReachRowId,
             pub service_reach_is_installation_bound: bool,
             pub admitted_same_stack_bytes: u64,
@@ -652,8 +652,8 @@ pub mod control_flow {
 
             pub fn supplies_checked_body(&self) -> bool {
                 match self.supply_mode {
-                    declaration_contracts::MachineSupplyMode::CheckedBody => true,
-                    declaration_contracts::MachineSupplyMode::Boundary => self.body_is_present,
+                    source_declarations::MachineSupplyMode::CheckedBody => true,
+                    source_declarations::MachineSupplyMode::Boundary => self.body_is_present,
                     _ => false,
                 }
             }
@@ -703,7 +703,7 @@ pub mod control_flow {
                     spelling: None,
                     is_public: false,
                     interface_exposure: Default::default(),
-                    supply_mode: declaration_contracts::MachineSupplyMode::CheckedBody,
+                    supply_mode: source_declarations::MachineSupplyMode::CheckedBody,
                     purpose: MachinePurpose::Runtime,
                     target: None,
                     authored_target: None,
@@ -711,7 +711,7 @@ pub mod control_flow {
                     body_is_present: true,
                     body_status: MachineBodyStatus::Complete,
                     structural_type_equations_pending: false,
-                    termination_plan: declaration_contracts::MachineTerminationPlan::default(),
+                    termination_plan: source_declarations::MachineTerminationPlan::default(),
                     service_reach_row: semantic_vocabulary::ServiceReachRowId::NULL,
                     service_reach_is_installation_bound: false,
                     admitted_same_stack_bytes: 0,
@@ -834,7 +834,7 @@ pub mod control_flow {
             let matches = |symbol| {
                 if let Some(requirement) = program.machine_by_symbol(symbol)
                     && requirement.supply_mode
-                        == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                        == source_declarations::MachineSupplyMode::TopLevelRequirement
                 {
                     let Some(entry) = program.machine_states(requirement).first() else {
                         return false;
@@ -875,7 +875,7 @@ pub mod control_flow {
             }
             if let Some(requirement) = program.machine_by_symbol(selected)
                 && requirement.supply_mode
-                    == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                    == source_declarations::MachineSupplyMode::TopLevelRequirement
             {
                 Some(SatisfiedDeclaration::TopLevelRequirement(requirement))
             } else {
