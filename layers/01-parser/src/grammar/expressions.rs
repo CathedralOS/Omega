@@ -75,14 +75,19 @@ impl Parser<'_> {
         &self,
         context: ExpressionContext,
     ) -> Option<BinaryOperator> {
-        if context.get_allows_membership() && self.at_keyword("in") {
-            return Some(BinaryOperator {
+        // @Speed: punctuation is looked for first. The only operator that is a word is `in`, and
+        // what follows an operand is nearly always punctuation, so `in` is only compared when
+        // the token is not punctuation at all. Experiment 3.
+        let Some(punctuation) = self.nth_punctuation(0) else {
+            let is_membership = context.get_allows_membership() && self.at_keyword("in");
+
+            return is_membership.then_some(BinaryOperator {
                 binding_level: 5,
                 token_count: 1,
             });
-        }
+        };
 
-        let binding_level = match self.nth_punctuation(0)? {
+        let binding_level = match punctuation {
             Punctuation::PipePipe => 1,
             Punctuation::AmpersandAmpersand => 2,
             Punctuation::EqualEqual | Punctuation::ExclamationEqual => 3,
@@ -227,29 +232,33 @@ impl Parser<'_> {
             _ => {}
         }
 
-        let prefix_word_kind = if self.at_keyword("move") {
-            Some(NodeKind::Move)
-        } else if self.at_keyword("suspend") || self.at_keyword("block") {
-            Some(NodeKind::CallMarker)
-        } else {
-            None
-        };
-
         // :PrefixWords
         // `move`, `suspend` and `block` are prefixes only directly before another word, so each is
         // still a name everywhere else: `block(x)`, `block.field`, `block + 1`. The word after must
         // not be `as` or `in`, which would make this one the operand of a cast or a membership test.
-        if let Some(kind) = prefix_word_kind
-            && self.nth_at_word(1)
-            && !self.nth_at_keyword(1, "as")
-            && !self.nth_at_keyword(1, "in")
-        {
-            let prefixed = self.open();
+        //
+        // @Speed: the word after is tested first. After most names comes punctuation, so this one
+        // token read spares nearly every operand three spelling comparisons. Experiment 3.
+        if self.nth_at_word(1) {
+            let prefix_word_kind = if self.at_keyword("move") {
+                Some(NodeKind::Move)
+            } else if self.at_keyword("suspend") || self.at_keyword("block") {
+                Some(NodeKind::CallMarker)
+            } else {
+                None
+            };
 
-            self.bump();
-            self.parse_prefix(context)?;
+            if let Some(kind) = prefix_word_kind
+                && !self.nth_at_keyword(1, "as")
+                && !self.nth_at_keyword(1, "in")
+            {
+                let prefixed = self.open();
 
-            return Ok(self.close(prefixed, kind));
+                self.bump();
+                self.parse_prefix(context)?;
+
+                return Ok(self.close(prefixed, kind));
+            }
         }
 
         self.parse_postfix(context)

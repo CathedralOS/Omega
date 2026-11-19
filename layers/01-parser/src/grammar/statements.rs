@@ -180,24 +180,25 @@ impl Parser<'_> {
         &mut self,
         tail_rule: TailRule,
     ) -> Parsed<StatementShape> {
-        let expression = self.parse_expression(ExpressionContext::FULL)?;
+        // @Speed: the statement is opened before its expression, and given its kind once we see how
+        // it ends. Wrapping the finished expression instead would shift all of its events to make
+        // room for the opening one. Experiment 4.
+        let statement = self.open();
+
+        self.parse_expression(ExpressionContext::FULL)?;
 
         if self.at(Punctuation::Equal) {
-            let assign = self.open_before(expression);
-
             self.bump();
             self.parse_expression(ExpressionContext::FULL)?;
             self.expect(Punctuation::Semicolon, "`;`")?;
-            self.close(assign, NodeKind::Assign);
+            self.close(statement, NodeKind::Assign);
 
             return Ok(StatementShape::Terminated);
         }
 
         if self.at(Punctuation::Semicolon) {
-            let expression_statement = self.open_before(expression);
-
             self.bump();
-            self.close(expression_statement, NodeKind::ExpressionStatement);
+            self.close(statement, NodeKind::ExpressionStatement);
 
             return Ok(StatementShape::Terminated);
         }
@@ -205,9 +206,7 @@ impl Parser<'_> {
         let is_last_in_body = self.at(Punctuation::RightBrace) || self.at_end() || self.at_machine_declaration();
 
         if is_last_in_body || tail_rule == TailRule::Anywhere {
-            let tail = self.open_before(expression);
-
-            self.close(tail, NodeKind::Tail);
+            self.close(statement, NodeKind::Tail);
 
             return Ok(StatementShape::Tail);
         }

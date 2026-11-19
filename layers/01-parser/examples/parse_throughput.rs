@@ -44,7 +44,13 @@ fn main() {
 
     // `--files`: the same bytes as many small files instead of one large one. See :TwoWorkloads.
     let is_many_files = arguments.iter().any(|argument| argument == "--files");
-    let (one_copy, fixture_count, copy_count) = build_workload();
+    // `--only TEXT`: just the fixtures whose file name contains TEXT, to see what one kind of source costs.
+    let only_filter = arguments
+        .iter()
+        .position(|argument| argument == "--only")
+        .and_then(|flag_position| arguments.get(flag_position + 1))
+        .cloned();
+    let (one_copy, fixture_count, copy_count) = build_workload(only_filter.as_deref());
     let (source_bytes, parse_count) = if is_many_files {
         (one_copy, copy_count)
     } else {
@@ -146,7 +152,7 @@ fn main() {
         (event_count * size_of::<Event>() + meaningful_token_count * size_of::<u32>()) as f64 / (source_bytes.len() * parse_count) as f64
     );
     println!(
-        "RESULT parse_min_ms={:.1} parse_median_ms={:.1} floor_min_ms={:.1} lex_min_ms={:.1} fingerprint={fingerprint:016x}",
+        "RESULT parse_min_ms={:.1} parse_median_ms={:.1} floor_min_ms={:.1} lex_min_ms={:.1} parse_ns_per_token={nanoseconds_per_token:.2} fingerprint={fingerprint:016x}",
         to_milliseconds(parse_minimum),
         to_milliseconds(parse_median),
         to_milliseconds(floor_minimum),
@@ -155,7 +161,7 @@ fn main() {
 }
 
 /// Every accept fixture, end to end: one copy, and how many copies make about `TARGET_BYTE_COUNT`.
-fn build_workload() -> (Vec<u8>, usize, usize) {
+fn build_workload(only_filter: Option<&str>) -> (Vec<u8>, usize, usize) {
     let fixture_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/accept");
 
     let mut fixture_paths: Vec<_> = match std::fs::read_dir(&fixture_directory) {
@@ -173,6 +179,13 @@ fn build_workload() -> (Vec<u8>, usize, usize) {
         }
     };
 
+    fixture_paths.retain(|fixture_path| {
+        only_filter.is_none_or(|wanted_text| {
+            fixture_path
+                .file_name()
+                .is_some_and(|file_name| file_name.to_string_lossy().contains(wanted_text))
+        })
+    });
     fixture_paths.sort();
 
     let mut one_copy = Vec::new();

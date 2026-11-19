@@ -130,6 +130,18 @@ impl Parser<'_> {
             return self.parse_tuple_pattern();
         }
 
+        // @Speed: the commonest pattern by far is one name, as in `let total = ...`. A word followed
+        // by a token that ends a pattern is that, and needs none of the expression grammar. The
+        // general path below reaches the same node for it. Experiment 4.
+        if self.at_word() && self.nth_ends_pattern(1) {
+            let binding_pattern = self.open();
+
+            self.bump();
+            self.close(binding_pattern, NodeKind::BindingPattern);
+
+            return Ok(());
+        }
+
         let expression = self.parse_expression(ExpressionContext::BEFORE_BRACE)?;
         let is_path = self.get_kind(expression) == Some(NodeKind::PathExpression);
 
@@ -177,8 +189,16 @@ impl Parser<'_> {
             ahead += 1;
         }
 
+        self.nth_ends_pattern(ahead + 1)
+    }
+
+    /// True if the token `ahead` places on is one that can only come after a complete pattern.
+    fn nth_ends_pattern(
+        &self,
+        ahead: usize,
+    ) -> bool {
         matches!(
-            self.nth_punctuation(ahead + 1),
+            self.nth_punctuation(ahead),
             Some(Punctuation::Arrow | Punctuation::Comma | Punctuation::RightParenthesis | Punctuation::Equal | Punctuation::Colon | Punctuation::Semicolon)
         )
     }
