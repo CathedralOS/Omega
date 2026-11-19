@@ -503,6 +503,44 @@ pub struct SourceCompletionAccounting {
 }
 
 impl SourceCompletionAccounting {
+    /// Keep the actual source account even when execution or decoding its observations refuses.
+    pub fn record_invocation<T>(
+        &mut self,
+        site: SourceInvocationSite<'_>,
+        program: Arc<ProducedTerminalProgram>,
+        admission: evaluation_admission::AdmittedCompilerEvaluation,
+        meter: &terminal_work::WorkMeter,
+        run: Result<build_invocation::InvocationOutcome, String>,
+        complete: impl FnOnce(build_invocation::InvocationValue) -> Result<T, String>,
+    ) -> Result<(T, evaluation_contracts::BuildEvaluationUsage), String> {
+        let outcome = match &run {
+            Ok(run) => SourceInvocationResult::Executed(run),
+            Err(reason) => SourceInvocationResult::Refused {
+                reason: reason.clone(),
+                execution: None,
+            },
+        };
+        let mut receipt =
+            PureTerminalEvaluationReceipt::record(site, program, admission, meter, outcome)?;
+        let result = match &receipt.outcome {
+            PureTerminalEvaluationOutcome::Materialized { usage, .. } => run
+                .and_then(|run| run.into_parts().0)
+                .and_then(complete)
+                .map(|value| (value, *usage)),
+            PureTerminalEvaluationOutcome::Failed { reason } => Err(reason.clone()),
+            PureTerminalEvaluationOutcome::Returned { .. } => {
+                Err("source invocation did not materialize a complete value".into())
+            }
+        };
+        if let Err(reason) = &result {
+            receipt.outcome = PureTerminalEvaluationOutcome::Failed {
+                reason: reason.clone(),
+            };
+        }
+        self.append_invocation(receipt);
+        result
+    }
+
     pub fn append_invocation(&mut self, receipt: PureTerminalEvaluationReceipt) {
         // This constructor just completed one actual run, so its receipt is
         // fresh. Share it when accounts later join; do not recopy its payload.

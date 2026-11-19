@@ -8,6 +8,7 @@ version.workspace = true
 path = "accounting.rs"
 
 [dependencies]
+evaluation-contracts = { path = "../../../../build/evaluation/usage" }
 build-invocation = { path = "../../../../build/evaluation/invocations" }
 build-scalar-evaluation = { path = "../../../../build/evaluation/scalars" }
 build-time-values = { path = "../../../../build/evaluation/values" }
