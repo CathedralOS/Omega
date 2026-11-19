@@ -2196,7 +2196,8 @@ impl<'a> Replay<'a> {
                     .slot_coordinate(location)
             } else {
                 Some(location.clone())
-            };
+            }
+        };
         // Moving an owned parameter ends its name for loan liveness, but
         // its entry value stays readable here: no operation reads a moved
         // value, and the machine's summary still reads the parameter at
