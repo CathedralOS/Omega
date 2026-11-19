@@ -667,7 +667,7 @@ impl Program<'_> {
         let typed = self.typed;
         let unserved = |what| refuse(entry, Construct::Machine, Unserved::Type(what));
         if data.generic_instance.is_some()
-            || data.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
+            || data.supply_mode != language_core::DataSupplyMode::CheckedShape
             || !data.lifetime_parameters.is_empty()
             || !data.conformance_bounds.is_empty()
             || data.properties.carry.is_some()
@@ -1044,7 +1044,7 @@ fn served_parent(
 /// (`record`), as a record whose roster is empty.
 fn names_only(data: &crate::source_state::data::DataDefinition) -> bool {
     data.members.is_empty()
-        && data.supply_mode == declaration_contracts::DataSupplyMode::CheckedShape
+        && data.supply_mode == language_core::DataSupplyMode::CheckedShape
         && data.lifetime_parameters.is_empty()
         && data.type_parameters.is_empty()
         && data.generic_instance.is_none()

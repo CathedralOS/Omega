@@ -28,7 +28,7 @@ pub(crate) fn borrow_membership_subject(
 ) -> ExpressionHandle {
     expression_table(lowerer).insert(ExpressionNode::Borrow(TableBorrowExpression {
         target: subject,
-        access: declaration_contracts::ReferenceAccess::Shared,
+        access: language_core::ReferenceAccess::Shared,
     }))
 }
 

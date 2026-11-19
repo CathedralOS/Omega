@@ -1011,7 +1011,7 @@ impl Inputs {
                     || !declaration.lifetime_parameters.is_empty()
                     || !declaration.conformance_bounds.is_empty()
                     || declaration.supply_mode
-                        != declaration_contracts::DataSupplyMode::CheckedShape
+                        != language_core::DataSupplyMode::CheckedShape
                 {
                     return Err(refuse(
                         machine,

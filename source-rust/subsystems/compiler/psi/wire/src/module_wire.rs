@@ -658,11 +658,11 @@ pub(crate) mod carry_and_suspension_wire {
         Access, Argument, Digest, Field, Flag, Id, Ids, List, Scalar, U32, wire_enum, wire_record,
     };
     use arena::{Handle, HandleSpan};
-    use declaration_contracts::CarryAddress;
-    use declaration_contracts::CarryCpu;
-    use declaration_contracts::CarryHostThread;
-    use declaration_contracts::CarryPolicy;
-    use declaration_contracts::CarrySuspension;
+    use language_core::CarryAddress;
+    use language_core::CarryCpu;
+    use language_core::CarryHostThread;
+    use language_core::CarryPolicy;
+    use language_core::CarrySuspension;
     use terminal_psi::{
         TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
         TerminalSuspensionLiveValue, TerminalSuspensionLoan, TerminalSuspensionLoanBacking,
@@ -1066,7 +1066,7 @@ pub(crate) mod carry_and_suspension_wire {
         use super::{CallTarget, Field, decode_suspension_call_plan, encode_suspension_call_plan};
         use crate::codec_error::CodecError;
         use crate::sections::semantic_module::wire::{Reader, Writer};
-        use declaration_contracts::CarryPolicy;
+        use language_core::CarryPolicy;
         use semantic_vocabulary::{
             MachineId, ObligationId, OperationId, PlaceId, StructuralCaseId, StructuralTypeId,
             SuspensionCrossingId, ValueId,
@@ -1679,8 +1679,8 @@ pub(crate) mod quotient_wire {
     use super::super::CodecError;
     use super::super::wire::{Writer, decode_canonical};
     use super::super::wire_fields::{Field, Id, Index, List, Text, U32, wire_enum, wire_record};
-    use declaration_contracts::quotient_correspondence::QuotientPositionalRelation;
-    use declaration_contracts::quotient_correspondence::QuotientRelationIdentity;
+    use terminal_psi::quotients::QuotientPositionalRelation;
+    use terminal_psi::quotients::QuotientRelationIdentity;
     use terminal_psi::terminal_module::quotients::{
         TerminalQuotientAdaptation, TerminalQuotientAdaptationLicense, TerminalQuotientCatalog,
         TerminalQuotientOperation, TerminalQuotientRepresentation,

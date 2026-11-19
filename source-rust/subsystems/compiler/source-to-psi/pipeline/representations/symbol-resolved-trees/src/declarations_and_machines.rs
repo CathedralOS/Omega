@@ -39,7 +39,7 @@ pub mod declarations {
         pub struct DataDefinitionStorage {
             pub predicate_subject_symbol: SymbolHandle,
             pub predicate_subject_type: TypeReference,
-            pub supply_mode: declaration_contracts::DataSupplyMode,
+            pub supply_mode: language_core::DataSupplyMode,
             pub lifetime_parameters: Vec<DiagnosticName>,
             pub type_parameters: HandleSpan<TypeParameter>,
             pub generic_instance: Option<TypeReference>,
@@ -75,8 +75,8 @@ pub mod declarations {
 
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
         pub struct DataProperties {
-            pub carry: Option<declaration_contracts::CarryPolicy>,
-            pub multiplicity: declaration_contracts::Multiplicity,
+            pub carry: Option<language_core::CarryPolicy>,
+            pub multiplicity: language_core::Multiplicity,
         }
 
         deref_to_storage!(DataDefinition => DataDefinitionStorage);
@@ -269,8 +269,8 @@ pub mod declarations {
             /// The policy named after `access`. Its `symbol` is the named
             /// implementation the path selects, once selection has run.
             pub access_policy: Option<crate::source_resolved::expression::StaticMachineArgument>,
-            pub classification: Option<declaration_contracts::DomainClassification>,
-            pub predicate_presence: declaration_contracts::DomainPredicatePresence,
+            pub classification: Option<language_core::DomainClassification>,
+            pub predicate_presence: language_core::DomainPredicatePresence,
             pub facts: HandleSpan<ProofFact>,
             pub operators: HandleSpan<crate::source_resolved::operator::OperatorDefinition>,
             pub semantic_clause_token_count: usize,

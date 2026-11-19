@@ -1804,7 +1804,7 @@ fn type_argument_meets_bounds(
     binder: &crate::source_state::data::TypeParameter,
     reference: TypeReferenceHandle,
 ) -> Served<()> {
-    use declaration_contracts::Multiplicity;
+    use language_core::Multiplicity;
     if binder.bounds.carry.is_some() {
         return Err(unserved(
             "a type binder's carry bound has no judgment against its argument yet",

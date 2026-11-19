@@ -1868,7 +1868,7 @@ pub(crate) mod state {
     use crate::typing::expressions::statement::{LocalTypes, lower_statement};
     use crate::typing::lowerer::Lowerer;
     use crate::typing::tables::{expression_table, statement_table_mut};
-    use declaration_contracts::CallOperationalAcknowledgementOrigin;
+    use language_core::CallOperationalAcknowledgementOrigin;
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
     use typed::expression::ExpressionHandle;

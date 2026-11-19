@@ -2168,7 +2168,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub machine_arguments: Box<[StaticMachineArgument]>,
         pub arguments: HandleSpan<ExpressionHandle>,
         pub evidence_arguments: Box<[DiagnosticName]>,
-        pub operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+        pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]

@@ -8,7 +8,7 @@ use crate::resolution::tables::body_expressions;
 use crate::resolution::tables::resolved_declarations;
 use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_symbols::{JoinedPath, SymbolTable};
-use declaration_contracts::byte_predicates::ByteSequencePredicate;
+use semantic_vocabulary::byte_predicates::ByteSequencePredicate;
 use symbols::{SymbolHandle, SymbolKind};
 
 use super::expressions::assign_membership_symbol;

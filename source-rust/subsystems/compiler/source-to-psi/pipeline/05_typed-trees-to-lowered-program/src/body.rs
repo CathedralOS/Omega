@@ -439,14 +439,14 @@ impl StorageShape {
 }
 
 pub(crate) fn source_multiplicity(
-    value: declaration_contracts::Multiplicity,
+    value: language_core::Multiplicity,
 ) -> terminal_psi::StructuralMultiplicity {
     match value {
-        declaration_contracts::Multiplicity::Unrestricted => {
+        language_core::Multiplicity::Unrestricted => {
             terminal_psi::StructuralMultiplicity::Unrestricted
         }
-        declaration_contracts::Multiplicity::Affine => terminal_psi::StructuralMultiplicity::Affine,
-        declaration_contracts::Multiplicity::Linear => terminal_psi::StructuralMultiplicity::Linear,
+        language_core::Multiplicity::Affine => terminal_psi::StructuralMultiplicity::Affine,
+        language_core::Multiplicity::Linear => terminal_psi::StructuralMultiplicity::Linear,
     }
 }
 

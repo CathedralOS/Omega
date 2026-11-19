@@ -294,6 +294,6 @@ impl Program<'_> {
 /// Whether membership in the domain is more than its name: it states
 /// predicates of its own.
 pub(crate) fn has_predicates(definition: &crate::source_state::domain::DomainDefinition) -> bool {
-    definition.predicate_presence != declaration_contracts::DomainPredicatePresence::Absent
+    definition.predicate_presence != language_core::DomainPredicatePresence::Absent
         || !definition.facts.is_empty()
 }

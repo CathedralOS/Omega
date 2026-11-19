@@ -5048,7 +5048,7 @@ pub mod expression {
         pub target: Identifier,
         pub arguments: Arc<[Expression]>,
         pub evidence_arguments: Arc<[Identifier]>,
-        pub operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+        pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
@@ -5075,7 +5075,7 @@ pub mod expression {
         pub native_code_layout: Option<NativeCodeLayoutRequest>,
         pub arguments: HandleSpan<ExpressionHandle>,
         pub evidence_arguments: Box<[Identifier]>,
-        pub operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+        pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]

@@ -923,7 +923,7 @@ mod header_reading_tests {
             name: "Token".into(),
             members,
             properties: crate::source_state::data::DataProperties {
-                multiplicity: declaration_contracts::Multiplicity::Linear,
+                multiplicity: language_core::Multiplicity::Linear,
                 carry: None,
             },
             ..Default::default()

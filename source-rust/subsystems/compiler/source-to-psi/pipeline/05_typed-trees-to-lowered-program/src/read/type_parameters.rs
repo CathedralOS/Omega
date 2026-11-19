@@ -102,13 +102,13 @@ impl Program<'_> {
             ));
         }
         let multiplicity = match parameter.bounds.multiplicity {
-            declaration_contracts::Multiplicity::Unrestricted => {
+            language_core::Multiplicity::Unrestricted => {
                 terminal_psi::StructuralMultiplicity::Unrestricted
             }
-            declaration_contracts::Multiplicity::Affine => {
+            language_core::Multiplicity::Affine => {
                 terminal_psi::StructuralMultiplicity::Affine
             }
-            declaration_contracts::Multiplicity::Linear => {
+            language_core::Multiplicity::Linear => {
                 terminal_psi::StructuralMultiplicity::Linear
             }
         };

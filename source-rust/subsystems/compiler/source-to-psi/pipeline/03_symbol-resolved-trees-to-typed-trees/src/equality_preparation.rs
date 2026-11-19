@@ -787,9 +787,9 @@ impl Preparation<'_> {
             target_symbol: selected.requirement,
             target: crate::source_state::name::Identifier::generated("equals"),
             arguments,
-            operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement {
+            operational_acknowledgement: language_core::CallOperationalAcknowledgement {
                 origin:
-                    declaration_contracts::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                    language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
                 ..Default::default()
             },
             authored_call_selection: None,

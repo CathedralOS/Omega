@@ -5145,7 +5145,7 @@ pub(crate) mod type_reference_queries {
                     .type_reference_table
                     .insert(TypeReferenceNode::Reference {
                         referee: slice,
-                        access: declaration_contracts::ReferenceAccess::Shared,
+                        access: language_core::ReferenceAccess::Shared,
                         lifetime: None,
                     });
                 assert_eq!(program.reference_descriptor_word_count(reference), Some(1));
@@ -5470,8 +5470,8 @@ pub(crate) mod type_reference_queries {
         pub fn type_multiplicity(
             &self,
             type_reference: types::TypeReferenceHandle,
-        ) -> declaration_contracts::Multiplicity {
-            use declaration_contracts::Multiplicity;
+        ) -> language_core::Multiplicity {
+            use language_core::Multiplicity;
             use types::TypeReferenceNode;
 
             if !type_reference.is_valid() {
@@ -5543,12 +5543,12 @@ pub(crate) mod type_reference_queries {
         pub fn stored_value_multiplicity(
             &self,
             type_reference: types::TypeReferenceHandle,
-        ) -> declaration_contracts::Multiplicity {
+        ) -> language_core::Multiplicity {
             match self.type_reference_table.type_reference(type_reference) {
                 types::TypeReferenceNode::Reference { access, .. }
                     if *access != language_core::ReferenceAccess::Shared =>
                 {
-                    declaration_contracts::Multiplicity::Affine
+                    language_core::Multiplicity::Affine
                 }
                 types::TypeReferenceNode::Constrained { base_type, .. } => {
                     self.stored_value_multiplicity(*base_type)

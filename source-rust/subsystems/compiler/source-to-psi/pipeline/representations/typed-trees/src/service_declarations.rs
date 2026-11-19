@@ -1354,7 +1354,7 @@ pub mod projection {
             .expect("normalized progress premise must name one declared profile domain");
         debug_assert_eq!(
             domain.classification,
-            Some(declaration_contracts::DomainClassification::ProgressProfile)
+            Some(language_core::DomainClassification::ProgressProfile)
         );
         let mut routes = domain
             .establishment_routes
@@ -1415,7 +1415,7 @@ pub mod projection {
             .enumerate()
         {
             let reference = scope.type_reference(program, parameter.type_reference);
-            if reference.multiplicity(program) != declaration_contracts::Multiplicity::Linear {
+            if reference.multiplicity(program) != language_core::Multiplicity::Linear {
                 continue;
             }
             append_routed_entry_claims(
@@ -1453,7 +1453,7 @@ pub mod projection {
     ) -> Vec<ServiceResultClaim> {
         let reference = scope.type_reference(program, signature.return_type);
         if !reference.reference.is_valid()
-            || reference.multiplicity(program) != declaration_contracts::Multiplicity::Linear
+            || reference.multiplicity(program) != language_core::Multiplicity::Linear
         {
             return Vec::new();
         }
@@ -1545,13 +1545,13 @@ pub mod projection {
             requirement,
             &mut |_, domain| {
                 if domain.predicate_presence
-                    != declaration_contracts::DomainPredicatePresence::Absent
+                    != language_core::DomainPredicatePresence::Absent
                 {
                     return;
                 }
                 claims.push(ServiceResultClaim {
                     domain: domain_claim_name(program, domain),
-                    effective_carry: declaration_contracts::CarryPolicy::STRICT,
+                    effective_carry: language_core::CarryPolicy::STRICT,
                 });
             },
         );
@@ -1581,7 +1581,7 @@ pub mod projection {
                     ),
                     domain: domain_claim_name(program, domain),
                     predicate_presence: domain.predicate_presence,
-                    effective_carry: declaration_contracts::CarryPolicy::STRICT,
+                    effective_carry: language_core::CarryPolicy::STRICT,
                     authority_flow: ServiceEntryAuthorityFlow::Accepts,
                 });
             },

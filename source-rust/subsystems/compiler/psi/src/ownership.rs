@@ -673,7 +673,7 @@ pub(crate) mod suspension {
         terminal_module::TerminalIdentityTable,
     };
     use arena::{Arena, Handle, HandleSpan};
-    use declaration_contracts::CarryPolicy;
+    use language_core::CarryPolicy;
     use semantic_vocabulary::{
         BoundaryMachineId, ClaimId, IeeeFloatFormat, IntegerCarrier, IntegerSign, MachineId,
         OperationId, ScalarType, StructuralTypeId, SuspensionCrossingId, ValueId,
@@ -1175,14 +1175,14 @@ pub(crate) mod suspension {
         policy: CarryPolicy,
     ) {
         hash.byte(u8::from(
-            policy.suspension == declaration_contracts::CarrySuspension::Allowed,
+            policy.suspension == language_core::CarrySuspension::Allowed,
         ));
-        hash.byte(u8::from(policy.cpu == declaration_contracts::CarryCpu::Any));
+        hash.byte(u8::from(policy.cpu == language_core::CarryCpu::Any));
         hash.byte(u8::from(
-            policy.host_thread == declaration_contracts::CarryHostThread::Any,
+            policy.host_thread == language_core::CarryHostThread::Any,
         ));
         hash.byte(u8::from(
-            policy.address == declaration_contracts::CarryAddress::Movable,
+            policy.address == language_core::CarryAddress::Movable,
         ));
     }
 

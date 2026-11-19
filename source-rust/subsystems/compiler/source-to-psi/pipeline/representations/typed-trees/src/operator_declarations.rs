@@ -2599,7 +2599,7 @@ pub mod operator {
                     parameter.kind,
                     crate::source_state::data::TypeParameterKind::Type
                 ) || !parameter.symbol.is_valid()
-                    || parameter.bounds.multiplicity == declaration_contracts::Multiplicity::Affine
+                    || parameter.bounds.multiplicity == language_core::Multiplicity::Affine
                 {
                     return true;
                 }
@@ -2738,8 +2738,8 @@ pub mod operator {
             };
             if matches!(
                 access,
-                declaration_contracts::ReferenceAccess::Shared
-                    | declaration_contracts::ReferenceAccess::Mutable
+                language_core::ReferenceAccess::Shared
+                    | language_core::ReferenceAccess::Mutable
             ) && program.primitive_type_reference(*referee) == Some(expected_primitive)
             {
                 *referee

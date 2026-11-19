@@ -255,7 +255,7 @@ impl Program<'_> {
                         || self
                             .typed
                             .stored_value_multiplicity(parameter.type_reference)
-                            != declaration_contracts::Multiplicity::Unrestricted
+                            != language_core::Multiplicity::Unrestricted
                     {
                         return Err(reject_ordering());
                     }

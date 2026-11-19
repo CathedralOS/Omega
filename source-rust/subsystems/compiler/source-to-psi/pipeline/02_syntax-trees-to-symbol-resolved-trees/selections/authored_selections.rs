@@ -427,7 +427,7 @@ fn collect_authored_statement_call_candidates(
         match statement {
             Statement::Call(call)
                 if call.operational_acknowledgement.origin
-                    == declaration_contracts::CallOperationalAcknowledgementOrigin::Source
+                    == language_core::CallOperationalAcknowledgementOrigin::Source
                     && !program
                         .symbols
                         .builtin_function_for_symbol(call.target_symbol)
@@ -1349,7 +1349,7 @@ fn expression_candidates(
                     call.receiver.is_valid(),
                 );
             if call.operational_acknowledgement.origin
-                == declaration_contracts::CallOperationalAcknowledgementOrigin::Source
+                == language_core::CallOperationalAcknowledgementOrigin::Source
                 && !unbound_contract_call
                 && !data_layout_query
                 && !program

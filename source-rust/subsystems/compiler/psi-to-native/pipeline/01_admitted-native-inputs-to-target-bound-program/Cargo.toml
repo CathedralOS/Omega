@@ -18,7 +18,6 @@ artifact-evaluation = { path = "../../../../psi/evaluation/artifact-evaluation" 
 backend-plan = { path = "../../installation/provider-plans" }
 build-time-values = { path = "../../../../psi/evaluation/build-time-values" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 effects = { path = "../../installation/native-effects" }
 evaluation-accounting = { path = "../../../../psi/evaluation/evaluation-accounting" }

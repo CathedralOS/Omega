@@ -27,7 +27,7 @@ pub fn vocabulary(
                     && definition.name.as_str() == name
                     && definition.generic_instance.is_none()
                     && definition.is_public
-                    && definition.supply_mode == declaration_contracts::DataSupplyMode::CheckedShape
+                    && definition.supply_mode == language_core::DataSupplyMode::CheckedShape
                     && typed
                         .symbols
                         .core_vocabulary(definition.symbol)
@@ -192,7 +192,7 @@ fn exact_vocabulary(
         == Some(language_core::core_vocabulary::CoreVocabulary::ExternalBinding(vocabulary))
         && definition.generic_instance.is_none()
         && definition.is_public
-        && definition.supply_mode == declaration_contracts::DataSupplyMode::CheckedShape;
+        && definition.supply_mode == language_core::DataSupplyMode::CheckedShape;
     if !admitted {
         return Err(vec![Diagnostic::error(format!(
             "native binding requires the exact compiler-owned `{name}` declaration"

@@ -121,7 +121,7 @@ pub(crate) mod build_selections {
         inputs: Vec<BuildSelectionInput>,
         lexical_owner: symbols::SymbolHandle,
         mut arguments: Vec<ExpressionHandle>,
-        acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+        acknowledgement: language_core::CallOperationalAcknowledgement,
     ) -> Result<ExpressionHandle, Diagnostic> {
         let source_span = request.source_span();
         if !source.symbols.symbols().nodes().is_valid(lexical_owner)
@@ -3592,7 +3592,7 @@ pub(crate) mod product_queries {
         operation: ProductQueryOperation,
         arguments: Vec<ExpressionHandle>,
         span: source_text::SourceSpan,
-        acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+        acknowledgement: language_core::CallOperationalAcknowledgement,
     ) -> Result<ExpressionHandle, Diagnostic> {
         let protocol = source
             .traits

@@ -179,7 +179,7 @@ mod codec_tests {
 
     #[test]
     fn closed_carry_fact_has_stable_distinct_wire_tags() {
-        for (tag, permission) in declaration_contracts::CarryPermission::ALL
+        for (tag, permission) in language_core::CarryPermission::ALL
             .into_iter()
             .enumerate()
         {

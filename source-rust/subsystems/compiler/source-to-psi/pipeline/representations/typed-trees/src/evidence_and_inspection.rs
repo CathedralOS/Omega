@@ -12,7 +12,7 @@ pub mod evidence {
         use crate::source_state::types::TypeReferenceNode;
         use symbols::{BuiltinTypeAtom, SymbolHandle};
 
-        pub use declaration_contracts::byte_predicates::ByteSequencePredicate;
+        pub use semantic_vocabulary::byte_predicates::ByteSequencePredicate;
 
         pub fn byte_predicate_call(
             program: &TypedTrees,
@@ -2587,8 +2587,8 @@ pub mod inspection {
                     name: data.name.to_string(),
                     is_public: data.is_public,
                     supply: match data.supply_mode {
-                        declaration_contracts::DataSupplyMode::CheckedShape => "checked_shape",
-                        declaration_contracts::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
+                        language_core::DataSupplyMode::CheckedShape => "checked_shape",
+                        language_core::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
                     }
                     .to_owned(),
                     lifetime_parameters: to_strings(data.lifetime_parameters.iter()),
@@ -4689,7 +4689,7 @@ pub mod inspection {
             arguments: statement_expression_span_snapshot(program, call.arguments),
             evidence_arguments: to_strings(call.evidence_arguments.iter()),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
-                == declaration_contracts::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
@@ -4923,7 +4923,7 @@ pub mod inspection {
             arguments: expression_span_snapshot(program, call.arguments),
             evidence_arguments: to_strings(call.evidence_arguments.iter()),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
-                == declaration_contracts::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },

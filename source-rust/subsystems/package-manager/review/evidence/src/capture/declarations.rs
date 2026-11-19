@@ -262,7 +262,7 @@ impl<'a> PolicySource<'a> {
                 || !definition.conformance_bounds.is_empty()
                 || definition.quotient.is_some()
                 || definition.cleanup_selection.is_some()
-                || definition.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
+                || definition.supply_mode != language_core::DataSupplyMode::CheckedShape
             {
                 return Err(unavailable(
                     "this data declaration's complete generic or cleanup signature",

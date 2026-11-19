@@ -769,7 +769,7 @@ mod tests {
             .data_type_parameters
             .get_mut(bound.element)
             .bounds
-            .multiplicity = declaration_contracts::Multiplicity::Unrestricted;
+            .multiplicity = language_core::Multiplicity::Unrestricted;
         assert_ne!(Some(&original), bound.text().as_ref());
         let mut lifetime = Fixture::ordinary();
         let output = lifetime

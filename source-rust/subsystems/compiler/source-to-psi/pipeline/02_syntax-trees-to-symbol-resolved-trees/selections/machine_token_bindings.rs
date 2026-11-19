@@ -59,7 +59,7 @@ use crate::source_resolved::types::TypeConstraint;
 use crate::source_resolved::types::TypeReference;
 use crate::source_symbols::JoinedPath;
 use arena::HandleSpan;
-use declaration_contracts::ReferenceAccess;
+use language_core::ReferenceAccess;
 use diagnostics::Diagnostic;
 use source_text::SourceSpan;
 use source_text::Span;

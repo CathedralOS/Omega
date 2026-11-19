@@ -3054,7 +3054,7 @@ pub mod quotients {
             index: usize,
             row: &terminal_psi::TerminalQuotientOperation,
         ) -> Result<(), &'static str> {
-            use declaration_contracts::quotient_correspondence::QuotientPositionalRelation as Relation;
+            use terminal_psi::quotients::QuotientPositionalRelation as Relation;
             let public = module
                 .machine(row.public_machine)
                 .ok_or("quotient public body is absent")?;
@@ -3704,7 +3704,7 @@ pub mod quotients {
                         && call.kind.structural_arguments().get(position as usize)
                             .is_some_and(|argument| argument.place == result.place && argument.path.is_empty())
                         && owner.input_relations.get(position as usize)
-                            == Some(&declaration_contracts::quotient_correspondence::QuotientPositionalRelation::Quotient(representation.formation.clone())))
+                            == Some(&terminal_psi::quotients::QuotientPositionalRelation::Quotient(representation.formation.clone())))
                         .then_some(row)
             }
             TerminalQuotientAdaptationLicense::Result { operation }
@@ -3717,7 +3717,7 @@ pub mod quotients {
                         && call.kind.direct_callee() == Some(owner.representative_machine)
                         && call.result.structural().is_some_and(|result| result.place == *source)
                         && owner.result_relation
-                            == declaration_contracts::quotient_correspondence::QuotientPositionalRelation::Quotient(representation.formation.clone()))
+                            == terminal_psi::quotients::QuotientPositionalRelation::Quotient(representation.formation.clone()))
                         .then_some(row)
             }
             _ => None,

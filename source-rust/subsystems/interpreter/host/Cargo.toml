@@ -32,6 +32,5 @@ service-surface = { path = "../../compiler/psi/service-surface" }
 native-provider-sponsor = { path = "../../host-support/native-provider-sponsor" }
 application-identity = { path = "../../compiler/psi/application-identity" }
 language-core = { path = "../../compiler/foundation/language-core" }
-declaration-contracts = { path = "../../compiler/source-to-psi/language/declaration-contracts" }
 orchestration = { path = "../../build-system/orchestration" }
 platform-custody = { path = "../../../foundation/filesystem" }

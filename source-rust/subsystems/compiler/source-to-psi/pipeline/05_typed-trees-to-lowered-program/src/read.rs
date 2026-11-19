@@ -904,7 +904,7 @@ mod tests {
     fn a_record_domain_catalog_keeps_the_declared_predicate_and_its_presence() {
         use crate::source_inputs::SourceMap;
         use crate::source_state::domain::{DomainDefinition, ProofFact};
-        use declaration_contracts::DomainPredicatePresence;
+        use language_core::DomainPredicatePresence;
         use declaration_contracts::source_identity::DependencyScope;
         use semantic_vocabulary::Proposition;
         use source_admission::SourceOrigin;

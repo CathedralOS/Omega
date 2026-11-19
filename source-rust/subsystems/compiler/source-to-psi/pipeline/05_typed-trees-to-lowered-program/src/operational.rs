@@ -10,17 +10,17 @@ use crate::lowering::body::{Body, Expression, ExpressionKind, Statement, Target}
 
 pub(crate) fn retain(
     expression: &mut Expression,
-    acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+    acknowledgement: language_core::CallOperationalAcknowledgement,
     suspension_position: bool,
 ) {
     expression.call_context = Some(match acknowledgement.origin {
-        declaration_contracts::CallOperationalAcknowledgementOrigin::CompilerSynthesized => {
+        language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized => {
             CallAcknowledgement {
                 suspension_position,
                 ..CallAcknowledgement::generated()
             }
         }
-        declaration_contracts::CallOperationalAcknowledgementOrigin::Source => {
+        language_core::CallOperationalAcknowledgementOrigin::Source => {
             CallAcknowledgement {
                 origin: CallOrigin::Authored,
                 acknowledges_suspend: acknowledgement.acknowledges_suspend,

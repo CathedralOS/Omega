@@ -98,9 +98,9 @@ fn selection() -> (TypedTrees, TypeReferenceHandle, TypeReferenceHandle) {
     typed.push_data_definition(DataDefinition {
         name: "Receipt".into(),
         symbol: opaque,
-        supply_mode: declaration_contracts::DataSupplyMode::BoundaryOpaque,
+        supply_mode: language_core::DataSupplyMode::BoundaryOpaque,
         properties: DataProperties {
-            multiplicity: declaration_contracts::Multiplicity::Linear,
+            multiplicity: language_core::Multiplicity::Linear,
             carry: None,
         },
         ..Default::default()
@@ -108,7 +108,7 @@ fn selection() -> (TypedTrees, TypeReferenceHandle, TypeReferenceHandle) {
     typed.push_data_definition(DataDefinition {
         name: "Permit".into(),
         symbol: permit,
-        supply_mode: declaration_contracts::DataSupplyMode::BoundaryOpaque,
+        supply_mode: language_core::DataSupplyMode::BoundaryOpaque,
         ..Default::default()
     });
     typed.push_data_definition(DataDefinition {

@@ -644,7 +644,7 @@ pub mod data {
         pub is_public: bool,
         pub predicate_subject_symbol: SymbolHandle,
         pub predicate_subject_type: TypeReferenceHandle,
-        pub supply_mode: declaration_contracts::DataSupplyMode,
+        pub supply_mode: language_core::DataSupplyMode,
         pub lifetime_parameters: Vec<Identifier>,
         pub type_parameters: HandleSpan<TypeParameter>,
         pub generic_instance: Option<TypeReferenceHandle>,
@@ -666,7 +666,7 @@ pub mod data {
                 is_public: false,
                 predicate_subject_symbol: SymbolHandle::invalid(),
                 predicate_subject_type: TypeReferenceHandle::invalid(),
-                supply_mode: declaration_contracts::DataSupplyMode::CheckedShape,
+                supply_mode: language_core::DataSupplyMode::CheckedShape,
                 lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
                 conformance_bounds: Vec::new(),
@@ -703,8 +703,8 @@ pub mod data {
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
     pub struct DataProperties {
-        pub carry: Option<declaration_contracts::CarryPolicy>,
-        pub multiplicity: declaration_contracts::Multiplicity,
+        pub carry: Option<language_core::CarryPolicy>,
+        pub multiplicity: language_core::Multiplicity,
     }
 
     impl DataDefinition {
@@ -778,7 +778,7 @@ pub mod data {
         requirement: &TypeParameter,
         provider: &TypeParameter,
     ) -> bool {
-        (provider.bounds.multiplicity != declaration_contracts::Multiplicity::Affine
+        (provider.bounds.multiplicity != language_core::Multiplicity::Affine
             && requirement.bounds.multiplicity != provider.bounds.multiplicity)
             || provider.bounds.carry.is_some() && provider.bounds.carry != requirement.bounds.carry
     }
@@ -1102,8 +1102,8 @@ pub mod domain {
         pub is_public: bool,
         pub cleanup_selection: Option<CleanupSelection>,
         pub alias: Option<DomainAliasDefinition>,
-        pub classification: Option<declaration_contracts::DomainClassification>,
-        pub predicate_presence: declaration_contracts::DomainPredicatePresence,
+        pub classification: Option<language_core::DomainClassification>,
+        pub predicate_presence: language_core::DomainPredicatePresence,
         pub facts: HandleSpan<ProofFact>,
         pub operators: HandleSpan<crate::source_state::operator::OperatorDefinition>,
         pub semantic_clause_token_count: usize,
@@ -1139,7 +1139,7 @@ pub mod domain {
         /// definitions need their own translation before the theory is complete;
         /// issuer and access rules are checked independently.
         pub fn has_complete_predicate_theory(&self) -> bool {
-            (self.predicate_presence == declaration_contracts::DomainPredicatePresence::Absent
+            (self.predicate_presence == language_core::DomainPredicatePresence::Absent
                 || !self.facts.is_empty())
                 && self.operators.is_empty()
                 && self.alias.is_none()
@@ -1152,7 +1152,7 @@ pub mod domain {
         /// No proposition alone does not prove the declaration is empty.
         pub fn has_complete_empty_theory(&self) -> bool {
             self.has_complete_predicate_theory()
-                && self.predicate_presence == declaration_contracts::DomainPredicatePresence::Absent
+                && self.predicate_presence == language_core::DomainPredicatePresence::Absent
                 && self.facts.is_empty()
         }
 
@@ -1192,13 +1192,13 @@ pub mod domain {
             definition.has_complete_empty_theory(),
             "parsed issuance has its own authority check, separate from predicate completeness"
         );
-        definition.predicate_presence = declaration_contracts::DomainPredicatePresence::Present;
+        definition.predicate_presence = language_core::DomainPredicatePresence::Present;
         assert!(!definition.has_complete_empty_theory());
         assert!(
             !definition.has_complete_predicate_theory(),
             "a declared predicate without retained clauses is unavailable, not true"
         );
-        definition.predicate_presence = declaration_contracts::DomainPredicatePresence::Absent;
+        definition.predicate_presence = language_core::DomainPredicatePresence::Absent;
         definition.alias = Some(DomainAliasDefinition {
             constituents: Vec::new(),
         });
@@ -1220,7 +1220,7 @@ pub mod domain {
                 cleanup_selection: None,
                 alias: None,
                 classification: None,
-                predicate_presence: declaration_contracts::DomainPredicatePresence::Absent,
+                predicate_presence: language_core::DomainPredicatePresence::Absent,
                 facts: HandleSpan::empty(),
                 operators: HandleSpan::empty(),
                 semantic_clause_token_count: 0,
@@ -2370,7 +2370,7 @@ pub mod layout_storage {
                     .data_definition_by_symbol(symbol)
                     .is_some_and(|definition| {
                         definition.supply_mode
-                            == declaration_contracts::DataSupplyMode::BoundaryOpaque
+                            == language_core::DataSupplyMode::BoundaryOpaque
                     })
         }
 

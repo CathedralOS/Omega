@@ -1613,29 +1613,29 @@ mod semantic {
         108 => QuotientDefine,
     });
 
-    record_variants!(declaration_contracts::CarryAddress {
+    record_variants!(language_core::CarryAddress {
         0 => Stable,
         1 => Movable,
     });
 
-    record_variants!(declaration_contracts::CarryCpu {
+    record_variants!(language_core::CarryCpu {
         0 => Origin,
         1 => Any,
     });
 
-    record_variants!(declaration_contracts::CarryHostThread {
+    record_variants!(language_core::CarryHostThread {
         0 => Origin,
         1 => Any,
     });
 
-    record_fields!(declaration_contracts::CarryPolicy {
+    record_fields!(language_core::CarryPolicy {
         suspension,
         cpu,
         host_thread,
         address
     });
 
-    record_variants!(declaration_contracts::CarrySuspension {
+    record_variants!(language_core::CarrySuspension {
         0 => Forbidden,
         1 => Allowed,
     });
@@ -1659,7 +1659,7 @@ mod semantic {
         2 => Note,
     });
 
-    record_variants!(declaration_contracts::DomainPredicatePresence {
+    record_variants!(language_core::DomainPredicatePresence {
         0 => Absent,
         1 => Present,
     });

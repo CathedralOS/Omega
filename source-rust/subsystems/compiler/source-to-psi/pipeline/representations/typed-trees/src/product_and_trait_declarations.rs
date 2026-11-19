@@ -4005,9 +4005,9 @@ pub mod trait_definition {
                 )
             }
 
-            pub fn multiplicity(self, program: &TypedTrees) -> declaration_contracts::Multiplicity {
+            pub fn multiplicity(self, program: &TypedTrees) -> language_core::Multiplicity {
                 if !self.reference.is_valid() {
-                    return declaration_contracts::Multiplicity::Affine;
+                    return language_core::Multiplicity::Affine;
                 }
                 match program.type_reference_table.type_reference(self.reference) {
                     TypeReferenceNode::Constrained { base_type, .. } => {

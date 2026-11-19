@@ -99,7 +99,7 @@ pub(crate) fn substitute_resolved_constants(
                     indexed.collection
                 }
                 ExpressionNode::Borrow(borrow)
-                    if borrow.access != declaration_contracts::ReferenceAccess::Shared
+                    if borrow.access != language_core::ReferenceAccess::Shared
                         || matches!(
                             body_expressions(program).expression(borrow.target),
                             ExpressionNode::Indexed(_) | ExpressionNode::Member(_)

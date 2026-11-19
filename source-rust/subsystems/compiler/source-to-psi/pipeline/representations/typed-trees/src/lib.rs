@@ -1877,12 +1877,12 @@ pub fn canonical_const_carrier_is_supported(
             return false;
         };
         if !data.lifetime_parameters.is_empty()
-            || data.supply_mode != declaration_contracts::DataSupplyMode::CheckedShape
+            || data.supply_mode != language_core::DataSupplyMode::CheckedShape
             || data.properties.carry.is_some()
             || data.cleanup_selection.is_some()
             || data.quotient.is_some()
             || program.stored_value_multiplicity(reference)
-                != declaration_contracts::Multiplicity::Unrestricted
+                != language_core::Multiplicity::Unrestricted
         {
             return false;
         }

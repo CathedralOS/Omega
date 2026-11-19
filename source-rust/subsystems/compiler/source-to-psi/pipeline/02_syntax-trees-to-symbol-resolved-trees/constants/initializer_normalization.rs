@@ -46,7 +46,7 @@ mod resolved_payload {
     use application_identity::const_value::{
         CanonicalConstIdentity, DecodedCanonicalConstValue as Value,
     };
-    use declaration_contracts::DataSupplyMode;
+    use language_core::DataSupplyMode;
     use numeric_literals::EvaluatedConstant;
     use numeric_literals::FloatFormat;
     use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};

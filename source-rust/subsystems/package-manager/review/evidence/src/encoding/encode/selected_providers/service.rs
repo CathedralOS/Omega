@@ -5,7 +5,7 @@ use crate::encoding::encode::{
     calling::encode_application, values::providers::encode_carry_policy,
 };
 use crate::record::PackagePolicyServiceMethod;
-use declaration_contracts::DomainPredicatePresence;
+use language_core::DomainPredicatePresence;
 use service_surface::{
     ServiceResultProjection, ServiceSynchronousInvocation,
 };
