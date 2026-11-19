@@ -152,7 +152,7 @@ mod native {
     pub struct VerifiedNativeArtifactInput {
         optimization_input: VerifiedPsiOptimizationInput,
         access_view_establishments: Vec<TerminalAccessViewEstablishment>,
-        private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+        private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
     }
 
     pub struct NativeExecutionSelection<'request> {
@@ -378,7 +378,7 @@ mod native {
             )
         }
 
-        pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
+        pub fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe] {
             &self.private_entry_ram
         }
 
@@ -386,7 +386,7 @@ mod native {
             artifact: &psi_authorization::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
-            recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+            recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
             selection: &NativeExecutionSelection<'_>,
         ) -> Result<Self, ArtifactLoweringError> {
             NativeScopePreparation::prepare(artifact, profile, root, selection)?
@@ -423,7 +423,7 @@ mod native {
         pub(crate) fn lower_with_private_entry_ram(
             self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,
-            recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+            recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
             selection: &NativeExecutionSelection<'_>,
             evidence: Option<&terminal_codec::EvidenceSeals>,
         ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
@@ -449,7 +449,7 @@ mod native {
                 .iter()
                 .enumerate()
                 .map(|(index, recipe)| {
-                    let (identity, _) = terminal_installation::private_entry_ram_identity_pair(
+                    let (identity, _) = psi_entry_memory::private_entry_ram_identity_pair(
                         artifact.view().module(),
                         index,
                     )
@@ -703,11 +703,11 @@ mod native {
                 wrong_binding,
                 stale_machine,
             ] {
-                let failure = terminal_installation::admit_private_entry_ram(
+                let failure = psi_entry_memory::admit_private_entry_ram(
                     artifact.view(),
                     &layouts,
                     entry,
-                    &terminal_installation::PrivateEntryRamRecipe {
+                    &psi_entry_memory::PrivateEntryRamRecipe {
                         input,
                         contents: vec![41, 0, 0, 0, 3, 0, 0, 0],
                     },
@@ -715,11 +715,11 @@ mod native {
                 .expect_err("changed row must not lend private RAM");
                 assert!(failure.contains("exact borrowed entry row"), "{failure}");
             }
-            let recipe = terminal_installation::admit_private_entry_ram(
+            let recipe = psi_entry_memory::admit_private_entry_ram(
                 artifact.view(),
                 &layouts,
                 entry,
-                &terminal_installation::PrivateEntryRamRecipe {
+                &psi_entry_memory::PrivateEntryRamRecipe {
                     input: row,
                     contents: vec![41, 0, 0, 0, 3, 0, 0, 0],
                 },

@@ -3411,5 +3411,5 @@ pub struct TerminalStructuralInputs<'input> {
     pub primitive_values: &'input [TerminalStructuralPrimitiveValue],
     pub byte_arrays: &'input [TerminalStructuralByteArrayValue],
     pub access_view_establishments: &'input [TerminalAccessViewEstablishment],
-    pub private_entry_ram: &'input [terminal_installation::CheckedPrivateEntryRamRecipe],
+    pub private_entry_ram: &'input [psi_entry_memory::CheckedPrivateEntryRamRecipe],
 }

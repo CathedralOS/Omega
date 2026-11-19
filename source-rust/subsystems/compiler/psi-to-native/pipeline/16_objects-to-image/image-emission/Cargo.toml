@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+psi-entry-memory = { path = "../../../../psi/access/entry-memory" }
 sha2 = "0.10.9"
 physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
@@ -51,7 +52,6 @@ target-x86_64 = { path = "../../../targets/target-x86_64" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi/semantics" }
-terminal-installation = { path = "../../../../psi-admission" }
 
 [dev-dependencies]
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }

@@ -11,6 +11,7 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
+psi-entry-memory = { path = "../subsystems/compiler/psi/access/entry-memory" }
 native-provider-sponsor = { path = "../host-support/native-provider-sponsor" }
 worker-budget = { path = "../subsystems/compiler/foundation/worker-budget" }
 orchestration = { path = "../build-system/orchestration" }
@@ -34,7 +35,6 @@ terminal-codec = { path = "../subsystems/compiler/psi/codec" }
 terminal-psi = { path = "../subsystems/compiler/psi" }
 terminal-semantics = { path = "../subsystems/compiler/psi/semantics" }
 psi-authorization = { path = "../subsystems/compiler/psi/authorization" }
-terminal-installation = { path = "../subsystems/compiler/psi-admission" }
 
 [target.'cfg(windows)'.dev-dependencies]
 sha2 = "0.10.9"

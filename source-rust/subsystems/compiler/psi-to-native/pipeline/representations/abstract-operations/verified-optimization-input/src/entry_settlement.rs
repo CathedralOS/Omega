@@ -258,7 +258,7 @@ mod model {
         BoundaryCallingApplication, BoundaryEntryPlan, ValidatedBoundaryEntryPlan,
     };
     use program_entry_plan::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
-    use terminal_installation::CheckedPrivateEntryRamRecipe;
+    use psi_entry_memory::CheckedPrivateEntryRamRecipe;
     use terminal_installation::TerminalAccessViewEstablishment;
     use terminal_psi::CheckedProgramEntryTerminalReceipt;
 

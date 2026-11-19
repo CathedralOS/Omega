@@ -33,7 +33,7 @@ pub struct AdmissionSource<'a> {
     pub closed_module: &'a terminal_codec::ClosedTerminalModule,
     pub target_context: Option<&'a TerminalTargetContext>,
     pub program_entry: Option<AdmittedProgramEntryCall>,
-    pub private_entry_ram: &'a [terminal_installation::CheckedPrivateEntryRamRecipe],
+    pub private_entry_ram: &'a [psi_entry_memory::CheckedPrivateEntryRamRecipe],
 }
 
 impl<'a> AdmissionSource<'a> {
@@ -57,9 +57,7 @@ impl<'a> AdmissionSource<'a> {
         self.program_entry.as_ref()
     }
 
-    pub const fn private_entry_ram(
-        &self,
-    ) -> &'a [terminal_installation::CheckedPrivateEntryRamRecipe] {
+    pub const fn private_entry_ram(&self) -> &'a [psi_entry_memory::CheckedPrivateEntryRamRecipe] {
         self.private_entry_ram
     }
 

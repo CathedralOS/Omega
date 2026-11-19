@@ -105,6 +105,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence",
     "source-rust/subsystems/compiler/psi/access",
     "source-rust/subsystems/compiler/psi/access/admission",
+    "source-rust/subsystems/compiler/psi/access/entry-memory",
     "source-rust/subsystems/compiler/psi/application-identity",
     "source-rust/subsystems/compiler/psi/authorization",
     "source-rust/subsystems/compiler/psi/codec",

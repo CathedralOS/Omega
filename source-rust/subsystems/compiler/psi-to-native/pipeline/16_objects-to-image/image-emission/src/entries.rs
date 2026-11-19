@@ -1104,7 +1104,7 @@ pub(crate) mod hosted_entry_storage {
     pub(crate) fn provision(
         artifact: &crate::ObjectArtifact,
         demand: &crate::StackDemand,
-        recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+        recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
         call_overhead: u64,
     ) -> Result<
         (
@@ -1267,7 +1267,7 @@ pub(crate) mod hosted_receiver {
                 selected_entry: u64,
                 bss: u64,
                 partitions: HostedEntryPartitions,
-                recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+                recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
             ) -> Result<(), Diagnostic> {
                 let fail = || invalid(target);
                 if ![
@@ -1614,7 +1614,7 @@ pub(crate) mod hosted_receiver {
                 selected_entry: u64,
                 output: &image::EmittedImageOutput,
                 partitions: HostedEntryPartitions,
-                recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+                recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
             ) -> Result<(), Diagnostic> {
                 let invalid = || Reader::reject("invalid bridge partitions or import residency");
                 let (saved, stack_top, receiver) = expected_addresses(
@@ -1870,7 +1870,7 @@ pub(crate) mod hosted_receiver {
             selected_entry: u64,
             bss_address: u64,
             partitions: HostedEntryPartitions,
-            private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+            private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
         ) -> Result<(), Diagnostic> {
             let invalid = || invalid(target::NativeTarget::linux_x64());
             let (continuation, stack_top, receiver) =
@@ -2047,7 +2047,7 @@ pub(crate) mod hosted_receiver {
         artifact: &crate::ObjectArtifact,
         source: &SelectedProgramEntrySignature,
         checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
-        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+        private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
     ) -> Result<(), Diagnostic> {
         let (function, abi) = artifact.entry_facts()?;
         let admission = artifact.emission_facts().admission.entry_facts();

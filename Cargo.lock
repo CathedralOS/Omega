@@ -455,6 +455,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-entry-memory"
+version = "0.1.0"
+dependencies = [
+ "psi-target-layouts",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "psi-program-identity"
 version = "0.1.0"
 dependencies = [
@@ -563,6 +574,7 @@ dependencies = [
  "provider-choices",
  "provider-correspondence",
  "psi-authorization",
+ "psi-entry-memory",
  "psi-to-admitted-native-inputs",
  "published-object-verification",
  "record-storage",
@@ -1061,6 +1073,7 @@ dependencies = [
  "post-allocation-machine-to-framed-machine",
  "program-entry-plan",
  "provider-admission",
+ "psi-entry-memory",
  "register-homes",
  "register-model",
  "runtime-abi",
@@ -1072,7 +1085,6 @@ dependencies = [
  "target-operations",
  "target-vocabulary",
  "target-x86_64",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
  "verified-optimization-input",
@@ -1488,6 +1500,7 @@ dependencies = [
  "platform-custody",
  "provider-admission",
  "provider-stack-contribution",
+ "psi-entry-memory",
  "published-runtime-input",
  "runtime-abi",
  "selected-instructions",
@@ -1552,6 +1565,7 @@ dependencies = [
  "provider-admission",
  "provider-stack-contribution",
  "psi-authorization",
+ "psi-entry-memory",
  "psi-target-layouts",
  "psi-to-admitted-native-inputs",
  "published-object-verification",
@@ -1750,6 +1764,7 @@ dependencies = [
  "bounded-process",
  "compiler",
  "diagnostics",
+ "psi-entry-memory",
  "worker-budget",
  "libc",
  "mimalloc",
@@ -1768,7 +1783,6 @@ dependencies = [
  "source-acquisition",
  "target",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
@@ -2254,6 +2268,7 @@ dependencies = [
  "optimization-unit-semantics",
  "provider-correspondence",
  "provider-stack-contribution",
+ "psi-entry-memory",
  "psi-target-layouts",
  "runtime-abi",
  "semantic-vocabulary",
@@ -3414,6 +3429,7 @@ dependencies = [
  "language-core",
  "layout-plans",
  "numerics",
+ "psi-entry-memory",
  "psi-target-layouts",
  "record-storage",
  "resource-bounds",
@@ -3467,6 +3483,7 @@ dependencies = [
  "optimization-selections",
  "provider-admission",
  "psi-authorization",
+ "psi-entry-memory",
  "psi-target-layouts",
  "runtime-abi",
  "semantic-vocabulary",
@@ -3536,6 +3553,7 @@ dependencies = [
  "orchestration",
  "platform-custody",
  "provider-admission",
+ "psi-entry-memory",
  "psi-target-layouts",
  "published-runtime-input",
  "runtime-abi",
@@ -3773,6 +3791,7 @@ dependencies = [
  "operation-evidence",
  "operation-operands",
  "psi-authorization",
+ "psi-entry-memory",
  "psi-target-layouts",
  "record-storage",
  "component-description",

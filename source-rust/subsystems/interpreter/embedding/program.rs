@@ -2852,7 +2852,7 @@ pub(crate) mod program {
         pub fn execution_requirements_with_private_entry_ram(
             &self,
             installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
-            recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+            recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
         ) -> Result<
             crate::engine::capabilities::TerminalExecutionRequirements,
             TerminalInterpretError,
@@ -3564,11 +3564,11 @@ pub(crate) mod program {
                 },
             )
             .unwrap();
-            let recipe = terminal_installation::admit_private_entry_ram(
+            let recipe = psi_entry_memory::admit_private_entry_ram(
                 artifact.view(),
                 &layouts,
                 entry,
-                &terminal_installation::PrivateEntryRamRecipe {
+                &psi_entry_memory::PrivateEntryRamRecipe {
                     input: row,
                     contents: vec![41, 0, 0, 0, 3, 0, 0, 0],
                 },
