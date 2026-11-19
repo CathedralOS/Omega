@@ -66,7 +66,7 @@ fn parse_expression(source: &str) -> (SyntaxTrees, ExpressionHandle) {
 
 #[test]
 fn operator_stack_retains_precedence_associativity_and_operator_spans() {
-    let source = "a || b && c == d < e | f ^ g & h << i + j * k - l / m % n >> o";
+    let source = "a || b && c == (d < e | f ^ g & h << i + j * k - l / m % n >> o)";
     let (parsed, _) = parse_expression(source);
     let actual: Vec<_> = parsed
         .expressions

@@ -14,12 +14,12 @@ pub(crate) fn parse_static_name<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Identifier> {
     let (first, mut input) = input.take_identifier()?;
-    if !input.at_punctuation(PunctuationKind::ColonColon) {
+    if !input.at_path_member() {
         return Ok((first, input));
     }
     let mut name = first.as_str(&input).to_owned();
     let mut source_span = first.source_span();
-    while input.at_punctuation(PunctuationKind::ColonColon) {
+    while input.at_path_member() {
         input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let (member, rest) = input.take_identifier()?;
         name.push_str("::");
@@ -178,7 +178,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     let (base_name, input) = parse_static_name(input)?;
     let (reference, rest) =
         parse_named_type_reference(syntax_trees, base_name, input, allow_trailing_domain)?;
-    if !rest.at_punctuation(PunctuationKind::ColonColon) {
+    if !rest.at_path_member() {
         return Ok((reference, rest));
     }
     // An application followed by a member cannot be flattened into the

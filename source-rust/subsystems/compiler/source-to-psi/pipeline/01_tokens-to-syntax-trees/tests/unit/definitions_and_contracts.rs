@@ -518,8 +518,8 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
 fn uninvoked_declaration_paths_retain_both_static_telescopes_when_copied() {
     let source = r#"
         machine inspect() {
-            reflect::callable(Operations<'scope, u32>::update<'item, u64>);
-            reflect::field(Buffer<u32>::used);
+            reflect::callable(Operations::<'scope, u32>::update::<'item, u64>);
+            reflect::field(Buffer::<u32>::used);
         }
         "#;
     let parsed = crate::tests::parse_source(source, "applied declaration operands should parse");
@@ -540,8 +540,8 @@ fn uninvoked_declaration_paths_retain_both_static_telescopes_when_copied() {
         .collect::<Vec<_>>();
     assert_eq!(operands.len(), 2);
     for (operand, expected) in operands.into_iter().zip([
-        "Operations<'scope, u32>::update<'item, u64>",
-        "Buffer<u32>::used",
+        "Operations::<'scope, u32>::update::<'item, u64>",
+        "Buffer::<u32>::used",
     ]) {
         assert_eq!(parsed.display_expression_name(operand), expected);
         let copy = copied.copy_expression_from(&parsed, operand);
@@ -1165,7 +1165,7 @@ fn parses_higher_order_machine_parameter_contract() {
         ;
         requires machine Sample(value: u64) -> u64;
         {
-            Schema<Sample>(value)
+            Schema::<Sample>(value)
         }
         "#;
 
@@ -1310,7 +1310,7 @@ fn parses_static_machine_symbol_call_argument() {
         }
 
         machine caller(card: @Card) {
-            map<Card::power>(card);
+            map::<Card::power>(card);
         }
     "#;
     let parsed = crate::tests::parse_source(source, "static machine argument should parse");
@@ -1335,9 +1335,9 @@ fn parses_static_machine_symbol_call_argument() {
 fn static_call_lookahead_keeps_delimiters_inside_argument_groups() {
     let parsed = crate::tests::parse_source(
         r#"machine caller() {
-            select<match value { 0 -> 1, _ -> 2 }>();
-            select<(Record { value: 3 }).value + 1>();
-            select<[u8; 3]>();
+            select::<match value { 0 -> 1, _ -> 2 }>();
+            select::<(Record { value: 3 }).value + 1>();
+            select::<[u8; 3]>();
         }"#,
         "grouped match arms, record fields and array extents stay inside static arguments",
     );
@@ -1364,7 +1364,7 @@ fn parses_nested_static_conformance_application() {
 
         machine send<T, Encoding satisfies Encodes<T>>() {}
         machine caller() {
-            send<Message, SequenceEncoding<'scope, Bytes, Message>>();
+            send::<Message, SequenceEncoding<'scope, Bytes, Message>>();
         }
     "#;
     let parsed = crate::tests::parse_source(source, "nested static application should parse");
@@ -1390,7 +1390,7 @@ fn parses_nested_static_conformance_application() {
     assert_eq!(application.arguments[1].path[0].as_str(&parsed), "Message");
     assert_eq!(
         call.display_name(&parsed),
-        "send<Message, SequenceEncoding<'scope, Bytes, Message>>()"
+        "send::<Message, SequenceEncoding<'scope, Bytes, Message>>()"
     );
 }
 
@@ -1402,7 +1402,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
         {}
 
         machine caller() {
-            consume<proof.modulus>();
+            consume::<proof.modulus>();
         }
     "#;
     let parsed = crate::tests::parse_source(source, "evidence projection should parse");
@@ -1425,7 +1425,7 @@ fn parses_evidence_term_member_as_a_distinct_proof_static_argument() {
         .expect("term.member projection");
     assert_eq!(projection.term.as_str(&parsed), "proof");
     assert_eq!(projection.member.as_str(&parsed), "modulus");
-    assert_eq!(call.display_name(&parsed), "consume<proof.modulus>()");
+    assert_eq!(call.display_name(&parsed), "consume::<proof.modulus>()");
 }
 
 #[test]
@@ -1762,7 +1762,7 @@ fn declaration_lookahead_rewinds_private_rows_and_preserves_source_custody() {
     for (source, expected) in [
         ("operator < limit;", false),
         ("domain[0] > 0;", false),
-        ("operator + invoke<Outer<Inner<i32>>>(limit) > 0;", false),
+        ("operator + invoke::<Outer<Inner<i32>>>(limit) > 0;", false),
         ("operator + add(left: i32, right: i32) -> i32;", true),
         ("public domain [u8; (1 + 2)]::Bytes requires true;", true),
         ("operator + add(left: ) -> i32;", false),

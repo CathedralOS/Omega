@@ -3,8 +3,8 @@ use crate::expressions::postfix::*;
 #[test]
 fn rejected_nested_static_attempts_leave_the_published_prefix_intact() {
     for spelling in [
-        "<Outer<[u8; Count]>, value + >()",
-        "<Outer<Inner<3>>, value + >()",
+        "::<Outer<[u8; Count]>, value + >()",
+        "::<Outer<Inner<3>>, value + >()",
     ] {
         let tokens = crate::frontend_fixture::Lexer::new(spelling)
             .tokenize()

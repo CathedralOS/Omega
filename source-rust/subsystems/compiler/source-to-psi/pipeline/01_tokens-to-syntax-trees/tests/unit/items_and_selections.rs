@@ -556,7 +556,7 @@ fn trait_machine_parameter_is_requirement_identity() {
 fn provider_selection_retains_two_structural_type_paths() {
     let source = r#"
         machine build(builder: @mut Build) {
-            Build::select_provider<host::Console, application::ConsoleProvider>(builder);
+            Build::select_provider::<host::Console, application::ConsoleProvider>(builder);
         }
     "#;
     let parsed = crate::tests::parse_source_verbose(
@@ -591,7 +591,7 @@ fn provider_selection_retains_two_structural_type_paths() {
 fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
     let source = r#"
         machine build(builder: @mut Build) {
-            Build::exclude_service<host::Console>(builder);
+            Build::exclude_service::<host::Console>(builder);
         }
     "#;
     let parsed = crate::tests::parse_source_verbose(
@@ -627,15 +627,15 @@ fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
 fn service_exclusion_rejects_retired_receiver_calls() {
     for (source, expected) in [
         (
-            "machine build(builder: @mut Build) { builder.exclude_service<host::Console, other::Log>(); }",
+            "machine build(builder: @mut Build) { builder.exclude_service::<host::Console, other::Log>(); }",
             "receiver-style service exclusion is retired",
         ),
         (
-            "machine build(builder: @mut Build) { builder.exclude_service<host::Console>(1); }",
+            "machine build(builder: @mut Build) { builder.exclude_service::<host::Console>(1); }",
             "receiver-style service exclusion is retired",
         ),
         (
-            "machine build(builder: @mut Build) { builder.exclude_service<>(); }",
+            "machine build(builder: @mut Build) { builder.exclude_service::<>(); }",
             "exclude_service",
         ),
     ] {
@@ -654,7 +654,7 @@ fn service_exclusion_rejects_retired_receiver_calls() {
 fn provider_selection_retains_one_explicit_composition_mode_argument() {
     let source = r#"
         machine build(builder: @mut Build) {
-            Build::select_provider<host::Console, application::ConsoleProvider>(
+            Build::select_provider::<host::Console, application::ConsoleProvider>(
                 builder, CompositionMode::Independent
             );
         }
@@ -794,7 +794,7 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
 fn opaque_representation_selection_retains_data_and_conformance_paths() {
     let source = r#"
         machine build(builder: @mut Build) {
-            Build::select_representation<interrupt::Ack, platform::AckRepresentation>(builder);
+            Build::select_representation::<interrupt::Ack, platform::AckRepresentation>(builder);
         }
     "#;
     let parsed = crate::tests::parse_source_verbose(
@@ -978,7 +978,7 @@ fn array_literal_retains_its_complete_authored_source_span() {
 fn parses_type_and_integer_const_proposition_arguments() {
     let source = r#"
         proposition indexed<T, const N: i32>();
-        proposition selected() = indexed<i32, 7>();
+        proposition selected() = indexed::<i32, 7>();
     "#;
     let parsed = crate::tests::parse_source(source, "static proposition arguments should parse");
     let call = parsed
@@ -999,7 +999,7 @@ fn parses_type_and_integer_const_proposition_arguments() {
             .map(|literal| literal.to_string()),
         Some("7".to_owned())
     );
-    assert_eq!(call.display_name(&parsed), "indexed<i32, 7>()");
+    assert_eq!(call.display_name(&parsed), "indexed::<i32, 7>()");
     let snapshot = parsed.snapshot_json().expect("syntax should snapshot");
     assert!(snapshot.contains("\"machine_arguments\":[[{\"text\":\"i32\""));
     assert!(snapshot.contains(",\"7\"]"));

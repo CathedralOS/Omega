@@ -386,6 +386,15 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
                 && actual == Some(PunctuationKind::GreaterGreater))
     }
 
+    pub(crate) fn at_expression_arguments(&self) -> bool {
+        self.at_punctuation(PunctuationKind::ColonColon)
+            && self.peek_semantic(1).and_then(Token::punctuation) == Some(PunctuationKind::Less)
+    }
+
+    pub(crate) fn at_path_member(&self) -> bool {
+        self.at_punctuation(PunctuationKind::ColonColon) && !self.at_expression_arguments()
+    }
+
     pub(crate) fn at_contextual(&self, name: &str) -> bool {
         self.tokens.first().is_some_and(|token| {
             matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
@@ -579,7 +588,7 @@ pub(crate) fn parse_path_handle_span<'tokens, 'source>(
     let mut path = arena::HandleSpan::empty();
     path.push_contiguous(append_member(first));
 
-    while rest.at_punctuation(PunctuationKind::ColonColon) {
+    while rest.at_path_member() {
         rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let (member, next) = rest.take_identifier()?;
         path.push_contiguous(append_member(member));

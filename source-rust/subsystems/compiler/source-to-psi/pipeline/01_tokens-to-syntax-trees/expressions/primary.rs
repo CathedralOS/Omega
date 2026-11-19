@@ -1,3 +1,4 @@
+use crate::expressions::postfix::{SelectionPosition, parse_name_selection};
 use crate::token_input::cursor::Input;
 use crate::types::references::parse_type_reference_handle;
 use source_text::SourceSpan;
@@ -9,32 +10,17 @@ use tokens::{PunctuationKind, TokenKind};
 pub(crate) fn try_uninvoked_application<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    allows_type_expression: bool,
 ) -> Option<(ExpressionNode, Input<'tokens, 'source>)> {
     let (_, after_name) = input.expect_token().ok()?;
-    if !after_name.at_punctuation(PunctuationKind::Less)
-        && !after_name.at_punctuation(PunctuationKind::ColonColon)
-    {
+    if !after_name.at_punctuation(PunctuationKind::ColonColon) {
         return None;
     }
     let checkpoint = syntax.append_checkpoint();
     let accepted = (|| {
         let (selection, rest) =
-            crate::expressions::postfix::parse_static_name_selection(syntax, input).ok()??;
+            parse_name_selection(syntax, input, SelectionPosition::Expression).ok()??;
         let application = selection.application?;
-        if allows_type_expression && !application.member.is_valid() {
-            return None;
-        }
-        if ![
-            PunctuationKind::Comma,
-            PunctuationKind::RightParen,
-            PunctuationKind::RightBracket,
-            PunctuationKind::Semicolon,
-            PunctuationKind::Greater,
-        ]
-        .into_iter()
-        .any(|delimiter| rest.at_punctuation(delimiter))
-        {
+        if rest.at_punctuation(PunctuationKind::LeftParen) {
             return None;
         }
         let mut members = arena::HandleSpan::empty();
@@ -74,9 +60,7 @@ pub(crate) fn try_applied_requirement_head<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
     let (_, after_name) = input.expect_token().ok()?;
-    if !after_name.at_punctuation(PunctuationKind::Less)
-        && !after_name.at_punctuation(PunctuationKind::ColonColon)
-    {
+    if !after_name.at_punctuation(PunctuationKind::ColonColon) {
         return None;
     }
     probe_applied_requirement_head(syntax, input)
@@ -91,22 +75,74 @@ fn probe_applied_requirement_head<'tokens, 'source>(
     let accepted = (|| {
         // This expression owns the applied receiver head; the call parser
         // consumes its member. A full type can itself include that member.
+        let receiver_checkpoint = syntax.append_checkpoint();
         let (name, rest) = crate::types::references::parse_static_name(input).ok()?;
-        let (reference, rest) =
-            crate::types::references::parse_named_type_reference(syntax, name, rest, false).ok()?;
+        if !rest.at_expression_arguments() {
+            return None;
+        }
+        let arguments_start = rest
+            .take_punctuation(PunctuationKind::ColonColon, "::")
+            .ok()?;
+        let (reference, rest) = crate::types::references::parse_named_type_reference(
+            syntax,
+            name,
+            arguments_start,
+            false,
+        )
+        .ok()?;
         if !matches!(
             syntax.type_references.type_reference(reference),
             syntax_trees::types::TypeReferenceNode::Generic { .. }
         ) {
             return None;
         }
-        let after_separator = rest
-            .take_punctuation(PunctuationKind::ColonColon, "::")
-            .ok()?;
-        let (_, after_member) = after_separator.take_identifier().ok()?;
-        (after_member.at_punctuation(PunctuationKind::LeftParen)
-            || after_member.at_punctuation(PunctuationKind::Less))
-        .then_some((reference, rest))
+        let after_head = rest;
+        let mut separator = rest;
+        loop {
+            let next = separator
+                .take_punctuation(PunctuationKind::ColonColon, "::")
+                .ok()?;
+            let (_, after_member) = next.take_identifier().ok()?;
+            let is_call = if after_member.at_expression_arguments() {
+                let argument_checkpoint = syntax.append_checkpoint();
+                let parsed = crate::expressions::postfix::try_parse_static_machine_arguments(
+                    syntax,
+                    after_member,
+                );
+                syntax.rewind_appended(argument_checkpoint);
+                parsed.ok()?.is_some()
+            } else {
+                after_member.at_punctuation(PunctuationKind::LeftParen)
+            };
+            if is_call {
+                if separator.tokens.len() == after_head.tokens.len() {
+                    return Some((reference, separator));
+                }
+                let mut receiver = input;
+                receiver.tokens = &input.tokens[..input.tokens.len() - separator.tokens.len()];
+                syntax.rewind_appended(receiver_checkpoint);
+                let (selection, end) =
+                    parse_name_selection(syntax, receiver, SelectionPosition::Expression)
+                        .ok()??;
+                if !end.tokens.is_empty() {
+                    return None;
+                }
+                let reference = syntax.type_references.insert(
+                    syntax_trees::types::TypeReferenceNode::StaticSelection(selection),
+                );
+                return Some((reference, separator));
+            }
+            separator = if after_member.at_expression_arguments() {
+                let args = after_member
+                    .take_punctuation(PunctuationKind::ColonColon, "::")
+                    .ok()?;
+                crate::expressions::postfix::try_parse_static_symbol_application(syntax, args)
+                    .ok()??
+                    .1
+            } else {
+                after_member
+            };
+        }
     })();
     if accepted.is_none() {
         syntax.rewind_appended(checkpoint);
