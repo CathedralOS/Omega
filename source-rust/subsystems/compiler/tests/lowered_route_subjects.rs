@@ -1593,13 +1593,11 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
         publication.artifact.semantic_module(),
         &closure.elaboration().module
     );
-    let input = artifact_lowering::lower_artifact(
+    let input = artifact_lowering::test_support::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
-    .expect("Omega 00 retains the original-input guarantees")
-    .into_optimization_artifact()
-    .into_optimization_input();
+    .expect("Omega 00 retains the original-input guarantees");
     abstract_optimization::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),

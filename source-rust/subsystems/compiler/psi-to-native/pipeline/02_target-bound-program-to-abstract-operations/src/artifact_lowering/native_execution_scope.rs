@@ -26,32 +26,6 @@ pub(crate) mod native_admission {
         pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     }
 
-    pub fn admit_native_realization<'execution>(
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
-        request: &NativeAdmissionRequest<'_, 'execution>,
-    ) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
-        let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
-            authorization,
-            request.providers.profile,
-            request.entry,
-            request.private_entry_ram,
-            &crate::artifact_lowering::NativeExecutionSelection {
-                scope: None,
-                scalar_applications: None,
-                providers: request.providers.checked_adapters,
-                plans: request.providers.selected_provider_plans,
-                callbacks: &[],
-                entry_call: None,
-            },
-        )
-        .map_err(artifact_lowering_error)?;
-        let artifact = authorization.artifact();
-        let input = input
-            .bind_selected_provider_coordinates(artifact, request.providers.selected_provider_plans)
-            .map_err(|error| realization_error("selected provider coordinates", error))?;
-        admit_prepared_native_realization(input, artifact, request)
-    }
-
     pub fn admit_prepared_native_realization<'execution>(
         input: VerifiedNativeArtifactInput,
         artifact: &CanonicalTerminalArtifact,

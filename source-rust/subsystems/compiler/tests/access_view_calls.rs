@@ -175,7 +175,7 @@ fn qualify_helper(machine: &str, writes: bool) {
             target::TargetProfile::host(),
             module.entry.expect("fixture default entry"),
             std::slice::from_ref(&establishment),
-            &artifact_lowering::NativeExecutionSelection {
+            &artifact_lowering::test_support::NativeExecutionSelection {
                 scope: None,
                 scalar_applications: None,
                 providers: &[],

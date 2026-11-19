@@ -517,10 +517,8 @@ mod qualified_cleanup_receiving_tests {
         let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
             .expect("mutant must reach semantic validation after canonical admission");
         let authorized = super::authorize_fixture(artifact);
-        let input = artifact_lowering::lower_artifact(&authorized, None)
-            .expect("artifact lowering converts data; it does not prove issuance")
-            .into_optimization_artifact()
-            .into_optimization_input();
+        let input = artifact_lowering::test_support::lower_artifact(&authorized, None)
+            .expect("artifact lowering converts data; it does not prove issuance");
         let verified = super::build_verified_psi_optimization_unit(
             input,
             terminal_work::WorkSchedule::CURRENT.identity(),
@@ -546,10 +544,8 @@ mod qualified_cleanup_receiving_tests {
         let artifact =
             CanonicalTerminalArtifact::from_bytes(&std::fs::read(path).unwrap()).unwrap();
         let authorized = super::authorize_fixture(artifact);
-        let input = artifact_lowering::lower_artifact(&authorized, None)
-            .expect("exact cleanup requirements survive native lowering")
-            .into_optimization_artifact()
-            .into_optimization_input();
+        let input = artifact_lowering::test_support::lower_artifact(&authorized, None)
+            .expect("exact cleanup requirements survive native lowering");
         let verified = super::build_verified_psi_optimization_unit(
             input,
             terminal_work::WorkSchedule::CURRENT.identity(),

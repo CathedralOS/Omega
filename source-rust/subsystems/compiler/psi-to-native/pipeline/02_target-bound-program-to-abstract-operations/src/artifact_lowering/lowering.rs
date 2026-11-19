@@ -1,6 +1,6 @@
 /*
   Module, machine, terminator, call, and effect lowering from `TerminalModule`
-  into `AbstractOperationPlan` (`lower_decoded_module`, `lower_selected_module`,
+  into `AbstractOperationPlan` (`lower_selected_module`,
   `LoweringError`).
 
   Consumes the selected native execution scope, scalar applications, and target
@@ -1848,20 +1848,6 @@ pub use error::LoweringError;
 
 use machine::lower_machine;
 use terminal_psi::TerminalModule;
-
-pub(crate) fn lower_decoded_module(
-    module: &TerminalModule,
-    entry: semantic_vocabulary::MachineId,
-) -> Result<AbstractOperationPlan, LoweringError> {
-    lower_selected_module(
-        module,
-        entry,
-        module.structural_types.clone(),
-        None,
-        None,
-        None,
-    )
-}
 
 pub(crate) fn lower_selected_module(
     module: &TerminalModule,

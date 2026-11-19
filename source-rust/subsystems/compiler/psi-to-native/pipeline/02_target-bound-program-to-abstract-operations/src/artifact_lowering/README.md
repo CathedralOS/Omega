@@ -1,11 +1,10 @@
 # Terminal Psi to abstract operations
 
-Public contracts: [Terminal product](../../../../../wiki/spec/terminal-psi/product.md)
-and [boundary realization](../../../../../wiki/spec/terminal-psi/boundary_calls.md).
+The public contracts cover the [Terminal product](../../../../../../../../wiki/spec/terminal-psi/product.md)
+and [boundary realization](../../../../../../../../wiki/spec/terminal-psi/boundary_calls.md).
 
 This stage lowers checked Psi for native execution. The build's checked
-selection names the functions that need target support; a raw artifact request
-without it checks the whole module. Unused library helpers thus demand no
+selection names the functions that need target support. Test fixtures can exercise whole-module lowering through the opt-in test support API. Unused library helpers thus demand no
 unavailable target operations.
 
 Public entry needs host-authorized producer trust bound to the complete
@@ -122,15 +121,11 @@ No earlier program, StateGraph or caller-built module replaces the canonical
 artifact. Unsupported vocabulary is rejected at admission or lowering;
 installing a provider does not permit dropping an unsupported result.
 
-Native admission returns `AdmittedNativeArtifact`: one abstract program and its
-checked optimizer context. It borrows the authorized immutable artifact, lowers
-it with ordinary native authority, then checks optimizer eligibility as it
-moves the retained state. Explicit obligation replay is a separate validation
-request. The gates stay separate; optimizer-only input cannot become native
-authority or pair with an unrelated plan. Optimizer and
-native holders borrow the roster from their retained canonical module, with no
-second mutable roster. A native consumer without placement support extracts
-`VerifiedNativeArtifactInput` only after checking that the roster is empty.
+Native lowering returns `VerifiedNativeArtifactInput`. It carries the authorized
+optimizer input, checked access establishments and private entry memory for
+this selection. The optimizer consumes the retained input. Tests can lower
+a whole module with the same authorization and optional evidence for its
+exact identity through the [fixture helpers](test_support.rs).
 
 Image-writer storage must not be relabeled as compiler-written object data. For example, Mach-O replay derives aligned eight-byte
 lazy-binding pointer slots from the exact imports and relocations.
@@ -165,7 +160,7 @@ lists the remaining limits on owned arguments, empty values and indirect results
 Verified branches, calls and crash exits keep operation identities and
 ownership transfers for every result category. Local establishments are
 ordinary operations, not hidden in a structural return. The
-[ownership contract](../../../../../wiki/spec/terminal-psi/ownership.md) requires
+[ownership contract](../../../../../../../../wiki/spec/terminal-psi/ownership.md) requires
 replay of actual moves and maximal residual subtrees, independent of producer
 rows. Parameter and result sources stay apart from unrelated live roots.
 
@@ -190,7 +185,7 @@ successful optimization do not claim native publication.
 
 ## Ranked native admission
 
-Contract: [control flow and ranking](../../../../../wiki/spec/terminal-psi/control_flow.md).
+Contract: [control flow and ranking](../../../../../../../../wiki/spec/terminal-psi/control_flow.md).
 [artifact_admission.rs](artifact_admission.rs) sends natural-ranked
 modules through ordinary Terminal verification and abstract lowering.
 That verifier checks the exact grouped control-cycle evidence, including
@@ -252,7 +247,7 @@ to ordinary verification. There is no dedicated countdown target, selected or
 machine-code form. Natural ranking and its grouped certificates are still
 checked on the ordinary path.
 
-The [projected-receiver contract](../../../../../wiki/spec/language/termination.md#ranked-callees-on-projected-receivers)
+The [projected-receiver contract](../../../../../../../../wiki/spec/language/termination.md#ranked-callees-on-projected-receivers)
 still requires composed argument references, call and return, cleanup, checking
 of the callee's measure, and resource evidence. A graph alone does not provide
 them; unsupported transfers are rejected until their operation and proof joins
@@ -261,11 +256,11 @@ exist.
 ## Dynamic dispatch
 
 This is the legacy selector implementation, to be replaced by
-[runtime machine values and some packages](../../../../../wiki/drafts/designs/machine_values_some.md). Source `dyn` and whole-trait runtime tables are retired. Keep the
+[runtime machine values and some packages](../../../../../../../../wiki/drafts/designs/machine_values_some.md). Source `dyn` and whole-trait runtime tables are retired. Keep the
 argument, contract, result and ownership behavior below while migrating; these
 notes do not authorize the old source form.
 
-The [dynamic-dispatch contract](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
+The [dynamic-dispatch contract](../../../../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
 owns the replacement descriptor and package evidence. The legacy implementation
 selects named implementations, with data arguments supplied separately.
 `SelectImplementation` keeps its exact table and a scalar result home;

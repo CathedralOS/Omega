@@ -1,19 +1,11 @@
-/*
-  Canonical Terminal artifact preparation, deployment execution-scope selection,
-  and distinct ordinary, optimizer, and native admission (`lower_artifact`,
-  `VerifiedNativeArtifactInput`, `AdmittedNativeArtifact`).
-
-  Canonical decoding permits inspection, not native lowering. Every lowering
-  entrance requires the host-authorized immutable artifact and reads its existing
-  semantic module. Every admitted result retains that authorization and
-  its exact access-view input roster (`TerminalAccessViewEstablishment`) and
-  can downgrade from native authority to optimizer custody, never the reverse.
-*/
+//! Retain the authorized program and its selected execution scope through native lowering.
+//! The checked access establishments belong to the same entry as the lowered plan.
 mod error {
     use crate::artifact_lowering::lowering::LoweringError;
 
     #[derive(Debug)]
     pub enum ArtifactLoweringError {
+        #[cfg(any(test, feature = "test-support"))]
         TargetSelectionRequired,
         TargetContext(String),
         HostAuthorization(psi_authorization::ArtifactTrustError),
@@ -35,10 +27,55 @@ mod error {
         Lowering(LoweringError),
         /// Evidence seals name a different module than the one being lowered,
         /// for example seals from an earlier build.
+        #[cfg(any(test, feature = "test-support"))]
         EvidenceForAnotherModule,
     }
 
-    diagnostics::debug_display!(ArtifactLoweringError);
+    impl std::fmt::Display for ArtifactLoweringError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::TargetContext(reason) => f.write_str(reason),
+                Self::HostAuthorization(error) => write!(f, "{error}"),
+                Self::Lowering(error) => write!(f, "{error}"),
+                Self::AccessViewEstablishmentUnexpected { machine, position } => {
+                    write!(f, "unexpected access view at {machine:?} input {position}")
+                }
+                Self::AccessViewEstablishmentDuplicate { machine, position } => {
+                    write!(f, "duplicate access view at {machine:?} input {position}")
+                }
+                Self::AccessViewEstablishmentBackingUndeclared(ty) => {
+                    write!(f, "access view backing type {ty:?} is undeclared")
+                }
+                Self::AccessViewEstablishmentQualificationUndeclared(domain) => {
+                    write!(f, "access view qualification {domain:?} is undeclared")
+                }
+                Self::AccessViewEstablishmentQualificationCarrier(domain) => {
+                    write!(
+                        f,
+                        "access view qualification {domain:?} has a different carrier"
+                    )
+                }
+                Self::AccessViewEstablishmentAliasing(identity) => {
+                    write!(f, "exclusive access views overlap on referent {identity}")
+                }
+                Self::AccessViewInputsRequireCustodyLowering => {
+                    f.write_str("entry access view requires checked custody")
+                }
+                Self::AccessViewEstablishmentQualificationsNonCanonical => {
+                    f.write_str("access view qualifications are noncanonical")
+                }
+                Self::AccessViewEstablishmentRangeUnresolved => {
+                    f.write_str("access view range is unresolved")
+                }
+                #[cfg(any(test, feature = "test-support"))]
+                Self::TargetSelectionRequired => f.write_str("a default machine entry is required"),
+                #[cfg(any(test, feature = "test-support"))]
+                Self::EvidenceForAnotherModule => {
+                    f.write_str("evidence seals name a different module")
+                }
+            }
+        }
+    }
 
     impl std::error::Error for ArtifactLoweringError {}
 }
@@ -138,8 +175,6 @@ mod establishment {
 }
 mod native {
     use super::ArtifactLoweringError;
-    use super::retention::AdmittedOptimizationArtifact;
-    use crate::artifact_lowering::lowering::lower_decoded_module;
     use abstract_operations::AbstractOperationPlan;
     use psi_target_layouts::TerminalTargetContext;
     use psi_scalar_applications::AdmittedScalarApplications;
@@ -327,8 +362,23 @@ mod native {
                 Some(&layouts),
             )
             .map_err(ArtifactLoweringError::Lowering)?;
-            let mut input = retain_native_plan(&authorization, plan, Some(selections))?
-                .try_into_native_input(establishments)?;
+            let optimization_input = VerifiedPsiOptimizationInput::lowered(
+                plan,
+                authorization.clone(),
+                Some(selections),
+            )
+            .map_err(|reason| ArtifactLoweringError::TargetContext(reason.to_owned()))?;
+            let access_view_establishments =
+                super::establishment::establish_native_access_view_inputs(
+                    optimization_input.context().module(),
+                    optimization_input.plan().entry,
+                    establishments,
+                )?;
+            let mut input = VerifiedNativeArtifactInput {
+                optimization_input,
+                access_view_establishments,
+                private_entry_ram: Vec::new(),
+            };
             input
                 .optimization_input
                 .retain_native_selections(
@@ -364,6 +414,7 @@ mod native {
             self.optimization_input.scalar_applications()
         }
 
+        #[cfg(any(test, feature = "test-support"))]
         pub fn prepare(
             artifact: &psi_authorization::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
@@ -383,6 +434,7 @@ mod native {
             &self.private_entry_ram
         }
 
+        #[cfg(any(test, feature = "test-support"))]
         pub fn prepare_with_private_entry_ram(
             artifact: &psi_authorization::AuthorizedTerminalArtifact,
             profile: target::TargetProfile,
@@ -548,90 +600,6 @@ mod native {
         pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInput {
             self.optimization_input
         }
-    }
-
-    #[derive(Debug, Clone)]
-    pub struct AdmittedNativeArtifact {
-        optimization_input: VerifiedPsiOptimizationInput,
-    }
-
-    impl AdmittedNativeArtifact {
-        /// Attaches seals that name exactly this module's identity.
-        pub(crate) fn attach_evidence(
-            &mut self,
-            evidence: terminal_codec::EvidenceSeals,
-        ) -> Result<(), ArtifactLoweringError> {
-            if self.optimization_input.plan().psi != evidence.module {
-                return Err(ArtifactLoweringError::EvidenceForAnotherModule);
-            }
-            self.optimization_input
-                .retain_evidence_seals(evidence.seals);
-            Ok(())
-        }
-
-        pub fn plan(&self) -> &AbstractOperationPlan {
-            self.optimization_input.plan()
-        }
-
-        pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
-            self.optimization_input.context()
-        }
-
-        pub fn access_view_inputs(&self) -> &[terminal_psi::TerminalAccessViewInput] {
-            &self.context().module().access_view_inputs
-        }
-
-        pub fn into_optimization_artifact(self) -> AdmittedOptimizationArtifact {
-            AdmittedOptimizationArtifact {
-                input: self.optimization_input,
-            }
-        }
-
-        pub fn into_plan(self) -> AbstractOperationPlan {
-            self.optimization_input.into_plan()
-        }
-
-        pub(crate) fn try_into_native_input(
-            self,
-            establishments: &[TerminalAccessViewEstablishment],
-        ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
-            let access_view_establishments =
-                super::establishment::establish_native_access_view_inputs(
-                    self.context().module(),
-                    self.plan().entry,
-                    establishments,
-                )?;
-            Ok(VerifiedNativeArtifactInput {
-                optimization_input: self.optimization_input,
-                access_view_establishments,
-                private_entry_ram: Vec::new(),
-            })
-        }
-    }
-
-    pub(super) fn lower_decoded_native_module(
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
-        entry: semantic_vocabulary::MachineId,
-        selections: Option<TerminalTargetContext>,
-    ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-        let plan = lower_decoded_module(authorization.artifact().semantic_module(), entry)
-            .map_err(ArtifactLoweringError::Lowering)?;
-        retain_native_plan(authorization, plan, selections)
-    }
-
-    fn retain_native_plan(
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
-        plan: AbstractOperationPlan,
-        selections: Option<TerminalTargetContext>,
-    ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-        Ok(AdmittedNativeArtifact {
-            optimization_input: VerifiedPsiOptimizationInput::lowered(
-                plan,
-                authorization.clone(),
-                selections,
-            )
-            .map_err(|reason| ArtifactLoweringError::TargetContext(reason.to_owned()))?,
-        })
     }
 
     #[cfg(test)]
@@ -957,10 +925,8 @@ mod native {
                 terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
             let artifact = CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
             let input =
-                crate::artifact_lowering::lower_artifact(&authorize_test_artifact(&artifact), None)
-                    .unwrap()
-                    .into_optimization_artifact()
-                    .into_optimization_input();
+                crate::test_support::lower_artifact(&authorize_test_artifact(&artifact), None)
+                    .unwrap();
             let plan = input.plan().clone();
             let facts = input.into_lowering_facts();
             assert!(
@@ -975,31 +941,6 @@ mod native {
                     .is_none(),
                 "no native admission must remain distinct from an empty selection"
             );
-        }
-    }
-}
-mod retention {
-    use abstract_operations::AbstractOperationPlan;
-    use verified_optimization_input::{
-        VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
-    };
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct AdmittedOptimizationArtifact {
-        pub(super) input: VerifiedPsiOptimizationInput,
-    }
-
-    impl AdmittedOptimizationArtifact {
-        pub const fn plan(&self) -> &AbstractOperationPlan {
-            self.input.plan()
-        }
-
-        pub const fn context(&self) -> &VerifiedPsiOptimizationContext {
-            self.input.context()
-        }
-
-        pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInput {
-            self.input
         }
     }
 }
@@ -1114,25 +1055,6 @@ mod scalar_applications {
 
 pub(crate) use error::ArtifactLoweringError;
 pub use establishment::TerminalAccessViewEstablishment;
-pub(crate) use native::AdmittedNativeArtifact;
 pub(crate) use native::NativeScopePreparation;
 pub use native::{NativeExecutionSelection, VerifiedNativeArtifactInput};
 pub use scalar_applications::NativeScalarApplications;
-
-/// Lowers an exact host-authorized product, with optional seals kept by its host.
-/// Neither seals nor canonical decoding supply producer trust.
-pub fn lower_artifact(
-    authorization: &psi_authorization::AuthorizedTerminalArtifact,
-    evidence: Option<terminal_codec::EvidenceSeals>,
-) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) =
-        authorization.artifact().semantic_module().entry
-    else {
-        return Err(ArtifactLoweringError::TargetSelectionRequired);
-    };
-    let mut lowered = native::lower_decoded_native_module(authorization, entry, None)?;
-    if let Some(evidence) = evidence {
-        lowered.attach_evidence(evidence)?;
-    }
-    Ok(lowered)
-}
