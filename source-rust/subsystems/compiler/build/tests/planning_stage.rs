@@ -47,6 +47,32 @@ fn authored_build_returns_its_application_and_target_bindings() {
         capture.normalized().content_identity
     );
     assert!(!observed.is_settled());
+    // The same source bytes under a different requested inventory do not own this return.
+    use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+    let selected = BuildSourceCaptureRequest::new([
+        (b"main.omg".to_vec(), BuildSourceCaptureObligation::Required),
+        (
+            b"build.omg".to_vec(),
+            BuildSourceCaptureObligation::Required,
+        ),
+        (
+            b"unused.omg".to_vec(),
+            BuildSourceCaptureObligation::Optional,
+        ),
+    ])
+    .unwrap();
+    let scoped = project.acquire_selected_root(&selected).unwrap();
+    assert_eq!(scoped.source_capture().tree(), capture.tree());
+    assert_ne!(
+        scoped.source_capture().selection_identity(),
+        capture.selection_identity()
+    );
+    assert!(scoped.declare_build(stage.returned()).is_err());
+    assert!(
+        scoped
+            .declare_source_result(&stage.source_result().unwrap())
+            .is_err()
+    );
     let declaration = acquired.declare_build(stage.returned()).unwrap();
     let subject = declaration.identity();
     let ExecutedSourceResolution::Complete(graph) = declaration.resolve().unwrap() else {
@@ -160,11 +186,7 @@ fn dependent_continuation_runs_after_its_package_was_prepared() {
             &mut self,
             activation: &TerminalBuildActivation,
         ) -> Result<Option<package_compilation::PackageCompilationInputs>, CompileFailure> {
-            Ok(Some(
-                self.root
-                    .declared_source_inputs(&activation.project_declaration().unwrap())
-                    .unwrap(),
-            ))
+            Ok(Some(self.root.declared_source_inputs(activation).unwrap()))
         }
     }
 
