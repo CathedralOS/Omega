@@ -61,7 +61,7 @@ impl SourceCallingContext<'_> {
             crate::lowering::CallingPolicySelections {
                 source: self.source,
                 applications: self.applications,
-                entries: self.publication_entries(),
+                entries: &self.entries,
             },
         )
     }
