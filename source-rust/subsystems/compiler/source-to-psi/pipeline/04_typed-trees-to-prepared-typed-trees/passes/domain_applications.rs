@@ -200,7 +200,9 @@ mod tests {
         assert_eq!(theory.semantic_id, valid.identity);
         assert!(theory.type_parameters.is_empty());
         assert_eq!(
-            program.type_reference_node(theory.target_type),
+            program
+                .type_reference_table
+                .type_reference(theory.target_type),
             &TypeReferenceNode::Unit
         );
         let prepared = rows.clone();
