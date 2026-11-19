@@ -1,0 +1,4 @@
+error UnexpectedToken at 2:15 bytes 28..29
+  found: ;
+  expected: a name or `<` after `::`
+  expected a name or `<` after `::`

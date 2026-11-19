@@ -1,0 +1,5 @@
+// "Instructions use `;` separators."
+asm machine f {
+    mov rax, 1
+    syscall
+}

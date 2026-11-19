@@ -1,0 +1,4 @@
+// V1 accepts `boundary data`. It is not in this grammar.
+boundary data Handle {
+    raw: u64;
+}

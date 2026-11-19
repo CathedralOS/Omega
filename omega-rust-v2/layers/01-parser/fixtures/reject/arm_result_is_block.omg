@@ -1,0 +1,4 @@
+// An arm's result is an expression; there are no block expressions.
+machine f(n: u32) {
+    match n { 0 -> {}, _ -> other() };
+}

@@ -1,0 +1,216 @@
+# Boundary calling plans
+
+A boundary-trait requirement selects its calling policy. Terminal Psi retains
+target-neutral demand. The evaluated plan for each target travels as a
+[realization input](../terminal-psi/boundary_calls.md).
+
+<a id="syscall-binding-calling-policy"></a>
+
+## Default calling convention
+
+A boundary requirement with no declared or inherited `Calling<Policy>` uses
+Omega's compiler-owned calling convention for the selected target. To use a
+C ABI, a kernel syscall ABI or another foreign convention, the boundary trait
+must select a package-authored policy through `Calling<Policy>`. Ordinary
+calls between Omega machines remain under compiler control.
+
+## Authorship and evaluation
+
+An arbitrary-width integer in a boundary signature retains its exact semantic
+signedness and width. Ordinary Omega integer support does not imply a foreign
+ABI or atomic realization. The selected plan must explicitly support the
+argument/result's representation, fit and placement; otherwise reject the
+binding. Internal multiword calls and software arithmetic helpers remain the
+compiler's responsibility, with scratch and stack demand accounted and no
+hidden heap allocation or failure route.
+
+`Calling<Policy>` takes an explicit named implementation parameter declared
+`const Policy: CallingPolicy`. There is no convention data subject. Its
+compile-time `plan` machine
+receives a normalized `BoundarySignature` and returns
+`Accepted(BoundaryEntryPlan)` or `Rejected(CallingPolicyRejection)`.
+
+Evaluation is deterministic, terminating, and build-time-admissible. A rejection
+identifies the incompatible signature feature at the relationship's source
+span and creates no accepted contract identity. An accepted value is still
+subject to compiler validation and canonicalization.
+
+The policy implementation declares its machine inside its conformance block:
+
+```omega
+public FirmwarePolicy satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        make_firmware_plan(signature)
+    }
+}
+```
+
+Here `make_firmware_plan` is an ordinary package-defined helper. The member may
+instead construct the plan directly. Neither form uses a reference-row assignment;
+both follow [inline conformance members](../language/conformances.md#declaration-and-selection).
+Accepting a plan validates the calling description, not the truth of an opaque
+provider's claims or its authority to execute.
+
+Omega source owns each foreign convention's rules for classifying values,
+placing arguments and results, reserving stack space, and selecting entry
+control. Bundled platform policies belong in the
+[system library](declarations.md#library-responsibilities-and-names).
+Any package can define a new convention entirely in Omega using the same
+primitives, without registering an ABI name with the compiler. The selected
+policy's evaluated plan is the sole source of foreign ABI rules for that call.
+The compiler checks the plan against the signature and target and uses it to
+emit calls and entries.
+
+The `std::calling` vocabulary describes normalized signatures, placement, machine
+state, acceptance, and rejection. Its quantities use `u64`, not `addr`; narrowing
+to a compiler field requires a checked range conversion. Policies choose from
+closed primitives; they cannot emit instructions, supply relocation bytes,
+inspect private carriers, or bypass validation. Extending the primitive
+register, placement, control, or machine-state vocabulary requires compiler
+support, not another policy declaration.
+
+Boundary service parents contribute service reach. Ordinary policy parents
+contribute contract identity without service reach. A reusable boundary trait
+may parameterize its named policy; each closed application has
+its own contract. Providers cannot independently choose conventions for the same
+requirement. Mixed conventions require distinct applications or composed facets.
+
+Static machine selection and direct invocation do not require runtime function
+values. Calling-policy evaluation does not depend on general function-value,
+environment-capture, or code-address facilities. A boundary machine retains its
+ordinary declaration and `satisfies` relationship; policy is on the requirement,
+not an extra modifier on the machine.
+
+## Plan structure
+
+| Record | Owns |
+| --- | --- |
+| `CallPlan` | Parameter/result placement, private callback materialization, ordinary clobbers, stack alignment and shadow space, entry/return control. |
+| `StatePlan` | Initial machine regime, interrupted state, saved/restored state, and permitted transitive machine-state use. |
+| `BoundaryEntryPlan` | The call and state plans, retaining their independent identities. |
+| `BoundaryPlanApplication` | Exact requirement, ordered native parameters and their origins/shapes/placements, callback destinations, and evaluated entry plan. |
+
+An ordinary call's register/stack ABI does not describe hardware entering an
+already-live activation. Agreement between the two facets for ordinary calls
+does not merge their meanings.
+
+One native-parameter identity space contains passed semantic formals and private
+callback entries. Declaration order fixes native argument position after explicit
+dispatch-only formals are excluded; declared
+names establish nominal identity under the owning requirement. A multi-register
+aggregate remains one parameter with several physical locations. Whole-parameter
+and private-field destinations refer to the same identity space. See
+[callback destinations](private_callbacks.md#declared-native-destinations).
+
+### Table dispatch argument accounting
+
+Under `native-table-field-binding`, a requirement's calling plan accounts for
+the exact formal selected by its [function-table binding](foreign_bindings.md#function-table-bindings)
+as either dispatch-only or passed normally. A dispatch-only formal remains a
+semantic call argument and a checked read source, but occupies no native
+argument position. A passed table participates in both lookup and the ordinary
+native argument roster. A separate receiver is an ordinary passed parameter.
+
+Normalize this correspondence before assigning registers, stack slots or
+aggregate pieces. Retain the exact formal identities, roles, native argument
+origins and selected field correspondence in the plan application. The binding
+does not supply a second policy or change that mapping. Missing, duplicate,
+wrong-requirement or incompatible mappings reject; a native binding with no
+table lookup cannot leave a dispatch-only formal unaccounted for.
+
+All other parameters keep their existing order and callback mappings. There is
+no dispatch-prefix rule or general argument-reordering facility. Evaluation,
+readability, lifetime, authority and memory effects of the selected table remain
+owed even when it has no native location.
+
+## Shape and placement
+
+[Boundary shapes](boundary_shapes.md) defines what the policy may classify.
+[Structural access](../terminal-psi/structural_access.md) separately requires
+every borrowed parameter to preserve its referent; an owned value's indirect
+ABI placement does not create a borrow.
+
+When a runtime opaque value is passed by value,
+[representation selection](opaque_representations.md) closes its exact shape,
+movement, and lifecycle application before calling-policy evaluation. A policy
+classifies that application; it neither chooses nor reconstructs a private
+representation. Reference-only pointees need no by-value application.
+
+## Validation
+
+The same validated plan governs outbound argument/result handling and inbound
+entry/exit machinery. Validation checks:
+
+- every native parameter and result is placed exactly once and compatibly;
+- stack ranges, alignment, shadow space, and register classes agree;
+- ordinary clobbers respect the ABI regime;
+- saved/restored state covers the state commitment;
+- entry/exit control is valid for the initial regime; and
+- target and provider applicability match the requirement.
+
+Unordered register/clobber sets normalize before fingerprinting. Equivalent
+encodings produce the same normalized plan. Instructions changing regime require
+their starting regime and establish the next; regions on either side retain
+separate plans rather than one mixed-mode plan.
+
+## Checked assembly implementations
+
+An `asm machine` may implement an ordinary machine requirement. A selected
+boundary implementation consumes the requirement's same validated entry plan;
+assembly introduces neither a second calling-policy selection nor an `outputs`
+interface. The semantic signature may return an aggregate whose components use
+several registers or an indirect destination. Every result location must be
+initialized and valid at the checked return, with stack and preservation
+obligations satisfied. Authorized parameter mutations are independent effects.
+
+Entry register bindings initialize working state; they do not redefine native
+argument positions. A binding may require instructions, and overlapping input
+and destination locations must preserve all incoming values needed by setup.
+Nested assembly CFG edges do not repeat it or create another calling boundary.
+
+The entry contract relates native pointer lanes to the authorized argument or
+result storage. Checked copies, offsets and joins retain only justified
+provenance, extents and permissions. A policy places a hidden result pointer;
+it does not create access authority merely by naming its register. Explicit
+clobbers describe writes, while saved-state restoration proves preservation.
+See [assembly](../language/assembly.md#register-initialization-and-calling-plans).
+
+## Identity and selection
+
+The canonical evaluated promise, not policy source, construction order, or a
+friendly convention name, defines ABI identity. The complete public contract has
+a domain-separated SHA-256 commitment; compact fingerprints are report
+coordinates. Refactoring policy code while preserving its normalized result
+preserves the ABI promise. Observable placement or state changes do not.
+
+The reusable physical-plan identity is weaker than its application identity.
+Application identity additionally binds the exact requirement, complete ordered
+nominal parameter mapping, callback materializations, and any opaque
+representation applications. Swapping equally shaped parameters cannot preserve
+application identity merely because the register recipe is unchanged.
+
+[Provider selection](provider_selection.md) chooses checked implementations or
+derives native backing from exact package-local Build binding intent. A
+`Build::bind<Requirement>(builder, target, locator)` row retains the requirement's
+complete signature and calling-policy application; it needs no source `via`
+clause or synthetic forwarding machine. Literal byte lengths are inferred.
+A locator, syscall number, or target label cannot select calling policy.
+The compiler checks the locator against the evaluated plan. A `Syscall`
+locator requires compatible `SupervisorCall` entry control for that target.
+The compiler therefore rejects a syscall binding for an ordinary Omega call.
+A `DllImport` locator requires a compatible `CallReturn` plan.
+
+A descendant boundary trait may own a selected inherited requirement's schema
+while the row retains the declaring requirement's identity.
+
+All selected import, vtable, and service-table consumers retain the evaluated
+plan through layout and emission. They cannot reselect it from the output target
+or duplicate its arity in a dispatch recipe. Dispatch-only operands are exact
+semantic formals accounted for by the requirement's plan, not synthetic operands
+added by a binding kind. Missing or unrealizable plans
+reject. A wider compiler scratch slot cannot redefine a retained foreign scalar
+type; insufficient storage rejects.
+
+The plan is the published promise. Backend stages carry the evaluated plan
+through realization. Emitted code must honor its
+[machine-state limits](machine_state_evidence.md).
