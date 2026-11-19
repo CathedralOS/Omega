@@ -5,19 +5,19 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-function-identity = { path = "../representations/function-identity" }
+function-identity = { path = "../../representations/function-identity" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 target-aarch64 = { path = "../../targets/target-aarch64" }
 target-x86_64 = { path = "../../targets/target-x86_64" }
-physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
+physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
 native-encoding = { path = "../11_bound-framed-machine-to-selected-form-encoding" }
-machine-code = { path = "../representations/machine-code" }
-post-allocation-machine = { path = "../representations/post-allocation-machine" }
+machine-code = { path = "../../representations/machine-code" }
+post-allocation-machine = { path = "../../representations/post-allocation-machine" }
 register-model = { path = "../../targets/register-model" }
-selected-instructions = { path = "../representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-encoding-admission = { path = "../representations/machine-code/encoding-admission" }
+encoding-admission = { path = "../../representations/machine-code/encoding-admission" }
 
 [dev-dependencies]
 isa-aarch64 = { path = "../11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }

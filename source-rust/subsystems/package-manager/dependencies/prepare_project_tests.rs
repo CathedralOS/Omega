@@ -107,17 +107,43 @@ fn completion_keeps_the_declared_source_identity() {
         "machine_self_call_recursion_compile"
     );
     let profile = TargetProfile::host_if_supported().unwrap();
-    assert!(
-        prepared
-            .accepted_root_permissions(profile)
-            .unwrap()
-            .is_none()
-    );
+    assert!(prepared.accepted_deployment(profile).unwrap().is_none());
     let other = *TargetProfile::ALL
         .iter()
         .find(|candidate| **candidate != profile)
         .unwrap();
-    assert!(prepared.accepted_root_permissions(other).is_err());
+    assert!(prepared.accepted_deployment(other).is_err());
+}
+
+#[test]
+fn invalid_deployment_policy_leaves_the_other_requested_target_available() {
+    let temporary = project("calls/machine_self_call_recursion_compile");
+    let mut pending = begin(temporary.path());
+    let valid = pending.targets[0].profile;
+    let refused = *TargetProfile::ALL
+        .iter()
+        .find(|&&profile| profile != valid)
+        .unwrap();
+    pending.targets.insert(
+        0,
+        PreparedProjectTarget {
+            profile: refused,
+            accepted: Err(PrepareLocalProjectError::Locked(
+                "no accepted section".into(),
+            )),
+        },
+    );
+    assert_eq!(
+        pending
+            .requested_target_errors()
+            .map(|row| row.0)
+            .collect::<Vec<_>>(),
+        [refused]
+    );
+    let graph = source_graph(&pending);
+    let prepared = pending.complete(graph).unwrap();
+    assert!(prepared.accepted_deployment(refused).is_err());
+    assert!(prepared.accepted_deployment(valid).unwrap().is_none());
 }
 
 #[test]

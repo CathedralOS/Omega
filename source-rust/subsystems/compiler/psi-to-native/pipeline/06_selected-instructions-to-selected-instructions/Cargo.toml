@@ -5,18 +5,18 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-operation-evidence = { path = "../representations/operation-evidence" }
-physical-program = { path = "../representations/post-allocation-machine/body-facts" }
+operation-evidence = { path = "../../representations/operation-evidence" }
+physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 instruction-selection = { package = "target-operations-to-selected-instructions", path = "../05_target-operations-to-selected-instructions" }
-optimization-core = { path = "../representations/optimization-records" }
+optimization-core = { path = "../../representations/optimization-records" }
 register-environment = { path = "../../targets/register-environment" }
-register-homes = { path = "../representations/register-homes" }
+register-homes = { path = "../../representations/register-homes" }
 register-model = { path = "../../targets/register-model" }
-selected-instructions = { path = "../representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
 selected-instruction-analyses = { path = "analyses" }
 
 [dev-dependencies]
-target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }

@@ -38,8 +38,8 @@ its symbol was declared in, never from a path or a name:
 - A declaration with no source file cannot be placed, so it is refused.
 */
 
-use source_provenance::DependencyScope;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
+use source_provenance::DependencyScope;
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
@@ -381,6 +381,22 @@ impl Program<'_> {
                 // Copying an enclosing declaration also copies lexical helpers
                 // excluded by that type world's static branches; those copies
                 // are not additional authored subject declarations.
+                // Synthesized visitor helpers are also demand-only. Rooting a
+                // case helper here would bypass its dispatcher's coverage proof.
+                if machine.purpose.is_active_case_visitor() {
+                    if !typed.symbols.symbols().nodes().is_valid(machine.symbol)
+                        || typed.symbols.authored_origin(machine.symbol) == machine.symbol
+                    {
+                        return Err(refuse(
+                            entry,
+                            Construct::Machine,
+                            Unserved::Machine(
+                                "active-case helper without its generating declaration",
+                            ),
+                        ));
+                    }
+                    return Ok(());
+                }
                 if typed
                     .machine_instantiation(machine.symbol)
                     .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Machine(reason)))?

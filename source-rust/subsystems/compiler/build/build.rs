@@ -96,7 +96,7 @@ fn run_stages<H: BuildHost, T, E: From<Vec<Diagnostic>>>(
                     .into());
                 }
                 let stage = planning::interpret(*evaluation, &mut services)
-                    .map_err(build_settings::CompileFailure::into_diagnostics)?;
+                    .map_err(build_execution::CompileFailure::into_diagnostics)?;
                 plan = host.interpret_plan(stage, services)?;
                 grants = next_grants;
             }

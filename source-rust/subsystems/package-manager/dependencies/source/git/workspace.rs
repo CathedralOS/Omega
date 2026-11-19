@@ -16,7 +16,7 @@ use crate::resolution::source::PackageSourceSelectionEvidenceError;
 use build_declarations::{
     BuildDeclaration, BuildDeclarationKind, ProjectName, WorkspaceMemberPath,
 };
-use build_settings::SourceBuildDeclaration;
+use build_execution::SourceBuildDeclaration;
 use sha2::{Digest, Sha256};
 use std::fmt;
 use std::path::Path;
@@ -238,7 +238,7 @@ impl GitWorkspaceSelectionPlan {
 pub(crate) struct GitWorkspaceSelectionEvidence {
     plan: GitWorkspaceSelectionPlan,
     executed: (
-        build_settings::SourceBuildDeclaration,
+        build_execution::SourceBuildDeclaration,
         Vec<crate::resolution::source::WorkspaceMemberObservation>,
     ),
 }
@@ -246,7 +246,7 @@ pub(crate) struct GitWorkspaceSelectionEvidence {
 impl GitWorkspaceSelectionEvidence {
     pub(crate) fn from_executed(
         selected: &ProjectName,
-        root: build_settings::SourceBuildDeclaration,
+        root: build_execution::SourceBuildDeclaration,
         members: Vec<crate::resolution::source::WorkspaceMemberObservation>,
     ) -> Result<Self, String> {
         let declarations = members

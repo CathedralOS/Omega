@@ -93,7 +93,7 @@ source providers, install an artifact or publish executable files, and it
 grants no publication, installation, provider or runtime authority.
 
 Runtime provision capture reads
-[`AdmittedRuntimeInput`](../../representations/abstract-operations/verified-optimization-input/src/runtime_input.rs):
+[`AdmittedRuntimeInput`](../../../representations/abstract-operations/verified-optimization-input/src/runtime_input.rs):
 the authorized artifact, selected entry and target, admitted boundary roster,
 and completed scalar applications. The verified input lends those exact rows
 without lending its executable abstract graph. The initial lowering stage owns

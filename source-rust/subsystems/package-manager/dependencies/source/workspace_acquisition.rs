@@ -14,7 +14,7 @@ use super::{
 use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::graph::PackageRootSourceRequest;
 use build_declarations::{BuildDeclaration, WorkspaceMemberPath};
-use build_settings::SourceBuildDeclaration;
+use build_execution::SourceBuildDeclaration;
 use package_compilation::CapturedLocalSource;
 use source_acquisition::git::resolution::{GitWorkspaceCatalog, GitWorkspaceSession};
 use source_acquisition::{GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits};
@@ -25,7 +25,7 @@ use std::sync::Arc;
 pub struct WorkspaceMemberObservation {
     declaration: SourceBuildDeclaration,
     pub(crate) source: super::PackageSourceCustody,
-    pub(crate) selections: Vec<build_settings::BuildDependencySelection>,
+    pub(crate) selections: Vec<build_execution::BuildDependencySelection>,
     dependencies: Vec<Arc<super::ResolvedBuildSources>>,
 }
 
@@ -33,7 +33,7 @@ impl WorkspaceMemberObservation {
     pub fn new(
         acquired: &AcquiredBuildSource,
         declaration: SourceBuildDeclaration,
-        result: &build_settings::BuildSourceResult<'_>,
+        result: &build_execution::BuildSourceResult<'_>,
         dependencies: Vec<Arc<super::ResolvedBuildSources>>,
     ) -> Result<Self, String> {
         if Some(declaration.declaration()) != result.declaration()

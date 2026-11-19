@@ -6,4 +6,4 @@ version.workspace = true
 
 [dependencies]
 register-model = { path = "../../targets/register-model" }
-selected-instructions = { path = "../../pipeline/representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }

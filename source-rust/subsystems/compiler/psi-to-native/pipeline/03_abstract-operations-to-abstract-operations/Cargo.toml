@@ -8,18 +8,18 @@ version.workspace = true
 test-support = []
 
 [dependencies]
-abstract-operations = { path = "../representations/abstract-operations" }
+abstract-operations = { path = "../../representations/abstract-operations" }
 arena = { path = "../../../../../foundation/arena" }
 optimization = { path = "../../../psi/optimization-selections" }
-optimization-core = { path = "../representations/optimization-records" }
-optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
-optimization-unit-semantics = { path = "../representations/abstract-operations/optimization-unit-semantics" }
+optimization-core = { path = "../../representations/optimization-records" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 terminal-work = { path = "../../../psi/work" }
-verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 wire = { path = "../../../../../foundation/wire" }
 
 [dev-dependencies]

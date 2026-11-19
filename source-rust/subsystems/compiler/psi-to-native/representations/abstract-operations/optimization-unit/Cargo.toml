@@ -1,0 +1,23 @@
+[package]
+name = "optimization-unit"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "optimization_unit"
+path = "src/lib.rs"
+
+[dependencies]
+operation-evidence = { path = "../../operation-evidence" }
+arena = { path = "../../../../../../foundation/arena" }
+wire = { path = "../../../../../../foundation/wire" }
+numerics = { path = "../../../../psi/semantics/numeric" }
+optimization-core = { path = "../../optimization-records" }
+abstract-operations = { path = ".." }
+language-core = { path = "../../../../foundation/language-core" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+terminal-psi = { path = "../../../../psi" }
+terminal-semantics = { path = "../../../../psi/semantics" }
+
+terminal-codec = { path = "../../../../psi/codec" }

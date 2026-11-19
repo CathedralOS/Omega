@@ -1399,7 +1399,7 @@ impl<'t> Program<'t> {
         if machine.supply_mode != source_declarations::MachineSupplyMode::CheckedBody {
             return unserved("supply mode other than a checked body");
         }
-        if machine.purpose != MachinePurpose::Runtime {
+        if machine.purpose == MachinePurpose::ProviderDefaults {
             return unserved("provider-default purpose");
         }
         if !machine.body_is_present || machine.body_status != MachineBodyStatus::Complete {

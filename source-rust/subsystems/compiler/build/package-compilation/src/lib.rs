@@ -47,6 +47,9 @@ pub use source::source_assembly;
 pub use source::source_assembly::BuildSourceSelection;
 pub use source::source_imports;
 pub use source::toolchain_library;
+#[path = "source/diagnostic_locations.rs"]
+mod diagnostic_locations;
+pub use diagnostic_locations::attribute_diagnostics;
 mod package_compilation;
 #[doc(hidden)]
 pub use reuse::review_record_encoding;

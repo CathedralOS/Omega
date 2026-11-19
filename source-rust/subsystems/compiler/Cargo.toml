@@ -1,6 +1,5 @@
 [package]
 name = "compiler"
-build = "build_identity.rs"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -9,28 +8,28 @@ version.workspace = true
 path = "compiler.rs"
 
 [dependencies]
+compiler-identity = { path = "foundation/compiler-identity" }
+review-evidence = { path = "../package-manager/review/evidence" }
+provider-acceptance = { path = "build/providers/acceptance" }
 psi-entry-memory = { path = "psi/access/entry-memory" }
 diagnostics = { path = "../../foundation/diagnostics" }
 native-compiler = { path = "psi-to-native" }
 product-publication = { path = "build/build-output/product-publication" }
 semantic-vocabulary = { path = "foundation/semantic-records" }
-source-admission = { path = "source-to-psi/pipeline/representations/source-files/custody" }
+source-admission = { path = "source-to-psi/representations/source-files/custody" }
 source-compiler = { path = "source-to-psi" }
 source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }
 terminal-codec = { path = "psi/codec" }
 psi-authorization = { path = "psi/authorization" }
 
-[build-dependencies]
-wire = { path = "../../foundation/wire" }
-
 [dev-dependencies]
+source-compiler = { path = "source-to-psi", features = ["test-support"] }
 provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
-verified-optimization-input = { path = "psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input" }
+verified-optimization-input = { path = "psi-to-native/representations/abstract-operations/verified-optimization-input" }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
-build-evaluation-result = { path = "build/build-settings/result" }
-provider-acceptance = { path = "build/providers/acceptance" }
+build-evaluation-result = { path = "build/execution/result" }
 direct-boundary-bindings = { path = "psi-to-native/verification/provider-correspondence/direct-boundaries" }
 project-build = { path = "build" }
 target-provider-admission = { path = "psi-to-native/verification/target-providers" }
@@ -50,7 +49,6 @@ numerics = { path = "psi/semantics/numeric" }
 optimization-selections = { path = "foundation/optimization-selections" }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
 terminal-semantics = { path = "psi/semantics" }
-program-entry-contracts = { path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
 
 [[test]]
 name = "build_charge"

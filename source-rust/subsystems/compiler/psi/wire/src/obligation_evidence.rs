@@ -9,9 +9,8 @@ the kernel and the certificate, and a SHA-256 fingerprint over their canonical
 encoding. Anyone holding the seal can recompute the fingerprint; a seal whose
 parts were changed after sealing no longer matches it.
 
-Seals travel beside the semantic module. An optional, separately versioned
-record preserves them in saved native inputs without changing the module's
-bytes. Decoding checks their canonical shape and fingerprints; it grants no
+The canonical Psi publication section carries an optional, separately versioned
+evidence record alongside the semantic module. Decoding checks their canonical shape and fingerprints; it grants no
 truth, execution authority or producer trust and does not replay the proof
 kernel. Receiving owners separately authorize the artifact and attach evidence
 to its exact module, execution sites and goals.

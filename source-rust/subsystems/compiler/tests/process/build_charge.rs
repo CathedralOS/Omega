@@ -11,7 +11,7 @@ use default_build_workflow::build_sequence;
 
 use artifacts::compile_timings::counters;
 use compiler::{CheckedCompileRequest, CompilationSession};
-use source_compiler::evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+use source_compiler::compile_time::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 
 /// Resolve one project's sources with the host-profile execution defaults that
 /// every single-root case shares.
@@ -566,9 +566,9 @@ fn source_discovery_root_resources() {
         let workspace = temporary.path().join(name);
         std::fs::create_dir(&workspace).unwrap();
         let filesystem =
-            source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
+            source_compiler::compile_time::BuildMachineFilesystemSponsor::create_private(
                 workspace.join("caller"),
-                source_compiler::evaluation::BuildMachineFilesystemSponsorLimits {
+                source_compiler::compile_time::BuildMachineFilesystemSponsorLimits {
                     maximum_entries: 32,
                     maximum_total_logical_bytes: bytes,
                     maximum_object_extent: 1024,
@@ -1049,9 +1049,9 @@ fn terminal_build_filesystem() {
     );
 
     let temporary = exclusive_workspace("terminal-filesystem-budget");
-    let staging = source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
+    let staging = source_compiler::compile_time::BuildMachineFilesystemSponsor::create_private(
         temporary.path().join("staging"),
-        source_compiler::evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+        source_compiler::compile_time::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();
     let output = staging.session_root().unwrap().join("output");
@@ -1711,7 +1711,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
     let failure = root_return
         .join_dependency_sources(
             &changed_request,
-            &[build_settings::BuildDependencySelection {
+            &[build_execution::BuildDependencySelection {
                 purpose: build_declarations::DependencyPurpose::Product,
                 request_ordinal: 0,
                 package: selected,
@@ -1745,7 +1745,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
         let failure = root_return
             .join_dependency_sources(
                 &preview,
-                &[build_settings::BuildDependencySelection {
+                &[build_execution::BuildDependencySelection {
                     purpose,
                     request_ordinal,
                     package,
@@ -2372,13 +2372,13 @@ fn package_invocation_requests(fixture: &str) -> impl Fn() -> CheckedCompileRequ
 
 fn return_build(
     invocation: &mut compiler::PackageBuildInvocation,
-) -> Option<build_settings::ReturnedBuild> {
+) -> Option<build_execution::ReturnedBuild> {
     build_sequence::return_package(invocation)
 }
 
 fn return_execution(
-    execution: Option<&mut build_settings::PreparedBuildExecution>,
-) -> Option<build_settings::ReturnedBuild> {
+    execution: Option<&mut build_execution::PreparedBuildExecution>,
+) -> Option<build_execution::ReturnedBuild> {
     execution.map(|execution| {
         let host = execution.host().expect("issue Build host once");
         let mut activation = host.start().expect("start Build once");

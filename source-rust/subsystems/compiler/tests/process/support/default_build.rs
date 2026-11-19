@@ -23,8 +23,8 @@ fn binding(capture: &package_compilation::CapturedLocalSource, marker: u8) -> Pa
 }
 
 fn execute(
-    execution: Option<&mut build_settings::PreparedBuildExecution>,
-) -> build_settings::ReturnedBuild {
+    execution: Option<&mut build_execution::PreparedBuildExecution>,
+) -> build_execution::ReturnedBuild {
     let execution = execution.expect("default source owes one real activation");
     let host = execution.host().expect("issue host once");
     let mut activation = host.start().expect("start default Build");

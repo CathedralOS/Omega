@@ -28,7 +28,7 @@ pub(crate) use accepted_compilation_identity::compiler_input_identity;
 pub use reviewed_host_packages::ReviewedHostPackages;
 pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
 pub use prepare_project::{
-    LocalProjectPreparation, PrepareLocalProjectError, PreparedLocalProject,
+    AcceptedDeployment, LocalProjectPreparation, PrepareLocalProjectError, PreparedLocalProject,
     begin_local_project_preparation,
 };
 pub(crate) use stage_build_edit::stage_build_dependency_edit;

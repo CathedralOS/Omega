@@ -1,0 +1,27 @@
+[package]
+name = "build-evaluation-result"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "result.rs"
+
+[dependencies]
+behavior-exclusion-requests = { path = "../../behavior-exclusions" }
+build-consent = { path = "../../evaluation/consent" }
+build-declarations = { path = "../../build-declarations" }
+build-output = { path = "../../build-output" }
+checked-program-to-psi = { path = "../../../source-to-psi/pipeline/07_checked-program-to-psi" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+evaluation-contracts = { path = "../../evaluation/usage" }
+evaluation-receipts = { path = "../../evaluation/receipts" }
+normalized-build-settings = { path = "../../build-settings/normalized" }
+optimization-requests = { path = "../../optimization-policy/requests" }
+package-compilation = { path = "../../package-compilation" }
+source-admission = { path = "../../../source-to-psi/representations/source-files/custody" }
+source-completion-accounting = { path = "../../../source-to-psi/product/accounting" }
+source-declarations = { path = "../../../source-to-psi/representations/symbol-resolved-trees/declarations" }
+source-provenance = { path = "../../../foundation/source-provenance" }
+symbols = { path = "../../../foundation/declaration-identity" }
+typed-trees = { path = "../../../source-to-psi/representations/typed-trees" }

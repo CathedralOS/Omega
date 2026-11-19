@@ -1,0 +1,22 @@
+[package]
+name = "physical-recipes"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+target-vocabulary = { path = "../../target-operations/target-vocabulary" }
+function-identity = { path = "../../function-identity" }
+terminal-psi = { path = "../../../../psi" }
+arena = { path = "../../../../../../foundation/arena" }
+calling-conventions = { path = "../../../targets/calling-conventions" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+frame-admission = { path = "../../machine-code/frame-admission" }
+machine-code = { path = "../../machine-code" }
+post-allocation-machine = { path = "../../post-allocation-machine" }
+register-model = { path = "../../../targets/register-model" }
+runtime-abi = { path = "../../../targets/runtime-abi" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+target = { path = "../../../targets/target" }
+target-aarch64 = { path = "../../../targets/target-aarch64" }
+target-x86_64 = { path = "../../../targets/target-x86_64" }

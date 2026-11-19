@@ -116,6 +116,12 @@ pub struct SourceCompilationRoster {
 }
 
 impl SourceCompilationRoster {
+    fn publication_entries(&self) -> &[symbols::SymbolHandle] {
+        self.inspection_root
+            .as_ref()
+            .map_or(self.entries.as_slice(), std::slice::from_ref)
+    }
+
     /// Borrow the full roster for source preparation and judgment alike.
     pub fn preparation_compilation(
         &self,
@@ -127,10 +133,7 @@ impl SourceCompilationRoster {
         }
         Ok(crate::lowering::Compilation {
             declaration_metadata: &self.declaration_metadata,
-            entries: self
-                .inspection_root
-                .as_ref()
-                .map_or(self.entries.as_slice(), std::slice::from_ref),
+            entries: self.publication_entries(),
             subjects: std::slice::from_ref(&self.subject),
             purpose: source_provenance::DependencyScope::Product,
             selected: &self.selected,
@@ -152,7 +155,7 @@ impl SourceCompilationRoster {
             Arc::clone(&typed),
             crate::lowering::Compilation {
                 declaration_metadata: &self.declaration_metadata,
-                entries: &self.entries,
+                entries: self.publication_entries(),
                 subjects: std::slice::from_ref(&self.subject),
                 purpose: source_provenance::DependencyScope::Product,
                 selected: &self.selected,

@@ -107,39 +107,77 @@ impl PreparedLocalProject {
             })
     }
 
-    /// Recover the locked root Product's runtime decisions for its exact source and compiler.
-    /// An unlocked target supplies no decisions.
-    pub fn accepted_root_permissions(
+    /// Validate the reviewed section against this invocation's source closure and compiler.
+    pub fn accepted_deployment(
         &self,
         profile: TargetProfile,
-    ) -> Result<Option<review_evidence::permission_acceptance::TerminalPermissionAcceptance>, String>
-    {
-        let target = self
+    ) -> Result<Option<AcceptedDeployment<'_>>, String> {
+        let row = self
             .targets
             .iter()
-            .find(|target| target.profile == profile)
+            .find(|row| row.profile == profile)
             .ok_or_else(|| format!("project was not prepared for {}", profile.target_name()))?;
-        let Some(accepted) = target.accepted.as_ref().map_err(ToString::to_string)? else {
+        let Some(section) = row.accepted.as_ref().map_err(ToString::to_string)? else {
             return Ok(None);
         };
-        let current = super::compiler_input_identity()?;
         super::accepted_compilation_identity::require_current_acceptance(
             &self.source_closure.for_exact_target(profile),
-            accepted,
-            current,
+            section,
+            super::compiler_input_identity()?,
         )?;
-        accepted
+        Ok(Some(AcceptedDeployment {
+            root: self.root_package(),
+            section,
+        }))
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct AcceptedDeployment<'section> {
+    root: semantic_vocabulary::PackageKeyIdentity,
+    section: &'section PackageLockTarget,
+}
+
+impl AcceptedDeployment<'_> {
+    pub fn root_permissions(
+        self,
+    ) -> Result<review_evidence::permission_acceptance::TerminalPermissionAcceptance, String> {
+        let context = crate::lockfile::PackageCheckedContext::new(
+            crate::declarations::dependencies::DependencyPurpose::Product,
+            self.section.target(),
+            self.section.execution_profile(),
+        );
+        self.section
             .occurrences()
             .iter()
-            .find(|occurrence| {
-                occurrence.acceptance().package() == self.root_package()
-                    && occurrence.context().purpose().is_product()
-                    && occurrence.context().target() == profile
-            })
-            .map(|occurrence| Some(occurrence.acceptance().terminal_permissions()))
+            .find(|row| row.acceptance().package() == self.root && row.context() == context)
+            .map(|row| row.acceptance().terminal_permissions())
             .ok_or_else(|| {
                 "locked target has no accepted root Product occurrence; run omega packages update"
-                    .into()
+                    .to_owned()
+            })
+    }
+
+    pub fn bind_compilation_inputs(
+        self,
+        inputs: package_compilation::PackageCompilationInputs,
+        target: TargetProfile,
+        build_host: TargetProfile,
+    ) -> Result<package_compilation::PackageCompilationInputs, String> {
+        let context = crate::lockfile::PackageCheckedContext::new(
+            inputs.compilation_purpose(),
+            target,
+            Some(build_host),
+        );
+        let row = self.section.occurrences().iter().find(|row| {
+            row.acceptance().package() == inputs.root() && row.context() == context
+        }).and_then(|row| row.compilation()).ok_or_else(|| {
+            format!("locked {} section has no accepted compilation for the requested package, purpose, target and Build host", self.section.target().target_name())
+        })?;
+        inputs
+            .with_accepted_semantic_bindings(row.semantic_bindings().to_vec())
+            .map_err(|errors| {
+                format!("cannot admit the locked occurrence's semantic bindings: {errors:?}")
             })
     }
 }
@@ -286,16 +324,31 @@ fn begin_local_project_preparation_in_storage(
                 .map_err(|error| PrepareLocalProjectError::Locked(error.to_string()))
         })
         .transpose()?;
+    let compiler = accepted
+        .as_ref()
+        .map(|_| super::compiler_input_identity())
+        .transpose()
+        .map_err(PrepareLocalProjectError::Locked)?;
     let prepared_targets = targets
         .iter()
         .map(|profile| {
             let section = match accepted.as_ref() {
-                Some(lock) => lock.target(*profile).cloned().map(Some).ok_or_else(|| {
-                    PrepareLocalProjectError::Locked(format!(
-                        "no accepted section for exact target {}",
-                        profile.target_name(),
-                    ))
-                }),
+                Some(lock) => lock
+                    .target(*profile)
+                    .ok_or_else(|| {
+                        PrepareLocalProjectError::Locked(format!(
+                            "no accepted section for exact target {}",
+                            profile.target_name(),
+                        ))
+                    })
+                    .and_then(|section| {
+                        super::accepted_compilation_identity::require_current_compiler(
+                            section,
+                            compiler.expect("a recovered lock has a compiler identity"),
+                        )
+                        .map_err(PrepareLocalProjectError::Locked)?;
+                        Ok(Some(section.clone()))
+                    }),
                 None => Ok(None),
             };
             PreparedProjectTarget {
@@ -343,6 +396,46 @@ fn begin_local_project_preparation_in_storage(
 }
 
 impl LocalProjectPreparation {
+    fn require_current_files(&self) -> Result<(), PrepareLocalProjectError> {
+        if let (Some(transaction), Some(baseline)) = (&self.transaction, &self.baseline) {
+            let current = transaction
+                .read_pair()
+                .map_err(PrepareLocalProjectError::Publication)?;
+            if current.0 != baseline.0 {
+                return Err(PrepareLocalProjectError::Publication(
+                    PackagePublicationError::ConcurrentEdit { file: "build.omg" },
+                ));
+            }
+            if current.1 != baseline.1 {
+                return Err(PrepareLocalProjectError::Publication(
+                    PackagePublicationError::ConcurrentEdit { file: "omega.lock" },
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// A batch with no admissible deployment must report its individual errors before running Build.
+    pub fn requested_target_errors(
+        &self,
+    ) -> impl Iterator<Item = (TargetProfile, &PrepareLocalProjectError)> {
+        self.targets.iter().filter_map(|row| {
+            row.accepted
+                .as_ref()
+                .err()
+                .map(|error| (row.profile, error))
+        })
+    }
+
+    pub fn require_unlocked_anonymous(&self) -> Result<(), PrepareLocalProjectError> {
+        if self.accepted.is_some() {
+            return Err(PrepareLocalProjectError::Locked(
+                "the accepted package lock requires its named root Build declaration".into(),
+            ));
+        }
+        self.require_current_files()
+    }
+
     pub fn entry_path(&self) -> PathBuf {
         self.canonical_root.join(&self.entry_relative)
     }
@@ -391,17 +484,10 @@ impl LocalProjectPreparation {
                 ));
             }
         }
-        if self.accepted.is_some() {
-            let compiler =
-                super::compiler_input_identity().map_err(PrepareLocalProjectError::Locked)?;
-            for target in &self.targets {
-                if let Ok(Some(section)) = &target.accepted {
-                    super::accepted_compilation_identity::require_current_compiler(
-                        section, compiler,
-                    )
-                    .map_err(PrepareLocalProjectError::Locked)?;
-                }
-            }
+        if self.targets.iter().all(|target| target.accepted.is_err()) {
+            return Err(PrepareLocalProjectError::Locked(
+                "no requested deployment has current accepted policy".into(),
+            ));
         }
         let acquisition = if self.offline {
             GitExactRevisionAcquisition::Offline
@@ -449,21 +535,7 @@ impl LocalProjectPreparation {
                 "resolved graph belongs to another project acquisition".into(),
             ));
         }
-        if let (Some(transaction), Some(baseline)) = (&self.transaction, &self.baseline) {
-            let current = transaction
-                .read_pair()
-                .map_err(PrepareLocalProjectError::Publication)?;
-            if current.0 != baseline.0 {
-                return Err(PrepareLocalProjectError::Publication(
-                    PackagePublicationError::ConcurrentEdit { file: "build.omg" },
-                ));
-            }
-            if current.1 != baseline.1 {
-                return Err(PrepareLocalProjectError::Publication(
-                    PackagePublicationError::ConcurrentEdit { file: "omega.lock" },
-                ));
-            }
-        }
+        self.require_current_files()?;
         let source_root = closure
             .source_root(closure.graph().root())
             .ok_or(PrepareLocalProjectError::MissingRootCustody)?;

@@ -125,6 +125,80 @@ fn published_target_entry_emits_linux_image() {
 }
 
 #[test]
+fn saved_publication_rejects_evidence_from_another_module_or_obligation() {
+    let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
+    let evidence = artifact.published_evidence().unwrap().as_ref();
+    assert!(!evidence.seals.is_empty());
+    let debug = artifact
+        .debug_bytes()
+        .map(|bytes| terminal_codec::decode_debug_map(artifact.semantic_module(), bytes).unwrap());
+    let publish = |evidence| {
+        let program = CanonicalTerminalArtifact::from_closed_parts(
+            artifact.view().closed_module().clone(),
+            artifact.optimization().clone(),
+            debug.as_ref(),
+        )
+        .unwrap();
+        program.with_publication(
+            Arc::clone(artifact.publication_metadata().unwrap()),
+            Some(Arc::new(evidence)),
+        )
+    };
+    assert_eq!(publish(evidence.clone()).unwrap().to_bytes(), SAVED);
+
+    let mut foreign = evidence.clone();
+    foreign.module.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([9; 32]);
+    let error = publish(foreign).unwrap_err();
+    assert!(format!("{error}").contains("InvalidPublication"), "{error}");
+
+    let missing = semantic_vocabulary::MachineId::new(u64::MAX).unwrap();
+    assert!(artifact.semantic_module().machine(missing).is_none());
+    let mut unowned = evidence.clone();
+    unowned.seals[0].machine = missing;
+    unowned.seals[0].fingerprint = unowned.seals[0].recompute().unwrap();
+    let encoded = publish(unowned).unwrap().to_bytes();
+    let error = CanonicalTerminalArtifact::from_bytes(&encoded).unwrap_err();
+    assert!(format!("{error}").contains("UnownedSeal"), "{error}");
+
+    let mut damaged = SAVED.to_vec();
+    let encoded_evidence = terminal_codec::encode_operation_evidence(evidence).unwrap();
+    assert!(damaged.ends_with(&encoded_evidence));
+    *damaged.last_mut().unwrap() ^= 1;
+    let error = CanonicalTerminalArtifact::from_bytes(&damaged).unwrap_err();
+    assert!(
+        format!("{error}").contains("operation evidence seal fingerprint mismatch"),
+        "{error}"
+    );
+}
+
+#[test]
+fn selected_entry_requires_its_checked_declaration() {
+    use provider_realization::program_entry::SelectedCompilerProgramEntry;
+
+    let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
+    let profile = TargetProfile::LinuxX64;
+    let slot = profile.program_entry_slot();
+    let mut module = artifact.semantic_module().clone();
+    let entry = module
+        .program_entry_contract(profile.target_name())
+        .unwrap()
+        .entry;
+    SelectedCompilerProgramEntry::from_terminal(&module, entry, slot).unwrap();
+
+    let machine = module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .unwrap();
+    assert!(machine.declaration.take().is_some());
+    let refusal = SelectedCompilerProgramEntry::from_terminal(&module, entry, slot).unwrap_err();
+    assert!(
+        refusal.iter().any(|diagnostic| diagnostic.message == "the selected entry has no checked declaration"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
 fn same_program_without_publication_refuses_native_emit() {
     let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
     let debug = artifact

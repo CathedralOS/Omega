@@ -39,6 +39,7 @@ mod boundary_values;
 mod callback_materializations;
 mod host_operations;
 mod plans;
+pub mod process_entry;
 mod structural_shapes;
 pub mod terminal_layout;
 #[cfg(test)]

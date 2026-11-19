@@ -1,0 +1,31 @@
+[package]
+name = "selected-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+# The refusal records the instruction sets' encoders must satisfy; only the
+# instruction-set crates' tests enable it.
+test-support = []
+
+[lib]
+name = "selected_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+operation-evidence = { path = "../operation-evidence" }
+operation-operands = { path = "../operation-operands" }
+wire = { path = "../../../../../foundation/wire" }
+target-vocabulary = { path = "../target-operations/target-vocabulary" }
+function-identity = { path = "../function-identity" }
+arena = { path = "../../../../../foundation/arena" }
+calling-conventions = { path = "../../targets/calling-conventions" }
+optimization-core = { path = "../optimization-records" }
+register-model = { path = "../../targets/register-model" }
+runtime-abi = { path = "../../targets/runtime-abi" }
+target = { path = "../../targets/target" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+terminal-wire = { path = "../../../psi/wire" }
+terminal-psi = { path = "../../../psi" }
+sha2 = "0.10.9"

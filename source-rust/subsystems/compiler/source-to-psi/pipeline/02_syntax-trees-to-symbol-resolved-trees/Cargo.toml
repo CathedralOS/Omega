@@ -16,13 +16,13 @@ path = "lib.rs"
 [dependencies]
 source-provenance = { path = "../../../foundation/source-provenance" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-bundled-declarations = { path = "../representations/source-files/bundled-declarations" }
-source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "../representations/symbol-resolved-trees/symbol-table" }
-symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
+bundled-declarations = { path = "../../representations/source-files/bundled-declarations" }
+source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
+source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
+symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
-source-admission = { path = "../representations/source-files/custody" }
+source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
 bignum = { path = "../../../../../foundation/bignum" }
 wire = { path = "../../../../../foundation/wire" }
@@ -32,9 +32,9 @@ diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../psi/semantics/numeric" }
 symbols = { path = "../../../foundation/declaration-identity" }
-syntax-trees = { path = "../representations/syntax-trees" }
+syntax-trees = { path = "../../representations/syntax-trees" }
 
 [dev-dependencies]
 source-parser = { path = "../01_tokens-to-syntax-trees" }
 source-lexer = { path = "../00_source-files-to-tokens" }
-tokens = { path = "../representations/tokens" }
+tokens = { path = "../../representations/tokens" }

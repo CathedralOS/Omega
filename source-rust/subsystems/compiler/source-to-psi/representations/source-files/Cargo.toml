@@ -1,0 +1,14 @@
+[package]
+name = "source-files"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "source_files.rs"
+
+[dependencies]
+source-provenance = { path = "../../../foundation/source-provenance" }
+arena = { path = "../../../../../foundation/arena" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+source-text = { path = "../../../../../foundation/source-text" }

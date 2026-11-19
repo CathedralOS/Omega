@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceResolutionStratum;
-use source_compiler::evaluation::provider_declarations::{
+use source_compiler::product::provider_declarations::{
     RetainedOperatorFamily, RetainedProviderSelection, RetainedProviderSubject,
 };
 use std::path::PathBuf;

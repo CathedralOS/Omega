@@ -47,9 +47,9 @@ machine build(builder: @mut Build) crashes Trap {
     )
     .unwrap();
     let host = target::TargetProfile::host_if_supported().unwrap();
-    let staging = source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
+    let staging = source_compiler::compile_time::BuildMachineFilesystemSponsor::create_private(
         temporary.path().join("staging"),
-        source_compiler::evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+        source_compiler::compile_time::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();
     let output = staging.session_root().unwrap().join("output");
@@ -95,11 +95,10 @@ machine build(builder: @mut Build) crashes Trap {
         let before = counters::build_execution_count();
         // This direct evaluator owns an explicitly live standalone scope. The
         // ordinary package compiler continues to supply captured source custody.
-        let admitted = build_settings::prepare_build_evaluation(
-            build_settings::BuildEvaluationRequest {
+        let admitted = build_execution::prepare_build_evaluation(
+            build_execution::BuildEvaluationRequest {
                 execution_purpose:
                     artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
-                pure_build_compilation: None,
                 root_path: &entry,
                 typed: continuation.typed(),
                 build_source,

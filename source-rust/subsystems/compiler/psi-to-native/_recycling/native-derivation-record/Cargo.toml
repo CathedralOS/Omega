@@ -1,0 +1,40 @@
+[package]
+name = "saved-native-inputs"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "saved_inputs.rs"
+
+[dependencies]
+arena = { path = "../../../../foundation/arena" }
+behavior-exclusion-requests = { path = "../../build/behavior-exclusions" }
+calling-conventions = { path = "../targets/calling-conventions" }
+diagnostics = { path = "../../../../foundation/diagnostics" }
+direct-boundary-bindings = { path = "../verification/provider-correspondence/direct-boundaries" }
+installation-conditions = { path = "../verification/installation-admission/conditions" }
+language-core = { path = "../../foundation/language-core" }
+layout-plans = { path = "../../psi/layout" }
+native-binding-admission = { path = "../verification/native-bindings" }
+native-intrinsics = { path = "../targets/intrinsics" }
+numeric-literals = { path = "../../foundation/numeric-literals" }
+numerics = { path = "../../psi/semantics/numeric" }
+operation-evidence = { path = "../pipeline/representations/operation-evidence" }
+optimization-selections = { path = "../../foundation/optimization-selections" }
+program-entry-contracts = { path = "../pipeline/representations/program-entry-contracts" }
+provider-acceptance = { path = "../../build/providers/acceptance" }
+provider-admission = { path = "../verification/provider-admission" }
+provider-plans = { path = "../../build/providers/plans" }
+psi-authorization = { path = "../../psi/authorization" }
+psi-provider-selections = { path = "../../psi/providers" }
+record-storage = { path = "../../../../foundation/record-storage" }
+selected-provider-plans = { path = "../../build/providers/selections" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+service-surface = { path = "../../psi/service-surface" }
+source-text = { path = "../../../../foundation/source-text" }
+target = { path = "../targets/target" }
+target-provider-admission = { path = "../verification/target-providers" }
+terminal-codec = { path = "../../psi/codec" }
+terminal-psi = { path = "../../psi" }
+verified-optimization-input = { path = "../pipeline/representations/abstract-operations/verified-optimization-input" }

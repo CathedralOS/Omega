@@ -9,13 +9,15 @@ build = false
 path = "build.rs"
 
 [dependencies]
+review-evidence = { path = "../../package-manager/review/evidence" }
+optimization-requests = { path = "optimization-policy/requests" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 installation-conditions = { path = "../psi-to-native/verification/installation-admission/conditions" }
-source-declarations = { path = "../source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
+source-declarations = { path = "../source-to-psi/representations/symbol-resolved-trees/declarations" }
 build-declarations = { path = "build-declarations" }
 source-compiler = { path = "../source-to-psi" }
 artifacts = { path = "../foundation/measurements" }
-build-settings = { path = "build-settings" }
+build-execution = { path = "execution" }
 package-compilation = { path = "package-compilation" }
 terminal-interpreter = { path = "../../interpreter" }
 terminal-runtime = { path = "../../interpreter/host" }
@@ -30,3 +32,6 @@ package-manager = { path = "../../package-manager" }
 psi-authorization = { path = "../psi/authorization" }
 terminal-codec = { path = "../psi/codec" }
 terminal-psi = { path = "../psi" }
+host-provider-inputs = { path = "../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
+psi-provider-selections = { path = "../psi/providers" }
+target-provider-admission = { path = "../psi-to-native/verification/target-providers" }

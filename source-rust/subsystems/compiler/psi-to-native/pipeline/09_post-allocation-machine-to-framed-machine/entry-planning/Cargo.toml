@@ -5,22 +5,22 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
-operation-operands = { path = "../../representations/operation-operands" }
-physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
+operation-operands = { path = "../../../representations/operation-operands" }
+physical-program = { path = "../../../representations/post-allocation-machine/body-facts" }
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = ".." }
-program-entry-contracts = { path = "../../01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
-physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
+program-entry-contracts = { path = "../../../representations/program-entry-contracts" }
+physical-recipes = { path = "../../../representations/selected-instructions/physical-recipes" }
 installation-admission = { path = "../../../verification/installation-admission" }
-function-identity = { path = "../../representations/function-identity" }
+function-identity = { path = "../../../representations/function-identity" }
 arena = { path = "../../../../../../foundation/arena" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 installation-conditions = { path = "../../../verification/installation-admission/conditions" }
-frame-admission = { path = "../../representations/machine-code/frame-admission" }
-machine-code = { path = "../../representations/machine-code" }
-post-allocation-machine = { path = "../../representations/post-allocation-machine" }
+frame-admission = { path = "../../../representations/machine-code/frame-admission" }
+machine-code = { path = "../../../representations/machine-code" }
+post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
 register-model = { path = "../../../targets/register-model" }
-selected-instructions = { path = "../../representations/selected-instructions" }
+selected-instructions = { path = "../../../representations/selected-instructions" }
 target = { path = "../../../targets/target" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }

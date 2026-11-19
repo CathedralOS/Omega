@@ -14,13 +14,12 @@ test-support = []
 path = "lib.rs"
 
 [dependencies]
-typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program" }
-source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "../representations/symbol-resolved-trees/symbol-table" }
-typed-trees = { path = "../representations/typed-trees" }
+source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
+source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
+typed-trees = { path = "../../representations/typed-trees" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
-source-admission = { path = "../representations/source-files/custody" }
+source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
 wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }

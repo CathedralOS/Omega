@@ -1,7 +1,7 @@
 //! Project package selection and target facts before source closure begins.
 use super::EntryContractSource;
 use crate::PackageCompilationInputs;
-use source_compiler::source_targets::{
+use source_compiler::product::source_targets::{
     SourceEntryContract, SourceEntryContractOwner, SourceTarget,
 };
 

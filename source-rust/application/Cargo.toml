@@ -11,13 +11,14 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
+build-declarations = { path = "../subsystems/compiler/build/build-declarations" }
+build-execution = { path = "../subsystems/compiler/build/execution" }
 normalized-build-settings = { path = "../subsystems/compiler/build/build-settings/normalized" }
 installation-conditions = { path = "../subsystems/compiler/psi-to-native/verification/installation-admission/conditions" }
 product-publication = { path = "../subsystems/compiler/build/build-output/product-publication" }
 psi-entry-memory = { path = "../subsystems/compiler/psi/access/entry-memory" }
 native-provider-sponsor = { path = "../subsystems/interpreter/host/native-sponsor" }
 worker-budget = { path = "../subsystems/compiler/foundation/worker-budget" }
-orchestration = { path = "../build-system/orchestration" }
 terminal-runtime = { path = "../subsystems/interpreter/host" }
 mimalloc = { version = "0.1", default-features = false }
 bounded-process = { path = "../foundation/bounded-process" }

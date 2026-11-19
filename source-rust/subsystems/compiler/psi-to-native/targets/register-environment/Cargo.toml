@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 calling-conventions = { path = "../calling-conventions" }
 register-model = { path = "../register-model" }
-selected-instructions = { path = "../../pipeline/representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../target" }
 target-aarch64 = { path = "../target-aarch64" }
 target-x86_64 = { path = "../target-x86_64" }

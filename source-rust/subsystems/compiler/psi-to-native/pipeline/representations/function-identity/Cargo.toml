@@ -1,9 +1,0 @@
-[package]
-name = "function-identity"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[dependencies]
-wire = { path = "../../../../../../foundation/wire" }
-terminal-psi = { path = "../../../../psi" }

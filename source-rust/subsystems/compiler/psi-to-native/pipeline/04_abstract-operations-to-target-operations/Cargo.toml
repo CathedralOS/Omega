@@ -5,32 +5,32 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-operation-evidence = { path = "../representations/operation-evidence" }
+operation-evidence = { path = "../../representations/operation-evidence" }
 compiler-check-site = { path = "../../../foundation/check-site" }
-abstract-operations = { path = "../representations/abstract-operations" }
+abstract-operations = { path = "../../representations/abstract-operations" }
 application-identity = { path = "../../../psi/application-identity" }
 arena = { path = "../../../../../foundation/arena" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-function-identity = { path = "../representations/function-identity" }
+function-identity = { path = "../../representations/function-identity" }
 language-core = { path = "../../../foundation/language-core" }
-legalized-operations = { path = "../representations/target-operations/legalized-operations" }
-structural-storage = { path = "../representations/structural-storage" }
-optimization-core = { path = "../representations/optimization-records" }
-optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
-optimization-unit-semantics = { path = "../representations/abstract-operations/optimization-unit-semantics" }
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
+structural-storage = { path = "../../representations/structural-storage" }
+optimization-core = { path = "../../representations/optimization-records" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
 provider-admission = { path = "../../verification/provider-admission" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
-target-operations = { path = "../representations/target-operations" }
-target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
+target-operations = { path = "../../representations/target-operations" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
-verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 
 [dev-dependencies]
 instruction-selection = { package = "target-operations-to-selected-instructions", path = "../05_target-operations-to-selected-instructions", features = ["test-support"] }
 register-environment = { path = "../../targets/register-environment" }
-selected-instructions = { path = "../representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }

@@ -1,5 +1,6 @@
 //! Run the admitted Build entry and retain its original activation through source settlement.
 
+mod registered_tests;
 mod product;
 pub use product::ProductStage;
 mod source;
@@ -8,11 +9,11 @@ pub use source::{
 };
 
 use build_declarations::BuildRequest;
-use build_settings::host::bindings::{
-    BuildProductDescription, BuildProductQuery, BuildProviderRequest,
+use build_execution::host::bindings::{
+    BuildProductQuery, BuildProviderRequest,
 };
-use build_settings::host::requests::BuildDependencyPreparation;
-use build_settings::{
+use build_execution::host::requests::BuildDependencyPreparation;
+use build_execution::{
     BuildDependencySelection, BuildSourceResult, CompileFailure, EvaluatedBuild,
     PreparedBuildEvaluation, ProducedBuildProvider, ReturnedBuild, SourceBuildDeclaration,
     TerminalBuildActivation,
@@ -24,11 +25,11 @@ use package_compilation::source_imports::ProductQueryDependency;
 /// The coordinator resolves each request against the services granted to this stage.
 /// The activation checks the answer against its own pending call before execution resumes.
 pub trait PlanningServices {
-    fn describe_product(
+    fn query_dependencies(
         &mut self,
         _activation: &TerminalBuildActivation,
         _request: &BuildProductQuery,
-    ) -> Result<(BuildProductDescription, Vec<BuildDependencySelection>), CompileFailure> {
+    ) -> Result<Vec<ProductQueryDependency>, CompileFailure> {
         Err(vec![Diagnostic::error(
             "Build requested a Product description without a granted query service",
         )]
@@ -68,6 +69,37 @@ pub trait PlanningServices {
 
 impl PlanningServices for () {}
 
+/// A named dependency's original Build has settled against this exact source graph.
+pub struct SettledDependency {
+    evaluated: EvaluatedBuild,
+    source: source::PlanningSource,
+    inputs: PackageCompilationInputs,
+}
+
+impl SettledDependency {
+    pub fn inputs(&self) -> &PackageCompilationInputs {
+        &self.inputs
+    }
+
+    pub fn evaluated(&self) -> &EvaluatedBuild {
+        &self.evaluated
+    }
+
+    pub fn open_product(
+        &self,
+        inputs: PackageCompilationInputs,
+    ) -> Result<PlannedProduct, CompileFailure> {
+        if inputs.source_inputs() != self.inputs.source_inputs() {
+            return Err(refusal(
+                "Product handoffs belong to another acquired source graph".into(),
+            ));
+        }
+        self.source
+            .clone()
+            .open_product(self.evaluated.clone(), Some(&inputs))
+    }
+}
+
 /// A normal return from the same invocation that admitted and checked this Build entry.
 pub struct ReturnedPlanningStage {
     evaluation: PreparedBuildEvaluation,
@@ -78,7 +110,7 @@ pub struct ReturnedPlanningStage {
 impl ReturnedPlanningStage {
     pub fn source_completion_accounting(
         &self,
-    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::compile_time::SourceCompletionAccounting {
         self.evaluation.source_completion_accounting()
     }
 
@@ -124,6 +156,24 @@ impl ReturnedPlanningStage {
         self.source.open_product(evaluated, inputs)
     }
 
+    /// Retain this dependency's deferred Product after the one Build invocation returns.
+    pub fn settle_dependency(
+        mut self,
+        inputs: PackageCompilationInputs,
+    ) -> Result<SettledDependency, CompileFailure> {
+        self.returned
+            .join_preacquired_sources(&inputs)
+            .map_err(refusal)?;
+        let evaluated = self
+            .evaluation
+            .complete_with_sources(self.returned, Some(&inputs))?;
+        Ok(SettledDependency {
+            evaluated,
+            source: self.source,
+            inputs,
+        })
+    }
+
     /// Join the exact acquired sources to the dependency requests that this Build issued.
     pub fn source_result(&mut self) -> Result<BuildSourceResult<'_>, CompileFailure> {
         self.evaluation.source_result(Some(&mut self.returned))
@@ -155,7 +205,7 @@ pub fn interpret(
         let mut activation = host.start().map_err(refusal)?;
         let mut prepared = Vec::new();
         loop {
-            let ran = run(&mut activation, services, &mut prepared);
+            let ran = run(&mut activation, &mut source, services, &mut prepared);
             let spent = activation.helper_evaluation_accounting().clone();
             ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
             if source.stage.is_last() {
@@ -182,13 +232,15 @@ pub fn interpret(
 
 fn run(
     activation: &mut TerminalBuildActivation,
+    source: &mut source::PlanningSource,
     services: &mut impl PlanningServices,
     prepared: &mut Vec<ProductQueryDependency>,
 ) -> Result<(), CompileFailure> {
     loop {
         let step = activation.advance(1024).map_err(refusal)?;
         if let Some(query) = step.awaiting_query {
-            let (description, selections) = services.describe_product(activation, &query)?;
+            let (description, selections) =
+                source.describe_product(activation, &query, prepared, services)?;
             activation
                 .answer_query(&query, description, &selections)
                 .map_err(refusal)?;

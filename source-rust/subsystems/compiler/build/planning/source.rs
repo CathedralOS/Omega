@@ -1,10 +1,14 @@
 //! Prepare and resume Build against one package capture. Its Product roots stay deferred until settlement.
 
 use super::{PlanningServices, refusal};
+
+#[path = "product_queries.rs"]
+mod product_queries;
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
-use build_settings::{
-    BuildEvaluationRequest, BuildStageRequest, CompileFailure, EvaluatedBuild,
-    PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
+use build_execution::{
+    BuildEvaluationRequest, BuildStageRequest, BuildSubjectValidation, CompileFailure,
+    EvaluatedBuild, PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
+    settle_rejoined_build_slice,
 };
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
@@ -12,9 +16,8 @@ use package_compilation::source_assembly::{
 };
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
-use source_compiler::{
-    ResolveAndTypeRequest, SourceContinuation, SourcePreparation, UnmeasuredProduction,
-};
+use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
+use source_compiler::{BuildStageSource, SourceContinuation, SourcePreparation};
 use source_declarations::build_stage::BuildStage;
 use std::{path::Path, sync::Arc};
 use target::TargetProfile;
@@ -37,7 +40,10 @@ pub struct PreparedPlanningStage {
     pub(super) source: PlanningSource,
 }
 
+#[derive(Clone)]
 pub(super) struct PlanningSource {
+    initial: SourceContinuation,
+    query_frontier: Option<(ProductQueryInputs, SourceContinuation)>,
     pub(super) stage: BuildStage,
     pub(super) deferred: DeferredProductSources,
     pub(super) preparation: SourcePreparation,
@@ -50,13 +56,21 @@ pub(super) struct PlanningSource {
 pub struct PlannedProduct {
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
+    pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
     pub(crate) source: AssembledSyntax,
+    pub(super) generated: Option<source_compiler::SourceExtensionRequest>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) preparation: SourcePreparation,
     pub(crate) timings: CompileTimings,
 }
 
 impl PlannedProduct {
+    /// Restrict native and runtime requests to the reviewed Product occurrences of this lock.
+    pub fn with_runtime_consents(mut self, accepted: Vec<TerminalPermissionAcceptance>) -> Self {
+        self.runtime_consents = Some(accepted);
+        self
+    }
+
     pub fn evaluated(&self) -> &EvaluatedBuild {
         &self.evaluated
     }
@@ -69,6 +83,67 @@ impl PlannedProduct {
     pub fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.package_inputs.as_ref()
     }
+    pub fn build_handoff(
+        &self,
+        profile: TargetProfile,
+    ) -> Result<package_compilation::PackageBuildHandoff, CompileFailure> {
+        let inputs = self
+            .package_inputs()
+            .ok_or_else(|| refusal("dependency has no acquired package graph".into()))?;
+        let source = self.source();
+        let subject = package_compilation::derive_package_compilation_subject(
+            source.sources.selected_files(),
+            inputs,
+            &source.generated_source_custody,
+        )?;
+        let build = &self.evaluated.configuration;
+        let handoff = package_compilation::PackageBuildHandoff::from_checked(
+            inputs.root(),
+            inputs.compilation_purpose(),
+            profile,
+            Some(self.build_profile),
+            subject.dependency_closure().clone(),
+            subject.source_consumption_commitment(),
+            build.generated_sources.clone(),
+        );
+        if build.declared_product_selections.is_empty()
+            && build.product_selection_requests.is_empty()
+            && build.native_formations.is_empty()
+            && build.native_binding_requests.is_empty()
+        {
+            return Ok(handoff);
+        }
+        let stage = self.product_stage(&[profile])?;
+        let declarations = source_compiler::package_handoff_declarations(
+            stage.source(),
+            &build.native_formations,
+        )?;
+        let handoff = handoff
+            .with_retained_provider_selections(
+                declarations.providers,
+                build
+                    .observation_summary
+                    .as_ref()
+                    .map(|summary| summary.identity().digest()),
+            )
+            .map_err(|why| refusal(why.to_owned()))?;
+        handoff
+            .with_native_binding_outputs(
+                declarations.native,
+                declarations.intents,
+                build.config.native_binding_evaluation.clone(),
+            )
+            .map_err(refusal)
+    }
+
+    pub fn attribute_diagnostics(&self, rows: &mut [Diagnostic]) {
+        let sources = self
+            .generated
+            .as_ref()
+            .map_or(&self.source.sources, |extension| &extension.sources);
+        package_compilation::attribute_diagnostics(rows, sources, self.package_inputs());
+    }
+
     pub fn preparation(&self) -> &SourcePreparation {
         &self.preparation
     }
@@ -107,7 +182,6 @@ pub fn prepare(
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             execution_purpose: BuildExecutionPurpose::Source,
-            pure_build_compilation: None,
             root_path: request.root,
             typed: source.typed(),
             build_source: assembled.build_source,
@@ -119,11 +193,14 @@ pub fn prepare(
             artifact_only: request.artifact_only,
         },
         &mut timings,
-    )?;
+    )
+    .map_err(|failure| locate_failure(failure, &assembled, inputs))?;
     Ok(PreparedPlanningStage {
         evaluation,
         source: PlanningSource {
             stage,
+            initial: source,
+            query_frontier: None,
             deferred: deferred(assembled)?,
             preparation,
             timings,
@@ -140,22 +217,46 @@ fn resolve(
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
 ) -> Result<(SourceContinuation, BuildStage), CompileFailure> {
+    stage_source(assembled)?
+        .prepare(
+            index,
+            preparation,
+            profile.target_name(),
+            inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
+        )
+        .map_err(|rows| locate_failure(rows.into(), assembled, inputs))
+}
+
+fn locate_failure(
+    mut failure: CompileFailure,
+    source: &AssembledSyntax,
+    inputs: Option<&PackageCompilationInputs>,
+) -> CompileFailure {
+    match &mut failure {
+        CompileFailure::Diagnostics(rows)
+        | CompileFailure::SourceCompletion {
+            diagnostics: rows, ..
+        } => {
+            package_compilation::attribute_diagnostics(rows, &source.sources, inputs);
+        }
+        CompileFailure::BuildConsentRequired { .. } => {}
+    }
+    failure
+}
+
+fn stage_source(assembled: &mut AssembledSyntax) -> Result<BuildStageSource, CompileFailure> {
     let entry = assembled
         .build_source
         .ok_or_else(|| vec![Diagnostic::error("project Build has no source-owned entry")])?;
-    Ok(ResolveAndTypeRequest {
+    Ok(BuildStageSource {
         syntax: std::mem::take(&mut assembled.syntax_trees),
         source_items: std::mem::take(&mut assembled.source_items),
-        root_sources: std::mem::take(&mut assembled.root_sources),
-        frontends: preparation.frontends.clone(),
-        build_helper_identity: profile.target_name(),
+        roots: std::mem::take(&mut assembled.root_sources),
         build_sources: std::mem::take(&mut assembled.build_scope_sources),
-        build_stage: Some((entry.source_id(), index)),
+        entry: entry.source_id(),
         sources: Arc::clone(&assembled.sources),
-        top_level_bindings: std::mem::take(&mut assembled.source_scoped_top_level_bindings),
-        selection_authority: inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
-    }
-    .prepare(&mut UnmeasuredProduction)?)
+        imports: std::mem::take(&mut assembled.source_scoped_top_level_bindings),
+    })
 }
 
 fn deferred(assembled: AssembledSyntax) -> Result<DeferredProductSources, CompileFailure> {
@@ -183,25 +284,7 @@ impl PlanningSource {
                         | build_declarations::BuildRequest::Application(_)
                 )
             }) {
-            let graph = services.declared_source(&previous)?.ok_or_else(|| {
-                refusal("named Build continuation requires its acquired root".into())
-            })?;
-            let declaration = previous.project_declaration().map_err(refusal)?;
-            let name = match &declaration {
-                build_declarations::BuildDeclaration::Package(package) => &package.name,
-                build_declarations::BuildDeclaration::Application(application) => &application.name,
-                build_declarations::BuildDeclaration::Workspace(_) => {
-                    return Err(refusal("workspace has no named Product root".into()));
-                }
-            };
-            if graph.package_name(graph.root()) != Some(name.as_str())
-                || graph.root_role() != declaration.kind()
-            {
-                return Err(refusal(
-                    "continuation source differs from the executed Build declaration".into(),
-                ));
-            }
-            Some(graph)
+            Some(self.named_source(&previous, services)?)
         } else {
             None
         };
@@ -230,18 +313,22 @@ impl PlanningSource {
             )]
             .into());
         }
-        evaluation.continue_stage(
-            BuildStageRequest {
-                source_acquisition: assembled.build_source_acquisition.as_ref(),
-                typed: source.typed(),
-                build_source: assembled.build_source,
-                package_inputs: authority.as_ref(),
-                anonymous_source: assembled.anonymous_owner.as_ref(),
-            },
-            &mut self.timings,
-        )?;
+        evaluation
+            .continue_stage(
+                BuildStageRequest {
+                    source_acquisition: assembled.build_source_acquisition.as_ref(),
+                    typed: source.typed(),
+                    build_source: assembled.build_source,
+                    package_inputs: authority.as_ref(),
+                    anonymous_source: assembled.anonymous_owner.as_ref(),
+                },
+                &mut self.timings,
+            )
+            .map_err(|failure| locate_failure(failure, &assembled, authority.as_ref()))?;
         self.deferred = deferred(assembled)?;
         self.stage = stage;
+        self.initial = source;
+        self.query_frontier = None;
         evaluation
             .execution()
             .ok_or_else(|| {
@@ -253,9 +340,38 @@ impl PlanningSource {
             .map_err(Into::into)
     }
 
+    fn named_source(
+        &self,
+        activation: &TerminalBuildActivation,
+        services: &mut impl PlanningServices,
+    ) -> Result<PackageCompilationInputs, CompileFailure> {
+        let graph = match &self.original {
+            Some(original) => original.clone(),
+            None => services
+                .declared_source(activation)?
+                .ok_or_else(|| refusal("named Build requires its acquired root".into()))?,
+        };
+        let declaration = activation.project_declaration().map_err(refusal)?;
+        let name = match &declaration {
+            build_declarations::BuildDeclaration::Package(package) => &package.name,
+            build_declarations::BuildDeclaration::Application(application) => &application.name,
+            build_declarations::BuildDeclaration::Workspace(_) => {
+                return Err(refusal("workspace has no named Product root".into()));
+            }
+        };
+        if graph.package_name(graph.root()) != Some(name.as_str())
+            || graph.root_role() != declaration.kind()
+        {
+            return Err(refusal(
+                "acquired source differs from the executed Build declaration".into(),
+            ));
+        }
+        Ok(graph)
+    }
+
     pub(super) fn open_product(
         mut self,
-        evaluated: EvaluatedBuild,
+        mut evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<PlannedProduct, CompileFailure> {
         let source = self
@@ -272,9 +388,77 @@ impl PlanningSource {
                 )
             })?
             .1;
+        if evaluated.subject_validation == BuildSubjectValidation::AwaitingOwner
+            || !evaluated.constants.read.is_empty()
+            || evaluated.constants.folded_under_providers
+        {
+            let authority = inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>);
+            let frontier = stage_source(&mut source.clone())?.prepare_product_query(
+                &self.preparation,
+                self.profile.target_name(),
+                authority,
+            )?;
+            let declaration = evaluated
+                .configuration
+                .selected_build_declaration
+                .as_ref()
+                .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
+            let entry = source_compiler::source_state::source_subjects::rejoin_build_activation(
+                frontier.typed(),
+                inputs.map(|inputs| inputs.root()),
+                declaration,
+            )
+            .map_err(|reason| refusal(reason.to_owned()))?;
+            let spent = settle_rejoined_build_slice(
+                &evaluated.constants,
+                frontier.typed(),
+                entry,
+                inputs,
+                source.anonymous_owner.as_ref(),
+                evaluated.subject_validation,
+                &mut self.timings,
+            )?;
+            evaluated.source_completion_accounting.append(spent);
+        }
+        let generated = if evaluated.configuration.generated_sources.is_empty() {
+            None
+        } else {
+            let inputs = inputs.ok_or_else(|| {
+                refusal(
+                    "generated-source final compilation requires package-aware source custody"
+                        .to_owned(),
+                )
+            })?;
+            let root = inputs.package_root(inputs.root()).ok_or_else(|| {
+                refusal("generated-source handoff has no acquired package root".to_owned())
+            })?;
+            let extension = package_compilation::source_imports::admit_generated_extension(
+                &source.sources,
+                root,
+                Some(inputs.root()),
+                &evaluated.configuration.generated_sources,
+                &mut *self.preparation.catalogue()?,
+            )?;
+            let first_source = extension
+                .custody()
+                .first()
+                .map(|(source, _)| *source)
+                .ok_or_else(|| {
+                    refusal("generated-source handoff has no selected source".to_owned())
+                })?;
+            let (sources, units) = extension.source_input(&source.sources)?;
+            Some(source_compiler::SourceExtensionRequest {
+                sources,
+                units,
+                first_source,
+                selection_authority: Arc::new(inputs.clone()),
+            })
+        };
         Ok(PlannedProduct {
+            generated,
             evaluated,
             build_profile: self.profile,
+            runtime_consents: None,
             source,
             package_inputs: inputs.cloned(),
             preparation: self.preparation,

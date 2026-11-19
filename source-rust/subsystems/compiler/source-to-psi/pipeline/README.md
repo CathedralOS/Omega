@@ -3,23 +3,25 @@
 Psi has eight stage directories, from file lexing through publication. The
 lexer, parser, resolver, type checker, typed preparation and lowering each
 have a Cargo entry point. The source compilation coordinator owns the
-resolution and typing loop for deferred bodies. [Connected program route](../../../pipeline.md#connected-program-route)
+resolution and typing loop for deferred bodies. [Source driver](../source_to_psi.rs)
 
 ## Follow the compilation route
 
 | Operation | Input and output |
 | --- | --- |
 | [Lex and parse one file](01_tokens-to-syntax-trees/streaming.rs) | The [lexer](00_source-files-to-tokens/lexer.rs) produces tokens. The [parser](01_tokens-to-syntax-trees/parser.rs) consumes that file's tokens and returns a syntax page before the worker reuses its scratch space. |
-| [Resolve names](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) | Syntax pages become source-owned [resolved trees](representations/symbol-resolved-trees/src/lib.rs). |
-| [Type declarations and bodies](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | The resolved program becomes [typed source](representations/typed-trees/src/lib.rs). |
-| [Prepare typed source](04_typed-trees-to-typed-trees/src/driver.rs) | Preparation and [evaluation](../evaluation/source/README.md) complete the requested work and freeze its input to lowering. |
-| [Lower to Terminal](05_typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../language/terminal-psi/check-tables/src/compilation.rs), including demanded generic bodies and witnesses. |
+| [Resolve names](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) | Syntax pages become source-owned [resolved trees](../representations/symbol-resolved-trees/src/lib.rs). |
+| [Type declarations and bodies](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | The resolved program becomes [typed source](../representations/typed-trees/src/lib.rs). |
+| [Prepare typed source](04_typed-trees-to-typed-trees/src/driver.rs) | Preparation and [evaluation](../compile_time.rs) complete the requested work and freeze its input to lowering. |
+| [Lower to Terminal](05_typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../representations/lowered-program/src/compilation.rs), including demanded generic bodies and witnesses. |
 | [Check the program](06_lowered-program-to-checked-program/src/verdict.rs) | The checker issues its verdict and evidence over the lowered input. The [accepted-source factory](07_checked-program-to-psi/src/accepted.rs) binds that judgment to its source. |
-| [Close logical provider demand](07_checked-program-to-psi/src/provider_supply/mod.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [Portable publication](../../build/package-compilation/psi-publication/src/lib.rs) carries those choices to native planning. |
+| [Close logical provider demand](07_checked-program-to-psi/src/provider_supply/mod.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [The source compiler](../source_to_psi.rs) binds those choices to the published artifact and deployment for [native admission](../../psi-to-native/target_inputs/published_application.rs). |
+
+The [Product driver](../product.rs) coordinates the numbered stages. Its [constant evaluation](../compile_time/constants.rs) and [call evaluation](../compile_time/calls.rs) answer requests from source preparation and return to the waiting stage.
 
 The Psi 03 trace identifies typing. The following
 notes describe these operations and their semantic contracts. Fixture names starting with `pass/` or `fail/` without a
-`tests/fixtures/` path refer to the [former corpus](../../../../tests/README.md#the-former-corpus).
+`tests/fixtures/` path refer to the [former corpus](../../../../../tests/README.md#the-former-corpus).
 
 ## Lexing and parsing
 
@@ -31,7 +33,7 @@ patterns in order, and passes only the chosen arm's result on to the
 surrounding expression. Source replay separately checks the exact arms and
 coverage; it cannot treat whatever arm is last as a default.
 
-The [dispatch contract](../../../../wiki/spec/language/patterns.md) is broader than
+The [dispatch contract](../../../../../wiki/spec/language/patterns.md) is broader than
 the current implementation. Wildcards and complete Boolean value alternatives
 close coverage. Runtime scalar lowering currently supports Boolean/integer
 subjects and Boolean/integer/float results, plus f32/f64 subjects through the
@@ -123,7 +125,7 @@ pattern equality uses the existing comparison and branch machinery.
 `omega --check tests/fixtures/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.
 This is a legacy signature-plus-satisfier fixture, not the settled direct supply
-model. [Declaration-owned machine bodies](../../../../wiki/spec/language/expressions.md#executable-supply)
+model. [Declaration-owned machine bodies](../../../../../wiki/spec/language/expressions.md#executable-supply)
 are now specified; parser/corpus migration and executable association remain
 unfinished under `OPERATOR-MACHINE-SUPPLY` in `TASKS.md`. Rewrite the fixture into
 a test-owned operator family rather than retaining its unauthorized primitive
@@ -204,7 +206,7 @@ and the current language specification must agree.
 
 ## Value-generic staging
 
-The settled [value-binder contract](../../../../wiki/spec/language/generics.md#value-binders-and-const-requirements)
+The settled [value-binder contract](../../../../../wiki/spec/language/generics.md#value-binders-and-const-requirements)
 separates `Count: u32`, which may be a runtime value, from the static
 `const Count: u32`. Machine signatures already have distinct binder kinds,
 exact substitution of runtime subjects, and ordinary operand lowering with
@@ -217,9 +219,9 @@ resolution, parameter modes, contract dependencies and result identity survive
 Terminal and artifact replay. The remaining work, contract and
 domain-qualification support and uses that determine layout, still rejects and
 stays under `RUNTIME-VALUE-GENERICS` on the
-[execution board](../../../../TASKS.md).
+[execution board](../../../../../TASKS.md).
 
-The [structural type-equation rules](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
+The [structural type-equation rules](../../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
 require inference from exact type/domain applications and their explicit argument
 structure. Matching a declared domain application can determine its index;
 proving a scalar bound cannot invent a generic capacity or recover a missing
@@ -230,7 +232,7 @@ retain their ordinary implicit proof facts without creating new type structure.
 The current compiler and `declared_range_endpoint_inference` fixtures still use
 scalar range annotations and range-shell inference pending canonical migration.
 Their migration is tracked by `CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the
-[board](../../../../TASKS.md).
+[board](../../../../../TASKS.md).
 That implementation is not the accepted structural inference contract, and
 passing tests do not show the replacement syntax works.
 
@@ -293,9 +295,9 @@ Preserve unsupported rejections until the corresponding representation and
 evidence are complete.
 
 `FINITE-GENERIC-DISPATCH` implements the
-[explicit family contract](../../../../wiki/spec/language/generics.md#finite-specialization-boundary)
-and [runtime callable rows](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
-The legacy implementation pending [machine values and some migration](../../../../wiki/drafts/designs/machine_values_some.md)
+[explicit family contract](../../../../../wiki/spec/language/generics.md#finite-specialization-boundary)
+and [runtime callable rows](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
+The legacy implementation pending [machine values and some migration](../../../../../wiki/drafts/designs/machine_values_some.md)
 lowers runtime selection through instantiated selector slots
 (`04_typed-trees-to-typed-trees/src/monomorphization/dynamic_slots.rs`), but a
 finite-family selector call keeps its requirement target and declines, so tuple
@@ -328,7 +330,7 @@ complete constructor occurrence span and the case identifier span. The same
 source-aware selection serves direct structural indices, so equal canonical
 values retain each authored occurrence without bypassing package visibility or
 direct-dependency authority. This follows the
-[construction contract](../../../../wiki/spec/language/data_and_literals.md#construction-and-case-identity)
+[construction contract](../../../../../wiki/spec/language/data_and_literals.md#construction-and-case-identity)
 and uses ordinary namespace resolution rather than a separate constructor scope.
 Payload-free qualified case values, including package-qualified paths, normalize to
 the same resolved constructor after lexical value bindings have been selected.
@@ -354,7 +356,7 @@ selection and independently executable artifacts; nominal aggregate body uses
 have checked-source coverage. Constant substitution
 uses exact module/package selection after lexical name assignment and retains
 the selected declaration at the original use. The rest of the
-[module/name contract](../../../../wiki/spec/language/modules.md) rides the same
+[module/name contract](../../../../../wiki/spec/language/modules.md) rides the same
 law: indexed domain constraints, operator homes and qualified case membership
 in declared-domain proof facts all select through it (`module_machine_indices`
 probes and the `module_normalization` tests pin the boundaries).
@@ -487,7 +489,7 @@ and case selection occurrences.
 This does not establish native Boolean membership of a newly constructed case.
 The checked operation sequence still needs intermediate case construction and an
 observing structural membership result; see `STATE-LOCAL-VALUE-FRONTIER` on the
-[execution board](../../../../TASKS.md). Returning a constructed case or replacing
+[execution board](../../../../../TASKS.md). Returning a constructed case or replacing
 membership with a consuming dispatch is not that acceptance.
 Later source extensions reuse the selected declaration's detached resolved
 initializer. This keeps constructor selection in the declaring source and
@@ -593,7 +595,7 @@ Closed ordinary integer/Boolean machine calls also evaluate in these leaves;
 scalar `f32`/`f64` declarations additionally support ordinary nested helper calls
 and Boolean-selected results while preserving format and exact bits. These
 floating values remain ineligible as generic/domain indices. The
-[initializer admission owner](../evaluation/source/README.md#admission-and-implementation-limits)
+[initializer admission owner](../compile_time/constants/initializers.rs)
 checks concrete crash discharge before execution and repeats it during receiving
 replay. Closed type- and const-generic helper applications use ordinary checked
 specialization, including nested calls with integer, Boolean and floating results.
@@ -682,7 +684,7 @@ rejects undefined rational values even in unselected comparisons; typed operands
 still require ordinary peer landing. The former two-file
 `pass/modules/rational_boolean_indices` fixture covered fractional and decimal comparisons with their canonical Boolean results.
 Scalar `match` indices retain their complete source trees for the
-[typed evaluation owner](../evaluation/source/README.md), including
+[typed evaluation owner](../compile_time.rs), including
 coverage and unselected-arm admission. The former
 `pass/modules/match_constant_indices` fixture was their source check.
 Open templates, machine-computed nominal aggregate indices, constrained destinations, authored operators
@@ -695,16 +697,16 @@ Import loading still uses source-path candidates, including enclosing prefixes
 for a module's declarations; it does
 not scan or parse a package-wide source inventory to discover arbitrary files.
 
-The settled [foreign-domain import contract](../../../../wiki/spec/language/modules.md#import-scope-and-exposure)
+The settled [foreign-domain import contract](../../../../../wiki/spec/language/modules.md#import-scope-and-exposure)
 requires file-local broad/narrow exposure, no transitive activation, and exact
 declaring-owner-first attached paths. Loading a source cannot expose its sibling
 domains. The current module-domain fence remains until namespace-aware operator
 homes and declaration selection preserve those identities. The
-[establishment contract](../../../../wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
+[establishment contract](../../../../../wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
 also admits exact machine targets; current requirement-only route normalization
 needs a distinct exact-machine identity, not a conversion to a selected satisfier.
 `MODULE-NAMESPACE-RESOLUTION` and `DOMAIN-ISSUER-ROUTES` on the
-[execution board](../../../../TASKS.md) track this work, not an unresolved owner decision.
+[execution board](../../../../../TASKS.md) track this work, not an unresolved owner decision.
 
 The former corpus held focused source and Terminal probes for these rules,
 under `pass/modules/`: `qualified_declarations` and `qualified_constants` (both
@@ -728,7 +730,7 @@ Each rewritten application retains its original base/arguments at the exact use.
 Copies remap these origins; they are not new authored declarations or roots.
 Cloned attached methods retain the exact authored template and closed owner.
 Missing or ambiguous templates cannot acquire derivation custody.
-[Build-time evaluation](../evaluation/source/README.md) owns the
+[Build-time evaluation](../compile_time.rs) owns the
 single-use pre/post-typing continuation and its ordered const/layout/wire work;
 orchestration cannot recombine its retained rows or exchange its authority.
 

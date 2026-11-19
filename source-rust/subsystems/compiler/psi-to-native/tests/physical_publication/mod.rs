@@ -23,7 +23,7 @@ mod callback;
 mod code_layout;
 
 fn check_missing_framed_reference(
-    physical: &crate::pipeline::realization::physical_body::PreparedPhysicalBody,
+    physical: &crate::compile_body::PreparedPhysicalBody,
     callback: function_identity::MachineFunctionIdentity,
 ) {
     let admitted = physical_program::NativeBodyFacts::retain_selected_body_facts(
@@ -51,7 +51,7 @@ fn emit_body<'execution>(
     retain_native_stage_inputs: bool,
     inspect_target: impl FnOnce(&target_lowering::NativeBodyPlan),
 ) -> (
-    crate::pipeline::realization::physical_body::BodyObject,
+    crate::compile_body::BodyObject,
     provider_admission::AdmittedNativeProviders<'execution>,
 ) {
     emit_body_inspecting_physical(admitted, retain_native_stage_inputs, inspect_target, |_| {})
@@ -61,17 +61,17 @@ fn emit_body_inspecting_physical<'execution>(
     mut admitted: artifact_lowering::AdmittedNativeRealization<'execution>,
     retain_native_stage_inputs: bool,
     inspect_target: impl FnOnce(&target_lowering::NativeBodyPlan),
-    inspect_physical: impl FnOnce(&crate::pipeline::realization::physical_body::PreparedPhysicalBody),
+    inspect_physical: impl FnOnce(&crate::compile_body::PreparedPhysicalBody),
 ) -> (
-    crate::pipeline::realization::physical_body::BodyObject,
+    crate::compile_body::BodyObject,
     provider_admission::AdmittedNativeProviders<'execution>,
 ) {
     let profile = target::TargetProfile::WindowsX64;
-    let observation = crate::pipeline::observations::NativePipelineObservation::new(
+    let observation = crate::observations::NativePipelineObservation::new(
         profile,
-        crate::pipeline::observations::NativePipelineUnit::Application,
+        crate::observations::NativePipelineUnit::Application,
     );
-    let mut target = crate::pipeline::realization::lower_body::plan_native_body(
+    let mut target = crate::compile_body::plan_native_body(
         admitted.input,
         target_lowering::OptimizedTargetLoweringRequest {
             target: profile.native_target(),
@@ -80,16 +80,16 @@ fn emit_body_inspecting_physical<'execution>(
         },
         &optimization_core::PostTerminalOptimizationSelections::default(),
         optimization_core::OptimizationWorkBudget::new(10000, 10000, 10000, 10000, 10000).unwrap(),
-        observation.native_body(),
+        &observation,
         true, // This fixture independently inspects the optimized input.
     )
     .unwrap_or_else(|error| match error {
-        crate::pipeline::realization::lower_body::NativeBodyPlanningError::AbstractOptimization(
+        crate::compile_body::NativeBodyPlanningError::AbstractOptimization(
             error,
         ) => {
             panic!("constant optimization: {error:?}")
         }
-        crate::pipeline::realization::lower_body::NativeBodyPlanningError::Target(error) => {
+        crate::compile_body::NativeBodyPlanningError::Target(error) => {
             panic!("constant target lowering: {error:?}")
         }
     });
@@ -97,20 +97,20 @@ fn emit_body_inspecting_physical<'execution>(
     if !retain_native_stage_inputs {
         target.release_original_for_audit();
     }
-    let physical = crate::pipeline::realization::physical_body::prepare_physical_body(
+    let physical = crate::compile_body::prepare_physical_body(
         target,
         None,
         Vec::new(),
         &observation,
     )
     .unwrap_or_else(|error| match error {
-        crate::pipeline::realization::physical_body::BodyEmissionError::Physical(error) => {
+        crate::compile_body::BodyEmissionError::Physical(error) => {
             panic!("constant emission: {error}")
         }
-        crate::pipeline::realization::physical_body::BodyEmissionError::Installation(error) => {
+        crate::compile_body::BodyEmissionError::Installation(error) => {
             panic!("constant installation: {error}")
         }
-        crate::pipeline::realization::physical_body::BodyEmissionError::Object(errors) => {
+        crate::compile_body::BodyEmissionError::Object(errors) => {
             panic!("constant object: {errors:?}")
         }
     });
@@ -161,13 +161,13 @@ fn emit_body_inspecting_physical<'execution>(
         machine_code::TargetFrameLayoutIdentity::from_bytes(other_frame),
     ));
     let audit_frame = retain_native_stage_inputs.then(|| bound.stage.program().frame.frame.clone());
-    let (original, projection) = crate::pipeline::realization::physical_body::encode_physical_body(
+    let (original, projection) = crate::compile_body::encode_physical_body(
         bound,
         &observation,
     )
     .and_then(|encoded| {
         let original = encoded.original_encoding_weak();
-        let body = crate::pipeline::realization::physical_body::layout_encoded_body(
+        let body = crate::compile_body::layout_encoded_body(
             encoded,
             &observation,
         )?;
@@ -176,17 +176,17 @@ fn emit_body_inspecting_physical<'execution>(
             retain_native_stage_inputs,
             "ordinary placement releases the encoded instruction program before building an object"
         );
-        let projection = crate::pipeline::realization::physical_body::construct_body_object(body)?;
+        let projection = crate::compile_body::construct_body_object(body)?;
         Ok((original, projection))
     })
     .unwrap_or_else(|error| match error {
-        crate::pipeline::realization::physical_body::BodyEmissionError::Physical(error) => {
+        crate::compile_body::BodyEmissionError::Physical(error) => {
             panic!("constant encoding: {error}")
         }
-        crate::pipeline::realization::physical_body::BodyEmissionError::Installation(error) => {
+        crate::compile_body::BodyEmissionError::Installation(error) => {
             panic!("constant installation: {error}")
         }
-        crate::pipeline::realization::physical_body::BodyEmissionError::Object(errors) => {
+        crate::compile_body::BodyEmissionError::Object(errors) => {
             panic!("constant publication: {errors:?}")
         }
     });
@@ -977,7 +977,7 @@ fn check_canonical_publication(
         runtime_input.boundary_machines(),
         admitted.input.plan().boundary_machines.as_slice(),
     ));
-    let runtime_host = crate::pipeline::realization::runtime_provisions::plan_host_provisions(
+    let runtime_host = crate::runtime_provisions::plan_host_provisions(
         admitted
             .providers
             .installation
@@ -987,7 +987,7 @@ fn check_canonical_publication(
         runtime_input,
         &selected,
         &[],
-        crate::pipeline::realization::runtime_provisions::NativeBindingRuntimeInputs {
+        crate::runtime_provisions::NativeBindingRuntimeInputs {
             bindings: &Default::default(),
             calling: &[],
         },
@@ -1022,7 +1022,7 @@ fn check_canonical_publication(
         assert!(target.private_references().is_empty());
         inspect_target(target, bootstrap_entry);
     });
-    let crate::pipeline::realization::physical_body::BodyObject {
+    let crate::compile_body::BodyObject {
         projection,
         originals,
     } = projection;

@@ -2,12 +2,10 @@
 
 #![forbid(unsafe_code)]
 
-/// Fingerprint of this compiler's sources, toolchain, target, and build profile.
-pub const fn compiler_identity() -> [u8; 32] {
-    *include_bytes!(concat!(env!("OUT_DIR"), "/compiler-identity.bin"))
-}
+pub use compiler_identity::compiler_identity;
 
 mod request_outcome;
+mod runtime_consent;
 pub use request_outcome::CompilerRequestOutcome;
 
 use diagnostics::Diagnostic;
@@ -16,11 +14,11 @@ use psi_authorization::{
 };
 
 pub use native_compiler::{
-    NativeApplicationSettings, SavedProgramTarget as NativeTarget, TargetProviderInstallation,
-    SourceNativeTarget, stage_validators,
+    NativeApplicationSettings, SavedProgramTarget as NativeTarget, SourceNativeTarget,
+    TargetProviderInstallation, stage_validators,
 };
 use source_compiler as source_to_psi;
-pub use source_compiler::{PublishedPsi, StageSource};
+pub use source_compiler::{PublishedPsi, StageSource, check, inspect};
 
 pub enum CompileRequest<'a> {
     Psi(StageSource<'a>),
@@ -41,6 +39,14 @@ pub enum Program<'a> {
     Source {
         source: StageSource<'a>,
         target: SourceNativeTarget<'a>,
+        runtime_consent:
+            Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+    },
+    CheckedSource {
+        publication: source_compiler::PublishedTargetProgram,
+        runtime_consent:
+            Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+        target: SourceNativeTarget<'a>,
     },
     Psi {
         program: AuthorizedTerminalArtifact,
@@ -55,14 +61,23 @@ pub enum Artifact {
 }
 
 pub fn compile(request: CompileRequest<'_>) -> Result<Artifact, Vec<Diagnostic>> {
+    compile_reporting(request, None)
+}
+
+fn compile_reporting(
+    request: CompileRequest<'_>,
+    advisories: Option<&mut Vec<Diagnostic>>,
+) -> Result<Artifact, Vec<Diagnostic>> {
     match request {
-        CompileRequest::Psi(source) => source_to_psi::compile(source).map(Artifact::Psi),
+        CompileRequest::Psi(source) => {
+            source_to_psi::compile_reporting(source, advisories).map(Artifact::Psi)
+        }
         CompileRequest::Runtime {
             program,
             entry_memory,
         } => {
             let admitted = program
-                .prepare()?
+                .prepare(advisories)?
                 .admit_runtime(entry_memory, &mut Vec::new())?;
             Ok(Artifact::Runtime(
                 product_publication::CompletedProduct::from_runtime(admitted, None),
@@ -73,7 +88,7 @@ pub fn compile(request: CompileRequest<'_>) -> Result<Artifact, Vec<Diagnostic>>
             entry_memory,
         } => {
             let application = program.application().clone();
-            let image = program.prepare()?.emit(entry_memory)?;
+            let image = program.prepare(advisories)?.emit(entry_memory)?;
             Ok(Artifact::Native(
                 product_publication::CompletedProduct::from_native(image, None, application),
             ))
@@ -90,6 +105,18 @@ pub fn compile_with_validators(
     (Artifact, Vec<stage_validators::StageValidationRow>),
     stage_validators::NativeValidationError,
 > {
+    compile_with_observations(request, validators, None)
+}
+
+/// Collect the accepted source judgment's advisories during this compilation.
+pub fn compile_with_observations(
+    request: CompileRequest<'_>,
+    validators: &stage_validators::StageValidatorRequest,
+    advisories: Option<&mut Vec<Diagnostic>>,
+) -> Result<
+    (Artifact, Vec<stage_validators::StageValidationRow>),
+    stage_validators::NativeValidationError,
+> {
     use stage_validators::NativeValidationError;
 
     let rows = match request {
@@ -99,7 +126,7 @@ pub fn compile_with_validators(
         } => {
             let application = program.application().clone();
             let (image, rows) = program
-                .prepare()?
+                .prepare(advisories)?
                 .emit_with_validators(entry_memory, validators)?;
             let product =
                 product_publication::CompletedProduct::from_native(image, None, application);
@@ -114,7 +141,8 @@ pub fn compile_with_validators(
             |_| "runtime admission stops before target lowering",
         )?,
     };
-    let product = compile(request).map_err(NativeValidationError::Compilation)?;
+    let product =
+        compile_reporting(request, advisories).map_err(NativeValidationError::Compilation)?;
     Ok((product, rows))
 }
 
@@ -122,30 +150,80 @@ impl Program<'_> {
     fn profile(&self) -> target::TargetProfile {
         match self {
             Self::Psi { target, .. } => target.profile,
-            Self::Source { target, .. } => target.profile,
+            Self::Source { target, .. } | Self::CheckedSource { target, .. } => target.profile,
         }
     }
 
     fn application(&self) -> &target::NativeApplicationMetadata {
         match self {
             Self::Psi { target, .. } => &target.application,
-            Self::Source { target, .. } => &target.settings.application,
+            Self::Source { target, .. } | Self::CheckedSource { target, .. } => {
+                &target.settings.application
+            }
         }
     }
 
-    fn prepare(self) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
+    fn prepare(
+        self,
+        advisories: Option<&mut Vec<Diagnostic>>,
+    ) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
         match self {
             Self::Psi { program, target } => {
                 native_compiler::prepare_saved_program(program, target)
             }
-            Self::Source { source, target } => {
-                let publication =
-                    source_to_psi::compile_for_target(source, target.profile.target_name())?;
+            Self::Source {
+                source,
+                target,
+                runtime_consent,
+            } => {
+                let publication = source_to_psi::compile_for_target_reporting(
+                    source,
+                    target.profile.target_name(),
+                    advisories,
+                )?;
+                Self::CheckedSource {
+                    publication,
+                    target,
+                    runtime_consent,
+                }
+                .prepare(None)
+            }
+            Self::CheckedSource {
+                publication,
+                target,
+                runtime_consent,
+            } => {
+                let subject = publication.subject();
+                let consent = runtime_consent
+                    .map(|accepted| {
+                        let declarations = publication.runtime_permission_declarations()?;
+                        Ok::<_, Vec<Diagnostic>>((
+                            accepted,
+                            declarations,
+                            target.semantic_bindings.clone(),
+                        ))
+                    })
+                    .transpose()?;
                 let (artifact, providers, exclusions) = publication.into_parts();
                 let producer = HostProducerTrust::accept("current compiler invocation");
                 let authorized = authorize_terminal_artifact(artifact, Some(&producer))
                     .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-                native_compiler::prepare_source_program(authorized, providers, &exclusions, target)
+                let program = native_compiler::prepare_source_program(
+                    authorized,
+                    providers,
+                    &exclusions,
+                    target,
+                )?;
+                if let Some((accepted, declarations, bindings)) = consent {
+                    runtime_consent::compare(
+                        accepted,
+                        subject,
+                        &program,
+                        &bindings,
+                        &declarations,
+                    )?;
+                }
+                Ok(program)
             }
         }
     }

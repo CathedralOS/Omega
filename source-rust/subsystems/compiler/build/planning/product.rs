@@ -5,20 +5,22 @@ use build_declarations::BuildDeclaration;
 use compiler::{NativeApplicationSettings, Program, SourceNativeTarget, StageSource};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
+use optimization_requests::{OptimizationRollback, OptimizationRollbackReceipt};
 use package_compilation::PackageDependencyClosure;
 use semantic_vocabulary::source_selections::ProductTarget;
-use source_compiler::evaluation::BuildTimeSelectionAuthority;
-use source_compiler::evaluation::provider_declarations::RetainedProviderSelection;
-use source_compiler::product_source::{
+use source_compiler::compile_time::BuildTimeSelectionAuthority;
+use source_compiler::product::provider_declarations::RetainedProviderSelection;
+use source_compiler::product::{
     NativeBindingInputs, PackageNativeBindings, ProductPolicyInputs, ProductSourceInputs,
 };
-use source_compiler::source_targets::SourceTarget;
+use source_compiler::product::source_targets::SourceTarget;
 use std::sync::Arc;
 use target::TargetProfile;
 
 /// The receiving declarations and deployment choices for one completed project Build.
 pub struct ProductStage<'a> {
-    product: &'a PlannedProduct,
+    pub(super) product: &'a PlannedProduct,
+    rollback: Option<OptimizationRollbackReceipt>,
     targets: Vec<SourceTarget>,
     deployments: Vec<&'static str>,
     build_host: ProductTarget,
@@ -48,6 +50,7 @@ impl PlannedProduct {
         })?;
         Ok(ProductStage {
             product: self,
+            rollback: None,
             targets: package_compilation::source_imports::source_targets(packages),
             deployments: deployments
                 .iter()
@@ -62,6 +65,35 @@ impl PlannedProduct {
 }
 
 impl ProductStage<'_> {
+    pub fn apply_rollback(
+        &mut self,
+        request: &OptimizationRollback,
+    ) -> Option<OptimizationRollbackReceipt> {
+        self.rollback = request.reconcile(
+            &self
+                .product
+                .evaluated()
+                .configuration
+                .config
+                .settings
+                .optimizations,
+        );
+        self.rollback.clone()
+    }
+
+    pub fn artifact_only(&self) -> bool {
+        matches!(&self.product.evaluated().configuration.project_declaration,
+            Some(BuildDeclaration::Application(application)) if application.artifact_only)
+    }
+
+    pub fn produce_build_provider(
+        self,
+        profile: TargetProfile,
+        declaration_path: &str,
+    ) -> Result<source_compiler::ProducedBuildProvider, Vec<Diagnostic>> {
+        self.source().produce_build_provider(profile.target_name(), declaration_path)
+    }
+
     pub fn source(&self) -> StageSource<'_> {
         let source = self.product.source();
         let build = &self.product.evaluated().configuration;
@@ -73,6 +105,7 @@ impl ProductStage<'_> {
             build_host: self.build_host,
             build_accounting: Some(&self.product.evaluated().source_completion_accounting),
             selections: ProductSourceInputs {
+                generated: self.product.generated.clone(),
                 targets: &self.targets,
                 calling_targets: &self.deployments,
                 subject: self.scope.as_ref().map(|scope| scope.root()),
@@ -93,10 +126,12 @@ impl ProductStage<'_> {
                     .scope
                     .as_ref()
                     .map(|scope| Arc::clone(scope) as Arc<dyn BuildTimeSelectionAuthority>),
-                optimizations: build
-                    .config
-                    .settings
-                    .optimizations
+                optimizations: self
+                    .rollback
+                    .as_ref()
+                    .map_or(&build.config.settings.optimizations, |receipt| {
+                        receipt.effective()
+                    })
                     .project_psi()
                     .selections()
                     .clone(),
@@ -110,6 +145,40 @@ impl ProductStage<'_> {
         profile: TargetProfile,
         installation_assumptions: Vec<InstallationEnvironmentAssumption>,
     ) -> Result<Program<'_>, Vec<Diagnostic>> {
+        Ok(Program::Source {
+            source: self.source(),
+            runtime_consent: self.runtime_consent(profile)?,
+            target: self.native_target(profile, installation_assumptions)?,
+        })
+    }
+
+    pub(super) fn runtime_consent(
+        &self,
+        profile: TargetProfile,
+    ) -> Result<Option<&review_evidence::permission_acceptance::TerminalPermissionAcceptance>, Vec<Diagnostic>> {
+        self
+            .product
+            .runtime_consents
+            .as_ref()
+            .map(|consents| {
+                consents
+                    .iter()
+                    .find(|consent| consent.target == profile)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "the locked Product has no accepted runtime policy for {}",
+                            profile.target_name()
+                        ))]
+                    })
+            })
+            .transpose()
+    }
+
+    pub(super) fn native_target(
+        &self,
+        profile: TargetProfile,
+        installation_assumptions: Vec<InstallationEnvironmentAssumption>,
+    ) -> Result<SourceNativeTarget<'_>, Vec<Diagnostic>> {
         let build = &self.product.evaluated().configuration;
         let settings = &build.config.settings;
         let name = match build.project_declaration.as_ref() {
@@ -118,7 +187,7 @@ impl ProductStage<'_> {
             }
             _ => None,
         };
-        let target = SourceNativeTarget {
+        Ok(SourceNativeTarget {
             profile,
             settings: NativeApplicationSettings {
                 application: target::NativeApplicationMetadata {
@@ -128,7 +197,10 @@ impl ProductStage<'_> {
                     subsystem: settings.subsystem,
                     elf_interpreter: settings.elf_interpreters.effective(profile),
                 },
-                optimizations: &settings.optimizations,
+                optimizations: self
+                    .rollback
+                    .as_ref()
+                    .map_or(&settings.optimizations, |receipt| receipt.effective()),
                 x86_scalar_fma_provider: settings
                     .x86_deployment_claim
                     .admit_for(Some(profile))
@@ -145,10 +217,6 @@ impl ProductStage<'_> {
                 .flat_map(|inputs| inputs.accepted_semantic_bindings().cloned())
                 .collect(),
             installation_assumptions,
-        };
-        Ok(Program::Source {
-            source: self.source(),
-            target,
         })
     }
 }

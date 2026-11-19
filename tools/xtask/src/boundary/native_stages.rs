@@ -1,6 +1,6 @@
 //! Production readers of the numbered native pipeline. Each exception is one
 //! Cargo package consuming one named API. Nested packages have their own identity.
-use super::linear_pipeline::STAGES;
+use super::linear_pipeline::NATIVE_STAGES;
 use super::{Allowance, Rule, under};
 
 macro_rules! native {
@@ -11,44 +11,22 @@ macro_rules! native {
 
 pub(super) const DRIVER: &str = native!("");
 const HOST_PROVIDERS: &str = native!("/pipeline/00_psi-to-admitted-native-inputs/host-providers");
-const DEMAND: &str = native!("/pipeline/00_psi-to-admitted-native-inputs/provider-demand");
-const ENTRY: &str =
-    native!("/pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts");
-const ENTRY_PLANNING: &str =
-    native!("/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning");
-const VERIFIED_INPUT: &str =
-    native!("/pipeline/representations/abstract-operations/verified-optimization-input");
 const ANALYSES: &str =
     native!("/pipeline/06_selected-instructions-to-selected-instructions/analyses");
-const ENCODING: &str = native!("/pipeline/representations/machine-code/encoding-admission");
+const ENCODING: &str = native!("/representations/machine-code/encoding-admission");
 const AARCH64: &str =
     native!("/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64");
 const X86: &str = native!("/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64");
 pub(super) const IMAGE_EMISSION: &str = native!("/pipeline/16_objects-to-image/image-emission");
 pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/16_objects-to-image/native-artifact");
-pub(super) const OBJECT_REPLAY: &str = native!("/replay/published-objects");
-const PSI_PUBLICATION: &str =
-    "source-rust/subsystems/compiler/build/package-compilation/psi-publication";
+pub(super) const OBJECT_REPLAY: &str = native!("/verification/published-objects");
 pub(super) const PRODUCT_PUBLICATION: &str =
     "source-rust/subsystems/compiler/build/build-output/product-publication";
 
-fn stages() -> Vec<&'static str> {
-    // The shared ordering also contains the source stages and file publication.
-    std::iter::once(STAGES[0])
-        .chain(STAGES[3..19].iter().copied())
-        .collect()
-}
-
 pub(super) fn scoped_readers() -> Vec<Allowance> {
-    let stages = stages();
+    let stages = &NATIVE_STAGES;
     let mut readers = vec![
         ("source-rust/subsystems/package-manager", HOST_PROVIDERS),
-        (PSI_PUBLICATION, HOST_PROVIDERS),
-        (PSI_PUBLICATION, DEMAND),
-        (ENTRY_PLANNING, ENTRY),
-        (VERIFIED_INPUT, ENTRY),
-        (IMAGE_EMISSION, ENTRY),
-        (native!("/saved-inputs"), ENTRY),
         (ENCODING, AARCH64),
         (ENCODING, X86),
         (
@@ -77,7 +55,7 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
 }
 
 pub(super) fn rules() -> Vec<Rule> {
-    let stages = stages();
+    let stages = &NATIVE_STAGES;
     let readers = scoped_readers();
     let mut rules = Vec::new();
     for (index, &stage) in stages.iter().enumerate() {
@@ -97,9 +75,9 @@ pub(super) fn rules() -> Vec<Rule> {
         });
     }
     let earlier_forms = vec![
-        native!("/pipeline/representations/abstract-operations"),
-        native!("/pipeline/representations/target-operations"),
-        native!("/pipeline/representations/target-operations/legalized-operations"),
+        native!("/representations/abstract-operations"),
+        native!("/representations/target-operations"),
+        native!("/representations/target-operations/legalized-operations"),
     ];
     // The image package still contains the requested object correspondence audit.
     // Its accessor and validator call sites are also restricted by boundary.rs.
@@ -130,14 +108,14 @@ mod tests {
 
     #[test]
     fn physical_stages_can_read_shared_operands_without_importing_the_earlier_program() {
-        let target = native!("/pipeline/representations/target-operations");
-        let vocabulary = native!("/pipeline/representations/target-operations/target-vocabulary");
+        let target = native!("/representations/target-operations");
+        let vocabulary = native!("/representations/target-operations/target-vocabulary");
         let metadata = Metadata {
             workspace_root: "/repo".into(),
             packages: vec![
                 pkg(
                     "frame",
-                    stages()[9],
+                    NATIVE_STAGES[9],
                     &[("record", vocabulary, None), ("earlier", target, None)],
                 ),
                 pkg("audit", IMAGE_EMISSION, &[("earlier", target, None)]),

@@ -134,7 +134,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     // measurement starts here so it attributes only the realization.
     let before = terminal_codec::module_decode_count();
     let optimizations = optimization_selections::PostTerminalOptimizationSelections::default();
-    let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
+    let mut accounting = source_compiler::compile_time::SourceCompletionAccounting::default();
     let scalars = native_compiler::test_support::complete_entry_scalars(
         retained.authorization(),
         proposal,

@@ -1,6 +1,6 @@
 # 05 - Typed trees to lowered program
 
-This crate turns the finished typed trees into a lowered program, and fills the [check tables](../representations/lowered-program/README.md)
+This crate turns the finished typed trees into a lowered program, and fills the [check tables](../../representations/lowered-program/README.md)
 that the checker reads beside it. It covers scalar code and plain data:
 records (literals, field reads, stores, whole copies) and sums (case literals,
 case tests, dispatch and `match` with payload bindings). It is the second
@@ -1410,7 +1410,7 @@ An origin is the authored span, or `Unpositioned` with the reason
 `LoweredSourceCustody` was not used: it records call occurrences only and
 depended on a removed representation.
 
-`Elaboration::names` ([names.rs](../representations/lowered-program/src/names.rs)) is what diagnostics call
+`Elaboration::names` ([names.rs](../../representations/lowered-program/src/names.rs)) is what diagnostics call
 those constructs, because the lowered form carries identities and spans but
 no binder names. The reader records, per machine, its name (a template's for
 a generated specialization) and its state's, its formals' names, the

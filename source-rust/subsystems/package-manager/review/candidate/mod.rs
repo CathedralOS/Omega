@@ -25,7 +25,7 @@ pub(crate) use review_set::{CompilerIssuedPackageReview, CompilerIssuedPackageRe
 pub(crate) use semantic_bindings::ConsumerScopedSemanticBindingReviewInput;
 
 pub(crate) fn build_observation_commitment(
-    summary: &build_settings::BuildObservationSummary,
+    summary: &package_compilation::build_execution::BuildObservationSummary,
 ) -> [u8; 32] {
     summary.identity().digest()
 }

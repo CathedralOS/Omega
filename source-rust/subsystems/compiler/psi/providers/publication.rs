@@ -58,3 +58,56 @@ impl PublishedTargetProviders {
         Ok(self.demand)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use terminal_codec::{TerminalDebugMap, build_identity_optimization_execution_record};
+
+    #[test]
+    fn source_choices_follow_the_exact_publication_and_target() {
+        let module = terminal_psi::TerminalModule::declarations();
+        let record = build_identity_optimization_execution_record(&module).unwrap();
+        let source =
+            CanonicalTerminalArtifact::from_parts(module.clone(), record.clone(), None).unwrap();
+        let reopened = CanonicalTerminalArtifact::from_bytes(&source.to_bytes()).unwrap();
+        let debug = TerminalDebugMap {
+            semantic: source.view().identity(),
+            files: Vec::new(),
+            sites: Vec::new(),
+        };
+        let other = CanonicalTerminalArtifact::from_parts(module, record, Some(&debug)).unwrap();
+        assert_eq!(other.view().identity(), source.view().identity());
+        assert_ne!(other.manifest().identity(), source.manifest().identity());
+
+        let target = "linux_x86_64";
+        let closed =
+            crate::logical_reach::close_providers(source.semantic_module(), target, None, &[])
+                .unwrap();
+        let publish = || {
+            PublishedTargetProviders::new(
+                &source,
+                target,
+                SourceProviderDemand::Target {
+                    closed: closed.clone(),
+                    bindings: Vec::new(),
+                    labels: Vec::new(),
+                    review: None,
+                },
+            )
+        };
+        match publish().receive(&reopened, target).unwrap() {
+            SourceProviderDemand::Target {
+                closed: received, ..
+            } => assert_eq!(received, closed),
+            _ => panic!("receiving this publication changed its source demand"),
+        }
+        for (artifact, deployment) in [(&other, target), (&reopened, "windows_x86_64")] {
+            let refusal = publish().receive(artifact, deployment).err().unwrap();
+            assert_eq!(
+                refusal[0].message,
+                "source provider publication names a different program or deployment target"
+            );
+        }
+    }
+}

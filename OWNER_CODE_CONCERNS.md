@@ -75,6 +75,28 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Instruction encoding reaches earlier forms through the installation binder
+
+- Category: Knowledge crossing a boundary.
+- Where: [Stage 11 dependencies](source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/Cargo.toml#L12) and [stage 10 installation binding](source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine/).
+- Saw: The full `mbx xtask check-boundary` traces paths from `native-encoding` through `installation-binding` into previous machine stages, including register allocation and abstract operations.
+- Cost: A developer changing the encoder can use program forms from before its bound framed-machine input. The encoding API needs to receive the records it reads from their owning representations.
+- Reported: 2026-11-19, Codex, while restoring the compiler ownership check.
+
+### Field and export judgments still describe the earlier source tree
+
+- Category: The documents disagree.
+- Where: [Contract judgments](tools/xtask/pipeline-contracts.json) and [the field and export checker](tools/xtask/src/boundary_contracts.rs).
+- Saw: After mapping historical judgments to their current owners, `mbx xtask check-boundary` still reports changed signatures, declarations with no judgment and judgments for declarations that have since disappeared.
+- Cost: The full check cannot certify the maintained tree until the owners review the differences. Preserve each field’s reason when correcting its location and judge each changed declaration against the current source.
+- Reported: 2026-11-19, Codex, while restoring the compiler ownership check.
+
+### Repository rules still scan the retired Rust checkout paths
+
+- Where: [Rule inputs and scan roots](tools/xtask/src/rules/ratchets.rs), [current semantic IDs](source-rust/subsystems/compiler/foundation/semantic-records/src/identity.rs) and [stored counts](tools/ratchets/).
+- Saw: `mbx xtask check-rules` stops while opening the dense-ID catalog under `omega-rust/`. The code-quality scanners still walk that retired tree and their count files use its paths.
+- Cost: Maintainers cannot check new code against the existing limits for dense-ID maps, caches and source-text reads. Migrate the scan roots and transfer the recorded limits by file history before reviewing changes in counts.
+
 ### Callable analysis loses arguments passed to checked providers
 
 - Category: Re-deriving.

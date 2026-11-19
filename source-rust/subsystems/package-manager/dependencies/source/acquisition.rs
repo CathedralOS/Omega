@@ -159,7 +159,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     pub fn acquire_issued(
         &mut self,
         requester: &AcquiredBuildSource,
-        requests: &[build_settings::host::requests::IssuedBuildRequest],
+        requests: &[build_execution::host::requests::IssuedBuildRequest],
         purpose: build_declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
@@ -174,7 +174,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     pub fn acquire_completed(
         &mut self,
         requester: &AcquiredBuildSource,
-        result: &build_settings::BuildSourceResult<'_>,
+        result: &build_execution::BuildSourceResult<'_>,
         purpose: build_declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
@@ -585,7 +585,7 @@ impl AcquiredBuildSource {
 
     pub fn bind_returned_build(
         &self,
-        returned: &build_settings::ReturnedBuild,
+        returned: &build_execution::ReturnedBuild,
     ) -> Result<package_compilation::PackageSourceBinding, String> {
         self.declare_build(returned)?.source_binding()
     }
@@ -595,7 +595,7 @@ impl AcquiredBuildSource {
     /// lineage and capture, without claiming a completed dependency graph.
     pub fn declared_source_inputs(
         &self,
-        activation: &build_settings::TerminalBuildActivation,
+        activation: &build_execution::TerminalBuildActivation,
     ) -> Result<package_compilation::PackageCompilationInputs, String> {
         activation.require_source_acquisition(self.source_capture())?;
         let declaration = activation.project_declaration()?;
@@ -611,7 +611,7 @@ impl AcquiredBuildSource {
 
     pub fn declare_build(
         &self,
-        returned: &build_settings::ReturnedBuild,
+        returned: &build_execution::ReturnedBuild,
     ) -> Result<DeclaredBuildSource, String> {
         returned.require_source_acquisition(self.source_capture())?;
         self.declare_requests(
@@ -622,7 +622,7 @@ impl AcquiredBuildSource {
 
     pub fn declare_source_result(
         &self,
-        result: &build_settings::BuildSourceResult<'_>,
+        result: &build_execution::BuildSourceResult<'_>,
     ) -> Result<DeclaredBuildSource, String> {
         result.require_source_acquisition(self.source_capture())?;
         self.declare_requests(result.declaration(), result.requests())

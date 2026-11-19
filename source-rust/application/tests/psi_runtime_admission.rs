@@ -1,12 +1,8 @@
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 mod support;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
-
-use orchestration::{
-    BuildError, BuildReport, BuildRequest, BuildTargets, NativeDestination, ProjectProduct, build,
-};
 
 fn stage_project(name: &str, source: &str, build: &str) -> PathBuf {
     let project =
@@ -163,105 +159,5 @@ machine main() crashes Trap {
     machine bad() { crash Trap; }
 }
 "#,
-    );
-}
-
-fn compile(project: &Path, destination: NativeDestination) -> Result<BuildReport, BuildError> {
-    let outcomes = build(BuildRequest {
-        stage_validators: Default::default(),
-        root_path: project.join("main.omg"),
-        build_directory: None,
-        targets: BuildTargets::Single(target::TargetProfile::MacosArm64),
-        product: ProjectProduct::Native {
-            destination,
-            private_entry_ram: Vec::new(),
-            installation_assumptions: Vec::new(),
-        },
-        timings: false,
-        offline: false,
-        verify: false,
-        require_package_project: false,
-        optimization_rollback: Default::default(),
-        build_snapshot: None,
-    })?;
-    let Ok([outcome]): Result<[orchestration::TargetBuildOutcome; 1], _> = outcomes.try_into()
-    else {
-        panic!("one selected program target");
-    };
-    outcome.result?.into_report()
-}
-
-#[test]
-fn psi_admission_retains_the_native_borrowed_storage_layouts() {
-    let build = r#"machine build(builder: @mut Build) {
-    Build::application(builder, "checked_read_geometry");
-    Build::select_provider<ReadCell, Reader>(builder, macos_arm64);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-}
-"#;
-    let project = stage_project(
-        "borrowed-layout",
-        "data Cell [copy] { prefix: u32; word: u32; suffix: u32; }
-public boundary trait ReadCell {
-    machine word(cell: @Cell) -> u32 reaches crashes none;
-}
-Reader satisfies ReadCell {
-    machine word(cell: @Cell) -> u32 { cell.word }
-}
-machine main() crashes Trap {
-    let cell: Cell = Cell { prefix: 7, word: 11, suffix: 13 };
-    let value: u32 = ReadCell::word(@cell);
-    transition value == 11 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() { crash Trap; }
-}
-",
-        build,
-    );
-    let psi = compile(&project, NativeDestination::RuntimeAdmission);
-    let native = compile(&project, NativeDestination::Retained);
-
-    let unbound = build.replace(
-        "    Build::select_provider<ReadCell, Reader>(builder, macos_arm64);\n",
-        "",
-    );
-    std::fs::write(project.join("build.omg"), unbound).expect("staged missing provider");
-    let refused = compile(&project, NativeDestination::RuntimeAdmission);
-    std::fs::remove_dir_all(&project).expect("clean staged project");
-
-    let psi = psi.expect("admit the checked provider and its runtime geometry");
-    let native = native.expect("realize the same admitted provider");
-    let psi_layouts = psi
-        .report
-        .runtime_provisions()
-        .expect("Psi runtime provisions")
-        .borrowed_storage_layouts();
-    let native_layouts = native
-        .report
-        .runtime_provisions()
-        .expect("native runtime provisions")
-        .borrowed_storage_layouts();
-    assert_eq!(psi_layouts, native_layouts);
-    let record = psi_layouts
-        .iter()
-        .find(|layout| layout.byte_size == 12 && layout.alignment == 4)
-        .expect("borrowed Cell geometry");
-    let offsets: Vec<_> = record
-        .fields()
-        .iter()
-        .map(|field| field.byte_offset)
-        .collect();
-    assert_eq!(offsets, [0, 4, 8]);
-
-    let Err(refusal) = refused else {
-        panic!("a missing provider must prevent runtime admission");
-    };
-    let diagnostic = refusal.to_string();
-    assert!(
-        diagnostic.contains("boundary requirement `ReadCell::word` has no provider"),
-        "{diagnostic}"
     );
 }

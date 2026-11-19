@@ -68,7 +68,7 @@ impl AnonymousSourceCapture {
     }
 }
 
-impl source_compiler::evaluation::InvocationSourceConsent for AnonymousSourceCapture {
+impl source_compiler::compile_time::InvocationSourceConsent for AnonymousSourceCapture {
     fn allows_selection(
         &self,
         sources: &Arc<source_compiler::source_inputs::SourceMap>,
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn build_source_consent_keeps_the_actual_capture_purpose_and_root() {
-        use source_compiler::evaluation::InvocationSourceConsent;
+        use source_compiler::compile_time::InvocationSourceConsent;
         let root = PathBuf::from("/anonymous");
         let text = "machine local() {}";
         let tree = Arc::new(snapshot("build.omg", text.as_bytes()));

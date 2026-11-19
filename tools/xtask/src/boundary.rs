@@ -4,6 +4,7 @@
 //! target-specific edges, excluding dev-dependencies for production boundaries)
 //! to enforce the Psi/Omega firewall and stage boundaries.
 
+mod driver_calls;
 mod linear_pipeline;
 mod native_stages;
 
@@ -13,85 +14,39 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub const NATIVE_ROOT: &str = "omega-rust/omega/compilation/native-compiler";
-const PUBLISHED_PROGRAM: &str = "omega-rust/omega/compilation/published-program";
-pub const PROVIDER_SELECTION_ROOT: &str =
-    "omega-rust/omega/compilation/verification/provider-correspondence";
-pub const PROVIDER_ADMISSION_ROOT: &str =
-    "omega-rust/omega/compilation/verification/provider-admission";
-pub const RUNTIME_ROOT: &str = "omega-rust/omega/interpreter/terminal-runtime";
-pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str =
-    "omega-rust/omega/interpreter/native-provider-runtime";
+pub const NATIVE_ROOT: &str = native_stages::DRIVER;
+pub const PROVIDER_SELECTION_ROOT: &str = "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence";
+pub const RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host";
+pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host/native-worker";
 
+// The native driver's own package is admitted separately. Runtime consumers
+// may read the declared native contracts without gaining the driver entrance.
 pub const PERMITTED_OWNERS: &[&str] = &[
     NATIVE_ROOT,
-    PROVIDER_SELECTION_ROOT,
-    PROVIDER_ADMISSION_ROOT,
-    "omega-rust/omega/compilation/pipeline",
-    "omega-rust/omega/compilation/representations",
-    "omega-rust/omega/compilation/target-description",
-    "omega-rust/omega/compilation/verification",
-    "source-rust/foundation/filesystem",
-    "omega-rust/psi/foundation",
-    "omega-rust/psi/evaluation",
-    "omega-rust/psi/interpreter",
-    "omega-rust/psi/runtime",
-    "source-rust/subsystems/compiler/psi/proofs/bounded",
-    "source-rust/subsystems/compiler/psi/proofs/mathematical",
-    "omega-rust/psi/compilation/access-admission",
-    "omega-rust/psi/compilation/terminal-installation",
-    "source-rust/subsystems/compiler/psi/layout/integer-defaults",
-    "omega-rust/psi/compilation/representations/terminal-psi",
-    "omega-rust/psi/compilation/representations/access-vocabulary",
-    "source-rust/subsystems/compiler/psi/application-identity",
-    "omega-rust/psi/compilation/representations/declaration-contracts",
-    "omega-rust/psi/compilation/representations/declaration-identity",
-    "omega-rust/psi/compilation/representations/extent-contracts",
-    "source-rust/subsystems/compiler/foundation/numeric-literals",
-    "omega-rust/psi/compilation/representations/optimization-policy",
-    "source-rust/subsystems/compiler/psi/semantics/closed-predicates",
-    "source-rust/subsystems/compiler/psi/semantics/numeric",
-    "omega-rust/psi/compilation/representations/schema-reflection",
-    "omega-rust/psi/compilation/representations/semantic-vocabulary",
-    "omega-rust/psi/compilation/representations/source-effects",
-    "source-rust/subsystems/compiler/foundation/language-core",
-    "source-rust/subsystems/compiler/psi/layout",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline",
+    "source-rust/subsystems/compiler/psi-to-native/verification",
+    "source-rust/subsystems/compiler/psi-to-native/targets",
+    "source-rust/subsystems/compiler/psi-to-native/representations",
+    "source-rust/subsystems/compiler/psi",
+    "source-rust/subsystems/compiler/foundation",
+    "source-rust/foundation",
+    "source-rust/subsystems/compiler/build/evaluation",
+    "source-rust/subsystems/compiler/build/providers",
+    "source-rust/subsystems/compiler/build/behavior-exclusions",
+    "source-rust/subsystems/interpreter",
 ];
 
-const PSI: &str = "omega-rust/psi";
-const OMEGA: &str = "omega-rust/omega";
-const PSI_PIPELINE: &str = "omega-rust/psi/compilation/pipeline";
-const OMEGA_PIPELINE: &str = "omega-rust/omega/compilation/pipeline";
+const SOURCE_COMPILER: &str = "source-rust/subsystems/compiler/source-to-psi";
 const PACKAGE_MANAGER: &str = "source-rust/subsystems/package-manager";
-const PRODUCT_COORDINATOR: &str = "omega-rust/omega/compilation/compiler";
-const PRODUCTS: &str = "omega-rust/omega/compilation/products";
-const BUILD_EVALUATION: &str = "omega-rust/omega/build-system/build-settings";
-const BUILD_COORDINATOR: &str = "omega-rust/omega/build-system/orchestration";
-const CLI_APPLICATION: &str = "omega-rust/omega/application";
-const REVIEW_EVIDENCE: &str = "omega-rust/omega/packages/review-evidence";
+const PRODUCT_COORDINATOR: &str = "source-rust/subsystems/compiler";
 #[cfg(test)]
-const PSI_FACADE: &str = linear_pipeline::STAGES[1];
+const BUILD_COORDINATOR: &str = "source-rust/subsystems/compiler/build";
+#[cfg(test)]
+const CLI_APPLICATION: &str = "source-rust/application";
+const REVIEW_EVIDENCE: &str = "source-rust/subsystems/package-manager/review/evidence";
+#[cfg(test)]
+const PSI_FACADE: &str = linear_pipeline::SOURCE_DRIVER;
 const FRONTEND_OPERATIONS: &[&str] = &[linear_pipeline::FRONTEND[0], linear_pipeline::FRONTEND[1]];
-const OMEGA_COMPILATION: &[&str] = &[
-    NATIVE_ROOT,
-    PUBLISHED_PROGRAM,
-    PROVIDER_ADMISSION_ROOT,
-    PROVIDER_SELECTION_ROOT,
-    "omega-rust/omega/compilation/pipeline",
-    "omega-rust/omega/compilation/representations",
-    "omega-rust/omega/compilation/target-description",
-    "omega-rust/omega/compilation/verification",
-];
-const SOURCE_SIDE_PSI: &[&str] = &[
-    "omega-rust/psi/compilation/representations/bundled-declarations",
-    "omega-rust/psi/compilation/representations/source-declarations",
-    "omega-rust/psi/compilation/representations/symbol-resolved-trees",
-    "omega-rust/psi/compilation/representations/typed-trees",
-    PSI_PIPELINE,
-    "omega-rust/psi/compilation/representations/source-admission",
-    "omega-rust/psi/compilation/representations/syntax-trees",
-    "omega-rust/psi/compilation/representations/tokens",
-];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Allowance {
@@ -165,7 +120,7 @@ fn normalize_relative(root: &Path, target: &Path) -> Result<String, String> {
 }
 
 pub fn forbidden_rules() -> Vec<Rule> {
-    use linear_pipeline::STAGES;
+    use linear_pipeline::{NATIVE_STAGES, SOURCE_DRIVER};
     let rule = |owners, forbidden, reason| Rule {
         owners,
         forbidden,
@@ -175,75 +130,31 @@ pub fn forbidden_rules() -> Vec<Rule> {
         except_package: None,
         allowed: vec![],
     };
+    // Stage-reader rules below apply to the application, project coordinator,
+    // package manager, and helpers by default. Review and native verification
+    // also have specific forbidden package dependencies.
     let mut rules = vec![
-        rule(
-            vec![CLI_APPLICATION],
-            vec![PSI_PIPELINE, OMEGA_PIPELINE],
-            "the CLI enters through project orchestration",
-        ),
-        rule(
-            vec![BUILD_COORDINATOR, BUILD_EVALUATION],
-            vec![
-                OMEGA_PIPELINE,
-                FRONTEND_OPERATIONS[0],
-                FRONTEND_OPERATIONS[1],
-            ],
-            "Build uses the product and source entry points",
-        ),
-        rule(
-            vec![PRODUCT_COORDINATOR],
-            STAGES[3..].to_vec(),
-            "the native driver orders target compilation",
-        ),
         Rule {
-            forbidden_packages: FRONTEND_OPERATIONS.to_vec(),
-            ..rule(
-                vec![
-                    PRODUCT_COORDINATOR,
-                    PRODUCTS,
-                    BUILD_EVALUATION,
-                    PACKAGE_MANAGER,
-                    "source-rust/subsystems/compiler/build/package-compilation",
-                    "source-rust/subsystems/compiler/build/build-declarations",
-                ],
-                vec![],
-                "source consumers activate checked files through the streaming source owner",
-            )
+            forbidden_packages: vec![PACKAGE_MANAGER, PRODUCT_COORDINATOR],
+            ..rule(vec![REVIEW_EVIDENCE], vec![],
+                "review evidence is captured independently of package policy and compilation")
         },
-        rule(
-            vec![REVIEW_EVIDENCE],
-            vec![PACKAGE_MANAGER, PRODUCT_COORDINATOR],
-            "review evidence is captured independently of package policy and compilation",
-        ),
-        rule(
-            OMEGA_COMPILATION.to_vec(),
-            SOURCE_SIDE_PSI.to_vec(),
-            "native compilation consumes canonical Psi and admitted inputs",
-        ),
-        rule(
-            vec![PROVIDER_SELECTION_ROOT],
-            vec![PSI_PIPELINE, NATIVE_ROOT],
-            "provider correspondence compares admitted declarations",
-        ),
+        Rule {
+            forbidden_packages: vec![NATIVE_ROOT],
+            ..rule(vec![PROVIDER_SELECTION_ROOT], vec![SOURCE_COMPILER],
+                "provider correspondence compares admitted declarations")
+        },
     ];
-    // Portable publication takes the accepted source result and ends that
-    // ownership. Other native phases may never import a source operation.
-    rules.push(rule(
-        vec![STAGES[2]],
-        FRONTEND_OPERATIONS.to_vec(),
-        "portable publication takes the accepted source result",
-    ));
     // Only the source driver runs the full numbered source pipeline. The text reader
     // preserves authored spelling and trivia. The other readers take stage 07 records.
     rules.push(Rule {
-        except_package: Some(STAGES[1]),
+        except_package: Some(SOURCE_DRIVER),
         except_owners: linear_pipeline::PSI_STAGES.to_vec(),
         allowed: [
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
             ("source-rust/subsystems/compiler/build/build-declarations", linear_pipeline::TEXT_READER),
-            ("source-rust/subsystems/compiler/build/build-settings/result", linear_pipeline::PSI_STAGES[7]),
-            (STAGES[2], linear_pipeline::PSI_STAGES[7]),
-            ("source-rust/subsystems/compiler/source-to-psi/pipeline/prepare_and_check/accounting", linear_pipeline::PSI_STAGES[7]),
+            ("source-rust/subsystems/compiler/build/execution/result", linear_pipeline::PSI_STAGES[7]),
+            ("source-rust/subsystems/compiler/source-to-psi/product/accounting", linear_pipeline::PSI_STAGES[7]),
         ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
         ..rule(
             vec![""],
@@ -252,7 +163,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         )
     });
     rules.push(Rule {
-        forbidden_packages: vec![STAGES[1], STAGES[2], STAGES[19]],
+        forbidden_packages: vec![PRODUCT_COORDINATOR, SOURCE_DRIVER, native_stages::DRIVER, native_stages::PRODUCT_PUBLICATION],
         ..rule(
             vec![PACKAGE_MANAGER],
             vec![],
@@ -261,7 +172,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
     });
     rules.extend(native_stages::rules());
     rules.push(rule(
-        STAGES[7..=11].to_vec(),
+        NATIVE_STAGES[5..=9].to_vec(),
         vec![EARLIER_PROGRAM_FORMS, SEALED_TERMINAL_MODULE],
         "physical planning reads the retained target operations",
     ));
@@ -279,9 +190,9 @@ pub fn forbidden_rules() -> Vec<Rule> {
         )
     });
     rules.push(Rule {
-        forbidden_packages: vec![STAGES[1]],
+        forbidden_packages: vec![SOURCE_DRIVER],
         ..rule(
-            vec!["source-rust/subsystems/compiler/source-to-psi/pipeline/representations"],
+            vec!["source-rust/subsystems/compiler/source-to-psi/representations"],
             vec![],
             "source records cannot depend on the source driver",
         )
@@ -380,31 +291,31 @@ pub fn stale_allowance_violations(
 /// Earlier executable program forms: the abstract program, the optimization
 /// unit, and the unit's independent semantic checker (all under this path).
 const EARLIER_PROGRAM_FORMS: &str =
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations";
+    "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations";
 
 /// Stage 02's working program: `TargetOperationPlan` and its control graph.
 /// The records it shares with later forms live in `target-vocabulary`, nested
 /// in this directory as a separate package.
 const STAGE_02_WORKING_FORM: &str =
-    "omega-rust/omega/compilation/representations/target-operations";
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations";
 
 /// Instruction selection, the installation record it is handed, and the forms
 /// from the prepared plan onward. None of them is handed stage 02's working
 /// program, so none may be able to name it.
 const AFTER_PREPARATION: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/bound-installations",
-    "omega-rust/omega/compilation/representations/target-operations/target-vocabulary",
-    "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
-    "omega-rust/omega/compilation/representations/selected-instructions",
-    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
-    "omega-rust/omega/compilation/representations/register-homes",
-    "omega-rust/omega/compilation/representations/post-allocation-machine",
-    "omega-rust/omega/compilation/representations/machine-code",
-    "omega-rust/omega/compilation/target-description/register-environment",
-    "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding",
-    "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/target-vocabulary",
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations",
+    "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses",
+    "source-rust/subsystems/compiler/psi-to-native/representations/register-homes",
+    "source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine",
+    "source-rust/subsystems/compiler/psi-to-native/representations/machine-code",
+    "source-rust/subsystems/compiler/psi-to-native/targets/register-environment",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
 ];
 
 /// The crate that defines the sealed Terminal Psi module
@@ -412,24 +323,24 @@ const AFTER_PREPARATION: &[&str] = &[
 /// canonical vocabulary encoders from `terminal-wire`, which `terminal-codec`
 /// re-exports; reaching `terminal-codec` would let them name the sealed module.
 const SEALED_TERMINAL_MODULE: &str =
-    "omega-rust/psi/compilation/representations/terminal-psi/codec";
+    "source-rust/subsystems/compiler/psi/codec";
 
 /// Selection and later forms carry shared contracts, not the prepared plan's
 /// instruction graph. Follow indirect production edges as well as direct ones.
 const AFTER_SELECTION: &[&str] = &[
-    "omega-rust/omega/compilation/representations/selected-instructions",
-    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
-    "omega-rust/omega/compilation/representations/register-homes",
-    "omega-rust/omega/compilation/representations/post-allocation-machine",
-    "omega-rust/omega/compilation/representations/machine-code",
-    "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding",
-    "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses",
+    "source-rust/subsystems/compiler/psi-to-native/representations/register-homes",
+    "source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine",
+    "source-rust/subsystems/compiler/psi-to-native/representations/machine-code",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
 ];
 
 const PREPARED_EXECUTION_PLAN: &str =
-    "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
 
 /// Instruction selection, the forms from the prepared plan onward, the stages
 /// that turn one into the next, the target setup and installation record they
@@ -439,21 +350,21 @@ const PREPARED_EXECUTION_PLAN: &str =
 /// production edge, so a new path through a helper crate is caught too.
 const SELECTION_REPRESENTATIONS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/bound-installations",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-operands",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-evidence",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/structural-storage",
-    "omega-rust/omega/compilation/representations/target-operations",
-    "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
-    "omega-rust/omega/compilation/representations/selected-instructions",
-    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
-    "omega-rust/omega/compilation/representations/register-homes",
-    "omega-rust/omega/compilation/representations/post-allocation-machine",
-    "omega-rust/omega/compilation/representations/machine-code",
-    "omega-rust/omega/compilation/target-description/register-environment",
-    "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding",
-    "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/representations/operation-operands",
+    "source-rust/subsystems/compiler/psi-to-native/representations/operation-evidence",
+    "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage",
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations",
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations",
+    "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses",
+    "source-rust/subsystems/compiler/psi-to-native/representations/register-homes",
+    "source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine",
+    "source-rust/subsystems/compiler/psi-to-native/representations/machine-code",
+    "source-rust/subsystems/compiler/psi-to-native/targets/register-environment",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
 ];
 
 /// Every crate named by `SELECTION_REPRESENTATIONS` or `AFTER_PREPARATION`,
@@ -720,12 +631,12 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/",
-    "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
+    "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
 ];
 
 /// The target-operation accessor for its working program.
 const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation"];
-const TARGET_REPLAY_RECORD: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs";
+const TARGET_REPLAY_RECORD: &str = "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs";
 /// Binding belongs to the driver after preparation, not to setters on the
 /// prepared stage output. Neither the old definitions nor callers may return.
 const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
@@ -737,7 +648,7 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
-    "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
+    "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
 ];
 
 /// Naming either gateway is restricted, so importing it under another name
@@ -760,7 +671,7 @@ const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
 ];
 
 fn is_test_source(relative: &str) -> bool {
-    relative.contains("/tests/") || relative.ends_with("tests.rs")
+    relative.contains("/tests/") || Path::new(relative).file_name().is_some_and(|name| name == "tests.rs")
 }
 
 fn line_calls_any(line: &str, entries: &[&str]) -> bool {
@@ -849,7 +760,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/encoding-admission/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/encoding-admission/src/lib.rs",
         "validate_optimized_layout_independent_selected_form_encoding",
         1,
     ),
@@ -864,7 +775,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/encoding-admission/src/layout/mod.rs",
+        "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/encoding-admission/src/layout/mod.rs",
         "validate_optimized_resolved_selected_form_layout",
         1,
     ),
@@ -990,8 +901,8 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         )],
         "package numeric review demand can only be issued when publishing the accepted provider request",
     );
-    errors.extend(call_violations(root, &["retain_selected_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs"], &[("source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn retain_selected_body_facts(")], "only instruction selection may issue the joined body facts"));
-    errors.extend(call_violations(root, &["into_framed_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs"], &[("source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn into_framed_body_facts(")], "only frame publication may open the carried body facts"));
+    errors.extend(call_violations(root, &["retain_selected_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs"], &[("source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn retain_selected_body_facts(")], "only instruction selection may issue the joined body facts"));
+    errors.extend(call_violations(root, &["into_framed_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs"], &[("source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn into_framed_body_facts(")], "only frame publication may open the carried body facts"));
     errors.extend(call_violations(
         root,
         &["retain_target_operations"],
@@ -1010,7 +921,7 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
             "source-rust/subsystems/compiler/psi-to-native/tests/physical_publication/mod.rs",
             "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
             "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
-            "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
+            "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
         ],
         &[
             (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
@@ -1040,7 +951,7 @@ pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
         "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image",
         &["execution_plan", "pre_physical_manifest("],
         &[
-            "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
+            "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
             "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
@@ -1060,7 +971,7 @@ pub fn installation_mutation_violations(root: &Path) -> Vec<String> {
 
 pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
-    for owner in [PSI, OMEGA] {
+    for owner in ["source-rust/subsystems/compiler", "source-rust/subsystems/interpreter"] {
         let mut files = Vec::new();
         collect_rs_files(&root.join(owner), &mut files);
         for path in files {
@@ -1086,10 +997,14 @@ pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
-    if !args.is_empty() {
-        eprintln!("usage: cargo xtask check-boundary");
-        return Err(2);
-    }
+    let ownership_only = match args {
+        [] => false,
+        [flag] if flag == "--ownership" => true,
+        _ => {
+            eprintln!("usage: cargo xtask check-boundary [--ownership]");
+            return Err(2);
+        }
+    };
     let root = crate::repo_root()?;
     let output = Command::new("cargo")
         .args(["metadata", "--no-deps", "--format-version", "1"])
@@ -1118,12 +1033,30 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     };
 
     let check_all = || -> Result<Vec<String>, String> {
-        let mut violations = linear_pipeline::violations(&metadata)?;
+        let mut violations = linear_pipeline::layout_violations(&root)?;
+        violations.extend(linear_pipeline::violations(&metadata)?);
+        violations.extend(driver_calls::violations(&root)?);
+        let rules = forbidden_rules();
+        violations.extend(forbidden_dependency_violations(&metadata, &rules)?);
+        violations.extend(stale_allowance_violations(&metadata, &rules)?);
+        if ownership_only {
+            return Ok(violations);
+        }
         violations.extend(representation_spelling_violations(&root));
         violations.extend(crate::boundary_contracts::violations(
             &root,
-            &root.join("omega-rust/pipeline-contracts.json"),
+            &root.join(crate::boundary_contracts::MANIFEST),
         )?);
+        violations.extend(call_violations(
+            &root,
+            &["bind_target_reach"],
+            &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope/scope.rs"],
+            &[(
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs",
+                "pub fn bind_target_reach(",
+            )],
+            "stage 01 issues reachability before a native body can be lowered",
+        ));
         violations.extend(plan_validator_call_violations(&root));
         violations.extend(single_form_entry_violations(&root));
         violations.extend(working_program_read_violations(&root));
@@ -1170,14 +1103,14 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         // Native planning now owns trust reconstruction as a private operation.
         violations.extend(dependency_violations(
             &metadata,
-            linear_pipeline::STAGES[3],
+            linear_pipeline::NATIVE_STAGES[1],
             provider_selection_owners,
         )?);
         let mut runtime_owners = vec![
             RUNTIME_ROOT,
             NATIVE_PROVIDER_RUNTIME_ROOT,
             "source-rust/foundation/bounded-process",
-            "omega-rust/psi/interpreter",
+            "source-rust/subsystems/interpreter",
         ];
         runtime_owners.extend_from_slice(&PERMITTED_OWNERS[1..]);
         violations.extend(dependency_violations(
@@ -1185,17 +1118,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             RUNTIME_ROOT,
             &runtime_owners,
         )?);
-        let mut published_program_owners = runtime_owners.clone();
-        published_program_owners.extend([
-            NATIVE_ROOT,
-            PUBLISHED_PROGRAM,
-            "omega-rust/omega/compilation/products/optimization-requests",
-        ]);
-        violations.extend(dependency_violations(
-            &metadata,
-            PUBLISHED_PROGRAM,
-            &published_program_owners,
-        )?);
+        // The v1 published-program crate was retired. Its maintained native
+        // preparation now belongs to the driver checked above.
         let mut native_provider_owners = vec![
             NATIVE_PROVIDER_RUNTIME_ROOT,
             "source-rust/foundation/bounded-process",
@@ -1206,13 +1130,14 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             NATIVE_PROVIDER_RUNTIME_ROOT,
             &native_provider_owners,
         )?);
-        let rules = forbidden_rules();
-        violations.extend(forbidden_dependency_violations(&metadata, &rules)?);
-        violations.extend(stale_allowance_violations(&metadata, &rules)?);
         Ok(violations)
     };
 
     match check_all() {
+        Ok(violations) if violations.is_empty() && ownership_only => {
+            println!("compiler ownership and stage-reader checks pass");
+            Ok(())
+        }
         Ok(violations) if violations.is_empty() => {
             println!(
                 "native/runtime boundaries: source-free dependencies, ownership and representation checks pass"
@@ -1259,13 +1184,13 @@ mod tests {
             (CLI_APPLICATION, FRONTEND_OPERATIONS[0], BUILD_COORDINATOR),
             (
                 BUILD_COORDINATOR,
-                linear_pipeline::STAGES[3],
+                linear_pipeline::NATIVE_STAGES[1],
                 PRODUCT_COORDINATOR,
             ),
             (PRODUCT_COORDINATOR, FRONTEND_OPERATIONS[0], PSI_FACADE),
             (
                 "samples/scientific-driver",
-                linear_pipeline::STAGES[3],
+                linear_pipeline::NATIVE_STAGES[1],
                 BUILD_COORDINATOR,
             ),
         ] {
@@ -1315,7 +1240,7 @@ mod tests {
                 ),
                 pkg(
                     "source-driver",
-                    linear_pipeline::STAGES[1],
+                    linear_pipeline::SOURCE_DRIVER,
                     &[("lower", stages[5], None)],
                 ),
                 pkg(
@@ -1350,19 +1275,23 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        let library = linear_pipeline::STAGES[16];
-        let stages = linear_pipeline::STAGES;
+        let library = linear_pipeline::NATIVE_STAGES[14];
+        let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
-            (native_stages::DRIVER, stages[9], None, true),
-            (library, stages[4], None, false),
-            (library, stages[4], Some("build"), false),
-            (library, stages[4], Some("dev"), true),
-            (PACKAGE_MANAGER, stages[3], None, false),
+            (native_stages::DRIVER, stages[7], None, true),
+            ("source-rust/subsystems/compiler/build/package-compilation", linear_pipeline::PSI_STAGES[7], None, false),
+            ("source-rust/subsystems/compiler/build/package-compilation", stages[0], None, false),
+            (library, stages[2], None, false),
+            (library, stages[2], Some("build"), false),
+            (library, stages[2], Some("dev"), true),
             (PACKAGE_MANAGER, stages[1], None, false),
+            (PACKAGE_MANAGER, PRODUCT_COORDINATOR, None, false),
+            (PACKAGE_MANAGER, native_stages::DRIVER, None, false),
+            (PACKAGE_MANAGER, linear_pipeline::SOURCE_DRIVER, None, false),
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER, None, true),
-            (library, stages[3], None, false),
-            (library, stages[9], None, false),
-            (native_stages::IMAGE_EMISSION, stages[4], None, false),
+            (library, stages[1], None, false),
+            (library, stages[7], None, false),
+            (native_stages::IMAGE_EMISSION, stages[2], None, false),
             (
                 native_stages::PRODUCT_PUBLICATION,
                 native_stages::NATIVE_ARTIFACT,
@@ -1399,16 +1328,16 @@ mod tests {
     #[test]
     fn shared_receipt_consumers_preserve_stage_boundaries() {
         for (owner, dependency, permitted) in [
-            (linear_pipeline::STAGES[4], linear_pipeline::STAGES[3], true),
+            (linear_pipeline::NATIVE_STAGES[2], linear_pipeline::NATIVE_STAGES[1], true),
             (
-                linear_pipeline::STAGES[5],
-                linear_pipeline::STAGES[3],
+                linear_pipeline::NATIVE_STAGES[3],
+                linear_pipeline::NATIVE_STAGES[1],
                 false,
             ),
-            (linear_pipeline::STAGES[5], linear_pipeline::STAGES[4], true),
+            (linear_pipeline::NATIVE_STAGES[3], linear_pipeline::NATIVE_STAGES[2], true),
             (
-                linear_pipeline::STAGES[6],
-                linear_pipeline::STAGES[3],
+                linear_pipeline::NATIVE_STAGES[4],
+                linear_pipeline::NATIVE_STAGES[1],
                 false,
             ),
         ] {
@@ -1429,9 +1358,9 @@ mod tests {
     #[test]
     fn selection_representations_cannot_reach_earlier_forms_through_any_crate() {
         let plan =
-            "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+            "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
-        let unit = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/optimization-unit";
+        let unit = "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit";
         let reaches = |kind: Option<&str>| Metadata {
             workspace_root: "/repo".to_owned(),
             packages: vec![
@@ -1462,10 +1391,10 @@ mod tests {
 
     #[test]
     fn a_nested_package_is_not_the_crate_it_sits_in() {
-        let form = "omega-rust/omega/compilation/representations/machine-code";
+        let form = "source-rust/subsystems/compiler/psi-to-native/representations/machine-code";
         let working = STAGE_02_WORKING_FORM;
         let vocabulary =
-            "omega-rust/omega/compilation/representations/target-operations/target-vocabulary";
+            "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/target-vocabulary";
         let metadata = |dependency: &str| Metadata {
             workspace_root: "/repo".to_owned(),
             packages: vec![
@@ -1547,9 +1476,9 @@ mod tests {
     #[test]
     fn native_forms_reach_vocabulary_encoders_but_not_the_sealed_module() {
         let plan =
-            "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+            "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
-        let wire = "omega-rust/psi/compilation/representations/terminal-psi/wire";
+        let wire = "source-rust/subsystems/compiler/psi/wire";
         assert!(native_forms().contains(&plan));
         let metadata = |dependency: &str, kind: Option<&str>| Metadata {
             workspace_root: "/repo".to_owned(),
@@ -1620,7 +1549,7 @@ mod tests {
             "source-rust/subsystems/compiler/tests/executed_fixture_discovery.rs"
         ));
         assert!(!is_test_source(
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/mod.rs"
+            "source-rust/subsystems/compiler/psi-to-native/driver.rs"
         ));
     }
 
@@ -1670,11 +1599,11 @@ mod tests {
                  let retained = ObjectArtifact::retained_target_operations;\n",
             ),
             (
-                "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs".to_owned(),
+                "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs".to_owned(),
                 "current.working_program_for_validation();\ncurrent.execution_plan();\n",
             ),
             (
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/mod.rs".to_owned(),
+                "source-rust/subsystems/compiler/psi-to-native/driver.rs".to_owned(),
                 "let pair = SemanticEmissionFacts::retain_target_operations;\n",
             ),
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
@@ -1773,33 +1702,33 @@ mod tests {
 
     #[test]
     fn selection_cannot_reach_the_forms_its_plan_was_prepared_from() {
-        const ABSTRACT: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations";
+        const ABSTRACT: &str = "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations";
         for (dependency, kind, permitted) in [
             (ABSTRACT, None, false),
             (
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/optimization-unit",
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit",
                 None,
                 false,
             ),
             (
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/optimization-unit-semantics",
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics",
                 None,
                 false,
             ),
             (
-                "omega-rust/psi/compilation/representations/terminal-psi/codec",
+                "source-rust/subsystems/compiler/psi/codec",
                 None,
                 false,
             ),
             // Tests may build a plan the way stage 02 does.
             (ABSTRACT, Some("dev"), true),
             (
-                "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+                "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations",
                 None,
                 true,
             ),
             (
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-operands",
+                "source-rust/subsystems/compiler/psi-to-native/representations/operation-operands",
                 None,
                 true,
             ),
@@ -1808,7 +1737,7 @@ mod tests {
                 workspace_root: "/repo".to_owned(),
                 packages: vec![pkg(
                     "selection",
-                    linear_pipeline::STAGES[7],
+                    linear_pipeline::NATIVE_STAGES[5],
                     &[("dependency", dependency, kind)],
                 )],
             };
@@ -1836,7 +1765,7 @@ mod tests {
                 FRONTEND_OPERATIONS[0],
             ),
             (
-                "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/lowered-program",
+                "source-rust/subsystems/compiler/source-to-psi/representations/lowered-program",
                 "source-rust/subsystems/compiler/foundation/semantic-records",
                 PSI_FACADE,
             ),
@@ -1871,22 +1800,22 @@ mod tests {
                     NATIVE_ROOT,
                     &[(
                         "effects",
-                        "omega-rust/omega/compilation/representations/native-effects",
+                        "source-rust/subsystems/compiler/psi-to-native/representations/operation-evidence",
                         None,
                     )],
                 ),
                 pkg(
                     "effects",
-                    "omega-rust/omega/compilation/representations/native-effects",
+                    "source-rust/subsystems/compiler/psi-to-native/representations/operation-evidence",
                     &[(
                         "typed-trees",
-                        "omega-rust/psi/compilation/representations/typed-trees",
+                        "source-rust/subsystems/compiler/source-to-psi/representations/typed-trees",
                         None,
                     )],
                 ),
                 pkg(
                     "typed-trees",
-                    "omega-rust/psi/compilation/representations/typed-trees",
+                    "source-rust/subsystems/compiler/source-to-psi/representations/typed-trees",
                     &[],
                 ),
             ],

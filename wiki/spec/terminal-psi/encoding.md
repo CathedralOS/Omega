@@ -44,7 +44,9 @@ explicit stack; nesting depth never consumes host stack.
 
 Current marker 289 distinguishes callable parameter positions from named services
 in provider invocation contracts. Earlier markers cannot represent that distinction.
-Saved native input record `OMGNTI41` preserves the same distinction.
+The archived compiler-private `OMGNTI41` format recorded the same distinction in
+native derivation inputs. The public saved-program path decodes the canonical Psi
+publication and receives provider permissions from the executing host.
 
 Marker 255 introduced term tables. Marker 288 retained promised normal-result domain facts separately from
 declared result types. It records the owning machine before each callback
@@ -733,7 +735,7 @@ strictly sorted by the representation's lexicographic field order; duplicates
 and alternative ordering reject. Parent arguments retain positional operand
 order. Neither order supplies authority. The reconstructed obligations and
 execution behavior follow the [ownership contract](ownership.md); implementation
-notes live beside [the shared operation semantics](../../../omega-rust/psi/compilation/representations/terminal-psi/semantics/src/content_transformations.rs).
+notes live beside [the shared operation semantics](../../../source-rust/subsystems/compiler/psi/semantics/src/content_transformations.rs).
 
 Lineage steps retain causal order; each step's input and output claim rosters
 are strictly increasing sets. Marker 183 adds these completed producer links
@@ -1678,9 +1680,9 @@ case for Darwin non-HFA composites. It distinguishes their whole-eight-byte
 stack slots from scalar packing through saved native inputs and commitments.
 This physical class adds no portable semantic operation or proof rule.
 
-Saved native inputs retain optional operation evidence separately from the
-immutable Psi bytes. Native record `OMGNTI39` appends an optional counted byte
-string after its retained native bindings. The string is an operation-evidence
+The archived native derivation format stored optional operation evidence separately
+from the immutable Psi bytes. Native record `OMGNTI39` appended an optional counted
+byte string after its retained native bindings. The string is an operation-evidence
 companion with magic `PSIOEVD\0`, `u16` format marker 1, `u16` vocabulary marker,
 32-byte module semantic fingerprint and a counted seal roster. Each seal carries
 its owning machine and obligation ids, canonical goal proposition, counted

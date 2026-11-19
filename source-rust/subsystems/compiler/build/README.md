@@ -1,8 +1,6 @@
 # Project build
 
-[`build`](build.rs) starts with the core plan. Each plan either asks for an artifact or describes a program to compile and run for its next plan.
-
-The host admits each plan against the current grants and binds its reflected declarations in the next stage. The driver compiles that stage to Psi and gives it to the interpreter with the admitted services. The next plan can include newly discovered or generated source. When a plan requests an artifact, the driver returns the compiler's result directly. With explicit stage validators, it checks that final product and returns the per-target rows with it. Intermediate planning stages run with ordinary compilation.
+An ordinary project enters through [planning](planning.rs). Planning opens the captured Build source, interprets it, joins its dependency requests and opens the Product source selected by its return. [Build execution](execution/README.md) owns the activation and host bindings. The [settings decoder](build-settings/README.md) reads the returned value. [Product planning](planning/product.rs) supplies the resulting inputs to the compiler.
 
 The [evaluated value](evaluation/values/value.rs) carries the fields, case payloads and arrays consumed by Build settings and native calling policies.
 
@@ -21,4 +19,4 @@ The receiver’s [service acceptance](providers/acceptance/acceptance.rs) record
 package, declaration, expected schema and per-requirement permissions. Program-entry
 roles compare the declaration commitment before the target calling plan is selected.
 
-The loop and host interface are a prototype of the [V2 build decision](../../../../omega-rust-v2/PLAN.md#v2s-build-model-a-chain-of-stages). Implementing plan admission and interpreter integration is still open.
+[build.rs](build.rs) also defines a generic plan loop for the [V2 staged build design](../../../../omega-rust-v2/PLAN.md#v2s-build-model-a-chain-of-stages).

@@ -11,6 +11,7 @@
     compiler and injected library identity yields `None` (a cache miss).
 */
 
+use package_compilation::build_execution::BuildSnapshotRequest;
 use crate::declarations::DependencyPurpose;
 use package_compilation::review_record_encoding::purpose_tag;
 use package_compilation::{
@@ -30,7 +31,7 @@ pub(crate) fn compiled_review_key(
     build_execution_profile: Option<target::TargetProfile>,
     entry: &Path,
     inputs: &PackageCompilationInputs,
-    snapshot: &build_settings::BuildSnapshotRequest,
+    snapshot: &BuildSnapshotRequest,
 ) -> Option<[u8; 32]> {
     let compiler_identity = crate::dependencies::compiler_input_identity().ok()?;
     Some(compiled_review_key_with_identity(
@@ -52,7 +53,7 @@ pub(crate) fn compiled_review_key_with_identity(
     build_execution_profile: Option<target::TargetProfile>,
     entry: &Path,
     inputs: &PackageCompilationInputs,
-    snapshot: &build_settings::BuildSnapshotRequest,
+    snapshot: &BuildSnapshotRequest,
     compiler_identity: [u8; 32],
 ) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(RECORD_KEY_DOMAIN);
@@ -108,7 +109,7 @@ pub(super) fn resolution_digest(resolution: &ImmutableSourceResolution) -> [u8; 
 mod tests {
     use super::{compiled_review_key, compiled_review_key_with_identity};
     use crate::declarations::DependencyPurpose;
-    use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+    use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs, PackageSourceBinding};
     use semantic_vocabulary::PackageKeyIdentity;
     use std::path::{Path, PathBuf};
 
@@ -125,7 +126,7 @@ mod tests {
             Vec::new(),
         )
         .unwrap();
-        let snapshot = build_settings::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
+        let snapshot = BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
         let entry = Path::new("main.omg");
         let key_for = |compiler_identity| {
             compiled_review_key_with_identity(

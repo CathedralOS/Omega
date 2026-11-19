@@ -64,7 +64,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
             .is_some(),
         "the witness must evaluate actual target-layout scalar conditions during Product checking"
     );
-    let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
+    let mut accounting = source_compiler::compile_time::SourceCompletionAccounting::default();
     let completed = native_scalar_inputs::prepare(
         pending.terminal.shared_artifact(),
         Some("linux_x86_64"),
@@ -74,8 +74,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
     )
     .unwrap();
     let proposal = pending.terminal.native_realization_proposal().expect("native proposal");
-    let demand = proposal
-        .entry_scalar_demand(pending.terminal.authorization())
+    let demand = provider_realization::native_execution::entry_scalar_demand(proposal, pending.terminal.authorization())
         .expect("checked entry demand");
     let mut changed = proposal.target_provider_proposals().to_vec();
     changed[0].selection = Err(vec!["changed provider proposal".into()]);

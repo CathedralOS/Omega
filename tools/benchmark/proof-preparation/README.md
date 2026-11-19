@@ -9,9 +9,13 @@ commands are Rust and need no PowerShell.
 
 ```text
 mbx build --release -p omega-bench
-mbx build --release -p terminal-psi-to-terminal-psi --example proof_preparation --example proof_preparation_timing
-mbx build --release -p compiler-tools --bin route_probe
 ```
+
+The historical source comparison requires two retained V1 `route_probe` executables.
+Its implementation used the retired compilation session and is archived in
+`source-rust/_recycling/compiler/v1-probes`. The preparation and proof comparisons consume retained
+`proof_preparation` and `proof_preparation_timing` executables. Stage 06 currently
+disables example targets during the compiler migration.
 
 Keep each version's executables before changing it. The examples take
 `<main.omg> [repeats]` for a nongeneric source without external imports. They

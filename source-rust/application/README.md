@@ -10,30 +10,16 @@ the result into output and an exit status:
 | `omega run` | the interpreter runtime |
 | `omega packages install`, `omega packages update`, `omega packages audit` | the package manager |
 
-Each owner calls what it needs; the router has no compile, run, build or
-package workflow. See the
-[destination](../../pipeline.md#destination).
+[main.rs](src/main.rs) dispatches an invocation. [Arguments](src/arguments/mod.rs) owns command spelling. [Commands](src/commands/mod.rs) presents results and sets the shell exit status.
 
-[main.rs](src/main.rs) parses and dispatches one invocation.
-[arguments/](src/arguments/mod.rs) owns argument spelling, and
-[commands/](src/commands/mod.rs) owns console output and shell exit codes.
-They call complete operations, never individual compiler stages.
-
-The [compiler's Build coordinator](../build-system/orchestration/README.md) owns
-project builds. This package also holds run and inspect:
+For source inputs, the application acquires the project and services the requests its authored Build issues. Project planning opens the Product and hands its compiler request to the source pipeline. The saved-Psi reader decodes and authorizes an existing artifact for the native or interpreter entry. [Source project acquisition](src/project_sources.rs) · [Build planning](../subsystems/compiler/build/planning.rs) · [Saved Psi](src/saved_program.rs)
 
 | Operation | Request and result |
 | --- | --- |
-| [Build a project](../build-system/orchestration/src/build.rs) | Typed target/product request → ordered reports and published products |
-| [Run a project](src/execution/mod.rs) | Execution/comparison options → report, captured process output, and interpreter comparison |
-| [Inspect a machine](src/inspection/mod.rs) | Source, target, and machine → verified module and fixed-work analysis |
-
-These functions return errors; they never print or exit. Each includes package
-preparation, accepted policy, trust admission and artifact publication, so
-another frontend need not rebuild that sequence. Install, update and package
-inspection have complete operations in
-[package-manager](../packages/package-manager/src/operations/mod.rs), with no
-second wrapper.
+| [Compile](src/commands/compile.rs) | Product and targets to diagnostics, ordered reports and published files |
+| [Run](src/execution/mod.rs) | Execution options to process status, output and requested interpreter comparison |
+| [Inspect](src/inspection/mod.rs) | Source and machine, or a saved artifact, to a Psi inspection report |
+| [Package operations](src/commands/packages.rs) | Package selection and policy decisions to package-manager operations |
 
 A grant in the root's `build.omg` accepts that claim or provider plan; a
 dependency's claims are accepted through `omega.lock`. There is no second
@@ -81,7 +67,7 @@ native execution ends, then forwards the original bytes without UTF-8 decoding,
 before its own diagnostics on stderr. If writing or flushing a stream fails, the
 command reports an error (status 200), not a successful program result.
 
-A comparison runs the shared [hosted Terminal runtime](../interpreter/terminal-runtime/README.md)
+A comparison runs the shared [hosted Terminal runtime](../subsystems/interpreter/host/README.md)
 on the exact artifact the native build produced, with its retained entry and
 provider provisions, before publication moves that payload. It never interprets
 an older program, recompiles or reruns Build. The runtime gives the
@@ -120,12 +106,12 @@ code, so matching presentation does not prove the same cause.
 The library is synchronous and has the compiler's stack requirements. The CLI
 sets up its compiler worker stack; embedding callers must provide the same
 stack size. This is not a scheduler, command bus
-or new pipeline protocol. [Compiler orchestration](../compilation/compiler/src/target_batch.rs)
+or new pipeline protocol. [The compiler](../subsystems/compiler/compiler.rs)
 still passes representations through ordinary functions.
 
 ## Command surface
 
-The [command-line contract](../../../wiki/spec/build/command_line.md) owns
+The [command-line contract](../../wiki/spec/build/command_line.md) owns
 ratified subsystem routing and public **Psi** naming; the spellings below follow
 it. Flat `install`/`update`, action-first `audit`, and
 `inspect-terminal` are rejected, not aliases.
@@ -135,7 +121,7 @@ it. Kept file names such as
 
 The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`.
 
-The [standalone engine contract](../../../wiki/spec/build/embedding.md#standalone-execution-selection)
+The [standalone engine contract](../../wiki/spec/build/embedding.md#standalone-execution-selection)
 chooses the engine with `run --engine native|psi`, defaulting to native.
 A Psi-only run uses the same admitted runtime as a comparison, without emitting
 or launching a native image. `--both` is a separate comparison request and
@@ -156,7 +142,7 @@ binding that `omega packages update` reviews (accept the pending decisions, then
 rerun with `--resume`). Without it, the entry is rejected with a message naming
 that review.
 
-`--entry-ram` builds fresh private initialized scalar-record RAM for one exact borrowed placed entry position. It grants no host address or external allocation. The physical lender works on Linux x86-64 and macOS ARM64 and refuses unsupported predicates, qualifications, compound storage and cleanup. With `--both --keep`, observations of the original backing and the actual interpreter effect receipts are kept separately from the program's streams; see the [placed entry RAM sample](../../../samples/cli/probes/placed_entry_ram/README.md).
+`--entry-ram` builds fresh private initialized scalar-record RAM for one exact borrowed placed entry position. It grants no host address or external allocation. The physical lender works on Linux x86-64 and macOS ARM64 and refuses unsupported predicates, qualifications, compound storage and cleanup. With `--both --keep`, observations of the original backing and the actual interpreter effect receipts are kept separately from the program's streams; see the [placed entry RAM sample](../../samples/cli/probes/placed_entry_ram/README.md).
 
 Startup and dispatch live in `src/main.rs`; typed invocations are parsed in
 `src/arguments/` and run in `src/commands/`. Full surface:
@@ -190,12 +176,12 @@ target is compiled and published separately, into
 `<build dir>/<target>/` when more than one is named, with one result per target.
 The settled design compiles every provided target when none is named, and
 checks every target's bodies either way
-([multi-target compilation](../../../wiki/spec/build/configuration.md#multi-target-compilation)).
+([multi-target compilation](../../wiki/spec/build/configuration.md#multi-target-compilation)).
 Today a missing `--target` checks target-neutrally and compiles for the host;
 the pipeline route items on the task board close that gap.
 
 The compile command's exit status is the
-[compiler request](../../../wiki/spec/build/compiler_request.md#validation-and-failures)
+[compiler request](../../wiki/spec/build/compiler_request.md#validation-and-failures)
 halt value: 0 when the requested product is complete, 1 for a rejection, and 2
 (`Incomplete`) when compilation stopped at a named private provision, such as
 a proof-search limit, with no verdict on the source. With several targets it
@@ -233,12 +219,12 @@ otherwise no timings are collected.
 publication lines) to a plain-text file; there is no `--output-only` switch.
 The requested product decides the required proof and installation records. See
 the
-[compiler product contract](../compilation/compiler/README.md#product-boundaries-and-observations).
+[compiler product contract](../subsystems/compiler/README.md).
 
 `omega --version` reports the compiler version, source commit (when the
 packager supplies it) and Rust host target. Release bundles carry their
 library beside the executable; Cargo development builds fall back to the
-checkout. See [release packaging](../../../tools/release/README.md#build-a-relocatable-bundle)
+checkout. See [release packaging](../../tools/release/README.md#build-a-relocatable-bundle)
 for installation layout, explicit library selection and relocation tests.
 
 `omega psi inspect --artifact <file>` reads an existing portable Psi artifact

@@ -18,7 +18,7 @@ service-surface = { path = "../../../psi/service-surface" }
 source-provenance = { path = "../../../foundation/source-provenance" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
-source-admission = { path = "../representations/source-files/custody" }
+source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
 wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
@@ -31,7 +31,7 @@ proof-admission = { path = "../../../psi/proofs/bounded" }
 rayon = "1.11"
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
-terminal-check-tables = { path = "../representations/lowered-program" }
+terminal-check-tables = { path = "../../representations/lowered-program" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
@@ -40,15 +40,15 @@ terminal-work = { path = "../../../psi/work" }
 [dev-dependencies]
 terminal-interpreter = { path = "../../../../interpreter" }
 bignum = { path = "../../../../../foundation/bignum" }
-bundled-declarations = { path = "../representations/source-files/bundled-declarations" }
+bundled-declarations = { path = "../../representations/source-files/bundled-declarations" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
 typed-trees-to-typed-trees = { path = "../04_typed-trees-to-typed-trees", features = ["test-support"] }
 source-parser = { path = "../01_tokens-to-syntax-trees" }
 source-lexer = { path = "../00_source-files-to-tokens" }
-syntax-trees = { path = "../representations/syntax-trees" }
-tokens = { path = "../representations/tokens" }
+syntax-trees = { path = "../../representations/syntax-trees" }
+tokens = { path = "../../representations/tokens" }
 typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program", features = ["test-support"] }
-source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "../representations/symbol-resolved-trees/symbol-table" }
-typed-trees = { path = "../representations/typed-trees" }
+source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
+source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
+typed-trees = { path = "../../representations/typed-trees" }

@@ -1,31 +1,33 @@
 # Psi to native code
 
-The [entry point](psi_to_native.rs) takes a Psi program [authorized by the receiving host](../psi/authorization/authorization.rs), a target, and the receiving host's [reviewed providers and permissions](pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs). An image request produces a finished native image. The [caller](../compiler.rs) packages that image. Runtime admission stops as soon as the interpreter's provisions are ready. Saved-program callers enter through `emit`, `emit_with_validators`, or `admit_published_runtime`. The source publisher’s checked demand enters through `prepare_source_program` bound to its exact manifest and deployment; the resulting native program uses the same admission and emission operations. Explicit validator requests keep originals from that emission and check its finished root and component objects before releasing the image. Integration tests enable the `test-support` feature to supply retained inputs, count stage invocations, and exercise the same foreign-adapter compiler that runtime admission uses for a supplied ABI request.
+The native entry accepts an authorized Psi program, its deployment target and the receiving host's providers and permissions. Source compilation passes its checked publication and target demand in memory. A saved-program request reopens a portable `.psi` file and authorizes it before entering the same driver. [Native entry](psi_to_native.rs) · [Source and saved inputs](target_inputs/published_application.rs) · [Psi authorization](../psi/authorization/authorization.rs)
 
 ## Follow a compilation
 
-1. [Complete scalar inputs](pipeline/00_psi-to-admitted-native-inputs/scalar-applications/scalar_applications.rs) for this deployment. Build also consumes this operation when it needs the evaluation receipts. Its crate exposes evaluated values and receipts and has no dependency on the native driver.
-2. [Stage 00](pipeline/00_psi-to-admitted-native-inputs/admit.rs) matches the [publisher’s provider demand](pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs) to the exact authorized artifact. [Stage 01](pipeline/01_admitted-native-inputs-to-target-bound-program/src/provider_selection.rs) consumes that admitted pair and computes scalar entry reach for the selected target. The [driver](pipeline/mod.rs) prepares the retained program. [Stage 02](pipeline/02_target-bound-program-to-abstract-operations/lower.rs) lowers the selected Psi bodies to abstract operations. [Preparation](pipeline/prepare.rs) owns the checks on the retained publication, private entry memory and supplied scalar values. Stage 01 also binds the selected declaration to the target’s physical entry and storage contracts. The resulting [entry contract](pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts/program_entry.rs) carries the published signature and source commitment through admission. Stage 09 selects the hosted stack extent and stage 16 places it at the final BSS origin.
-3. [Realization](pipeline/realization.rs) drives the common body sequence for the application, callbacks, and component exports. Follow [one physical body](pipeline/realization/physical_body.rs) from instruction selection through object construction. Generated foreign adapters have their own representation at each applicable stage. [Image emission](pipeline/16_objects-to-image/image-emission/) consumes the finished objects.
-4. [Replay](replay/README.md) consumes retained originals on an explicit validation request. [Frame and encoding checks](pipeline/representations/machine-code/) validate the corresponding machine-code forms. [Admission](verification/README.md) also has callers during ordinary compilation and execution.
+| Work | Owner |
+| --- | --- |
+| Admit the exact program, entry and provider demand | [Stage 00](pipeline/00_psi-to-admitted-native-inputs/admit.rs) receives the program and the [provider installation](pipeline/00_psi-to-admitted-native-inputs/host-providers/installation.rs). [Stage 01](pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution.rs) binds the selected entry, calling contracts and reachable bodies. |
+| Prepare the target inputs | [Target preparation](target_inputs.rs) checks the retained publication, private entry memory and scalar inputs. Build can also request [admitted scalar values](pipeline/00_psi-to-admitted-native-inputs/scalar-applications/scalar_applications.rs). |
+| Lower one selected body | [Stage 02](pipeline/02_target-bound-program-to-abstract-operations/lower.rs) lowers its checked Psi to abstract operations. The [body driver](compile_body.rs) coordinates stages 03–15 for the entry, private callables and component exports, from optimization through object construction. |
+| Complete the requested product | The [program driver](driver.rs) returns the interpreter’s provisions at runtime admission. An image request [collects the required bodies](emit_program.rs) and [stage 16](pipeline/16_objects-to-image/) publishes the finished image. [Entry signature and storage contract](representations/program-entry-contracts/program_entry.rs) · [Target arrival ABI](targets/calling-conventions/src/process_entry.rs) |
+| Verify an emitted object | An [explicit stage validator](verification/stage_validators.rs) requests originals from the emission and gives them to [published-object verification](verification/published-objects/). Its checks compare the root, callable and component objects against their own retained stage inputs before the caller releases the image. |
 
-The ELF, Mach-O and PE writer tests start from [fixed encoded imports](pipeline/16_objects-to-image/image/src/test_support.rs). The samples include the instruction bytes, each relocation field, register effects and stack use the writer receives.
+The public standalone program file is the portable `.psi` artifact. The historical `OMGNTI41` record captured a native realization proposal for a particular artifact and target. Its reader and writer are retained in [the native derivation archive](_recycling/native-derivation-record/). [Portable Psi encoding](../../../../wiki/spec/terminal-psi/encoding.md)
 
-Production stage consumers are the native entry, packages within the same stage, and the next numbered stage. Other readers have exact package-to-package permissions in the [Cargo boundary check](../../../../tools/xtask/src/boundary/native_stages.rs). For example, file publication reads the finished artifact and its companions. Published-object replay reopens the stages that issued the evidence it verifies.
+The program driver schedules specialized work around each body. Component export joins, callback thunks and target ABI adapters have their own inputs. [Component exports](emit_program/components/exports.rs) · [Callback thunks](emit_program/callback_thunks.rs) · [Foreign adapters](foreign_adapters.rs) · [Interpreter provisions](runtime_provisions.rs)
 
-[Saved native derivation inputs](saved-inputs/saved_inputs.rs) use the OMGNTI41 format. Reopening a record requires the corresponding authorized Psi artifact and reconstructs its proposal with the ordinary validation rules. The compiler can lower in-memory programs without linking this transport. [Record format](../../../../wiki/spec/terminal-psi/encoding.md)
-
-## Placement during the repair
+## Where code belongs
 
 | Code | Owner |
 | --- | --- |
-| A transformation of one issued program form | Its numbered directory under `pipeline/`. Facts needed by the next stage belong to the output of their producer. |
-| Code that calls several numbered stages | The private driver under `pipeline/`. Root bodies, callback bodies and component exports use its shared sequences. |
-| Program records consumed across stages | The relevant form under `pipeline/representations/`. A representation can describe its data and validate its invariants. It cannot drive the next transformation. |
-| Target descriptions | [Targets](targets/) owns target data, calling conventions and register descriptions. Target facts can be queried without constructing a program. |
-| Existing code with no active caller or unresolved ownership | `_recycling/` retains source for comparison or a rewrite. Cargo paths and Rust module declarations in active packages must resolve outside it. |
+| Transformation of an issued program form | The numbered stage under [pipeline/](pipeline/). |
+| Coordination of several transformations | The program and body drivers at this directory's root. |
+| Program records exchanged by stages | The corresponding form under [representations/](representations/). |
+| Target descriptions, calling conventions and registers | [targets/](targets/) |
+| Independent checks of provider, installation or emitted object evidence | [verification/](verification/) |
+| Implementations held for reference or migration | [_recycling/](_recycling/) |
 
-The [driver](pipeline/mod.rs) admits the selected providers and entry once. Runtime preparation receives the admitted result, the target and optimization choices. Image preparation also receives the callable plan and image request. The [representation plan](../../../../representation-pipeline.md) describes the isolation check for each adjacent pair.
+ELF, Mach-O and PE writer tests use fixed encoded inputs with known instruction bytes, relocations, register effects and stack use. The Cargo boundary check records which production packages can read each stage. [Writer fixtures](pipeline/16_objects-to-image/image/src/test_support.rs) · [Stage dependency check](../../../../tools/xtask/src/boundary/native_stages.rs)
 
 ## Reviewing a bootstrap environment assumption
 
@@ -78,8 +80,7 @@ The [installation conditions](verification/installation-admission/conditions/src
 encodes and decodes reviewed bootstrap and interrupt-delivery records with
 `encode_installation_assumptions` and `decode_installation_assumptions`.
 The CLI passes these rows to source builds through the corresponding assumption file options.
-Saved native inputs keep the same rows. Recovery returns them apart from
-package permissions, and the ordinary `NativeCompileRequest` consumes them.
+The ordinary `NativeCompileRequest` receives the reviewed rows for its deployment alongside the package permissions.
 The sealed installation scope keeps the requirement, replaying a private entry
 checks the parent's exact row again, and the native artifact identity includes
 it. `ObjectArtifact::installation_environment_assumptions` exposes the

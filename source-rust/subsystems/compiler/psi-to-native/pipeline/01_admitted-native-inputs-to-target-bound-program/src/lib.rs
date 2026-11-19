@@ -35,6 +35,7 @@ pub use package_review::{
     ReviewedProviderRow,
 };
 mod selected_execution;
+pub mod native_execution;
 pub use execution::{
     NativeProgramPlanningError, plan_target_execution,
     plan_unscoped_execution,

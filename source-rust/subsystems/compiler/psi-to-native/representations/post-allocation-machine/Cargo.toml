@@ -1,0 +1,28 @@
+[package]
+name = "post-allocation-machine"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "post_allocation_machine"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../targets/calling-conventions" }
+wire = { path = "../../../../../foundation/wire" }
+target-vocabulary = { path = "../target-operations/target-vocabulary" }
+terminal-psi = { path = "../../../psi" }
+optimization-core = { path = "../optimization-records" }
+register-homes = { path = "../register-homes" }
+register-model = { path = "../../targets/register-model" }
+register-environment = { path = "../../targets/register-environment" }
+selected-instructions = { path = "../selected-instructions" }
+target = { path = "../../targets/target" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+target-x86_64 = { path = "../../targets/target-x86_64" }
+runtime-abi = { path = "../../targets/runtime-abi" }
+target-operations = { path = "../target-operations" }

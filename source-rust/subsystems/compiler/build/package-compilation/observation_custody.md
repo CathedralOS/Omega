@@ -1,8 +1,8 @@
 # Build observation custody
 
 Rust implementation note for the
-[observation contract](../../../../wiki/spec/build/observations.md).
-The [Build host filesystem](../../build-system/build-settings/src/host/filesystem.rs)
+[observation contract](../../../../../wiki/spec/build/observations.md).
+The [Build host filesystem](../execution/src/host/filesystem.rs)
 and providers share a fixed catalog of 50 exact filesystem operations. Aliases
 and platform variants stay distinct. Resolve canonical toolchain
 requirements, not user declarations with matching names.

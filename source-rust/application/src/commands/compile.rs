@@ -1,65 +1,19 @@
-/*
-
-Console adapter for `omega [path]` and `omega --check [path]`.
-
-We translate `CompileArguments` into an `orchestration::BuildRequest`, run
-`orchestration::build`, and format the resulting `BuildReport`s on stdout and
-stderr, in `--timings`, and in `--report-file`.
-
-How target selection shapes the run:
-- Zero `--target` flags select `BuildTargets::Host`; one selects
-  `BuildTargets::Single`; two or more select `BuildTargets::Batch`.
-- A single-target invocation (`present_single`) prints the check summary or
-  published artifact lines directly. `--report-file` gets the full report on
-  success and the same `target:`/`failed:` block a batch writes on refusal.
-- A multi-target invocation (`present_batch`) compiles every requested target
-  in one prepared session and continues past individual target failures so a
-  cross-target sweep reports all broken targets in one pass. Each target block
-  is headed by `target <name>:`, `--report-file` records both passing and
-  failing targets in canonical order, and we exit nonzero at the end if any
-  target refused.
-- For macOS application bundles, publication prints the `.app` root
-  (`checked_native_package_path`) while the inner Mach-O executable remains
-  addressable through `checked_native_executable_path`.
-
-*/
-
-/*
-
-Why `refusal_exit_status` requires unanimity before returning 2 (`Incomplete`):
-
-The compiler distinguishes a definitive refutation (`CompilerRequestOutcome::Reject`,
-exit code 1) from a search that exhausted a private resource bound without a
-verdict (`CompilerRequestOutcome::Incomplete`, exit code 2). In a multi-target
-batch, if one target hits an `Incomplete` bound while another target is
-outright `Reject`ed, returning 2 for the batch would hide a proven source or
-target violation behind a resource-bound status. We therefore return 2 only
-when every refusal in the batch is `Incomplete`; any `Reject` wins and produces
-exit code 1.
-
-`CompilerRequestOutcome::InternalFailure` (exit code 3) outranks both: it means
-the compiler caught a defect in itself, such as its own stage output failing an
-independent validator. A script reading `$?` must learn that the compiler is at
-fault, even when another target in the batch was rejected, because the batch's
-verdicts no longer carry the compiler's authority.
-
-*/
-
+//! Compile a source project or reopen a saved Psi publication.
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-
-use compiler::CompilerRequestOutcome;
-use diagnostics::Diagnostic;
-use orchestration::{
-    BuildError, BuildOutcome, BuildReport, BuildRequest, BuildTargets, NativeDestination,
-    ProjectProduct, TargetBuildOutcome, build,
-};
-
-use package_compilation::build_execution::BuildSnapshotRequest;
 
 use crate::arguments::CompileArguments;
 use crate::diagnostic_output::DiagnosticOutput;
 use crate::saved_program::SavedProgramError;
+use compiler::CompilerRequestOutcome;
+use compiler::stage_validators::{NativeValidationError, StageValidationRow, StageValidator};
+use compiler::{Artifact, CompileRequest};
+use diagnostics::Diagnostic;
+use package_compilation::build_execution::{BuildSnapshotRequest, RetainedBuildOutputs};
+use product_publication::CompletedProduct;
+use project_build::planning::PlannedProduct;
+use std::fmt::Write as _;
+use target::TargetProfile;
 
 pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
     if arguments
@@ -80,80 +34,483 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
         }
         return;
     }
-    let started = arguments.timings.then(Instant::now);
-    let report_file = arguments.report_file;
-    let installation_assumptions = arguments.installation_assumptions.clone();
-    for row in &installation_assumptions {
-        println!("{}", assumption_text(row));
+    let started = Instant::now();
+    let outcome = compile_project(&arguments, output);
+    if arguments.timings {
+        print_elapsed(started);
     }
-    // The enumerated set depends on this compiler's registry, so a report of
-    // it names the compiler and the roster it enumerated.
-    let roster = arguments.stage_validators.enumerates_every().then(|| {
-        format!(
-            "stage validator roster (omega {} {}): {}\n",
+    if outcome != CompilerRequestOutcome::Complete {
+        std::process::exit(i32::from(outcome.halt_value()));
+    }
+}
+
+fn compile_project(
+    arguments: &CompileArguments,
+    output: DiagnosticOutput,
+) -> CompilerRequestOutcome {
+    let mut report = String::new();
+    if arguments.stage_validators.enumerates_every() {
+        let names: Vec<_> = StageValidator::ROSTER
+            .iter()
+            .map(|row| row.name())
+            .collect();
+        writeln!(
+            report,
+            "stage validator roster (omega {} {}): {}",
             env!("OMEGA_VERSION"),
             env!("OMEGA_COMMIT"),
-            compiler::stage_validators::StageValidator::ROSTER
-                .iter()
-                .map(|validator| validator.name())
-                .collect::<Vec<_>>()
-                .join(", ")
+            names.join(", ")
         )
-    });
-    let roster = roster.as_deref().unwrap_or_default();
-    let target_names = arguments.target_names;
-    let targets = match resolve_targets(&target_names) {
-        Ok(RequestedTargets::Host) => BuildTargets::Host,
-        Ok(RequestedTargets::Single(profile)) => BuildTargets::Single(profile),
-        Ok(RequestedTargets::Batch(set)) => BuildTargets::Batch(set),
-        Err(diagnostics) => exit_on_refusal(output, [&BuildError::Diagnostics(diagnostics)]),
-    };
-    let request = BuildRequest {
-        stage_validators: arguments.stage_validators,
-        build_directory: arguments.build_dir,
-        root_path: arguments.root_path,
-        targets,
-        product: if arguments.check_only {
-            ProjectProduct::Check
-        } else if let Some(path) = arguments.emit_psi {
-            ProjectProduct::PublishedPsi(path)
-        } else {
-            ProjectProduct::Native {
-                installation_assumptions: arguments.installation_assumptions,
-                destination: NativeDestination::Published,
-                private_entry_ram: Vec::new(),
-            }
-        },
-        timings: arguments.timings,
-        offline: arguments.offline,
-        verify: arguments.verify,
-        require_package_project: false,
-        optimization_rollback: arguments.optimization_rollback,
-        build_snapshot: arguments
-            .build_inputs
-            .map(|capture| BuildSnapshotRequest::scoped(std::iter::empty(), capture)),
-    };
+        .unwrap();
+        print!("{report}");
+    }
+    for row in &arguments.installation_assumptions {
+        println!("{}", assumption_text(row));
+    }
 
-    if target_names.len() > 1 {
-        present_batch(
-            request,
-            started,
-            report_file.as_deref(),
-            &installation_assumptions,
-            roster,
-            output,
-        );
+    let result = compile_targets(arguments, output, &mut report);
+    let verdict = match result {
+        Ok(refusals) if refusals.is_empty() => CompilerRequestOutcome::Complete,
+        Ok(refusals) => batch_outcome(refusals),
+        Err(diagnostics) => {
+            let name = arguments
+                .target_names
+                .first()
+                .map(String::as_str)
+                .unwrap_or("host default");
+            let message = output.diagnostics(&diagnostics);
+            eprintln!("{message}");
+            writeln!(report, "target: {name}\nfailed: {message}").unwrap();
+            CompilerRequestOutcome::of_refusal(&diagnostics)
+        }
+    };
+    if let Some(path) = &arguments.report_file {
+        write_report_or_exit(path, &report);
+    }
+    verdict
+}
+
+fn compile_targets(
+    arguments: &CompileArguments,
+    output: DiagnosticOutput,
+    report: &mut String,
+) -> Result<Vec<CompilerRequestOutcome>, Vec<Diagnostic>> {
+    let targets = resolve_targets(&arguments.target_names)?;
+    let profiles = targets.profiles()?;
+    let batch = matches!(targets, RequestedTargets::Batch(_));
+    // Keep checks and portable publications independent of the project's persistent build directory.
+    let scratch = if arguments.check_only || arguments.emit_psi.is_some() {
+        Some(
+            platform_custody::temporary_directory::TemporaryDirectory::create("check", false)
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "cannot prepare check workspace: {error}"
+                    ))]
+                })?,
+        )
     } else {
-        present_single(
-            request,
-            target_names.first().map(String::as_str),
-            started,
-            report_file.as_deref(),
-            &installation_assumptions,
-            roster,
-            output,
+        None
+    };
+    let base = project_build::output_directory::base(
+        &arguments.root_path,
+        scratch
+            .as_ref()
+            .map(|d| d.path())
+            .or(arguments.build_dir.as_deref()),
+    );
+    let leases: Vec<_> = profiles
+        .iter()
+        .map(|profile| {
+            let directory = if batch {
+                base.join(profile.target_name())
+            } else {
+                base.clone()
+            };
+            project_build::output_directory::acquire(&directory, &arguments.root_path)
+        })
+        .collect();
+    let active: Vec<_> = profiles
+        .iter()
+        .zip(&leases)
+        .filter_map(|(profile, lease)| lease.is_ok().then_some(*profile))
+        .collect();
+    let snapshot = arguments
+        .build_inputs
+        .clone()
+        .map(|capture| BuildSnapshotRequest::scoped(std::iter::empty(), capture));
+    let plans = if active.is_empty() {
+        None
+    } else {
+        Some(crate::project_sources::open_products(
+            &arguments.root_path,
+            &active,
+            arguments.offline,
+            arguments.timings,
+            Some(&base),
+            snapshot,
+        ))
+    };
+    let prepared: Vec<_> = profiles
+        .iter()
+        .zip(&leases)
+        .map(|(&profile, lease)| {
+            let lease = lease.as_ref().map_err(output_error)?;
+            let plans = plans
+                .as_ref()
+                .expect("an acquired target lease opens a Product")
+                .as_ref()
+                .map_err(Clone::clone)?;
+            Ok::<_, NativeValidationError>((plans.select(profile)?, lease))
+        })
+        .collect();
+    if arguments.timings
+        && let Some((planned, _)) = prepared.iter().find_map(|row| row.as_ref().ok())
+    {
+        for phase in planned.timings().phases() {
+            eprintln!(
+                "{:>10.3} ms  {}",
+                phase.microseconds as f64 / 1_000.0,
+                phase.phase
+            );
+        }
+    }
+    let mut failures = Vec::new();
+    let mut failed_targets = Vec::new();
+    let mut portable = Vec::new();
+    let mut portable_plans = Vec::new();
+    for (&profile, prepared) in profiles.iter().zip(prepared) {
+        let name = profile.target_name();
+        if batch {
+            println!("target {name}:");
+        }
+        let report_name = if arguments.target_names.is_empty() {
+            "host default"
+        } else {
+            name
+        };
+        // A shared plan with the complete target set issues a single portable program.
+        if arguments.emit_psi.is_some()
+            && let Ok((planned, _)) = &prepared
+        {
+            if portable_plans
+                .iter()
+                .any(|&previous| std::ptr::eq(previous, *planned))
+            {
+                continue;
+            }
+            portable_plans.push(*planned);
+        }
+        let result = prepared.and_then(|(planned, lease)| {
+            let deployments = if arguments.emit_psi.is_some() {
+                &profiles
+            } else {
+                std::slice::from_ref(&profile)
+            };
+            let result = (|| {
+                let mut stage = planned.product_stage(deployments)?;
+                let rollback = stage.apply_rollback(&arguments.optimization_rollback);
+                let mut result = compile_target(
+                    arguments,
+                    planned,
+                    &stage,
+                    profile,
+                    lease.directory(),
+                    rollback.as_ref(),
+                )?;
+                if let Some(candidate) = result.portable.take() {
+                    portable.push(candidate);
+                }
+                Ok(result)
+            })();
+            result.map_err(|mut error| {
+                match &mut error {
+                    NativeValidationError::Compilation(rows) => planned.attribute_diagnostics(rows),
+                    NativeValidationError::Unavailable(row) => {
+                        planned.attribute_diagnostics(std::slice::from_mut(row))
+                    }
+                    NativeValidationError::Failed(_) => {}
+                }
+                error
+            })
+        });
+        match result {
+            Ok(outcome) => {
+                writeln!(report, "product: {}\ntarget: {report_name}", outcome.kind).unwrap();
+                for row in arguments
+                    .installation_assumptions
+                    .iter()
+                    .filter(|row| row.profile() == profile)
+                {
+                    writeln!(report, "{}", assumption_text(row)).unwrap();
+                }
+                writeln!(report, "{}", outcome.summary).unwrap();
+                if outcome.show_summary {
+                    println!("{}", outcome.summary);
+                }
+                print!("{}", outcome.publications);
+                report.push_str(&outcome.publications);
+                for row in outcome.rows {
+                    println!("{row}");
+                    writeln!(report, "{row}").unwrap();
+                }
+            }
+            Err(error) => {
+                let message = match &error {
+                    NativeValidationError::Compilation(rows) => {
+                        output.diagnostics(rows).to_string()
+                    }
+                    NativeValidationError::Unavailable(row) => {
+                        output.diagnostics(std::slice::from_ref(row)).to_string()
+                    }
+                    NativeValidationError::Failed(rows) => rows
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                };
+                eprintln!("{message}");
+                writeln!(report, "target: {report_name}\nfailed: {message}").unwrap();
+                if batch {
+                    println!("target {name} failed");
+                }
+                failures.push(CompilerRequestOutcome::of_stage_validation(&error));
+                failed_targets.push(name);
+            }
+        }
+    }
+    if failures.is_empty()
+        && let Some(path) = &arguments.emit_psi
+    {
+        let mut products: Vec<_> = portable.iter_mut().collect();
+        CompletedProduct::save_shared_psi(&mut products, path)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let identity = portable[0]
+            .artifact()
+            .expect("saved Psi retains its artifact")
+            .manifest()
+            .identity();
+        for profile in &profiles {
+            println!("Psi manifest {identity}");
+            writeln!(report, "target: {}\nPsi manifest {identity}", profile.target_name()).unwrap();
+        }
+    }
+    let count = profiles.len();
+    if batch && !failed_targets.is_empty() {
+        eprintln!(
+            "{} of {count} targets failed: {}",
+            failed_targets.len(),
+            failed_targets.join(", ")
         );
     }
+    Ok(failures)
+}
+
+struct TargetReport {
+    portable: Option<CompletedProduct>,
+    kind: &'static str,
+    summary: String,
+    show_summary: bool,
+    publications: String,
+    rows: Vec<StageValidationRow>,
+}
+
+fn output_error(message: impl ToString) -> NativeValidationError {
+    NativeValidationError::Compilation(vec![Diagnostic::error(message.to_string())])
+}
+
+fn compile_target(
+    arguments: &CompileArguments,
+    planned: &PlannedProduct,
+    stage: &project_build::planning::ProductStage<'_>,
+    profile: TargetProfile,
+    directory: &Path,
+    rollback: Option<&optimization_requests::OptimizationRollbackReceipt>,
+) -> Result<TargetReport, NativeValidationError> {
+    let configuration = &planned.evaluated().configuration;
+    let mut completed = configuration
+        .observation_summary
+        .as_ref()
+        .map(RetainedBuildOutputs::from_observation)
+        .transpose()
+        .map_err(output_error)?
+        .flatten();
+    let mut publications = String::new();
+    let mut portable = None;
+    let mut advisories = Vec::new();
+    let mut test_roster = Vec::new();
+    let mut wrote_output = false;
+    let mut show_summary = true;
+    let artifact_only = stage.artifact_only();
+    let kind = if artifact_only {
+        "build outputs"
+    } else if arguments.check_only {
+        "check"
+    } else if arguments.emit_psi.is_some() {
+        "Psi"
+    } else {
+        "native artifact"
+    };
+    let rows;
+    if artifact_only {
+        if completed.is_none() || arguments.emit_psi.is_some() {
+            return Err(output_error(
+                "an artifact-only Build requires completed outputs and cannot publish executable Psi",
+            ));
+        }
+        rows = arguments.stage_validators.stages_not_produced(
+            &[profile.target_name()],
+            |_| "the Build produces only completed files",
+        )?;
+    } else if arguments.check_only || arguments.emit_psi.is_some() {
+        let names = if arguments.emit_psi.is_some() {
+            stage.source().selections.calling_targets.to_vec()
+        } else {
+            vec![profile.target_name()]
+        };
+        rows = arguments
+            .stage_validators
+            .stages_not_produced(&names, |_| {
+                if arguments.check_only {
+                    "--check produces no native target operations"
+                } else {
+                    "a portable Psi publication produces no native target operations"
+                }
+            })?;
+        if arguments.emit_psi.is_some() {
+            let (Artifact::Psi(artifact), _) = compiler::compile_with_observations(
+                CompileRequest::Psi(stage.source()),
+                &Default::default(),
+                Some(&mut advisories),
+            )?
+            else {
+                return Err(output_error("source compilation returned an unexpected product"));
+            };
+            portable = Some(
+                CompletedProduct::from_published_psi(artifact, rollback.cloned())
+                    .map_err(output_error)?,
+            );
+        } else {
+            advisories = compiler::check(stage.source())?;
+        }
+    } else {
+        let program = stage.program(
+            profile,
+            arguments
+                .installation_assumptions
+                .iter()
+                .filter(|row| row.profile() == profile)
+                .cloned()
+                .collect(),
+        )?;
+        let (artifact, validations) = compiler::compile_with_observations(
+            CompileRequest::Native {
+                program,
+                entry_memory: &[],
+            },
+            &arguments.stage_validators,
+            Some(&mut advisories),
+        )?;
+        rows = validations;
+        let Artifact::Native(product) = artifact else {
+            return Err(output_error(
+                "native compilation returned an unexpected product",
+            ));
+        };
+        test_roster =
+            stage.execute_registered_tests(profile, &arguments.installation_assumptions)?;
+        let published = product
+            .publish(&arguments.root_path, directory)
+            .map_err(output_error)?;
+        if let Some(artifact) = published.artifact() {
+            writeln!(
+                publications,
+                "Psi manifest {}",
+                artifact.manifest().identity()
+            )
+            .unwrap();
+        }
+        if let Some(receipt) = rollback {
+            writeln!(publications, "optimizer rollback: {receipt}").unwrap();
+        }
+        if let Some(path) = published.checked_native_package_path() {
+            writeln!(
+                publications,
+                "published macOS package to {}",
+                path.display()
+            )
+            .unwrap();
+        } else {
+            let path = published
+                .checked_native_executable_path()
+                .ok_or_else(|| output_error("native publication produced no executable"))?;
+            writeln!(
+                publications,
+                "published native output to {}",
+                path.display()
+            )
+            .unwrap();
+        }
+        publish_outputs(completed.take(), directory, &mut publications)?;
+        wrote_output = true;
+        show_summary = false;
+    }
+    if let Some(outputs) = completed {
+        if !arguments.check_only && arguments.emit_psi.is_none() {
+            publish_outputs(Some(outputs), directory, &mut publications)?;
+            wrote_output = true;
+        }
+    }
+    if arguments.timings && !rows.is_empty() {
+        eprintln!("{} validator rows", rows.len());
+    }
+    for test in test_roster {
+        eprintln!("{test}");
+    }
+    if !advisories.is_empty() {
+        planned.attribute_diagnostics(&mut advisories);
+        let mut text = String::new();
+        diagnostics::write_diagnostics(&mut text, &advisories).unwrap();
+        eprintln!("{text}");
+    }
+    let sources = &planned.source().sources;
+    let file_count = sources
+        .files()
+        .filter(|file| sources.source_is_selected(file.source_id))
+        .count();
+    let mut summary = format!(
+        "compiled {file_count} source file(s) from {}",
+        arguments.root_path.display()
+    );
+    if portable.is_none() {
+        write!(summary, "; wrote_output={wrote_output}").unwrap();
+    }
+    Ok(TargetReport {
+        portable,
+        kind,
+        summary,
+        show_summary,
+        publications,
+        rows,
+    })
+}
+
+fn publish_outputs(
+    outputs: Option<RetainedBuildOutputs>,
+    directory: &Path,
+    lines: &mut String,
+) -> Result<(), NativeValidationError> {
+    if let Some(mut outputs) = outputs {
+        outputs.publish(directory).map_err(output_error)?;
+        if let Some(path) = outputs.published_directory() {
+            writeln!(
+                lines,
+                "published completed build outputs to {}",
+                path.display()
+            )
+            .unwrap();
+        }
+    }
+    Ok(())
 }
 
 fn build_saved(arguments: CompileArguments) -> Result<Vec<PathBuf>, SavedProgramError> {
@@ -206,134 +563,6 @@ fn resolve_targets(target_names: &[String]) -> Result<RequestedTargets, Vec<Diag
     }
 }
 
-fn present_single(
-    request: BuildRequest,
-    target_name: Option<&str>,
-    started: Option<Instant>,
-    report_file: Option<&Path>,
-    installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
-    roster: &str,
-    output: DiagnosticOutput,
-) {
-    let result = build(request).and_then(|outcomes| match outcomes.into_iter().next() {
-        Some(outcome) => outcome.result.and_then(BuildOutcome::into_report),
-        None => Err(BuildError::Diagnostics(vec![
-            diagnostics::Diagnostic::error("build lost the requested target outcome"),
-        ])),
-    });
-    if let Some(started) = started {
-        if let Ok(outcome) = &result {
-            print_timings(outcome);
-        }
-        print_elapsed(started);
-    }
-    let outcome = match result {
-        Ok(outcome) => outcome,
-        Err(error) => {
-            // The report is written before the exit status is chosen, so a
-            // refused compilation still leaves its rows, including failed
-            // stage validator rows, in `--report-file`.
-            if let Some(path) = report_file {
-                write_report_or_exit(
-                    path,
-                    &format!(
-                        "{roster}{}",
-                        failed_report_text(target_name.unwrap_or("host default"), &error, output)
-                    ),
-                );
-            }
-            exit_on_refusal(output, [&error])
-        }
-    };
-    if let Some(path) = report_file {
-        write_report_or_exit(
-            path,
-            &format!(
-                "{roster}{}",
-                report_text(target_name, &outcome, installation_assumptions)
-            ),
-        );
-    }
-    print!("{roster}");
-    print_outcome(&outcome);
-}
-
-fn present_batch(
-    request: BuildRequest,
-    started: Option<Instant>,
-    report_file: Option<&Path>,
-    installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
-    roster: &str,
-    output: DiagnosticOutput,
-) {
-    let outcomes = match build(request) {
-        Ok(outcomes) => outcomes,
-        Err(error) => {
-            if let Some(started) = started {
-                print_elapsed(started);
-            }
-            exit_on_refusal(output, [&error]);
-        }
-    };
-    let mut report_contents = roster.to_owned();
-    print!("{roster}");
-    let mut failed = Vec::new();
-    let mut refusals = Vec::new();
-    let target_count = outcomes.len();
-
-    for TargetBuildOutcome { target, result } in outcomes {
-        let name = target.target_name();
-        println!("target {name}:");
-        match result.and_then(BuildOutcome::into_report) {
-            Ok(outcome) => {
-                if started.is_some() {
-                    print_timings(&outcome);
-                }
-                print_outcome(&outcome);
-                report_contents.push_str(&report_text(
-                    Some(name),
-                    &outcome,
-                    installation_assumptions,
-                ));
-            }
-            Err(error) => {
-                eprintln!("{}", output.build_error(&error));
-                println!("target {name} failed");
-                report_contents.push_str(&failed_report_text(name, &error, output));
-                failed.push(name);
-                refusals.push(error);
-            }
-        }
-    }
-    if let Some(started) = started {
-        print_elapsed(started);
-    }
-    if let Some(path) = report_file {
-        write_report_or_exit(path, &report_contents);
-    }
-    if !failed.is_empty() {
-        eprintln!(
-            "{} of {} targets failed: {}",
-            failed.len(),
-            target_count,
-            failed.join(", ")
-        );
-        std::process::exit(refusal_exit_status(refusals.iter()));
-    }
-}
-
-fn exit_on_refusal<'a>(output: DiagnosticOutput, refusals: impl IntoIterator<Item = &'a BuildError>) -> ! {
-    let list: Vec<&BuildError> = refusals.into_iter().collect();
-    for error in &list {
-        eprintln!("{}", output.build_error(error));
-    }
-    std::process::exit(refusal_exit_status(list));
-}
-
-fn refusal_exit_status<'a>(refusals: impl IntoIterator<Item = &'a BuildError>) -> i32 {
-    i32::from(batch_outcome(refusals.into_iter().map(BuildError::outcome)).halt_value())
-}
-
 fn batch_outcome(
     outcomes: impl IntoIterator<Item = CompilerRequestOutcome>,
 ) -> CompilerRequestOutcome {
@@ -354,53 +583,11 @@ fn batch_outcome(
     combined.unwrap_or(CompilerRequestOutcome::Reject)
 }
 
-fn print_timings(outcome: &BuildReport) {
-    for timing in outcome
-        .timings
-        .phases()
-        .iter()
-        .chain(outcome.report.timings())
-    {
-        eprintln!(
-            "{:>10.3} ms  {}",
-            timing.microseconds as f64 / 1_000.0,
-            timing.phase
-        );
-    }
-}
-
 fn print_elapsed(started: Instant) {
     eprintln!(
         "{:>10.3} ms  total elapsed",
         started.elapsed().as_secs_f64() * 1_000.0
     );
-}
-
-fn print_outcome(outcome: &BuildReport) {
-    if outcome.report.wrote_output()
-        && let Some(artifact) = outcome.report.artifact()
-    {
-        println!("Psi manifest {}", artifact.manifest().identity());
-    }
-    // The executed test roster goes to stderr so the publication lines on
-    // stdout keep their format.
-    for entry in outcome.report.test_roster() {
-        eprintln!("{entry}");
-    }
-    // Warnings about an accepted program are advisory: they go to stderr
-    // and change neither the summary nor the exit status.
-    let advisories = outcome.report.advisories();
-    if !advisories.is_empty() {
-        let mut text = String::new();
-        if diagnostics::write_diagnostics(&mut text, advisories).is_ok() {
-            eprintln!("{text}");
-        }
-    }
-    if outcome.executable_path.is_none() {
-        println!("{}", outcome.report.summary());
-    }
-    print!("{}", format_publication_lines(outcome));
-    print!("{}", format_stage_validations(outcome));
 }
 
 fn assumption_text(row: &installation_conditions::InstallationEnvironmentAssumption) -> String {
@@ -418,75 +605,6 @@ fn assumption_text(row: &installation_conditions::InstallationEnvironmentAssumpt
         row.source_provenance(),
         row.caller_provenance()
     )
-}
-
-fn report_text(
-    target_name: Option<&str>,
-    outcome: &BuildReport,
-    installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
-) -> String {
-    let product = if outcome.executable_path.is_some() {
-        "native artifact"
-    } else {
-        "check"
-    };
-    let target = target_name.unwrap_or("host default");
-    let mut contents = format!("product: {product}\ntarget: {target}\n");
-    for row in installation_assumptions
-        .iter()
-        .filter(|row| target_name.is_none_or(|target| row.profile().target_name() == target))
-    {
-        contents.push_str(&assumption_text(row));
-        contents.push('\n');
-    }
-    contents.push_str(&outcome.report.summary());
-    contents.push('\n');
-    contents.push_str(&format_publication_lines(outcome));
-    contents.push_str(&format_stage_validations(outcome));
-    contents
-}
-
-// A refused target's report block. A stage validator failure's text holds
-// every row that target ran, passed and failed.
-fn failed_report_text(target: &str, error: &BuildError, output: DiagnosticOutput) -> String {
-    format!("target: {target}\nfailed: {}\n", output.build_error(error))
-}
-
-// One line per requested validator and target; empty for default compilation.
-fn format_stage_validations(outcome: &BuildReport) -> String {
-    outcome
-        .stage_validations
-        .iter()
-        .map(|row| format!("{row}\n"))
-        .collect()
-}
-
-fn format_publication_lines(outcome: &BuildReport) -> String {
-    let mut lines = String::new();
-    if let Some(path) = &outcome.executable_path {
-        if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
-            lines.push_str(&format!("optimizer rollback: {receipt}\n"));
-        }
-        if let Some(package_root) = outcome.report.checked_native_package_path() {
-            lines.push_str(&format!(
-                "published macOS package to {}\n",
-                package_root.display()
-            ));
-        } else {
-            lines.push_str(&format!("published native output to {}\n", path.display()));
-        }
-    }
-    if let Some(directory) = outcome
-        .report
-        .build_outputs()
-        .and_then(|outputs| outputs.published_directory())
-    {
-        lines.push_str(&format!(
-            "published completed build outputs to {}\n",
-            directory.display()
-        ));
-    }
-    lines
 }
 
 fn write_report_or_exit(path: &Path, contents: &str) {
@@ -507,10 +625,10 @@ fn write_report_or_exit(path: &Path, contents: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{batch_outcome, refusal_exit_status};
+    use super::batch_outcome;
+    use compiler::CompilerRequestOutcome;
     use compiler::CompilerRequestOutcome::{Incomplete, InternalFailure, Reject};
     use diagnostics::{Diagnostic, ExceededProvision};
-    use orchestration::BuildError;
 
     const PROVISION: ExceededProvision = ExceededProvision {
         resource: "proof steps",
@@ -521,8 +639,8 @@ mod tests {
 
     #[test]
     fn a_source_rejection_exits_1_and_a_compiler_defect_exits_3() {
-        let rejected = BuildError::Diagnostics(vec![Diagnostic::error("bad source")]);
-        assert_eq!(refusal_exit_status([&rejected]), 1);
+        let rejected = CompilerRequestOutcome::of_refusal(&[Diagnostic::error("bad source")]);
+        assert_eq!(batch_outcome([rejected]).halt_value(), 1);
         assert_eq!(batch_outcome([InternalFailure]).halt_value(), 3);
     }
 

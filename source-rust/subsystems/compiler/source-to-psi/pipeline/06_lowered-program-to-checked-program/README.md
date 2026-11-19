@@ -1274,7 +1274,7 @@ arrives, so a module with an undischarged obligation must never reach it. Any
 other refusal is a compiler defect and comes back as `Err`.
 
 The product producer's
-[source driver](../prepare_and_check/source_judgment.rs)
+[source driver](../../source_judgment.rs)
 prepares the compilation, calls `judge_publication` and accepts only its checked
 closure. Tests can call `judge` on one elaborated closure directly.
 
@@ -1373,42 +1373,11 @@ here.
 
 ## Running the checker on a source program
 
-The probe shows this crate one source program and prints its verdict. It does
-not run the program's Build, so it works while no Build program can run:
-
-```
-mbx run -p compiler-tools --bin route_probe -- tests/fixtures/run/calls/scalar_contract_route_exit/main.omg < /dev/null
-mbx run -p compiler-tools --bin route_probe -- <program>/main.omg [--entry NAME] [--target NAME] < /dev/null
-```
-
-It types the sources as a compilation does (Psi 00 through 03), binds the
-named machine to the target's `ProgramEntry` in the Build's place, prepares
-the product up to Psi 04's frozen typed trees, and runs
-`typed_trees_to_lowered_program` and `judge_compilation` on them. It prints one line
-per judged part (the entry closure, then each subject declaration's check
-form) and ends each source with `<path>\troute=<verdict>`: `accepted`,
-`rejected`, `incomplete`, `not-supported`, or `no-typed-trees` when Psi 00
-through 04 stopped first. The exit code is 0 only when every source was
-accepted. Without `--entry`, `main` is bound when the source declares it and a
-source without one is judged with no entry; `--target` defaults to
-`linux_x86_64`.
-
-A program that imports another package needs the dependency edge its Build
-registers, stated with `--dependency ALIAS=DIRECTORY`; a program that prints
-through the standard library's `Console` takes
-`--dependency omega_language_std=source/library/std`. Without the edge the
-import's first segment is no package alias, the path is looked up in the
-program's own package, and Psi 02 stops with "does not select one declaration,
-callable family, or module in its checked package".
-
-Limits. No Build machine is checked or executed, so the program is judged
-without anything else its Build would select: providers, representations,
-native bindings, generated sources and settings. The program's package is the
-validation subject, so its uncalled declarations are judged too. The harness
-is `CompilationSession::typed_frontier_without_build`
-(`omega-rust/omega/compilation/compiler/src/checked/checking/unbuilt_source.rs`),
-pinned by `compiler/tests/route_probe.rs`. It is a probe, not a way to
-compile, and the CLI never calls it.
+The public compiler checks the lowered Product selected by its authored Build.
+Use `omega --check path/to/main.omg`. Stage fixtures exercise the checker
+directly on its lowered input. The retired `route_probe` supplied a synthetic
+entry and provider choices through V1's removed `CompilationSession`. Its
+measurement code lives in `source-rust/_recycling/compiler/v1-probes`.
 
 ## Reusing a saved proof (experiment)
 

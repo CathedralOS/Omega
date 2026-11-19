@@ -553,7 +553,7 @@ impl PackageCompilationInputs {
     }
 }
 
-impl source_compiler::evaluation::BuildTimeSelectionAuthority for PackageCompilationInputs {
+impl source_compiler::compile_time::BuildTimeSelectionAuthority for PackageCompilationInputs {
     fn declaration_selection_scope(
         &self,
     ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {

@@ -113,7 +113,7 @@ pub enum RouteVerdict {
     FallBack(Refusal),
 }
 
-#[path = "../../representations/lowered-program/checked.rs"]
+#[path = "../../../representations/lowered-program/checked.rs"]
 mod checked_program;
 pub use checked_program::AcceptedClosure;
 

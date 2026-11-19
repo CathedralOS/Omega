@@ -98,22 +98,6 @@ fn shared_reading(typed: &TypedTrees) -> SharedReading {
     })
 }
 
-/// Read the selected data application through the same type reader as a
-/// dispatch. Only a proved-empty case can be left out of a generated visitor.
-pub fn proved_empty_sum_cases(
-    typed: &TypedTrees,
-    reference: crate::source_state::types::TypeReferenceHandle,
-    owner: SymbolHandle,
-) -> Option<Vec<bool>> {
-    let mut program = read::Program::with_captures(
-        typed,
-        false,
-        source_provenance::DependencyScope::Product,
-        shared_reading(typed),
-    );
-    program.proved_empty_sum_cases(reference, owner)
-}
-
 pub(crate) struct SharedProgram {
     pub captures: crate::source_state::NamedConformanceCaptureIndex,
     exact_toolchain_sources:

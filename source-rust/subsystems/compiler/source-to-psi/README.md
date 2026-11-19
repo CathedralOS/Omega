@@ -5,8 +5,14 @@ Start with [source_to_psi.rs](source_to_psi.rs). It takes the selected source fi
 | Steps | What happens |
 | --- | --- |
 | 00-01 | [Lex and parse](pipeline/01_tokens-to-syntax-trees/streaming.rs) each file while its tokens are available. |
-| 02-03 | [Resolve names and type the program](pipeline/03_symbol-resolved-trees-to-typed-trees/resolve_and_type.rs). |
-| 04-06 | [Prepare the typed trees, lower them, and check the resulting program](pipeline/prepare_and_check.rs). The checker discharges the obligations introduced by lowering. |
+| 02-03 | [Resolve names and type the program](source_continuation.rs). |
+| 04-06 | [Settle source inputs](source_preparation.rs), then [freeze, lower and check the program](source_judgment.rs). |
 | 07 | [Publish the checked program as Psi](pipeline/07_checked-program-to-psi/src/source_publication.rs). |
 
-The [numbered pipeline](pipeline/) owns the transformations. The [representations](pipeline/representations/) describe the data passed between them.
+The [Product driver](product.rs) gathers target declarations and settles providers before publication. The [Build invocation driver](build_invocation.rs) retains its source consent through judgment and publication. [Compile-time calls](compile_time/calls.rs) materialize their arguments and request judgment on the selected call. Each reaches the same [source judgment](source_judgment.rs).
+
+During source preparation, a constant initializer or a compile-time call can require a smaller checked invocation. Source selects the exact declaration and arguments, passes the checked invocation to the Build interpreter and returns its value and accounting to the Product or Build stage waiting for it. [Constant initializers and arguments](compile_time/constants.rs) · [Call preparation](compile_time/calls.rs) · [Invocation and accounting](compile_time/calls/execution.rs)
+
+For a native request, the resulting Psi program stays in memory. Stage 07 also supplies the provider demand for the selected deployment. A portable publication exposes the same checked artifact to the `.psi` writer. [Source publication](source_to_psi.rs) · [Psi encoding](../psi/codec/)
+
+The [numbered pipeline](pipeline/) owns the transformations. The [representations](representations/) describe the data passed between them.

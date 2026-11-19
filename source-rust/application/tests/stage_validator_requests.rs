@@ -177,3 +177,44 @@ fn unknown_and_unproduced_validators_are_invocation_errors() {
         "{report}"
     );
 }
+
+#[test]
+fn failed_target_output_directory_still_reports_and_builds_a_valid_sibling() {
+    let directory = project(
+        "partial-target-output",
+        "run/providers/native_boundary_supply",
+    );
+    let outputs =
+        platform_custody::temporary_directory::TemporaryDirectory::create("batch-targets", false)
+            .unwrap();
+    // The first requested deployment cannot acquire its output directory.
+    std::fs::write(outputs.path().join("windows_x86_64"), b"occupied").unwrap();
+    let report = outputs.path().join("report.txt");
+    let result = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args([
+            "--target",
+            "windows_x86_64",
+            "--target",
+            "linux_x86_64",
+            "--build-dir",
+        ])
+        .arg(outputs.path())
+        .arg("--report-file")
+        .arg(&report)
+        .arg("main.omg")
+        .current_dir(&directory)
+        .output()
+        .unwrap();
+    let report = std::fs::read_to_string(report).unwrap();
+    std::fs::remove_dir_all(directory).unwrap();
+    assert!(!result.status.success());
+    assert!(
+        report.contains("target: windows_x86_64\nfailed:"),
+        "{report}"
+    );
+    assert!(
+        report.contains("product: native artifact\ntarget: linux_x86_64"),
+        "{report}"
+    );
+    assert!(report.contains("published native output"), "{report}");
+}

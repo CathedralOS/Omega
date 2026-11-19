@@ -10,7 +10,7 @@ optimization-requests = { path = "../../optimization-policy/requests" }
 platform-custody = { path = "../../../../../foundation/filesystem" }
 target = { path = "../../../psi-to-native/targets/target" }
 terminal-codec = { path = "../../../psi/codec" }
-verified-optimization-input = { path = "../../../psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input" }
+verified-optimization-input = { path = "../../../psi-to-native/representations/abstract-operations/verified-optimization-input" }
 
 [dev-dependencies]
 image = { path = "../../../psi-to-native/pipeline/16_objects-to-image/image" }

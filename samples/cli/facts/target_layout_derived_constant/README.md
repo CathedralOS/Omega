@@ -23,7 +23,10 @@ at line 22. The baseline build took 10m45s. Existing main already included
 `6e37ba29d416499f1f717aa51452e13fa639853a`'s const-name provenance repair;
 this advance uses it.
 
-Acceptance: `omega run --both main.omg`, and the same command for each place.
+From the directory of each case, run
+`omega run --both --build-input build.omg --build-input main.omg main.omg`.
+The two-file capture selects one case. Capturing the whole sample directory
+also selects the sibling declarations of `Answer` in the nested controls.
 All positive projects bind all four hosted `ProgramEntry` targets and promise
 exit 0. The original retained qualification is Linux x86-64 native plus Terminal. Its
 then-existing source-backed `target_constant_closure` example also ran a Windows

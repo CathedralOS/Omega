@@ -12,10 +12,10 @@ name = "image"
 path = "src/lib.rs"
 
 [dependencies]
-machine-code = { path = "../../representations/machine-code" }
+machine-code = { path = "../../../representations/machine-code" }
 wire = { path = "../../../../../../foundation/wire" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-function-identity = { path = "../../representations/function-identity" }
+function-identity = { path = "../../../representations/function-identity" }
 arena = { path = "../../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 object-file = { path = "../../15_placed-functions-to-objects" }

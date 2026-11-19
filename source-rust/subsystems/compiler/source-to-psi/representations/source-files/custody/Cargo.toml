@@ -1,0 +1,12 @@
+[package]
+name = "source-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+record-storage = { path = "../../../../../../foundation/record-storage" }
+source-files = { path = ".." }
+source-provenance = { path = "../../../../foundation/source-provenance" }
+source-text = { path = "../../../../../../foundation/source-text" }
+symbols = { path = "../../../../foundation/declaration-identity" }

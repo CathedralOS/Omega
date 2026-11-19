@@ -1,0 +1,25 @@
+[package]
+name = "symbol-resolved-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+numeric-literals = { path = "../../../foundation/numeric-literals" }
+source-text = { path = "../../../../../foundation/source-text" }
+wire = { path = "../../../../../foundation/wire" }
+arena = { path = "../../../../../foundation/arena" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+language-core = { path = "../../../foundation/language-core" }
+numerics = { path = "../../../psi/semantics/numeric" }
+symbols = { path = "../../../foundation/declaration-identity" }
+source-declarations = { path = "declarations" }
+source-symbol-table = { path = "symbol-table" }

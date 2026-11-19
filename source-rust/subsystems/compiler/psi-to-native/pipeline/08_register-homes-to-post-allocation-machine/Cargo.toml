@@ -5,13 +5,13 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-physical-program = { path = "../representations/post-allocation-machine/body-facts" }
+physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 allocation = { package = "selected-instructions-to-register-homes", path = "../07_selected-instructions-to-register-homes" }
-optimization-core = { path = "../representations/optimization-records" }
-post-allocation-machine = { path = "../representations/post-allocation-machine" }
-register-homes = { path = "../representations/register-homes" }
+optimization-core = { path = "../../representations/optimization-records" }
+post-allocation-machine = { path = "../../representations/post-allocation-machine" }
+register-homes = { path = "../../representations/register-homes" }
 register-model = { path = "../../targets/register-model" }
-selected-instructions = { path = "../representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target-x86_64 = { path = "../../targets/target-x86_64" }

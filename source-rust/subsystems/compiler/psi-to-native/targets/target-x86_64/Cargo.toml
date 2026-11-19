@@ -7,12 +7,12 @@ version.workspace = true
 [dependencies]
 optimization-selections = { path = "../../../foundation/optimization-selections" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-normalized-foreign-call-plan = { path = "../../pipeline/representations/selected-instructions/foreign-calls" }
+normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls" }
 layout-plans = { path = "../../../psi/layout" }
 calling-conventions = { path = "../calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 register-model = { path = "../register-model" }
-selected-instructions = { path = "../../pipeline/representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../target" }
 wire = { path = "../../../../../foundation/wire" }
 
@@ -20,4 +20,4 @@ wire = { path = "../../../../../foundation/wire" }
 isa-conformance = { path = "../../tests/isa-conformance" }
 isa-x86_64 = { path = "../../pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
 register-model = { path = "../register-model", features = ["test-support"] }
-selected-instructions = { path = "../../pipeline/representations/selected-instructions", features = ["test-support"] }
+selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }

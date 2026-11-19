@@ -1475,5 +1475,5 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
     }
 }
 
-#[path = "../../../../../../tests/support/frontend.rs"]
+#[path = "../../../../../../../tests/support/frontend.rs"]
 mod frontend_fixture;

@@ -4,7 +4,7 @@
 language contract. This crate provides shared executable arithmetic, not
 target instruction selection or permission to approximate an operation.
 
-Psi retains the numeric execution identity, operand and result carriers, and arithmetic policy of a checked declaration. The numeric crate validates those signatures and encodes their wire tags. The typed-tree producer matches source names to candidate signatures. [Intrinsic contracts](src/intrinsics.rs) and [source declaration lookup](../../../source-to-psi/pipeline/representations/typed-trees/src/numeric_declarations.rs).
+Psi retains the numeric execution identity, operand and result carriers, and arithmetic policy of a checked declaration. The numeric crate validates those signatures and encodes their wire tags. The typed-tree producer matches source names to candidate signatures. [Intrinsic contracts](src/intrinsics.rs) and [source declaration lookup](../../../source-to-psi/representations/typed-trees/src/numeric_declarations.rs).
 
 [float_semantics.rs](src/float_semantics.rs) decodes landed binary32/binary64
 operands into exact rational or special-value meanings and implements rounding,

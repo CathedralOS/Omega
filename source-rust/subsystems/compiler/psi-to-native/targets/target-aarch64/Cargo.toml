@@ -5,17 +5,17 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-normalized-foreign-call-plan = { path = "../../pipeline/representations/selected-instructions/foreign-calls" }
+normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls" }
 layout-plans = { path = "../../../psi/layout" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 calling-conventions = { path = "../calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 register-model = { path = "../register-model" }
-selected-instructions = { path = "../../pipeline/representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../target" }
 
 [dev-dependencies]
 isa-conformance = { path = "../../tests/isa-conformance" }
 isa-aarch64 = { path = "../../pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 register-model = { path = "../register-model", features = ["test-support"] }
-selected-instructions = { path = "../../pipeline/representations/selected-instructions", features = ["test-support"] }
+selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }

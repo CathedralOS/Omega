@@ -14,14 +14,14 @@ test-support = ["symbol-resolved-trees/test-support"]
 path = "lib.rs"
 
 [dependencies]
-source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "../representations/symbol-resolved-trees/symbol-table" }
-symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
-typed-trees = { path = "../representations/typed-trees" }
+source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
+source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
+symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
+typed-trees = { path = "../../representations/typed-trees" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-provenance = { path = "../../../foundation/source-provenance" }
-source-admission = { path = "../representations/source-files/custody" }
+source-admission = { path = "../../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
 wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
@@ -31,10 +31,10 @@ language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../psi/semantics/numeric" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
-syntax-trees = { path = "../representations/syntax-trees" }
+syntax-trees = { path = "../../representations/syntax-trees" }
 
 [dev-dependencies]
 source-parser = { path = "../01_tokens-to-syntax-trees" }
 source-lexer = { path = "../00_source-files-to-tokens" }
-tokens = { path = "../representations/tokens" }
+tokens = { path = "../../representations/tokens" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }

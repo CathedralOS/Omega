@@ -5,13 +5,13 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
+physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
 entry-planning = { path = "../09_post-allocation-machine-to-framed-machine/entry-planning" }
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = "../09_post-allocation-machine-to-framed-machine" }
-function-identity = { path = "../representations/function-identity" }
-machine-code = { path = "../representations/machine-code" }
-physical-program = { path = "../representations/post-allocation-machine/body-facts" }
-selected-instructions = { path = "../representations/selected-instructions" }
+function-identity = { path = "../../representations/function-identity" }
+machine-code = { path = "../../representations/machine-code" }
+physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
+selected-instructions = { path = "../../representations/selected-instructions" }
 installation-admission = { path = "../../verification/installation-admission" }
 installation-conditions = { path = "../../verification/installation-admission/conditions" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }

@@ -1,0 +1,16 @@
+[package]
+name = "native-stack-demand"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "physical_stack.rs"
+
+[dependencies]
+function-identity = { path = "../../function-identity" }
+provider-stack-contribution = { path = "../../../verification/provider-admission/same-stack" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+target = { path = "../../../targets/target" }
+target-vocabulary = { path = "../../target-operations/target-vocabulary" }
+terminal-psi = { path = "../../../../psi" }

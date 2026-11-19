@@ -10,25 +10,25 @@ path = "src/lib.rs"
 
 [dependencies]
 installation-binding = { path = "../10_framed-machine-to-bound-framed-machine" }
-function-identity = { path = "../representations/function-identity" }
+function-identity = { path = "../../representations/function-identity" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 arena = { path = "../../../../../foundation/arena" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 register-environment = { path = "../../targets/register-environment" }
-frame-admission = { path = "../representations/machine-code/frame-admission" }
-physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
-encoding-admission = { path = "../representations/machine-code/encoding-admission" }
-target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
+frame-admission = { path = "../../representations/machine-code/frame-admission" }
+physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
+encoding-admission = { path = "../../representations/machine-code/encoding-admission" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-machine-code = { path = "../representations/machine-code" }
-post-allocation-machine = { path = "../representations/post-allocation-machine" }
+machine-code = { path = "../../representations/machine-code" }
+post-allocation-machine = { path = "../../representations/post-allocation-machine" }
 isa-aarch64 = { path = "isa-aarch64" }
 isa-x86_64 = { path = "isa-x86_64" }
 register-model = { path = "../../targets/register-model" }
-selected-instructions = { path = "../representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 
 [dev-dependencies]
 entry-planning = { path = "../09_post-allocation-machine-to-framed-machine/entry-planning" }
-register-homes = { path = "../representations/register-homes" }
+register-homes = { path = "../../representations/register-homes" }

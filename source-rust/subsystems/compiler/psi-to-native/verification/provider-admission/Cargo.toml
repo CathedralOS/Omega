@@ -27,15 +27,15 @@ layout = { path = "../../targets/layout" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 provider-correspondence = { path = "../provider-correspondence" }
 component-description = { path = "../../../psi/component-description" }
-function-identity = { path = "../../pipeline/representations/function-identity" }
+function-identity = { path = "../../representations/function-identity" }
 numerics = { path = "../../../psi/semantics/numeric" }
 layout-plans = { path = "../../../psi/layout" }
-target-operations = { path = "../../pipeline/representations/target-operations" }
+target-operations = { path = "../../representations/target-operations" }
 provider-stack-contribution = { path = "same-stack" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-abstract-operations = { path = "../../pipeline/representations/abstract-operations" }
+abstract-operations = { path = "../../representations/abstract-operations" }
 installation-conditions = { path = "../installation-admission/conditions" }
-operation-evidence = { path = "../../pipeline/representations/operation-evidence" }
+operation-evidence = { path = "../../representations/operation-evidence" }
 bound-installations = { path = "../installation-admission/bound-installations" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
@@ -45,5 +45,5 @@ calling-conventions = { path = "../../targets/calling-conventions" }
 target = { path = "../../targets/target" }
 
 [dev-dependencies]
-optimization-unit-semantics = { path = "../../pipeline/representations/abstract-operations/optimization-unit-semantics" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
 terminal-work = { path = "../../../psi/work" }

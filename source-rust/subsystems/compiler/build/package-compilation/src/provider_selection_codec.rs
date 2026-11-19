@@ -13,7 +13,7 @@ use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
 use source_compiler::declaration_selection::BuildSelectionOrigin;
 use source_compiler::declaration_selection::product_operands::ProductStaticOperandGraph;
-use source_compiler::evaluation::provider_declarations::{
+use source_compiler::product::provider_declarations::{
     RetainedOperatorCoordinate, RetainedOperatorFamily, RetainedProductApplication,
     RetainedProviderSelection, RetainedProviderSubject,
 };

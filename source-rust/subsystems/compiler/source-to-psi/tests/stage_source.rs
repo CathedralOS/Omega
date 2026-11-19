@@ -4,7 +4,7 @@ use source_admission::{RetainedDeclaration, SourceOrigin, SourceResolutionStratu
 use source_compiler::declaration_selection::{
     DescribedProductEntry, ExecutedRootBinding, RootBindingSelection,
 };
-use source_compiler::product_source::ProductSourceInputs;
+use source_compiler::product::ProductSourceInputs;
 use source_compiler::source_inputs::SourceMap;
 use source_compiler::{StageSource, compile};
 use source_provenance::DependencyScope;
@@ -38,6 +38,7 @@ fn product<'a>(
         roots: vec![root],
         imports: Vec::new(),
         selections: ProductSourceInputs {
+            generated: None,
             targets: &[],
             calling_targets: &[],
             subject: Some(package),

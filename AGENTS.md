@@ -12,7 +12,8 @@ Code, create an ignored checkout-local link when `.claude/skills` is absent:
 
 Omega is a proof-checked systems language whose programs are data-oriented
 state machines:
-- `omega-rust/` — the Rust reference producer and differential comparator.
+- [source-rust/](source-rust/README.md) contains the Rust compiler, CLI, interpreter and package manager in the root Cargo workspace.
+- [omega-rust-v2/](omega-rust-v2/Cargo.toml) is a separate Cargo workspace.
 - `source/psi/` + `source/omega/` — the Omega-written product compiler.
 - `source/library/` — bundled `omega::` packages (`name.omg` or `name/mod.omg`).
 - `bootstrap/interpreted/{0_alpha,…,5_omega}/` — the trust-minimizing bootstrap chain (`bootstrap/proofs/` holds Gamma-written derivation checking; scripts resolve locations via `tools/bootstrap/paths.sh`).
@@ -267,7 +268,7 @@ beside that test.
 ### Requirements and evidence
 
 Every repair must preserve the end-to-end contracts in [wiki/spec/](wiki/spec/)
-and [omega-rust/pipeline.md](omega-rust/pipeline.md):
+and [the compiler ownership map](source-rust/README.md#where-code-belongs):
 - **Establishment & composition:** Construct guards, entry contracts, calls, and
   joins establish and preserve static facts without post-hoc caller hacks;
   positive and negative twins differ only in the construct's own input or contract.
@@ -349,13 +350,16 @@ refuses a second build or test run while one is active.
 
 ## The Psi/Omega firewall
 
-- **`psi/` (`omega-rust/psi/`, `source/psi/`)** owns target-neutral language
-  semantics from source tokens through canonical Terminal Psi (`PSITERM\0`) and
-  the Psi interpreter. `psi/` must never import `omega/` crates, target
-  ABIs, or machine encodings.
-- **`omega/` (`omega-rust/omega/`, `source/omega/`)** consumes Checked/Terminal
-  Psi and owns build orchestration, package management, target lowering, ABI
-  calling plans, object/image emission, and the CLI driver.
+- The [source compiler](source-rust/subsystems/compiler/source-to-psi/) owns target-neutral language semantics from source tokens through checked Psi publication. [Psi](source-rust/subsystems/compiler/psi/) owns the portable program and its encoding. [The interpreter](source-rust/subsystems/interpreter/) executes an admitted program with its supplied services. Keep target ABIs and machine encodings in the native compiler.
+- The [native compiler](source-rust/subsystems/compiler/psi-to-native/) consumes published Psi and owns target lowering, ABI calling plans, objects and images. [Build](source-rust/subsystems/compiler/build/) runs authored planning stages and requests compiler products. [The package manager](source-rust/subsystems/package-manager/) acquires and reviews the package graph. The [CLI](source-rust/application/) dispatches those operations.
+
+In each Rust compiler half, `pipeline/` contains the numbered transformations
+and `representations/` contains the forms they exchange. Follow source and
+native stage ordering from the driver files at each subsystem root. Compile-time
+constant and call evaluation belongs to the source compiler. Native code for the
+root entry, private callables and component exports goes through the shared body
+driver. Requested object verification consumes evidence from that emission.
+[Source map](source-rust/subsystems/compiler/source-to-psi/README.md) · [Native map](source-rust/subsystems/compiler/psi-to-native/README.md)
 
 ## Conventions and workflow
 
@@ -371,7 +375,7 @@ refuses a second build or test run while one is active.
 - **Cleanup priority within an assigned area:** Repair broken stage topology,
   ownership and representation handoffs before local polish in that area.
   This does not displace unrelated user-assigned work.
-- **Compositional lowering ([pipeline.md](omega-rust/pipeline.md#compositional-lowering)):**
+- **Compositional lowering ([compiler pipeline](source-rust/subsystems/compiler/README.md)):**
   Generalize the touched operation across all value placements and delete the
   superseded code path in the same commit.
 - **Data-oriented storage:** Dense IDs index flat tables (`Vec` / slice), not
@@ -390,7 +394,7 @@ refuses a second build or test run while one is active.
   a growing contiguous `Vec`; use concurrent paged storage when independent
   producers need it. Keep a bounded/pre-sized `Vec` when it fits the workload;
   neither paging nor concurrency is a goal by itself.
-- **Verify at trust boundaries ([pipeline.md](omega-rust/pipeline.md#verification-placement)):**
+- **Verify at trust boundaries ([native pipeline](source-rust/subsystems/compiler/psi-to-native/README.md)):**
   Default compilation does not re-verify its own stage output. Verifiers run
   in test harnesses, at foreign package boundaries, and on explicit
   [validator requests](wiki/spec/build/command_line.md#independent-stage-validators).
@@ -449,14 +453,14 @@ reads the allowed lanes from this table:
 | `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/interpreted/<N>_<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific tests. |
 | `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/interpreted/5_omega/` and its tests. Never shorten to `omega`. |
 | `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `tests/bootstrap/`, and `tools/bootstrap/`. |
-| `psi` | Target-neutral source semantics through Terminal Psi in `omega-rust/psi/` or `source/psi/`. |
-| `omega` | Native planning and its carried representations in `omega-rust/omega/compilation/{pipeline,representations,verification}/`, or `source/omega/`. |
-| `backend` | Target and ABI descriptions in `omega-rust/omega/compilation/target-description/`, and encoding, layout, object and image construction in its numbered `pipeline/` stages 06–09. |
-| `compiler` | Product compilation coordination in `omega-rust/omega/compilation/compiler/` and `native-compiler/`, or an inseparable contract change spanning Psi and Omega. |
-| `build` | Build system in `omega-rust/omega/build-system/` (`orchestration/`, `build-settings/`) and `build.omg` declarations. |
-| `packages` | Package acquisition, graphs, review, admission, and update workflows in `omega-rust/omega/packages/`. |
-| `cli` | Command parsing, flags, help, and dispatch in `omega-rust/omega/application/src/`. |
-| `tooling` | Shipped developer tooling and shared host support compiled into `omega` (`omega-rust/omega/foundation/`). |
+| `psi` | Target-neutral source semantics and Psi publication in `source-rust/subsystems/compiler/source-to-psi/`, portable Psi in its sibling `psi/`, and self-hosted `source/psi/`. |
+| `omega` | Native planning, representations and verification in `source-rust/subsystems/compiler/psi-to-native/`, or self-hosted `source/omega/`. |
+| `backend` | Native targets and ABIs under `psi-to-native/targets/`, and encoding, layout, objects and images in native stages 11–16. |
+| `compiler` | The public compiler entry in `source-rust/subsystems/compiler/compiler.rs` and contracts spanning the two pipelines. |
+| `build` | Project planning, Build execution and settings in `source-rust/subsystems/compiler/build/`, and authored `build.omg` declarations. |
+| `packages` | Package acquisition, graphs, review and update in `source-rust/subsystems/package-manager/`. |
+| `cli` | Command parsing, flags, help and dispatch in `source-rust/application/src/`. |
+| `tooling` | Shipped developer tooling and shared host support in `source-rust/foundation/`. |
 | `library` | Bundled packages in `source/library/` (`core`, `alloc`, `std`, etc.). |
 | `samples` | Standalone sample content in `samples/`. A regression fixture for a compiler fix uses that compiler stage's lane. |
 | `tests` | Shared test infrastructure, kept fixtures, or multi-owner gates. Stage-specific tests use their stage's lane. |
@@ -490,7 +494,7 @@ reads the allowed lanes from this table:
 ## Design references
 
 - [Omega Language Guide](wiki/language_guide/language_guide.md)
-- [Compiler ownership and pipeline](omega-rust/pipeline.md)
+- [Compiler ownership and pipeline](source-rust/README.md#follow-a-compilation)
 - [Documentation index](wiki/README.md)
 - [Terminal Psi product contract](wiki/spec/terminal-psi/product.md)
 - [Optimization phases](wiki/spec/build/optimizations.md#phase-and-product-boundaries)

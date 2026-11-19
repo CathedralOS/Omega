@@ -15,7 +15,7 @@ use crate::source_state::expression::{
     StaticSymbolApplication, TableBinaryExpression, TableCallExpression, TableDestructurePattern,
     TableStructLiteral, TableStructLiteralField,
 };
-use crate::source_state::machine::Machine;
+use crate::source_state::machine::{Machine, MachinePurpose};
 use crate::source_state::name::Identifier;
 use crate::source_state::reflection::construction::{
     construct_semantic_schema_graph_for_type, schema_query_authority,
@@ -100,30 +100,10 @@ pub(super) fn expand(
     };
     let context = context_type(program, state, *context, written_context)?;
     let type_reference = named_type(program, subject, lexical_owner)?;
-    let mut sum = sum_description(program, type_reference, lexical_owner)?;
-    if let Some(empty) = typed_trees_to_lowered_program::lowering::proved_empty_sum_cases(
-        program,
-        type_reference,
-        lexical_owner,
-    ) {
-        if empty.len() != sum.cases.len() {
-            return Err(Stop::Defect(
-                "case coverage uses a different sum declaration",
-            ));
-        }
-        let mut positions = empty.into_iter();
-        sum.cases
-            .retain(|_| !positions.next().expect("one status for each declared case"));
-    }
+    let sum = sum_description(program, type_reference, lexical_owner)?;
     let application = sum_application(program, subject, type_reference, lexical_owner)?;
     let case_visitor = callback(program, case_visitor)?;
     let field_visitor = callback(program, field_visitor)?;
-    let included_types = sum
-        .cases
-        .iter()
-        .flat_map(|case| &case.fields)
-        .map(|field| field.type_reference)
-        .collect::<Vec<_>>();
     let substitutions = [
         (subject_binder.symbol, Bound::Type(type_reference)),
         (context_binder.symbol, Bound::Type(context)),
@@ -131,11 +111,7 @@ pub(super) fn expand(
     let operation = format!("reflect::{}", program.symbols.name(query));
     for (binder, visitor, applications) in [
         (case_binder, &case_visitor, None),
-        (
-            field_binder,
-            &field_visitor,
-            Some(included_types.as_slice()),
-        ),
+        (field_binder, &field_visitor, Some([].as_slice())),
     ] {
         if program
             .authored_service_reach_rows_for(binder.symbol)
@@ -155,6 +131,33 @@ pub(super) fn expand(
             applications,
         )?;
     }
+    // A stronger field multiplicity can be met by a finite set of payload
+    // applications. The general binder above is checked even for an empty
+    // sum. A failure specific to one payload belongs to that candidate.
+    let case_refusals = sum
+        .cases
+        .iter()
+        .map(|case| {
+            let fields: Vec<_> = case
+                .fields
+                .iter()
+                .map(|field| field.type_reference)
+                .collect();
+            match satisfies_binder(
+                program,
+                field_binder,
+                &field_visitor.machine,
+                &operation,
+                &substitutions,
+                Some(&fields),
+            ) {
+                Ok(()) => Ok(None),
+                Err(Stop::Rejected(message)) => Ok(Some(message)),
+                Err(Stop::Unserved(reason)) => Ok(Some(reason.into_owned())),
+                Err(defect @ Stop::Defect(_)) => Err(defect),
+            }
+        })
+        .collect::<Served<Vec<_>>>()?;
     let case_info = description_type(program, case_binder, ReflectionDeclaration::CaseInfo)?;
     let field_info = description_type(program, field_binder, ReflectionDeclaration::FieldInfo)?;
     let field_query = field_query_entry(program, query)?;
@@ -173,7 +176,7 @@ pub(super) fn expand(
     let subject = dispatcher.parameters[0].symbol;
     let context = dispatcher.parameters[1].symbol;
     let mut arms = Vec::with_capacity(sum.cases.len());
-    for case in &sum.cases {
+    for (case, refusal) in sum.cases.iter().zip(case_refusals) {
         let mut inputs = vec![("context".to_owned(), context_reference)];
         inputs.extend(case.fields.iter().enumerate().map(|(position, field)| {
             (
@@ -187,6 +190,14 @@ pub(super) fn expand(
             &format!("visit_case#{}.{}", site.arena_index(), arms.len()),
             inputs,
         );
+        if let Some(reason) = refusal {
+            program.record_deferred_refusal_with_detail(
+                branch.symbol,
+                crate::source_state::deferred_refusals::DeferredRequest::StaticApplication,
+                span,
+                reason,
+            );
+        }
         let branch_context = branch.parameters[0].symbol;
         let emission = CallbackSite {
             state: branch.entry,
@@ -247,7 +258,7 @@ pub(super) fn expand(
         }
         let entry = branch.entry;
         let branch_name = branch.name.clone();
-        branch.install(program, body);
+        branch.install(program, MachinePurpose::ActiveCaseBranch, body);
         let arguments = program.expression_table.insert_expression_handles(actuals);
         let visit = expression(
             program,
@@ -267,7 +278,7 @@ pub(super) fn expand(
     }
     let entry = dispatcher.entry;
     let target = dispatcher.name.clone();
-    dispatcher.install(program, arms);
+    dispatcher.install(program, MachinePurpose::ActiveCaseDispatcher, arms);
     // Ordinary call arguments evaluate both operands once, in source order.
     // The application's two callback interfaces have already been checked.
     Ok(vec![StatementNode::Call(TableCall {
@@ -513,7 +524,7 @@ impl GeneratedMachine {
         }
     }
 
-    fn install(self, program: &mut TypedTrees, body: Vec<StatementNode>) {
+    fn install(self, program: &mut TypedTrees, purpose: MachinePurpose, body: Vec<StatementNode>) {
         let mut statement_nodes = arena::HandleSpan::empty();
         for statement in body {
             program
@@ -531,6 +542,7 @@ impl GeneratedMachine {
         }
         let states = program.machine_states.insert_many([entry]);
         program.push_machine(Machine {
+            purpose,
             symbol: self.symbol,
             name: self.name,
             states,
