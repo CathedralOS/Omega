@@ -508,3 +508,38 @@ fn a_retained_provider_choice_is_not_rejoined_by_name_alone() {
             .is_err()
     );
 }
+
+#[test]
+fn a_local_build_selection_owns_every_exact_boundary_operator_coordinate() {
+    let build = "machine build(builder: @mut Build) {
+        Build::select_provider<Buffer::index, First>(builder, linux_x86_64);
+    }";
+    let first = "public boundary operator [] Buffer::index(items: @Buffer, index: u32) -> u8;";
+    let second = "public boundary operator [] Buffer::index<'view>(items: @'view Buffer, index: u64) -> u8;";
+    let dependency = "public data Buffer {}
+        public boundary operator [] Buffer::index(items: @Buffer, index: u16) -> u8;";
+    let mut orders = Vec::new();
+    for (left, right) in [(first, second), (second, first)] {
+        let product = format!("{PRODUCT}\npublic data Buffer {{}}\n{left}\n{right}");
+        let fixture = Fixture::new(build, &product, Some(dependency));
+        let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
+        let selected = fixture.collect(&events).unwrap();
+        let super::ProviderSelectionSubject::BoundaryOperatorFamily(family) = &selected[0].subject
+        else {
+            panic!("expected one selected family");
+        };
+        assert_eq!(family.package, Some(package(7)));
+        assert_eq!(family.coordinates().len(), 2);
+        let members: Vec<_> = family.coordinates().iter()
+            .map(|row| row.requirement_identity.clone())
+            .collect();
+        assert_ne!(members[0], members[1]);
+        let mut arities = family.coordinates().iter()
+            .map(|row| row.static_parameter_count)
+            .collect::<Vec<_>>();
+        arities.sort_unstable();
+        assert_eq!(arities, [0, 1]);
+        orders.push(members);
+    }
+    assert_eq!(orders[0], orders[1]);
+}
