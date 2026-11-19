@@ -644,9 +644,9 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
 /// would be judged, and each selection is then added by hand. Selecting the
 /// defective machine brings it in and the program is rejected. Selecting a
 /// boundary requirement and its trait, as a native binding does, declares
-/// that boundary. Selecting a trait that is no boundary, which the route
-/// cannot judge a provider against, hands the compilation back instead of
-/// leaving the selection unjudged.
+/// that boundary. Selecting a namespace, which supplies no executable
+/// declaration to judge, hands the compilation back instead of leaving the
+/// selection unjudged.
 #[test]
 fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     let _compilation = FIXTURE_COMPILATIONS
@@ -706,11 +706,20 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     // that trait. Neither has a body; each is read as the boundary it is,
     // and the requirement is declared in the accepted module though nothing
     // calls it.
+    // Build and Product load separate declarations of the bundled library.
+    // This Product check must select its own prepared boundary declaration.
     let exit = typed
         .traits()
         .iter()
-        .find(|definition| definition.is_boundary && definition.name.as_str() == "ProcessExit")
-        .expect("the bundled library declares `ProcessExit`");
+        .find(|definition| {
+            definition.is_boundary
+                && definition.name.as_str() == "ProcessExit"
+                && typed.symbols.symbol_is_in_dependency_scope(
+                    definition.symbol,
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                )
+        })
+        .expect("the Product library declares `ProcessExit`");
     let exit_process = typed
         .trait_machine_signatures(exit)
         .first()
@@ -742,13 +751,12 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
             .any(|(_, symbol)| *symbol == exit_process)
     );
 
-    let a_trait = typed
-        .traits()
-        .iter()
-        .find(|definition| !definition.is_boundary)
-        .expect("the bundled library declares a trait that is no boundary")
-        .symbol;
-    let Ok(RouteVerdict::FallBack(refusal)) = verdict_selecting(a_trait) else {
+    let namespace = typed.symbols.get(exit.symbol).parent;
+    assert!(matches!(
+        typed.symbols.get(namespace).kind,
+        symbols::SymbolKind::Module | symbols::SymbolKind::Root
+    ));
+    let Ok(RouteVerdict::FallBack(refusal)) = verdict_selecting(namespace) else {
         panic!("a selection the route cannot judge hands the compilation back");
     };
     assert_eq!(
