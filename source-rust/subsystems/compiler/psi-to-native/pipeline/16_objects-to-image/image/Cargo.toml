@@ -21,5 +21,4 @@ target = { path = "../../../targets/target" }
 
 [dev-dependencies]
 image-fixtures = { path = "../../../../../test-support/image-fixtures" }
-mutation-matrix = { path = "../../../../../test-support/mutation-matrix", features = ["test-support"] }
 terminal-psi = { path = "../../../../psi" }
