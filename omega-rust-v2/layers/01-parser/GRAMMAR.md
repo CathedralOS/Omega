@@ -272,7 +272,7 @@ mathematical declarations and in machine parameters
 
     clause = requires | hypothesis | 'ensures' expression
            | 'reaches' type
-           | 'crashes' type
+           | 'crashes' type expression?
            | 'blocks' ( 'true' | 'false' )?
            | 'suspends' ( 'true' | 'false' )?
            | 'terminates' ( 'by' expression ( '->' expression )? ( 'in' bound )? )?
@@ -284,6 +284,7 @@ mathematical declarations and in machine parameters
     hypothesis = 'requires' 'machine' word '(' params ')' result? clause* ';'
     bound      = expression ( ( '..' | '..=' ) expression )?
 
+- A crash cause can be followed by a guard, as in `crashes Trap value == 0`. L3 checks that the guard is a total Boolean fact about the contract inputs. [Guarded crashes](../../wiki/spec/language/effects.md#guarded-crashes)
 - `none` after `reaches`, `crashes` and `clobbers` is an ordinary name to the
   parser; what it means is a later layer's question.
 - **A hypothesis is the one clause that ends in a semicolon.** It assumes a

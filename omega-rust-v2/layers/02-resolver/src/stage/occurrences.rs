@@ -126,6 +126,15 @@ impl Catalog<'_> {
                     continue;
                 }
             }
+            if node.kind == PathType && matches!(path.as_str(), "u" | "i") {
+                for &section in &node.children {
+                    if file.nodes[section].kind == TypeArgs {
+                        for &width in &file.nodes[section].children {
+                            argument_roles.insert(width, false);
+                        }
+                    }
+                }
+            }
             let Some(first) = node.words().next() else { continue };
             let last = node.words().next_back().unwrap_or(first);
             let span = SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset());
@@ -133,8 +142,16 @@ impl Catalog<'_> {
             let ty = argument_roles
                 .get(&n)
                 .copied()
-                .unwrap_or(node.kind == PathType && !matches!(parent, Some(DroppedBy | Invokes | Reaches | Crashes | Satisfies | Selection)));
-            let expression_type = matches!(parent, Some(RecordPattern | RecordLiteral))
+                .unwrap_or(node.kind == PathType && !matches!(parent, Some(Access | DroppedBy | Invokes | Reaches | Crashes | Satisfies | Selection)));
+            let ranking_term = node
+                .parent
+                .filter(|&p| file.nodes[p].kind == Call && file.nodes[p].children.first() == Some(&n))
+                .unwrap_or(n);
+            let ranking_view = file.nodes[ranking_term].parent.is_some_and(|p| {
+                file.nodes[p].kind == Terminates && file.nodes[p].leaves.iter().any(|l| l.text == "->") && file.nodes[p].children.get(1) == Some(&ranking_term)
+            });
+            let expression_type = ranking_view
+                || matches!(parent, Some(RecordPattern | RecordLiteral))
                 || file
                     .enclosing_contexts(n)
                     .any(|p| matches!(file.nodes[p].kind, Requires | Ensures));
@@ -258,6 +275,7 @@ impl Catalog<'_> {
                         .enclosing_contexts(n)
                         .any(|p| file.nodes[p].kind == Ensures))
                 || (path == "none" && matches!(parent, Some(Reaches | Crashes)))
+                || (parent == Some(Crashes) && matches!(path.as_str(), "Trap" | "Abort"))
                 || (path == "machine" && parent == Some(ConstParam))
                 || (!ty && matches!(path.as_str(), "true" | "false"))
             {
@@ -307,7 +325,7 @@ impl Catalog<'_> {
                     if ty {
                         type_decl || (parent == Some(ConstParam) && callable(kind))
                     } else {
-                        !type_decl || expression_type || matches!(parent, Some(Reaches | Crashes | Satisfies | Selection))
+                        !type_decl || expression_type || matches!(parent, Some(Reaches | Crashes | Invokes | Satisfies | Selection))
                     }
                 });
                 candidates.sort_unstable();

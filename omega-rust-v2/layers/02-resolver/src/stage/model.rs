@@ -23,7 +23,7 @@ pub struct AssemblyVocabulary<'a> {
     pub registers: &'a [&'a str],
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeclarationId {
     pub package: String,
     pub path: String,
@@ -37,7 +37,7 @@ pub struct DeclarationId {
     pub enclosing_machines: Vec<EnclosingMachine>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EnclosingMachine {
     pub path: String,
     pub operands: Vec<String>,

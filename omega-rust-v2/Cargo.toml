@@ -5,6 +5,7 @@ members = [
     "layers/00-lexer",
     "layers/01-parser",
     "layers/02-resolver",
+    "layers/03-typer",
     "tools/compare-builds",
     "tools/golden",
     "tools/measure",

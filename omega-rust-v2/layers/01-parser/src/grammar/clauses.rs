@@ -82,7 +82,27 @@ impl SyntaxParser<'_> {
             NodeKind::Requires | NodeKind::Ensures => {
                 self.parse_expression(predicate_context)?;
             }
-            NodeKind::Reaches | NodeKind::Crashes | NodeKind::Invokes | NodeKind::Satisfies => {
+            NodeKind::Crashes => {
+                self.parse_type(type_position)?;
+                let at_boundary = self.at_end()
+                    || self.nth_at_clause_keyword(0)
+                    || [
+                        Punctuation::LeftBrace,
+                        Punctuation::RightBrace,
+                        Punctuation::Semicolon,
+                        Punctuation::Comma,
+                        Punctuation::RightParenthesis,
+                        Punctuation::RightBracket,
+                        Punctuation::Greater,
+                        Punctuation::Equal,
+                    ]
+                    .into_iter()
+                    .any(|punctuation| self.at(punctuation));
+                if !at_boundary {
+                    self.parse_expression(predicate_context)?;
+                }
+            }
+            NodeKind::Reaches | NodeKind::Invokes | NodeKind::Satisfies => {
                 // `none` is an ordinary name here; what it means is not this layer's question.
                 self.parse_type(type_position)?;
             }

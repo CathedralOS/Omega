@@ -1,0 +1,2 @@
+data Lease dropped by finish { slot: u8; }
+machine finish(value: @Lease) {}

@@ -1,0 +1,4 @@
+collection | v[i..] | indexing::range_mut | @mut [u8]
+collection | tail[i] | indexing::element_mut | @mut u8
+collection | tail[i] | indexing::read | u8
+landing | 7 | u8

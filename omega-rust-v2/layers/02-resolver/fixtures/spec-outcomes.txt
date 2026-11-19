@@ -87,8 +87,8 @@ language/machine_values.md:17  unresolved name counter
 language/machines.md:33  accepted
 language/modules.md:102  unavailable import ui_policy::screen::Point::OnScreen
 language/modules.md:191  builtin type u7 cannot be redeclared
-language/numeric_values.md:490  accepted
-language/numeric_values.md:635  unresolved name cursor
+language/numeric_values.md:498  accepted
+language/numeric_values.md:643  unresolved name cursor
 language/ownership.md:201  unresolved name items
 language/ownership.md:313  unresolved name PoolHandle
 language/patterns.md:22  unresolved name header
@@ -100,7 +100,7 @@ language/reflection.md:77  unresolved name reflect::field
 language/some_packages.md:15  accepted
 language/some_packages.md:39  unresolved name Reader
 language/some_packages.md:69  unresolved name Reader
-language/state_contracts.md:74  unresolved name Trap
+language/state_contracts.md:74  accepted
 language/state_contracts.md:86  accepted
 language/state_contracts.md:321  unresolved name ProcessExit
 language/state_contracts.md:397  unresolved name Never

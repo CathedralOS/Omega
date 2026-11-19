@@ -1,0 +1,12 @@
+// Sealed collection contracts. Brackets select one of these declarations
+// according to the collection, the access being requested and the endpoints.
+public machine [] read<Element [copy]>(items: @[Element], index: u64) -> Element
+    reaches none requires index < items.len crashes none;
+public machine element<Element>(items: @[Element], index: u64) -> @Element
+    reaches none requires index < items.len crashes none;
+public machine element_mut<Element>(items: @mut [Element], index: u64) -> @mut Element
+    reaches none requires index < items.len crashes none;
+public machine [..] range<Element>(items: @[Element], start: u64, end: u64) -> @[Element]
+    reaches none requires start <= end && end <= items.len ensures result.len == end - start crashes none;
+public machine range_mut<Element>(items: @mut [Element], start: u64, end: u64) -> @mut [Element]
+    reaches none requires start <= end && end <= items.len ensures result.len == end - start crashes none;

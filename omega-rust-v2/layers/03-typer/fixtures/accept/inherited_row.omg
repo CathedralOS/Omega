@@ -1,0 +1,6 @@
+trait Parent<T> { machine get(x: T) -> T; }
+trait Child<T>: Parent<T> { machine ready() -> bool; }
+Device satisfies Child<u8> {
+    machine get(x: u8) -> u8 { x }
+    machine ready() -> bool { true }
+}

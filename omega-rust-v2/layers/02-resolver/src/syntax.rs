@@ -3,7 +3,7 @@ use omega_lexer::{SourceSpan, TokenKind};
 use omega_parser::{NodeKind, TreeEvent};
 
 #[derive(Clone, Copy)]
-pub(crate) struct Leaf<'a> {
+pub struct Leaf<'a> {
     pub text: &'a str,
     pub kind: TokenKind,
     pub span: SourceSpan,
@@ -11,7 +11,7 @@ pub(crate) struct Leaf<'a> {
 
 /// Nodes are numbered in preorder. The half-open subtree interval supports scope
 /// checks without recursive walks, including for long left-associated expressions.
-pub(crate) struct Node<'a> {
+pub struct Node<'a> {
     pub kind: NodeKind,
     pub parent: Option<usize>,
     enclosing_context: Option<usize>,
@@ -37,7 +37,7 @@ impl<'a> Node<'a> {
     }
 }
 
-pub(crate) struct File<'a> {
+pub struct File<'a> {
     pub package: &'a str,
     pub path: &'a str,
     pub namespace: String,

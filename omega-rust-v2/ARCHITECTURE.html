@@ -108,7 +108,7 @@
     <h2><span>1</span>The layers</h2>
     <figure>
       <div class="scroll">
-      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. The lexer and parser are signed off. Source bytes enter the lexer, tokens go to the parser, and a syntax tree goes to the resolver. The resolver is implemented and awaits sign-off. It sends visible overloads to typing. Later layers take the resolved tree through typing, preparation, lowering, checking and publication.">
+      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. The lexer, parser and resolver are signed off. Source bytes enter the lexer, tokens go to the parser, and a syntax tree goes to the resolver. The resolver sends visible overloads to typing. The typer checks expressions, generic applications and exact declaration selections. Later layers take the resolved tree through typing, preparation, lowering, checking and publication.">
         <text x="120" y="30" text-anchor="middle" class="mono">source bytes</text>
         <path class="a" d="M120,40 V70"/>
 
@@ -122,12 +122,12 @@
         <text x="360" y="114" text-anchor="middle" class="ts">builds the tree</text>
         <path class="a" d="M435,100 H525"/><text x="480" y="92" text-anchor="middle" class="tl">syntax tree</text>
 
-        <rect class="b-wip" x="525" y="70" width="150" height="60" rx="7"/>
+        <rect class="b-done" x="525" y="70" width="150" height="60" rx="7"/>
         <text x="600" y="95" text-anchor="middle" class="th">L2 Resolver</text>
         <text x="600" y="114" text-anchor="middle" class="ts">binds every name</text>
         <path class="a" d="M675,100 H765"/><text x="720" y="92" text-anchor="middle" class="tl">resolved tree</text>
 
-        <rect class="b-todo" x="765" y="70" width="150" height="60" rx="7"/>
+        <rect class="b-wip" x="765" y="70" width="150" height="60" rx="7"/>
         <text x="840" y="95" text-anchor="middle" class="th">L3 Typer</text>
         <text x="840" y="114" text-anchor="middle" class="ts">gives every part a type</text>
 
@@ -361,7 +361,7 @@
         <path class="a" d="M285,160 V100"/><text x="295" y="135" class="tl">rule settled</text>
       </svg>
       </div>
-      <figcaption>The lexer and parser have completed the loop. The resolver suite checks binding across files and packages and all 132 spec fragments. L2 awaits sign-off. When a call has several visible overloads, L3 will select one using the operand types.</figcaption>
+      <figcaption>The lexer and parser have completed the loop. The resolver suite checks binding across files and packages and all 132 spec fragments. L2 has passed sign-off. L3 checks types, selections and obligations across files. Of the 35 spec fragments that reach L3, 28 pass and seven have reviewed typing refusals.</figcaption>
     </figure>
   </section>
 

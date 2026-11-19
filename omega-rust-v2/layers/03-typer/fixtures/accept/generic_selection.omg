@@ -1,0 +1,5 @@
+data Box<T> { value: T; }
+data Byte = u8;
+machine get<T>(box: Box<T>) -> T { box.value }
+machine id<T>(v: T) -> T { v }
+machine f(box: Box<Byte>) -> Byte { id::<Byte>(get(box)) }

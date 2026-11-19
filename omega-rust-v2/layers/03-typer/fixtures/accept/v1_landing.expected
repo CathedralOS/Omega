@@ -1,0 +1,16 @@
+operator | result == value | == | i32, i32 | bool
+operator | 7 / 2 | / | 7, 2 | 7/2
+operator | 7 / 2 * 2 | * | 7/2, 2 | 7
+operator | (7 / 2 * 2) as i32 | as | 7 | i32
+operator | 7i32 / 2 | / | i32, i32 | i32
+operator | 7i32 / 2 * 2 | * | i32, i32 | i32
+operator | 18446744073709551615 + 1 | + | 18446744073709551615, 1 | 18446744073709551616
+operator | (18446744073709551615 + 1) - 18446744073709551609 | - | 18446744073709551616, 18446744073709551609 | 7
+call | identity((7 / 2 * 2) as i32) | game::identity | i32
+call | identity(7i32 / 2 * 2) | game::identity | i32
+call | identity((18446744073709551615 + 1) - 18446744073709551609) | game::identity | i32
+landing | (7 / 2 * 2) | i32
+landing | 7i32 | i32
+landing | 2 | i32
+landing | 2 | i32
+landing | (18446744073709551615 + 1) - 18446744073709551609 | i32

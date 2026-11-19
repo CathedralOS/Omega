@@ -1,0 +1,4 @@
+const first = second;
+const second = flag();
+machine flag() -> bool { true }
+machine read() -> bool { first }

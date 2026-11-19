@@ -128,8 +128,8 @@ Psi to native code) are not planned yet.
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
 | L1 Parser | tokens → syntax tree | done, signed off 2026-11-18 | 1.12 s |
-| L2 Resolver | syntax tree → bound names and candidates for typing | stage resolver implemented and tested, awaiting Jarod's sign-off | 0.17 s (warm median, five runs of `cargo test -p omega-resolver --tests --quiet`) |
-| L3 Typer | resolved tree → typed tree | not started | — |
+| L2 Resolver | syntax tree → bound names and candidates for typing | done, signed off 2026-11-18 | 0.17 s (warm median, five runs of `cargo test -p omega-resolver --tests --quiet`) |
+| L3 Typer | resolved tree → typed tree | typed calls, operators, applications, evidence, storage and effects implemented. Full gate open | 0.19 s (warm median, five runs) |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
 | L5 Lowering | typed tree → Terminal Psi | not started | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
@@ -282,7 +282,9 @@ generic applications and target names. The suite checks source provenance,
 input-order independence and the outcome of every spec fragment.
 L2 binds the visible overload candidates at a call. L3 selects the machine
 using the typed operands. L3 and L4 establish closed application identities
-after argument values are known. L2 awaits owner sign-off.
+after argument values are known. Jarod signed off L2 on 2026-11-18.
+
+The [L3 typing contract](layers/03-typer/CONTRACT.md) covers calls, operators, generic applications, evidence, storage and effects. `omega source type <file> [<file> ...]` checks one package. Its corpus gate accounts for all 132 fragments, including 35 that reach L3. The full gate remains open for the language and integration items recorded in the contract.
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.
@@ -692,3 +694,5 @@ files waits for. Full figures and method are in
 | 2026-11-18 | L2 records the visible machines at an overloaded call. L3 selects among them using the typed operands. | Resolver implementation |
 | 2026-11-18 | Bind a generic declaration in L2 and finalize its closed application identity after computing argument values, before saving or reusing it. | Jarod |
 | 2026-11-18 | Reopen the L1 conformance body rule to accept the documented `Logger::write = write_log;` form. L2 binds its requirement and implementation machine. | Jarod |
+| 2026-11-18 | L2 resolver signed off. L3 begins with typed operands and named machine calls. | Jarod |
+| 2026-11-18 | A binding shows its numeric type in its declaration: `let count: u8 = 5;` or `let count = 5u8;`. `let count = 5; send(count)` is refused; a later use never chooses the type. | Jarod |

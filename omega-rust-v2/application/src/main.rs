@@ -9,13 +9,13 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--] <package-relative file>...";
-const HELP: &str = "Parse checks syntax. Resolve checks names in the listed files of one package rooted at the current directory. Success produces no output.";
+const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--] <package-relative file>...\n       omega source type [--] <package-relative file>...";
+const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. For resolve and type, list the source files of one package rooted at the current directory. Success produces no output.";
 
 enum Command<'a> {
     Help,
     Parse(&'a Path),
-    Resolve(&'a [OsString]),
+    Stage(&'a [OsString], source::Stage),
 }
 
 fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
@@ -30,7 +30,7 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
             [flag] if flag != "--" => Err(format!("unknown option '{}'", flag.to_string_lossy())),
             _ => Err("source parse requires exactly one file".into()),
         },
-        [group, action, rest @ ..] if group == "source" && action == "resolve" => {
+        [group, action, rest @ ..] if group == "source" && (action == "resolve" || action == "type") => {
             if let [flag] = rest
                 && is_help(flag)
             {
@@ -45,9 +45,12 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
                 rest
             };
             if files.is_empty() {
-                return Err("source resolve requires at least one file".into());
+                return Err(format!("source {} requires at least one file", action.to_string_lossy()));
             }
-            Ok(Command::Resolve(files))
+            Ok(Command::Stage(
+                files,
+                if action == "type" { source::Stage::Type } else { source::Stage::Resolve },
+            ))
         }
         [group, action, ..] if group == "source" => Err(format!("unknown source command '{}'", action.to_string_lossy())),
         [group] if group == "source" => Err("expected a source command".into()),
@@ -73,7 +76,7 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
-        Ok(Command::Resolve(paths)) => match source::resolve_files(paths) {
+        Ok(Command::Stage(paths, stage)) => match source::check_files(paths, stage) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
                 eprintln!("{error}");

@@ -1,0 +1,35 @@
+build/provider_selection.md:305  accepted
+language/data_and_literals.md:20  L3 missing result of type bool | {     }
+language/data_and_literals.md:58  accepted
+language/data_and_literals.md:90  accepted
+language/data_and_literals.md:109  accepted
+language/data_and_literals.md:137  accepted
+language/data_and_literals.md:172  L3 missing field retries | Options { timeout_ms: 1000 }
+language/data_and_literals.md:272  accepted
+language/data_and_literals.md:370  accepted
+language/data_and_literals.md:435  accepted
+language/domains.md:116  accepted
+language/domains.md:495  accepted
+language/domains.md:572  accepted
+language/domains.md:701  L3 carrier cast requires an unqualified operand | near
+language/effects.md:101  L3 call exceeds service reach for Sensor | Sensor::<29u64>::read()
+language/effects.md:226  accepted
+language/effects.md:571  accepted
+language/effects.md:636  accepted
+language/expressions.md:405  L3 bodyless machine has no authorized supply | machine [] read<Element [copy]>(items: @[Element], index: u64) -> Element
+language/expressions.md:526  L3 no matching overload for set_first(@mut [u8; 38], 7) | set_first
+language/generics.md:242  accepted
+language/generics.md:363  accepted
+language/generics.md:506  accepted
+language/generics.md:761  accepted
+language/lifetimes.md:20  accepted
+language/machines.md:33  accepted
+language/numeric_values.md:498  L3 fractional intermediate at bytes 21..26 yields 5; use an explicit cast to u32 | (5 / 2) * 2
+language/patterns.md:46  accepted
+language/some_packages.md:15  accepted
+language/state_contracts.md:74  accepted
+language/state_contracts.md:86  accepted
+layouts/recasts.md:18  accepted
+proofs/contracts.md:826  accepted
+resources/bounded_input.md:38  accepted
+resources/carry.md:6  accepted

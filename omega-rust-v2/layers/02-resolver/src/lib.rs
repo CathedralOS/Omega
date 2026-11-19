@@ -15,6 +15,7 @@ pub use stage::{
     Application, ArgumentAlternative, AssemblyVocabulary, DeclarationId, DefinitionSite, Dependency, EnclosingMachine, NameError, NameUse, OperatorDeclaration,
     OperatorUse, ResolvedStage, StageSource, Symbol, resolve_stage, resolve_stage_for_target,
 };
+pub use syntax::File as IndexedSource;
 
 /// A whole-file parse and its original UTF-8 source and tokens. The package loader
 /// supplies a canonical, slash-separated logical path relative to the package root.

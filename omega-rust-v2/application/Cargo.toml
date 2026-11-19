@@ -9,3 +9,4 @@ publish.workspace = true
 omega-lexer = { path = "../layers/00-lexer" }
 omega-parser = { path = "../layers/01-parser" }
 omega-resolver = { path = "../layers/02-resolver" }
+omega-typer = { path = "../layers/03-typer" }

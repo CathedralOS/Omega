@@ -1,0 +1,2 @@
+row | Device | Parent::get<u8> | Device::get
+row | Device | Child::ready<u8> | Device::ready

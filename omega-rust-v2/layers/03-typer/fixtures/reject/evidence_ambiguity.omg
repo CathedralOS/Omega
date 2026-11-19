@@ -1,0 +1,4 @@
+trait Merge<T> { machine + merge(x: T, y: T) -> T; }
+machine both<T, const A: Merge<T>, const B: Merge<T>>(x: T, y: T) -> T {
+    x + y
+}

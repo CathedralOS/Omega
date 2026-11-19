@@ -1,0 +1,7 @@
+operator | 5 / 2 | / | 5, 2 | 5/2
+operator | (5 / 2) * 2 | * | 5/2, 2 | 5
+operator | ((5 / 2) * 2) as u8 | as | 5 | u8
+operator | a < b | < | i8, u32 | bool
+operator | h *% 31 | *% | u13, u13 | u13
+landing | ((5 / 2) * 2) | u8
+landing | 31 | u13

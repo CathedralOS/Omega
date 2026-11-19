@@ -1,0 +1,1 @@
+machine render(flag: bool) -> u32 { draw(flag) }

@@ -1,0 +1,3 @@
+operator | value == 0 | == | i64, i64 | bool
+route | Trap | value == 0
+landing | 0 | i64
