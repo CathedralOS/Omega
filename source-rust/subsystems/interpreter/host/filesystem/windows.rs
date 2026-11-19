@@ -6,7 +6,7 @@
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::IntegerValue;
 use std::collections::BTreeMap;
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalEffectRejection, TerminalProgram, TerminalScalarValue};
 use terminal_psi::BoundaryMachineDeclaration;
 

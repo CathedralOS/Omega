@@ -19,7 +19,7 @@ use calling_conventions::{
 };
 use runtime_abi::HostInternetAddress;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralTypeId};
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,

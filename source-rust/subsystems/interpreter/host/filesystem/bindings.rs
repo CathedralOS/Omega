@@ -15,7 +15,7 @@ use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalEffectRejection, TerminalProgram, TerminalScalarValue};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,

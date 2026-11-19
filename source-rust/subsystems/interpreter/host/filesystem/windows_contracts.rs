@@ -9,7 +9,7 @@ use super::{Effect, Formal, TerminalRuntimeError};
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::IntegerSign;
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
 use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess};
 

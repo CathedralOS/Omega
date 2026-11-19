@@ -3525,7 +3525,7 @@ dependencies = [
  "service-surface",
  "storage-access",
  "target",
- "target-operations",
+ "target-vocabulary",
  "terminal-codec",
  "terminal-installation",
  "terminal-interpreter",

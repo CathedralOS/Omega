@@ -311,8 +311,8 @@ impl<'program> HostedTerminalProgram<'program> {
         if let Some(provisions) = request.provisions {
             for provision in provisions.host() {
                 if matches!(&provision.realization,
-                target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
-                    if matches!(binding.mechanism, target_operations::NormalizedForeignCallMechanism::Component { .. }))
+                target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding)
+                    if matches!(binding.mechanism, target_vocabulary::NormalizedForeignCallMechanism::Component { .. }))
                 {
                     continue;
                 }

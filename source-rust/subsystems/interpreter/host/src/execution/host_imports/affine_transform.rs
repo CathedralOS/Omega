@@ -6,7 +6,7 @@ use super::super::TerminalRuntimeError;
 use calling_conventions::BoundaryCallingApplication;
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ScalarType};
 use target::{ForeignLocatorCandidate, TargetProfile};
-use target_operations::NormalizedForeignCallBinding;
+use target_vocabulary::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalAggregateValue, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
     TerminalEffectResult, TerminalImportAdapter, TerminalImportSignature, TerminalProgram,
