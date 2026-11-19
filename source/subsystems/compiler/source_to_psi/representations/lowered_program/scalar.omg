@@ -1,0 +1,126 @@
+// A closed in-process lowering slice with scalar values and owned storage.
+// Value identity is its operation index, type identity indexes the shared
+// layout table, and callee/field identities retain checked declarations.
+// Memory, calls and control have the ordinary meanings described in
+// wiki/spec/terminal-psi/{structural_access,calls_and_outcomes}.md.
+// The consumer needs neither syntax nor source bytes. Full portable publication
+// must additionally retain canonical declaration/contract/obligation identities;
+// checker acceptance and counts cannot substitute for those records.
+public data ScalarOperationKind [copy] {
+    case IntegerConstant;
+    case ExactIntegerAdd;
+    case ExactIntegerSubtract;
+    case ExactIntegerMultiply;
+    case ExactIntegerDivide;
+    case ExactIntegerRemainder;
+    case Call;
+    case FrameAddress;
+    case AddressOffset;
+    case AddressIndex;
+    case Load;
+    case Store;
+    case Copy;
+    case Zero;
+    case IntegerEqual;
+    case UnsignedLess;
+    case BooleanNot;
+    case BranchZero;
+    case BranchNonzero;
+    case Label;
+    case ReturnValue;
+    case ReturnUnit;
+    case Trap;
+}
+
+public data ScalarOperation [copy] {
+    kind: ScalarOperationKind;
+    left: u64 in Trapping;
+    right: u64 in Trapping;
+    // Memory width/stride or call argument count, according to kind.
+    extra: u64 in Trapping;
+}
+
+public data ScalarMachine [copy] {
+    first: u64 in Trapping;
+    count: u64 in Trapping;
+    storage_size: u64 in Trapping;
+    first_parameter: u64 in Trapping;
+    parameter_count: u64 in Trapping;
+    argument_capacity: u64 in Trapping;
+}
+
+public data ScalarParameter [copy] {
+    offset: u64 in Trapping;
+    type_handle: u64 in Trapping;
+}
+
+public data ScalarStatus [copy] {
+    case Complete;
+    case Unchecked;
+    case Unsupported;
+    case Capacity;
+}
+
+public data ScalarProgram {
+    // Layout identity is the checked type handle. Offsets name declared
+    // fields, never source spellings; all memory consumers share this table.
+    layouts: [ScalarLayout; 8192];
+    layout_count: u64;
+    field_offsets: [u64; 1024];
+    parameters: [ScalarParameter; 32768];
+    parameter_count: u64;
+    arguments: [u64; 65536];
+    argument_count: u64 in Trapping;
+    operations: [ScalarOperation; 16384];
+    operation_count: u64 in Trapping;
+    machines: [ScalarMachine; 10240];
+    machine_count: u64 in Trapping;
+    entry: u64 in Trapping;
+    status: ScalarStatus;
+}
+
+public machine scalar_operation(program: @ScalarProgram, index: u64 in Trapping) -> ScalarOperation
+crashes Trap
+{
+    transition index < program.operation_count && index < 16384 {
+        true -> read(program, index),
+        _ -> invalid()
+    }
+    machine read(program: @ScalarProgram, index: u64 in Trapping) -> ScalarOperation { program.operations[(index) as -Trapping] }
+    machine invalid() -> ScalarOperation { crash Trap; }
+}
+
+public machine scalar_machine_at(program: @ScalarProgram, index: u64 in Trapping) -> ScalarMachine
+crashes Trap
+{
+    transition index < program.machine_count && index < 10240 {
+        true -> read(program, index),
+        _ -> invalid()
+    }
+    machine read(program: @ScalarProgram, index: u64 in Trapping) -> ScalarMachine { program.machines[(index) as -Trapping] }
+    machine invalid() -> ScalarMachine { crash Trap; }
+}
+
+public machine scalar_parameter_at(program: @ScalarProgram, index: u64 in Trapping) -> ScalarParameter
+crashes Trap
+{
+    transition index < program.parameter_count && index < 32768 {
+        true -> read(program, index),
+        _ -> invalid()
+    }
+    machine read(program: @ScalarProgram, index: u64 in Trapping) -> ScalarParameter { program.parameters[index as -Trapping] }
+    machine invalid() -> ScalarParameter { crash Trap; }
+}
+
+public machine scalar_argument_at(program: @ScalarProgram, index: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition index < program.argument_count && index < 65536 {
+        true -> read(program, index),
+        _ -> invalid()
+    }
+    machine read(program: @ScalarProgram, index: u64 in Trapping) -> u64 in Trapping {
+        program.arguments[index as -Trapping] as u64 +Trapping
+    }
+    machine invalid() -> u64 in Trapping { crash Trap; }
+}

@@ -1,0 +1,112 @@
+use foundation::ExactInteger;
+use representations::checks::CheckDiagnosticCode;
+use representations::checks::checks_reject;
+use representations::symbol_resolved_trees::BuiltinType;
+use representations::symbol_resolved_trees::DomainBinding;
+use representations::syntax_trees::Expression;
+use representations::syntax_trees::ReferenceAccess;
+use representations::syntax_trees::SyntaxTrees;
+use representations::typed_trees::TypeKind;
+use representations::typed_trees::TypeRow;
+use representations::typed_trees::Typing;
+use representations::typed_trees::type_table_row;
+use representations::typed_trees::typing_expression_type;
+
+// A recast `reference as &T` views the operand's storage under `T`
+// (wiki/spec/layouts/recasts.md#shared-and-mutable-views): a shared view
+// needs every valid source representation to be a valid target one, and a
+// mutable view both directions, since every value written through the
+// target must leave the source valid. Typing admitted one scalar width on
+// both sides. Same-width integers and IEEE floats share every bit pattern,
+// so they view each other either way. A Boolean is one of two bytes: it
+// views as an integer shared but never mutably, and an integer views as a
+// Boolean only when it is a field of data whose `requires` facts bound it to
+// zero or one, which the zone then proves; a fact that only the body
+// established does not make every representation of the carrier valid.
+// A declared domain narrows the source's set, so a qualified source views
+// shared but not mutably; a qualified target asks for predicates checking
+// does not compare and is unsupported unless both referents are the one
+// type.
+public machine check_recast(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, row: TypeRow, checking: bool)
+crashes Trap
+{
+    let source_type: u64 in Trapping = typing_expression_type(typing, expression.left);
+    let given: TypeRow = type_table_row(@typing.types, source_type);
+    transition checking && given.kind == TypeKind::Reference && given.inner != row.inner {
+        true -> referents(checker, syntax, typing, expression, row, given),
+        _ -> done()
+    }
+
+    machine referents(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, row: TypeRow, given: TypeRow) {
+        let source: TypeRow = type_table_row(@typing.types, given.inner);
+        let target: TypeRow = type_table_row(@typing.types, row.inner);
+        let mutable: bool = row.access != ReferenceAccess::Shared;
+        let source_boolean: bool = source.kind == TypeKind::Builtin && source.builtin == BuiltinType::Bool;
+        let target_boolean: bool = target.kind == TypeKind::Builtin && target.builtin == BuiltinType::Bool;
+        transition target.domain == DomainBinding::Declared {
+            true -> fenced(checker, expression),
+            _ -> source_domain(checker, syntax, typing, expression, source.domain == DomainBinding::Declared, mutable, source_boolean, target_boolean)
+        }
+    }
+
+    machine source_domain(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, qualified: bool, mutable: bool, source_boolean: bool, target_boolean: bool) {
+        transition qualified && mutable {
+            true -> unproven(checker, expression),
+            _ -> shapes(checker, syntax, typing, expression, mutable, source_boolean, target_boolean)
+        }
+    }
+
+    machine shapes(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, mutable: bool, source_boolean: bool, target_boolean: bool) {
+        transition source_boolean == target_boolean {
+            true -> done(),
+            _ -> mixed(checker, syntax, typing, expression, mutable, target_boolean)
+        }
+    }
+
+    machine mixed(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, mutable: bool, target_boolean: bool) {
+        transition target_boolean {
+            true -> bounded_field(checker, syntax, typing, expression),
+            _ -> boolean_source(checker, expression, mutable)
+        }
+    }
+
+    machine boolean_source(checker: @mut Checker, expression: Expression, mutable: bool) {
+        transition mutable {
+            true -> unproven(checker, expression),
+            _ -> done()
+        }
+    }
+
+    // The borrowed place must be a field of data carrying `requires` facts,
+    // and those facts must bound it to zero or one.
+    machine bounded_field(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression) {
+        let operand: Value = value_at(checker, expression.left);
+        let owner: u64 in Trapping = window_owner(checker, syntax, typing, operand.place);
+        transition owner > 0 {
+            true -> proved(checker, expression, operand.place),
+            _ -> unproven(checker, expression)
+        }
+    }
+
+    machine proved(checker: @mut Checker, expression: Expression, place: u64 in Trapping) {
+        let referent: Value = place_value(checker, place);
+        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
+        let one: Value = value_constant(ExactInteger { negative: false, magnitude: 1 });
+        let at_least_zero: bool = proves_at_most(checker, zero, referent);
+        let at_most_one: bool = proves_at_most(checker, referent, one);
+        transition at_least_zero && at_most_one {
+            true -> done(),
+            _ -> unproven(checker, expression)
+        }
+    }
+
+    machine fenced(checker: @mut Checker, expression: Expression) {
+        checks_reject(@mut checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
+    }
+
+    machine unproven(checker: @mut Checker, expression: Expression) {
+        checks_reject(@mut checker.output, CheckDiagnosticCode::RepresentationUnproven, expression.source_span);
+    }
+
+    machine done() {}
+}

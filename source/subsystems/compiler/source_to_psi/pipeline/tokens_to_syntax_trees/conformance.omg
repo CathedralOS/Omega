@@ -1,0 +1,172 @@
+use representations::source_files::SourceSpan;
+use representations::syntax_trees::ConformanceItem;
+use representations::syntax_trees::MachineContainer;
+use representations::syntax_trees::MachineItem;
+use representations::syntax_trees::ParseDiagnosticCode;
+use representations::syntax_trees::RootItem;
+use representations::syntax_trees::RootItemKind;
+use representations::syntax_trees::machine_item;
+use representations::syntax_trees::syntax_trees_reject;
+use representations::tokens::KeywordKind;
+use representations::tokens::PunctuationKind;
+use representations::tokens::Token;
+use representations::tokens::TokenStream;
+
+// `[public] Name [<generic parameters>] satisfies Trait<arguments> { member* }`,
+// entered at the implementation's name. The name identifies a closed map of
+// machines, not a data subject: the satisfied trait application is one type
+// reference, and every member is a checked machine with a body (machine.omg's
+// grammar, contained by the conformance). The reference row
+// `Trait::requirement = Path;` is retired, because reuse is an ordinary call
+// from an inline member; any token other than `machine` at a member position
+// rejects as `ExpectedConformanceMember`, as the Rust producer's conformance
+// parser does (wiki/spec/language/conformances.md). The item and its root are
+// retained at the closing `}`.
+public machine parse_conformance(
+    parser: @mut Parser,
+    input: @TokenStream,
+    item_start: u64 in Trapping,
+    is_public: bool
+)
+crashes Trap
+{
+    parser.declaration_start = item_start;
+    parser.declaration_is_public = is_public;
+    transition parser.output.conformance_count < 256 {
+        true -> implementation_name(parser, input),
+        _ -> reject(parser, input, ParseDiagnosticCode::ConformanceCapacityExceeded)
+    }
+
+    machine implementation_name(parser: @mut Parser, input: @TokenStream) {
+        parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
+        take_current(parser, input);
+        parser.declaration_name_start = parser.token_start;
+        parser.declaration_name_end = parser.token_end;
+        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
+        transition generic {
+            true -> generics(parser, input),
+            _ -> satisfies_word(parser, input)
+        }
+    }
+
+    machine generics(parser: @mut Parser, input: @TokenStream) {
+        parse_generic_parameters(parser, input);
+        transition parser.output.accepted {
+            true -> satisfies_word(parser, input),
+            _ -> done()
+        }
+    }
+
+    machine satisfies_word(parser: @mut Parser, input: @TokenStream) {
+        parser.declaration_generic_count = (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic;
+        let relation: bool = at_word(parser, input, "satisfies");
+        transition relation {
+            true -> trait_application(parser, input),
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedConformanceSatisfies)
+        }
+    }
+
+    machine trait_application(parser: @mut Parser, input: @TokenStream) {
+        take_current(parser, input);
+        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedConformanceTrait);
+        parser.declaration_type = parser.type_result;
+        transition parser.output.accepted {
+            true -> body(parser, input),
+            _ -> done()
+        }
+    }
+
+    machine body(parser: @mut Parser, input: @TokenStream) {
+        expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedConformanceBody);
+        parser.declaration_first_machine = parser.output.machine_count as u64 in Trapping;
+        transition parser.output.accepted {
+            true -> member(parser, input),
+            _ -> done()
+        }
+    }
+
+    machine member(parser: @mut Parser, input: @TokenStream) {
+        let closing: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
+        transition closing {
+            true -> close(parser, input),
+            _ -> machine_member(parser, input)
+        }
+    }
+
+    machine machine_member(parser: @mut Parser, input: @TokenStream) {
+        let checked: bool = at_keyword(parser, input, KeywordKind::Machine);
+        transition checked {
+            true -> checked_member(parser, input),
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedConformanceMember)
+        }
+    }
+
+    machine checked_member(parser: @mut Parser, input: @TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        let head: MachineHead = member_machine_head(token.start, MachineContainer::Conformance);
+        parse_machine(parser, input, head);
+        transition parser.output.accepted {
+            true -> checked_body(parser, input),
+            _ -> done()
+        }
+    }
+
+    // A member supplies its requirement's implementation, so it has a
+    // checked body; a bodyless one rejects at the `;` that ended it.
+    machine checked_body(parser: @mut Parser, input: @TokenStream) {
+        let handle: u64 in Trapping = parser.machine_result;
+        let checked: MachineItem = machine_item(@parser.output, handle);
+        transition checked.has_body {
+            true -> member(parser, input),
+            _ -> bodyless(parser)
+        }
+    }
+
+    machine bodyless(parser: @mut Parser) {
+        syntax_trees_reject(@mut parser.output, ParseDiagnosticCode::ExpectedConformanceMachineBody,
+            parser.source, parser.token_start, parser.token_end);
+    }
+
+    machine close(parser: @mut Parser, input: @TokenStream) {
+        take_current(parser, input);
+        transition parser.output.conformance_count < 256 {
+            true -> root_capacity(parser, input),
+            _ -> reject(parser, input, ParseDiagnosticCode::ConformanceCapacityExceeded)
+        }
+    }
+
+    machine root_capacity(parser: @mut Parser, input: @TokenStream) {
+        transition parser.output.root_count < 4096 {
+            true -> retain(parser),
+            _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
+        }
+    }
+
+    machine retain(parser: @mut Parser) {
+        let conformance: u64 in Trapping = parser.output.conformance_count as u64 in Trapping;
+        let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
+        parser.output.conformances[parser.output.conformance_count] = ConformanceItem {
+            name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+            first_generic_parameter: parser.declaration_first_generic,
+            generic_parameter_count: parser.declaration_generic_count,
+            trait_type: parser.declaration_type,
+            first_machine: parser.declaration_first_machine,
+            machine_count: (parser.output.machine_count as u64 in Trapping) - parser.declaration_first_machine,
+            is_public: parser.declaration_is_public,
+            source_span: span
+        };
+        parser.output.conformance_count = parser.output.conformance_count + 1;
+        parser.output.roots[parser.output.root_count] = RootItem {
+            kind: RootItemKind::Conformance,
+            item_index: conformance,
+            source_span: span
+        };
+        parser.output.root_count = parser.output.root_count + 1;
+    }
+
+    machine reject(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
+        reject_current(parser, input, code);
+    }
+
+    machine done() {}
+}
