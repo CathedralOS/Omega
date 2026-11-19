@@ -30,7 +30,7 @@ pub(super) fn prepare(
     input: &NativeRealizationInput<'_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
-    installation: Option<&terminal_installation::AdmittedProviderSelections>,
+    installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
     entries: &[AdmittedInstalledInterruptEntry],
     helpers: &[crate::AdmittedInstalledInterruptHelper],
     operations: &[(super::OperationSite, &terminal_psi::Operation)],

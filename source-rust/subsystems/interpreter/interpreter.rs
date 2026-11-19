@@ -157,6 +157,11 @@ pub use engine::capabilities::{
 };
 pub use engine::execution::TerminalExecution;
 pub use engine::scalar_operations::float_result_policy;
+pub use psi_provider_selections::{
+    AdmittedProviderSelections, admit_provider_installation,
+    admit_provider_installation_from_artifact,
+    admit_provider_installation_with_assumed_bindings_from_artifact,
+};
 pub use storage::byte_sequences::read::TerminalByteRead;
 pub use storage::provider_storage::{
     TerminalProviderBacking, TerminalProviderStorageInput, TerminalProviderStorageRejection,
@@ -167,11 +172,6 @@ pub use storage::scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayVa
 pub use storage::scalar_storage::TerminalScalarBacking;
 pub use storage::structural_storage::contents::{
     TerminalBoundaryStorageValue, TerminalStorageContents,
-};
-pub use terminal_installation::{
-    AdmittedProviderSelections, admit_provider_installation,
-    admit_provider_installation_from_artifact,
-    admit_provider_installation_with_assumed_bindings_from_artifact,
 };
 
 impl TerminalExecution<'_> {

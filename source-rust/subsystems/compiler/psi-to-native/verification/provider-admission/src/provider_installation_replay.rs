@@ -49,7 +49,7 @@ pub(super) fn replay_installed_provider_calls(
     plan: &AbstractOperationPlan,
     module: &terminal_psi::TerminalModule,
     installed: &[ProviderCandidateConformance],
-    assumed: &[terminal_installation::AdmittedAssumedBinding],
+    assumed: &[psi_provider_selections::AdmittedAssumedBinding],
 ) -> Result<Vec<AdmittedInstalledProviderCall>, ProviderInstallationError> {
     if installed.is_empty() {
         return Ok(Vec::new());

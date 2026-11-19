@@ -442,7 +442,7 @@ fn admit_checked_provider_installation(
         if view.module().folded_constants.target.is_none() {
             return Ok(None);
         }
-        let selection = terminal_installation::admit_provider_installation(view, &[], &[])
+        let selection = psi_provider_selections::admit_provider_installation(view, &[], &[])
             .map_err(|error| {
                 realization_error("historical-only catalog admission", format!("{error:?}"))
             })?
@@ -466,7 +466,7 @@ fn admit_checked_provider_installation(
                 .map_err(|reason| realization_error("assumed binding installation", reason))?
                 .into_iter()
                 .map(|(required, supplied_requirement)| {
-                    terminal_installation::AssumedBindingSelection {
+                    psi_provider_selections::AssumedBindingSelection {
                         required,
                         supplied_requirement,
                     }

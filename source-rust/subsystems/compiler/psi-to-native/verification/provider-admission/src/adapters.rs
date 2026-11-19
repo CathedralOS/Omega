@@ -13,9 +13,9 @@
 
 use crate::SelectedProviderAdapter;
 use effects::provider_plan::ProviderBinding;
+use psi_provider_selections::AdmittedProviderSelections;
 use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use terminal_installation::AdmittedProviderSelections;
 use terminal_semantics::synchronous_calls::SynchronousCallGraph;
 
 pub fn retain_selected_provider_adapters(

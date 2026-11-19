@@ -149,7 +149,7 @@ impl<'input> ComponentNativeInputs<'input> {
                     ));
                 }
                 let candidate = export.candidate;
-                let selected = terminal_installation::ProviderInstallationSelection {
+                let selected = psi_provider_selections::ProviderInstallationSelection {
                     boundary: candidate.boundary,
                     provider_identity: module
                         .identities

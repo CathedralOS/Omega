@@ -166,7 +166,7 @@ impl RuntimeExecutionProvisions {
     pub fn target_slot(&self) -> target::ProgramEntrySlotDeclaration {
         self.plan.target_slot()
     }
-    pub fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
+    pub fn installation(&self) -> Option<&psi_provider_selections::AdmittedProviderSelections> {
         self.plan.installation()
     }
     pub fn scalar_applications(

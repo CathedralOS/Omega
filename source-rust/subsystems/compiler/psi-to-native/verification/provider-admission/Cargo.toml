@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+psi-provider-selections = { path = "../../../psi/providers" }
 psi-entry-memory = { path = "../../../psi/access/entry-memory" }
 psi-target-layouts = { path = "../../../psi/layout/admission" }
 service-surface = { path = "../../../psi/service-surface" }

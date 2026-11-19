@@ -1,0 +1,15 @@
+[package]
+name = "psi-provider-selections"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "selections.rs"
+
+[dependencies]
+record-storage = { path = "../../../../foundation/record-storage" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+terminal-codec = { path = "../codec" }
+terminal-psi = { path = ".." }
+terminal-semantics = { path = "../semantics" }

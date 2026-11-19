@@ -487,7 +487,7 @@ mod providers {
         6 => CheckedAdapter { machine_identity, machine_package_identity },
     });
 
-    record_fields!(terminal_installation::ProviderInstallationSelection {
+    record_fields!(psi_provider_selections::ProviderInstallationSelection {
         boundary,
         provider_identity,
         provider_declaration,

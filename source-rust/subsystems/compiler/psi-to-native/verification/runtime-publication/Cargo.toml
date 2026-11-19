@@ -9,6 +9,7 @@ publish = false
 path = "publication.rs"
 
 [dependencies]
+psi-provider-selections = { path = "../../../psi/providers" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 native-stack-demand = { path = "../../pipeline/representations/machine-code/stack-demand" }
 provider-admission = { path = "../provider-admission" }

@@ -4240,18 +4240,18 @@ pub struct TerminalEffectRejection {
     pub reason: String,
 }
 
+pub use psi_provider_selections::{
+    AdmittedAssumedBinding, AssumedBindingSelection, ProviderInstallationSelection,
+};
 pub use psi_target_layouts::{
     AdmittedTargetLayouts, TerminalTargetContext, admit_target_layouts, terminal_target_context,
-};
-pub use terminal_installation::{
-    AdmittedAssumedBinding, AssumedBindingSelection, ProviderInstallationSelection,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalRuntimeSupplies {
     pub(crate) native_code_layouts:
         Option<std::sync::Arc<crate::TerminalNativeCodeLayoutEnvironment>>,
-    pub(crate) provider_selections: Option<terminal_installation::AdmittedProviderSelections>,
+    pub(crate) provider_selections: Option<psi_provider_selections::AdmittedProviderSelections>,
     pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
     pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
@@ -4282,7 +4282,7 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
     pub x86_flags: Option<TerminalX86FlagsEnvironment>,
     pub memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     pub entry: Option<terminal_psi::TargetMachineCallable>,
-    pub installation: Option<&'installation terminal_installation::AdmittedProviderSelections>,
+    pub installation: Option<&'installation psi_provider_selections::AdmittedProviderSelections>,
     pub host_imports: &'installation [BoundaryMachineId],
     /// Selected external leaves. The instance must still obtain authority for its process domain.
     pub external_completions: &'installation [BoundaryMachineId],
@@ -4290,8 +4290,8 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
     pub target_layouts: Option<&'installation AdmittedTargetLayouts>,
 }
 
-impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntimeSupplies {
-    fn from(selected: &terminal_installation::AdmittedProviderSelections) -> Self {
+impl From<&psi_provider_selections::AdmittedProviderSelections> for TerminalRuntimeSupplies {
+    fn from(selected: &psi_provider_selections::AdmittedProviderSelections) -> Self {
         Self {
             provider_selections: Some(selected.clone()),
             x86_flags: None,
