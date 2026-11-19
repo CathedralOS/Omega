@@ -131,7 +131,7 @@ pub fn prepare_source_for_test(
 }
 
 #[cfg(test)]
-extern crate self as source_compiler;
+use source_files::LoadedSource;
 #[cfg(test)]
-#[path = "../../../../../../tests/support/frontend.rs"]
-mod frontend_fixture;
+#[path = "../../../../../tests/support/frontend_operations.rs"]
+pub(crate) mod frontend_fixture;

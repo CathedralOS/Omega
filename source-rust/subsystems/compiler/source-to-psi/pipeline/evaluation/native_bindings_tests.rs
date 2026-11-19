@@ -2,10 +2,10 @@
 //! host event. They check retained admission, without executing a Build.
 
 use super::*;
-use declaration_contracts::selection::ProductTarget;
-use declaration_contracts::source_identity::DependencyScope;
+use semantic_vocabulary::source_selections::ProductTarget;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
+use source_provenance::DependencyScope;
 use std::sync::Arc;
 
 const PRELUDE: &str = r#"
@@ -60,10 +60,7 @@ fn typed_requirement_at(
     if dependency {
         sources.retain_product_dependency_scope([(package(7), "dep", package(8))]);
     }
-    let external = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/external_binding.omg"
-    ));
+    let external = include_str!("../../../../../../source/library/core/external_binding.omg");
     let inputs = [
         (
             "root/build.omg",
@@ -126,18 +123,18 @@ fn typed_requirement_at(
             )
             .source_id;
         ids.push(id);
-        let tokens = crate::evaluation::frontend_fixture::Lexer::new(text)
+        let tokens = crate::stages::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
         match &mut syntax {
             None => {
                 syntax = Some(
-                    crate::evaluation::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
+                    crate::stages::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
                         .unwrap(),
                 )
             }
             Some(syntax) => {
-                crate::evaluation::frontend_fixture::parse(syntax, id, &tokens).unwrap();
+                crate::stages::frontend_fixture::parse(syntax, id, &tokens).unwrap();
             }
         }
     }

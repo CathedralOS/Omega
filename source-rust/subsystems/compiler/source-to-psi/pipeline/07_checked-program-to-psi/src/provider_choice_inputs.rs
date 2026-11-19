@@ -187,6 +187,12 @@ impl ProviderSelectionSubject {
     }
 }
 
+pub fn application_id(
+    handle: arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
+) -> ProviderApplicationId {
+    ProviderApplicationId::from_parts(handle.arena_index(), handle.generation())
+}
+
 pub fn source_application(
     id: ProviderApplicationId,
 ) -> arena::Handle<crate::source_state::product_operand::ProductOperandApplication> {
