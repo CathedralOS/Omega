@@ -1044,18 +1044,36 @@ pub(crate) mod integer_math_normalization {
                 scalar_type,
                 left,
                 right,
-            } if exact_ring_carrier(scalar_type) => Some(IntegerMathTerm::Add(
-                Box::new(lift_exact_integer_term(left)?),
-                Box::new(lift_exact_integer_term(right)?),
-            )),
+            } if left
+                .scalar_type()
+                .as_integer()
+                .zip(right.scalar_type().as_integer())
+                .is_some_and(|(left, right)| {
+                    scalar_type.admits_exact_add_operands(left, right)
+                }) =>
+            {
+                Some(IntegerMathTerm::Add(
+                    Box::new(lift_exact_integer_term(left)?),
+                    Box::new(lift_exact_integer_term(right)?),
+                ))
+            }
             ScalarTerm::ExactIntegerSubtract {
                 scalar_type,
                 left,
                 right,
-            } if exact_ring_carrier(scalar_type) => Some(IntegerMathTerm::Subtract(
-                Box::new(lift_exact_integer_term(left)?),
-                Box::new(lift_exact_integer_term(right)?),
-            )),
+            } if left
+                .scalar_type()
+                .as_integer()
+                .zip(right.scalar_type().as_integer())
+                .is_some_and(|(left, right)| {
+                    scalar_type.admits_exact_subtract_operands(left, right)
+                }) =>
+            {
+                Some(IntegerMathTerm::Subtract(
+                    Box::new(lift_exact_integer_term(left)?),
+                    Box::new(lift_exact_integer_term(right)?),
+                ))
+            }
             ScalarTerm::ExactIntegerMultiply {
                 scalar_type,
                 left,
@@ -1080,7 +1098,12 @@ pub(crate) mod integer_math_normalization {
                     count: Box::new(lift_exact_integer_term(count)?),
                 })
             }
-            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } => lift_fixed_integer_term(term),
+            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } => {
+                let integer = term.scalar_type().as_integer()?;
+                (exact_ring_carrier(&integer) || integer.is_address())
+                    .then(|| IntegerMathTerm::embed(term.clone()))
+                    .flatten()
+            }
             _ => None,
         }
     }
@@ -1105,6 +1128,109 @@ pub(crate) mod integer_math_normalization {
         };
         use std::slice::from_ref;
         use terminal_psi::{ProofNode, ProofRule};
+
+        #[test]
+        fn exact_address_arithmetic_preserves_its_typed_mathematical_value() {
+            let address = IntegerType::supported_address_representation();
+            let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let a = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(address));
+            let b = ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Integer(address));
+            let n = ScalarTerm::value(ValueId::new(3).unwrap(), ScalarType::Integer(count));
+            let context = PropositionContext::from_value_types([
+                (ValueId::new(1).unwrap(), ScalarType::Integer(address)),
+                (ValueId::new(2).unwrap(), ScalarType::Integer(address)),
+                (ValueId::new(3).unwrap(), ScalarType::Integer(count)),
+            ])
+            .unwrap();
+            let math = |term: &ScalarTerm| IntegerMathTerm::embed(term.clone()).unwrap();
+            let cases = [
+                (
+                    ScalarTerm::exact_integer_add(address, a.clone(), n.clone()).unwrap(),
+                    IntegerMathTerm::Add(Box::new(math(&a)), Box::new(math(&n))),
+                ),
+                (
+                    ScalarTerm::exact_integer_add(address, n.clone(), a.clone()).unwrap(),
+                    IntegerMathTerm::Add(Box::new(math(&n)), Box::new(math(&a))),
+                ),
+                (
+                    ScalarTerm::exact_integer_subtract(address, a.clone(), n.clone()).unwrap(),
+                    IntegerMathTerm::Subtract(Box::new(math(&a)), Box::new(math(&n))),
+                ),
+                (
+                    ScalarTerm::exact_integer_subtract(count, a.clone(), b.clone()).unwrap(),
+                    IntegerMathTerm::Subtract(Box::new(math(&a)), Box::new(math(&b))),
+                ),
+            ];
+            for (operation, expected) in cases {
+                assert_eq!(lift_exact_integer_term(&operation), Some(expected.clone()));
+                let embedded = math(&operation);
+                let equality = |mut left, mut right| {
+                    if left > right {
+                        std::mem::swap(&mut left, &mut right);
+                    }
+                    Proposition::IntegerMathEqual(left, right)
+                };
+                let goal = equality(embedded.clone(), expected.clone());
+                let proof = ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::Primitive(
+                        terminal_psi::PrimitiveJudgment::ClosedIntegerRelation,
+                    ),
+                };
+                check_certificate(&context, &goal, &[], &[], &proof).unwrap();
+                crate::verify_bounded_certificate(
+                    &context,
+                    &goal,
+                    &[],
+                    &[],
+                    &proof,
+                    &mut crate::Budget::default(),
+                )
+                .unwrap();
+                let wrong = equality(
+                    embedded,
+                    IntegerMathTerm::Add(
+                        Box::new(expected),
+                        Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+                    ),
+                );
+                let forged = ProofNode {
+                    conclusion: wrong.clone(),
+                    rule: proof.rule.clone(),
+                };
+                assert!(check_certificate(&context, &wrong, &[], &[], &forged).is_err());
+                assert!(
+                    crate::verify_bounded_certificate(
+                        &context,
+                        &wrong,
+                        &[],
+                        &[],
+                        &forged,
+                        &mut crate::Budget::default()
+                    )
+                    .is_err()
+                );
+            }
+            for invalid in [
+                ScalarTerm::ExactIntegerAdd {
+                    scalar_type: address,
+                    left: Box::new(a.clone()),
+                    right: Box::new(b),
+                },
+                ScalarTerm::ExactIntegerMultiply {
+                    scalar_type: address,
+                    left: Box::new(a.clone()),
+                    right: Box::new(n.clone()),
+                },
+                ScalarTerm::WrappingIntegerAdd {
+                    scalar_type: address,
+                    left: Box::new(a),
+                    right: Box::new(n),
+                },
+            ] {
+                assert!(lift_exact_integer_term(&invalid).is_none());
+            }
+        }
 
         #[test]
         fn total_widening_preserves_the_mathematical_integer() {
