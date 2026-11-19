@@ -169,6 +169,19 @@ impl Program<'_> {
         })
     }
 
+    /// Keep the original bounds on the published machine. The working signature
+    /// also carries inferred axes for calls whose service reach is still open.
+    pub(crate) fn declared_operational_ceilings(
+        &self,
+        id: MachineId,
+    ) -> Option<crate::lowering::body::OperationalCeilings> {
+        let policy = self.declared_envelope_policies.get(id)?.as_ref()?;
+        Some(crate::lowering::body::OperationalCeilings {
+            suspension: policy.suspends,
+            blocking: policy.blocks,
+        })
+    }
+
     pub(crate) fn finish_operational_envelopes(
         &mut self,
         bodies: &IdTable<MachineId, Body>,

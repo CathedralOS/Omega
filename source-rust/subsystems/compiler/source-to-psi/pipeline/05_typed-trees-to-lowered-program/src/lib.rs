@@ -1818,6 +1818,12 @@ fn lower_program<'source>(
         if let Some(typed) = typed_source {
             operational::retain_callee_spans(typed, &mut lowered);
         }
+        if let Some(bounds) =
+            declarations.and_then(|source| source.declared_operational_ceilings(id))
+        {
+            lowered.machine.declared_suspension = bounds.suspension;
+            lowered.machine.declared_blocking = bounds.blocking;
+        }
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
