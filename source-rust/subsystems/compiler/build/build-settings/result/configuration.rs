@@ -49,7 +49,8 @@ pub struct ComputedBuildConfig {
     pub optimization_report_request: optimization_requests::OptimizationReportRequest,
     pub evaluation_usage: Option<evaluation_contracts::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
-    pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
+    /// Exact declaration of the machine whose checked invocation returned this Build.
+    pub selected_build_declaration: Option<source_admission::RetainedDeclaration>,
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
 }
 
@@ -71,7 +72,7 @@ impl PartialEq for ComputedBuildConfig {
             optimization_report_request,
             evaluation_usage,
             observation_summary,
-            selected_build_machine_symbol,
+            selected_build_declaration,
             generated_sources,
         } = self;
         config == &other.config
@@ -85,7 +86,7 @@ impl PartialEq for ComputedBuildConfig {
             && optimization_report_request == &other.optimization_report_request
             && evaluation_usage == &other.evaluation_usage
             && observation_summary == &other.observation_summary
-            && selected_build_machine_symbol == &other.selected_build_machine_symbol
+            && selected_build_declaration == &other.selected_build_declaration
             && generated_sources == &other.generated_sources
     }
 }
@@ -123,8 +124,8 @@ impl std::fmt::Debug for ComputedBuildConfig {
             .field("evaluation_usage", &self.evaluation_usage)
             .field("observation_summary", &self.observation_summary)
             .field(
-                "selected_build_machine_symbol",
-                &self.selected_build_machine_symbol,
+                "selected_build_declaration",
+                &self.selected_build_declaration,
             )
             .field("generated_sources", &self.generated_sources)
             .finish()
@@ -136,8 +137,11 @@ impl ComputedBuildConfig {
         &self,
         typed: &typed_trees::source_state::TypedTrees,
     ) -> Result<Option<String>, Vec<diagnostics::Diagnostic>> {
-        self.selected_build_machine_symbol
-            .map(|selected| {
+        self.selected_build_declaration.as_ref()
+            .map(|declaration| {
+                let selected = typed_trees::source_state::source_subjects::rejoin_build_activation(
+                    typed, declaration.source().package_identity, declaration,
+                ).map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
                 let machine = typed.machine(selected).ok_or_else(|| {
                     vec![diagnostics::Diagnostic::error(
                         "selected build machine disappeared before final checking",

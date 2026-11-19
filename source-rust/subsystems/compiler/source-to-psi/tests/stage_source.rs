@@ -99,3 +99,30 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn a_build_activation_rejoins_its_authored_machine_in_the_selected_package() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let (mut files, root) = captured(package, "machine main() {}");
+    let build = files.add_checked_instance(
+        "product/build.omg".into(), "machine build() {}", "product".into(), Some(package),
+        SourceOrigin::User, SourceResolutionStratum::Base, DependencyScope::Build,
+    ).source_id;
+    let declaration = RetainedDeclaration::from_retained_parts(
+        files.get(build).unwrap().clone(), Span::new(8, 13), symbols::SymbolKind::Machine,
+    ).unwrap();
+    let mut stage = product(files.clone(), root, package, &[]);
+    stage.selections.policy.activation = Some(&declaration);
+    compile(stage).unwrap();
+
+    let mut changed = declaration.source().clone();
+    changed.package_identity = Some(PackageKeyIdentity::from_digest([0x62; 32]).unwrap());
+    let foreign = RetainedDeclaration::from_retained_parts(
+        changed, declaration.span(), declaration.kind(),
+    ).unwrap();
+    let mut stage = product(files, root, package, &[]);
+    stage.selections.policy.activation = Some(&foreign);
+    let diagnostics = compile(stage).unwrap_err();
+    assert!(diagnostics[0].message.contains("retained declaration is absent or changed"),
+        "{diagnostics:?}");
+}

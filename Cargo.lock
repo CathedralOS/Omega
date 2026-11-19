@@ -268,6 +268,7 @@ dependencies = [
  "normalized-build-settings",
  "optimization-requests",
  "package-compilation",
+ "source-admission",
  "source-completion-accounting",
  "source-declarations",
  "source-provenance",
