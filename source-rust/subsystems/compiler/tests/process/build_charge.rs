@@ -1711,7 +1711,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
     let failure = root_return
         .join_dependency_sources(
             &changed_request,
-            &[build_settings::BuildDependencySelection {
+            &[build_execution::BuildDependencySelection {
                 purpose: build_declarations::DependencyPurpose::Product,
                 request_ordinal: 0,
                 package: selected,
@@ -1745,7 +1745,7 @@ fn executed_dependency_source_join(project: &str, private_call: bool) {
         let failure = root_return
             .join_dependency_sources(
                 &preview,
-                &[build_settings::BuildDependencySelection {
+                &[build_execution::BuildDependencySelection {
                     purpose,
                     request_ordinal,
                     package,
@@ -2372,13 +2372,13 @@ fn package_invocation_requests(fixture: &str) -> impl Fn() -> CheckedCompileRequ
 
 fn return_build(
     invocation: &mut compiler::PackageBuildInvocation,
-) -> Option<build_settings::ReturnedBuild> {
+) -> Option<build_execution::ReturnedBuild> {
     build_sequence::return_package(invocation)
 }
 
 fn return_execution(
-    execution: Option<&mut build_settings::PreparedBuildExecution>,
-) -> Option<build_settings::ReturnedBuild> {
+    execution: Option<&mut build_execution::PreparedBuildExecution>,
+) -> Option<build_execution::ReturnedBuild> {
     execution.map(|execution| {
         let host = execution.host().expect("issue Build host once");
         let mut activation = host.start().expect("start Build once");

@@ -15,7 +15,7 @@ source-declarations = { path = "../source-to-psi/pipeline/representations/symbol
 build-declarations = { path = "build-declarations" }
 source-compiler = { path = "../source-to-psi" }
 artifacts = { path = "../foundation/measurements" }
-build-settings = { path = "build-settings" }
+build-execution = { path = "execution" }
 package-compilation = { path = "package-compilation" }
 terminal-interpreter = { path = "../../interpreter" }
 terminal-runtime = { path = "../../interpreter/host" }

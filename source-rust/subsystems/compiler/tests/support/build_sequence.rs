@@ -6,7 +6,7 @@
 
 pub fn return_package(
     invocation: &mut compiler::PackageBuildInvocation,
-) -> Option<build_settings::ReturnedBuild> {
+) -> Option<build_execution::ReturnedBuild> {
     let mut queries = invocation.product_queries();
     orchestration::execute_build_activation(invocation.execution(), Some(&mut queries))
         .unwrap_or_else(|failure| panic!("Build execution: {:?}", failure.into_diagnostics()))

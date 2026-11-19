@@ -792,7 +792,7 @@ impl TerminalBuildActivation {
         if !matches!(self.state, ActivationState::Returned) {
             return Err("Build completion requires its normal interpreter return".into());
         }
-        let (settings, optimization_report) = crate::settings::extract(
+        let (settings, optimization_report) = build_settings::extract(
             &self.instance,
             self.host.value_admission,
             &self.host.machine.initial_build,

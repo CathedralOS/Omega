@@ -16,7 +16,7 @@ checked-program-to-psi = { path = "../../../source-to-psi/pipeline/07_checked-pr
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 evaluation-contracts = { path = "../../evaluation/usage" }
 evaluation-receipts = { path = "../../evaluation/receipts" }
-normalized-build-settings = { path = "../normalized" }
+normalized-build-settings = { path = "../../build-settings/normalized" }
 optimization-requests = { path = "../../optimization-policy/requests" }
 package-compilation = { path = "../../package-compilation" }
 source-admission = { path = "../../../source-to-psi/pipeline/representations/source-files/custody" }

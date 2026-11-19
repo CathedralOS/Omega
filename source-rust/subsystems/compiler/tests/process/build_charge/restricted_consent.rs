@@ -95,8 +95,8 @@ machine build(builder: @mut Build) crashes Trap {
         let before = counters::build_execution_count();
         // This direct evaluator owns an explicitly live standalone scope. The
         // ordinary package compiler continues to supply captured source custody.
-        let admitted = build_settings::prepare_build_evaluation(
-            build_settings::BuildEvaluationRequest {
+        let admitted = build_execution::prepare_build_evaluation(
+            build_execution::BuildEvaluationRequest {
                 execution_purpose:
                     artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
                 pure_build_compilation: None,

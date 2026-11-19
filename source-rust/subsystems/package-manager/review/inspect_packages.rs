@@ -148,7 +148,7 @@ impl PackageInspectionTransaction {
             .options
             .build_inputs
             .clone()
-            .map(|inputs| build_settings::BuildSnapshotRequest::scoped(Vec::new(), inputs));
+            .map(|inputs| build_execution::BuildSnapshotRequest::scoped(Vec::new(), inputs));
         Ok(PreparedPackageInspection {
             identity: Arc::new(InspectionIdentity),
             transaction: self,
@@ -174,7 +174,7 @@ pub struct PreparedPackageInspection<'inspection> {
     accepted: Option<PackageLock>,
     targets: Vec<TargetProfile>,
     storage: Result<InspectionStorage<'inspection>, PackageInspectionError>,
-    build_snapshot: Option<build_settings::BuildSnapshotRequest>,
+    build_snapshot: Option<build_execution::BuildSnapshotRequest>,
     completed_targets: usize,
     outcome: PackageInspectionOutcome,
 }
@@ -195,8 +195,8 @@ impl PreparedPackageInspection<'_> {
             .as_ref()
             .map(|snapshot| snapshot.capture())
         {
-            Some(build_settings::BuildSnapshotCapture::Scoped(selected)) => selected,
-            Some(build_settings::BuildSnapshotCapture::PackageInventory) | None => &entire,
+            Some(build_execution::BuildSnapshotCapture::Scoped(selected)) => selected,
+            Some(build_execution::BuildSnapshotCapture::PackageInventory) | None => &entire,
         };
         let acquired = AcquiredBuildSource::capture_selected_local(
             self.transaction.project_root(),
@@ -211,7 +211,7 @@ impl PreparedPackageInspection<'_> {
         Ok(acquired)
     }
 
-    pub fn build_snapshot(&self) -> Option<&build_settings::BuildSnapshotRequest> {
+    pub fn build_snapshot(&self) -> Option<&build_execution::BuildSnapshotRequest> {
         self.build_snapshot.as_ref()
     }
 

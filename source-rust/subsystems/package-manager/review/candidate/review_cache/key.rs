@@ -30,7 +30,7 @@ pub(crate) fn compiled_review_key(
     build_execution_profile: Option<target::TargetProfile>,
     entry: &Path,
     inputs: &PackageCompilationInputs,
-    snapshot: &build_settings::BuildSnapshotRequest,
+    snapshot: &build_execution::BuildSnapshotRequest,
 ) -> Option<[u8; 32]> {
     let compiler_identity = crate::dependencies::compiler_input_identity().ok()?;
     Some(compiled_review_key_with_identity(
@@ -52,7 +52,7 @@ pub(crate) fn compiled_review_key_with_identity(
     build_execution_profile: Option<target::TargetProfile>,
     entry: &Path,
     inputs: &PackageCompilationInputs,
-    snapshot: &build_settings::BuildSnapshotRequest,
+    snapshot: &build_execution::BuildSnapshotRequest,
     compiler_identity: [u8; 32],
 ) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(RECORD_KEY_DOMAIN);
@@ -125,7 +125,7 @@ mod tests {
             Vec::new(),
         )
         .unwrap();
-        let snapshot = build_settings::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
+        let snapshot = build_execution::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
         let entry = Path::new("main.omg");
         let key_for = |compiler_identity| {
             compiled_review_key_with_identity(

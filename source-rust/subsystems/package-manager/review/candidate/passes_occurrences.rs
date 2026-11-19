@@ -51,7 +51,7 @@ pub(super) struct RetainedOccurrenceCompile {
     pub(super) purpose: DependencyPurpose,
     pub(super) entry: std::path::PathBuf, // The checked entry path this occurrence's compile consumed.
     pub(super) inputs: PackageCompilationInputs, // Complete inputs after resolved semantic bindings and dependency handoffs joined.
-    pub(super) build_snapshot: build_settings::BuildSnapshotRequest, // Source inventory and output roster captured by build evaluation.
+    pub(super) build_snapshot: build_execution::BuildSnapshotRequest, // Source inventory and output roster captured by build evaluation.
     pub(super) policy_canonical_bytes: usize, // Canonical-policy bytes added to the running retained-policy total.
     pub(super) review: usize, // Index of this occurrence's review inside the pass's review vector.
     pub(super) compilation: Box<CachedOccurrenceFacts>,
@@ -70,7 +70,7 @@ pub struct PackageReviewPass<'pass> {
     roster: &'pass PackageOccurrenceRoster,
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
-    root_build_snapshot: Option<&'pass build_settings::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&'pass build_execution::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
 }
@@ -98,7 +98,7 @@ impl<'pass> PackageReviewPass<'pass> {
             (PackageKey, DependencyPurpose),
             Vec<AcceptedSemanticBinding>,
         >,
-        root_build_snapshot: Option<&'pass build_settings::BuildSnapshotRequest>,
+        root_build_snapshot: Option<&'pass build_execution::BuildSnapshotRequest>,
         discovery: TargetEntryDiscovery,
         prior: Option<&'pass RetainedPackageReviews>,
     ) -> Result<Self, CompileResolvedPackageReviewsError> {
@@ -220,7 +220,7 @@ struct PackageReviewRound<'pass> {
     execution_profile: Option<target::TargetProfile>,
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
-    root_build_snapshot: Option<&'pass build_settings::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&'pass build_execution::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
     source_bindings: &'pass mut PackageSourceBindings,
@@ -244,7 +244,7 @@ struct PackageReviewOccurrence<'occurrence> {
 
 struct AssembledOccurrence {
     entry: std::path::PathBuf,
-    build_snapshot: build_settings::BuildSnapshotRequest,
+    build_snapshot: build_execution::BuildSnapshotRequest,
 }
 
 impl<'pass> PackageReviewRound<'pass> {
@@ -403,7 +403,7 @@ impl<'pass> PackageReviewRound<'pass> {
             None
         }
         .unwrap_or_else(|| {
-            build_settings::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
+            build_execution::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
         });
         Ok((
             inputs,

@@ -138,7 +138,7 @@ impl AcquiredBuildDependency {
 
     pub fn complete(
         self,
-        returned: &build_settings::ReturnedBuild,
+        returned: &build_execution::ReturnedBuild,
     ) -> Result<(PackageKeyIdentity, ExecutedSourceResolution), String> {
         let declared = match self.acquired.declare_build(returned) {
             Ok(declared) => declared,
@@ -197,7 +197,7 @@ impl ResolvedBuildSources {
     pub fn join_build(
         &self,
         root: PackageKeyIdentity,
-        returned: &mut build_settings::ReturnedBuild,
+        returned: &mut build_execution::ReturnedBuild,
     ) -> Result<PackageCompilationInputs, String> {
         self.join_source_result(root, &mut returned.source_result())
     }
@@ -205,7 +205,7 @@ impl ResolvedBuildSources {
     pub fn join_source_result(
         &self,
         root: PackageKeyIdentity,
-        result: &mut build_settings::BuildSourceResult<'_>,
+        result: &mut build_execution::BuildSourceResult<'_>,
     ) -> Result<PackageCompilationInputs, String> {
         let custody = self
             .closure
@@ -228,7 +228,7 @@ impl ResolvedBuildSources {
         let selections = node
             .dependencies()
             .iter()
-            .map(|dependency| build_settings::BuildDependencySelection {
+            .map(|dependency| build_execution::BuildDependencySelection {
                 purpose: dependency.purpose(),
                 request_ordinal: dependency.dependency_index(),
                 package: dependency.target().identity(),

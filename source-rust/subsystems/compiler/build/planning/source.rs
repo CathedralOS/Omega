@@ -2,7 +2,7 @@
 
 use super::{PlanningServices, refusal};
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
-use build_settings::{
+use build_execution::{
     BuildEvaluationRequest, BuildStageRequest, CompileFailure, EvaluatedBuild,
     PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
 };

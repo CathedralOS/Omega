@@ -8,11 +8,11 @@ pub use source::{
 };
 
 use build_declarations::BuildRequest;
-use build_settings::host::bindings::{
+use build_execution::host::bindings::{
     BuildProductDescription, BuildProductQuery, BuildProviderRequest,
 };
-use build_settings::host::requests::BuildDependencyPreparation;
-use build_settings::{
+use build_execution::host::requests::BuildDependencyPreparation;
+use build_execution::{
     BuildDependencySelection, BuildSourceResult, CompileFailure, EvaluatedBuild,
     PreparedBuildEvaluation, ProducedBuildProvider, ReturnedBuild, SourceBuildDeclaration,
     TerminalBuildActivation,

@@ -102,7 +102,7 @@ pub fn review_package_change_reusing(
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
     session: &mut PackageBuildSession,
-    root_build_snapshot: Option<&build_settings::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&build_execution::BuildSnapshotRequest>,
     source_bindings: &mut PackageSourceBindings,
     execute: &mut crate::review::PackageReviewExecutor<'_>,
 ) -> Result<PackageChangeReview, PackageChangeError> {

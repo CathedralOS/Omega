@@ -7,7 +7,7 @@ use compiler::{CheckedCompileRequest, CompilationSession};
 
 #[test]
 fn schema_and_named_provider_queries_resume_the_original_build() {
-    use build_settings::host::bindings::BuildProductDescription;
+    use build_execution::host::bindings::BuildProductDescription;
     use source_compiler::TerminalBuildQueryOperation;
     let repository = fixture_repository::root();
     let root = repository.join("tests/fixtures/pass/build/product_description_paths_exit/main.omg");

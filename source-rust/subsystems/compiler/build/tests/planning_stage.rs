@@ -158,8 +158,8 @@ fn configure_library() {
 
 #[test]
 fn dependent_continuation_runs_after_its_package_was_prepared() {
-    use build_settings::host::requests::BuildDependencyPreparation;
-    use build_settings::{CompileFailure, TerminalBuildActivation};
+    use build_execution::host::requests::BuildDependencyPreparation;
+    use build_execution::{CompileFailure, TerminalBuildActivation};
     use package_compilation::source_imports::ProductQueryDependency;
     use package_manager::resolution::source::{
         AcquiredBuildSource, AcquiredSourceSelection, BuildSourceAcquisitions,
