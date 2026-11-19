@@ -95,7 +95,7 @@ pub fn plan_published_entry_calling_conventions(
     )
     .and_then(|selected| selected.admit(artifact.view(), slot.owner.target_name()))
     .map_err(refuse)?;
-    let admission = terminal_installation::admit_compiler_evaluation(
+    let admission = evaluation_admission::admit_compiler_evaluation(
         artifact.view(),
         slot.owner.target_name(),
         *policy

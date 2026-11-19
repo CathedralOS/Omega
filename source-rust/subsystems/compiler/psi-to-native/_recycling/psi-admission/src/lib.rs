@@ -22,8 +22,6 @@ the Psi interpreter, compile-time evaluation, and Omega native realization.
 #![forbid(unsafe_code)]
 
 pub mod declaration_selection;
-mod evaluation_and_synchronous_calls;
-mod evaluation_requirements;
 pub mod logical_reach;
 mod provider_and_target_installation;
 
@@ -33,7 +31,6 @@ pub use psi_authorization::{
     ArtifactTrustError, AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 
-pub(crate) use evaluation_and_synchronous_calls::compiler_evaluation;
 pub(crate) use provider_and_target_installation::{
     provider_installation, target_context,
 };
@@ -59,7 +56,7 @@ pub(crate) mod target_layouts {
     };
 }
 
-pub use compiler_evaluation::{
+pub use evaluation_admission::{
     AdmittedCompilerEvaluation, InvocationSourceSelection, admit_compiler_evaluation,
     admit_compiler_evaluation_with_source_consent, admit_declaration_selections,
 };

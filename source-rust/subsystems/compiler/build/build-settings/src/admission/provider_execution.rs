@@ -47,7 +47,7 @@ impl BuildProviderPlans {
             let entry = module
                 .entry
                 .ok_or_else(|| failure("Build declaration admission has no entry"))?;
-            terminal_installation::admit_declaration_selections(
+            evaluation_admission::admit_declaration_selections(
                 artifact,
                 None,
                 entry,

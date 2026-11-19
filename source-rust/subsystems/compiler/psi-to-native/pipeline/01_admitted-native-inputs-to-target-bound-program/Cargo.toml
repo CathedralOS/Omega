@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+evaluation-admission = { path = "../../../build/evaluation/admission" }
 psi-provider-selections = { path = "../../../psi/providers" }
 psi-target-layouts = { path = "../../../psi/layout/admission" }
 provider-demand = { path = "../00_psi-to-admitted-native-inputs/provider-demand" }

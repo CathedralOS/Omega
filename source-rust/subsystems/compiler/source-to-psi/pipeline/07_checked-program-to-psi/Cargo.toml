@@ -43,6 +43,7 @@ terminal-semantics = { path = "../../../psi/semantics" }
 lowered-program-to-checked-program = { path = "../06_lowered-program-to-checked-program" }
 
 [dev-dependencies]
+evaluation-admission = { path = "../../../build/evaluation/admission" }
 psi-provider-selections = { path = "../../../psi/providers" }
 bundled-declarations = { path = "../02_syntax-trees-to-symbol-resolved-trees/bundled-declarations" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
