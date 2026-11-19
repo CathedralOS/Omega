@@ -9,6 +9,7 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+native-behavior-exclusions = { path = "../../../../verification/behavior-exclusions" }
 behavior-exclusion-requests = { path = "../../../../../build/behavior-exclusions" }
 host-provider-inputs = { path = "../../../00_psi-to-admitted-native-inputs/host-providers" }
 native-binding-admission = { path = "../../../../verification/native-bindings" }
@@ -32,7 +33,6 @@ numeric-literals = { path = "../../../../../foundation/numeric-literals" }
 source-text = { path = "../../../../../../../foundation/source-text" }
 abstract-operations = { path = ".." }
 target-operations = { path = "../../target-operations" }
-effects = { path = "../../../../installation/native-effects" }
 installation-conditions = { path = "../../../../verification/installation-admission/conditions" }
 operation-evidence = { path = "../../operation-evidence" }
 provider-admission = { path = "../../../../verification/provider-admission" }

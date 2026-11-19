@@ -108,6 +108,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/targets/target-aarch64",
     "source-rust/subsystems/compiler/psi-to-native/targets/target-x86_64",
     "source-rust/subsystems/compiler/psi-to-native/tests/isa-conformance",
+    "source-rust/subsystems/compiler/psi-to-native/verification/behavior-exclusions",
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission",
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/bound-installations",
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/conditions",

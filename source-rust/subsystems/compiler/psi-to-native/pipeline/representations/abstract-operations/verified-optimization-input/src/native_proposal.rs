@@ -34,7 +34,7 @@ pub(crate) struct TerminalNativeBodyProposal {
     providers: TerminalNativeProviders,
     occurrences: TerminalNativeOccurrences,
     boundary_applications: TerminalNativeBoundaryApplications,
-    behavior_exclusions: effects::BehaviorExclusions,
+    behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,7 +47,7 @@ pub struct TerminalNativeRealizationProposal {
     boundary_applications: TerminalNativeBoundaryApplications,
     package_terminal_authority_permissions: Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
     package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
-    behavior_exclusions: effects::BehaviorExclusions,
+    behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
     target_provider_proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
 }
 
@@ -71,7 +71,7 @@ impl TerminalNativeRealizationProposal {
             host_provider_inputs::ServiceTerminalAuthorityPermission,
         >,
         package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
-        behavior_exclusions: effects::BehaviorExclusions,
+        behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
     ) -> Self {
         package_terminal_authority_permissions.sort_by(|left, right| {
             left.service_schema()
@@ -158,7 +158,7 @@ impl TerminalNativeRealizationProposal {
         &self.package_terminal_authority_permission_identities
     }
 
-    pub const fn behavior_exclusions(&self) -> &effects::BehaviorExclusions {
+    pub const fn behavior_exclusions(&self) -> &native_behavior_exclusions::BehaviorExclusions {
         &self.behavior_exclusions
     }
 }
@@ -392,10 +392,10 @@ mod proposal {
             boundary_applications: TerminalNativeBoundaryApplications {
                 calling: request.boundaries.calling_applications.clone(),
             },
-            behavior_exclusions: effects::authored_behavior_exclusion_set_in(
+            behavior_exclusions: native_behavior_exclusions::authored_behavior_exclusion_set_in(
                 request.behavior_exclusions,
                 terminal_module,
-            ),
+            )?,
         })
     }
 

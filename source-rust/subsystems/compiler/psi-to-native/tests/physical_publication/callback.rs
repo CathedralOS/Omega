@@ -426,7 +426,7 @@ fn check_callback_publication(retain_body_source: bool) {
     .expect("derive selected foreign execution and stack custody");
     let settlements = prepared.settlements();
     let policy = current_terminal_authority_policy();
-    let exclusions = effects::BehaviorExclusions::default();
+    let exclusions = native_behavior_exclusions::BehaviorExclusions::default();
     let request = NativeAdmissionRequest {
         entry: TargetMachineCallable::Machine(MachineId::new(1).unwrap()),
         private_entry_ram: &[],

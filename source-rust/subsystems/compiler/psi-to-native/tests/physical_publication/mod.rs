@@ -938,7 +938,7 @@ fn check_canonical_publication(
         provider_admission::provider_admission::retain_selected_provider_adapters(&selected)
             .unwrap();
     let policy = current_terminal_authority_policy();
-    let exclusions = effects::BehaviorExclusions::default();
+    let exclusions = native_behavior_exclusions::BehaviorExclusions::default();
     let profile = target::TargetProfile::WindowsX64;
     let admission = artifact_lowering::NativeAdmissionRequest {
         entry,
