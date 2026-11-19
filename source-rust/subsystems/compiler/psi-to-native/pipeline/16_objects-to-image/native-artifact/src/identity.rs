@@ -23,7 +23,7 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) physical_entry_requirements: Option<&'a image_emission::PhysicalEntryRequirements>,
     pub(super) terminal_artifact_identity: [u8; 32],
     pub(super) installation_assumptions:
-        Vec<&'a installation_evidence::InstallationEnvironmentAssumption>,
+        Vec<&'a installation_conditions::InstallationEnvironmentAssumption>,
     pub(super) target: target::NativeTarget,
     pub(super) object_text_bytes: &'a [u8],
     pub(super) image_bytes: &'a [u8],
@@ -90,21 +90,21 @@ pub(super) fn derive_native_artifact_identity(
         digest.raw(&row.entry().get().to_le_bytes());
         digest.raw(&row.installation().get().to_le_bytes());
         match row {
-            installation_evidence::InstallationEnvironmentAssumption::Bootstrap(row) => {
+            installation_conditions::InstallationEnvironmentAssumption::Bootstrap(row) => {
                 match row.interval {
-                    installation_evidence::BootstrapAssumptionInterval::EntryUntilInstallationPublished => {
+                    installation_conditions::BootstrapAssumptionInterval::EntryUntilInstallationPublished => {
                         digest.byte(0);
                     }
                 }
             }
-            installation_evidence::InstallationEnvironmentAssumption::InterruptDelivery(row) => {
+            installation_conditions::InstallationEnvironmentAssumption::InterruptDelivery(row) => {
                 match row.interval {
-                    installation_evidence::InterruptDeliveryInterval::InstalledScopeLifetime => {
+                    installation_conditions::InterruptDeliveryInterval::InstalledScopeLifetime => {
                         digest.byte(0);
                     }
                 }
                 match row.delivery {
-                    installation_evidence::X86InterruptDeliveryProfile::ArchitecturalExceptionsAndExternalIrqs => {
+                    installation_conditions::X86InterruptDeliveryProfile::ArchitecturalExceptionsAndExternalIrqs => {
                         digest.byte(0);
                     }
                 }

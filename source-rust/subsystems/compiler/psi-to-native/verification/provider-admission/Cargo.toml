@@ -23,7 +23,8 @@ target-operations = { path = "../../pipeline/representations/target-operations" 
 provider-stack-contribution = { path = "same-stack" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 abstract-operations = { path = "../../pipeline/representations/abstract-operations" }
-installation-evidence = { path = "../../installation/installation-evidence" }
+installation-conditions = { path = "../installation-admission/conditions" }
+operation-evidence = { path = "../../pipeline/representations/operation-evidence" }
 bound-installations = { path = "../../installation/bound-installations" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }

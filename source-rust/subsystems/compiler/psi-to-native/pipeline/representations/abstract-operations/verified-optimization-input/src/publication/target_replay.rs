@@ -104,7 +104,8 @@ impl TargetOperationsForReplay {
 #[derive(Debug, Clone, Copy)]
 pub struct BoundaryOriginFacts<'a> {
     pub program_entry: Option<target_operations::ProgramEntryOrigin>,
-    pub assumed_bindings: &'a [installation_evidence::InstalledAssumedBindingEvidence],
+    pub assumed_bindings:
+        &'a [operation_evidence::provider_calls::InstalledAssumedBindingEvidence],
     pub target_context: Option<&'a terminal_installation::TerminalTargetContext>,
     pub module: &'a terminal_psi::TerminalModule,
 }

@@ -136,7 +136,7 @@ pub(crate) mod input {
     pub struct SelectionInput {
         pub body: target_lowering::NativeBodyPlan,
         pub entry_execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
-        pub stack: Vec<installation_evidence::InstalledInterruptStackRequirement>,
+        pub stack: Vec<installation_conditions::InstalledInterruptStackRequirement>,
     }
 
     /// Installation authority instruction selection projects from the admitted body after

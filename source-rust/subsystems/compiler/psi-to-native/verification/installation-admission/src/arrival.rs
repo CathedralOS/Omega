@@ -17,8 +17,8 @@ impl std::fmt::Display for ArrivalCompositionError {
 impl std::error::Error for ArrivalCompositionError {}
 use ArrivalCompositionError as Error;
 use calling_conventions::EntryStack;
-use installation_evidence::InstalledPhysicalStackRoot;
-use installation_evidence::{InstalledArrivalStackDemand, InstalledInterruptStackRequirement};
+use installation_conditions::InstalledPhysicalStackRoot;
+use installation_conditions::{InstalledArrivalStackDemand, InstalledInterruptStackRequirement};
 use provider_admission::{AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptScope};
 
 struct Entry {

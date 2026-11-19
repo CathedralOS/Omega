@@ -229,7 +229,7 @@ impl<A> TerminalRuntimeProvisions<A> {
         &self,
         object: &image_emission::ObjectArtifact,
     ) -> Result<(), &'static str> {
-        if installation_evidence::ObjectEvidence::psi(object) != self.plan.identity()
+        if object.psi() != self.plan.identity()
             || object.target() != self.plan.target_slot().owner.native_target()
         {
             return Err("component runtime provisions name another actual root artifact or target");

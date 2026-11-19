@@ -96,6 +96,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/targets/target-x86_64",
     "source-rust/subsystems/compiler/psi-to-native/tests/isa-conformance",
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission",
+    "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/conditions",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/same-stack",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence",

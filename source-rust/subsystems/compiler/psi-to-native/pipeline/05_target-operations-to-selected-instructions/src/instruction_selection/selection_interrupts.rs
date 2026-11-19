@@ -623,7 +623,7 @@ pub(crate) mod interrupt_installation_guards {
         SelectedInstructionKind, VirtualRegisterId, provenance, transport_register,
     };
     use crate::instruction_selection::structural_inputs::structural_reference_input as geometry;
-    use installation_evidence::InstalledInterruptStackRequirement;
+    use installation_conditions::InstalledInterruptStackRequirement;
     use runtime_abi::static_interrupts::{InstalledInterruptFrame, InstalledInterruptProtocol};
     use selected_instructions::LocalStorageSlotId;
     pub(crate) mod checks {

@@ -94,13 +94,23 @@ use crate::AdmissionSource as NativeRealizationInput;
 use crate::AdmittedProviderInstallation;
 use ::diagnostics::Diagnostic;
 use application_identity::type_identity::callable_display_path as requirement_path;
-use installation_evidence::ProviderExecutionEvidence;
+
 use terminal_authority_review::reachability::AuthorityGraph;
 
 pub fn realization_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
         "native artifact {context} failed: {error}"
     ))]
+}
+
+/// Report identities supplied when admitting a source-evaluated or component provider call.
+pub trait ProviderExecutionEvidence: std::fmt::Debug {
+    fn requirement_identity(&self) -> &str;
+    fn provider_plan_report_identity(&self) -> u64;
+    fn provider_execution_report_identity(&self) -> u64;
+    fn provider_execution_report_fingerprint(&self) -> u64;
+    fn normalized_root_report_identity(&self) -> u64;
+    fn boundary_contract_report_fingerprint(&self) -> u64;
 }
 
 #[derive(Debug, Clone)]

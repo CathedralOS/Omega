@@ -29,6 +29,7 @@ We keep physical settlement separated by transport role:
 mod source_imports;
 
 use crate::AdmittedBoundarySettlement;
+use crate::ProviderExecutionEvidence;
 use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
 use crate::provider_admission::{
     AdmittedTerminalMechanism, NativeBoundaryRealization, NativeProviderSettlement,
@@ -37,7 +38,6 @@ use crate::provider_admission::{
 use calling_conventions::{CallSignature, CallingPolicy, ExternalBindingKind, ExternalBindingRow};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
-use installation_evidence::ProviderExecutionEvidence;
 use source_imports::derive_source_evaluated_mechanisms;
 use target::NativeTarget;
 use target_operations::{
@@ -342,9 +342,10 @@ fn rejoin_component_call(
 ) -> Result<target_operations::NormalizedForeignCallBinding, Vec<Diagnostic>> {
     let selection = call.selection();
     let application = call.application();
-    let selected_commitment = provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
-        *selected_plan.identity_digest().as_bytes(),
-    );
+    let selected_commitment =
+        provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
+            *selected_plan.identity_digest().as_bytes(),
+        );
     if authority.subject() != selection.provider()
         || authority.entry() != selection.candidate()
         || authority.review().terminal_artifact_identity()
@@ -394,9 +395,10 @@ fn rejoin_normalized_foreign_call(
     target: target::NativeTarget,
     abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<NormalizedForeignCallBinding, Vec<Diagnostic>> {
-    let selected_commitment = provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
-        *selected_plan.identity_digest().as_bytes(),
-    );
+    let selected_commitment =
+        provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
+            *selected_plan.identity_digest().as_bytes(),
+        );
     if same_stack.provider_plan_report_identity() != provider_plan_report_identity
         || same_stack.provider_plan_commitment() != selected_commitment
         || identities.index_of(requirement) != Some(same_stack.requirement_identity())

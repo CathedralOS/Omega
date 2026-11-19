@@ -244,15 +244,15 @@ pub(crate) mod native_admission {
                         .terminal_selection()
                         .assumed_bindings()
                         .iter()
-                        .map(
-                            |row| installation_evidence::InstalledAssumedBindingEvidence {
+                        .map(|row| {
+                            operation_evidence::provider_calls::InstalledAssumedBindingEvidence {
                                 required: row.required,
                                 supplied_requirement: row.supplied_requirement,
                                 implementation: row.implementation,
                                 selected_requirement: row.selected_requirement,
                                 supply_path: row.supply_path.clone(),
-                            },
-                        )
+                            }
+                        })
                         .collect()
                 })
                 .unwrap_or_default(),

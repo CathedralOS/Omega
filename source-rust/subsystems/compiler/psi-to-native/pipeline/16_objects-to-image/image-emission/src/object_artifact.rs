@@ -205,10 +205,10 @@ mod carriers {
 
         pub fn installation_environment_assumptions(
             &self,
-        ) -> Vec<&installation_evidence::InstallationEnvironmentAssumption> {
+        ) -> Vec<&installation_conditions::InstallationEnvironmentAssumption> {
             fn collect<'a>(
                 object: &'a ObjectArtifact,
-                rows: &mut Vec<&'a installation_evidence::InstallationEnvironmentAssumption>,
+                rows: &mut Vec<&'a installation_conditions::InstallationEnvironmentAssumption>,
             ) {
                 let source = object.composition_source.as_deref().unwrap_or(object);
                 for scope in source
@@ -375,25 +375,6 @@ mod carriers {
     pub struct NativeInstructionSourceRows<'a> {
         pub selected: &'a post_allocation_machine::PostAllocationMachineProgram,
         pub physical: Vec<(MachineId, selected_instructions::SelectedInstructionId)>,
-    }
-
-    impl installation_evidence::ObjectEvidence for ObjectArtifact {
-        fn psi(&self) -> TerminalPsiIdentity {
-            self.psi
-        }
-
-        fn target(&self) -> NativeTarget {
-            self.target
-        }
-
-        fn text_bytes(&self) -> &[u8] {
-            &self.text_bytes
-        }
-
-        fn function_text_offset(&self, machine: MachineId) -> Option<usize> {
-            self.function_on_machine(machine)
-                .map(|function| function.text_offset)
-        }
     }
 
     pub(crate) fn find_object_function(
@@ -905,10 +886,10 @@ mod errors {
 
 pub(crate) mod installed_stack {
     use crate::{FunctionFragmentObjectArtifactError as Error, PrivateFunctionObject};
-    use installation_evidence::InstalledInterruptStackRequirement;
+    use installation_conditions::InstalledInterruptStackRequirement;
     mod faults {
         use crate::{FunctionFragmentObjectArtifactError as Error, ObjectArtifact};
-        use installation_evidence::InstalledBodyFaultPremises;
+        use installation_conditions::InstalledBodyFaultPremises;
         use selected_instructions::MachineEncodedTrapBehavior as Trap;
 
         pub(super) fn derive(
@@ -1232,7 +1213,7 @@ pub(crate) mod installed_stack {
 
     pub(crate) fn root_reserve(
         artifact: &crate::ObjectArtifact,
-        root: installation_evidence::InstalledPhysicalStackRoot,
+        root: installation_conditions::InstalledPhysicalStackRoot,
     ) -> Result<u64, Error> {
         if artifact.entry() != root.adapter {
             return Err(Error::Mismatch(

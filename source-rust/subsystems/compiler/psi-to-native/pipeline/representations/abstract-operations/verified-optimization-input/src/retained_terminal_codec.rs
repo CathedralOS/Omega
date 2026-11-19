@@ -98,8 +98,8 @@ mod admissions {
             let complete =
                 optimization_selections::OptimizationSelections::decode(&Vec::<u8>::read(input)?)
                     .map_err(|reason| {
-                        input.error(format!("complete optimization selection: {reason}"))
-                    })?;
+                    input.error(format!("complete optimization selection: {reason}"))
+                })?;
             Ok(complete.project_post_terminal())
         }
     }
@@ -574,7 +574,7 @@ mod admissions {
 }
 mod installation_environment {
     use super::value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter};
-    use installation_evidence::{
+    use installation_conditions::{
         BootstrapAssumptionInterval, BootstrapEnvironmentAssumption,
         InstallationEnvironmentAssumption, InterruptDeliveryInterval,
         X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
@@ -1740,7 +1740,7 @@ pub fn retain_native_derivation_inputs(
     provider_proposals: &[backend_plan::TerminalTargetProviderProposal],
     request: &TerminalNativeProposalRequest<'_>,
     accepted_package_permissions: &TerminalAuthorityPermissionPolicy,
-    installation_assumptions: &[installation_evidence::InstallationEnvironmentAssumption],
+    installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
     operation_evidence: Option<&terminal_codec::EvidenceSeals>,
 ) -> Result<Vec<u8>, String> {
     capture(
@@ -1761,7 +1761,7 @@ fn capture(
     provider_proposals: &[backend_plan::TerminalTargetProviderProposal],
     request: &TerminalNativeProposalRequest<'_>,
     accepted_package_permissions: &TerminalAuthorityPermissionPolicy,
-    installation_assumptions: &[installation_evidence::InstallationEnvironmentAssumption],
+    installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
     operation_evidence: Option<&terminal_codec::EvidenceSeals>,
 ) -> Result<Vec<u8>, RecordError> {
     let TerminalNativeProposalRequest {
@@ -1971,7 +1971,7 @@ struct DerivationInputs {
     fma: Option<target::AdmittedX86ScalarFmaProvider>,
     accepted_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     accepted_identities: terminal_psi::TerminalIdentityTable,
-    installation_assumptions: Vec<installation_evidence::InstallationEnvironmentAssumption>,
+    installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
     operation_evidence: Option<Vec<u8>>,
 }
 
@@ -2029,7 +2029,7 @@ pub fn recover_native_derivation_inputs(
     (
         RetainedTerminalArtifact,
         TerminalAuthorityPermissionPolicy,
-        Vec<installation_evidence::InstallationEnvironmentAssumption>,
+        Vec<installation_conditions::InstallationEnvironmentAssumption>,
     ),
     Vec<Diagnostic>,
 > {

@@ -16,7 +16,7 @@ selected-instructions = { path = "../../pipeline/representations/selected-instru
 bound-installations = { path = "../../installation/bound-installations" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 frame-admission = { path = "../../pipeline/representations/machine-code/frame-admission" }
-installation-evidence = { path = "../../installation/installation-evidence" }
+installation-conditions = { path = "conditions" }
 machine-code = { path = "../../pipeline/representations/machine-code" }
 post-allocation-machine = { path = "../../pipeline/representations/post-allocation-machine" }
 provider-admission = { path = "../provider-admission" }

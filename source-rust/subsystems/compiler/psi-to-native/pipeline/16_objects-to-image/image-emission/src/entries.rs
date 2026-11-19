@@ -4014,7 +4014,7 @@ pub(crate) mod physical_entry {
             .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
         let installed_reserve = crate::object::object_artifact::installed_stack::root_reserve(
             artifact,
-            installation_evidence::InstalledPhysicalStackRoot {
+            installation_conditions::InstalledPhysicalStackRoot {
                 semantic_entry: binding.semantic_entry,
                 adapter: binding.entry,
             },
@@ -4343,7 +4343,7 @@ pub(crate) mod private_entry_origin {
         &'a AdmittedCallbackEntry,
         bool,
         Option<InstalledInterruptEntryPlan>,
-        Option<&'a installation_evidence::BootstrapEnvironmentAssumption>,
+        Option<&'a installation_conditions::BootstrapEnvironmentAssumption>,
         Option<&'a provider_admission::AdmittedInstalledInterruptScope>,
         OriginOwners<'a>,
     );

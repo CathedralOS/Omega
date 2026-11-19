@@ -14,7 +14,7 @@ pub(in crate::pipeline) mod required_scalars;
 use super::request::NativeCompileRequest;
 use artifact_lowering::{PreparedNativeExecution, RetainedTerminalArtifact};
 use diagnostics::Diagnostic;
-use installation_evidence::InstallationEnvironmentAssumption;
+use installation_conditions::InstallationEnvironmentAssumption;
 use target::ExecutableImageEmissionRequest;
 use terminal_installation::admit_target_layouts;
 

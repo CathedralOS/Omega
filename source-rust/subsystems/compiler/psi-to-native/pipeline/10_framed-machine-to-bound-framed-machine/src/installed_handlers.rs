@@ -1,7 +1,7 @@
 //! Measure an installed handler against its admitted entry and physical call graph.
 //! Image publication independently checks the completed body and arrival bridge.
 use installation_admission::selected::correlate_native_instruction_sources;
-use installation_evidence::{InstalledBodyFaultPremises, InstalledInterruptStackRequirement};
+use installation_conditions::{InstalledBodyFaultPremises, InstalledInterruptStackRequirement};
 use selected_instructions::{MachineEncodedTrapBehavior as Trap, SelectedInstructionKind as Kind};
 
 #[derive(Debug)]

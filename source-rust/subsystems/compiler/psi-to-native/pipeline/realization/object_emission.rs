@@ -58,7 +58,7 @@ pub(crate) fn emit_realization_object(
         .filter(|entry| entry.source().target_slot().owner == target::TargetProfile::UefiX64)
         .and_then(|entry| {
             entry.physical_adapter().map(|adapter| {
-                installation_evidence::InstalledPhysicalStackRoot {
+                installation_conditions::InstalledPhysicalStackRoot {
                     semantic_entry: entry.checked_entry().terminal_entry(),
                     adapter: adapter.machine(),
                 }

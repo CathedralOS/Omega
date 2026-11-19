@@ -13,7 +13,8 @@ mod error {
     use crate::artifact_lowering::lowering::LoweringError;
 
     #[derive(Debug)]
-    pub enum ArtifactLoweringError {        TargetSelectionRequired,
+    pub enum ArtifactLoweringError {
+        TargetSelectionRequired,
         TargetContext(String),
         HostAuthorization(psi_authorization::ArtifactTrustError),
         AccessViewInputsRequireCustodyLowering,
@@ -498,7 +499,7 @@ mod native {
 
         pub(crate) fn retain_admitted_assumed_bindings(
             &mut self,
-            calls: Vec<installation_evidence::InstalledAssumedBindingEvidence>,
+            calls: Vec<operation_evidence::provider_calls::InstalledAssumedBindingEvidence>,
         ) {
             self.optimization_input
                 .retain_admitted_assumed_bindings(calls);
