@@ -769,14 +769,14 @@
     },
     {
       "consumers": [
-        "callable_planning"
+        "root and callable target planning"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/plan_callables.rs",
-      "item": "use:crate :: body_planning :: NativeBodyPlanningError#1",
+      "item": "use:crate :: compile_body :: NativeBodyPlanningError#1",
       "kind": "definition",
-      "meaning": "Names the declared stage API or driver type used in this module.",
-      "producer": "Rust module import",
-      "signature": "2318ae7041a9b8d31ee10cb7cb6ec070e04443e7427b6dde791acc146f6746d6"
+      "meaning": "Report failures from the common optimizer and target lowering used for callable and root bodies.",
+      "producer": "native body planner",
+      "signature": "4a9bee0ce21a342f1dc947e3cc564abde8e38e89aed8ee1ac901b86baf736f0c"
     },
     {
       "consumers": [
@@ -1542,14 +1542,107 @@
     },
     {
       "consumers": [
-        "pipeline"
+        "plan_native_body"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
-      "item": "use:target_lowering :: NativeBodyPlan#1",
+      "item": "use:target_lowering :: { NativeBodyPlan , OptimizedTargetLoweringRequest }#1",
       "kind": "definition",
-      "meaning": "Names the declared stage API or driver type used in this module.",
+      "meaning": "Name the target-lowering request and its produced native body plan.",
+      "producer": "stage 04 target lowering",
+      "signature": "a1259f4f0974bc411c0839067a8520fb8669a0a8923d057147d7696f746b2b23"
+    },
+    {
+      "consumers": [
+        "callable and root body planning",
+        "runtime provision admission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "item": "enum:NativeBodyPlanningError#1",
+      "kind": "carried_record",
+      "meaning": "Preserve the stage at which body optimization or target lowering failed.",
+      "producer": "native body planner",
+      "signature": "ba45d6d68f32da8ea1da464dcfe91b94b5ee542058085a659c906c68a732c7b7"
+    },
+    {
+      "consumers": [
+        "callable and root body planning",
+        "runtime provision admission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "item": "NativeBodyPlanningError::AbstractOptimization::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Keep the abstract optimizer\u2019s validation failure.",
+      "producer": "stage 03 abstract optimizer",
+      "signature": "64eb6b4dbca3ba9faa4c67b5585e88d94f165a6244caa6f5f9883e3b9d4716f0"
+    },
+    {
+      "consumers": [
+        "callable and root body planning",
+        "runtime provision admission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "item": "NativeBodyPlanningError::Target::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Keep the target lowering or runtime borrow layout failure.",
+      "producer": "stage 04 target lowering",
+      "signature": "e7bb28bb7d042d2c2d1976878da4b439bb7622c2648a1136c35907e8170c648b"
+    },
+    {
+      "consumers": [
+        "plan_native_body",
+        "plan_runtime_storage"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "item": "function:optimize#1",
+      "kind": "producer",
+      "meaning": "Record entry to abstract optimization on the invocation observer, apply its requested selections and work budget to the verified input, and return the validated optimizer output.",
+      "producer": "native body planner",
+      "signature": "d8310f558c031b41fad98163fd084250e2551412babc405b37e5f7cdfba9c467"
+    },
+    {
+      "consumers": [
+        "root body planning",
+        "private callable planning"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "item": "function:plan_native_body#1",
+      "kind": "producer",
+      "meaning": "Observe entry to target lowering and produce the target plan shared by root and private callable bodies. Retain originals only on request.",
+      "producer": "native body planner",
+      "signature": "b79d7d086ae5d1f2558b67121a33795aa6f004bc68df2f34844564a19a513ac2"
+    },
+    {
+      "consumers": [
+        "runtime provision admission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "item": "function:plan_runtime_storage#1",
+      "kind": "producer",
+      "meaning": "Use the same optimizer and its lowering input to plan borrowed storage for runtime-only admission.",
+      "producer": "native body planner",
+      "signature": "c13f1bb2c4a93ec85139dff855ac8d447e5f9b54ab6ab50030c629812440ad44"
+    },
+    {
+      "consumers": [
+        "native body planner"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "item": "use:artifact_lowering :: VerifiedNativeArtifactInput#1",
+      "kind": "definition",
+      "meaning": "Accept the verified native artifact input for both shared body-planning entrances.",
       "producer": "Rust module import",
-      "signature": "89a4799d91bb4b861d3d8b95b03bfda4f1f40a1f7497e7f12cc5e3df05571061"
+      "signature": "9c8e248f83d4f7963861dda8f36c1d6dfb2d3cdeeb5f219f8e2e2a110fbe0938"
+    },
+    {
+      "consumers": [
+        "native body planner"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/compile_body.rs",
+      "item": "use:optimization_core :: { OptimizationWorkBudget , PostTerminalOptimizationSelections }#1",
+      "kind": "definition",
+      "meaning": "Pass the selected post-Terminal passes and bounded work allowance to the abstract optimizer.",
+      "producer": "Rust module import",
+      "signature": "4986471b19f888ac8377a9cbc59a23d08b6a30f0ef3cf9417eee3b744f300b3c"
     },
     {
       "consumers": [
@@ -1848,9 +1941,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
       "item": "CallableObjectProduct::field:runtime#1",
       "kind": "carried_record",
-      "meaning": "The callable\u00e2\u20ac\u2122s host provisions and foreign adapters at the same stage as its body.",
-      "producer": "native callable compiler driver",
-      "signature": "7847ccd947973b818893de63bbfdfd309773e5f7268814931f00f5545ac5e96f"
+      "meaning": "Carry the callable\u2019s runtime provisions with its object-form foreign adapters.",
+      "producer": "callable object construction",
+      "signature": "4270e4d9e26ce2b13c934553292fbe5226e583447f8b80d3aecda82d8307e127"
     },
     {
       "consumers": [
@@ -2117,15 +2210,14 @@
     },
     {
       "consumers": [
-        "private callback construction",
-        "component export construction"
+        "private callable and component export objects"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callable_objects.rs",
-      "item": "use:crate :: pipeline :: { self , BodyEmissionError }#1",
+      "item": "use:crate :: compile_body :: { self , BodyEmissionError }#1",
       "kind": "definition",
-      "meaning": "Import crate::pipeline::{ self , BodyEmissionError } for native callable compiler driver.",
-      "producer": "native callable compiler driver",
-      "signature": "d2329943073981ebc238545c2ed85ed62a7523bb3b25868f6c3fdc3cc650e8cb"
+      "meaning": "Use the shared body stage sequence and its emission diagnostics.",
+      "producer": "native body planner",
+      "signature": "7e2d0573d5b12a9f2a7f46bfbab0487eaa034c89ed96bf8c6cdfecb5103c08b5"
     },
     {
       "consumers": [
@@ -2966,6 +3058,17 @@
     },
     {
       "consumers": [
+        "callback thunk construction"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/callback_thunks.rs",
+      "item": "module:handler_order#1",
+      "kind": "definition",
+      "meaning": "Order installed callback handlers before emitting thunks that depend on them.",
+      "producer": "callback thunk emission",
+      "signature": "d9585f24be079262b2e3e71eeb9cd5288221542bfbab701eb9a65e44f66b12c7"
+    },
+    {
+      "consumers": [
         "native compilation coordinator",
         "root image and runtime publication"
       ],
@@ -3145,15 +3248,14 @@
     },
     {
       "consumers": [
-        "native compilation coordinator",
-        "root image and runtime publication"
+        "root object emission"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/emit_program/object_emission.rs",
-      "item": "use:crate :: pipeline :: { self , BodyEmissionError }#1",
+      "item": "use:crate :: compile_body :: { self , BodyEmissionError }#1",
       "kind": "definition",
-      "meaning": "Import crate::pipeline::{ self , BodyEmissionError } for native compiler program driver.",
-      "producer": "native compiler program driver",
-      "signature": "d2329943073981ebc238545c2ed85ed62a7523bb3b25868f6c3fdc3cc650e8cb"
+      "meaning": "Use the shared body stage sequence and its emission diagnostics.",
+      "producer": "native body planner",
+      "signature": "7e2d0573d5b12a9f2a7f46bfbab0487eaa034c89ed96bf8c6cdfecb5103c08b5"
     },
     {
       "consumers": [
