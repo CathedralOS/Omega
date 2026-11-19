@@ -62,6 +62,9 @@ pub struct BuildEvaluationRequest<'request> {
 /// (`admission/build_stages.rs`), to be judged and admitted under the
 /// activation its first stage began.
 pub struct BuildStageRequest<'request> {
+    /// Capture and source map rejoined by the preceding staged Build.
+    pub source_acquisition:
+        Option<&'request package_compilation::source_assembly::BuildStageAcquisition>,
     pub typed: &'request source_compiler::source_state::TypedTrees,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
@@ -72,7 +75,6 @@ use build_evaluation_result::BuildSubjectValidation;
 pub use build_evaluation_result::EvaluatedBuild;
 
 pub struct PreparedBuildEvaluation {
-    unbound_acquisition: Option<package_compilation::CapturedLocalSource>,
     execution: PreparedBuildExecution,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
@@ -101,15 +103,19 @@ impl PreparedBuildEvaluation {
         timings: &mut CompileTimings,
     ) -> Result<(), CompileFailure> {
         let BuildStageRequest {
+            source_acquisition,
             typed,
             build_source,
             package_inputs,
             anonymous_source,
         } = request;
-        let continues_acquisition = self.unbound_acquisition.is_some()
-            && package_inputs.is_none()
-            && anonymous_source.and_then(|owner| owner.acquired_for(typed))
-                == self.unbound_acquisition.as_ref();
+        let acquisition = match source_acquisition {
+            Some(stage) => stage.acquired_for(typed),
+            None if package_inputs.is_none() => {
+                anonymous_source.and_then(|owner| owner.acquired_for(typed))
+            }
+            None => None,
+        };
         let build_source = build_source.ok_or_else(|| {
             vec![Diagnostic::error(
                 "Build execution requires its source-owned selection",
@@ -162,10 +168,7 @@ impl PreparedBuildEvaluation {
                 }
                 self.restricted_build_requests.push(request);
             }
-            self.execution = self.execution.continue_with(admitted)?;
-            if !continues_acquisition {
-                self.unbound_acquisition = None;
-            }
+            self.execution = self.execution.continue_with(admitted, acquisition)?;
             Ok(())
         })();
         result.map_err(|failure: CompileFailure| failure.with_source_completion_accounting(spent))
@@ -260,7 +263,6 @@ impl PreparedBuildEvaluation {
         returned: Option<crate::ReturnedBuild>,
     ) -> Result<EvaluatedBuild, CompileFailure> {
         let Self {
-            unbound_acquisition: _,
             execution,
             restricted_build_requests,
             base_source_consumption_commitment,
@@ -405,15 +407,16 @@ pub fn prepare_build_evaluation(
                 accounting: source_completion_accounting.clone(),
             });
         }
-        let execution = PreparedBuildExecution::prepare(admitted, execution_purpose)?;
         let unbound_acquisition = anonymous_source
             .filter(|owner| {
                 package_inputs.is_none() && std::ptr::eq(owner.sources().as_ref(), sources)
             })
             .and_then(|owner| owner.acquired_for(typed))
-            .cloned();
+            .cloned()
+            .map(Arc::new);
+        let execution =
+            PreparedBuildExecution::prepare(admitted, execution_purpose, unbound_acquisition)?;
         Ok(PreparedBuildEvaluation {
-            unbound_acquisition,
             execution,
             restricted_build_requests,
             base_source_consumption_commitment,

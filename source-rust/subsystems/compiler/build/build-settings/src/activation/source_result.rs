@@ -14,6 +14,10 @@ impl<'result> BuildSourceResult<'result> {
         Self { returned }
     }
 
+    pub fn original_acquisition(&self) -> Option<&package_compilation::CapturedLocalSource> {
+        self.returned.original_acquisition()
+    }
+
     pub fn declaration(&self) -> Option<&BuildDeclaration> {
         self.returned.declaration()
     }

@@ -29,7 +29,7 @@ pub(crate) struct SourceStorage {
     default_package_root: PathBuf, // Root directory of the primary package or standalone project.
     default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
     anonymous_capture: Option<std::sync::Arc<source_capture::CapturedSourceTree>>, // Original root capture retained through named and completed source joins.
-    unbound_acquisition: Option<crate::CapturedLocalSource>,
+    pub(crate) unbound_acquisition: Option<crate::CapturedLocalSource>,
     core_capture: Option<crate::CapturedLocalSource>, // Exact core input shared by Build imports, Product typing and owner derivation.
     pub(crate) package_roots: Vec<RegisteredPackageRoot>, // Dense registered source-owner rows; inventories belong to their exact capture.
     toolchain_root: Option<PathBuf>, // Bundled toolchain root (`omega` or `core`).

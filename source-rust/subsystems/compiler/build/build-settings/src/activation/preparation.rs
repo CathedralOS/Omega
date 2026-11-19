@@ -24,6 +24,7 @@ use evaluation_contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
+    unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<source_compiler::ProducedTerminalProgram>,
     accepted: Arc<source_compiler::AcceptedTerminalSource>,
@@ -44,6 +45,7 @@ impl PreparedBuildExecution {
     pub(crate) fn prepare(
         admitted: AdmittedBuildProgram,
         execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
+        unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
@@ -85,6 +87,7 @@ impl PreparedBuildExecution {
             .begin_invocation(measurement, INVOCATION_WORK)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
+            unbound_acquisition,
             execution_purpose,
             accepted: prepared,
             produced,
@@ -132,6 +135,7 @@ impl PreparedBuildExecution {
     pub(crate) fn continue_with(
         &self,
         admitted: AdmittedBuildProgram,
+        acquisition: Option<&package_compilation::CapturedLocalSource>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
@@ -149,7 +153,13 @@ impl PreparedBuildExecution {
         // returns, whether or not that stage reaches the filesystem itself.
         machine.filesystem_reachable |= self.machine.filesystem_reachable;
         let providers = providers.admit(produced.view())?;
+        let unbound_acquisition = self
+            .unbound_acquisition
+            .as_ref()
+            .filter(|capture| Some(capture.as_ref()) == acquisition)
+            .cloned();
         Ok(Self {
+            unbound_acquisition,
             execution_purpose: self.execution_purpose,
             produced,
             providers: Arc::new(providers),
@@ -175,6 +185,9 @@ impl PreparedBuildExecution {
         if self.host_issued {
             return Err(self.refuse("Build invocation already issued its execution host"));
         }
+        if !self.account.same_invocation(&previous.host.account) {
+            return Err(self.refuse("Build stage belongs to another invocation"));
+        }
         self.host_issued = true;
         let mut carried = previous.carry().map_err(|reason| self.refuse(&reason))?;
         crate::TerminalBuildHost::new(
@@ -187,6 +200,7 @@ impl PreparedBuildExecution {
             self.execution_profile,
             self.default_source,
             self.default_sources.clone(),
+            self.unbound_acquisition.clone(),
             carried.filesystem.take(),
         )
         .and_then(|host| host.resume(carried))
@@ -208,6 +222,7 @@ impl PreparedBuildExecution {
             self.execution_profile,
             self.default_source,
             self.default_sources.clone(),
+            self.unbound_acquisition.clone(),
             None,
         )
         .map_err(|reason| self.refuse(&reason))
@@ -284,11 +299,17 @@ impl PreparedBuildExecution {
             ..Default::default()
         };
         let activation = source_compiler::source_symbols::retain_declaration(
-            &self.accepted.source().symbols, self.machine.symbol,
-        ).map_err(|reason| self.refuse(reason))?;
-        let selected_build_declaration = source_admission::RetainedDeclaration::from_retained_parts(
-            activation.source().clone(), activation.span(), activation.kind(),
-        ).map_err(|reason| self.refuse(reason))?;
+            &self.accepted.source().symbols,
+            self.machine.symbol,
+        )
+        .map_err(|reason| self.refuse(reason))?;
+        let selected_build_declaration =
+            source_admission::RetainedDeclaration::from_retained_parts(
+                activation.source().clone(),
+                activation.span(),
+                activation.kind(),
+            )
+            .map_err(|reason| self.refuse(reason))?;
         Ok(ComputedBuildConfig {
             accepted_build: Some(self.accepted),
             config,
