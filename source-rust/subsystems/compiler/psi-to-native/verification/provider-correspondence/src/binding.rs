@@ -40,7 +40,7 @@ pub struct SelectedPlanDeclarations<'plan> {
 
 #[derive(Debug)]
 pub struct SelectedProviderPlanBinding {
-    selected: effects::SelectedProviderPlanFacts,
+    selected: selected_provider_plans::SelectedProviderPlanFacts,
     grants: Vec<ResolvedAuthoredSelectedProviderGrant>,
 }
 
@@ -48,7 +48,7 @@ impl SelectedProviderPlanBinding {
     pub fn into_parts(
         self,
     ) -> (
-        effects::SelectedProviderPlanFacts,
+        selected_provider_plans::SelectedProviderPlanFacts,
         Vec<ResolvedAuthoredSelectedProviderGrant>,
     ) {
         (self.selected, self.grants)
@@ -59,7 +59,7 @@ pub fn bind_selected_provider_plan_facts(
     boundary_admission: crate::BoundaryProviderAdmission<'_>,
     issuers: Result<Vec<&declaration_contracts::BoundaryQualificationIssuer>, &'static str>,
     candidates: &[&ProviderPlan],
-    facts: effects::SelectedProviderPlanFacts,
+    facts: selected_provider_plans::SelectedProviderPlanFacts,
     declarations: Result<Vec<Result<SelectedPlanDeclarations<'_>, Diagnostic>>, Diagnostic>,
     root_grants: &[String],
     authored_root_grants: &[AuthoredRootGrant],
@@ -91,7 +91,7 @@ pub fn bind_selected_provider_plan_facts(
 
 pub fn validate_qualification_grants<'issuer>(
     issuers: impl IntoIterator<Item = &'issuer declaration_contracts::BoundaryQualificationIssuer>,
-    facts: &effects::SelectedProviderPlanFacts,
+    facts: &selected_provider_plans::SelectedProviderPlanFacts,
     provider_grants: &[effects::provider_grants::ResolvedSelectedProviderGrant],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut granted_plans = Vec::new();
@@ -175,9 +175,9 @@ pub fn validate_qualification_grants<'issuer>(
 }
 
 pub(crate) fn enrich_selected_plans(
-    facts: effects::SelectedProviderPlanFacts,
+    facts: selected_provider_plans::SelectedProviderPlanFacts,
     declarations: &[Result<SelectedPlanDeclarations<'_>, Diagnostic>],
-) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
+) -> Result<selected_provider_plans::SelectedProviderPlanFacts, Vec<Diagnostic>> {
     if facts.plans().len() != declarations.len() {
         return Err(vec![Diagnostic::error(
             "installation reach lost selected provider custody",
@@ -254,7 +254,7 @@ pub(crate) fn enrich_selected_plans(
                         {
                             continue;
                         }
-                        aliases.push(effects::SelectedRequirementSpecialization {
+                        aliases.push(selected_provider_plans::SelectedRequirementSpecialization {
                             provider_plan_report_identity: prepared.plan.report_fingerprint(),
                             selected_requirement_identity: template,
                             selected_machine_identity: template,
@@ -304,7 +304,7 @@ pub(crate) fn enrich_selected_plans(
                 .as_ref()
                 .map_err(|reason| vec![Diagnostic::error(reason.clone())])?
             {
-                applications.push(effects::SelectedExternalRequirementApplication {
+                applications.push(selected_provider_plans::SelectedExternalRequirementApplication {
                     provider_plan_report_identity: plan.report_fingerprint(),
                     provider_plan_digest: plan.identity_digest(),
                     selected_requirement_identity: identities

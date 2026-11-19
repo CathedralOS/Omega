@@ -9,6 +9,8 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+target-provider-admission = { path = "../../../verification/target-providers" }
+selected-provider-plans = { path = "../../../../build/providers/selections" }
 provider-plans = { path = "../../../../build/providers/plans" }
 psi-scalar-applications = { path = "../../../../psi/scalar-applications" }
 psi-provider-selections = { path = "../../../../psi/providers" }
@@ -45,7 +47,6 @@ terminal-codec = { path = "../../../../psi/codec" }
 sha2 = "0.10.9"
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
-backend-plan = { path = "../../../installation/provider-plans" }
 provider-admission = { path = "../../../verification/provider-admission" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 

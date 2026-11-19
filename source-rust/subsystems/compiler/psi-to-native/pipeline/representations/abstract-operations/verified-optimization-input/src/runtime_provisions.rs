@@ -1,7 +1,7 @@
 //! Check the host provision roster against an admitted program and retain its runtime facts.
 
 use crate::{AdmittedRuntimeInput, NativeProgramEntrySettlement};
-use backend_plan::TerminalTargetProviderProposal;
+use target_provider_admission::TerminalTargetProviderProposal;
 use calling_conventions::BoundaryCallingApplication;
 use psi_entry_memory::CheckedPrivateEntryRamRecipe;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarType};
@@ -130,7 +130,7 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
         installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
         mut host: Vec<TerminalRuntimeHostProvision>,
         input: AdmittedRuntimeInput<'_>,
-        selected: &effects::SelectedProviderPlanFacts,
+        selected: &selected_provider_plans::SelectedProviderPlanFacts,
         external_bindings: &[calling_conventions::ExternalBindingRow],
         native: NativeBindingRuntimeInputs<'_>,
     ) -> Result<Self, String> {

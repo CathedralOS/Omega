@@ -8,6 +8,8 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+selected-provider-plans = { path = "../../../build/providers/selections" }
+target-provider-admission = { path = "../../verification/target-providers" }
 provider-plans = { path = "../../../build/providers/plans" }
 evaluation-admission = { path = "../../../build/evaluation/admission" }
 build-scalar-evaluation = { path = "../../../build/evaluation/scalars" }

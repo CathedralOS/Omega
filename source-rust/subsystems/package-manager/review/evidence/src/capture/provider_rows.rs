@@ -108,7 +108,7 @@ pub(super) fn from_selected(
     plans: &[ProviderPlan],
     module: &TerminalModule,
 ) -> Result<Vec<ProviderChoice>, Vec<Diagnostic>> {
-    let authenticated = backend_plan::selected_checked_invocation_rows(plans, module)
+    let authenticated = target_provider_admission::selected_checked_invocation_rows(plans, module)
         .map_err(|reason| unavailable(&reason))?;
     let mut remaining = authenticated.as_slice();
     let mut selections = Vec::with_capacity(plans.len());

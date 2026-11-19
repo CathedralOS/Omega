@@ -16,13 +16,13 @@ pub struct SelectedCallbackRow<'plan> {
 }
 
 pub struct CallbackProviderDeclarations<'plan> {
-    selected: Option<effects::SelectedProviderPlanFacts>,
+    selected: Option<selected_provider_plans::SelectedProviderPlanFacts>,
     checked_adapters: Vec<SelectedCallbackRow<'plan>>,
 }
 
 impl<'plan> CallbackProviderDeclarations<'plan> {
     pub fn prepare(
-        selected: &'plan effects::SelectedProviderPlanFacts,
+        selected: &'plan selected_provider_plans::SelectedProviderPlanFacts,
         declarations: &terminal_psi::CallbackDeclarationRoster,
         module: &terminal_psi::TerminalModule,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -30,7 +30,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
             return Ok(Self::unused());
         }
         let instances =
-            backend_plan::close_checked_provider_specializations(selected.clone(), module)
+            target_provider_admission::close_checked_provider_specializations(selected.clone(), module)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let mut checked_adapters = Vec::new();
         for plan in selected.plans() {
@@ -41,7 +41,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
                 checked_adapters.push(SelectedCallbackRow {
                     plan,
                     row,
-                    checked_adapter_body: backend_plan::selected_checked_adapter_header(
+                    checked_adapter_body: target_provider_admission::selected_checked_adapter_header(
                         plan, row, module,
                     )
                     .map(|header| header.supplies_checked_body),
@@ -59,7 +59,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
     }
 
     pub fn prepared(
-        selected: effects::SelectedProviderPlanFacts,
+        selected: selected_provider_plans::SelectedProviderPlanFacts,
         checked_adapters: Vec<SelectedCallbackRow<'plan>>,
     ) -> Self {
         Self {

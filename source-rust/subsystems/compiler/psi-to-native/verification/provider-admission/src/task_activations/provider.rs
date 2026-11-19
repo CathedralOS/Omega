@@ -7,7 +7,7 @@ use terminal_psi::{
 
 pub(super) fn validate_selected_runtime(
     identities: &TerminalIdentityTable,
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
     demand: &TerminalTaskActivationDemand,
 ) -> Result<(), Vec<Diagnostic>> {
     let requirement_owner_package = demand.requirement_owner_package;

@@ -143,13 +143,13 @@ impl SelectedExecution {
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
         optimization_selection: optimization_selections::OptimizationSelectionIdentity,
-    ) -> Option<backend_plan::TerminalTargetProviderProposal> {
+    ) -> Option<target_provider_admission::TerminalTargetProviderProposal> {
         let target = self.target_profile?.target_name();
         let selection = self
             .realization
             .require_program(artifact.identity())
             .and_then(|()| {
-                backend_plan::TerminalTargetProviderSelection::from_plans(
+                target_provider_admission::TerminalTargetProviderSelection::from_plans(
                     self.realization.provider_declarations().to_vec(),
                     artifact,
                 )
@@ -159,7 +159,7 @@ impl SelectedExecution {
                 selection
             })
             .map_err(|reason| vec![format!("provider proposal for `{target}`: {reason}")]);
-        Some(backend_plan::TerminalTargetProviderProposal {
+        Some(target_provider_admission::TerminalTargetProviderProposal {
             target: target.to_owned(),
             terminal_psi: artifact.identity(),
             optimization_selection,
@@ -214,11 +214,11 @@ impl SelectedProviderResult {
         }
     }
 
-    pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
+    pub fn plans(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
         self.realization.plans()
     }
 
-    pub fn shared_plans(&self) -> &Arc<effects::SelectedProviderPlanFacts> {
+    pub fn shared_plans(&self) -> &Arc<selected_provider_plans::SelectedProviderPlanFacts> {
         self.realization.shared_plans()
     }
 

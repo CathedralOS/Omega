@@ -8,7 +8,7 @@ pub struct PreparedNativeExecution {
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
     scope: crate::NativeExecutionScope,
-    selection: effects::SelectedProviderPlanFacts,
+    selection: selected_provider_plans::SelectedProviderPlanFacts,
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     demands: BTreeSet<String>,
     compiler_builtins: Vec<provider_admission::provider_admission::TerminalCompilerBuiltinProposal>,
@@ -205,7 +205,7 @@ impl TerminalNativeRealizationProposal {
 
     pub fn selected_intrinsic_provenance<'a>(
         &'a self,
-        selection: &'a effects::SelectedProviderPlanFacts,
+        selection: &'a selected_provider_plans::SelectedProviderPlanFacts,
     ) -> Result<
         Vec<provider_admission::provider_admission::CompilerIntrinsicPlanProvenance<'a>>,
         Vec<Diagnostic>,
@@ -273,7 +273,7 @@ impl TerminalNativeRealizationProposal {
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         scope: &crate::NativeExecutionScope,
-        selection: &effects::SelectedProviderPlanFacts,
+        selection: &selected_provider_plans::SelectedProviderPlanFacts,
         provenance: &[provider_admission::provider_admission::CompilerIntrinsicPlanProvenance<
             '_,
         >],
@@ -503,10 +503,10 @@ impl PreparedNativeExecution {
         self.evidence.as_ref()
     }
 
-    pub fn selection(&self) -> &effects::SelectedProviderPlanFacts {
+    pub fn selection(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
         &self.selection
     }
-    pub fn source_selection(&self) -> &effects::SelectedProviderPlanFacts {
+    pub fn source_selection(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
         self.scope.source_provider_selection()
     }
     pub const fn scope(&self) -> &crate::NativeExecutionScope {

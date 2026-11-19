@@ -16,7 +16,7 @@ use std::sync::Arc;
 struct PublishedApplicationInputs<'a, Publisher> {
     artifact: &'a Arc<terminal_codec::CanonicalTerminalArtifact>,
     execution: &'a PublishedSelection<Publisher, SelectedProviderResult>,
-    proposal: Option<backend_plan::TerminalTargetProviderProposal>,
+    proposal: Option<target_provider_admission::TerminalTargetProviderProposal>,
     bindings: &'a [host_provider_inputs::AcceptedSemanticBinding],
     package_permissions:
         Option<&'a declaration_scope::ProductDeclarationScope>,
@@ -242,7 +242,7 @@ fn checked_provider_calls(
             continue;
         }
         for row in
-            backend_plan::selected_provider_candidate_rows(declaration, module).map_err(refuse)?
+            target_provider_admission::selected_provider_candidate_rows(declaration, module).map_err(refuse)?
         {
             for position in row.candidate_positions {
                 let candidate = &module.provider_candidates[position];

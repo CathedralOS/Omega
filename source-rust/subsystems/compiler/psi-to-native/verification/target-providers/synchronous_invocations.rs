@@ -5,11 +5,11 @@ the same exact-slot join and cycle prohibition while preserving declared
 ceilings on opaque rows.
 */
 
-use declaration_contracts::service_surface::ServiceSynchronousInvocation;
-use effects::provider_plan::{ProviderBinding, ProviderPlan};
+use provider_plans::{ProviderBinding, ProviderPlan};
+use service_surface::ServiceSynchronousInvocation;
 
 pub fn validate_declared_synchronous_invocation_cycles(
-    selected_plans: &[effects::provider_plan::ProviderPlan],
+    selected_plans: &[provider_plans::ProviderPlan],
     module: &terminal_psi::TerminalModule,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let rows = crate::selected_checked_invocation_rows(selected_plans, module)
@@ -69,7 +69,7 @@ pub enum SynchronousBoundaryTarget {
         application: Option<String>,
     },
     Selected {
-        plan: effects::provider_plan::ProviderPlanDigest,
+        plan: provider_plans::ProviderPlanDigest,
         label: String,
     },
 }
@@ -128,7 +128,7 @@ pub fn validate_selected_synchronous_invocation_cycles<'plan>(
     selected_plans: impl IntoIterator<Item = &'plan ProviderPlan>,
     mut checked_targets: impl FnMut(
         &ProviderPlan,
-        &effects::provider_plan::ProviderPlanRow,
+        &provider_plans::ProviderPlanRow,
     )
         -> Result<Vec<SynchronousBoundaryTarget>, diagnostics::Diagnostic>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -330,7 +330,7 @@ fn synchronous_cycle_from(
 
 fn exact_authored_invocations(
     plan: &ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
+    method: &provider_plans::ServiceMethod,
 ) -> Result<Vec<String>, diagnostics::Diagnostic> {
     ServiceSynchronousInvocation::validate_entries(
         &method.synchronous_invocations,

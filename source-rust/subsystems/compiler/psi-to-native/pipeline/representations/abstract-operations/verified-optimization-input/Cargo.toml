@@ -9,6 +9,8 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+target-provider-admission = { path = "../../../../verification/target-providers" }
+selected-provider-plans = { path = "../../../../../build/providers/selections" }
 provider-plans = { path = "../../../../../build/providers/plans" }
 psi-scalar-applications = { path = "../../../../../psi/scalar-applications" }
 psi-provider-selections = { path = "../../../../../psi/providers" }

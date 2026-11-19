@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+selected-provider-plans = { path = "../providers/selections" }
 psi-authorization = { path = "../../psi/authorization" }
 evaluation-admission = { path = "../evaluation/admission" }
 psi-provider-selections = { path = "../../psi/providers" }

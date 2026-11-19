@@ -12,9 +12,8 @@ without ever admitting equal arity as a replacement.
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use effects::{
-    SelectedProviderPlanFacts, TerminalMechanismIdentity,
-};
+use effects::TerminalMechanismIdentity;
+use selected_provider_plans::SelectedProviderPlanFacts;
 use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
@@ -292,7 +291,7 @@ impl<'a> ReviewContext<'a> {
         (
             &'a ProviderPlan,
             &'a ProviderPlanRow,
-            Option<&'a effects::SelectedRequirementSpecialization>,
+            Option<&'a selected_provider_plans::SelectedRequirementSpecialization>,
         ),
         String,
     > {

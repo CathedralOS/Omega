@@ -605,7 +605,7 @@ mod semantic_call {
     pub fn bind_selected_program_entry_call(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         entry: &ValidatedNativeProgramEntrySettlement,
-        selection: &effects::SelectedProviderPlanFacts,
+        selection: &selected_provider_plans::SelectedProviderPlanFacts,
         intrinsic_executions: &[Vec<Option<CompilerIntrinsicExecutionIdentity>>],
     ) -> Result<Option<SelectedProgramEntryCall>, String> {
         let plans = selection.plans();

@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+target-provider-admission = { path = "../../compiler/psi-to-native/verification/target-providers" }
 psi-provider-selections = { path = "../../compiler/psi/providers" }
 psi-entry-memory = { path = "../../compiler/psi/access/entry-memory" }
 psi-target-layouts = { path = "../../compiler/psi/layout/admission" }
@@ -18,7 +19,6 @@ native-provider-runtime = { path = "native-worker" }
 runtime-abi = { path = "../../compiler/psi-to-native/targets/runtime-abi" }
 numerics = { path = "../../compiler/psi/semantics/numeric" }
 semantic-vocabulary = { path = "../../compiler/foundation/semantic-records" }
-backend-plan = { path = "../../compiler/psi-to-native/installation/provider-plans" }
 target = { path = "../../compiler/psi-to-native/targets/target" }
 terminal-psi = { path = "../../compiler/psi" }
 terminal-codec = { path = "../../compiler/psi/codec" }

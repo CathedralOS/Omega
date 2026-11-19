@@ -9,7 +9,7 @@ use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub native_bindings: provider_admission::RetainedNativeBindings,
-    pub selection: effects::SelectedProviderPlanFacts,
+    pub selection: selected_provider_plans::SelectedProviderPlanFacts,
     pub checked_adapters: Vec<provider_admission::SelectedProviderAdapter>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub intrinsic_executions: Vec<Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>>,
@@ -47,7 +47,7 @@ pub struct TerminalNativeRealizationProposal {
     package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     behavior_exclusions: effects::BehaviorExclusions,
-    target_provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    target_provider_proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -105,13 +105,13 @@ impl TerminalNativeRealizationProposal {
 
     pub fn with_target_provider_proposals(
         mut self,
-        proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+        proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
     ) -> Self {
         self.target_provider_proposals = proposals;
         self
     }
 
-    pub fn target_provider_proposals(&self) -> &[backend_plan::TerminalTargetProviderProposal] {
+    pub fn target_provider_proposals(&self) -> &[target_provider_admission::TerminalTargetProviderProposal] {
         &self.target_provider_proposals
     }
 
@@ -243,7 +243,7 @@ mod proposal {
         request: &TerminalNativeProposalRequest<'_>,
     ) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
         let terminal_module = artifact.semantic_module();
-        let selected = backend_plan::close_checked_provider_specializations(
+        let selected = target_provider_admission::close_checked_provider_specializations(
             request.boundaries.selected_provider_plans.clone(),
             terminal_module,
         )
@@ -419,7 +419,7 @@ mod proposal {
     fn project_callback_occurrences(
         callback_placements: &[provider_correspondence::callbacks::NativeCallbackPlacement],
         artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-        selected: &effects::SelectedProviderPlanFacts,
+        selected: &selected_provider_plans::SelectedProviderPlanFacts,
         checked_adapters: &[crate::SelectedProviderAdapter],
     ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
         let caller = artifact.view();

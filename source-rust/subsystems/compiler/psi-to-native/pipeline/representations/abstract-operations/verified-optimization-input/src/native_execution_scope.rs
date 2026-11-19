@@ -236,7 +236,7 @@ pub struct NativeExecutionScope {
     entry: MachineId,
     selected_provider_closure: [u8; 32],
     source_native_bindings: Option<[u8; 32]>,
-    source_provider_selection: effects::SelectedProviderPlanFacts,
+    source_provider_selection: selected_provider_plans::SelectedProviderPlanFacts,
     source_checked_entry: Option<terminal_psi::CheckedProgramEntryTerminalReceipt>,
     local_adapters: Vec<SelectedProviderAdapter>,
     entry_call: Option<crate::SelectedProgramEntryCall>,
@@ -266,7 +266,7 @@ impl NativeExecutionScope {
         entry_call: Option<&crate::SelectedProgramEntryCall>,
         selected: (
             &[SelectedProviderAdapter],
-            &effects::SelectedProviderPlanFacts,
+            &selected_provider_plans::SelectedProviderPlanFacts,
         ),
         assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
         callbacks: &[provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
@@ -586,7 +586,7 @@ impl NativeExecutionScope {
         artifact: terminal_codec::TerminalArtifactView<'_>,
         entry: MachineId,
         targets: &psi_target_layouts::TerminalTargetContext,
-        selection: &effects::SelectedProviderPlanFacts,
+        selection: &selected_provider_plans::SelectedProviderPlanFacts,
         adapters: &[SelectedProviderAdapter],
     ) -> Result<(), &'static str> {
         if artifact.identity() != self.target_context.terminal_psi()
@@ -641,7 +641,7 @@ impl NativeExecutionScope {
         self.source_native_bindings
     }
 
-    pub fn source_provider_selection(&self) -> &effects::SelectedProviderPlanFacts {
+    pub fn source_provider_selection(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
         &self.source_provider_selection
     }
 
@@ -691,7 +691,7 @@ impl NativeExecutionScope {
 
     pub(crate) fn require_source_selection(
         &self,
-        selection: &effects::SelectedProviderPlanFacts,
+        selection: &selected_provider_plans::SelectedProviderPlanFacts,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         if &self.source_provider_selection != selection {
             return Err(vec![diagnostics::Diagnostic::error(
@@ -703,7 +703,7 @@ impl NativeExecutionScope {
 
     pub(crate) fn bind_completed_provider_selection(
         &mut self,
-        selection: &effects::SelectedProviderPlanFacts,
+        selection: &selected_provider_plans::SelectedProviderPlanFacts,
     ) {
         self.selected_provider_closure = *selection.identity_digest().as_bytes();
     }
@@ -901,7 +901,7 @@ mod scope_tests {
             entry,
             &targets,
             None,
-            (&[], &effects::SelectedProviderPlanFacts::default()),
+            (&[], &selected_provider_plans::SelectedProviderPlanFacts::default()),
             &[],
             &[],
         )
@@ -1153,7 +1153,7 @@ mod scope_tests {
                 entry,
                 &targets,
                 None,
-                (&[], &effects::SelectedProviderPlanFacts::default()),
+                (&[], &selected_provider_plans::SelectedProviderPlanFacts::default()),
                 &[],
                 &occurrences,
             )

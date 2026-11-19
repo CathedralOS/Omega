@@ -159,7 +159,7 @@ mod native {
         pub scope: Option<&'request crate::artifact_lowering::NativeExecutionScope>,
         pub scalar_applications: Option<super::NativeScalarApplications<'request>>,
         pub providers: &'request [crate::artifact_lowering::SelectedProviderAdapter],
-        pub plans: &'request effects::SelectedProviderPlanFacts,
+        pub plans: &'request selected_provider_plans::SelectedProviderPlanFacts,
         pub callbacks:
             &'request [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
         pub entry_call: Option<&'request crate::artifact_lowering::SelectedProgramEntryCall>,
@@ -479,7 +479,7 @@ mod native {
         pub(crate) fn bind_selected_provider_coordinates(
             mut self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,
-            selected: &effects::SelectedProviderPlanFacts,
+            selected: &selected_provider_plans::SelectedProviderPlanFacts,
         ) -> Result<Self, String> {
             self.context()
                 .authorization()
@@ -752,7 +752,7 @@ mod native {
                         scope: None,
                         scalar_applications: None,
                         providers: &[],
-                        plans: &effects::SelectedProviderPlanFacts::default(),
+                        plans: &selected_provider_plans::SelectedProviderPlanFacts::default(),
                         callbacks: &[],
                         entry_call: None,
                     },
@@ -899,7 +899,7 @@ mod native {
                     scope: None,
                     scalar_applications: None,
                     providers: &[],
-                    plans: &effects::SelectedProviderPlanFacts::default(),
+                    plans: &selected_provider_plans::SelectedProviderPlanFacts::default(),
                     callbacks: &[],
                     entry_call: None,
                 },
@@ -928,7 +928,7 @@ mod native {
                         plan.psi,
                         target::NativeTarget::macos_arm64(),
                         plan.entry,
-                        *effects::SelectedProviderPlanFacts::default()
+                        *selected_provider_plans::SelectedProviderPlanFacts::default()
                             .identity_digest()
                             .as_bytes()
                     )
@@ -1077,7 +1077,7 @@ mod scalar_applications {
                     ));
                 }
             }
-            let providers = backend_plan::admit_selected_checked_providers(
+            let providers = target_provider_admission::admit_selected_checked_providers(
                 artifact.view(),
                 profile.target_name(),
                 selection.plans,

@@ -25,7 +25,7 @@ pub(super) fn selected_plan_export_positions(
             });
         }
     }
-    let rows = backend_plan::selected_provider_candidate_rows(plan, component.module()).map_err(
+    let rows = target_provider_admission::selected_provider_candidate_rows(plan, component.module()).map_err(
         |detail| IndependentRealizationMismatch::InvalidPlan {
             plan: plan.name.clone(),
             detail,

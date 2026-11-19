@@ -88,7 +88,7 @@ impl DangerousServiceDiscovery {
         let root_reach = plans
             .resolve_root_service_reach(module)
             .map_err(unavailable)?;
-        let selected = backend_plan::selected_checked_invocation_rows(
+        let selected = target_provider_admission::selected_checked_invocation_rows(
             checked.execution().plans().plans(),
             module,
         )

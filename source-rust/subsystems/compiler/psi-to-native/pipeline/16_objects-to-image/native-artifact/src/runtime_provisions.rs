@@ -1,5 +1,5 @@
 //! Runtime plans with their published component products and receipts.
-use backend_plan::TerminalTargetProviderProposal;
+use target_provider_admission::TerminalTargetProviderProposal;
 use psi_entry_memory::CheckedPrivateEntryRamRecipe;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::sync::Arc;

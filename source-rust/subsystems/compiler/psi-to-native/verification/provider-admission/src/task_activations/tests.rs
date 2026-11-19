@@ -1,5 +1,5 @@
 use super::validate_task_activations;
-use effects::SelectedProviderPlanFacts;
+use selected_provider_plans::SelectedProviderPlanFacts;
 use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
 use language_core::{CarryCpu, CarryPolicy};
 use target::TargetProfile;

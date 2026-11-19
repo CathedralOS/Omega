@@ -218,14 +218,14 @@ impl SelectedCompilerProgramEntry {
                         "selected physical entry adapter is absent",
                     )]);
                 }
-                let header = backend_plan::selected_checked_adapter_header(plan, row, module)
+                let header = target_provider_admission::selected_checked_adapter_header(plan, row, module)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 if !header.supplies_checked_body || header.type_parameter_count != 0 {
                     return Err(vec![Diagnostic::error(
                         "physical entry adapter must have a checked source body",
                     )]);
                 }
-                let rows = backend_plan::selected_provider_candidate_rows(plan, module)
+                let rows = target_provider_admission::selected_provider_candidate_rows(plan, module)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let candidates = rows
                     .iter()

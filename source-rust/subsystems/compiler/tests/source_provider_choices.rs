@@ -202,7 +202,7 @@ fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalT
 }
 fn check_conditions(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
-    proposal: &backend_plan::TerminalTargetProviderProposal,
+    proposal: &target_provider_admission::TerminalTargetProviderProposal,
 ) -> Result<(), String> {
     native_scalar_inputs::complete(
         artifact,
@@ -323,7 +323,7 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
         panic!("one exact native declaration")
     };
     let candidates =
-        backend_plan::selected_provider_candidate_rows(declaration, accepted.module()).unwrap();
+        target_provider_admission::selected_provider_candidate_rows(declaration, accepted.module()).unwrap();
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].candidate_positions.len(), 1);
     let artifact = produced(&accepted);

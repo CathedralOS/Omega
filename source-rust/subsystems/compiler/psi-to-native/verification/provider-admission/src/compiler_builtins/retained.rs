@@ -139,7 +139,7 @@ struct SelectedIntrinsicRow<'a> {
 }
 
 pub fn derive_selected_intrinsic_settlement_proposals<'a>(
-    selected: &'a effects::SelectedProviderPlanFacts,
+    selected: &'a selected_provider_plans::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     module: &terminal_psi::TerminalModule,
@@ -331,7 +331,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
 // the program never executes.
 pub fn validate_external_provider_owners(
     module: &terminal_psi::TerminalModule,
-    selected: &effects::SelectedProviderPlanFacts,
+    selected: &selected_provider_plans::SelectedProviderPlanFacts,
 ) -> Result<(), String> {
     let mut retained = module
         .boundary_machines
@@ -367,7 +367,7 @@ pub fn validate_external_provider_owners(
 fn validate_retained_provider_owners(
     external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
-    facts: &effects::SelectedProviderPlanFacts,
+    facts: &selected_provider_plans::SelectedProviderPlanFacts,
     retained: &BTreeSet<&str>,
 ) -> Result<(), String> {
     let requires_declaration =
@@ -466,7 +466,7 @@ impl AdmittedTerminalIntrinsics {
 
 pub fn admit_terminal_intrinsics<'selection>(
     artifact: terminal_codec::TerminalExecutionView<'_>,
-    selected: &'selection effects::SelectedProviderPlanFacts,
+    selected: &'selection selected_provider_plans::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'selection>>,
     demanded: &std::collections::BTreeSet<String>,
 ) -> Result<AdmittedTerminalIntrinsics, Vec<Diagnostic>> {
@@ -612,7 +612,7 @@ mod tests {
         ));
     }
 
-    fn intrinsic_plan(realization: &str) -> effects::SelectedProviderPlanFacts {
+    fn intrinsic_plan(realization: &str) -> selected_provider_plans::SelectedProviderPlanFacts {
         let mut plan = ProviderPlan {
             name: "selected".into(),
             provider_type: "NativeFloats".into(),
@@ -643,7 +643,7 @@ mod tests {
                 machine: "float_add".into(),
             },
         });
-        effects::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap()
+        selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap()
     }
 
     #[test]

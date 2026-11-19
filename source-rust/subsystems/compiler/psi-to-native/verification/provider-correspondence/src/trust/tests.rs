@@ -48,7 +48,7 @@ fn admit(
         &declarations,
         grants,
         &[],
-        &effects::SelectedProviderPlanFacts::default(),
+        &selected_provider_plans::SelectedProviderPlanFacts::default(),
         &[],
         policy,
     )
@@ -289,7 +289,7 @@ fn an_accepted_machine_handle_cannot_replace_the_retained_declaration() {
         &declarations,
         &[grant],
         &[],
-        &effects::SelectedProviderPlanFacts::default(),
+        &selected_provider_plans::SelectedProviderPlanFacts::default(),
         &[],
         super::RootTrustPolicy::Unpackaged,
     )

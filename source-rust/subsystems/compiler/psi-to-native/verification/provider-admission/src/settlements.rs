@@ -313,7 +313,7 @@ fn external_calling_application<'row>(
 }
 
 fn selected_plan_from_exact_evidence<'facts>(
-    selected: &'facts effects::SelectedProviderPlanFacts,
+    selected: &'facts selected_provider_plans::SelectedProviderPlanFacts,
     report_identity: u64,
     exact_plan: &provider_plans::ProviderPlan,
     requirement: &str,
