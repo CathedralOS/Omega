@@ -12,7 +12,7 @@ declaration-scope = { path = "../../../../foundation/declaration-scope" }
 artifacts = { path = "../../../../foundation/measurements" }
 access-vocabulary = { path = "../../../../psi/access" }
 declaration-contracts = { path = "../../../language/declaration-contracts" }
-schema-reflection = { path = "../../../language/schema-reflection" }
+schema-reflection = { path = "../../../../psi/schema" }
 application-identity = { path = "../../../../psi/application-identity" }
 numeric-literals = { path = "../../../../foundation/numeric-literals" }
 source-admission = { path = "../../../inputs/source-admission" }

@@ -34,7 +34,6 @@ source-syntax = { path = "pipeline/01_tokens-to-syntax-trees/source-syntax" }
 source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
 source-lexer = { path = "pipeline/00_source-files-to-tokens" }
 declaration-contracts = { path = "language/declaration-contracts" }
-schema-reflection = { path = "language/schema-reflection" }
 application-identity = { path = "../psi/application-identity" }
 layout-planning = { path = "../psi/layout/integer-defaults" }
 numeric-literals = { path = "../foundation/numeric-literals" }

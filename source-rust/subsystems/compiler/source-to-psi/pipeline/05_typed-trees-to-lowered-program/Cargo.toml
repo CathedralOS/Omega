@@ -18,7 +18,7 @@ proof-applications = { path = "../../../psi/proof-applications" }
 source-declarations = { path = "../../language/source-declarations" }
 typed-trees = { path = "../representations/typed-trees" }
 declaration-contracts = { path = "../../language/declaration-contracts" }
-schema-reflection = { path = "../../language/schema-reflection" }
+schema-reflection = { path = "../../../psi/schema" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-admission = { path = "../../inputs/source-admission" }
