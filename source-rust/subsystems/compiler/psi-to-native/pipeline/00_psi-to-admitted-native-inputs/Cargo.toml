@@ -8,7 +8,7 @@ version.workspace = true
 path = "admit.rs"
 
 [dependencies]
-backend-plan = { path = "../../installation/provider-plans" }
+provider-demand = { path = "provider-demand" }
 psi-authorization = { path = "../../../psi/authorization" }
 
 [dev-dependencies]

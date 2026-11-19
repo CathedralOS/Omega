@@ -475,7 +475,7 @@ impl RealizedTargetSupply {
             terminal_codec::terminal_psi_identity(&original).map_err(|error| error.to_string())?,
         )?;
         let root = original.program_entry_contract(target)?.entry;
-        let expected = backend_plan::folded_constant_dependencies(
+        let expected = crate::folded_entry::folded_constant_dependencies(
             &original,
             target,
             realization.plans().plans(),
@@ -495,7 +495,7 @@ impl RealizedTargetSupply {
         realization: &SelectedProviderRealization,
         original: &terminal_codec::CanonicalTerminalArtifact,
         evidence: Option<&terminal_codec::EvidenceSeals>,
-        reach: &backend_plan::FoldedEntryReach,
+        reach: &crate::folded_entry::FoldedEntryReach,
     ) -> Result<Option<(SelectedProviderRealization, crate::FoldedTargetProgram)>, String> {
         realization.require_program(original.view().identity())?;
         let target = realization

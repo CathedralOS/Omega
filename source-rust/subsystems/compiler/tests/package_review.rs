@@ -1028,7 +1028,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         &mut source_compiler::UnmeasuredProduction,
     )
     .expect("source publishes the exact Linux scalar reach");
-    let backend_plan::ProviderDemandInputs::Target {
+    let provider_demand::ProviderDemandInputs::Target {
         folded_entry,
         origins,
         ..
@@ -1659,7 +1659,7 @@ fn saved_program_uses_the_hosts_evaluated_native_binding() {
             &mut source_compiler::UnmeasuredProduction,
         )
         .unwrap();
-        let (backend_plan::ProviderDemandInputs::Target { origins, .. }, _) = demand.into_parts()
+        let (provider_demand::ProviderDemandInputs::Target { origins, .. }, _) = demand.into_parts()
         else {
             panic!("the host selected a Windows deployment");
         };

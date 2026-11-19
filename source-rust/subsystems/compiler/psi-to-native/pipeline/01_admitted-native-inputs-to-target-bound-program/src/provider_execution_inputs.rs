@@ -70,7 +70,7 @@ pub(crate) fn plan_inputs_and_review(
     origins: ProviderExecutionOrigins,
     profile: target::TargetProfile,
     reached: &[BoundaryMachineId],
-    review: Option<backend_plan::package_review::PackageReviewRequirements>,
+    review: Option<provider_demand::PackageReviewRequirements>,
 ) -> Result<
     (
         TargetSupplyExecutionInputs,

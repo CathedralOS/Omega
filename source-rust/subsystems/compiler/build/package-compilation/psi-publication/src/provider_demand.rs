@@ -1,6 +1,6 @@
 //! Project the source owner's completed provider choices onto its immutable portable program.
 use super::ProductCodeSource;
-use backend_plan::ProviderDemandInputs;
+use ::provider_demand::{IssuedProviderDemand, PackageReviewRequirements, ProviderDemandInputs};
 use host_provider_inputs::ProviderExecutionOrigins;
 use checked_program_to_psi::provider_supply::{
     SourceNativeBinding, SourceProviderDemand, SourceProviderFacts,
@@ -27,18 +27,18 @@ impl PortableDemandIssuer {
 /// roots, bindings or permission origins and publish them again.
 ///
 /// ```compile_fail
-/// fn replace_roots(owner: typed_trees::source_state::ProductSourceIdentity, facts: backend_plan::ProviderDemandInputs) -> portable_publication::PublishedProviderDemand {
-///     backend_plan::IssuedProviderDemand::issue(portable_publication::PortableDemandIssuer(owner), facts)
+/// fn replace_roots(owner: typed_trees::source_state::ProductSourceIdentity, facts: provider_demand::ProviderDemandInputs) -> portable_publication::PublishedProviderDemand {
+///     provider_demand::IssuedProviderDemand::issue(portable_publication::PortableDemandIssuer(owner), facts)
 /// }
 /// ```
 ///
 /// ```compile_fail
-/// fn reuse_receipt(demand: portable_publication::PublishedProviderDemand, replacement: backend_plan::ProviderDemandInputs) -> portable_publication::PublishedProviderDemand {
+/// fn reuse_receipt(demand: portable_publication::PublishedProviderDemand, replacement: provider_demand::ProviderDemandInputs) -> portable_publication::PublishedProviderDemand {
 ///     let (_, receipt) = demand.into_parts();
-///     backend_plan::IssuedProviderDemand::issue(receipt.publisher(), replacement)
+///     provider_demand::IssuedProviderDemand::issue(receipt.publisher(), replacement)
 /// }
 /// ```
-pub type PublishedProviderDemand = backend_plan::IssuedProviderDemand<PortableDemandIssuer>;
+pub type PublishedProviderDemand = IssuedProviderDemand<PortableDemandIssuer>;
 
 fn capture_origins(
     program: &PortableTerminalProgram,
@@ -91,16 +91,9 @@ impl ProductCodeSource<'_> {
             ) => {
                 let (logical, bodies) = closed.into_parts();
                 let origins = capture_origins(&program, self.sources, profile, bindings);
-                // Non-executing and named inspection products do not require a program entry.
-                let folded_entry = backend_plan::FoldedEntryReach::capture(
-                    program.artifact().view(),
-                    profile.target_name(),
-                    &bodies,
-                    !program.applications().is_empty(),
-                );
                 let review =
                     review.map(
-                        |facts| backend_plan::package_review::PackageReviewRequirements {
+                        |facts| PackageReviewRequirements {
                             numeric: facts.numeric,
                             bindings: facts.bindings,
                         },
@@ -110,7 +103,7 @@ impl ProductCodeSource<'_> {
                     ProviderDemandInputs::Target {
                         profile,
                         logical,
-                        folded_entry,
+                        has_bound_applications: !program.applications().is_empty(),
                         bodies,
                         labels,
                         origins,

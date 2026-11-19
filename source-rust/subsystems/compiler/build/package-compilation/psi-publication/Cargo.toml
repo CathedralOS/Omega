@@ -5,11 +5,11 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+provider-demand = { path = "../../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "../../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 target = { path = "../../../psi-to-native/targets/target" }
 effects = { path = "../../../psi-to-native/installation/native-effects" }
-backend-plan = { path = "../../../psi-to-native/installation/provider-plans" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 optimization = { path = "../../../psi/optimization-selections" }
 package-compilation = { path = ".." }
