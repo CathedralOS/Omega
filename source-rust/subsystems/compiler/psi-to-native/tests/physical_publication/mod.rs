@@ -84,7 +84,9 @@ fn emit_body_inspecting_physical<'execution>(
         true, // This fixture independently inspects the optimized input.
     )
     .unwrap_or_else(|error| match error {
-        crate::compile_body::NativeBodyPlanningError::AbstractOptimization(error) => {
+        crate::compile_body::NativeBodyPlanningError::AbstractOptimization(
+            error,
+        ) => {
             panic!("constant optimization: {error:?}")
         }
         crate::compile_body::NativeBodyPlanningError::Target(error) => {
@@ -95,19 +97,23 @@ fn emit_body_inspecting_physical<'execution>(
     if !retain_native_stage_inputs {
         target.release_original_for_audit();
     }
-    let physical =
-        crate::compile_body::prepare_physical_body(target, None, Vec::new(), &observation)
-            .unwrap_or_else(|error| match error {
-                crate::compile_body::BodyEmissionError::Physical(error) => {
-                    panic!("constant emission: {error}")
-                }
-                crate::compile_body::BodyEmissionError::Installation(error) => {
-                    panic!("constant installation: {error}")
-                }
-                crate::compile_body::BodyEmissionError::Object(errors) => {
-                    panic!("constant object: {errors:?}")
-                }
-            });
+    let physical = crate::compile_body::prepare_physical_body(
+        target,
+        None,
+        Vec::new(),
+        &observation,
+    )
+    .unwrap_or_else(|error| match error {
+        crate::compile_body::BodyEmissionError::Physical(error) => {
+            panic!("constant emission: {error}")
+        }
+        crate::compile_body::BodyEmissionError::Installation(error) => {
+            panic!("constant installation: {error}")
+        }
+        crate::compile_body::BodyEmissionError::Object(errors) => {
+            panic!("constant object: {errors:?}")
+        }
+    });
     inspect_physical(&physical);
     let mut other_physical = physical.stage.program().frame.instructions.clone();
     let mut machine_identity = other_physical.machine.identity.bytes();

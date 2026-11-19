@@ -1,5 +1,6 @@
 // Compare executed inspection sources and fresh compiler findings against a target's accepted lock baseline.
 
+use package_compilation::build_execution::BuildSnapshotRequest;
 use super::{PackageInspectionError, failure};
 use crate::build_session::PackageBuildSession;
 use crate::lock::PackageLockTarget;

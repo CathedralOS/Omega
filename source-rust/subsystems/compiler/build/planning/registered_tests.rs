@@ -154,9 +154,7 @@ fn interpret(report: &CompletedProduct, target: TargetProfile) -> EngineOutcome 
                 terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(target),
             artifact,
             target: Some(target),
-            provisions: report
-                .runtime_provisions()
-                .map(|runtime| runtime.execution()),
+            provisions: report.runtime_provisions().map(|runtime| runtime.execution()),
             provider_proposal: None,
             work_budget: TEST_PSI_WORK_ALLOWANCE,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,

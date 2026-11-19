@@ -413,7 +413,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 Vec::new()
             })
         }
-        [command] if command == "check" => violations(&root, &root.join(MANIFEST)),
+        [command] if command == "check" => {
+            violations(&root, &root.join(MANIFEST))
+        }
         [command, path] if command == "check" => violations(&root, &root.join(path)),
         _ => {
             eprintln!(

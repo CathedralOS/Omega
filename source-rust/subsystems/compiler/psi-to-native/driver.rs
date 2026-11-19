@@ -57,8 +57,7 @@ enum NativeProductionStop {
     RuntimeAdmission,
 }
 
-enum Produced {
-    Image(FinishedNativeImage, NativeStageReplay),
+enum Produced {    Image(FinishedNativeImage, NativeStageReplay),
     Runtime(runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>),
 }
 

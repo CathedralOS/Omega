@@ -9,8 +9,8 @@ pub use entry_signature::{ProgramEntryExtentFieldRole, ProgramEntryResultSignatu
 pub use entry_signature::{ProgramEntryExtentValueLayout, SelectedProgramEntrySignature};
 pub use entry_signature::{ProgramEntrySignatureIdentity, ProgramEntryVisibleParameterSignature};
 pub use physical_contract::ProgramEntryPhysicalContractPlan;
-pub use storage_binding::{ProgramStorageEntryRootRole, SelectedProgramStorageEntryPlan};
 pub use target::entry_contract::ProgramEntryPhysicalContractPackageSourceDigest;
+pub use storage_binding::{ProgramStorageEntryRootRole, SelectedProgramStorageEntryPlan};
 
 /// The closed source receipt, physical contract and private-RAM recipes are
 /// retained together through encoding. A receipt issuer owns their association.

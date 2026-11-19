@@ -38,19 +38,12 @@ impl ProductPolicyInputs<'_> {
         &self,
         continuation: &mut crate::SourceContinuation,
         subject: Option<semantic_vocabulary::PackageKeyIdentity>,
-    ) -> Result<(Option<symbols::SymbolHandle>, crate::AdmittedProductPolicy), Vec<Diagnostic>>
-    {
-        let activation = self
-            .activation
-            .map(|declaration| {
-                crate::source_state::source_subjects::rejoin_build_activation(
-                    continuation.typed(),
-                    subject,
-                    declaration,
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])
-            })
-            .transpose()?;
+    ) -> Result<(Option<symbols::SymbolHandle>, crate::AdmittedProductPolicy), Vec<Diagnostic>> {
+        let activation = self.activation.map(|declaration| {
+            crate::source_state::source_subjects::rejoin_build_activation(
+                continuation.typed(), subject, declaration,
+            ).map_err(|reason| vec![Diagnostic::error(reason)])
+        }).transpose()?;
         let admitted = continuation.admit_product_policy(crate::ProductPolicyRequest {
             activation,
             declared: self.declared,
@@ -73,11 +66,9 @@ pub struct ProductSourceInputs<'a> {
     pub root_binding_requests: &'a [crate::declaration_selection::ExecutedRootBinding],
     pub policy: ProductPolicyInputs<'a>,
     /// Package-authenticated declarations and closed operands from dependency Builds.
-    pub default_provider_selections:
-        &'a [crate::product::provider_declarations::RetainedProviderSelection],
+    pub default_provider_selections: &'a [crate::product::provider_declarations::RetainedProviderSelection],
     pub native_bindings: NativeBindingInputs<'a>,
-    pub layout_selection_authority:
-        Option<Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,
+    pub layout_selection_authority: Option<Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,
     pub optimizations: optimization::PsiOptimizationSelections,
 }
 
@@ -130,34 +121,25 @@ pub(crate) fn prepare_lower_and_check(
     observer: &mut impl crate::PsiCompilationObserver,
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
     let (activation, admitted) = inputs.policy.admit(&mut continuation, inputs.subject)?;
-    let native_supplies = inputs
-        .native_bindings
-        .resolve(&mut continuation, admitted.native_bindings)?;
+    let native_supplies = inputs.native_bindings.resolve(&mut continuation, admitted.native_bindings)?;
     let authored = continuation.complete_authored(observer)?;
-    let crate::PreparedSource {
-        mut typed,
-        mut accounting,
-    } = match inputs.generated.take() {
+    let crate::PreparedSource { mut typed, mut accounting } = match inputs.generated.take() {
         Some(extension) => authored.extend(extension, observer)?,
         None => authored.finish(),
     };
     accounting
         .validate_charges()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let default_provider_selections =
-        crate::product::provider_declarations::rejoin_provider_defaults(
-            &mut typed,
-            inputs.default_provider_selections,
-        )?;
+    let default_provider_selections = crate::product::provider_declarations::rejoin_provider_defaults(
+        &mut typed, inputs.default_provider_selections,
+    )?;
     let has_defaults = !default_provider_selections.is_empty()
         || typed.machines().iter().any(|machine| {
             machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
         });
     let unprepared = has_defaults.then(|| typed.clone());
     let root_bindings = match test_root {
-        Some((test, target)) => {
-            vec![test.bind(&typed, &admitted.declarations.test_groups, target)?]
-        }
+        Some((test, target)) => vec![test.bind(&typed, &admitted.declarations.test_groups, target)?],
         None => symbol_resolved_trees_to_typed_trees::product_declarations::collect_root_bindings(
             &typed,
             inputs.root_binding_requests,
@@ -182,9 +164,7 @@ pub(crate) fn prepare_lower_and_check(
     let mut judged = prepare_and_judge(&mut pass, typed, &[])?;
     let terminal_publication = loop {
         match judged.judgment {
-            crate::product::provider_settlement::SupplyJudgment::Supplied(publication) => {
-                break publication;
-            }
+            crate::product::provider_settlement::SupplyJudgment::Supplied(publication) => break publication,
             crate::product::provider_settlement::SupplyJudgment::PrepareLayouts(chosen) => {
                 let typed = unprepared.clone().ok_or_else(|| vec![Diagnostic::error(
                     "a target chose a provider default absent from the source preparation frontier"
@@ -212,8 +192,7 @@ struct ProductSourcePass<'a, 'f, O> {
     inputs: ProductSourceInputs<'a>,
     activation: Option<symbols::SymbolHandle>,
     explicit_providers: Vec<crate::provider_choice_inputs::ProviderSelection>,
-    representations:
-        Vec<crate::source_state::opaque_representations::OpaqueRepresentationSelection>,
+    representations: Vec<crate::source_state::opaque_representations::OpaqueRepresentationSelection>,
     declarations: crate::product::declarations::AdmittedProductDeclarations,
     native_supplies: Vec<crate::provider_choice_inputs::NativeBuildSupply>,
     root_bindings: Vec<crate::RootBinding>,
@@ -492,8 +471,7 @@ fn prepare_and_judge(
                 )]
             })?
             .implementation;
-        let nomination =
-            crate::product::entry_contracts::select_program_entry_contract(&program, profile)?;
+        let nomination = crate::product::entry_contracts::select_program_entry_contract(&program, profile)?;
         nomination
             .require_owner(&program)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -574,8 +552,8 @@ fn prepare_and_judge(
             numeric_support: profile.numeric_support.clone(),
         })
         .collect::<Vec<_>>();
-    let judgment = crate::product::provider_settlement::judge_supplied_product(
-        crate::product::provider_settlement::ProductSupplySource {
+    let judgment =
+        crate::product::provider_settlement::judge_supplied_product(crate::product::provider_settlement::ProductSupplySource {
             targets: &targets,
             publication: terminal_publication,
             build: &pass.explicit_providers,
@@ -655,8 +633,8 @@ pub fn layout_target_scopes(
                 "fixed representation scope has an invalid Build root slot",
             )]
         })?;
-        let profile = crate::product::source_targets::target_owner(targets, owner)
-            .map_err(|error| vec![error])?;
+        let profile =
+            crate::product::source_targets::target_owner(targets, owner).map_err(|error| vec![error])?;
         if !profiles
             .iter()
             .any(|known: &&crate::product::source_targets::SourceTarget| known.name == profile.name)
@@ -666,14 +644,11 @@ pub fn layout_target_scopes(
     }
     for choice in &choices {
         if let Some(target) = choice.target {
-            let profile =
-                crate::product::source_targets::target_named(targets, target.canonical_name())
-                    .map_err(|error| vec![error])?;
+            let profile = crate::product::source_targets::target_named(targets, target.canonical_name())
+                .map_err(|error| vec![error])?;
             if !profiles
                 .iter()
-                .any(|known: &&crate::product::source_targets::SourceTarget| {
-                    known.name == profile.name
-                })
+                .any(|known: &&crate::product::source_targets::SourceTarget| known.name == profile.name)
             {
                 profiles.push(profile);
             }
@@ -690,11 +665,9 @@ pub fn layout_target_scopes(
         }
     }
     for selection in claimed {
-        let profile = crate::product::source_targets::target_named(
-            targets,
-            selection.target.canonical_name(),
-        )
-        .map_err(|error| vec![error])?;
+        let profile =
+            crate::product::source_targets::target_named(targets, selection.target.canonical_name())
+                .map_err(|error| vec![error])?;
         if !profiles
             .iter()
             .any(|known: &&crate::product::source_targets::SourceTarget| known.name == profile.name)
@@ -717,9 +690,7 @@ pub fn layout_target_scopes(
                 .map_err(|error| vec![error])?;
             if !profiles
                 .iter()
-                .any(|known: &&crate::product::source_targets::SourceTarget| {
-                    known.name == profile.name
-                })
+                .any(|known: &&crate::product::source_targets::SourceTarget| known.name == profile.name)
             {
                 profiles.push(profile);
             }
@@ -733,8 +704,8 @@ pub fn layout_target_scopes(
                 .slot
                 .rsplit_once("::")
                 .expect("root slots were validated above");
-            let declared = crate::product::source_targets::target_owner(targets, owner)
-                .map_err(|error| vec![error])?;
+            let declared =
+                crate::product::source_targets::target_owner(targets, owner).map_err(|error| vec![error])?;
             if declared.name == profile.name && !entries.contains(&binding.implementation_symbol) {
                 entries.push(binding.implementation_symbol);
             }

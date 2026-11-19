@@ -3,11 +3,11 @@
 
 use provider_admission::provider_installation::SelectedProviderAdapter;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use target_vocabulary::publication::{EmittedCallbackOccurrence, EmittedExecutionScope};
-use terminal_psi::{OperationKind, TerminalModule, Terminator};
 #[cfg(test)]
 use terminal_semantics::closed_owned_sequence_bounds;
 use verified_optimization_input::{NativeExecutionScope, ProposalScopeRequest, ScopeInputs};
+use target_vocabulary::publication::{EmittedCallbackOccurrence, EmittedExecutionScope};
+use terminal_psi::{OperationKind, TerminalModule, Terminator};
 
 /// Follow the sealed proposal's edges before handing its selected execution to lowering.
 pub fn derive_native_scope(

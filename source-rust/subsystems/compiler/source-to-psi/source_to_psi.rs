@@ -44,11 +44,7 @@ pub struct StageSource<'a> {
 /// Return the source judgment's advisories as soon as the Product is checked.
 pub fn check(source: StageSource<'_>) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
     let checked = source.judge(source.resolve()?, None, None)?;
-    Ok(checked
-        .terminal_publication
-        .accepted()?
-        .advisories()
-        .to_vec())
+    Ok(checked.terminal_publication.accepted()?.advisories().to_vec())
 }
 
 pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>> {

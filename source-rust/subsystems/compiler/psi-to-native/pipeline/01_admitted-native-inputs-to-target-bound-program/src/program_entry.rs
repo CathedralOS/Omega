@@ -76,14 +76,8 @@ impl SelectedCompilerProgramEntry {
             .ok_or_else(|| {
                 refuse("the selected entry lost its nominal declaration identity".into())
             })?;
-        if module
-            .identities
-            .text(checked.callable)
-            .is_none_or(str::is_empty)
-        {
-            return Err(refuse(
-                "selected entry lost its checked callable identity".into(),
-            ));
+        if module.identities.text(checked.callable).is_none_or(str::is_empty) {
+            return Err(refuse("selected entry lost its checked callable identity".into()));
         }
         let signature =
             program_entry_contracts::SelectedProgramEntrySignature::from_checked_declaration(

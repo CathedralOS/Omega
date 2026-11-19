@@ -4,8 +4,8 @@
 // while leaving their identity, installation, and publication contracts with
 // the caller.
 
-use super::plan_callables::CallableTargetProduct;
 use crate::compile_body::{self, BodyEmissionError};
+use super::plan_callables::CallableTargetProduct;
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
 

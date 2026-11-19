@@ -46,10 +46,11 @@ pub struct SourceAdmission<'request> {
     pub external_roots: &'request [symbols::SymbolHandle],
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [crate::compile_time::FixedLayoutTargetScope],
-    pub layout_selection_authority:
-        Option<Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,
+    pub layout_selection_authority: Option<Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,
     pub wire_demands: &'request [crate::preparation::WireCompatibilityDemand],
-    pub declarations: Option<&'request dyn declaration_scope::DeclarationSelectionAuthority>,
+    pub declarations: Option<
+        &'request dyn declaration_scope::DeclarationSelectionAuthority,
+    >,
 }
 
 #[derive(Default)]
@@ -149,15 +150,14 @@ impl<'request> SourcePreparationRequest<'request> {
                 &mut accounting,
             )?;
             constant_entries::retain_evaluation_entries(&mut program)?;
-            let constants =
-                crate::compile_time::evaluate_constant_initializers_with_source_consent(
-                    &mut program,
-                    self.compilation,
-                    self.admission.layout_scopes,
-                    self.admission.layout_selection_authority,
-                    self.admission.invocation_sources,
-                    &mut accounting,
-                )?;
+            let constants = crate::compile_time::evaluate_constant_initializers_with_source_consent(
+                &mut program,
+                self.compilation,
+                self.admission.layout_scopes,
+                self.admission.layout_selection_authority,
+                self.admission.invocation_sources,
+                &mut accounting,
+            )?;
             crate::compile_time::validate_constant_evaluations(&program, &accounting).map_err(
                 |reason| {
                     vec![Diagnostic::error(format!(

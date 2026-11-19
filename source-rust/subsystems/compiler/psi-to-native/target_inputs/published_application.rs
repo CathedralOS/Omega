@@ -412,9 +412,7 @@ pub fn complete_entry_scalars(
     proposal: &TerminalNativeRealizationProposal,
     accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
 ) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, Vec<Diagnostic>> {
-    let Some(demand) =
-        provider_realization::native_execution::entry_scalar_demand(proposal, authorization)?
-    else {
+    let Some(demand) = provider_realization::native_execution::entry_scalar_demand(proposal, authorization)? else {
         return Ok(None);
     };
     native_scalar_inputs::complete(

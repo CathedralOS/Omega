@@ -288,8 +288,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         contracts: _,
         states: _,
     } = machine;
-    if purpose.is_active_case_visitor()
-        || lexical_region_origin.is_some()
+    if purpose.is_active_case_visitor() || lexical_region_origin.is_some()
         || attached_data.is_some()
         || attached_data_symbol.is_valid()
         || attached_data_application.is_valid()

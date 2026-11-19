@@ -350,10 +350,7 @@ fn authored_queries_describe_the_deferred_product_before_build_returns() {
     .unwrap();
     let mut services = QueryServices::default();
     let returned = interpret(stage, &mut services).unwrap();
-    assert!(matches!(
-        returned.returned().declaration(),
-        Some(BuildDeclaration::Application(_))
-    ));
+    assert!(matches!(returned.returned().declaration(), Some(BuildDeclaration::Application(_))));
     // The authored Build asks a third, invalid entry query if either path is wrong.
     assert_eq!(
         services.0,

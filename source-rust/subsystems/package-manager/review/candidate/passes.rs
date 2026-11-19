@@ -2,8 +2,8 @@
 //! A bound pass recovers evidence against the final inputs and shares the invocation's
 //! accounting with the discovery pass.
 
-use crate::resolution::graph::CanonicalSourceClosureSubject;
 use package_compilation::build_execution::BuildSnapshotRequest;
+use crate::resolution::graph::CanonicalSourceClosureSubject;
 #[path = "passes_occurrences.rs"]
 mod occurrences;
 

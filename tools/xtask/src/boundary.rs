@@ -15,11 +15,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub const NATIVE_ROOT: &str = native_stages::DRIVER;
-pub const PROVIDER_SELECTION_ROOT: &str =
-    "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence";
+pub const PROVIDER_SELECTION_ROOT: &str = "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence";
 pub const RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host";
-pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str =
-    "source-rust/subsystems/interpreter/host/native-worker";
+pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host/native-worker";
 
 // The native driver's own package is admitted separately. Runtime consumers
 // may read the declared native contracts without gaining the driver entrance.
@@ -138,19 +136,13 @@ pub fn forbidden_rules() -> Vec<Rule> {
     let mut rules = vec![
         Rule {
             forbidden_packages: vec![PACKAGE_MANAGER, PRODUCT_COORDINATOR],
-            ..rule(
-                vec![REVIEW_EVIDENCE],
-                vec![],
-                "review evidence is captured independently of package policy and compilation",
-            )
+            ..rule(vec![REVIEW_EVIDENCE], vec![],
+                "review evidence is captured independently of package policy and compilation")
         },
         Rule {
             forbidden_packages: vec![NATIVE_ROOT],
-            ..rule(
-                vec![PROVIDER_SELECTION_ROOT],
-                vec![SOURCE_COMPILER],
-                "provider correspondence compares admitted declarations",
-            )
+            ..rule(vec![PROVIDER_SELECTION_ROOT], vec![SOURCE_COMPILER],
+                "provider correspondence compares admitted declarations")
         },
     ];
     // Only the source driver runs the full numbered source pipeline. The text reader
@@ -171,12 +163,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         )
     });
     rules.push(Rule {
-        forbidden_packages: vec![
-            PRODUCT_COORDINATOR,
-            SOURCE_DRIVER,
-            native_stages::DRIVER,
-            native_stages::PRODUCT_PUBLICATION,
-        ],
+        forbidden_packages: vec![PRODUCT_COORDINATOR, SOURCE_DRIVER, native_stages::DRIVER, native_stages::PRODUCT_PUBLICATION],
         ..rule(
             vec![PACKAGE_MANAGER],
             vec![],
@@ -335,7 +322,8 @@ const AFTER_PREPARATION: &[&str] = &[
 /// (`ClosedTerminalModule`) and the canonical artifact. Native forms use the
 /// canonical vocabulary encoders from `terminal-wire`, which `terminal-codec`
 /// re-exports; reaching `terminal-codec` would let them name the sealed module.
-const SEALED_TERMINAL_MODULE: &str = "source-rust/subsystems/compiler/psi/codec";
+const SEALED_TERMINAL_MODULE: &str =
+    "source-rust/subsystems/compiler/psi/codec";
 
 /// Selection and later forms carry shared contracts, not the prepared plan's
 /// instruction graph. Follow indirect production edges as well as direct ones.
@@ -351,7 +339,8 @@ const AFTER_SELECTION: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
 ];
 
-const PREPARED_EXECUTION_PLAN: &str = "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
+const PREPARED_EXECUTION_PLAN: &str =
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
 
 /// Instruction selection, the forms from the prepared plan onward, the stages
 /// that turn one into the next, the target setup and installation record they
@@ -682,10 +671,7 @@ const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
 ];
 
 fn is_test_source(relative: &str) -> bool {
-    relative.contains("/tests/")
-        || Path::new(relative)
-            .file_name()
-            .is_some_and(|name| name == "tests.rs")
+    relative.contains("/tests/") || Path::new(relative).file_name().is_some_and(|name| name == "tests.rs")
 }
 
 fn line_calls_any(line: &str, entries: &[&str]) -> bool {
@@ -985,10 +971,7 @@ pub fn installation_mutation_violations(root: &Path) -> Vec<String> {
 
 pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
-    for owner in [
-        "source-rust/subsystems/compiler",
-        "source-rust/subsystems/interpreter",
-    ] {
+    for owner in ["source-rust/subsystems/compiler", "source-rust/subsystems/interpreter"] {
         let mut files = Vec::new();
         collect_rs_files(&root.join(owner), &mut files);
         for path in files {
@@ -1296,18 +1279,8 @@ mod tests {
         let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
             (native_stages::DRIVER, stages[7], None, true),
-            (
-                "source-rust/subsystems/compiler/build/package-compilation",
-                linear_pipeline::PSI_STAGES[7],
-                None,
-                false,
-            ),
-            (
-                "source-rust/subsystems/compiler/build/package-compilation",
-                stages[0],
-                None,
-                false,
-            ),
+            ("source-rust/subsystems/compiler/build/package-compilation", linear_pipeline::PSI_STAGES[7], None, false),
+            ("source-rust/subsystems/compiler/build/package-compilation", stages[0], None, false),
             (library, stages[2], None, false),
             (library, stages[2], Some("build"), false),
             (library, stages[2], Some("dev"), true),
@@ -1355,21 +1328,13 @@ mod tests {
     #[test]
     fn shared_receipt_consumers_preserve_stage_boundaries() {
         for (owner, dependency, permitted) in [
-            (
-                linear_pipeline::NATIVE_STAGES[2],
-                linear_pipeline::NATIVE_STAGES[1],
-                true,
-            ),
+            (linear_pipeline::NATIVE_STAGES[2], linear_pipeline::NATIVE_STAGES[1], true),
             (
                 linear_pipeline::NATIVE_STAGES[3],
                 linear_pipeline::NATIVE_STAGES[1],
                 false,
             ),
-            (
-                linear_pipeline::NATIVE_STAGES[3],
-                linear_pipeline::NATIVE_STAGES[2],
-                true,
-            ),
+            (linear_pipeline::NATIVE_STAGES[3], linear_pipeline::NATIVE_STAGES[2], true),
             (
                 linear_pipeline::NATIVE_STAGES[4],
                 linear_pipeline::NATIVE_STAGES[1],
@@ -1392,7 +1357,8 @@ mod tests {
 
     #[test]
     fn selection_representations_cannot_reach_earlier_forms_through_any_crate() {
-        let plan = "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
+        let plan =
+            "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
         let unit = "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit";
         let reaches = |kind: Option<&str>| Metadata {
@@ -1427,7 +1393,8 @@ mod tests {
     fn a_nested_package_is_not_the_crate_it_sits_in() {
         let form = "source-rust/subsystems/compiler/psi-to-native/representations/machine-code";
         let working = STAGE_02_WORKING_FORM;
-        let vocabulary = "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/target-vocabulary";
+        let vocabulary =
+            "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/target-vocabulary";
         let metadata = |dependency: &str| Metadata {
             workspace_root: "/repo".to_owned(),
             packages: vec![
@@ -1508,7 +1475,8 @@ mod tests {
 
     #[test]
     fn native_forms_reach_vocabulary_encoders_but_not_the_sealed_module() {
-        let plan = "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
+        let plan =
+            "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
         let wire = "source-rust/subsystems/compiler/psi/wire";
         assert!(native_forms().contains(&plan));
@@ -1734,8 +1702,7 @@ mod tests {
 
     #[test]
     fn selection_cannot_reach_the_forms_its_plan_was_prepared_from() {
-        const ABSTRACT: &str =
-            "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations";
+        const ABSTRACT: &str = "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations";
         for (dependency, kind, permitted) in [
             (ABSTRACT, None, false),
             (
@@ -1748,7 +1715,11 @@ mod tests {
                 None,
                 false,
             ),
-            ("source-rust/subsystems/compiler/psi/codec", None, false),
+            (
+                "source-rust/subsystems/compiler/psi/codec",
+                None,
+                false,
+            ),
             // Tests may build a plan the way stage 02 does.
             (ABSTRACT, Some("dev"), true),
             (

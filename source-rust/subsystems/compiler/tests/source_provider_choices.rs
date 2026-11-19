@@ -2,6 +2,9 @@
 //! These controls keep the original missing/default/conflict/override/target
 //! oracles, then exercise the canonical plans and artifact-bound proposal.
 
+use source_compiler::product::provider_declarations::{
+    ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
+};
 use source_compiler::product::provider_choices::{
     PreparedProviderChoices, prepare_with_source_defaults,
 };

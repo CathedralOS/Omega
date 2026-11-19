@@ -22,6 +22,7 @@ mod proposal;
 mod source_review;
 mod state;
 
+use package_compilation::build_execution::BuildSnapshotRequest;
 use crate::build_session::{PackageBuildSession, PackageSourceBindings};
 use crate::declarations::{BuildFileReplacement, PackageKey};
 use crate::dependencies::{LOCAL_PROJECT_CONTEXT, stage_build_dependency_edit};

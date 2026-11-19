@@ -9,9 +9,9 @@ in `omega.lock`, and verifies at `finish` that neither `build.omg` nor `omega.lo
 changed while inspection ran.
 */
 
+use package_compilation::build_execution::{BuildSnapshotCapture, BuildSnapshotRequest};
 use crate::dependencies::LOCAL_PROJECT_CONTEXT;
 use build_evaluation_result::CompileFailure;
-use package_compilation::build_execution::{BuildSnapshotCapture, BuildSnapshotRequest};
 use source_completion_accounting::SourceCompletionAccounting;
 mod report;
 mod sources;

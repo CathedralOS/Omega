@@ -11,8 +11,8 @@
     compiler and injected library identity yields `None` (a cache miss).
 */
 
-use crate::declarations::DependencyPurpose;
 use package_compilation::build_execution::BuildSnapshotRequest;
+use crate::declarations::DependencyPurpose;
 use package_compilation::review_record_encoding::purpose_tag;
 use package_compilation::{
     PackageCompilationInputs, review_cache_inputs_digest, review_cache_snapshot_digest,
@@ -109,9 +109,7 @@ pub(super) fn resolution_digest(resolution: &ImmutableSourceResolution) -> [u8; 
 mod tests {
     use super::{compiled_review_key, compiled_review_key_with_identity};
     use crate::declarations::DependencyPurpose;
-    use package_compilation::{
-        BuildSnapshotRequest, PackageCompilationInputs, PackageSourceBinding,
-    };
+    use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs, PackageSourceBinding};
     use semantic_vocabulary::PackageKeyIdentity;
     use std::path::{Path, PathBuf};
 
