@@ -1,8 +1,8 @@
 //! A layout policy returns its public fields as ordinary data. Its sealed
 //! placement calls record the actual second argument and the exact slot selected
 //! at that call. Only executed calls contribute a private field.
-use crate::evaluation::source_jobs::PreparedBuildMachineEntry;
-use crate::evaluation::{BuildTimeValue, PrivateLayoutPlacementReceipt};
+use super::PrivateLayoutPlacementReceipt;
+use crate::evaluation::BuildTimeValue;
 use crate::source_state::expression::{ExpressionHandle, StaticMachineArgument};
 use crate::source_state::{PlanLaidGeometry, PlanLaidSchemaField, PrivateCallbackSlotApplication};
 use language_core::sealed_intrinsics::SealedIntrinsic;
@@ -12,14 +12,14 @@ use symbols::SymbolHandle;
 use terminal_interpreter::{TerminalCallObservation, TerminalProgram, TerminalStorageContents};
 use terminal_psi::{StructuralTypeShape, TerminalModule};
 
-pub(crate) struct Site<'source> {
+pub(super) struct Site<'source> {
     pub call: TerminalCallObservation,
     expression: ExpressionHandle,
     slot: &'source StaticMachineArgument,
     parameter: Option<StructuralTypeId>,
 }
 
-pub(crate) fn executed_sites<'s>(
+pub(super) fn executed_sites<'s>(
     accepted: &'s crate::production::AcceptedTerminalSource,
     module: &TerminalModule,
 ) -> Result<Vec<Site<'s>>, String> {
@@ -106,7 +106,7 @@ pub(crate) fn executed_sites<'s>(
     Ok(sites)
 }
 
-pub(crate) fn decode(
+pub(super) fn decode(
     program: &TerminalProgram<'_>,
     sites: &[Site<'_>],
     events: Vec<terminal_interpreter::ObservedTerminalCall>,
@@ -125,7 +125,7 @@ pub(crate) fn decode(
             }
             let scalar = |value: &TerminalStorageContents| match value {
                 TerminalStorageContents::Scalar { value, .. } => {
-                    artifact_evaluation::values::scalar_result(program, *value)
+                    build_value_projection::scalar_result(program, *value)
                 }
                 _ => Err("private placement argument has a non-scalar leaf".into()),
             };
@@ -229,7 +229,7 @@ fn placement(value: &BuildTimeValue) -> Result<LayoutPlacementReport, String> {
 
 pub(super) fn close(
     typed: &mut crate::source_state::TypedTrees,
-    entry: &PreparedBuildMachineEntry,
+    accepted: &crate::source_state::FrozenTypedTrees,
     receipts: &[PrivateLayoutPlacementReceipt],
     owner: SymbolHandle,
     policy: &StaticMachineArgument,
@@ -264,9 +264,7 @@ pub(super) fn close(
             typed.private_callback_slot_application(&group[0].selected_slot, owner, sources)?;
         let selected = &slot.selection;
         if selected.declaration_identity
-            != entry
-                .accepted_source()
-                .normalized_hermetic_symbol_identity(group[0].selected_slot.symbol)?
+            != accepted.normalized_hermetic_symbol_identity(group[0].selected_slot.symbol)?
         {
             return Err("the layout receipt selects another source declaration".into());
         }

@@ -24,14 +24,36 @@ fn unsupported(job: &str) -> Vec<Diagnostic> {
 /// library declaration is not an error of a program that never reaches it.
 /// Work recorded beside the program (recipes, plans, schemas) still refuses.
 fn defer_source_jobs(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    for (declaration, request) in source_jobs(typed)? {
+    let jobs = source_jobs(typed)?;
+    record_jobs(typed, jobs);
+    Ok(())
+}
+
+/// Recompute unresolved layout policy occurrences after a target's plans were
+/// installed. Each declaration keeps its other independently issued obligations.
+pub(super) fn refresh_layout_policy_requests(
+    typed: &mut TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let jobs = declared_jobs(typed)?;
+    typed
+        .deferred_refusals
+        .retain(|row| row.request != DeferredRequest::LayoutPolicyStorage);
+    record_jobs(
+        typed,
+        jobs.into_iter()
+            .filter(|(_, request)| *request == DeferredRequest::LayoutPolicyStorage),
+    );
+    Ok(())
+}
+
+fn record_jobs(typed: &mut TypedTrees, jobs: impl IntoIterator<Item = SourceJob>) {
+    for (declaration, request) in jobs {
         let source_span = typed
             .symbols
             .symbol_source_span(declaration)
             .unwrap_or_default();
         typed.record_deferred_refusal(declaration, request, source_span);
     }
-    Ok(())
 }
 
 /// The evaluation requests of the program's declarations, after refusing

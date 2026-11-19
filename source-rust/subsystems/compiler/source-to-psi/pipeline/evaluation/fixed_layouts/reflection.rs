@@ -91,7 +91,9 @@ fn field_geometry(
             PrimitiveType::Integer(carrier) => {
                 let integer = semantic_vocabulary::ClosedIntegerType::from_fixed(carrier)
                     .ok_or("layout field integer has no supported native carrier")?;
-                return Ok(layout_planning::field_integer_geometry(integer));
+                return layout_planning::field_integer_geometry(integer.bits()).ok_or_else(|| {
+                    "layout field integer has no established storage geometry".into()
+                });
             }
             PrimitiveType::Bool => (1, 1),
             PrimitiveType::F32 => (4, 4),
@@ -180,7 +182,8 @@ fn field_geometry(
                 }
             }
             if cases.is_empty() {
-                layout_plans::packing::conventional_record_geometry(common).map(|(_, geometry)| geometry)
+                layout_plans::packing::conventional_record_geometry(common)
+                    .map(|(_, geometry)| geometry)
             } else {
                 layout_plans::packing::conventional_sum_geometry(
                     StorageGeometry {
