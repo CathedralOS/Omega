@@ -31,14 +31,15 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 
-pub use provider_choices::NativeBindingSelection;
+use super::retained_product_application::RetainedProductApplication;
+pub use crate::provider_choice_inputs::NativeBindingSelection;
 
 pub use crate::provider_choice_inputs::require_canonical_requirement;
 use crate::provider_choice_inputs::requirement_owner;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedNativeDeclaration {
-    pub application: Option<crate::evaluation::provider_declarations::RetainedProductApplication>,
+    pub application: Option<RetainedProductApplication>,
     pub source: crate::declaration_selection::NativeBindingSource,
     pub requirement: source_admission::RetainedDeclaration,
     pub requirement_identity: String,
@@ -212,7 +213,7 @@ pub fn collect(
             .trait_machine_signature(selected)
             .ok_or_else(|| refuse("native binding lost its complete requirement signature"))?;
         selections.push(NativeBindingSelection {
-            application: application.map(super::provider_declarations::application_id),
+            application: application.map(crate::provider_choice_inputs::application_id),
             subject,
             requirement: selected,
             requirement_identity: typed.trait_requirement_callable_identity_text(owner, signature),
@@ -265,10 +266,8 @@ pub fn capture_package_intents(
                                 "native application lost its canonical identity",
                             )]
                         })?;
-                    crate::evaluation::provider_declarations::RetainedProductApplication::capture(
-                        program, handle, identity,
-                    )
-                    .map_err(|reason| vec![Diagnostic::error(reason)])
+                    RetainedProductApplication::capture(program, handle, identity)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])
                 })
                 .transpose()?;
             let (owner, signature) =
@@ -363,8 +362,7 @@ pub fn collect_captured(
             ))]
         };
         let requirement_loaded = program.symbols.source_files().any(|file| {
-            file.dependency_scope
-                == declaration_contracts::source_identity::DependencyScope::Product
+            file.dependency_scope == source_provenance::DependencyScope::Product
                 && program
                     .symbols
                     .source_map()
@@ -423,8 +421,7 @@ pub fn collect_captured(
         let public_toolchain_product = dependency.is_none()
             && owner.is_public
             && source.origin == source_admission::SourceOrigin::Toolchain
-            && source.dependency_scope
-                == declaration_contracts::source_identity::DependencyScope::Product;
+            && source.dependency_scope == source_provenance::DependencyScope::Product;
         if !(program.symbols.symbol_product_package_identity(selected) == Some(target)
             || public_toolchain_product)
             || dependency.is_some() && !owner.is_public
@@ -491,7 +488,7 @@ pub fn collect_captured(
                 )]
             })?;
         selections.push(NativeBindingSelection {
-            application: application.map(super::provider_declarations::application_id),
+            application: application.map(crate::provider_choice_inputs::application_id),
             subject,
             requirement,
             requirement_identity: declaration.requirement_identity.clone(),
