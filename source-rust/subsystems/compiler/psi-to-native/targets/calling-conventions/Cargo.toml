@@ -9,7 +9,6 @@ name = "calling_conventions"
 path = "src/lib.rs"
 
 [dependencies]
-application-identity = { path = "../../../source-to-psi/language/application-identity" }
 layout-planning = { path = "../../../psi/layout/integer-defaults" }
 wire = { path = "../../../../../foundation/wire" }
 terminal-psi = { path = "../../../psi" }

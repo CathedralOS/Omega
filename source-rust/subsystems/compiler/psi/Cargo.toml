@@ -9,11 +9,12 @@ name = "terminal_psi"
 path = "src/lib.rs"
 
 [dependencies]
+psi-program-identity = { path = "program-identity" }
 proof-applications = { path = "proof-applications" }
 access-vocabulary = { path = "access" }
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
-schema-reflection = { path = "../../source-to-psi/language/schema-reflection" }
-application-identity = { path = "../../source-to-psi/language/application-identity" }
+schema-reflection = { path = "schema" }
+application-identity = { path = "application-identity" }
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }
 wire = { path = "../../../foundation/wire" }

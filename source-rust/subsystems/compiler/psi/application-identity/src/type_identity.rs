@@ -6,6 +6,25 @@ lifetime partitions (`lifetime_partition`), and type vocabulary descriptors
 (`vocabulary`).
 */
 
+/// Encode a compiler type name from the canonical spelling of its atom.
+pub fn compiler_type_name(atom: &str) -> String {
+    encoding::compound(
+        vocabulary::NameForm::CompilerType,
+        [encoding::atom(vocabulary::Label::Atom, atom)],
+    )
+}
+
+/// Encode the complete named type for that compiler atom.
+pub fn compiler_type_identity(atom: &str) -> String {
+    encoding::compound(
+        vocabulary::TypeForm::Named,
+        [encoding::atom(
+            vocabulary::Label::Name,
+            &compiler_type_name(atom),
+        )],
+    )
+}
+
 /// Canonical identity framing shared by source producers and receiving checks.
 /// Moving an identity between owners must preserve these exact escaped bytes.
 pub mod encoding {
@@ -1568,25 +1587,6 @@ pub mod vocabulary {
 }
 pub use callable_display::callable_display_path;
 pub use lifetime_partition::normalize_requirement_lifetime_partition;
-
-/// The source-free declaration name, before a type form wraps it.
-pub fn builtin_type_name(builtin: symbols::BuiltinTypeAtom) -> String {
-    encoding::compound(
-        vocabulary::NameForm::CompilerType,
-        [encoding::atom(vocabulary::Label::Atom, &builtin.identity())],
-    )
-}
-
-/// A complete scalar type retains the ordinary named-type frame.
-pub fn builtin_type_identity(builtin: symbols::BuiltinTypeAtom) -> String {
-    encoding::compound(
-        vocabulary::TypeForm::Named,
-        [encoding::atom(
-            vocabulary::Label::Name,
-            &builtin_type_name(builtin),
-        )],
-    )
-}
 
 /// Source publication and receiving checks must name a package declaration
 /// with the same package digest and declaration path.

@@ -1,3 +1,9 @@
+//! Completed evaluation records that source settlement and native planning read.
+//!
+//! A record identifies the accepted code, observations and actual invocation
+//! charges. It carries no package resolver, source tree or execution capability.
+#![forbid(unsafe_code)]
+
 // Completed Terminal Psi evaluation custody (`NativeBuildEvaluation`) for
 // native Build bindings. The measurement is the Terminal Psi identity, and
 // the path-independent `BuildObservationSummary` digest is committed alongside
@@ -6,14 +12,14 @@
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct NativeBuildEvaluation {
-    pub terminal_code: terminal_psi::TerminalPsiIdentity,
+    pub terminal_code: psi_program_identity::TerminalPsiIdentity,
     pub usage: evaluation_contracts::BuildEvaluationUsage,
     pub observation_digest: [u8; 32],
 }
 
 impl NativeBuildEvaluation {
     pub fn from_observation_digest(
-        terminal_code: terminal_psi::TerminalPsiIdentity,
+        terminal_code: psi_program_identity::TerminalPsiIdentity,
         usage: evaluation_contracts::BuildEvaluationUsage,
         observation_digest: [u8; 32],
     ) -> Result<Self, String> {
