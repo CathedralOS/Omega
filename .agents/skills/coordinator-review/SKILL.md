@@ -1,6 +1,7 @@
 ---
 name: coordinator-review
-description: Before merging an Omega compiler or sample change, check that it is sound, that its test programs still test what they claim, and that it adds no needless algorithmic cost. Use for author self-review and coordinator review; who merges follows AGENTS.md.
+disable-model-invocation: true
+description: Use only when the user explicitly requests coordinator-review. Review a proposed compiler or sample change for soundness, regression coverage, and algorithmic cost.
 ---
 
 # Review a Change Before Landing

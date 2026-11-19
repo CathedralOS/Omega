@@ -2,12 +2,12 @@
 
 This reference defines the local shared-machine transport for running concurrent agents on one host with a local Rust toolchain.
 
-Session ownership, execution and publication follow the [swarm skill](../SKILL.md), [advance](../../advance/SKILL.md), and [landing](../../../../tools/docs/landing.md).
+Session ownership, execution and publication follow [AGENTS.md](../../../../AGENTS.md) and [landing](../../../../tools/docs/landing.md).
 
 ## 1. Local Host Setup & Worktrees
 
 Local subagents share one physical machine (CPU, RAM, disk, and process table):
-1. **Preflight:** Complete `/advance` Step 1, including live claims and open PRs, and follow [claim registration](../../../../tools/docs/claims.md) before dispatching.
+1. **Preflight:** Check live claims and open PRs, reserve the worktree, and follow [claim registration](../../../../tools/docs/claims.md) before dispatching.
 2. **One isolated `worker-N` pool slot per worker:** Never edit in the primary checkout and never run two editing agents in the same worktree:
    ```bash
    cargo xtask worktree acquire <lane>-<topic>
@@ -24,6 +24,6 @@ Local subagents share one physical machine (CPU, RAM, disk, and process table):
 2. **Self-contained dispatch prompt:** Give each worker:
    - Its isolated worktree path (`.agents/worktree/<short-name>`) and fixed base SHA.
    - Its assigned `TASKS.md` capability outcome, witness path (the program or test that shows the failure), and the requirement to meet.
-   - Instruction to follow `/advance` through verified landing and report the PR URL, submitted head, published commit and observed limits.
+   - Instruction to test the change, verify it on main after landing and report the PR URL, submitted head, published commit and observed limits.
 3. **Reactive wakeup only (no timers or polling):** After spawning or messaging subagents or starting a background task, end the turn and wait for subagent messages or task-completion notifications to wake the coordinator. Never call `schedule`, cron, or status-polling loops.
 4. **Continue on the warm worktree:** After a worker verifies its landing, message the same worker (`send_message`) on its warm worktree with the next requirement of its parent outcome. At the user's stopping condition, stop refilling, drain active workers, release owned claims, and report observed outcomes per [Explain the change](../../../../AGENTS.md#explain-the-change).

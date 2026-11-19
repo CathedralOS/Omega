@@ -1,6 +1,7 @@
 ---
 name: plain-writing
-description: Rewrite or review Omega documentation, task boards, instructions and code comments in plain language without changing what they say, and check the result automatically. Use for plain-language rewrites, documentation cleanup, "make this readable", or reviewing whether a draft, PR description or report is clear. Not for changing a rule, the specification's meaning, or code behavior.
+disable-model-invocation: true
+description: Use only when the user explicitly requests plain-writing. Rewrite Omega documentation and code comments in plain language while preserving their meaning.
 ---
 
 # Plain Writing

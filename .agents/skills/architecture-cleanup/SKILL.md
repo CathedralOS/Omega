@@ -1,6 +1,7 @@
 ---
 name: architecture-cleanup
-description: Find and repair high-impact Omega architecture problems, including discoverability, ownership, duplicated orchestration, feature-combination special cases and wasteful data flow. Use for architecture cleanup campaigns or an explicitly assigned structural refactor. Not an automatic repository sweep during a named bug fix, ordinary feature work, or a task-board cleanup.
+disable-model-invocation: true
+description: Use only when the user explicitly requests architecture-cleanup. Audit and repair Omega compiler architecture, including ownership, orchestration, and data flow.
 ---
 
 # Architecture Cleanup
@@ -8,9 +9,7 @@ description: Find and repair high-impact Omega architecture problems, including 
 Delete mechanisms the compiler does not need, and make the rest easier to
 follow and extend. Apply [AGENTS.md](../../../AGENTS.md) and
 [omega-rust/pipeline.md](../../../omega-rust/pipeline.md), especially their
-rules on discoverability, compositional lowering, ownership and validation. For
-Rust, read the [Rust systems skill](../rust-systems-programmer/SKILL.md) and its
-relevant references. They own the coding rules; this skill owns the workflow.
+rules on discoverability, compositional lowering, ownership and validation. Apply the repository's Rust coding rules when the repair changes Rust.
 
 An audit asks for evidence and proposals; a cleanup authorizes implementation.
 Stay in the requested area and follow the repository's worktree, claims and

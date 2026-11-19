@@ -1,6 +1,6 @@
 # Antigravity Cloud Swarm (`exebox` VM)
 
-This guide covers coordinating concurrent in-session subagents in an Antigravity Cloud Linux VM (`exebox` sandbox, `/home/antigravity/CathedralOS/Omega`). Session ownership, execution and publication follow the [swarm skill](../SKILL.md), [advance](../../advance/SKILL.md), and [landing](../../../../tools/docs/landing.md).
+This guide covers coordinating concurrent in-session subagents in an Antigravity Cloud Linux VM (`exebox` sandbox, `/home/antigravity/CathedralOS/Omega`). Session ownership, execution and publication follow [AGENTS.md](../../../../AGENTS.md) and [landing](../../../../tools/docs/landing.md).
 
 ## 1. Subagent Invocation & Worktree Setup
 

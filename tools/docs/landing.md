@@ -22,9 +22,7 @@ the change and the known affected samples. Documentation changes need a
 consistency and link check. Do not widen these into a whole-workspace run. There
 is no fixture corpus to run and no ledger.
 
-Review the actual diff using
-[coordinator-review](../../.agents/skills/coordinator-review/SKILL.md), including
-when working alone. Keep soundness, the intended program and the programs it must still reject.
+Review the actual diff, including when working alone. Keep soundness, the intended program and the programs it must still reject.
 Meet the assigned acceptance and any explicit review requirement. Do not wait
 for coordinator approval unless told to.
 

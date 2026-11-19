@@ -1,6 +1,7 @@
 ---
 name: typesafe-experiments
-description: Tune and evaluate TypeSafe/Jev judgments in Omega agent workflows, or continue the context-selection, evidence-navigation, and architecture-binding experiments. Use for model experiments, not routine compiler development or proof approval.
+disable-model-invocation: true
+description: Use only when the user explicitly requests typesafe-experiments. Evaluate TypeSafe and Jev judgments about context selection, evidence, and architecture in Omega agent workflows.
 ---
 
 # TypeSafe experiments in Omega

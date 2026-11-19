@@ -1,6 +1,7 @@
 ---
 name: rust-systems-programmer
-description: Write and review Rust with domain names, clear state ownership, visible top-level coordination, recoverable errors, low-allocation storage, parallel work split by ownership, and SIMD kernels. Use when implementing, refactoring, debugging, or reviewing Rust code in this repository. Not for prose-only work or non-Rust implementation.
+disable-model-invocation: true
+description: Use only when the user explicitly requests rust-systems-programmer. Write and review Rust with explicit ownership, recoverable errors, low-allocation storage, parallel work, and SIMD.
 ---
 
 # Rust Systems Programming

@@ -1,7 +1,7 @@
 # Swarm coordination
 
-The [swarm skill](../../.agents/skills/swarm/SKILL.md) covers starting
-sessions and the pool. Work follows [advance](../../.agents/skills/advance/SKILL.md);
+The user can request the [swarm skill](../../.agents/skills/swarm/SKILL.md) for session setup.
+Work follows [AGENTS.md](../../AGENTS.md), and
 landing follows [landing](../docs/landing.md). Pool slots are `.agents/worktree/worker-N`.
 
 `mbx xtask worktree acquire <lane>-<topic>` claims a slot.

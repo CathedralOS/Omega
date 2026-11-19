@@ -1,6 +1,7 @@
 ---
 name: task-board-cleanup
-description: Audit, reframe, merge, and debloat Omega execution boards so each item is one end-to-end sample outcome a single agent can finish in one loop. Use for task-list cleanup, reframing stage-sliced tasks into end-to-end pipeline samples, merging over-split tasks by similarity, stale-task audits, or a board-wide cleanup campaign. Not routine task updates during implementation, new-task mining, or swarm scheduling.
+disable-model-invocation: true
+description: Use only when the user explicitly requests task-board-cleanup. Organize Omega task boards around end-to-end outcomes and merge overlapping work items.
 ---
 
 # Task Board Cleanup
