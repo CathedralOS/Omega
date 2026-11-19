@@ -319,13 +319,13 @@ mod providers {
 
     record_fields!(selected_provider_plans::AssumedBindingContractSelection { required, supplied });
 
-    record_fields!(effects::AuthoredBehaviorExclusion {
+    record_fields!(behavior_exclusion_requests::AuthoredBehaviorExclusion {
         kind,
         selecting_machine,
         source_span
     });
 
-    record_variants!(effects::AuthoredBehaviorExclusionKind {
+    record_variants!(behavior_exclusion_requests::AuthoredBehaviorExclusionKind {
         0 => CrashCause { cause, case_symbol },
         1 => PhysicalAuthorityClass { class, case_symbol },
         2 => Service { identity, name },

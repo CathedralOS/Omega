@@ -95,7 +95,7 @@ pub use build_evaluation::{
     RestrictedBuildGrants, prepare_build_evaluation,
 };
 pub use build_output::BuildStagedOutputEntryKind;
-pub use effects::AuthoredBehaviorExclusion;
+pub use behavior_exclusion_requests::AuthoredBehaviorExclusion;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
     BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,

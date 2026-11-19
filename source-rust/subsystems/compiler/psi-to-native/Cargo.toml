@@ -11,6 +11,7 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
+behavior-exclusion-requests = { path = "../build/behavior-exclusions" }
 selected-provider-plans = { path = "../build/providers/selections" }
 target-provider-admission = { path = "verification/target-providers" }
 provider-plans = { path = "../build/providers/plans" }

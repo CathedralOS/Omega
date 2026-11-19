@@ -22,7 +22,7 @@ struct PublishedApplicationInputs<'a, Publisher> {
         Option<&'a declaration_scope::ProductDeclarationScope>,
     application: target::NativeApplicationMetadata,
     optimizations: &'a optimization_core::OptimizationSelections,
-    behavior_exclusions: &'a [effects::AuthoredBehaviorExclusion],
+    behavior_exclusions: &'a [behavior_exclusion_requests::AuthoredBehaviorExclusion],
     x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
@@ -262,7 +262,7 @@ pub struct SavedProgramTarget<'a> {
     pub installation: host_provider_inputs::TargetProviderInstallation,
     pub application: target::NativeApplicationMetadata,
     pub optimizations: &'a optimization_core::OptimizationSelections,
-    pub behavior_exclusions: &'a [effects::AuthoredBehaviorExclusion],
+    pub behavior_exclusions: &'a [behavior_exclusion_requests::AuthoredBehaviorExclusion],
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 

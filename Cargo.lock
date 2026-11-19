@@ -176,6 +176,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "behavior-exclusion-requests"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "source-text",
+ "symbols",
+]
+
+[[package]]
 name = "bignum"
 version = "0.1.0"
 dependencies = [
@@ -257,13 +266,13 @@ name = "build-settings"
 version = "0.1.0"
 dependencies = [
  "artifacts",
+ "behavior-exclusion-requests",
  "build-declarations",
  "build-output",
  "build-time-values",
  "declaration-contracts",
  "declaration-scope",
  "diagnostics",
- "effects",
  "evaluation-accounting",
  "evaluation-admission",
  "evaluation-contracts",
@@ -789,6 +798,7 @@ dependencies = [
 name = "declaration-contracts"
 version = "0.1.0"
 dependencies = [
+ "behavior-exclusion-requests",
  "bignum",
  "language-core",
  "numeric-literals",
@@ -1697,6 +1707,7 @@ dependencies = [
 name = "native-compiler"
 version = "0.1.0"
 dependencies = [
+ "behavior-exclusion-requests",
  "provider-correspondence",
  "provider-demand",
  "host-provider-inputs",
@@ -3352,6 +3363,7 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
+ "behavior-exclusion-requests",
  "diagnostics",
  "language-core",
  "numeric-literals",
@@ -3969,6 +3981,7 @@ dependencies = [
  "application-identity",
  "arena",
  "backend-plan",
+ "behavior-exclusion-requests",
  "boundary-applications",
  "calling-conventions",
  "installation-conditions",

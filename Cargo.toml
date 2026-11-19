@@ -12,6 +12,7 @@ members = [
     "source-rust/foundation/wire",
     "source-rust/subsystems/compiler",
     "source-rust/subsystems/compiler/build",
+    "source-rust/subsystems/compiler/build/behavior-exclusions",
     "source-rust/subsystems/compiler/build/build-declarations",
     "source-rust/subsystems/compiler/build/build-output",
     "source-rust/subsystems/compiler/build/build-output/product-publication",
