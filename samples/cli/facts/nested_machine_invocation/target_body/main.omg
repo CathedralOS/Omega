@@ -34,7 +34,7 @@ X86Compute satisfies SelectedCompute {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     identity::<u64>(42) 
+     identity::<u64>(42)
     }
 }
 
@@ -43,7 +43,7 @@ ArmCompute satisfies SelectedCompute {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     identity::<u64>(42) 
+     identity::<u64>(42)
     }
 }
 

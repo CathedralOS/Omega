@@ -43,7 +43,7 @@ X86TargetValue satisfies SelectedTargetValue {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result >= 7
     {
         SelectedBodyCheck::require_tag(17u64);
-     construct::<3>() 
+     construct::<3>()
     }
 }
 
@@ -52,7 +52,7 @@ ArmTargetValue satisfies SelectedTargetValue {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap ensures result >= 7
     {
         SelectedBodyCheck::require_tag(29u64);
-     construct::<3>() 
+     construct::<3>()
     }
 }
 

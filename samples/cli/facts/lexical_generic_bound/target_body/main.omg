@@ -46,7 +46,7 @@ X86Obtain satisfies SelectedObtain {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     selected::<Selected>() 
+     selected::<Selected>()
     }
 }
 
@@ -55,7 +55,7 @@ ArmObtain satisfies SelectedObtain {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     selected::<Selected>() 
+     selected::<Selected>()
     }
 }
 

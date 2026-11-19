@@ -37,7 +37,7 @@ X86Consume satisfies SelectedConsume {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     read::<Token<SEVEN>, EIGHT>(items) 
+     read::<Token<SEVEN>, EIGHT>(items)
     }
 }
 
@@ -46,7 +46,7 @@ ArmConsume satisfies SelectedConsume {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     read::<Token<SEVEN>, EIGHT>(items) 
+     read::<Token<SEVEN>, EIGHT>(items)
     }
 }
 

@@ -108,7 +108,7 @@ machine regions(trapped: i32 in Wrapping) reaches Console {
 }
 
 public machine report(cavity: @Cavity) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write_line("MOLD_FRONT_VENT_V1");
     Console::write_line("arrival ticks (# wall, . unfilled):");
