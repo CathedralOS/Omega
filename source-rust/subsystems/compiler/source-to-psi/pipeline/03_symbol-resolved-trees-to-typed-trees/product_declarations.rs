@@ -1,6 +1,6 @@
 //! Resolve Build requests for declarations from their authored source scope.
 
-mod authored_requests;
+pub mod authored_requests;
 mod opaque_representations;
 mod root_bindings;
 mod root_grants;

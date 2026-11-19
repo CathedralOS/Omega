@@ -16,6 +16,8 @@ pub(crate) use frontier::PreCheckEvaluation;
 pub mod native_bindings;
 #[path = "evaluation/product_declarations.rs"]
 pub mod product_declarations;
+#[path = "evaluation/provider_declarations.rs"]
+pub mod provider_declarations;
 #[path = "evaluation/retained_product_application.rs"]
 pub mod retained_product_application;
 

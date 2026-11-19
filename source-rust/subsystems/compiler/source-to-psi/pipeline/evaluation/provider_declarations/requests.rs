@@ -2,8 +2,7 @@
 //! Targets and composition come from execution; source supplies the exact slot,
 //! provider, and lexical author. Nothing here executes or accepts a provider body.
 
-use super::authored_requests::{AuthoredRequests, refusal};
-use super::provider_declarations::{
+use super::{
     ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity, form, identity,
 };
 use crate::declaration_selection::BuildOperation;
@@ -16,6 +15,9 @@ use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::ProductDeclarationLookup;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
+use symbol_resolved_trees_to_typed_trees::product_declarations::authored_requests::{
+    AuthoredRequests, refusal,
+};
 use symbols::SymbolHandle;
 
 struct Formation {
@@ -80,7 +82,7 @@ fn operand(
     let text = typed
         .product_operand_application_identity(application)
         .map_err(|reason| refusal(request, reason))?;
-    identity.application = super::provider_declarations::application_id(application);
+    identity.application = super::application_id(application);
     identity.applied = text.is_some();
     identity.application_identity = text;
     Ok(Operand {
@@ -99,9 +101,7 @@ fn satisfied_application(
     let scope = if provider.applied {
         typed
             .product_operand_applications
-            .get(super::provider_declarations::source_application(
-                provider.application,
-            ))
+            .get(super::source_application(provider.application))
             .scope
             .scope(typed)?
     } else {
@@ -183,14 +183,15 @@ fn formation(
         .typed
         .symbols
         .rejoin_product_occurrence(request.source_span);
-    let origin = crate::source_symbols::capture_build_selection_origin(
-        &context.typed.symbols,
-        author,
-        author,
-        span,
-        None,
-    )
-    .map_err(|reason| refusal(request, reason))?;
+    let origin =
+        symbol_resolved_trees_to_typed_trees::product_declarations::capture_build_selection_origin(
+            &context.typed.symbols,
+            author,
+            author,
+            span,
+            None,
+        )
+        .map_err(|reason| refusal(request, reason))?;
     form(
         context,
         slot.identity,
@@ -203,7 +204,7 @@ fn formation(
     .map_err(|diagnostic| vec![diagnostic.with_source_span(request.source_span)])
 }
 
-pub(super) fn collect(
+pub fn collect_product_provider_selections(
     context: ProviderPlanningContext<'_>,
     activation: Option<SymbolHandle>,
     declared: &[Arc<ProductDeclarationRequest>],
@@ -230,9 +231,9 @@ pub(super) fn collect(
         ],
     );
     let authored = AuthoredRequests::new(typed, declared, BuildOperation::ProviderSelection)?;
-    let mut formations = Vec::with_capacity(authored.rows.len());
+    let mut formations = Vec::with_capacity(authored.rows().len());
     // Unexecuted requests still have to name valid declarations.
-    for row in &authored.rows {
+    for row in authored.rows() {
         formations.push(Formation {
             selection: formation(context, &declarations, row.request, row.author, None)?,
         });
@@ -279,7 +280,7 @@ pub(super) fn collect(
             )
         })?;
         let span = typed.symbols.rejoin_product_occurrence(request.source_span);
-        selection.origin = crate::source_symbols::capture_build_selection_origin(
+        selection.origin = symbol_resolved_trees_to_typed_trees::product_declarations::capture_build_selection_origin(
             &typed.symbols,
             activation,
             author,
