@@ -231,6 +231,11 @@ pub(crate) mod native_admission {
         };
         let mut providers =
             admit_native_providers(&input.admission_source(), artifact, &scoped_providers)?;
+        input.optimization_input().validate_behavior_exclusions(
+            request.behavior_exclusions,
+            scoped_providers.selected_provider_plans,
+            scoped_providers.profile,
+        )?;
         request
             .behavior_exclusions
             .validate_physical_authority_closure(providers.terminal_authority_closure_review())?;
