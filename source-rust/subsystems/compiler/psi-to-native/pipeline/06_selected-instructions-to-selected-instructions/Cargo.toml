@@ -15,6 +15,6 @@ register-model = { path = "../../target-description/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }
 target = { path = "../../target-description/target" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../representations/psi" }
+terminal-psi = { path = "../../../psi" }
 native-vocabulary = { path = "../../native-vocabulary" }
 selected-instruction-analyses = { path = "analyses" }

@@ -7,7 +7,7 @@ version.workspace = true
 [dependencies]
 target-vocabulary = { path = "../../target-operations/target-vocabulary" }
 function-identity = { path = "../../../../native-vocabulary/function-identity" }
-terminal-psi = { path = "../../../../../representations/psi" }
+terminal-psi = { path = "../../../../../psi" }
 arena = { path = "../../../../../../../foundation/arena" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../../../foundation/diagnostics" }

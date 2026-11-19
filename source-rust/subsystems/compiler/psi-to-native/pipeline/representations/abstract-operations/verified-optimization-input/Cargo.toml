@@ -29,13 +29,13 @@ record-storage = { path = "../../../../../../../foundation/record-storage" }
 language-core = { path = "../../../../../source-to-psi/language/source-vocabulary" }
 layout-plans = { path = "../../../../../psi/layout" }
 symbols = { path = "../../../../../source-to-psi/language/declaration-identity" }
-terminal-codec = { path = "../../../../../representations/psi/codec" }
+terminal-codec = { path = "../../../../../psi/codec" }
 terminal-installation = { path = "../../../../../psi-admission" }
-terminal-psi = { path = "../../../../../representations/psi" }
+terminal-psi = { path = "../../../../../psi" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
 backend-plan = { path = "../../../../installation/provider-plans" }
 target = { path = "../../../../targets/target" }
-terminal-semantics = { path = "../../../../../representations/psi/semantics" }
+terminal-semantics = { path = "../../../../../psi/semantics" }
 program-entry-plan = { path = "../../../../installation/program-entry" }
 diagnostics = { path = "../../../../../../../foundation/diagnostics" }
 boundary-applications = { path = "../../../../installation/boundary-applications" }

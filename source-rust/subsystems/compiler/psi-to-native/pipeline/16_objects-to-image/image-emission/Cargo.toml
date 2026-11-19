@@ -52,11 +52,11 @@ task-plans = { path = "../../../installation/task-plans" }
 target-aarch64 = { path = "../../../target-description/target-aarch64" }
 target-x86_64 = { path = "../../../target-description/target-x86_64" }
 semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../../representations/psi" }
-terminal-semantics = { path = "../../../../representations/psi/semantics" }
+terminal-psi = { path = "../../../../psi" }
+terminal-semantics = { path = "../../../../psi/semantics" }
 terminal-installation = { path = "../../../../psi-admission" }
-terminal-codec = { path = "../../../../representations/psi/codec" }
-terminal-work = { path = "../../../../representations/psi/work" }
+terminal-codec = { path = "../../../../psi/codec" }
+terminal-work = { path = "../../../../psi/work" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
@@ -66,10 +66,9 @@ native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encod
 isa-x86_64 = { path = "../../11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
 image-fixtures = { path = "../../../../../test-support/image-fixtures" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
-compiler = { path = "../../../compiler" }
 image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../psi/layout" }
 optimization-core = { path = "../../../optimization-contracts" }
-extents = { path = "../../../../../psi/runtime/extents" }
+extents = { path = "../../../../../interpreter/memory/extents" }
 
-source-compiler = { path = "../../../../../psi/compilation/pipeline/source-compilation", features = ["test-support"] }
+source-compiler = { path = "../../../../source-to-psi", features = ["test-support"] }

@@ -30,4 +30,4 @@ function-identity = { path = "../../../../native-vocabulary/function-identity", 
 native-vocabulary = { path = "../../../../native-vocabulary", optional = true }
 task-plans = { path = "../../../../installation/task-plans", optional = true }
 target-vocabulary = { path = "../../target-operations/target-vocabulary", optional = true }
-terminal-psi = { path = "../../../../../representations/psi", optional = true }
+terminal-psi = { path = "../../../../../psi", optional = true }

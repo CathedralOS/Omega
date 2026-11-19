@@ -13,8 +13,8 @@ native-vocabulary = { path = "../../native-vocabulary" }
 physical-program = { path = "../representations/post-allocation-machine/body-facts" }
 target-operations = { path = "../representations/target-operations" }
 target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
-terminal-psi = { path = "../../../representations/psi" }
-terminal-semantics = { path = "../../../representations/psi/semantics" }
+terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi/semantics" }
 physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
 frame-admission = { path = "../representations/machine-code/frame-admission" }
 machine-code = { path = "../representations/machine-code" }

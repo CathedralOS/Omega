@@ -13,7 +13,7 @@ provider-admission = { path = "../../verification/provider-admission" }
 installation-admission = { path = "../../verification/installation-admission" }
 target-lowering = { package = "abstract-operations-to-target-operations", path = "../04_abstract-operations-to-target-operations" }
 physical-program = { path = "../representations/post-allocation-machine/body-facts" }
-terminal-semantics = { path = "../../../representations/psi/semantics" }
+terminal-semantics = { path = "../../../psi/semantics" }
 access-admission = { path = "../../../../psi/compilation/access-admission" }
 layout-plans = { path = "../../../psi/layout" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
@@ -31,6 +31,6 @@ target = { path = "../../target-description/target" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
 calling-conventions = { path = "../../target-description/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-terminal-psi = { path = "../../../representations/psi" }
+terminal-psi = { path = "../../../psi" }
 native-vocabulary = { path = "../../native-vocabulary" }
 selected-instruction-analyses = { path = "../06_selected-instructions-to-selected-instructions/analyses" }

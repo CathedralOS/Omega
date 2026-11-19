@@ -36,5 +36,5 @@ optimization-core = { path = "../../../optimization-contracts" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 target-operations = { path = "../../representations/target-operations" }
-terminal-psi = { path = "../../../../representations/psi" }
+terminal-psi = { path = "../../../../psi" }
 task-plans = { path = "../../../installation/task-plans" }
