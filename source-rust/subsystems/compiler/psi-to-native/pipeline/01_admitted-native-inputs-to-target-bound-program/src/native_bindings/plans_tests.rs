@@ -2,13 +2,13 @@
 // mechanisms before any provider selection or admission.
 
 use super::*;
-use declaration_contracts::selection::ProductTarget;
 use evaluation_accounting::BuildEvaluationSponsor;
 use evaluation_contracts::{
     BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
 use evaluation_receipts::{NativeBindingMaterialization, NativeBuildEvaluation};
 use semantic_vocabulary::WorkScheduleIdentity;
+use semantic_vocabulary::source_selections::ProductTarget;
 use std::sync::Arc;
 
 const REQUIREMENT: &str = "Clock::now";

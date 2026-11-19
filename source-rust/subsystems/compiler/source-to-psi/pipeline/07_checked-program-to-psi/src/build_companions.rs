@@ -20,9 +20,9 @@ use crate::production::{
 };
 use crate::source_state::TypedTrees;
 use crate::source_symbols::is_build_protocol;
-use declaration_contracts::build_requests::SELECTION_PROTOCOL;
-use declaration_contracts::build_requests::SelectionProtocolOperation;
 use diagnostics::Diagnostic;
+use language_core::build_protocol::SELECTION_PROTOCOL;
+use language_core::build_protocol::SelectionProtocolOperation;
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite, StructuralTypeId};
 use std::sync::Arc;
 use symbols::SymbolHandle;

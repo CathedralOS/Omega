@@ -13,7 +13,7 @@ use terminal_psi::TerminalModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanRealizationInput {
-    pub composition_mode: declaration_contracts::selection::CompositionMode,
+    pub composition_mode: semantic_vocabulary::source_selections::CompositionMode,
     pub schema_declaration: terminal_psi::TerminalIdentityIndex,
     pub schema_application: terminal_psi::TerminalIdentityIndex,
     pub declaration: ProviderPlan,
@@ -36,7 +36,7 @@ pub struct TargetSupplyRealizationInput {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PlanRealization {
-    composition_mode: declaration_contracts::selection::CompositionMode,
+    composition_mode: semantic_vocabulary::source_selections::CompositionMode,
     executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
@@ -156,7 +156,7 @@ impl RealizedTargetSupply {
                 return Err("provider realization changes its selected composition mode".into());
             }
             if choice.composition_mode
-                == declaration_contracts::selection::CompositionMode::Independent
+                == semantic_vocabulary::source_selections::CompositionMode::Independent
             {
                 return Err("reached independent provider composition needs its canonical verified component evidence".into());
             }
@@ -541,7 +541,8 @@ impl SelectedProviderRealization {
     }
     pub fn composition_modes(
         &self,
-    ) -> impl ExactSizeIterator<Item = declaration_contracts::selection::CompositionMode> + '_ {
+    ) -> impl ExactSizeIterator<Item = semantic_vocabulary::source_selections::CompositionMode> + '_
+    {
         self.realizations.iter().map(|row| row.composition_mode)
     }
     pub fn row_executions(

@@ -236,9 +236,10 @@ dependencies = [
 name = "build-declarations"
 version = "0.1.0"
 dependencies = [
- "record-storage",
  "declaration-contracts",
  "optimization-selections",
+ "record-storage",
+ "semantic-vocabulary",
  "source-compiler",
  "syntax-trees",
 ]

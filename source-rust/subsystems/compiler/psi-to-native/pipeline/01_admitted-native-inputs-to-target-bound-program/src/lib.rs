@@ -13,7 +13,6 @@ pub mod program_entry;
 mod provider_planning;
 pub mod target_supply;
 
-pub use declaration_contracts::selection::CompositionMode;
 pub use provider_planning::provider_rows::{
     DirectBoundaryInput, DirectBoundaryMechanism, direct_compiler_primitive_leaves,
 };
@@ -21,6 +20,7 @@ pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
+pub use semantic_vocabulary::source_selections::CompositionMode;
 
 pub use terminal_semantics::logical_providers::satisfies_plan_name;
 

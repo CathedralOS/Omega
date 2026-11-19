@@ -48,7 +48,7 @@ pub(crate) fn names_replaced_prelude_operation(
                     && crate::source_symbols::is_build_protocol(
                         &program.symbols,
                         program.symbols.get(target).parent,
-                        declaration_contracts::build_requests::SELECTION_PROTOCOL,
+                        language_core::build_protocol::SELECTION_PROTOCOL,
                     )
             }))
         && program.symbols.is_build_prelude_symbol(target)
@@ -148,7 +148,7 @@ pub(crate) mod build_selections {
             .iter()
             .map(|input| input.occurrence)
             .collect::<Vec<_>>();
-        use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
+        use language_core::build_protocol::SelectionProtocolOperation as Protocol;
         let operation = match (&request, arguments.len()) {
             (BuildSelectionRequest::ProviderReadiness(_), 1) => Protocol::AwaitProvider,
             (BuildSelectionRequest::Exclusion(_), 2) => Protocol::Exclude,
@@ -190,7 +190,7 @@ pub(crate) mod build_selections {
                     && crate::source_symbols::is_build_protocol(
                         &source.symbols,
                         definition.symbol,
-                        declaration_contracts::build_requests::SELECTION_PROTOCOL,
+                        language_core::build_protocol::SELECTION_PROTOCOL,
                     )
             })
             .ok_or_else(|| {

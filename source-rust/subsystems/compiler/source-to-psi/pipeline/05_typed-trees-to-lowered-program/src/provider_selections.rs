@@ -4,8 +4,8 @@
 
 use crate::source_state::{TypedTrees, trait_definition::TraitApplicationEnvironment};
 use arena::Handle;
-use declaration_contracts::selection::CompositionMode;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
+use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;

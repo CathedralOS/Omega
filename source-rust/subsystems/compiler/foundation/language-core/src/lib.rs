@@ -6,6 +6,7 @@
 pub mod atomic;
 mod builtin_function;
 pub use builtin_function::BuiltinFunction;
+pub mod build_protocol;
 pub mod bundled_files;
 pub mod byte_predicates;
 pub mod core_vocabulary;

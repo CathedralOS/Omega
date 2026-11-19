@@ -51,57 +51,7 @@ pub mod build_requests {
         pub action: TerminalBuildRequestOperation,
     }
 
-    /// The toolchain protocol whose operations carry a Build selection's
-    /// designated operands (`Build::bind`, `Build::select_provider`, ...).
-    pub const SELECTION_PROTOCOL: &str = "BuildBindingOperations";
-
-    /// One requirement of the selection protocol, as typing chose it for a
-    /// generated call. Typing decides the operation from the request it
-    /// lowers and records it beside that request; publication and the
-    /// Build host read the recorded operation, so the requirement's
-    /// declared name is consulted once, here, to find its declaration.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum SelectionProtocolOperation {
-        /// Lends the Build value to the activation and returns its ticket.
-        Prepare,
-        /// Lends the Build's `tests` facet for test-group registration.
-        PrepareTests,
-        AwaitProvider,
-        /// `Build::bind(builder, slot, entry)` with an authored entry path.
-        Bind,
-        /// `Build::bind(builder, slot, description)` with an entry value.
-        BindDescription,
-        BindNative,
-        Select,
-        SelectProvider,
-        Exclude,
-        DescribeParameter,
-        DescribeField,
-    }
-
-    impl SelectionProtocolOperation {
-        /// The requirement of `BuildBindingOperations` this operation calls.
-        pub const fn requirement_name(self) -> &'static str {
-            match self {
-                Self::Prepare => "prepare",
-                Self::PrepareTests => "prepare_tests",
-                Self::AwaitProvider => "await_provider",
-                Self::Bind => "bind",
-                Self::BindDescription => "bind_description",
-                Self::BindNative => "bind_native",
-                Self::DescribeParameter => "describe_parameter",
-                Self::DescribeField => "describe_field",
-                Self::Select => "select",
-                Self::SelectProvider => "select_provider",
-                Self::Exclude => "exclude",
-            }
-        }
-
-        /// Whether this is the call that lends the Build before a commit.
-        pub const fn prepares(self) -> bool {
-            matches!(self, Self::Prepare | Self::PrepareTests)
-        }
-    }
+    pub use language_core::build_protocol::{SELECTION_PROTOCOL, SelectionProtocolOperation};
 }
 pub use boundary_bodies::{BoundaryBodySelection, CheckedBodyCandidate};
 pub mod boundary_provider_review {
@@ -860,27 +810,7 @@ pub mod value_domain {
     }
 }
 pub mod wire {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
-    pub enum WireCompatibilityFact {
-        Readable,
-        Writable,
-        PreserveUnknown,
-        Canonical,
-        CompleteMigration,
-    }
-
-    impl WireCompatibilityFact {
-        pub fn from_name(name: &str) -> Option<Self> {
-            match name {
-                "Readable" => Some(Self::Readable),
-                "Writable" => Some(Self::Writable),
-                "PreserveUnknown" => Some(Self::PreserveUnknown),
-                "Canonical" => Some(Self::Canonical),
-                "CompleteMigration" => Some(Self::CompleteMigration),
-                _ => None,
-            }
-        }
-    }
+    pub use semantic_vocabulary::source_selections::WireCompatibilityFact;
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct WireCompatibilityDemand {
