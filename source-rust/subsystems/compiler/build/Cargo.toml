@@ -18,4 +18,6 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
 
 [dev-dependencies]
+psi-authorization = { path = "../psi/authorization" }
+terminal-codec = { path = "../psi/codec" }
 terminal-psi = { path = "../psi" }

@@ -1,9 +1,9 @@
-// Integration test verifying that `orchestration::build` produces a single
-// retained artifact and `terminal_runtime::execute` / `execute_sliced` borrows
-// and runs it without re-decoding the Terminal module.
+//! A completed native product carries the runtime inputs for the same published Psi.
 
-use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
-use platform_custody::temporary_directory::TemporaryDirectory;
+use compiler::{Artifact, CompileRequest, NativeTarget, Program, TargetProviderInstallation};
+use psi_authorization::{HostProducerTrust, authorize_terminal_artifact};
+use std::sync::Arc;
+use terminal_codec::CanonicalTerminalArtifact;
 use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalRuntimeError, TerminalRuntimeRequest,
@@ -11,38 +11,34 @@ use terminal_runtime::{
 
 #[test]
 fn retained_execution_preserves_identity_and_resumes_without_decoding() {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..");
-    let directory = TemporaryDirectory::create("retained-runtime", false).unwrap();
-    let profile = target::TargetProfile::host_if_supported().expect("supported test host");
-    let outcomes = orchestration::build(BuildRequest {
-        stage_validators: Default::default(),
-        root_path: repository
-            .join("tests/fixtures/pass/calls/machine_self_call_recursion_compile/main.omg"),
-        build_directory: Some(directory.path().to_path_buf()),
-        targets: BuildTargets::Single(profile),
-        product: ProjectProduct::Native {
-            installation_assumptions: Vec::new(),
-            destination: NativeDestination::Retained,
-            private_entry_ram: Vec::new(),
+    let bytes = include_bytes!(
+        "../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/linux_x86_64.psi"
+    );
+    let artifact = Arc::new(CanonicalTerminalArtifact::from_bytes(bytes).unwrap());
+    let profile = target::TargetProfile::LinuxX64;
+    let installation = TargetProviderInstallation::new(
+        artifact.manifest().identity(),
+        profile,
+        Default::default(),
+    );
+    let producer = HostProducerTrust::accept("retained runtime fixture");
+    let program = authorize_terminal_artifact(artifact, Some(&producer)).unwrap();
+    let Artifact::Native(report) = compiler::compile(CompileRequest::Native {
+        program: Program::Psi(program),
+        target: NativeTarget {
+            profile,
+            installation,
+            optimizations: &Default::default(),
+            requested_boundaries: Vec::new(),
+            application: Default::default(),
+            behavior_exclusions: &[],
+            x86_scalar_fma_provider: None,
         },
-        timings: false,
-        offline: true,
-        verify: false,
-        require_package_project: true,
-        optimization_rollback: Default::default(),
-        build_snapshot: None,
+        entry_memory: &[],
     })
-    .unwrap();
-    assert_eq!(outcomes.len(), 1);
-    let report = outcomes
-        .into_iter()
-        .next()
-        .unwrap()
-        .result
-        .unwrap()
-        .into_report()
-        .unwrap()
-        .report;
+    .unwrap() else {
+        panic!("native compilation must retain the completed image");
+    };
     let native = report.retained_native_artifact().unwrap();
     let artifact = native.psi_artifact();
     assert!(native.inspect_root_code_layouts().unwrap().is_empty());
@@ -53,7 +49,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         native_provider: None,
         artifact,
         target: Some(target),
-        provisions: report.runtime_provisions(),
+        provisions: report.runtime_provisions().map(|runtime| runtime.execution()),
         provider_proposal: None,
         x86_flags: terminal_runtime::capture_host_x86_flags(profile.target_name()).unwrap(),
         memory_ordering: None,
@@ -76,6 +72,12 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         artifact.debug_bytes().is_none().then_some(&debug),
     )
     .unwrap();
+    let other = other
+        .with_publication(
+            artifact.publication_metadata().unwrap().clone(),
+            artifact.published_evidence().cloned(),
+        )
+        .unwrap();
     assert_eq!(artifact.view().identity(), other.view().identity());
     assert_ne!(artifact.manifest().identity(), other.manifest().identity());
     let mut other_plan = request(profile.target_name());
@@ -90,17 +92,16 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     other_image.artifact = &other;
     other_image.provisions = None;
     assert!(matches!(
-        project_build::published_terminal::execute_published_terminal(other_image, report.retained_native_artifact()),
+        project_build::published_terminal::execute_published_terminal(
+            other_image,
+            report.retained_native_artifact()
+        ),
         Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection names another artifact or target"
         ))
     ));
     let before = terminal_codec::module_decode_count();
-    let wrong_target = if profile.target_name() == "linux_x86_64" {
-        "macos_arm64"
-    } else {
-        "linux_x86_64"
-    };
+    let wrong_target = "macos_arm64";
     assert!(matches!(
         terminal_runtime::execute(request(wrong_target)),
         Err(TerminalRuntimeError::InvalidProvision(
@@ -110,7 +111,10 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     let mut wrong_image_target = request(wrong_target);
     wrong_image_target.provisions = None;
     assert!(matches!(
-        project_build::published_terminal::execute_published_terminal(wrong_image_target, Some(native)),
+        project_build::published_terminal::execute_published_terminal(
+            wrong_image_target,
+            Some(native)
+        ),
         Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection names another artifact or target"
         ))
@@ -121,9 +125,11 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         std::num::NonZeroU64::new(1).unwrap(),
     )
     .unwrap();
-    let published =
-        project_build::published_terminal::execute_published_terminal(request(profile.target_name()), Some(native))
-            .unwrap();
+    let published = project_build::published_terminal::execute_published_terminal(
+        request(profile.target_name()),
+        Some(native),
+    )
+    .unwrap();
     let published_sliced = project_build::published_terminal::execute_published_terminal_sliced(
         request(profile.target_name()),
         Some(native),
