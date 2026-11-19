@@ -343,13 +343,32 @@ fn begin_local_project_preparation_in_storage(
 }
 
 impl LocalProjectPreparation {
+    fn require_current_files(&self) -> Result<(), PrepareLocalProjectError> {
+        if let (Some(transaction), Some(baseline)) = (&self.transaction, &self.baseline) {
+            let current = transaction
+                .read_pair()
+                .map_err(PrepareLocalProjectError::Publication)?;
+            if current.0 != baseline.0 {
+                return Err(PrepareLocalProjectError::Publication(
+                    PackagePublicationError::ConcurrentEdit { file: "build.omg" },
+                ));
+            }
+            if current.1 != baseline.1 {
+                return Err(PrepareLocalProjectError::Publication(
+                    PackagePublicationError::ConcurrentEdit { file: "omega.lock" },
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub fn require_unlocked_anonymous(&self) -> Result<(), PrepareLocalProjectError> {
         if self.accepted.is_some() {
             return Err(PrepareLocalProjectError::Locked(
                 "the accepted package lock requires its named root Build declaration".into(),
             ));
         }
-        Ok(())
+        self.require_current_files()
     }
 
     pub fn entry_path(&self) -> PathBuf {
@@ -458,21 +477,7 @@ impl LocalProjectPreparation {
                 "resolved graph belongs to another project acquisition".into(),
             ));
         }
-        if let (Some(transaction), Some(baseline)) = (&self.transaction, &self.baseline) {
-            let current = transaction
-                .read_pair()
-                .map_err(PrepareLocalProjectError::Publication)?;
-            if current.0 != baseline.0 {
-                return Err(PrepareLocalProjectError::Publication(
-                    PackagePublicationError::ConcurrentEdit { file: "build.omg" },
-                ));
-            }
-            if current.1 != baseline.1 {
-                return Err(PrepareLocalProjectError::Publication(
-                    PackagePublicationError::ConcurrentEdit { file: "omega.lock" },
-                ));
-            }
-        }
+        self.require_current_files()?;
         let source_root = closure
             .source_root(closure.graph().root())
             .ok_or(PrepareLocalProjectError::MissingRootCustody)?;

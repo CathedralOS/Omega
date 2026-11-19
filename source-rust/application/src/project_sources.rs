@@ -210,7 +210,7 @@ pub(crate) fn open_product(
     root: &Path,
     profiles: &[TargetProfile],
     offline: bool,
-    verify: bool,
+    _verify: bool,
     build_directory: Option<&Path>,
     snapshot: Option<BuildSnapshotRequest>,
 ) -> Result<planning::PlannedProduct, Vec<diagnostics::Diagnostic>> {
@@ -265,9 +265,7 @@ pub(crate) fn open_product(
         for &profile in profiles {
             // The graph, exact compiler, and accepted target belong to this invocation.
             // Fresh verification never imports cached judgments into the source compiler.
-            if !verify {
-                project.accepted_root_permissions(profile)?;
-            }
+            project.accepted_root_permissions(profile)?;
         }
         Ok(resolved.root.open_product(Some(&resolved.inputs))?)
     })();
