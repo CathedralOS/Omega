@@ -51,8 +51,8 @@ does not cover its operations:
 ```omega
 boundary trait WallClock: ClockOps<NoState> {}     // now: reaches TimeObservation
 
-machine stamp_now(entry: &mut Entry) reaches WallClock {
-    entry.at = WallClock::now(&mut none);    // Rejected: contributes TimeObservation.
+machine stamp_now(entry: @mut Entry) reaches WallClock {
+    entry.at = WallClock::now(@mut none);    // Rejected: contributes TimeObservation.
 }
 ```
 
@@ -104,11 +104,11 @@ boundary trait Sensor<const Id: u64> {
 }
 
 machine read_sensor<const Id: u64>() -> u64 reaches Sensor<Id> crashes none {
-    Sensor<Id>::read()
+    Sensor::<Id>::read()
 }
 
 machine read_17() -> u64 reaches Sensor<17u64> crashes none {
-    Sensor<29u64>::read()    // Rejected: contributes Sensor<29u64>.
+    Sensor::<29u64>::read()    // Rejected: contributes Sensor<29u64>.
 }
 ```
 
@@ -200,8 +200,8 @@ selection against an explicitly closed destination is ordinary
 
 ```omega
 data CounterOps {
-    clear: machine(counter: &mut Counter) reaches none crashes none terminates;
-    value: machine(counter: &Counter) -> u64 reaches none crashes none terminates;
+    clear: machine(counter: @mut Counter) reaches none crashes none terminates;
+    value: machine(counter: @Counter) -> u64 reaches none crashes none terminates;
 }
 ```
 
@@ -645,7 +645,7 @@ public machine local(value: u32) -> u32 {
 }
 
 public machine example() -> u32 {
-    apply<local>(42)
+    apply::<local>(42)
 }
 ```
 
@@ -753,7 +753,7 @@ public boundary trait Registrar {
 }
 
 public boundary trait FilesystemService {
-    machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+    machine read(file: File, buffer: @mut [u8], count: u64) -> IoResult
         blocks
         reaches FilesystemContentRead
         crashes none;                     // host calls are the provider's business

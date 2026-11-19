@@ -41,7 +41,7 @@ origin participate in boundary-application identity.
 ## Foreign declarations
 
 There is no implicit C array decay. `[T; N]` declares an aggregate by value;
-`&[T; N]` declares a reference. A C parameter written as an array but passed as
+`@[T; N]` declares a reference. A C parameter written as an array but passed as
 a pointer must use the corresponding pointer/reference contract in Omega.
 
 Slices, text views, vectors, and bounded text do not by themselves specify a

@@ -13,7 +13,7 @@ exact product requirement directly to a typed native locator in the owning
 package's Build:
 
 ```omega
-Build::bind<WindowsAudioPlaybackIo::c_play_sound>(
+Build::bind::<WindowsAudioPlaybackIo::c_play_sound>(
 	builder,
 	windows_x86_64,
 	ForeignBinding::DllImport {
