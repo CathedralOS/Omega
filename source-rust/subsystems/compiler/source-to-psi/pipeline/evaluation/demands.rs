@@ -5,7 +5,7 @@ use crate::source_state::TypedTrees;
 /// Every declaration the request reaches from its entries, selections,
 /// bindings, subjects and supplies through the declarations each one names,
 /// sorted. A const argument is demanded when one of these declarations
-/// holds it (`const_argument_jobs`).
+/// holds it.
 pub(crate) fn demanded_declarations(
     program: &TypedTrees,
     request: crate::production::TerminalSourceCompilation<'_>,

@@ -45,8 +45,12 @@ pub(crate) use demands::demanded_declarations;
 
 #[path = "evaluation/constants.rs"]
 mod constants;
-pub use constants::validate_constant_evaluations;
+pub use constants::{
+    evaluate_const_arguments, evaluate_constant_initializers_with_source_consent, validate_constant_evaluations,
+};
 
 #[path = "evaluation/calls.rs"]
 mod calls;
 pub use calls::{InvocationTarget, MeasuredEvaluation, PreparedBuildMachineEntry, PreparedBuildMachineProgram};
+
+pub(crate) use calls::invocation_error;
