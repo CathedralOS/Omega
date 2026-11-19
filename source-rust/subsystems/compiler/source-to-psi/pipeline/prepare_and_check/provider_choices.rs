@@ -2,7 +2,11 @@
 //! This chooses source records; their full contracts are still questions of the
 //! ordinary lowered judgment. No native/ABI ProviderPlan is fabricated here.
 
-use crate::evaluation::provider_declarations::{
+#[path = "provider_choices/authored_defaults.rs"]
+pub(crate) mod authored_defaults;
+pub use authored_defaults::retain_provider_defaults;
+
+use crate::provider_choice_inputs::{
     ProviderSelection, ProviderSelectionSubject, TargetProviderDefaults,
 };
 use crate::provider_supply::{ProviderSupply, SupplyAuthority, UnchosenSupply, choose_supply};
@@ -51,11 +55,11 @@ struct SourceCandidate {
     scope: TraitApplicationEnvironment,
     target: String,
     complete: bool,
-    surface: Arc<declaration_contracts::service_surface::ServiceSurface>,
+    surface: Arc<service_surface::ServiceSurface>,
 }
 fn shares_source_receiver(
-    left: &declaration_contracts::service_surface::ServiceSurface,
-    right: &declaration_contracts::service_surface::ServiceSurface,
+    left: &service_surface::ServiceSurface,
+    right: &service_surface::ServiceSurface,
 ) -> bool {
     left.receiver_applications.iter().any(|left_row| {
         right
@@ -146,18 +150,18 @@ fn declaration<'a>(
     ] {
         if identity.applied {
             if !typed.product_operand_applications.is_valid(
-                crate::evaluation::provider_declarations::source_application(identity.application),
+                crate::provider_choice_inputs::source_application(identity.application),
             ) {
                 return Err(diagnostic(
                     "provider policy lost its exact complete static application",
                 ));
             }
             let retained = typed.product_operand_applications.get(
-                crate::evaluation::provider_declarations::source_application(identity.application),
+                crate::provider_choice_inputs::source_application(identity.application),
             );
             let actual = typed
                 .product_operand_application_identity(
-                    crate::evaluation::provider_declarations::source_application(
+                    crate::provider_choice_inputs::source_application(
                         identity.application,
                     ),
                 )
@@ -212,7 +216,7 @@ pub fn prepare_with_source_defaults(
     let typed: &TypedTrees = source;
     let context = ProviderPlanningContext::new(
         typed,
-        declaration_contracts::source_identity::DependencyScope::Product,
+        source_provenance::DependencyScope::Product,
     );
     let defaults = source_defaults
         .iter()
