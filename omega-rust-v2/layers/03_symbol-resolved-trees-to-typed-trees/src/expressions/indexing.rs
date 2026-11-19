@@ -77,10 +77,9 @@ impl BodyTyper<'_, '_> {
         let element_args = std::slice::from_ref(element);
         let selectors = if range {
             let node = &source.nodes[selector];
-            let delimiter = node
-                .leaves
-                .iter()
-                .find(|l| l.text.starts_with(".."))
+            let delimiter = self
+                .unit
+                .operator(selector)
                 .ok_or_else(|| TypeError::unsupported(source, selector))?;
             let mut start = None;
             let mut end = None;
@@ -99,7 +98,7 @@ impl BodyTyper<'_, '_> {
             CollectionSelectors::Range {
                 start,
                 end,
-                inclusive: delimiter.text == "..=",
+                inclusive: delimiter.token == "..=",
             }
         } else {
             let parameter = &contract.parameters[1].1;

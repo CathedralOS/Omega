@@ -20,6 +20,7 @@ pub(crate) fn collect_width_obligations(
                     Some(Symbol::Binding {
                         span,
                         kind: NodeKind::ConstParam | NodeKind::KindedParam,
+                        ..
                     }) => unit.parameters.get(span).cloned(),
                     _ => unit.open_index(types, arg, &ValueType::integer("u64").unwrap())?,
                 };

@@ -237,7 +237,10 @@ fn applications_bind_the_same_base_and_keep_both_argument_expressions_for_later_
     let text = "data Buffer<const N: u32> {} machine f(x: Buffer<8>, y: Buffer<4 + 4>) {}";
     let stage = run(&[("game", "main.omg", text)], &[]).unwrap();
     assert_eq!(stage.applications.len(), 2);
-    assert_eq!(stage.applications[0].site.target, stage.applications[1].site.target);
+    assert_eq!(
+        stage.uses[stage.applications[0].name_use].target,
+        stage.uses[stage.applications[1].name_use].target
+    );
     let arguments: Vec<_> = stage
         .applications
         .iter()
@@ -531,8 +534,14 @@ fn qualified_members_keep_the_application_on_the_owner_segment() {
     let text = "data Packet<const N: u32> { data Header {} } const Size: u32 = 8; machine parse(h: Packet<Size>::Header) {}";
     let stage = run(&[("app", "packet.omg", text)], &[]).unwrap();
     let application = &stage.applications[0];
-    assert!(matches!(&application.site.target,Symbol::Declaration(id) if id.path=="Packet"));
-    assert_eq!(application.site.span.slice(text.as_bytes()).unwrap(), b"Packet");
+    assert!(matches!(&stage.uses[application.name_use].target,Symbol::Declaration(id) if id.path=="Packet"));
+    assert_eq!(
+        stage.uses[application.name_use]
+            .span
+            .slice(text.as_bytes())
+            .unwrap(),
+        b"Packet"
+    );
     assert!(
         stage
             .uses

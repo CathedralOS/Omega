@@ -217,7 +217,7 @@ impl Catalog<'_> {
             } else {
                 return Err(file.error(span, format!("unavailable import {path}")));
             };
-            uses.push(usage(file, span, target));
+            uses.push(usage(file, h, super::NameRole::Reference, span, target));
         }
         Ok(())
     }
@@ -366,6 +366,7 @@ impl Catalog<'_> {
                 .find(|l| l.type_binding && l.static_binding && n >= l.start && n < l.end)
         {
             Symbol::Binding {
+                binder_node: local.node,
                 span: local.span,
                 kind: local.kind,
             }
@@ -382,7 +383,7 @@ impl Catalog<'_> {
             }
             Symbol::Declaration(id.clone())
         };
-        Ok(Some(usage(file, span, target)))
+        Ok(Some(usage(file, n, super::NameRole::Qualifier, span, target)))
     }
     pub(super) fn occurrence_symbol(
         &self,

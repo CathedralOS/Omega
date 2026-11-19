@@ -64,7 +64,7 @@ pub(crate) fn type_admitted_stage<'text>(
     }
     logical_hypotheses::record_assumption_dependencies(&units, &mut catalog, &mut output)?;
     callback_bounds::resolve_callback_bounds(&units, &mut catalog)?;
-    index_operator_declarations(&units, resolved, &mut catalog)?;
+    index_operator_declarations(resolved, &mut catalog)?;
     constants::infer(&units, &mut catalog, &mut output)?;
     check_bodies(&units, &catalog, &mut output)?;
     if !output.collection_accesses.is_empty() {

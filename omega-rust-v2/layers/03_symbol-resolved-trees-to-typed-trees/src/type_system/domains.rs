@@ -147,6 +147,7 @@ impl<'a> ResolvedSourceFile<'a> {
                 Some(Symbol::Binding {
                     span,
                     kind: NodeKind::TypeParam,
+                    ..
                 }) => self
                     .parameters
                     .get(span)

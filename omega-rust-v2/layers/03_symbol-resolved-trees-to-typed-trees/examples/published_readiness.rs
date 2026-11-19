@@ -300,8 +300,9 @@ fn reflection() -> bool {
                     .any(|u| u.file == "selector.omg" && matches!(&u.target,Symbol::Declaration(id) if id.path==path));
                 let applied = path != "Buffer::used"
                     || n.applications.iter().any(|a| {
-                        a.site.file == "selector.omg"
-                            && matches!(&a.site.target,Symbol::Declaration(id) if id.path=="Buffer")
+                        let name = &n.uses[a.name_use];
+                        name.file == "selector.omg"
+                            && matches!(&name.target,Symbol::Declaration(id) if id.path=="Buffer")
                             && a.arguments
                                 .iter()
                                 .any(|span| span.slice(source.as_bytes()) == Some(b"u32"))

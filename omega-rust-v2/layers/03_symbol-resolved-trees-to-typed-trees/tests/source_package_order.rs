@@ -119,7 +119,7 @@ fn a_consumer_walks_both_typed_arms_without_parser_inputs() {
     assert_eq!(file.nodes[first].kind, NodeKind::Call);
     assert_eq!(file.nodes[second].kind, NodeKind::Index);
     let callee = file.nodes[first].children[0];
-    assert!(matches!(tree.resolved().symbol_at(file.span(callee)), Some(omega_resolver::Symbol::Candidates(ids)) if ids.len() == 2));
+    assert!(matches!(tree.resolved().symbol(callee), Some(omega_resolver::Symbol::Candidates(ids)) if ids.len() == 2));
     let selected = tree
         .semantics_at(first)
         .find_map(|fact| match fact {
@@ -128,7 +128,7 @@ fn a_consumer_walks_both_typed_arms_without_parser_inputs() {
         })
         .unwrap();
     assert_eq!(selected.machine.operands, ["bool"]);
-    assert_eq!(selected.operands[0].span.slice(source.as_bytes()), Some(b"b".as_slice()));
+    assert_eq!(file.span(selected.operands[0].node).slice(source.as_bytes()), Some(b"b".as_slice()));
     assert_eq!(selected.site.span.slice(source.as_bytes()), Some(b"draw(b)".as_slice()));
     assert!(
         tree.semantics_at(second)

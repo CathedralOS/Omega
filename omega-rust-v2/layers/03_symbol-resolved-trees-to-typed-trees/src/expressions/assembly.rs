@@ -1,6 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
 use crate::{Site, TypeError};
-use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
 
@@ -39,13 +38,7 @@ impl BodyTyper<'_, '_> {
                     }
                 }
                 Instruction => {
-                    let first = node
-                        .words()
-                        .next()
-                        .ok_or_else(|| TypeError::unsupported(source, part))?;
-                    let last = node.words().next_back().unwrap_or(first);
-                    let span = SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset());
-                    let Some(Symbol::TargetInstruction(mnemonic)) = self.unit.symbol_at(span) else {
+                    let Some(Symbol::TargetInstruction(mnemonic)) = self.unit.symbol(part) else {
                         return Err(TypeError::at(source, part, "missing resolved instruction identity"));
                     };
                     let variants = target
@@ -75,14 +68,8 @@ impl BodyTyper<'_, '_> {
                         operands: params.clone(),
                     });
                 }
-                AsmTransition => {
-                    let word = node
-                        .words()
-                        .nth(1)
-                        .ok_or_else(|| TypeError::unsupported(source, part))?;
-                    if !matches!(self.unit.symbol_at(word.span),Some(Symbol::Declaration(id)) if id.kind==AsmMachine) {
-                        return Err(TypeError::at(source, part, "assembly transition needs an exact target"));
-                    }
+                AsmTransition if !matches!(self.unit.symbol(part),Some(Symbol::Declaration(id)) if id.kind==AsmMachine) => {
+                    return Err(TypeError::at(source, part, "assembly transition needs an exact target"));
                 }
                 _ => {}
             }

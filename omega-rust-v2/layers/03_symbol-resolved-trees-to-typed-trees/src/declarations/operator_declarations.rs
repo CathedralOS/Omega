@@ -1,12 +1,10 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
-use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_system::overload_identity::same_operands;
 use crate::{TypeError, ValueType};
 use omega_lexer::SourceSpan;
 use omega_resolver::ResolvedStage;
 
 pub(crate) fn index_operator_declarations<'a>(
-    units: &[ResolvedSourceFile<'a>],
     resolved: &'a ResolvedStage,
     catalog: &mut DeclarationCatalog<'a>,
 ) -> Result<(), TypeError> {
@@ -27,17 +25,6 @@ pub(crate) fn index_operator_declarations<'a>(
             "[..]" => arity >= 2,
             _ => arity == 2,
         };
-        let signature_site = || {
-            let unit = units
-                .iter()
-                .find(|u| u.definitions().any(|(_, d)| d == &binding.machine))
-                .unwrap();
-            let span = unit
-                .definitions()
-                .find_map(|(s, d)| (d == &binding.machine).then_some(s))
-                .unwrap();
-            (unit.file.path.to_owned(), span)
-        };
         let family = catalog
             .token_bindings
             .entry(binding.token.as_str())
@@ -53,11 +40,10 @@ pub(crate) fn index_operator_declarations<'a>(
                 && same_operands(&catalog.signatures[&b.machine].params, &b.machine, &signature.params, &binding.machine)
         });
         if !valid || duplicate || primitive {
-            let (file, span) = signature_site();
             return Err(TypeError {
                 package: binding.machine.package.clone(),
-                file,
-                span,
+                file: signature.site.file.clone(),
+                span: signature.site.span,
                 message: if !valid {
                     "incorrect operator arity"
                 } else if primitive {

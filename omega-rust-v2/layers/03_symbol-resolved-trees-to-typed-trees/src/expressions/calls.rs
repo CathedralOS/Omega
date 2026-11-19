@@ -95,6 +95,7 @@ impl BodyTyper<'_, '_> {
             Some(Symbol::Binding {
                 span,
                 kind: NodeKind::ConstParam,
+                ..
             }) => {
                 let c = self.static_callable(*span, callee)?;
                 return self.indirect(node_index, callee, args, &c, false);
@@ -134,7 +135,7 @@ impl BodyTyper<'_, '_> {
             );
         }
         for &section in &source.nodes[callee].children {
-            let Some(symbol) = self.unit.application_segment(callee, section) else {
+            let Some(symbol) = self.unit.application_name(section).map(|name| &name.target) else {
                 return Err(TypeError::unsupported(source, section));
             };
             match symbol {
@@ -340,10 +341,7 @@ impl BodyTyper<'_, '_> {
             site: Site::at(source, node_index),
             machine: id.clone(),
             result: result.clone(),
-            operands: operands
-                .iter()
-                .map(|(site, _)| Site::at(source, *site))
-                .collect(),
+            operands: operands.iter().map(|(node, _)| source.node_id(*node)).collect(),
             type_arguments: bindings,
             enclosing_arguments,
             caller: self.caller.clone(),

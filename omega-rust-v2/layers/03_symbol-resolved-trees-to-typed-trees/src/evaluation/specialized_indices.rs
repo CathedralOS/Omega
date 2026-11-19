@@ -69,7 +69,7 @@ impl IndexSpecializations {
             let owner = unit
                 .file
                 .enclosing_contexts(n)
-                .find_map(|i| unit.declaration_at(unit.file.span(i)))
+                .find_map(|i| unit.declaration_at(i))
                 .ok_or_else(|| fail("evaluation result has no owning declaration"))?;
             if receipt.arguments.iter().any(ValueType::contains_parameter) {
                 return Err(fail("evaluation requires closed arguments"));
