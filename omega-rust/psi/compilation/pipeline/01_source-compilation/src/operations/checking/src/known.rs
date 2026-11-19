@@ -92,6 +92,12 @@ pub(crate) struct Fact {
     pub(crate) axiom: Option<usize>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum DisjunctionOrigin {
+    Assumption { index: usize, conjuncts: Vec<usize> },
+    SemanticAxiom { index: usize, conjuncts: Vec<usize> },
+}
+
 /// Work owned by one fact-tree construction, never shared implicitly.
 #[derive(Debug, Default)]
 pub(crate) struct FactProofWork {
@@ -109,6 +115,52 @@ impl FactProofWork {
 }
 
 impl Fact {
+    /// The same premise can have several transported disjunctions. A branch
+    /// already selects one alternative of that premise, regardless of its
+    /// current value names. Authored sibling conjuncts remain separate cuts.
+    pub(crate) fn disjunction_origin(&self, facts: &[Fact]) -> Option<DisjunctionOrigin> {
+        let mut selected = self;
+        let mut conjuncts = Vec::new();
+        let mut crossed_conjunction = false;
+        for _ in 0..=facts.len() {
+            match &selected.origin {
+                Origin::Assumption(index) => {
+                    conjuncts.reverse();
+                    return Some(DisjunctionOrigin::Assumption {
+                        index: *index,
+                        conjuncts,
+                    });
+                }
+                Origin::SemanticAxiom(index) => {
+                    conjuncts.reverse();
+                    return Some(DisjunctionOrigin::SemanticAxiom {
+                        index: *index,
+                        conjuncts,
+                    });
+                }
+                Origin::Conjunction { parent, conjunct } => {
+                    conjuncts.push(*conjunct);
+                    crossed_conjunction = true;
+                    selected = facts.get(*parent)?;
+                }
+                Origin::Transport { premise, .. } => {
+                    let original = facts.get(*premise)?;
+                    // Denotation sorts and flattens conjunctions. A child of
+                    // the transformed conjunction has no authored ordinal.
+                    if crossed_conjunction
+                        || !matches!(selected.proposition, Proposition::Disjunction(_))
+                        || !matches!(original.proposition, Proposition::Disjunction(_))
+                    {
+                        return None;
+                    }
+                    selected = original;
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
     /// Expand only a selected derivation. The resulting owned tree is exactly
     /// what the unchanged kernel/publication path has always received, so its
     /// logical occurrence and depth budgets do not depend on physical sharing.

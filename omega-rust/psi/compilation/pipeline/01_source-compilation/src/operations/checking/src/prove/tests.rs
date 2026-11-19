@@ -1249,7 +1249,7 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
 
     let mut activity = ProofSearchActivity::default();
     let mut active = Prover::new(&context, &assumptions, &[], &values, &mut activity);
-    active.active_cuts.push(cut);
+    active.active_cuts.push(ActiveCut { proposition: cut, origin: None });
     assert!(active.split(&Proposition::Truth).is_none());
     assert_eq!(active.activity.disjunction_materializations, 0);
     assert_eq!(active.activity.started, 1);

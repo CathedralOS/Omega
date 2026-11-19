@@ -154,6 +154,54 @@ machine build_entry() {
     );
 }
 
+/// The endpoint identity describes a completed add. It cannot establish that
+/// the operands fit before that operation executes.
+#[test]
+fn a_correlated_endpoint_identity_keeps_its_independent_address_fit() {
+    let source = "machine advance(base: addr, capacity: u64, requested: u64) -> addr
+requires embed(base) + embed(capacity) <= addr::Bound, requested < capacity
+ensures embed(result) == embed(base) + embed(requested)
+{
+    let endpoint: addr = base + requested;
+    endpoint
+}
+machine build_entry() {
+    let advanced: addr = advance(4096, 32u64, 17u64);
+}";
+    let missing_fit = source.replace("embed(base) + embed(capacity) <= addr::Bound, ", "");
+    assert_ne!(source, missing_fit);
+    let observed = [judge_build(source), judge_build(&missing_fit)];
+    assert!(
+        matches!(&observed[0], Ok(RouteVerdict::Accepted(_))),
+        "{:?}",
+        observed[0]
+    );
+    let Ok(RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        ..
+    }) = &observed[1]
+    else {
+        panic!(
+            "the endpoint identity cannot form its own address addition: {:?}",
+            observed[1]
+        );
+    };
+    assert!(
+        formations.is_empty() && violations.is_empty(),
+        "{:?}",
+        observed[1]
+    );
+    assert!(
+        unproved.iter().any(|failure| matches!(
+            failure.kind,
+            ObligationKind::OperationSafety { .. }
+        ) && failure.statement.contains("local `endpoint`")),
+        "{unproved:?}"
+    );
+}
+
 #[test]
 fn exact_address_addition_keeps_fit_and_operand_restrictions() {
     let invalid = [
