@@ -149,7 +149,7 @@ Psi to native code) are not planned yet.
 | L1 Parser | tokens → syntax trees | locked, positional rest handoff signed off 2026-11-19 | 1.12 s (previous revision) |
 | L2 Resolver | syntax trees → symbol-resolved trees | locked, revised handoff signed off 2026-11-19 | 0.17 s (2026-11-18 warm median, five runs) |
 | L3 Typer | symbol-resolved trees → typed trees | static-value handoff reopened after the integer handoff sign-off on 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
-| L4 Preparation | typed tree → evaluated, frozen typed tree | open, preparing typed constants and closed applications with integers, Booleans, fixed arrays, records and sum cases; [remaining scope](layers/04_typed-trees-to-prepared-trees/CONTRACT.md#remaining-scope-before-signoff) | — |
+| L4 Preparation | typed tree → evaluated, frozen typed tree | open, preparing typed constants and closed applications with integers, Booleans, fixed arrays, records and sum cases. A recursive countdown tests admission with supplied termination evidence. [Remaining scope](layers/04_typed-trees-to-prepared-trees/CONTRACT.md#remaining-scope-before-signoff) | — |
 | L5 Lowering | prepared tree → Terminal Psi | production lowering not started; closed fixed-array handoff exercised by a consumer test | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |

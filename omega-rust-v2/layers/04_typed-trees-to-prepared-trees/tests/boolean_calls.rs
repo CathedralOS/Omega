@@ -66,7 +66,7 @@ fn a_selected_predicate_checks_the_bound_value_before_running_the_callee() {
 }
 
 #[test]
-fn a_boolean_call_reports_the_cycle_at_the_call_that_closes_it() {
+fn a_boolean_call_reports_the_typed_edge_that_closes_the_recursive_component() {
     let source = "machine first()->bool {second() && true}
                   machine second()->bool {first()}
                   const VALUE:bool=first();";
@@ -74,7 +74,7 @@ fn a_boolean_call_reports_the_cycle_at_the_call_that_closes_it() {
     assert_eq!(error.span.slice(source.as_bytes()), Some(b"first()".as_slice()));
     assert_eq!(
         error.message,
-        "static evaluation cannot admit this invocation: a cyclic static invocation requires a checked termination proof\ncall chain: first -> second -> first"
+        "static evaluation cannot admit this invocation: a cyclic static invocation requires a checked termination proof\nrecursive component: first -> second -> first"
     );
     assert_eq!(error.span.get_start_offset(), source.find("{first()}").unwrap() + 1);
 }
@@ -99,7 +99,7 @@ fn a_cycle_in_a_selected_precondition_refuses_before_entering_the_body() {
     assert_eq!(error.span.get_start_offset(), source.find("requires first()").unwrap() + "requires ".len());
     assert_eq!(
         error.message,
-        "static evaluation cannot admit this invocation: a cyclic static invocation requires a checked termination proof\ncall chain: first -> second -> first"
+        "static evaluation cannot admit this invocation: a cyclic static invocation requires a checked termination proof\nrecursive component: first -> second -> first"
     );
 }
 
