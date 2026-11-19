@@ -24,7 +24,7 @@ authored `build.omg` code can run:
    for this source owner, accepted module, or invocation authority.
 
 `PreparedBuildEvaluation` holds the admitted execution
-without borrowing the source map or compiler session, allowing `orchestration`
+without borrowing the source map or compiler session, allowing the project Build driver
 to compile dependency packages while the activation is suspended and then rejoin
 the returned activation via `validate_return`, `source_result`,
 `validate_source_join`, and `complete`.
@@ -58,7 +58,7 @@ pub struct BuildEvaluationRequest<'request> {
 }
 
 /// The typed frontier of one later stage of a Build that is already running
-/// (`admission/build_stages.rs`), to be judged and admitted under the
+/// to be judged and admitted under the
 /// activation its first stage began.
 pub struct BuildStageRequest<'request> {
     /// Capture and source map rejoined by the preceding staged Build.

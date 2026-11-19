@@ -11,11 +11,11 @@ than a callback loop:
    receiver token, and starts at most one `TerminalBuildActivation` (`started`
    atomic guard). Neither a second instance nor a guest-constructed struct of
    the same type can forge host requests.
-2. `orchestration` drives the activation in work slices via `advance(additional_work)`.
+2. The project Build driver drives the activation in work slices via `advance(additional_work)`.
    Whenever `advance` pauses on a provider readiness demand (`AwaitingEffect`) or
    a Product declaration query (`HostComputationPending`), the activation stays
    suspended in place with its live `TerminalInstance` and `EvaluationInvocationAccount`
-   intact while `orchestration` compiles the required dependency and resumes via
+   intact while the project Build driver compiles the required dependency and resumes via
    `install_provider` or `answer_query`.
 3. Every mutating transition (`advance`, `install_provider`, `answer_query`) sets
    `self.state = ActivationState::Refused` before performing fallible work and
@@ -23,12 +23,12 @@ than a callback loop:
    permanently poisons the activation rather than letting later steps conceal an
    incomplete provider installation or failed query.
 4. On normal return (`complete`), we extract the plain settings from borrowed
-   entry `0` (`settings::extract`), close the interpreter instance before
+   entry `0` (`build_settings::extract`), close the interpreter instance before
    draining host selections and logs, validate the authored project role
    (`project::declaration`), and return `ReturnedBuild` with its complete
    request and demanded-source ledgers attached for coordinator source-join
    settlement.
-5. A Build whose entry is divided into stages (`admission/build_stages.rs`)
+5. A Build whose entry is divided into stages by a dependency preparation
    runs as several accepted programs against this one activation. `carry`
    ends a stage that returned at the preparation dividing it, and
    `TerminalBuildHost::resume` starts the next stage's program with what the
@@ -325,7 +325,7 @@ impl TerminalBuildHost {
     }
 
     /// Starts this stage's program where the previous stage of the same
-    /// activation returned (`admission/build_stages.rs`). The guest `Build`
+    /// activation returned by a dependency preparation. The guest `Build`
     /// holds what the earlier stages wrote, and the hosts continue the
     /// requests, selections, log and files those stages made. Nothing an
     /// earlier stage did runs again, and this is not counted as another Build
