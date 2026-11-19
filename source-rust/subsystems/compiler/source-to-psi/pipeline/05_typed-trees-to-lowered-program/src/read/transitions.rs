@@ -307,6 +307,20 @@ impl Program<'_> {
                     {
                         return Err(unserved("case arm with a guard"));
                     }
+                    // Generated visitation candidates name callbacks for precisely
+                    // the cases that can occur. Use the same record and contracts
+                    // as the dispatch lowerer before discovering the target.
+                    if transition.reflected_active_case {
+                        let contracts =
+                            crate::lowering::inhabitation::SourceContracts(&self.records);
+                        if self.inhabitation.extend(&contracts).is_ok()
+                            && self.inhabitation.case_status(record.record(), case.case)
+                                == terminal_semantics::inhabitation::Status::ProvedEmpty
+                        {
+                            taken += 1;
+                            continue;
+                        }
+                    }
                     Some(case)
                 }
                 (TransitionGuardNode::Always, [], Some(_)) => None,

@@ -80,18 +80,21 @@ mod callable_binder;
 mod named_conformances;
 mod reflected_fields;
 
-pub(crate) fn prepare(
-    program: &mut TypedTrees,
-    proved_empty_sum_cases: crate::preparation::ProvedEmptySumCases,
-) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let first_type = program.type_reference_table.type_reference_count();
     let mut generated = GeneratedMachines::default();
+    // Reflection creates one potential callback branch per declared case. Lowering
+    // decides which branches exist on the exact applied record. Keep a rejection
+    // with its branch, including machines specialized solely for that branch.
+    let mut case_branches = std::collections::HashSet::new();
     let mut captures = crate::source_state::NamedConformanceCaptureIndex::new(program);
     // A generated machine is appended to the machines and read in its turn.
     let mut position = 0;
     while position < program.machines().len() {
         let holder = program.machines()[position].symbol;
-        match reflected_fields::elaborate(program, position, proved_empty_sum_cases) {
+        let conditional = case_branches.contains(&holder);
+        let first_child = program.machines().len();
+        match reflected_fields::elaborate(program, position, &mut case_branches) {
             Ok(()) => {}
             Err((Stop::Unserved(detail), span)) => {
                 program.record_deferred_refusal_with_detail(
@@ -99,6 +102,14 @@ pub(crate) fn prepare(
                     DeferredRequest::StaticApplication,
                     span,
                     detail,
+                );
+            }
+            Err((Stop::Rejected(message), span)) if conditional => {
+                program.record_deferred_refusal_with_detail(
+                    holder,
+                    DeferredRequest::StaticApplication,
+                    span,
+                    message,
                 );
             }
             Err((Stop::Rejected(message), span)) => {
@@ -147,6 +158,14 @@ pub(crate) fn prepare(
                         detail,
                     );
                 }
+                Err(Stop::Rejected(message)) if conditional => {
+                    program.record_deferred_refusal_with_detail(
+                        holder,
+                        DeferredRequest::StaticApplication,
+                        site.source_span(program),
+                        message,
+                    );
+                }
                 Err(Stop::Rejected(message)) => {
                     return Err(vec![
                         Diagnostic::error(message).with_source_span(site.source_span(program)),
@@ -154,6 +173,10 @@ pub(crate) fn prepare(
                 }
                 Err(Stop::Defect(message)) => return Err(vec![Diagnostic::error(message)]),
             }
+        }
+        if conditional {
+            let machines = program.machines();
+            case_branches.extend((first_child..machines.len()).map(|index| machines[index].symbol));
         }
         position += 1;
     }

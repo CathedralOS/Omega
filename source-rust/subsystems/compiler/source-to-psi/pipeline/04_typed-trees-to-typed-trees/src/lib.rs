@@ -11,12 +11,11 @@ mod driver;
 mod passes;
 mod product;
 
+pub use driver::WireCompatibilityDemand;
 #[cfg(any(test, feature = "test-support"))]
-pub use driver::TypedPreparation;
-pub use driver::{
-    PreparationAdmission, PreparationRequest, ProvedEmptySumCases, WireCompatibilityDemand,
-    prepare_typed_trees,
-};
+pub use driver::{PreparationAdmission, PreparationRequest, TypedPreparation, prepare_typed_trees};
+#[cfg(not(any(test, feature = "test-support")))]
+pub use driver::{PreparationRequest, prepare_typed_trees};
 #[cfg(any(test, feature = "test-support"))]
 pub use product::PreparedProductRequirement;
 pub use product::{

@@ -30,7 +30,7 @@ mod active_cases;
 pub(super) fn elaborate(
     program: &mut TypedTrees,
     position: usize,
-    proved_empty_sum_cases: crate::preparation::ProvedEmptySumCases,
+    case_branches: &mut std::collections::HashSet<SymbolHandle>,
 ) -> Result<(), (Stop, source_text::SourceSpan)> {
     let machine = program.machines()[position].clone();
     for state_index in 0..program.machine_states(&machine).len() {
@@ -61,7 +61,7 @@ pub(super) fn elaborate(
                     site,
                     &call,
                     access,
-                    proved_empty_sum_cases,
+                    case_branches,
                 ),
             };
             match replacement {

@@ -17,8 +17,7 @@ use typed_trees::source_state;
 #[cfg(test)]
 use typed_trees_to_lowered_program::lowering;
 #[cfg(test)]
-#[path = "../prepare_and_check/typed_preparation.rs"]
-mod preparation;
+use typed_trees_to_typed_trees::preparation;
 #[path = "src/lib.rs"]
 pub mod checking;
 #[cfg(test)]

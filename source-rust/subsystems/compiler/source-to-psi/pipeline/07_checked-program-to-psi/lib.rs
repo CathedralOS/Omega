@@ -27,8 +27,7 @@ use syntax_trees_to_symbol_resolved_trees::resolution;
 use typed_trees::source_state;
 use typed_trees_to_lowered_program::lowering;
 #[cfg(test)]
-#[path = "../prepare_and_check/typed_preparation.rs"]
-mod preparation;
+use typed_trees_to_typed_trees::preparation;
 #[cfg(test)]
 #[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
