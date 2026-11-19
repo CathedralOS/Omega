@@ -9,6 +9,7 @@ custody and compiler input identity, and assembles the proposed `PackageLockTarg
 without writing `build.omg` or `omega.lock`.
 */
 
+use package_compilation::build_execution::BuildSnapshotRequest;
 use crate::build_session::PackageBuildSession;
 
 #[path = "package_change_error.rs"]
@@ -102,7 +103,7 @@ pub fn review_package_change_reusing(
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
     session: &mut PackageBuildSession,
-    root_build_snapshot: Option<&build_execution::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&BuildSnapshotRequest>,
     source_bindings: &mut PackageSourceBindings,
     execute: &mut crate::review::PackageReviewExecutor<'_>,
 ) -> Result<PackageChangeReview, PackageChangeError> {

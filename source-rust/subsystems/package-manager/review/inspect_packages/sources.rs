@@ -1,5 +1,6 @@
 // Compare executed inspection sources and fresh compiler findings against a target's accepted lock baseline.
 
+use package_compilation::build_execution::BuildSnapshotRequest;
 use super::{PackageInspectionError, failure};
 use crate::build_session::PackageBuildSession;
 use crate::lock::PackageLockTarget;
@@ -23,7 +24,7 @@ pub(super) fn review(
     sources: &PackageInspectionSources,
     target: TargetProfile,
     accepted: Option<&PackageLockTarget>,
-    root_build_snapshot: Option<&build_execution::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&BuildSnapshotRequest>,
     session: &mut PackageBuildSession,
     source_bindings: &mut PackageSourceBindings,
     execute: &mut crate::review::PackageReviewExecutor<'_>,

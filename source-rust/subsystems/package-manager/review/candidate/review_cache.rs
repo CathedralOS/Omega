@@ -16,6 +16,7 @@
     `IndependentComponentDescription`).
 */
 
+use package_compilation::build_execution::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest};
 use std::process::id;
 mod key;
 mod record_codec;
@@ -65,9 +66,9 @@ pub(crate) struct CachedCompiledReview {
     target: target::TargetProfile,
     build_execution_profile: Option<target::TargetProfile>,
     selected_build_machine_identity: String,
-    build_evaluation_usage: Option<build_execution::BuildEvaluationUsage>,
-    build_observation_summary: Option<build_execution::BuildObservationSummary>,
-    restricted_build_requests: Vec<build_execution::RestrictedBuildRequest>,
+    build_evaluation_usage: Option<BuildEvaluationUsage>,
+    build_observation_summary: Option<BuildObservationSummary>,
+    restricted_build_requests: Vec<RestrictedBuildRequest>,
     semantic_bindings: Vec<AcceptedSemanticBinding>,
     semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     build_handoff: PackageBuildHandoff,

@@ -2,6 +2,7 @@
 //! A bound pass recovers evidence against the final inputs and shares the invocation's
 //! accounting with the discovery pass.
 
+use package_compilation::build_execution::BuildSnapshotRequest;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 #[path = "passes_occurrences.rs"]
 mod occurrences;
@@ -23,7 +24,7 @@ pub(crate) use crate::build_session::PackageSourceBindings;
 #[derive(Clone, Copy)]
 pub(crate) struct CandidateReview<'request, 'closure> {
     pub target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
-    pub root_build_snapshot: Option<&'request build_execution::BuildSnapshotRequest>,
+    pub root_build_snapshot: Option<&'request BuildSnapshotRequest>,
 }
 
 pub(crate) fn review_resolved_packages(
@@ -142,7 +143,7 @@ fn note_pass_accounting(
 fn review_pass(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
-    root_build_snapshot: Option<&build_execution::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     prior: Option<&RetainedPackageReviews>,
     source_bindings: &mut PackageSourceBindings,

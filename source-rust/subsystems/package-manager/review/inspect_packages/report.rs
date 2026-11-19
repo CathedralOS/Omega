@@ -1,5 +1,6 @@
 // Bounded text report rendering for observational package inspection (`omega packages`), contrasting accepted lock history with fresh compiler findings and build-snapshot settlements.
 
+use package_compilation::build_execution::BuildObservationSummary;
 use crate::Hex;
 use crate::declarations::PackageKey;
 use crate::lock::PackageLockTarget;
@@ -211,7 +212,7 @@ fn checked_context(
 
 fn build_snapshot(
     output: &mut Output,
-    observation: Option<&build_execution::BuildObservationSummary>,
+    observation: Option<&BuildObservationSummary>,
     verbose: bool,
 ) -> fmt::Result {
     let Some(observation) = observation else {
@@ -244,10 +245,10 @@ fn build_snapshot(
         for entry in entries {
             let path = String::from_utf8_lossy(entry.relative_path());
             match entry.kind() {
-                build_execution::BuildStagedOutputEntryKind::Directory => {
+                build_output::BuildStagedOutputEntryKind::Directory => {
                     writeln!(output, "  sealed-output {path:?} directory")?;
                 }
-                build_execution::BuildStagedOutputEntryKind::File { bytes, executable } => {
+                build_output::BuildStagedOutputEntryKind::File { bytes, executable } => {
                     writeln!(
                         output,
                         "  sealed-output {path:?} file {} bytes{}",
@@ -255,7 +256,7 @@ fn build_snapshot(
                         if executable { " executable" } else { "" }
                     )?;
                 }
-                build_execution::BuildStagedOutputEntryKind::Symlink { target } => {
+                build_output::BuildStagedOutputEntryKind::Symlink { target } => {
                     writeln!(
                         output,
                         "  sealed-output {path:?} symlink {:?}",

@@ -9,6 +9,7 @@ in `omega.lock`, and verifies at `finish` that neither `build.omg` nor `omega.lo
 changed while inspection ran.
 */
 
+use package_compilation::build_execution::{BuildSnapshotCapture, BuildSnapshotRequest};
 use crate::dependencies::LOCAL_PROJECT_CONTEXT;
 use build_evaluation_result::CompileFailure;
 use source_completion_accounting::SourceCompletionAccounting;
@@ -148,7 +149,7 @@ impl PackageInspectionTransaction {
             .options
             .build_inputs
             .clone()
-            .map(|inputs| build_execution::BuildSnapshotRequest::scoped(Vec::new(), inputs));
+            .map(|inputs| BuildSnapshotRequest::scoped(Vec::new(), inputs));
         Ok(PreparedPackageInspection {
             identity: Arc::new(InspectionIdentity),
             transaction: self,
@@ -174,7 +175,7 @@ pub struct PreparedPackageInspection<'inspection> {
     accepted: Option<PackageLock>,
     targets: Vec<TargetProfile>,
     storage: Result<InspectionStorage<'inspection>, PackageInspectionError>,
-    build_snapshot: Option<build_execution::BuildSnapshotRequest>,
+    build_snapshot: Option<BuildSnapshotRequest>,
     completed_targets: usize,
     outcome: PackageInspectionOutcome,
 }
@@ -195,8 +196,8 @@ impl PreparedPackageInspection<'_> {
             .as_ref()
             .map(|snapshot| snapshot.capture())
         {
-            Some(build_execution::BuildSnapshotCapture::Scoped(selected)) => selected,
-            Some(build_execution::BuildSnapshotCapture::PackageInventory) | None => &entire,
+            Some(BuildSnapshotCapture::Scoped(selected)) => selected,
+            Some(BuildSnapshotCapture::PackageInventory) | None => &entire,
         };
         let acquired = AcquiredBuildSource::capture_selected_local(
             self.transaction.project_root(),
@@ -211,7 +212,7 @@ impl PreparedPackageInspection<'_> {
         Ok(acquired)
     }
 
-    pub fn build_snapshot(&self) -> Option<&build_execution::BuildSnapshotRequest> {
+    pub fn build_snapshot(&self) -> Option<&BuildSnapshotRequest> {
         self.build_snapshot.as_ref()
     }
 

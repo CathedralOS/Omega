@@ -22,6 +22,7 @@ mod proposal;
 mod source_review;
 mod state;
 
+use package_compilation::build_execution::BuildSnapshotRequest;
 use crate::build_session::{PackageBuildSession, PackageSourceBindings};
 use crate::declarations::{BuildFileReplacement, PackageKey};
 use crate::dependencies::{LOCAL_PROJECT_CONTEXT, stage_build_dependency_edit};
@@ -203,7 +204,7 @@ impl PackageCommandTransaction {
             .map_or(build_inputs, |proposal| proposal.build_inputs.clone());
         let build_snapshot = build_inputs
             .clone()
-            .map(|inputs| build_execution::BuildSnapshotRequest::scoped(Vec::new(), inputs));
+            .map(|inputs| BuildSnapshotRequest::scoped(Vec::new(), inputs));
         let stage = stage_build_dependency_edit(
             &replacement,
             storage.resolver(),
@@ -256,7 +257,7 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
         .map_err(failure)
     }
 
-    pub fn build_snapshot(&self) -> Option<&build_execution::BuildSnapshotRequest> {
+    pub fn build_snapshot(&self) -> Option<&BuildSnapshotRequest> {
         self.build_snapshot.as_ref()
     }
 
