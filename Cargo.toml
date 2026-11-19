@@ -92,6 +92,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence",
     "source-rust/subsystems/compiler/psi/authorization",
     "source-rust/subsystems/compiler/psi/codec",
+    "source-rust/subsystems/compiler/psi/extent-contracts",
     "source-rust/subsystems/compiler/psi/layout",
     "source-rust/subsystems/compiler/psi/layout/integer-defaults",
     "source-rust/subsystems/compiler/psi/optimization-selections",

@@ -10,5 +10,5 @@ path = "src/lib.rs"
 
 [dependencies]
 resource-bounds = { path = "../../../compiler/psi/storage-bounds" }
-extent-contracts = { path = "../../../compiler/source-to-psi/language/extent-contracts" }
+extent-contracts = { path = "../../../compiler/psi/extent-contracts" }
 arena = { path = "../../../../foundation/arena" }
