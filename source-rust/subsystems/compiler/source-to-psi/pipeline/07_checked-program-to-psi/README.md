@@ -2,7 +2,7 @@
 
 Public contract: [Terminal Psi product](../../../../wiki/spec/terminal-psi/product.md).
 
-The [source driver](../../product/source_judgment.rs) lowers the frozen
+The [source driver](../../source_judgment.rs) lowers the frozen
 source, then passes that input to the lowered-form checker. The
 [accepted-source factory](src/accepted.rs) receives the verdicts and source
 correspondence of that one compilation. It publishes the module and its evidence, then binds the emitted Build request
