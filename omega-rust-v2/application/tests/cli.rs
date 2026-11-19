@@ -168,6 +168,7 @@ fn help_and_usage_errors_have_distinct_statuses_and_streams() {
         &["source", "resolve", "--help"],
         &["source", "type", "-h"],
         &["source", "prepare", "--help"],
+        &["source", "lower", "--help"],
     ] {
         let output = invoke(application_directory(), arguments);
         assert!(output.status.success());
@@ -236,4 +237,20 @@ fn resolve_refuses_a_filename_that_cannot_identify_a_source_module() {
         .unwrap();
     assert_eq!(output.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&output.stderr).contains("logical paths must be UTF-8"));
+}
+
+#[test]
+fn lowers_prepared_array_extent_and_reports_unsupported_runtime_operation() {
+    let root = application_directory().join("../layers/05_prepared-trees-to-terminal-psi/tests/fixtures");
+    let ok = invoke(&root, &["source", "lower", "extent.omg"]);
+    assert!(ok.status.success(), "{}", String::from_utf8_lossy(&ok.stderr));
+    assert!(ok.stdout.is_empty() && ok.stderr.is_empty());
+    let prepared = invoke(&root, &["source", "prepare", "runtime_operation.omg"]);
+    assert!(prepared.status.success(), "{}", String::from_utf8_lossy(&prepared.stderr));
+    let refused = invoke(&root, &["source", "lower", "runtime_operation.omg"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&refused.stderr).trim_end(),
+        "runtime_operation.omg:1:26: lowering: unsupported return expression: Binary"
+    );
 }

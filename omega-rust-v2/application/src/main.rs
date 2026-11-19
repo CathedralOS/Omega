@@ -9,8 +9,8 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--] <package-relative file>...\n       omega source type [--] <package-relative file>...\n       omega source prepare [--] <package-relative file>...";
-const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. Prepare evaluates supported integer constants and static indices and checks the resulting types. For resolve, type and prepare, list the source files of one package rooted at the current directory. Success produces no output.";
+const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--] <package-relative file>...\n       omega source type [--] <package-relative file>...\n       omega source prepare [--] <package-relative file>...\n       omega source lower [--] <package-relative file>...";
+const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. Prepare evaluates constants and static indices and checks the resulting types. Lower constructs portable Psi bodies from prepared source. For resolve, type, prepare and lower, list the source files of one package rooted at the current directory. Success produces no output.";
 
 enum Command<'a> {
     Help,
@@ -30,7 +30,7 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
             [flag] if flag != "--" => Err(format!("unknown option '{}'", flag.to_string_lossy())),
             _ => Err("source parse requires exactly one file".into()),
         },
-        [group, action, rest @ ..] if group == "source" && (action == "resolve" || action == "type" || action == "prepare") => {
+        [group, action, rest @ ..] if group == "source" && (action == "resolve" || action == "type" || action == "prepare" || action == "lower") => {
             if let [flag] = rest
                 && is_help(flag)
             {
@@ -49,7 +49,9 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
             }
             Ok(Command::Stage(
                 files,
-                if action == "prepare" {
+                if action == "lower" {
+                    source::Stage::Lower
+                } else if action == "prepare" {
                     source::Stage::Prepare
                 } else if action == "type" {
                     source::Stage::Type

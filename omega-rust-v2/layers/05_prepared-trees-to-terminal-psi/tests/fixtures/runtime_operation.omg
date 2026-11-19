@@ -1,0 +1,3 @@
+machine width() -> u64 { 1u64 +% 2u64 }
+const WIDTH:u64 = width();
+machine choose(a:[u8;3], b:[u8;WIDTH]) -> [u8;3] { b }
