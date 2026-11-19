@@ -383,7 +383,7 @@ impl Lowerer {
             authored_by_owner.entry(row.owner).or_insert(row);
         }
         let retained_reach =
-            |owner: symbols::SymbolHandle, row: declaration_contracts::ServiceReachRowId| {
+            |owner: symbols::SymbolHandle, row: semantic_vocabulary::ServiceReachRowId| {
                 PendingAuthoredServiceReach::Resolved {
                     row,
                     authored: authored_by_owner.get(&owner).copied().cloned(),

@@ -102,7 +102,7 @@ struct NominalKey {
     formal: usize,
     fields: Vec<SymbolHandle>,
     domain: SymbolHandle,
-    application: declaration_contracts::SemanticDomainId,
+    application: semantic_vocabulary::SemanticDomainId,
 }
 
 impl NominalKey {
@@ -879,7 +879,7 @@ impl Inputs {
                             Unserved::Contract("applied or aliased logical domain theory"),
                         ));
                     }
-                    if definition.semantic_id == declaration_contracts::SemanticDomainId::NULL
+                    if definition.semantic_id == semantic_vocabulary::SemanticDomainId::NULL
                         || definition.semantic_id != domain.semantic_id
                     {
                         return Err(identity(

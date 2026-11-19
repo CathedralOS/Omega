@@ -840,7 +840,8 @@ fn resolve_ranking_view(
     members: &[crate::source_resolved::name::DiagnosticName],
 ) -> declaration_contracts::RankingViewSelection {
     use crate::source_symbols::SymbolLookup;
-    use declaration_contracts::{RankingViewId, RankingViewSelection};
+    use declaration_contracts::RankingViewSelection;
+    use semantic_vocabulary::RankingViewId;
     use symbols::SymbolKind;
     if members.is_empty() {
         return RankingViewSelection::Unresolved;

@@ -104,7 +104,7 @@ machine update(packet: @mut Packet) {
     assert_eq!(cast.semantic_domain_symbol, domain.symbol);
     assert_ne!(
         cast.semantic_domain_id,
-        declaration_contracts::SemanticDomainId::NULL
+        semantic_vocabulary::SemanticDomainId::NULL
     );
     assert_eq!(
         typed.normalized_type_identity(flatten(&typed, declared).0),

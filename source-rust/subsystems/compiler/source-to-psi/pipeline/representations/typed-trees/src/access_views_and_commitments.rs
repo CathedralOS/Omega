@@ -709,21 +709,20 @@ pub(crate) mod access_views {
         pub carrier: TypeReferenceHandle,
         pub base: crate::source_state::data::DataField,
         pub length: crate::source_state::data::DataField,
-        pub granted: declaration_contracts::SemanticDomainId,
-        pub vacant: Option<declaration_contracts::SemanticDomainId>,
-        pub occupied: Option<declaration_contracts::SemanticDomainId>,
+        pub granted: semantic_vocabulary::SemanticDomainId,
+        pub vacant: Option<semantic_vocabulary::SemanticDomainId>,
+        pub occupied: Option<semantic_vocabulary::SemanticDomainId>,
         pub owner: AccessLifecycleOwner,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
-    pub enum AccessLifecycleOwner {
-        #[default]
+    pub enum AccessLifecycleOwner {        #[default]
         Extent,
         Run {
             carrier: TypeReferenceHandle,
             storage: crate::source_state::data::DataField,
             count: crate::source_state::data::DataField,
-            singleton: Option<declaration_contracts::SemanticDomainId>,
+            singleton: Option<semantic_vocabulary::SemanticDomainId>,
         },
     }
 

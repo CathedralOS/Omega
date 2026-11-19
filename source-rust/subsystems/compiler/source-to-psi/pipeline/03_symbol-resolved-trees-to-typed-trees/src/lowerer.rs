@@ -193,8 +193,8 @@ pub(crate) mod progress {
         program: &typed::TypedTrees,
         symbols: &crate::source_symbols::SymbolTable,
         machine: &typed::machine::Machine,
-    ) -> Option<declaration_contracts::RankingViewId> {
-        use declaration_contracts::RankingViewId;
+    ) -> Option<semantic_vocabulary::RankingViewId> {
+        use semantic_vocabulary::RankingViewId;
         use typed::types::TypeReferenceNode;
 
         let witness = machine.termination_plan.implementation_witness.as_ref()?;
@@ -545,7 +545,7 @@ pub(crate) mod progress {
             let unchanged_symbol = symbols::SymbolHandle::from_parts(4, 1);
             let stale = TerminationGuarantee::Terminates {
                 premises: vec![ProgressPremise {
-                    profile: declaration_contracts::SemanticDomainId::NULL,
+                    profile: semantic_vocabulary::SemanticDomainId::NULL,
                     subject: ProgressSubject {
                         root: changed_symbol,
                         projections: Vec::new(),
@@ -633,8 +633,8 @@ pub(crate) mod seeded_continuation {
     use crate::source_state::TypedTrees;
     use crate::source_symbols::SourceScopedTopLevelBinding;
     use crate::source_tables::SemanticDomainTable;
-    use declaration_contracts::SemanticDomainId;
     use diagnostics::Diagnostic;
+    use semantic_vocabulary::SemanticDomainId;
     use std::sync::Arc;
     use symbols::SymbolHandle;
 

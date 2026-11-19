@@ -310,7 +310,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
     {
         return None;
     }
-    let reach = if *service_reach_row == declaration_contracts::ServiceReachRowId::NULL {
+    let reach = if *service_reach_row == semantic_vocabulary::ServiceReachRowId::NULL {
         "inferred"
     } else if *service_reach_row == crate::source_tables::ServiceReachRowTable::EMPTY_ROW {
         "none"

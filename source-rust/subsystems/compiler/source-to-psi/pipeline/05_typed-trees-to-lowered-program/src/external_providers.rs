@@ -2,7 +2,7 @@
 //! Candidates are unsealed questions until the lowered checker proves them.
 
 use arena::IdTable;
-use declaration_contracts::ExternalBindingIdentity;
+use semantic_vocabulary::ExternalBindingIdentity;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;

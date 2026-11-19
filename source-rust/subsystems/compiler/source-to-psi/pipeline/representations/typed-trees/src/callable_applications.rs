@@ -1282,8 +1282,8 @@ pub(crate) mod domain_scopes {
             program: &mut TypedTrees,
             declaration: SymbolHandle,
             arguments: &[types::TypeReferenceHandle],
-            original: declaration_contracts::SemanticDomainId,
-        ) -> Result<declaration_contracts::SemanticDomainId, &'static str> {
+            original: semantic_vocabulary::SemanticDomainId,
+        ) -> Result<semantic_vocabulary::SemanticDomainId, &'static str> {
             if !declaration.is_valid() {
                 return Ok(original);
             }
@@ -1337,7 +1337,7 @@ pub(crate) mod domain_scopes {
             declaration: SymbolHandle,
             carrier: types::TypeReferenceHandle,
             arguments: &[types::TypeReferenceHandle],
-        ) -> Result<declaration_contracts::SemanticDomainId, diagnostics::Diagnostic> {
+        ) -> Result<semantic_vocabulary::SemanticDomainId, diagnostics::Diagnostic> {
             let definition = self.domain_definition(declaration).ok_or_else(|| {
                 diagnostics::Diagnostic::error("domain application lost its declaration")
             })?;
@@ -1366,7 +1366,7 @@ pub(crate) mod domain_scopes {
             &mut self,
             declaration: SymbolHandle,
             arguments: &[types::TypeReferenceHandle],
-        ) -> Result<declaration_contracts::SemanticDomainId, diagnostics::Diagnostic> {
+        ) -> Result<semantic_vocabulary::SemanticDomainId, diagnostics::Diagnostic> {
             let definition = self.domain_definition(declaration).ok_or_else(|| {
                 diagnostics::Diagnostic::error("domain application lost its declaration")
             })?;
@@ -1542,7 +1542,7 @@ pub(crate) mod domain_scopes {
         #[test]
         fn domain_application_lookup_is_exact_and_rebuilt_from_stored_rows() {
             use record_storage::{RecordLimits, decode, encode};
-            use declaration_contracts::SemanticDomainId;
+            use semantic_vocabulary::SemanticDomainId;
 
             let mut applications = domain::AppliedDomainApplications::default();
             for (declaration, identity) in [

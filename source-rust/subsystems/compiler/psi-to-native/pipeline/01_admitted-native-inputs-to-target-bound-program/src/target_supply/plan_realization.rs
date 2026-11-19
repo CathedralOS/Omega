@@ -326,7 +326,7 @@ fn direct_leaves(
                 .partition_point(|binding| binding.requirement_identity == callable);
         let foreign = &foreign_bindings[begin..end];
         let (binding, mechanism, execution) = match &row.binding {
-            declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic => (
+            semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic => (
                 ProviderBinding::CompilerIntrinsic {
                     machine: callable.to_owned(),
                 },
@@ -335,7 +335,7 @@ fn direct_leaves(
                     effects::external_providers::canonical_external_execution(row, target)?,
                 ),
             ),
-            declaration_contracts::ExternalBindingIdentity::Syscall { number } => {
+            semantic_vocabulary::ExternalBindingIdentity::Syscall { number } => {
                 let execution = match foreign {
                     [binding]
                         if binding.binding

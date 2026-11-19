@@ -3056,7 +3056,7 @@ pub mod expression {
                             semantic_domain: HandleSpan::empty(),
                             semantic_domain_arguments: HandleSpan::empty(),
                             semantic_domain_symbol: SymbolHandle::invalid(),
-                            semantic_domain_id: declaration_contracts::SemanticDomainId::NULL,
+                            semantic_domain_id: semantic_vocabulary::SemanticDomainId::NULL,
                             form: cast.form,
                         }))
                     }
@@ -4916,7 +4916,7 @@ pub mod expression {
         pub semantic_domain: HandleSpan<Identifier>,
         pub semantic_domain_arguments: HandleSpan<crate::source_state::types::TypeReferenceHandle>,
         pub semantic_domain_symbol: SymbolHandle,
-        pub semantic_domain_id: declaration_contracts::SemanticDomainId,
+        pub semantic_domain_id: semantic_vocabulary::SemanticDomainId,
         pub form: language_core::cast_form::CastForm,
     }
 

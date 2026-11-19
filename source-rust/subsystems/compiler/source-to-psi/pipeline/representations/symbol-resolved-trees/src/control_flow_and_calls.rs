@@ -43,7 +43,7 @@ pub mod calls {
             pub native_callback_parameters: Vec<NativeCallbackParameter>,
             pub return_type: Option<TypeReference>,
             pub invokes: HandleSpan<DiagnosticName>,
-            pub service_reach_row: declaration_contracts::ServiceReachRowId,
+            pub service_reach_row: semantic_vocabulary::ServiceReachRowId,
             pub service_reach_is_installation_bound: bool,
             pub suspends_keyword_source_spans: Vec<source_text::SourceSpan>,
             pub blocks_keyword_source_spans: Vec<source_text::SourceSpan>,
@@ -154,7 +154,7 @@ pub mod control_flow {
             pub structural_type_equations_pending: bool,
             pub has_structural_type_equations: bool,
             pub termination_plan: declaration_contracts::MachineTerminationPlan,
-            pub service_reach_row: declaration_contracts::ServiceReachRowId,
+            pub service_reach_row: semantic_vocabulary::ServiceReachRowId,
             pub service_reach_is_installation_bound: bool,
             pub admitted_same_stack_bytes: u64,
             /// The header wrote `crashes none`; see the syntax trees' field
@@ -244,7 +244,7 @@ pub mod control_flow {
             pub arguments: HandleSpan<crate::source_resolved::types::TypeReference>,
             pub requirement: Option<DiagnosticName>,
             pub alias: Option<DiagnosticName>,
-            pub external_binding: Option<declaration_contracts::ExternalBindingId>,
+            pub external_binding: Option<semantic_vocabulary::ExternalBindingId>,
             pub via_expression: ExpressionHandle,
             pub external_binding_source_span: Option<source_text::SourceSpan>,
         }

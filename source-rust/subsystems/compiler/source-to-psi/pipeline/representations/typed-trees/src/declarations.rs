@@ -1107,7 +1107,7 @@ pub mod domain {
         pub facts: HandleSpan<ProofFact>,
         pub operators: HandleSpan<crate::source_state::operator::OperatorDefinition>,
         pub semantic_clause_token_count: usize,
-        pub semantic_id: declaration_contracts::SemanticDomainId,
+        pub semantic_id: semantic_vocabulary::SemanticDomainId,
         pub semantic_roles: declaration_contracts::DomainSemanticRoles,
         pub establishment_routes: Vec<declaration_contracts::DomainEstablishmentRoute>,
         pub access_policy: Option<DomainAccessPolicy>,
@@ -1224,7 +1224,7 @@ pub mod domain {
                 facts: HandleSpan::empty(),
                 operators: HandleSpan::empty(),
                 semantic_clause_token_count: 0,
-                semantic_id: declaration_contracts::SemanticDomainId::NULL,
+                semantic_id: semantic_vocabulary::SemanticDomainId::NULL,
                 semantic_roles: declaration_contracts::DomainSemanticRoles::default(),
                 establishment_routes: Vec::new(),
                 access_policy: None,
@@ -1547,7 +1547,7 @@ pub mod domain {
         pub domain: HandleSpan<Identifier>,
         pub domain_symbol: SymbolHandle,
         pub domain_arguments: HandleSpan<TypeReferenceHandle>,
-        pub semantic_domain: declaration_contracts::SemanticDomainId,
+        pub semantic_domain: semantic_vocabulary::SemanticDomainId,
         pub authored_domain_selection:
             Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
     }
@@ -1559,7 +1559,7 @@ pub mod domain {
                 domain: HandleSpan::empty(),
                 domain_symbol: SymbolHandle::invalid(),
                 domain_arguments: HandleSpan::empty(),
-                semantic_domain: declaration_contracts::SemanticDomainId::NULL,
+                semantic_domain: semantic_vocabulary::SemanticDomainId::NULL,
                 authored_domain_selection: None,
             }
         }
@@ -1669,7 +1669,7 @@ pub mod domain {
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct AppliedDomainApplication {
         pub declaration: SymbolHandle,
-        pub identity: declaration_contracts::SemanticDomainId,
+        pub identity: semantic_vocabulary::SemanticDomainId,
         /// The declaration's whole telescope, including a generic carrier.
         pub arguments: Vec<TypeReferenceHandle>,
         /// Whether the complete coordinate contains no remaining value/type
@@ -1687,10 +1687,7 @@ pub mod domain {
     pub struct AppliedDomainApplications {
         rows: arena::RetainedRows<AppliedDomainApplication>,
         by_application: std::sync::Arc<
-            std::collections::HashMap<
-                (SymbolHandle, declaration_contracts::SemanticDomainId),
-                usize,
-            >,
+            std::collections::HashMap<(SymbolHandle, semantic_vocabulary::SemanticDomainId), usize>,
         >,
     }
 
@@ -1710,7 +1707,7 @@ pub mod domain {
         pub(crate) fn find(
             &self,
             declaration: SymbolHandle,
-            identity: declaration_contracts::SemanticDomainId,
+            identity: semantic_vocabulary::SemanticDomainId,
         ) -> Option<&AppliedDomainApplication> {
             self.by_application
                 .get(&(declaration, identity))
@@ -1751,13 +1748,13 @@ pub mod domain {
             let allocation = rows
                 .len()
                 .checked_mul(std::mem::size_of::<(
-                    (SymbolHandle, declaration_contracts::SemanticDomainId),
+                    (SymbolHandle, semantic_vocabulary::SemanticDomainId),
                     usize,
                 )>())
                 .ok_or_else(|| input.error("domain application index allocation overflow"))?;
             let owner = record_storage::shared_allocation_bytes(std::alloc::Layout::new::<
                 std::collections::HashMap<
-                    (SymbolHandle, declaration_contracts::SemanticDomainId),
+                    (SymbolHandle, semantic_vocabulary::SemanticDomainId),
                     usize,
                 >,
             >())
@@ -1787,7 +1784,7 @@ pub mod domain {
         pub fn domain_application(
             &self,
             symbol: SymbolHandle,
-            identity: declaration_contracts::SemanticDomainId,
+            identity: semantic_vocabulary::SemanticDomainId,
         ) -> Option<&AppliedDomainApplication> {
             self.applied_domain_applications.find(symbol, identity)
         }
@@ -1795,7 +1792,7 @@ pub mod domain {
         pub fn domain_arguments_for_instance(
             &self,
             symbol: SymbolHandle,
-            identity: declaration_contracts::SemanticDomainId,
+            identity: semantic_vocabulary::SemanticDomainId,
         ) -> Option<&[TypeReferenceHandle]> {
             let declared = self.domain_definition(symbol)?;
             if self.domain_type_parameters(declared).is_empty() && declared.semantic_id == identity
@@ -1809,7 +1806,7 @@ pub mod domain {
         pub fn domain_definition_for_instance(
             &self,
             symbol: SymbolHandle,
-            identity: declaration_contracts::SemanticDomainId,
+            identity: semantic_vocabulary::SemanticDomainId,
         ) -> Option<&DomainDefinition> {
             let declared = self.domain_definition(symbol)?;
             if self.domain_type_parameters(declared).is_empty() && declared.semantic_id == identity

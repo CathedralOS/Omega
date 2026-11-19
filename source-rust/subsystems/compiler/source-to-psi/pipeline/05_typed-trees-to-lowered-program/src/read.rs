@@ -2098,7 +2098,7 @@ mod tests {
                     domains: DomainSet::EMPTY
                         .with(crate::lowering::body::DomainInstance {
                             declaration: foreign,
-                            identity: declaration_contracts::SemanticDomainId::NULL,
+                            identity: semantic_vocabulary::SemanticDomainId::NULL,
                         })
                         .unwrap(),
                 },

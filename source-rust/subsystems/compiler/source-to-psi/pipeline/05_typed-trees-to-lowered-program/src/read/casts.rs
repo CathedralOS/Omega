@@ -458,7 +458,7 @@ impl Program<'_> {
             };
         } else {
             if !cast.semantic_domain_symbol.is_valid()
-                || cast.semantic_domain_id == declaration_contracts::SemanticDomainId::NULL
+                || cast.semantic_domain_id == semantic_vocabulary::SemanticDomainId::NULL
             {
                 return Err(unavailable());
             }
@@ -855,7 +855,7 @@ mod tests {
             semantic_domain: arena::HandleSpan::empty(),
             semantic_domain_arguments: arena::HandleSpan::empty(),
             semantic_domain_symbol: SymbolHandle::invalid(),
-            semantic_domain_id: declaration_contracts::SemanticDomainId::NULL,
+            semantic_domain_id: semantic_vocabulary::SemanticDomainId::NULL,
             form: CastForm::Value,
         }
     }

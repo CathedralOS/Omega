@@ -498,7 +498,7 @@ fn lower_state_signature_contents(
                     .collect(),
                 return_type,
                 invokes,
-                service_reach_row: declaration_contracts::ServiceReachRowId::NULL,
+                service_reach_row: semantic_vocabulary::ServiceReachRowId::NULL,
                 service_reach_is_installation_bound,
                 suspends_keyword_source_spans: suspends_keyword_source_spans.to_vec(),
                 blocks_keyword_source_spans: blocks_keyword_source_spans.to_vec(),

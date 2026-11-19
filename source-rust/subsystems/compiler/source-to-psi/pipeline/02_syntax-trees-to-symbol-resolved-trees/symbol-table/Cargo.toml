@@ -8,6 +8,7 @@ version.workspace = true
 path = "symbol_table.rs"
 
 [dependencies]
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 arena = { path = "../../../../../../foundation/arena" }
 bundled-declarations = { path = "../bundled-declarations" }
 language-core = { path = "../../../../foundation/language-core" }

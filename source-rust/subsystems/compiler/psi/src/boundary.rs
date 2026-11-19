@@ -1436,7 +1436,7 @@ pub(crate) mod external_providers {
         CheckedMachineDeclaration, NominalDeclarationIdentity, TerminalIdentityIndex,
         TerminalIdentityTable,
     };
-    use declaration_contracts::ExternalBindingIdentity;
+    use semantic_vocabulary::ExternalBindingIdentity;
     use semantic_vocabulary::PackageKeyIdentity;
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
