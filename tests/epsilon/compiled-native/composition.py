@@ -4,11 +4,12 @@ The target runtime is a closed leaf implementation from the common Epsilon
 source authority. It contains neither a parser nor an AST evaluator/dispatcher.
 No host extraction, transformation, or dead-code selection builds its text.
 """
+from hashlib import sha256
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 EPSILON = ROOT / 'bootstrap/interpreted/4_epsilon'
-COMPILER = Path(__file__).parent
+COMPILER = ROOT / 'bootstrap/independent/epsilon'
 COMPILER_MODULES = (
     'emission.delta', 'text.delta', 'compilation.delta', 'locals.delta',
     'binary.delta', 'expressions.delta', 'calls.delta', 'machines.delta',
@@ -24,10 +25,36 @@ RUNTIME_MODULES = (
 )
 
 
+def epsilon_members():
+    manifest = EPSILON / 'epsilon_compiler.delta.sources'
+    for row in manifest.read_text().splitlines()[1:]:
+        _, _, length, digest, name = row.split()
+        yield int(length), digest, name
 
-def compiler_source(checked_epsilon_closure):
+
+def checker_source(packed_evaluator):
+    # The checker and the evaluator share ordered source files. Keep the whole
+    # checker members, using the bytes already admitted by the materializer.
+    selected = []
+    offset = 0
+    for length, digest, name in epsilon_members():
+        end = offset + length
+        member = packed_evaluator[offset:end]
+        if sha256(member).hexdigest() != digest:
+            raise ValueError(f'packed evaluator member differs from its manifest: {name}')
+        # Emitting a checked string literal uses the evaluator's byte decoder.
+        if name in ('source.delta', 'execution/views/strings.delta') or name.startswith(
+                ('representations/', 'lexical/', 'parsing/', 'checking/')):
+            selected.append(member)
+        offset = end
+    if offset != len(packed_evaluator):
+        raise ValueError('packed evaluator length differs from its manifest')
+    return b''.join(selected)
+
+
+def compiler_source(packed_evaluator):
     return ((COMPILER / 'representations.delta').read_bytes()
-            + checked_epsilon_closure + b'\n'
+            + checker_source(packed_evaluator) + b'\n'
             + b'\n'.join((COMPILER / name).read_bytes() for name in COMPILER_MODULES)
             + b'\n' + (COMPILER / 'entry.delta').read_bytes())
 
@@ -50,9 +77,7 @@ def runtime_declarations(runtime='pure'):
     if runtime == 'pure':
         names = RUNTIME_MODULES[:2]
     elif runtime == 'storage':
-        manifest = EPSILON / 'epsilon_compiler.delta.sources'
-        names = [line.split()[4] for line in manifest.read_text().splitlines()[1:]
-                 if line.split()[4].startswith('representations/')]
+        names = [name for _, _, name in epsilon_members() if name.startswith('representations/')]
     else:
         raise ValueError(f'unknown compiler runtime {runtime!r}')
     result = (b''.join((EPSILON / name).read_bytes() for name in names)

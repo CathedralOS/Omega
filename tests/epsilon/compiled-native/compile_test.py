@@ -15,10 +15,10 @@ import traceback
 
 ROOT = Path(__file__).resolve().parents[3]
 COMPILER = ROOT / 'bootstrap/independent/epsilon'
-SPEC = importlib.util.spec_from_file_location('epsilon_composition', COMPILER / 'composition.py')
+FIXTURES = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location('epsilon_composition', FIXTURES / 'composition.py')
 composition = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(composition)
-FIXTURES = Path(__file__).resolve().parent
 CONSOLE = b'''boundary trait Console {
  machine exit_process(return_code: i32) -> never;
  machine write_byte(value: i32);
