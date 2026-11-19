@@ -45,7 +45,7 @@ pub struct TerminalNativeRealizationProposal {
     providers: TerminalNativeProviders,
     occurrences: TerminalNativeOccurrences,
     boundary_applications: TerminalNativeBoundaryApplications,
-    package_terminal_authority_permissions: Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
+    package_terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
     behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
     target_provider_proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
@@ -68,7 +68,7 @@ impl TerminalNativeRealizationProposal {
         occurrences: TerminalNativeOccurrences,
         boundary_applications: TerminalNativeBoundaryApplications,
         mut package_terminal_authority_permissions: Vec<
-            host_provider_inputs::ServiceTerminalAuthorityPermission,
+            provider_acceptance::ServiceTerminalAuthorityPermission,
         >,
         package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
         behavior_exclusions: native_behavior_exclusions::BehaviorExclusions,
@@ -148,7 +148,7 @@ impl TerminalNativeRealizationProposal {
 
     pub fn package_terminal_authority_permissions(
         &self,
-    ) -> &[host_provider_inputs::ServiceTerminalAuthorityPermission] {
+    ) -> &[provider_acceptance::ServiceTerminalAuthorityPermission] {
         &self.package_terminal_authority_permissions
     }
 
@@ -183,7 +183,7 @@ mod proposal {
         pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
         pub behavior_exclusions: &'input [behavior_exclusion_requests::AuthoredBehaviorExclusion],
         pub package_terminal_authority_permissions:
-            Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
+            Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
         pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
         pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     }

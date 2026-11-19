@@ -21,6 +21,7 @@ terminal-codec = { path = "psi/codec" }
 psi-authorization = { path = "psi/authorization" }
 
 [dev-dependencies]
+provider-acceptance = { path = "build/providers/acceptance" }
 direct-boundary-bindings = { path = "psi-to-native/verification/provider-correspondence/direct-boundaries" }
 project-build = { path = "build" }
 target-provider-admission = { path = "psi-to-native/verification/target-providers" }

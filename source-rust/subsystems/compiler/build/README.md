@@ -17,6 +17,8 @@ Before publishing into a caller-visible directory, the host [acquires it for the
 [Provider plans](providers/plans/provider_plan.rs) carry one provider's rows for a
 service and target. Build derives the plan from checked conformances and evaluated
 native bindings. Each plan and its retained bytes share the same canonical identity.
-Receiving policy checks the selected plan in its own admission context.
+The receiver’s [service acceptance](providers/acceptance/acceptance.rs) records the
+package, declaration, expected schema and per-requirement permissions. Program-entry
+roles compare the declaration commitment before the target calling plan is selected.
 
 The loop and host interface are a prototype of the [V2 build decision](../../../../omega-rust-v2/PLAN.md#v2s-build-model-a-chain-of-stages). Implementing plan admission and interpreter integration is still open.

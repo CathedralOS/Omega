@@ -8,10 +8,10 @@ version.workspace = true
 path = "installation.rs"
 
 [dependencies]
+provider-acceptance = { path = "../../../../build/providers/acceptance" }
 declaration-scope = { path = "../../../../foundation/declaration-scope" }
 evaluation-receipts = { path = "../../../../build/evaluation/receipts" }
 psi-authorization = { path = "../../../../psi/authorization" }
-record-storage = { path = "../../../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
 terminal-codec = { path = "../../../../psi/codec" }

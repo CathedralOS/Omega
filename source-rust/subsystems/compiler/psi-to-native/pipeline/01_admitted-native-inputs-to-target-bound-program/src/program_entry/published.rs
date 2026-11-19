@@ -4,7 +4,7 @@ use super::{
 };
 use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
 use diagnostics::Diagnostic;
-use host_provider_inputs::AcceptedSemanticBinding;
+use provider_acceptance::AcceptedSemanticBinding;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
@@ -164,7 +164,7 @@ fn admit_entry_schema(
     let package = slot
         .physical_contract_package
         .ok_or("entry slot has no physical contract package")?;
-    let role = host_provider_inputs::program_entry_semantic_binding_role(package);
+    let role = provider_acceptance::program_entry_semantic_binding_role(package);
     match (custody, binding) {
         (DeclarationCustody::ToolchainContract, None)
             if schema.declaration.trait_package_identity.is_none() =>
@@ -177,7 +177,7 @@ fn admit_entry_schema(
                 && schema.declaration.trait_package_identity == Some(owner)
                 && schema.identity_text(schema.declaration.trait_name)
                     == binding.declaration_path()
-                && effects::semantic_bindings::accepted_service_schema_digest(role, schema)
+                && provider_acceptance::accepted_service_schema_digest(role, schema)
                     == binding.normalized_schema_digest() =>
         {
             Ok(())

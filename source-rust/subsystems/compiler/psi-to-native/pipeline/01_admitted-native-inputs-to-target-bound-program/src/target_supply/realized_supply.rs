@@ -30,7 +30,7 @@ pub struct TargetSupplyRealizationInput {
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     pub evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
-    pub terminal_authority_permissions: Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
+    pub terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     pub terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
@@ -57,7 +57,7 @@ pub struct SelectedProviderRealization {
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
-    terminal_authority_permissions: Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
+    terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
@@ -567,7 +567,7 @@ impl SelectedProviderRealization {
     pub fn evaluated_binding_identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.evaluated_binding_identities
     }
-    pub fn terminal_authority_permissions(&self) -> &[host_provider_inputs::ServiceTerminalAuthorityPermission] {
+    pub fn terminal_authority_permissions(&self) -> &[provider_acceptance::ServiceTerminalAuthorityPermission] {
         &self.terminal_authority_permissions
     }
     pub fn terminal_authority_permission_identities(&self) -> &terminal_psi::TerminalIdentityTable {

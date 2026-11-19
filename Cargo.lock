@@ -649,6 +649,7 @@ version = "0.1.0"
 dependencies = [
  "direct-boundary-bindings",
  "project-build",
+ "provider-acceptance",
  "provider-demand",
  "host-provider-inputs",
  "abstract-operations",
@@ -1166,8 +1167,8 @@ version = "0.1.0"
 dependencies = [
  "declaration-scope",
  "evaluation-receipts",
+ "provider-acceptance",
  "psi-authorization",
- "record-storage",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
@@ -1304,7 +1305,6 @@ dependencies = [
  "build-declarations",
  "compiler",
  "diagnostics",
- "effects",
  "mimalloc",
  "orchestration",
  "package-compilation",
@@ -1740,6 +1740,7 @@ version = "0.1.0"
 dependencies = [
  "behavior-exclusion-requests",
  "native-behavior-exclusions",
+ "provider-acceptance",
  "provider-correspondence",
  "provider-demand",
  "host-provider-inputs",
@@ -2188,7 +2189,6 @@ dependencies = [
  "cap-std",
  "declaration-scope",
  "diagnostics",
- "effects",
  "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
@@ -2198,6 +2198,7 @@ dependencies = [
  "optimization-requests",
  "optimization-selections",
  "platform-custody",
+ "provider-acceptance",
  "record-storage",
  "semantic-vocabulary",
  "sha2",
@@ -2237,6 +2238,7 @@ dependencies = [
  "package-compilation",
  "platform-custody",
  "products",
+ "provider-acceptance",
  "provider-admission",
  "provider-plans",
  "record-storage",
@@ -2305,11 +2307,11 @@ name = "portable-publication"
 version = "0.1.0"
 dependencies = [
  "checked-program-to-psi",
+ "provider-acceptance",
  "provider-demand",
  "host-provider-inputs",
  "declaration-scope",
  "diagnostics",
- "effects",
  "optimization",
  "package-compilation",
  "semantic-vocabulary",
@@ -2514,6 +2516,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-acceptance"
+version = "0.1.0"
+dependencies = [
+ "provider-plans",
+ "record-storage",
+ "semantic-vocabulary",
+ "target",
+ "terminal-psi",
+]
+
+[[package]]
 name = "provider-admission"
 version = "0.1.0"
 dependencies = [
@@ -2526,7 +2539,6 @@ dependencies = [
  "diagnostics",
  "direct-boundary-bindings",
  "function-identity",
- "host-provider-inputs",
  "installation-conditions",
  "language-core",
  "layout",
@@ -2538,6 +2550,7 @@ dependencies = [
  "numerics",
  "operation-evidence",
  "optimization-unit-semantics",
+ "provider-acceptance",
  "provider-correspondence",
  "provider-plans",
  "provider-stack-contribution",
@@ -2600,6 +2613,7 @@ dependencies = [
  "evaluation-admission",
  "build-scalar-evaluation",
  "native-intrinsics",
+ "provider-acceptance",
  "provider-demand",
  "host-provider-inputs",
  "application-identity",
@@ -2608,7 +2622,6 @@ dependencies = [
  "calling-conventions",
  "declaration-scope",
  "diagnostics",
- "effects",
  "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
@@ -2839,7 +2852,6 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "direct-boundary-bindings",
- "effects",
  "evaluation-receipts",
  "language-core",
  "layout-plans",
@@ -2848,6 +2860,7 @@ dependencies = [
  "numerics",
  "package-compilation",
  "products",
+ "provider-acceptance",
  "provider-plans",
  "psi-effect-contracts",
  "selected-provider-plans",
@@ -4047,13 +4060,13 @@ dependencies = [
  "boundary-applications",
  "calling-conventions",
  "direct-boundary-bindings",
- "host-provider-inputs",
  "installation-conditions",
  "native-behavior-exclusions",
  "native-binding-admission",
  "native-intrinsics",
  "operation-evidence",
  "operation-operands",
+ "provider-acceptance",
  "provider-plans",
  "psi-authorization",
  "psi-entry-memory",

@@ -17,7 +17,7 @@ struct PublishedApplicationInputs<'a, Publisher> {
     artifact: &'a Arc<terminal_codec::CanonicalTerminalArtifact>,
     execution: &'a PublishedSelection<Publisher, SelectedProviderResult>,
     proposal: Option<target_provider_admission::TerminalTargetProviderProposal>,
-    bindings: &'a [host_provider_inputs::AcceptedSemanticBinding],
+    bindings: &'a [provider_acceptance::AcceptedSemanticBinding],
     package_permissions:
         Option<&'a declaration_scope::ProductDeclarationScope>,
     application: target::NativeApplicationMetadata,
