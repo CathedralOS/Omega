@@ -33,7 +33,7 @@ fn try_typed_in_package(
             package,
             source_admission::SourceOrigin::User,
             source_admission::SourceResolutionStratum::Base,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         )
         .source_id;
     let tokens = crate::checking::frontend_fixture::Lexer::new(text)
@@ -74,7 +74,7 @@ fn invocation(typed: crate::source_state::TypedTrees) -> Checked<crate::lowering
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],
@@ -305,7 +305,7 @@ fn source_service_signature(typed: &crate::source_state::TypedTrees, owner: &str
     let surface = from_typed(
         ProviderPlanningContext::new(
             typed,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         declaration,
     )
@@ -369,7 +369,7 @@ machine entry() reaches Child {}
     let projected = crate::source_state::service_declarations::projection::from_typed(
         crate::source_state::provider_declarations::ProviderPlanningContext::new(
             &program,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         child,
     )
@@ -398,7 +398,7 @@ machine entry() reaches Child {}
                 declaration_metadata: &[child],
                 entries: &[entry],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[child],
                 bindings: &[],
                 supplies: &[],
@@ -452,7 +452,7 @@ boundary trait Child: Parent<i32> + Other {}",
     let refused = match crate::source_state::service_declarations::projection::from_typed(
         crate::source_state::provider_declarations::ProviderPlanningContext::new(
             &conflicting,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         child,
     ) {
@@ -582,7 +582,7 @@ machine entry() {}
     let surface = from_typed_boundary_requirement(
         ProviderPlanningContext::new(
             &program,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         requirement,
     )
@@ -722,7 +722,7 @@ fn read_applied_boundary(
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],
@@ -1041,7 +1041,7 @@ machine entry() -> u32 crashes none { 3 }
             declaration_metadata: &[pair],
             entries: &[entry(&program)],
             subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &selected,
             bindings: &[],
             supplies: &[],
@@ -1135,7 +1135,7 @@ fn claimed(
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[requirement],
             bindings: &[],
             supplies: &[],
@@ -1275,7 +1275,7 @@ machine entry() -> u32 crashes none {
     let surface = crate::source_state::service_declarations::projection::from_typed(
         crate::source_state::provider_declarations::ProviderPlanningContext::new(
             &prepared,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         owner,
     );
@@ -1492,7 +1492,7 @@ machine entry() -> u32 crashes none {
             declaration_metadata: &[probe],
             entries: &[entry(&prepared)],
             subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],
@@ -1550,7 +1550,7 @@ machine entry() -> u32 crashes none {
                 declaration_metadata: &[probe],
                 entries: &[entry(&prepared)],
                 subjects: &[Some(package)],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -1852,7 +1852,7 @@ machine entry() crashes none {{}}
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -1978,7 +1978,7 @@ pub(super) fn compilation_results_of(
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],
@@ -2136,7 +2136,7 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -2176,7 +2176,7 @@ machine entry() -> u32 reaches none crashes none { chosen() }
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -2220,7 +2220,7 @@ fn named_selected_calls_keep_their_public_reach_ceiling() {
                     declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &[],
                     bindings: &[],
                     supplies: &[],
@@ -2278,7 +2278,7 @@ Rebound satisfies Other { Other::apply = previous; }
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -2347,7 +2347,7 @@ machine entry() -> u32 reaches none crashes none {{ 7 }}
                     declaration_metadata: &[],
                     entries: &[entry(&typed)],
                     subjects: &[None],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &[],
                     bindings: &[],
                     supplies: &[],
@@ -2454,7 +2454,7 @@ fn inline_parameter_read(
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[None],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],
@@ -2825,7 +2825,7 @@ fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -3004,7 +3004,7 @@ fn named_two_packages(public_map: bool) -> crate::source_state::TypedTrees {
                 Some(semantic_vocabulary::PackageKeyIdentity::from_digest(identity).unwrap()),
                 source_admission::SourceOrigin::User,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .source_id;
         source_ids.push(id);
@@ -3920,7 +3920,7 @@ fn full_named_map_verdicts(typed: &crate::source_state::TypedTrees) -> Vec<Route
                 declaration_metadata: &[],
                 entries: &[entry(typed)],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],

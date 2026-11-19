@@ -214,7 +214,7 @@ machine entry() -> bool {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects,
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],

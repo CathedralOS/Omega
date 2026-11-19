@@ -151,7 +151,7 @@ fn a_dependency_body_does_not_silently_publish_nonreturn() {
                 Some(semantic_vocabulary::PackageKeyIdentity::from_digest(digest).unwrap()),
                 source_admission::SourceOrigin::User,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .source_id;
         source_ids.push(source);
@@ -188,7 +188,7 @@ fn a_dependency_body_does_not_silently_publish_nonreturn() {
             super::build_purpose::roster(
                 &[entry],
                 &[Some(client_package)],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )

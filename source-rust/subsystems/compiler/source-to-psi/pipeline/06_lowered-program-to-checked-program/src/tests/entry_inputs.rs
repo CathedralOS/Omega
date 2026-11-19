@@ -128,7 +128,7 @@ fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict 
         super::build_purpose::roster(
             &[entry],
             &[],
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         terminal_codec::TerminalPublication::Invocation,
     )
@@ -154,7 +154,7 @@ fn a_complete_byte_check_does_not_become_a_helper_requirement() {
         super::build_purpose::roster(
             &[entry],
             &[None],
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         terminal_codec::TerminalPublication::Invocation,
     )
@@ -541,7 +541,7 @@ machine entry() crashes Trap {
             super::build_purpose::roster(
                 &[entry],
                 &[],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -623,7 +623,7 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
             super::build_purpose::roster(
                 &[entry],
                 &[],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -755,7 +755,7 @@ fn a_guard_on_a_field_written_before_the_call_reaches_the_helper() {
             super::build_purpose::roster(
                 &[entry],
                 &[],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )

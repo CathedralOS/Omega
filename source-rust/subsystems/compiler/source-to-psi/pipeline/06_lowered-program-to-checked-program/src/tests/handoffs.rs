@@ -19,7 +19,7 @@ fn prepared_terminal_input_keeps_contracts_without_the_typed_owner() {
                     declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &[],
                     bindings: &[],
                     supplies: &[],

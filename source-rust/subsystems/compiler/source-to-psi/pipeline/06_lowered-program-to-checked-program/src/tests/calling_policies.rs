@@ -59,7 +59,7 @@ pub(super) fn prepared(
             declaration_metadata: &[],
             entries: &entries,
             subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],

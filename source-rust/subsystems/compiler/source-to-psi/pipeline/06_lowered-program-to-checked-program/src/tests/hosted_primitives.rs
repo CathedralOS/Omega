@@ -7,7 +7,7 @@ fn program(product: &str) -> crate::source_state::TypedTrees {
     super::build_purpose::frontier_with_core(
         product,
         "machine build_entry() {}",
-        declaration_contracts::source_identity::DependencyScope::Product,
+        source_provenance::DependencyScope::Product,
         &[
             (
                 sources[0].0,
@@ -38,7 +38,7 @@ fn judge_program(
             super::build_purpose::roster(
                 &[entry],
                 &[Some(super::build_purpose::package())],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )

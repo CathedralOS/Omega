@@ -382,7 +382,7 @@ fn inferred_array_extent_is_retained_in_a_lexical_child() {
             super::build_purpose::roster(
                 &[entry],
                 &[Some(super::build_purpose::package())],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )

@@ -23,7 +23,7 @@ fn judged(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRe
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],

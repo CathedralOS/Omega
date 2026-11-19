@@ -106,7 +106,7 @@ requires depth > 0 && depth <= 2 && restart <= 1 {
             super::build_purpose::roster(
                 &[entry],
                 &[],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -269,7 +269,7 @@ requires count <= 2 {
             super::build_purpose::roster(
                 &[entry],
                 &[],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )

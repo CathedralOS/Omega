@@ -31,7 +31,7 @@ machine consume(bytes: @[u8]) {}
         roster(
             &[symbol(&typed, "build_entry")],
             &[Some(package())],
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         ),
         terminal_codec::TerminalPublication::Invocation,
     )
@@ -436,7 +436,7 @@ machine use(left: u8, right: u8) {}
             roster(
                 &[entry],
                 &[Some(package())],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -659,7 +659,7 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
     let typed = super::build_purpose::frontier_with_core(
         "machine product_entry() {}",
         &format!("use omega::language::core::byte_observation;\n{source}"),
-        declaration_contracts::source_identity::DependencyScope::Build,
+        source_provenance::DependencyScope::Build,
         &[(
             "byte_observation.omg",
             "byte_observation",
@@ -677,7 +677,7 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
             super::build_purpose::roster(
                 &[entry],
                 &[Some(super::build_purpose::package())],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -800,7 +800,7 @@ fn a_subslice_cannot_claim_another_measurement_or_mutable_access() {
             roster(
                 &[entry],
                 &[Some(package())],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -1191,7 +1191,7 @@ fn a_byte_store_cannot_claim_another_measurement_or_access() {
             roster(
                 &[entry],
                 &[Some(package())],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -1401,7 +1401,7 @@ fn a_shared_array_view_cannot_observe_write_only_backing() {
             roster(
                 &[entry],
                 &[Some(package())],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -1480,7 +1480,7 @@ machine use(same: bool) { }",
             roster(
                 &[entry],
                 &[Some(package())],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -1549,7 +1549,7 @@ machine use(same: bool) { }",
             roster(
                 &[entry],
                 &[Some(package())],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -1810,7 +1810,7 @@ machine use(same: bool) { }",
             roster(
                 &[entry],
                 &[Some(package())],
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )

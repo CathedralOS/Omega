@@ -249,7 +249,7 @@ fn declared_refinement_module() -> TerminalModule {
 
             entries: &[selected],
             subjects: &[package],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             calling: None,
             providers: None,
@@ -592,7 +592,7 @@ machine build_entry(value: u32) -> u32 {{
             semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
             source_admission::SourceOrigin::User,
             source_admission::SourceResolutionStratum::Base,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         )
         .source_id;
     let tokens = crate::checking::frontend_fixture::Lexer::new(&negative)

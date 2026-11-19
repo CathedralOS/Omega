@@ -842,7 +842,7 @@ machine entry() -> u64 { first<u32>(3u64) }
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -1057,7 +1057,7 @@ fn a_guard_after_a_callback_proves_the_call_until_storage_changes() {
             super::build_purpose::roster(
                 &[entry],
                 &[None],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -1116,7 +1116,7 @@ fn specialized_calls_keep_independent_input_and_result_lifetimes() {
             super::build_purpose::roster(
                 &[entry],
                 &[None],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -1347,7 +1347,7 @@ fn closed_callback_applications_prove_the_full_termination_contract() {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -1415,7 +1415,7 @@ fn an_unused_closed_callback_still_proves_its_type_requirement() {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -2172,7 +2172,7 @@ fn judge_prepared_source(
         super::build_purpose::roster(
             &[entry],
             &[None],
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         terminal_codec::TerminalPublication::Invocation,
     )
@@ -2309,7 +2309,7 @@ machine entry() -> u32 {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],

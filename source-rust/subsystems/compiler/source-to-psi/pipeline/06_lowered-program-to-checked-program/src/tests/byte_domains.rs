@@ -89,7 +89,7 @@ fn judge_portable_byte_build(
     let typed = frontier_with_core(
         "machine product_entry() { }",
         &source,
-        declaration_contracts::source_identity::DependencyScope::Build,
+        source_provenance::DependencyScope::Build,
         BYTE_OBSERVATION_SOURCE,
     );
     let entries = [symbol(&typed, "build_entry")];
@@ -99,7 +99,7 @@ fn judge_portable_byte_build(
         roster(
             &entries,
             &subjects,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         ),
         terminal_codec::TerminalPublication::Portable,
     )
@@ -757,7 +757,7 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
     let typed = super::build_purpose::frontier_with_core(
         "machine product_entry() {}",
         &source,
-        declaration_contracts::source_identity::DependencyScope::Build,
+        source_provenance::DependencyScope::Build,
         BYTE_OBSERVATION_SOURCE,
     );
     let domains: Vec<_> = typed

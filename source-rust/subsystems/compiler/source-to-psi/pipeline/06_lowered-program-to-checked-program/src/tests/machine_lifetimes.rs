@@ -40,7 +40,7 @@ fn published_label_signature(source: &str) -> (Vec<String>, String, [u8; 32]) {
         super::build_purpose::roster(
             &[entry],
             &[Some(super::build_purpose::package())],
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ),
         terminal_codec::TerminalPublication::Portable,
     )

@@ -57,7 +57,7 @@ fn judged_parts(
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &selected,
                 bindings: &[],
                 supplies: &[],

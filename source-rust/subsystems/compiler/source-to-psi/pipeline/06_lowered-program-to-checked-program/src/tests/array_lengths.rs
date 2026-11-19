@@ -146,7 +146,7 @@ fn array_subject(text: &str) -> Vec<Result<RouteVerdict, crate::checking::Compil
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 calling: None,
                 providers: None,
@@ -232,7 +232,7 @@ fn concrete_array_form(text: &str) -> crate::lowering::Elaboration {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             calling: None,
             providers: None,
@@ -637,7 +637,7 @@ machine entry() -> u32 {{ let buffer: [u8; 4] = [1, 2, 3, 0]; {call} }}"
             super::build_purpose::roster(
                 &[entry],
                 &[None],
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             terminal_codec::TerminalPublication::Invocation,
         )

@@ -22,7 +22,7 @@ machine build_entry(value: Pair) -> Pair { forward(value) }
         super::build_purpose::roster(
             &[entry],
             &[Some(super::build_purpose::package())],
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         ),
         terminal_codec::TerminalPublication::Invocation,
     )
