@@ -1,5 +1,7 @@
 //! Run the admitted Build entry and retain its original activation through source settlement.
 
+mod product;
+pub use product::ProductStage;
 mod source;
 pub use source::{
     PlannedProduct, PlanningRequest, PlanningSources, PreparedPlanningStage, prepare,

@@ -65,6 +65,25 @@ fn authored_build_returns_its_application_and_target_bindings() {
             .any(|file| file.path == root)
     );
     assert_eq!(product.package_inputs().unwrap().root(), subject);
+    let planned = product.product_stage(&[TargetProfile::LinuxX64]).unwrap();
+    let program = planned
+        .program(TargetProfile::LinuxX64, Vec::new())
+        .unwrap();
+    let compiler::Program::Source { source, target } = &program else {
+        panic!("the named project must produce a source request");
+    };
+    assert_eq!(source.selections.subject, Some(subject));
+    assert_eq!(source.selections.calling_targets, &["linux_x86_64"]);
+    assert!(std::ptr::eq(
+        source.build_accounting.unwrap(),
+        &product.evaluated().source_completion_accounting,
+    ));
+    assert_eq!(
+        target.settings.application.name.as_deref(),
+        Some("native_boundary_supply")
+    );
+    assert_eq!(source.selections.policy.native_bindings.len(), 4);
+    assert!(source.selections.native_bindings.evaluation.is_some());
     let computed = &product.evaluated().configuration;
     assert_eq!(computed.root_binding_requests.len(), 4);
     assert_eq!(computed.native_binding_requests.len(), 4);
@@ -79,6 +98,26 @@ fn authored_build_returns_its_application_and_target_bindings() {
             NativeBindingLocator::Syscall { number: syscall }
         );
     }
+    let compiler::Artifact::Native(output) = compiler::compile(compiler::CompileRequest::Native {
+        program,
+        entry_memory: &[],
+    })
+    .expect("the selected getpid binding must reach the native emitter") else {
+        panic!("the Linux request must yield a native executable");
+    };
+    let artifact = output.retained_native_artifact().unwrap();
+    assert!(artifact.image().output().bytes.starts_with(b"\x7fELF"));
+    let module = artifact.psi_artifact().semantic_module();
+    let [boundary] = module.boundary_machines.as_slice() else {
+        panic!("getpid must be the only reached native requirement");
+    };
+    assert!(
+        module
+            .calling_abi_identity(boundary.id)
+            .unwrap()
+            .requirement_identity
+            .contains("HostProcessId::get")
+    );
 }
 
 fn configure_library() {

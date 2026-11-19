@@ -9,6 +9,8 @@ build = false
 path = "build.rs"
 
 [dependencies]
+semantic-vocabulary = { path = "../foundation/semantic-records" }
+installation-conditions = { path = "../psi-to-native/verification/installation-admission/conditions" }
 source-declarations = { path = "../source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
 build-declarations = { path = "build-declarations" }
 source-compiler = { path = "../source-to-psi" }
@@ -24,7 +26,6 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
 
 [dev-dependencies]
-semantic-vocabulary = { path = "../foundation/semantic-records" }
 package-manager = { path = "../../package-manager" }
 psi-authorization = { path = "../psi/authorization" }
 terminal-codec = { path = "../psi/codec" }

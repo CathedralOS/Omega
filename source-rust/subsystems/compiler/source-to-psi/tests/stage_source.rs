@@ -48,6 +48,7 @@ fn product<'a>(
             layout_selection_authority: None,
             optimizations: Default::default(),
         },
+        build_accounting: None,
         declaration_authority: None,
         build_host: ProductTarget::LinuxX86_64,
     }

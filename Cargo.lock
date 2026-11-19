@@ -2532,6 +2532,7 @@ dependencies = [
  "build-settings",
  "compiler",
  "diagnostics",
+ "installation-conditions",
  "package-compilation",
  "package-manager",
  "platform-custody",
