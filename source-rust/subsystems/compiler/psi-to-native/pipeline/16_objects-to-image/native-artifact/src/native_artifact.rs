@@ -177,6 +177,12 @@ pub struct FinishedNativeImage {
 }
 
 impl FinishedNativeImage {
+    pub fn parts(
+        &self,
+    ) -> (&RequestedNativeArtifact, Option<&crate::TerminalRuntimeProvisions>) {
+        (&self.artifact, self.runtime.as_ref())
+    }
+
     pub fn into_parts(
         self,
     ) -> (

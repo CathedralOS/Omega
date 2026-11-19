@@ -13,9 +13,10 @@ const SAVED: &[u8] = include_bytes!(
     "../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/linux_x86_64.psi"
 );
 
-fn emit(
+fn with_published_target<T>(
     artifact: CanonicalTerminalArtifact,
-) -> Result<FinishedNativeImage, Vec<diagnostics::Diagnostic>> {
+    compile: impl FnOnce(psi_authorization::AuthorizedTerminalArtifact, SavedProgramTarget<'_>) -> T,
+) -> T {
     let profile = TargetProfile::LinuxX64;
     let identity = artifact.manifest().identity();
     let trust = HostProducerTrust::accept("repository scalar contract route fixture");
@@ -30,7 +31,65 @@ fn emit(
         behavior_exclusions: &[],
         x86_scalar_fma_provider: None,
     };
-    native_compiler::emit(program, target, &[])
+    compile(program, target)
+}
+
+fn emit(
+    artifact: CanonicalTerminalArtifact,
+) -> Result<FinishedNativeImage, Vec<diagnostics::Diagnostic>> {
+    with_published_target(artifact, |program, target| {
+        native_compiler::emit(program, target, &[])
+    })
+}
+
+#[test]
+fn requested_validators_check_the_emitted_linux_program() {
+    use native_compiler::stage_validators::{
+        StageValidationResult, StageValidator, StageValidatorRequest,
+    };
+
+    let validators = StageValidatorRequest::from_exact_names(
+        ["FixedFrameCorrespondence", "FixedFrameCorrespondence"],
+        true,
+    )
+    .unwrap();
+    let (image, rows) = with_published_target(
+        CanonicalTerminalArtifact::from_bytes(SAVED).unwrap(),
+        |program, target| native_compiler::emit_with_validators(program, target, &[], &validators),
+    )
+    .unwrap();
+    assert!(matches!(
+        image.parts().0,
+        RequestedNativeArtifact::Direct(_)
+    ));
+    assert_eq!(
+        rows.iter().map(|row| row.validator).collect::<Vec<_>>(),
+        StageValidator::ROSTER
+    );
+    assert!(rows.iter().all(|row| row.target == "linux_x86_64"));
+    assert_eq!(rows[0].result, StageValidationResult::Passed);
+    assert_eq!(rows[1].result, StageValidationResult::Passed);
+    assert_eq!(
+        rows[2].result,
+        StageValidationResult::Inapplicable("no selected-instruction rewrite rule ran")
+    );
+}
+
+#[test]
+fn named_rewrite_without_a_selected_rule_refuses_even_with_every_validator() {
+    use native_compiler::stage_validators::{NativeValidationError, StageValidatorRequest};
+
+    let validators =
+        StageValidatorRequest::from_exact_names(["SelectedInstructionRewriteReplay"], true)
+            .unwrap();
+    let result = with_published_target(
+        CanonicalTerminalArtifact::from_bytes(SAVED).unwrap(),
+        |program, target| native_compiler::emit_with_validators(program, target, &[], &validators),
+    );
+    assert!(
+        matches!(result, Err(NativeValidationError::Unavailable(diagnostic))
+        if diagnostic.message.contains("no selected-instruction rewrite rule ran"))
+    );
 }
 
 #[test]
