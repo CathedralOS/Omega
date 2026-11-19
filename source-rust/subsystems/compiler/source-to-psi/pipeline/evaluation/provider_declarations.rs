@@ -19,23 +19,95 @@ pub use crate::provider_choice_inputs::{
 };
 pub use crate::source_provider_choices::retain_provider_defaults;
 pub use crate::source_state::provider_declarations::ProviderPlanningContext;
-pub use requests::collect_product_provider_selections;
 use diagnostics::Diagnostic;
+pub use requests::collect_product_provider_selections;
 pub use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::source_selections::ProductTarget;
 use source_admission::RetainedDeclaration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetainedProviderSelection {
-    pub subject: RetainedDeclaration,
-    pub subject_identity: String,
-    pub subject_application: Option<RetainedProductApplication>,
+    pub subject: RetainedProviderSubject,
     pub provider: RetainedDeclaration,
     pub provider_identity: String,
     pub provider_application: Option<RetainedProductApplication>,
     pub target: ProductTarget,
     pub composition_mode: CompositionMode,
     pub origin: BuildSelectionOrigin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RetainedProviderSubject {
+    Declaration {
+        declaration: RetainedDeclaration,
+        identity: String,
+        application: Option<RetainedProductApplication>,
+    },
+    OperatorFamily(RetainedOperatorFamily),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedOperatorCoordinate {
+    pub declaration: RetainedDeclaration,
+    pub requirement_identity: String,
+    pub static_parameter_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedOperatorFamily {
+    pub canonical_path: String,
+    coordinates: Vec<RetainedOperatorCoordinate>,
+}
+
+impl RetainedOperatorFamily {
+    pub fn new(
+        canonical_path: String,
+        coordinates: Vec<RetainedOperatorCoordinate>,
+    ) -> Result<Self, &'static str> {
+        if canonical_path.is_empty()
+            || coordinates.is_empty()
+            || coordinates.iter().any(|member| {
+                member.requirement_identity.is_empty()
+                    || !matches!(
+                        member.declaration.kind(),
+                        symbols::SymbolKind::Machine | symbols::SymbolKind::Operator
+                    )
+            })
+            || coordinates
+                .windows(2)
+                .any(|pair| pair[0].requirement_identity >= pair[1].requirement_identity)
+        {
+            return Err("retained operator family needs its complete canonical coordinate roster");
+        }
+        Ok(Self {
+            canonical_path,
+            coordinates,
+        })
+    }
+
+    pub fn coordinates(&self) -> &[RetainedOperatorCoordinate] {
+        &self.coordinates
+    }
+}
+
+impl RetainedProviderSubject {
+    /// All files containing original declarations belong to the selected family.
+    pub fn declarations(&self) -> impl Iterator<Item = &RetainedDeclaration> {
+        let (single, family): (_, &[RetainedOperatorCoordinate]) = match self {
+            Self::Declaration { declaration, .. } => (Some(declaration), &[]),
+            Self::OperatorFamily(family) => (None, family.coordinates()),
+        };
+        single
+            .into_iter()
+            .chain(family.iter().map(|member| &member.declaration))
+    }
+
+    pub fn application(&self) -> Option<&RetainedProductApplication> {
+        match self {
+            Self::Declaration { application, .. } => application.as_ref(),
+            Self::OperatorFamily(_) => None,
+        }
+    }
 }
 
 pub(crate) fn identity(
@@ -185,8 +257,9 @@ fn operator_family(
 ) -> Result<ProviderOperatorFamilySelection, Diagnostic> {
     let typed = context.typed;
     let symbols = &typed.symbols;
-    let representative = crate::source_state::operator::declaration_by_symbol(typed, slot.symbol)
-        .ok_or_else(|| Diagnostic::error("selected operator has no authored declaration"))?;
+    let representative =
+        crate::source_state::operator::declaration_by_symbol(typed, slot.symbol)
+            .ok_or_else(|| Diagnostic::error("selected operator has no authored declaration"))?;
     let path = typed.operator_path_string(representative.name);
     let mut coordinates = Vec::new();
     for operator in typed.all_operators().chain(typed.machine_token_bindings()) {

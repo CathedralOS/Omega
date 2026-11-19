@@ -515,7 +515,8 @@ fn a_local_build_selection_owns_every_exact_boundary_operator_coordinate() {
         Build::select_provider<Buffer::index, First>(builder, linux_x86_64);
     }";
     let first = "public boundary operator [] Buffer::index(items: @Buffer, index: u32) -> u8;";
-    let second = "public boundary operator [] Buffer::index<'view>(items: @'view Buffer, index: u64) -> u8;";
+    let second =
+        "public boundary operator [] Buffer::index<'view>(items: @'view Buffer, index: u64) -> u8;";
     let dependency = "public data Buffer {}
         public boundary operator [] Buffer::index(items: @Buffer, index: u16) -> u8;";
     let mut orders = Vec::new();
@@ -530,15 +531,56 @@ fn a_local_build_selection_owns_every_exact_boundary_operator_coordinate() {
         };
         assert_eq!(family.package, Some(package(7)));
         assert_eq!(family.coordinates().len(), 2);
-        let members: Vec<_> = family.coordinates().iter()
+        let members: Vec<_> = family
+            .coordinates()
+            .iter()
             .map(|row| row.requirement_identity.clone())
             .collect();
         assert_ne!(members[0], members[1]);
-        let mut arities = family.coordinates().iter()
+        let mut arities = family
+            .coordinates()
+            .iter()
             .map(|row| row.static_parameter_count)
             .collect::<Vec<_>>();
         arities.sort_unstable();
         assert_eq!(arities, [0, 1]);
+        let retained =
+            super::RetainedProviderSelection::capture(&fixture.typed, &selected[0]).unwrap();
+        let mut receiving = Fixture::new(build, &product, Some(dependency)).typed;
+        let mut candidates = crate::source_symbols::SourceSpanCandidates::default();
+        let replayed = retained
+            .rejoin(
+                &mut receiving,
+                DependencyScope::Product,
+                &[],
+                &mut candidates,
+            )
+            .unwrap();
+        assert!(replayed.subject.same_declaration_as(&selected[0].subject));
+
+        let mut partial = retained;
+        let super::RetainedProviderSubject::OperatorFamily(complete) = &partial.subject else {
+            panic!("expected a retained operator family");
+        };
+        partial.subject = super::RetainedProviderSubject::OperatorFamily(
+            super::RetainedOperatorFamily::new(
+                complete.canonical_path.clone(),
+                complete.coordinates()[..1].to_vec(),
+            )
+            .unwrap(),
+        );
+        let error = partial
+            .rejoin(
+                &mut receiving,
+                DependencyScope::Product,
+                &[],
+                &mut candidates,
+            )
+            .unwrap_err();
+        assert!(
+            error.message.contains("complete source roster"),
+            "{error:?}"
+        );
         orders.push(members);
     }
     assert_eq!(orders[0], orders[1]);

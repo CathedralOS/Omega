@@ -77,7 +77,12 @@ impl PackageSourceContent {
                     selected_product_sources: bundle
                         .provider_selections()
                         .iter()
-                        .flat_map(|selection| [&selection.subject, &selection.provider])
+                        .flat_map(|selection| {
+                            selection
+                                .subject
+                                .declarations()
+                                .chain([&selection.provider])
+                        })
                         .map(|anchor| anchor.source().path.clone())
                         .collect(),
                 })

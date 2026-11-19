@@ -18,8 +18,8 @@
 
 use super::{
     ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity,
-    ProviderSelectionSubject, RetainedProductApplication, RetainedProviderSelection, form,
-    identity,
+    ProviderSelectionSubject, RetainedOperatorCoordinate, RetainedOperatorFamily,
+    RetainedProductApplication, RetainedProviderSelection, RetainedProviderSubject, form, identity,
 };
 use crate::declaration_selection::ProductOperandRole;
 use crate::source_state::TypedTrees;
@@ -88,7 +88,10 @@ pub(crate) fn rejoin_provider_defaults(
                     .symbols
                     .source_map()
                     .is_none_or(|sources| sources.source_is_selected(file.source_id))
-                && file.path == choice.subject.source().path
+                && choice
+                    .subject
+                    .declarations()
+                    .any(|member| file.path == member.source().path)
         });
         if loaded {
             let selection = choice
@@ -108,13 +111,6 @@ pub(crate) fn rejoin_provider_defaults(
 impl RetainedProviderSelection {
     /// `selection` as the anchors a consumer can rejoin.
     pub fn capture(typed: &TypedTrees, selection: &ProviderSelection) -> Result<Self, String> {
-        let subject = match &selection.subject {
-            ProviderSelectionSubject::BoundaryTrait(identity)
-            | ProviderSelectionSubject::BoundaryRequirement(identity) => identity,
-            ProviderSelectionSubject::BoundaryOperatorFamily(_) => {
-                return Err("no product route yet: retained source provider selection: a boundary-operator family as the slot".to_owned());
-            }
-        };
         let provider = &selection.provider_type;
         // The anchor is kept free of this typing's source numbering.
         let anchor = |symbol| {
@@ -125,10 +121,56 @@ impl RetainedProviderSelection {
                 selected.kind(),
             )
         };
+        let subject = match &selection.subject {
+            ProviderSelectionSubject::BoundaryTrait(identity)
+            | ProviderSelectionSubject::BoundaryRequirement(identity) => {
+                RetainedProviderSubject::Declaration {
+                    declaration: anchor(identity.symbol).map_err(str::to_owned)?,
+                    identity: typed.normalized_hermetic_symbol_identity(identity.symbol)?,
+                    application: captured(typed, identity)?,
+                }
+            }
+            ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
+                let first = family
+                    .coordinates()
+                    .first()
+                    .ok_or("selected operator family is empty")?;
+                if !typed.symbols.symbols().nodes().is_valid(first.symbol) {
+                    return Err("selected operator family has a stale representative".into());
+                }
+                let context = ProviderPlanningContext::new(
+                    typed,
+                    source_provenance::DependencyScope::Product,
+                );
+                let current = super::operator_family(
+                    context,
+                    identity(context, first.symbol, &family.authored_path),
+                )
+                .map_err(|error| error.message)?;
+                if &current != family {
+                    return Err(
+                        "selected operator family differs from its complete source roster".into(),
+                    );
+                }
+                let members = family
+                    .coordinates()
+                    .iter()
+                    .map(|member| {
+                        Ok(RetainedOperatorCoordinate {
+                            declaration: anchor(member.symbol)?,
+                            requirement_identity: member.requirement_identity.clone(),
+                            static_parameter_count: member.static_parameter_count,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, &'static str>>()?;
+                RetainedProviderSubject::OperatorFamily(RetainedOperatorFamily::new(
+                    family.canonical_path.clone(),
+                    members,
+                )?)
+            }
+        };
         Ok(Self {
-            subject: anchor(subject.symbol).map_err(str::to_owned)?,
-            subject_identity: typed.normalized_hermetic_symbol_identity(subject.symbol)?,
-            subject_application: captured(typed, subject)?,
+            subject,
             provider: anchor(provider.symbol).map_err(str::to_owned)?,
             provider_identity: typed.normalized_hermetic_symbol_identity(provider.symbol)?,
             provider_application: captured(typed, provider)?,
@@ -170,7 +212,6 @@ impl RetainedProviderSelection {
             )
             .map_err(Diagnostic::error)
         };
-        let subject = rejoined(program, &self.subject, &self.subject_identity)?;
         let provider = rejoined(program, &self.provider, &self.provider_identity)?;
         let named = |program: &TypedTrees, symbol| {
             identity(
@@ -179,17 +220,51 @@ impl RetainedProviderSelection {
                 &program.symbols.display_path(symbol, "::"),
             )
         };
-        let mut subject_identity = named(program, subject);
         let mut provider_identity = named(program, provider);
-        if let Some(application) = &self.subject_application {
-            applied(
-                program,
+        let subject_identity = match &self.subject {
+            RetainedProviderSubject::Declaration {
+                declaration,
+                identity,
                 application,
-                ProductOperandRole::BoundarySubject,
-                subject,
-                &mut subject_identity,
-            )?;
-        }
+            } => {
+                let subject = rejoined(program, declaration, identity)?;
+                let mut subject_identity = named(program, subject);
+                if let Some(application) = application {
+                    applied(
+                        program,
+                        application,
+                        ProductOperandRole::BoundarySubject,
+                        subject,
+                        &mut subject_identity,
+                    )?;
+                }
+                subject_identity
+            }
+            RetainedProviderSubject::OperatorFamily(family) => {
+                let first = &family.coordinates()[0];
+                let matching = candidates
+                    .at_span(&program.symbols, first.declaration.span())
+                    .into_iter()
+                    .filter(|&symbol| {
+                        crate::source_state::operator::declaration_by_symbol(program, symbol)
+                            .filter(|operator| operator.is_boundary)
+                            .is_some_and(|operator| {
+                                let coordinate = program
+                                    .boundary_operator_requirement_callable_identity(operator);
+                                coordinate.is_valid()
+                                    && program.callable_identity_text(coordinate)
+                                        == first.requirement_identity
+                            })
+                    });
+                let symbol = crate::source_symbols::rejoin_declaration(
+                    &first.declaration,
+                    &program.symbols,
+                    matching,
+                )
+                .map_err(Diagnostic::error)?;
+                named(program, symbol)
+            }
+        };
         if let Some(application) = &self.provider_application {
             applied(
                 program,
@@ -207,10 +282,44 @@ impl RetainedProviderSelection {
             Some(self.target),
             self.composition_mode,
         )?;
-        if matches!(selection.subject, ProviderSelectionSubject::BoundaryOperatorFamily(_)) {
-            return Err(Diagnostic::error(
-                "retained provider choice has no complete boundary-operator family declaration",
-            ));
+        match (&self.subject, &selection.subject) {
+            (
+                RetainedProviderSubject::OperatorFamily(retained),
+                ProviderSelectionSubject::BoundaryOperatorFamily(current),
+            ) => {
+                if retained.canonical_path != current.canonical_path
+                    || retained.coordinates().len() != current.coordinates().len()
+                {
+                    return Err(Diagnostic::error(
+                        "retained provider family changed its complete source roster",
+                    ));
+                }
+                for (expected, actual) in retained.coordinates().iter().zip(current.coordinates()) {
+                    crate::source_symbols::rejoin_declaration(
+                        &expected.declaration,
+                        &program.symbols,
+                        [actual.symbol],
+                    )
+                    .map_err(Diagnostic::error)?;
+                    if expected.requirement_identity != actual.requirement_identity
+                        || expected.static_parameter_count != actual.static_parameter_count
+                    {
+                        return Err(Diagnostic::error(
+                            "retained provider family changed an overload or its static arity",
+                        ));
+                    }
+                }
+            }
+            (
+                RetainedProviderSubject::Declaration { .. },
+                ProviderSelectionSubject::BoundaryTrait(_)
+                | ProviderSelectionSubject::BoundaryRequirement(_),
+            ) => {}
+            _ => {
+                return Err(Diagnostic::error(
+                    "retained provider choice changed its declaration role",
+                ));
+            }
         }
         Ok(selection)
     }
