@@ -51,6 +51,8 @@ pub enum Symbol {
     Candidates(Vec<DeclarationId>),
     ByOverload(Vec<ArgumentAlternative>),
     Binding {
+        /// The node that introduces this binding in the occurrence's file.
+        binder_node: usize,
         span: SourceSpan,
         kind: NodeKind,
     },
@@ -81,8 +83,20 @@ pub struct ArgumentAlternative {
     pub target: Option<Box<Symbol>>,
 }
 
+/// One spelling can occupy several roles, as in a shorthand field initializer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NameRole {
+    Reference,
+    Member,
+    Qualifier,
+    ApplicationPrefix,
+    Register,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NameUse {
+    pub node: crate::TreeNodeId,
+    pub role: NameRole,
     pub package: String,
     pub file: String,
     pub span: SourceSpan,
@@ -112,6 +126,7 @@ pub struct OperatorDeclaration {
 }
 #[derive(Debug, Eq, PartialEq)]
 pub struct OperatorUse {
+    pub node: crate::TreeNodeId,
     pub package: String,
     pub file: String,
     pub span: SourceSpan,
@@ -119,7 +134,9 @@ pub struct OperatorUse {
 }
 #[derive(Debug, Eq, PartialEq)]
 pub struct Application {
-    pub site: NameUse,
+    pub section: crate::TreeNodeId,
+    /// Index of the resolved name that owns this argument section.
+    pub name_use: usize,
     pub arguments: Vec<SourceSpan>,
 }
 #[derive(Debug, Eq, PartialEq)]

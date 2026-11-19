@@ -250,16 +250,13 @@ impl BodyTyper<'_, '_> {
                         seen.insert(name.as_str());
                         continue;
                     }
-                    let first = p
-                        .words()
-                        .next()
-                        .ok_or_else(|| TypeError::unsupported(source, part))?;
+                    let name = self.unit.member_name(part)?;
                     let field = fields
-                        .get(first.text)
-                        .ok_or_else(|| TypeError::at(source, part, format!("unknown pattern field {}", first.text)))?;
+                        .get(name)
+                        .ok_or_else(|| TypeError::at(source, part, format!("unknown pattern field {}", name)))?;
                     let ty = self.catalog.types.field_type(field, owner, args);
-                    if !seen.insert(first.text) {
-                        return Err(TypeError::at(source, part, format!("duplicate pattern field {}", first.text)));
+                    if !seen.insert(name) {
+                        return Err(TypeError::at(source, part, format!("duplicate pattern field {}", name)));
                     }
                     if let [child] = *p.children.as_slice() {
                         let v = self.type_expression(child)?;

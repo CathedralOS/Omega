@@ -281,6 +281,7 @@ dependencies = [
  "psi-provider-selections",
  "psi-target-layouts",
  "runtime-abi",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "source-admission",
  "source-compiler",
@@ -649,7 +650,7 @@ dependencies = [
  "platform-custody",
  "portable-publication",
  "products",
- "program-entry-plan",
+ "program-entry-contracts",
  "proof-admission",
  "provider-admission",
  "provider-choices",
@@ -666,6 +667,7 @@ dependencies = [
  "review-evidence",
  "runtime-abi",
  "selected-instructions",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "source-acquisition",
@@ -678,6 +680,7 @@ dependencies = [
  "target",
  "target-bound-program-to-abstract-operations",
  "target-operations",
+ "target-provider-admission",
  "task-plans",
  "terminal-check-tables",
  "terminal-codec",
@@ -877,7 +880,7 @@ dependencies = [
  "physical-recipes",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
- "program-entry-plan",
+ "program-entry-contracts",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -925,6 +928,33 @@ dependencies = [
  "semantic-vocabulary",
  "psi-program-identity",
  "wire",
+]
+
+[[package]]
+name = "selected-provider-plans"
+version = "0.1.0"
+dependencies = [
+ "component-description",
+ "provider-plans",
+ "semantic-vocabulary",
+ "terminal-psi",
+ "wire",
+]
+
+[[package]]
+name = "target-provider-admission"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "optimization-selections",
+ "provider-plans",
+ "psi-provider-selections",
+ "selected-provider-plans",
+ "semantic-vocabulary",
+ "service-surface",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -1152,7 +1182,7 @@ dependencies = [
  "physical-recipes",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
- "program-entry-plan",
+ "program-entry-contracts",
  "provider-admission",
  "psi-entry-memory",
  "register-homes",
@@ -1589,7 +1619,6 @@ name = "native-artifact"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "backend-plan",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1615,9 +1644,11 @@ dependencies = [
  "published-runtime-input",
  "runtime-abi",
  "selected-instructions",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "sha2",
  "target",
+ "target-provider-admission",
  "target-vocabulary",
  "target-aarch64",
  "target-operations",
@@ -1641,7 +1672,6 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "admitted-native-inputs-to-target-bound-program",
  "arena",
- "backend-plan",
  "bound-installations",
  "boundary-applications",
  "calling-conventions",
@@ -1672,7 +1702,7 @@ dependencies = [
  "physical-program",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
- "program-entry-plan",
+ "program-entry-contracts",
  "provider-admission",
  "provider-plans",
  "provider-stack-contribution",
@@ -1693,11 +1723,13 @@ dependencies = [
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "target",
  "target-bound-program-to-abstract-operations",
  "target-operations",
  "target-operations-to-selected-instructions",
+ "target-provider-admission",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
@@ -1766,17 +1798,17 @@ dependencies = [
 name = "native-scalar-inputs"
 version = "0.1.0"
 dependencies = [
- "backend-plan",
  "build-scalar-evaluation",
  "diagnostics",
- "effects",
  "provider-admission",
  "psi-provider-selections",
  "psi-scalar-applications",
  "psi-target-layouts",
  "runtime-abi",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "target",
+ "target-provider-admission",
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
@@ -2318,6 +2350,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "program-entry-contracts"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "provider-plans",
+ "psi-entry-memory",
+ "semantic-vocabulary",
+ "source-provenance",
+ "target",
+ "terminal-psi",
+ "wire",
+]
+
+[[package]]
 name = "program-entry-plan"
 version = "0.1.0"
 dependencies = [
@@ -2400,10 +2447,12 @@ dependencies = [
  "psi-provider-selections",
  "psi-target-layouts",
  "runtime-abi",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "target",
  "target-operations",
+ "target-provider-admission",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -2436,9 +2485,11 @@ dependencies = [
  "function-identity",
  "graphs",
  "provider-plans",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "symbols",
  "target",
+ "target-provider-admission",
  "terminal-codec",
  "terminal-psi",
  "wire",
@@ -2462,7 +2513,6 @@ dependencies = [
  "host-provider-inputs",
  "application-identity",
  "arena",
- "artifact-evaluation",
  "backend-plan",
  "build-time-values",
  "calling-conventions",
@@ -2476,7 +2526,7 @@ dependencies = [
  "layout",
  "optimization",
  "optimization-selections",
- "program-entry-plan",
+ "program-entry-contracts",
  "provider-admission",
  "provider-correspondence",
  "provider-plans",
@@ -2486,10 +2536,11 @@ dependencies = [
  "psi-target-layouts",
  "psi-to-admitted-native-inputs",
  "runtime-abi",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "target",
+ "target-provider-admission",
  "terminal-codec",
- "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
@@ -2710,6 +2761,7 @@ dependencies = [
  "products",
  "provider-plans",
  "psi-effect-contracts",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "source-admission",
@@ -2718,6 +2770,7 @@ dependencies = [
  "source-text",
  "symbols",
  "target",
+ "target-provider-admission",
  "terminal-check-tables",
  "terminal-psi",
  "wire",
@@ -3613,7 +3666,6 @@ name = "target-bound-program-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "backend-plan",
  "boundary-applications",
  "diagnostics",
  "effects",
@@ -3627,8 +3679,10 @@ dependencies = [
  "psi-scalar-applications",
  "psi-target-layouts",
  "runtime-abi",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "target",
+ "target-provider-admission",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -3641,7 +3695,6 @@ version = "0.1.0"
 dependencies = [
  "access-vocabulary",
  "application-identity",
- "backend-plan",
  "bignum",
  "calling-conventions",
  "extent-contracts",
@@ -3661,6 +3714,7 @@ dependencies = [
  "service-surface",
  "storage-access",
  "target",
+ "target-provider-admission",
  "target-vocabulary",
  "terminal-codec",
  "terminal-interpreter",
@@ -3908,15 +3962,17 @@ dependencies = [
  "numerics",
  "optimization-selections",
  "optimization-unit",
- "program-entry-plan",
+ "program-entry-contracts",
  "provider-admission",
  "provider-correspondence",
  "runtime-abi",
+ "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
  "source-text",
  "target",
  "target-operations",
+ "target-provider-admission",
  "target-vocabulary",
  "terminal-codec",
  "terminal-psi",

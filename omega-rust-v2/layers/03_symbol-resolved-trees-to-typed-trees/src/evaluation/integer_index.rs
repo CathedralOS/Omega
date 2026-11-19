@@ -204,10 +204,7 @@ impl ResolvedSourceFile<'_> {
         {
             return Ok(None);
         }
-        let Some(owner) = f
-            .enclosing_contexts(n)
-            .find_map(|p| self.declaration_at(f.span(p)))
-        else {
+        let Some(owner) = f.enclosing_contexts(n).find_map(|p| self.declaration_at(p)) else {
             return Ok(None);
         };
         let has_static = (n..f.nodes[n].end).any(|i| {

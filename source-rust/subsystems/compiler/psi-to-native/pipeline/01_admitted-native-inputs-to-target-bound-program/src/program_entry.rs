@@ -6,19 +6,19 @@ mod calling_plans;
 mod published;
 pub use calling_plans::{ProgramEntryCallingPlanRequest, entry_calling_policy};
 pub use host_provider_inputs::program_entry_semantic_binding_role;
-pub use program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest;
+pub use program_entry_contracts::ProgramEntryPhysicalContractPackageSourceDigest;
 pub use published::{PublishedEntryNomination, plan_published_entry_calling_conventions};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCallingPlans {
     pub semantic_calling_application: calling_conventions::BoundaryCallingApplication,
     pub physical_calling_application: calling_conventions::BoundaryCallingApplication,
-    pub storage_entry: program_entry_plan::SelectedProgramStorageEntryPlan,
+    pub storage_entry: program_entry_contracts::SelectedProgramStorageEntryPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedCompilerProgramEntry {
-    signature: program_entry_plan::SelectedProgramEntrySignature,
+    signature: program_entry_contracts::SelectedProgramEntrySignature,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
     physical_adapter: Option<terminal_psi::PreparedNominalRoot>,
 }
@@ -68,7 +68,7 @@ impl SelectedCompilerProgramEntry {
                 refuse("the selected entry lost its nominal declaration identity".into())
             })?;
         let signature =
-            program_entry_plan::SelectedProgramEntrySignature::from_checked_declaration(
+            program_entry_contracts::SelectedProgramEntrySignature::from_checked_declaration(
                 slot,
                 declaration.to_owned(),
                 declaration.to_owned(),
@@ -218,14 +218,14 @@ impl SelectedCompilerProgramEntry {
                         "selected physical entry adapter is absent",
                     )]);
                 }
-                let header = backend_plan::selected_checked_adapter_header(plan, row, module)
+                let header = target_provider_admission::selected_checked_adapter_header(plan, row, module)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 if !header.supplies_checked_body || header.type_parameter_count != 0 {
                     return Err(vec![Diagnostic::error(
                         "physical entry adapter must have a checked source body",
                     )]);
                 }
-                let rows = backend_plan::selected_provider_candidate_rows(plan, module)
+                let rows = target_provider_admission::selected_provider_candidate_rows(plan, module)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let candidates = rows
                     .iter()
@@ -269,7 +269,9 @@ impl SelectedCompilerProgramEntry {
         Ok(())
     }
 
-    pub const fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
+    pub const fn source_signature(
+        &self,
+    ) -> &program_entry_contracts::SelectedProgramEntrySignature {
         &self.signature
     }
 

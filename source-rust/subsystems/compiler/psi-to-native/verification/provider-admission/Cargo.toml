@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+target-provider-admission = { path = "../target-providers" }
+selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-plans = { path = "../../../build/providers/plans" }
 psi-provider-selections = { path = "../../../psi/providers" }
 psi-entry-memory = { path = "../../../psi/access/entry-memory" }

@@ -7,6 +7,8 @@ version.workspace = true
 
 
 [dependencies]
+selected-provider-plans = { path = "../../../compiler/build/providers/selections" }
+target-provider-admission = { path = "../../../compiler/psi-to-native/verification/target-providers" }
 provider-plans = { path = "../../../compiler/build/providers/plans" }
 source-declarations = { path = "../../../compiler/source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
 service-surface = { path = "../../../compiler/psi/service-surface" }

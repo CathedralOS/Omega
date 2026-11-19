@@ -59,7 +59,8 @@ mod windows_handle_storage;
 mod windows_handle_values;
 
 use abstract_operations::AbstractOperation;
-use effects::{SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt};
+use effects::TerminalAuthorityClosureReviewReceipt;
+use selected_provider_plans::SelectedProviderPlanFacts;
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
 use crate::provider_admission::AdmittedTerminalMechanism;

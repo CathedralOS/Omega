@@ -80,7 +80,7 @@ pub(crate) fn index_logical_hypotheses<'a>(
     for (n, node) in f.nodes.iter().enumerate().filter(|(_, n)| n.kind == Hypothesis) {
         let owner = f
             .enclosing_contexts(n)
-            .find_map(|a| unit.declaration_at(f.span(a)))
+            .find_map(|a| unit.declaration_at(a))
             .ok_or_else(|| TypeError::at(f, n, "hypothesis needs an enclosing theorem"))?;
         if owner.kind != Machine {
             return Err(TypeError::at(f, n, "hypothesis needs an enclosing theorem"));

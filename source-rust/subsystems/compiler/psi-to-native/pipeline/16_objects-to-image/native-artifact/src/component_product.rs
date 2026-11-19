@@ -36,7 +36,7 @@ impl NativeComponentProduct {
         image: image_emission::ComponentSharedImage,
         runtime: crate::TerminalCallableRuntimeProvisions,
         authority: AdmittedNativeCallableAuthority,
-        selected_provider_plans: &effects::SelectedProviderPlanFacts,
+        selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
     ) -> Result<Self, String> {
         let selection = call.selection();
         if image.body().psi() != selection.provider()

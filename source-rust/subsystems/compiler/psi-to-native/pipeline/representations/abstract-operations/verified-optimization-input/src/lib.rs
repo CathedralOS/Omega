@@ -80,7 +80,7 @@ pub struct VerifiedPsiOptimizationInput {
     admitted_installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
     target_context: Option<TerminalTargetContext>,
     target_layout_selections: Option<AdmittedTargetLayouts>,
-    external_requirement_applications: Vec<effects::SelectedExternalRequirementApplication>,
+    external_requirement_applications: Vec<selected_provider_plans::SelectedExternalRequirementApplication>,
     selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable,
     evidence: ObligationEvidence,
 }
@@ -229,7 +229,7 @@ impl VerifiedPsiOptimizationInput {
     /// Retain exact selected external requirement applications and their identity table.
     pub fn retain_selected_providers(
         &mut self,
-        external_requirement_applications: Vec<effects::SelectedExternalRequirementApplication>,
+        external_requirement_applications: Vec<selected_provider_plans::SelectedExternalRequirementApplication>,
         identities: terminal_psi::TerminalIdentityTable,
         selected_provider_closure: [u8; 32],
     ) -> Result<(), &'static str> {

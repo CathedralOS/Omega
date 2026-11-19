@@ -5,12 +5,13 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+target-provider-admission = { path = "../../verification/target-providers" }
+selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
 psi-scalar-applications = { path = "../../../psi/scalar-applications" }
 psi-entry-memory = { path = "../../../psi/access/entry-memory" }
 psi-target-layouts = { path = "../../../psi/layout/admission" }
 abstract-operations = { path = "../representations/abstract-operations" }
-backend-plan = { path = "../../installation/provider-plans" }
 boundary-applications = { path = "../../installation/boundary-applications" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 effects = { path = "../../installation/native-effects" }

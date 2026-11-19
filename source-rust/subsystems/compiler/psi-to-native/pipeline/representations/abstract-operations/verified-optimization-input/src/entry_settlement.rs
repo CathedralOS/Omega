@@ -14,7 +14,7 @@ mod calling_plans {
         BoundaryCallingApplication, BoundarySignatureGeometry, BoundaryValueClass,
     };
     use provider_plans::{ServiceMethod, ServiceSchema};
-    use program_entry_plan::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
+    use program_entry_contracts::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
 
     pub(crate) fn validate_paired_calling_plans(
         source: &SelectedProgramEntrySignature,
@@ -257,10 +257,10 @@ mod model {
     use calling_conventions::{
         BoundaryCallingApplication, BoundaryEntryPlan, ValidatedBoundaryEntryPlan,
     };
-    use program_entry_plan::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
+    use program_entry_contracts::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
     use psi_entry_memory::CheckedPrivateEntryRamRecipe;
-    use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
     use terminal_psi::CheckedProgramEntryTerminalReceipt;
+    use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
 
     #[derive(Debug, Clone, Copy)]
     pub struct NativeProgramEntrySettlement<'entry> {
@@ -605,7 +605,7 @@ mod semantic_call {
     pub fn bind_selected_program_entry_call(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         entry: &ValidatedNativeProgramEntrySettlement,
-        selection: &effects::SelectedProviderPlanFacts,
+        selection: &selected_provider_plans::SelectedProviderPlanFacts,
         intrinsic_executions: &[Vec<Option<CompilerIntrinsicExecutionIdentity>>],
     ) -> Result<Option<SelectedProgramEntryCall>, String> {
         let plans = selection.plans();

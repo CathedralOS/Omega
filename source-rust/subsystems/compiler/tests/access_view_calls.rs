@@ -179,7 +179,7 @@ fn qualify_helper(machine: &str, writes: bool) {
                 scope: None,
                 scalar_applications: None,
                 providers: &[],
-                plans: &effects::SelectedProviderPlanFacts::default(),
+                plans: &selected_provider_plans::SelectedProviderPlanFacts::default(),
                 callbacks: &[],
                 entry_call: None,
             },

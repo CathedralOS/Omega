@@ -8,6 +8,8 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+selected-provider-plans = { path = "../../../build/providers/selections" }
+target-provider-admission = { path = "../../verification/target-providers" }
 provider-plans = { path = "../../../build/providers/plans" }
 evaluation-admission = { path = "../../../build/evaluation/admission" }
 build-scalar-evaluation = { path = "../../../build/evaluation/scalars" }
@@ -19,7 +21,6 @@ native-inputs = { package = "psi-to-admitted-native-inputs", path = "../00_psi-t
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 application-identity = { path = "../../../psi/application-identity" }
 arena = { path = "../../../../../foundation/arena" }
-artifact-evaluation = { path = "../../../../psi/evaluation/artifact-evaluation" }
 backend-plan = { path = "../../installation/provider-plans" }
 build-time-values = { path = "../../../build/evaluation/values" }
 calling-conventions = { path = "../../targets/calling-conventions" }
@@ -32,7 +33,7 @@ language-core = { path = "../../../foundation/language-core" }
 layout = { path = "../../targets/layout" }
 optimization = { path = "../../../psi/optimization-selections" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }
-program-entry-plan = { path = "../../installation/program-entry" }
+program-entry-contracts = { path = "program-entry-contracts" }
 provider-admission = { path = "../../verification/provider-admission" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
 runtime-abi = { path = "../../targets/runtime-abi" }
@@ -41,7 +42,6 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 terminal-codec = { path = "../../../psi/codec" }
 psi-authorization = { path = "../../../psi/authorization" }
-terminal-installation = { path = "../../../psi-admission" }
 terminal-interpreter = { path = "../../../../interpreter" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }

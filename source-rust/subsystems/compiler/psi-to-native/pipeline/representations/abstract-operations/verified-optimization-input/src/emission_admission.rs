@@ -74,11 +74,9 @@ impl EmissionAdmission {
 /// The final body and the selected physical adapter must be the same terminal
 /// machine. Keep just its ordinary entry, semantic entry and inbound formals.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedPhysicalEntry(program_entry_plan::physical_selection::PhysicalEntrySelection);
-impl AsRef<program_entry_plan::physical_selection::PhysicalEntrySelection>
-    for AdmittedPhysicalEntry
-{
-    fn as_ref(&self) -> &program_entry_plan::physical_selection::PhysicalEntrySelection {
+pub struct AdmittedPhysicalEntry(program_entry_contracts::PhysicalEntrySelection);
+impl AsRef<program_entry_contracts::PhysicalEntrySelection> for AdmittedPhysicalEntry {
+    fn as_ref(&self) -> &program_entry_contracts::PhysicalEntrySelection {
         &self.0
     }
 }
@@ -99,7 +97,7 @@ impl EmissionAdmission {
             return Err("physical entry changed its selected UEFI contract");
         }
         Ok(AdmittedPhysicalEntry(
-            program_entry_plan::physical_selection::PhysicalEntrySelection {
+            program_entry_contracts::PhysicalEntrySelection {
                 psi: self.entry.terminal,
                 adapter: adapter.machine(),
                 semantic_entry: checked.terminal_entry(),

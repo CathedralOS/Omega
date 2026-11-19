@@ -5,14 +5,20 @@ use physical_recipes::physical_entry::{
     InstalledPhysicalCpuRequirement, PhysicalEntryParts, PhysicalEntryProgram,
     PhysicalEntryStackRequirement,
 };
-use program_entry_plan::physical_selection::PhysicalEntrySelection;
+use program_entry_contracts::PhysicalEntrySelection;
 fn invalid(reason: &str) -> Diagnostic {
     Diagnostic::error(format!("physical image entry: {reason}"))
 }
 
 pub type PlannedPhysicalEntry<S> =
     PhysicalEntryProgram<crate::PhysicalRecipeOrigin, PhysicalEntryContext<S>>;
-pub use program_entry_plan::physical_selection::{PhysicalEntryContext, PlannedRequirements};
+type PhysicalEntryContext<S> = physical_recipes::physical_entry::PhysicalEntryContext<
+    S,
+    program_entry_contracts::ProgramEntryPhysicalContractPlan,
+>;
+type PlannedRequirements = physical_recipes::physical_entry::PlannedRequirements<
+    program_entry_contracts::ProgramEntryPhysicalContractPlan,
+>;
 
 pub struct PrivatePhysicalEntry<'a> {
     pub psi: terminal_psi::TerminalPsiIdentity,
@@ -27,7 +33,7 @@ pub struct PhysicalEntryPlanningRequest<'a, S> {
     pub installations: installation_admission::EntryInstallationResources<'a>,
     pub private_entries: &'a [PrivatePhysicalEntry<'a>],
     pub physical: &'a BoundaryEntryPlan,
-    pub contract: &'a program_entry_plan::ProgramEntryPhysicalContractPlan,
+    pub contract: &'a program_entry_contracts::ProgramEntryPhysicalContractPlan,
     pub demand: machine_code::physical_stack::StackDemand,
 }
 

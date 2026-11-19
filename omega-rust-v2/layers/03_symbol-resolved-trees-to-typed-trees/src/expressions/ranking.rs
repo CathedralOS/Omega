@@ -110,7 +110,7 @@ impl BodyTyper<'_, '_> {
         let mut inclusive = false;
         for &bound in bounds {
             let endpoints = if source.nodes[bound].kind == NodeKind::Range {
-                inclusive = source.nodes[bound].leaves.iter().any(|l| l.text == "..=");
+                inclusive = self.unit.operator_token(bound)? == "..=";
                 source.nodes[bound].children.as_slice()
             } else {
                 std::slice::from_ref(&bound)

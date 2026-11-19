@@ -288,7 +288,7 @@ fn check_reopened_installation_reach(
 ) {
     let encoded = terminal_codec::encode_module(module).unwrap();
     let mut reopened = terminal_codec::decode_module(&encoded).unwrap();
-    let calls = backend_plan::selected_checked_invocation_rows(plans, &reopened)
+    let calls = target_provider_admission::selected_checked_invocation_rows(plans, &reopened)
         .unwrap()
         .into_iter()
         .flat_map(|row| row.candidates)
@@ -1174,7 +1174,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         "derived code must not reenter planning as its own source"
     );
     let preimages =
-        backend_plan::matching_folded_constant_dependencies(view, "linux_x86_64", plans.iter())
+        target_provider_admission::matching_folded_constant_dependencies(view, "linux_x86_64", plans.iter())
             .expect("native admission rejoins exact real plans");
     assert!(
         !preimages.is_empty(),
@@ -1230,7 +1230,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         .providers()
         .selection
         .plans();
-    let reason = backend_plan::matching_folded_constant_dependencies(
+    let reason = target_provider_admission::matching_folded_constant_dependencies(
         view,
         "linux_x86_64",
         alternate_plans.iter(),
@@ -1240,7 +1240,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         reason.contains("differs from the selected provider plan"),
         "{reason}"
     );
-    let alternate_inputs = backend_plan::matching_folded_constant_dependencies(
+    let alternate_inputs = target_provider_admission::matching_folded_constant_dependencies(
         alternate.artifact().view(),
         "linux_x86_64",
         alternate_plans.iter(),

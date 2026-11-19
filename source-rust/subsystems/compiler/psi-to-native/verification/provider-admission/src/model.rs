@@ -77,7 +77,7 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
         Option<&'request std::sync::Arc<super::AdmittedProgramProviderContext>>,
     pub installation_assumptions:
         &'request [installation_conditions::InstallationEnvironmentAssumption],
-    pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
+    pub selected_provider_plans: &'request selected_provider_plans::SelectedProviderPlanFacts,
     pub checked_adapters: &'request [crate::SelectedProviderAdapter],
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'execution>],

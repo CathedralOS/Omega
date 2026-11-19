@@ -24,7 +24,7 @@ pub struct ComponentExportRequest<'input> {
 pub struct ComponentNativeExport<'input> {
     stage_originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
     component: &'input component_description::VerifiedComponent,
-    selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
+    selected_provider_plans: &'input selected_provider_plans::SelectedProviderPlanFacts,
     candidate: &'input terminal_psi::ProviderCandidateConformance,
     calling_application: &'input BoundaryCallingApplication,
     body: image_emission::ObjectArtifact,
@@ -38,7 +38,7 @@ pub struct ComponentNativeExport<'input> {
 pub struct ComponentExportImage<'input> {
     pub(crate) stage_originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
     component: &'input component_description::VerifiedComponent,
-    selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
+    selected_provider_plans: &'input selected_provider_plans::SelectedProviderPlanFacts,
     candidate: &'input terminal_psi::ProviderCandidateConformance,
     calling_application: &'input BoundaryCallingApplication,
     image: image_emission::ComponentSharedImage,

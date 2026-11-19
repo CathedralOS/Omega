@@ -115,7 +115,7 @@ mod placement {
 
     pub fn settle_native_callback_placements(
         module: &TerminalModule,
-        selected: &effects::SelectedProviderPlanFacts,
+        selected: &selected_provider_plans::SelectedProviderPlanFacts,
         calling: &[BoundaryCallingApplication],
     ) -> Result<Vec<NativeCallbackPlacement>, String> {
         let operations = CallbackTerminalOperations::new(
@@ -530,7 +530,7 @@ mod registrar_imports {
 
     pub fn settle_callback_registrar_imports(
         terminal_module: &TerminalModule,
-        selected: &effects::SelectedProviderPlanFacts,
+        selected: &selected_provider_plans::SelectedProviderPlanFacts,
         callback_placements: &[NativeCallbackPlacement],
         callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,
         calling_applications: &[BoundaryCallingApplication],

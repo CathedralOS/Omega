@@ -126,10 +126,11 @@ pub(crate) fn array_length(
         .ok_or_else(|| TypeError::at(f, n, "array length exceeds u64"))
 }
 pub(crate) fn static_number(
-    f: &IndexedSource<'_>,
+    unit: &crate::declarations::resolved_source_file::ResolvedSourceFile<'_>,
     root: usize,
 ) -> Result<(ValueType, Option<ValueType>), TypeError> {
     use omega_parser::NodeKind;
+    let f = unit.file;
     // A token can select a user operation once a typed operand participates. Fold
     // only wholly anonymous arithmetic here. Typed computations need evaluation.
     let mut values = Vec::new();
@@ -161,7 +162,7 @@ pub(crate) fn static_number(
         else {
             return Err(TypeError::at(f, n, "static operation requires a numeric operand"));
         };
-        let token = node.leaves.iter().map(|w| w.text).collect::<String>();
+        let token = unit.operator_token(n)?;
         if node.kind == NodeKind::Unary && token == "-" {
             let negated = ValueType::Exact {
                 value: -right,
@@ -206,7 +207,7 @@ pub(crate) fn static_number(
             if token.ends_with('!') {
                 return Err(TypeError::at(f, n, "trapping operation requires proof-static admission"));
             }
-            let result = integer_arithmetic::compute(&token, &[left.to_integer(), right.to_integer()], carrier).map_err(|m| TypeError::at(f, n, m))?;
+            let result = integer_arithmetic::compute(token, &[left.to_integer(), right.to_integer()], carrier).map_err(|m| TypeError::at(f, n, m))?;
             values.push((
                 ValueType::Exact {
                     value: BigRational::from_integer(result),
@@ -215,7 +216,7 @@ pub(crate) fn static_number(
                 Some(carrier.clone()),
             ));
         } else {
-            let value = exact_binary(&token, &left, &right, a.or(b), f.span(n)).map_err(|e| TypeError::at(f, n, e))?;
+            let value = exact_binary(token, &left, &right, a.or(b), f.span(n)).map_err(|e| TypeError::at(f, n, e))?;
             values.push((value, None));
         }
     }

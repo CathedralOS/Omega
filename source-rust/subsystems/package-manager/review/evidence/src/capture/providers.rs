@@ -272,7 +272,7 @@ impl PreparedProviders {
 impl PreparedRow {
     fn finish(
         &self,
-        selected: &effects::SelectedProviderPlanFacts,
+        selected: &selected_provider_plans::SelectedProviderPlanFacts,
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],
@@ -310,7 +310,7 @@ impl PreparedRow {
     }
     fn installation_reach(
         &self,
-        selected: &effects::SelectedProviderPlanFacts,
+        selected: &selected_provider_plans::SelectedProviderPlanFacts,
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],

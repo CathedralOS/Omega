@@ -17,10 +17,7 @@ pub(crate) fn record_guarded_calls(
         routes.entry(&route.contract).or_default().push(route);
     }
     let effects: HashMap<_, _> = out.machine_effects.iter().map(|e| (&e.machine, e)).collect();
-    let files = units
-        .iter()
-        .map(|unit| ((unit.file.package, unit.file.path), unit))
-        .collect();
+
     let mut callers = HashMap::<&DeclarationId, Vec<&crate::TypedCall>>::new();
     for call in &out.calls {
         if call.use_site == CallUse::Execution && call.caller.is_some() {
@@ -52,7 +49,7 @@ pub(crate) fn record_guarded_calls(
             }
             for call in callers.get(owner).into_iter().flatten() {
                 let Some(parent) = call.caller.as_ref() else { continue };
-                let supplied = callback_invocations::through(call, &entry, &files, catalog);
+                let supplied = callback_invocations::through(call, &entry, units, catalog);
                 if let InvocationTarget::Declaration(slot) = &supplied {
                     let Some(signature) = catalog.signatures.get(&slot.declaration) else {
                         continue;
@@ -115,7 +112,11 @@ pub(crate) fn record_guarded_calls(
                 guard_contract: route.contract.clone(),
                 guard: route.guard.clone(),
                 cause: route.cause,
-                operands: call.operands.clone(),
+                operands: call
+                    .operands
+                    .iter()
+                    .map(|id| crate::Site::at(units[id.file].file, id.node))
+                    .collect(),
                 generic_arguments: call.type_arguments.clone(),
                 entry: None,
             });

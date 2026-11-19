@@ -21,6 +21,8 @@ terminal-codec = { path = "psi/codec" }
 psi-authorization = { path = "psi/authorization" }
 
 [dev-dependencies]
+target-provider-admission = { path = "psi-to-native/verification/target-providers" }
+selected-provider-plans = { path = "build/providers/selections" }
 provider-plans = { path = "build/providers/plans" }
 psi-provider-selections = { path = "psi/providers" }
 evaluation-accounting = { path = "build/evaluation/accounting" }
@@ -36,6 +38,7 @@ numerics = { path = "psi/semantics/numeric" }
 optimization-selections = { path = "foundation/optimization-selections" }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
 terminal-semantics = { path = "psi/semantics" }
+program-entry-contracts = { path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
 
 [[test]]
 name = "build_charge"

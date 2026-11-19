@@ -9,7 +9,7 @@ target-vocabulary = { path = "../../representations/target-operations/target-voc
 operation-operands = { path = "../../representations/operation-operands" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = ".." }
-program-entry-plan = { path = "../../../installation/program-entry" }
+program-entry-contracts = { path = "../../01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
 physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
 installation-admission = { path = "../../../verification/installation-admission" }
 function-identity = { path = "../../representations/function-identity" }

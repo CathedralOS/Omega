@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub struct TerminalApplication {
     pub artifact: psi_authorization::AuthorizedTerminalArtifact,
     pub receipt: terminal_psi::CheckedProgramEntryTerminalReceipt,
-    pub provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    pub provider_proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
     pub physical_entry_adapter: bool,
     /// The evidence seals of `artifact`, when the checker on the lowered
     /// form published it. They stay beside the artifact until Omega 00

@@ -455,9 +455,11 @@ mod interrupt_control_tests {
     };
     use super::*;
     use effects::{
-        SelectedProviderPlanFacts, TerminalAuthorityClosureLeaf,
-        TerminalAuthorityClosureLeafOrigin, TerminalAuthorityClosureReviewReceipt,
+        TerminalAuthorityClosureLeaf,
+        TerminalAuthorityClosureLeafOrigin,
+        TerminalAuthorityClosureReviewReceipt,
     };
+    use selected_provider_plans::SelectedProviderPlanFacts;
     use provider_plans::{ProviderPlanDigest, ServiceSchemaDigest};
     use language_core::BuiltinFunction;
 

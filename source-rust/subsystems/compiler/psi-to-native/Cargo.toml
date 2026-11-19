@@ -11,6 +11,8 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
+selected-provider-plans = { path = "../build/providers/selections" }
+target-provider-admission = { path = "verification/target-providers" }
 provider-plans = { path = "../build/providers/plans" }
 provider-correspondence = { path = "verification/provider-correspondence" }
 psi-scalar-applications = { path = "../psi/scalar-applications" }
@@ -34,7 +36,7 @@ instruction-selection = { package = "target-operations-to-selected-instructions"
 selected-rewrites = { package = "selected-instructions-to-selected-instructions", path = "pipeline/06_selected-instructions-to-selected-instructions" }
 allocation = { package = "selected-instructions-to-register-homes", path = "pipeline/07_selected-instructions-to-register-homes" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "pipeline/08_register-homes-to-post-allocation-machine" }
-program-entry-plan = { path = "installation/program-entry" }
+program-entry-contracts = { path = "pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
 installation-admission = { path = "verification/installation-admission" }
 physical-program = { path = "pipeline/representations/post-allocation-machine/body-facts" }
 provider-admission = { path = "verification/provider-admission" }
@@ -54,7 +56,6 @@ native-encoding = { path = "pipeline/11_bound-framed-machine-to-selected-form-en
 object-file = { path = "pipeline/15_placed-functions-to-objects" }
 placement = { package = "selected-form-encoding-to-resolved-layout", path = "pipeline/12_selected-form-encoding-to-resolved-layout" }
 relaxation = { package = "resolved-layout-to-resolved-layout", path = "pipeline/13_resolved-layout-to-resolved-layout" }
-backend-plan = { path = "installation/provider-plans" }
 calling-conventions = { path = "targets/calling-conventions" }
 boundary-applications = { path = "installation/boundary-applications" }
 diagnostics = { path = "../../../foundation/diagnostics" }

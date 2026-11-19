@@ -359,7 +359,7 @@ impl SelectedProgramEntrySignature {
                     ProgramEntryExtentFieldRole::Base => 1,
                     ProgramEntryExtentFieldRole::Length => 2,
                 });
-                crate::codec_bytes::push_encoded(&mut canonical, field.byte_offset.to_le_bytes());
+                wire::codec_bytes::push_encoded(&mut canonical, field.byte_offset.to_le_bytes());
                 push_shape(&mut canonical, field.shape);
             }
         }
@@ -367,7 +367,7 @@ impl SelectedProgramEntrySignature {
             ProgramEntryResultSignature::Unit => 1,
         });
         {
-            let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+            let mut digest = wire::digest_encoder::DomainDigestEncoder::new(b"");
             digest.raw(&canonical);
             ProgramEntrySignatureIdentity(digest.finish())
         }
@@ -456,8 +456,8 @@ fn push_shape(canonical: &mut Vec<u8>, shape: calling_conventions::ValueShape) {
         shape.class,
         calling_conventions::ValueClass::Integer
     ));
-    crate::codec_bytes::push_encoded(canonical, shape.byte_size.to_le_bytes());
-    crate::codec_bytes::push_encoded(canonical, shape.alignment.to_le_bytes());
+    wire::codec_bytes::push_encoded(canonical, shape.byte_size.to_le_bytes());
+    wire::codec_bytes::push_encoded(canonical, shape.alignment.to_le_bytes());
 }
 
 #[cfg(test)]

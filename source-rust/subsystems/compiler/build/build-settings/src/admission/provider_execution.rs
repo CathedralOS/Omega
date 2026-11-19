@@ -9,7 +9,7 @@ use diagnostics::Diagnostic;
 
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct BuildProviderPlans {
-    selected: effects::SelectedProviderPlanFacts,
+    selected: selected_provider_plans::SelectedProviderPlanFacts,
     packages: Option<package_compilation::PackageCompilationInputs>,
 }
 

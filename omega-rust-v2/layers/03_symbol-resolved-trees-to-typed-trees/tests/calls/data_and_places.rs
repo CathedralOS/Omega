@@ -1,4 +1,15 @@
 #[test]
+fn shorthand_checks_the_local_against_the_named_field() {
+    let program = |parameter| format!("data Point {{ x: u8; }} machine point(x: {parameter}) -> Point {{ Point {{ x }} }}");
+    let accepted = program("u8");
+    check(&[("point.omg", &accepted)]).unwrap();
+    let refused = program("bool");
+    let error = check(&[("point.omg", &refused)]).unwrap_err();
+    assert!(error.message.contains("expected u8"), "{error:?}");
+    assert_eq!(error.span.slice(refused.as_bytes()), Some(&b"x"[..]));
+}
+
+#[test]
 fn long_field_chain_reports_the_first_invalid_receiver() {
     let source = format!("data Flag {{ value: bool; }} machine f(x: Flag) -> bool {{ x{} }}", ".value".repeat(4096));
     let err = check(&[("a.omg", &source)]).unwrap_err();

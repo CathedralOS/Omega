@@ -317,11 +317,7 @@ impl BodyTyper<'_, '_> {
             if source.nodes[init].kind != NodeKind::FieldInit {
                 return Err(TypeError::unsupported(source, init));
             }
-            let name = source.nodes[init]
-                .words()
-                .next()
-                .ok_or_else(|| TypeError::unsupported(source, init))?
-                .text;
+            let name = self.unit.member_name(init)?;
             let declared = fields
                 .get(name)
                 .ok_or_else(|| TypeError::at(source, init, format!("{} has no field {name}", id.path)))?;
@@ -409,19 +405,12 @@ impl BodyTyper<'_, '_> {
                 ValueType::Reference(_, inner) => inner.as_ref(),
                 other => other,
             };
-            if matches!(receiver, ValueType::Slice(_) | ValueType::Array(_, _) | ValueType::IndexedArray(..))
-                && source.nodes[node_index]
-                    .words()
-                    .next()
-                    .is_some_and(|w| matches!(w.text, "len" | "address"))
-            {
+            let field = self.unit.member_name(node_index)?;
+            if matches!(receiver, ValueType::Slice(_) | ValueType::Array(_, _) | ValueType::IndexedArray(..)) && matches!(field, "len" | "address") {
                 if *access != Access::Shared {
                     return Err(TypeError::at(source, node_index, "collection metadata is read-only"));
                 }
-                let address = source.nodes[node_index]
-                    .words()
-                    .next()
-                    .is_some_and(|w| w.text == "address");
+                let address = field == "address";
                 ty = if address { ValueType::Address } else { ValueType::integer("u64").unwrap() };
                 self.output.expressions.push(TypedExpression {
                     node: source.node_id(node_index),
@@ -433,18 +422,14 @@ impl BodyTyper<'_, '_> {
             let Some((id, args)) = receiver.nominal_parts() else {
                 return Err(TypeError::at(source, node_index, format!("cannot select a field of {ty}")));
             };
-            let field = source.nodes[node_index]
-                .words()
-                .next()
-                .ok_or_else(|| TypeError::unsupported(source, node_index))?;
             ty = self
                 .catalog
                 .fields
                 .get(case.take().as_ref().unwrap_or(id))
-                .and_then(|fields| fields.get(field.text))
+                .and_then(|fields| fields.get(field))
                 .map(|t| super::existential_records::open(&self.catalog.types.field_type(t, id, args), id, &opening))
-                .ok_or_else(|| TypeError::at(source, node_index, format!("{} has no field {}", id.path, field.text)))?;
-            opening.fields.push(field.text.into());
+                .ok_or_else(|| TypeError::at(source, node_index, format!("{} has no field {}", id.path, field)))?;
+            opening.fields.push(field.into());
             self.output.expressions.push(TypedExpression {
                 node: source.node_id(node_index),
                 site: Site::at(source, node_index),

@@ -18,7 +18,7 @@ pub(crate) fn slot(
     }
     let mut trait_arguments = Vec::new();
     for &section in &unit.file.nodes[n].children {
-        let Some(Symbol::Declaration(owner)) = unit.application_segment(n, section) else {
+        let Some(Symbol::Declaration(owner)) = unit.application_name(section).map(|name| &name.target) else {
             return Err(TypeError::unsupported(unit.file, section));
         };
         if owner.kind != NodeKind::Trait {
@@ -125,6 +125,7 @@ pub(crate) fn resolve_callback_bounds<'a>(
                     let Some(Symbol::Binding {
                         span,
                         kind: NodeKind::ConstParam,
+                        ..
                     }) = unit.symbol(arg)
                     else {
                         continue;

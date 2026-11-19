@@ -21,7 +21,7 @@ boundary.
 Consumed by `terminal-verification` to reconstruct and check module obligations from decoded
 `PSITERM\0` artifacts, by `terminal-interpreter` to execute Terminal Psi programs under the same
 operational rules, and by `02_target-bound-program-to-abstract-operations` (`Omega 00`), `layout`,
-`program-entry-plan`, `native-artifact`, and `image-emission` to lower verified Terminal Psi
+`program-entry-contracts`, `native-artifact`, and `image-emission` to lower verified Terminal Psi
 modules to native code.
 */
 

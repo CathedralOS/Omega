@@ -1,63 +1,21 @@
-/*
-We retain the selected provider closure (`SelectedProviderPlanFacts`), its
-domain-separated SHA-256 digest (`SelectedProviderClosureDigest`), and the
-compiler-private recovery candidate (`SelectedProviderPlanCandidate`). When
-plans enter the closure, we validate unique plan identities and boundary slots
-and intern requirement identities into a closure-local `TerminalIdentityTable`
-before attaching installation reach, template specialization rows, closed
-external requirement applications, or target-family realization coordinates.
-*/
+//! Keep the exact selected provider plans and their checked installation,
+//! specialization and assumed-binding rows. Retained candidates must reproduce
+//! these identities when they re-enter Build or native admission.
+#![forbid(unsafe_code)]
 
-pub(crate) mod authority;
-pub(crate) mod component_eras;
-pub(crate) use ::wire::digest_encoder;
-pub(crate) mod executable_scopes;
-pub(crate) mod providers;
-
-use crate::provider_evidence::digest_encoder::DomainDigestEncoder;
-#[cfg(test)]
-mod selected_plan_tests;
-use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
+use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
 use std::collections::BTreeSet;
 use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTable};
+use wire::digest_encoder::DomainDigestEncoder;
 
-macro_rules! evidence_digest {
-    ($(#[$attr:meta])* $name:ident, from: $(#[$fdoc:meta])* $fv:vis) => {
-        $(#[$attr])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name([u8; 32]);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SelectedProviderClosureDigest([u8; 32]);
 
-        impl $name {
-            $(#[$fdoc])*
-            $fv const fn from_digest(digest: [u8; 32]) -> Self {
-                Self(digest)
-            }
-
-            pub const fn as_bytes(&self) -> &[u8; 32] {
-                &self.0
-            }
-        }
-    };
-    ($(#[$attr:meta])* $name:ident) => {
-        $(#[$attr])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name([u8; 32]);
-
-        impl $name {
-            const fn from_digest(digest: [u8; 32]) -> Self {
-                Self(digest)
-            }
-
-            pub const fn as_bytes(&self) -> &[u8; 32] {
-                &self.0
-            }
-        }
-    };
+impl SelectedProviderClosureDigest {
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
 }
-
-pub(crate) use evidence_digest;
-
-evidence_digest!(SelectedProviderClosureDigest);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssumedBindingContractSelection {
@@ -356,10 +314,7 @@ impl SelectedProviderPlanFacts {
         Ok(self)
     }
 
-    pub(crate) fn plan_by_report_fingerprint(
-        &self,
-        report_fingerprint: u64,
-    ) -> Option<&ProviderPlan> {
+    fn plan_by_report_fingerprint(&self, report_fingerprint: u64) -> Option<&ProviderPlan> {
         self.plans
             .iter()
             .find(|plan| plan.report_fingerprint() == report_fingerprint)
@@ -400,7 +355,7 @@ impl SelectedProviderPlanFacts {
             // Equal provider values may have different selecting owners.
             // Bind the retained custody here without changing the ABI plan's
             // semantic identity or its row/report coordinates.
-            encoder.byte(u8::from(plan.provider_declaration.is_some()));
+            encoder.bool(plan.provider_declaration.is_some());
             if let Some(owner) = &plan.provider_declaration {
                 encoder.string(owner);
             }
@@ -423,7 +378,7 @@ impl SelectedProviderPlanFacts {
                     })
             });
             for (_, realization) in rows {
-                encoder.byte(u8::from(realization.is_some()));
+                encoder.bool(realization.is_some());
                 if let Some(realization) = realization {
                     encoder.string(realization);
                 }
@@ -434,13 +389,8 @@ impl SelectedProviderPlanFacts {
             encoder.string(&row.required);
             encoder.string(&row.supplied);
         }
-        match self.execution_scope() {
-            crate::ExecutionScope::CallerAddressSpace => encoder.byte(0),
-            crate::ExecutionScope::IsolatedProvider(identity) => {
-                encoder.byte(1);
-                encoder.u64(identity);
-            }
-        }
+        // Version 5 records every selected plan in the caller address space.
+        encoder.byte(0);
         encoder.len(0);
 
         encoder.len(self.installation_reach_resolutions.len());
@@ -465,11 +415,7 @@ impl SelectedProviderPlanFacts {
             encoder.string(self.identity_text(row.selected_requirement_identity));
             encoder.string(self.identity_text(row.requirement_identity));
         }
-        SelectedProviderClosureDigest::from_digest(encoder.finish())
-    }
-
-    pub const fn execution_scope(&self) -> crate::ExecutionScope {
-        crate::ExecutionScope::CallerAddressSpace
+        SelectedProviderClosureDigest(encoder.finish())
     }
 
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
@@ -624,16 +570,16 @@ impl SelectedProviderPlanFacts {
                 Some(plan.identities.text(plan_row.requirement_identity))
                     == self.identities.text(row.selected_requirement_identity)
                     && match &plan_row.binding {
-                        crate::provider_plan::ProviderBinding::CheckedAdapter {
+                        provider_plans::ProviderBinding::CheckedAdapter {
                             machine_identity,
                             ..
                         } => {
                             Some(plan.identity_text(*machine_identity))
                                 == self.identities.text(row.selected_machine_identity)
                         }
-                        crate::provider_plan::ProviderBinding::Import { .. }
-                        | crate::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-                        | crate::provider_plan::ProviderBinding::Syscall { .. } => {
+                        provider_plans::ProviderBinding::Import { .. }
+                        | provider_plans::ProviderBinding::CompilerIntrinsic { .. }
+                        | provider_plans::ProviderBinding::Syscall { .. } => {
                             row.selected_machine_identity == row.selected_requirement_identity
                                 && row.machine_identity == row.selected_requirement_identity
                         }
@@ -664,7 +610,7 @@ impl SelectedProviderPlanFacts {
                     && plan.rows.iter().any(|row| {
                         matches!(
                             row.binding,
-                            crate::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                            provider_plans::ProviderBinding::CheckedAdapter { .. }
                         ) && Some(plan.identities.text(row.requirement_identity))
                             == self
                                 .identities
@@ -760,7 +706,7 @@ impl SelectedProviderPlanFacts {
     pub fn selected_requirement_row(
         &self,
         requirement: &str,
-    ) -> Option<(&ProviderPlan, &crate::provider_plan::ProviderPlanRow)> {
+    ) -> Option<(&ProviderPlan, &provider_plans::ProviderPlanRow)> {
         let (target_requirement, target_plan_fingerprint) =
             if let Some(row) = self.specialized_requirement_row(requirement) {
                 (
@@ -873,7 +819,7 @@ impl SelectedProviderPlanFacts {
         Ok(self)
     }
 
-    pub(crate) fn installation_reach_resolution(
+    fn installation_reach_resolution(
         &self,
         requirement_identity: &str,
     ) -> Option<&InstallationReachResolution> {
@@ -890,7 +836,7 @@ impl SelectedProviderPlanFacts {
         Some(resolution)
     }
 
-    pub(crate) fn installation_reach_resolution_for_plan(
+    fn installation_reach_resolution_for_plan(
         &self,
         provider_plan_report_identity: u64,
         requirement_identity: &str,
@@ -1087,7 +1033,7 @@ pub struct SelectedRequirementSpecialization {
     pub machine_identity: terminal_psi::TerminalIdentityIndex,
 }
 
-pub(crate) fn identity_text(
+fn identity_text(
     identities: &terminal_psi::TerminalIdentityTable,
     index: terminal_psi::TerminalIdentityIndex,
 ) -> &str {
@@ -1206,3 +1152,6 @@ mod installation_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod retained_tests;

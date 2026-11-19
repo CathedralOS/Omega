@@ -2,10 +2,10 @@
 use super::{
     ProgramEntryCallingPlanRequest, SelectedCompilerProgramEntry, SelectedProgramEntryCallingPlans,
 };
+use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
 use diagnostics::Diagnostic;
 use host_provider_inputs::AcceptedSemanticBinding;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
-use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
 
@@ -41,7 +41,7 @@ impl PublishedEntryNomination {
     pub fn program(&self) -> terminal_psi::TerminalPsiIdentity {
         self.program
     }
-    pub fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
+    pub fn source_signature(&self) -> &program_entry_contracts::SelectedProgramEntrySignature {
         self.selected.source_signature()
     }
     pub fn nominal_root(&self) -> Result<terminal_psi::PreparedNominalRoot, Vec<Diagnostic>> {
@@ -89,7 +89,7 @@ pub fn plan_published_entry_calling_conventions(
         .root_application_identity()
         .ok_or_else(|| refuse("entry schema has no exact root application identity".into()))?;
     let policy = super::entry_calling_policy(module, declaring_schema, owner).map_err(refuse)?;
-    let admitted_providers = backend_plan::TerminalTargetProviderSelection::from_plans(
+    let admitted_providers = target_provider_admission::TerminalTargetProviderSelection::from_plans(
         providers.to_vec(),
         artifact.view(),
     )

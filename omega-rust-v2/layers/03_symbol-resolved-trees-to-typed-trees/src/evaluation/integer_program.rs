@@ -250,7 +250,7 @@ impl IntegerProgram {
         if let Some(owner) = unit
             .file
             .enclosing_contexts(n)
-            .find_map(|a| unit.declaration_at(unit.file.span(a)))
+            .find_map(|a| unit.declaration_at(a))
         {
             let mut all = types.formations.borrow_mut();
             let checks = all.entry((*owner).clone()).or_default();
@@ -353,7 +353,7 @@ impl IntegerProgram {
                 _ => Err(unresolved()),
             },
             Paren => child(unit.single_child(n).map_err(|e| e.message)?, intermediate),
-            Unary if node.leaves.first().is_some_and(|t| t.text == "-") => {
+            Unary if unit.operator(n).is_some_and(|op| op.token == "-") => {
                 let mut value = child(unit.single_child(n).map_err(|e| e.message)?, intermediate)?;
                 match &mut value.ty {
                     ValueType::Exact { value, .. } => *value = -value.clone(),
@@ -376,7 +376,7 @@ impl IntegerProgram {
                 let [a, b] = *node.children.as_slice() else { return Err(unresolved()) };
                 let left = child(a, intermediate)?;
                 let right = child(b, intermediate)?;
-                let token = node.leaves.first().ok_or_else(unresolved)?.text;
+                let token = unit.operator(n).ok_or_else(unresolved)?.token.as_str();
                 if let (
                     ValueType::Exact {
                         value: a,

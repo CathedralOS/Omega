@@ -317,7 +317,7 @@ mod providers {
     use super::super::value::{RecordError, RecordWriter};
     use super::record_fields;
 
-    record_fields!(effects::AssumedBindingContractSelection { required, supplied });
+    record_fields!(selected_provider_plans::AssumedBindingContractSelection { required, supplied });
 
     record_fields!(effects::AuthoredBehaviorExclusion {
         kind,
@@ -465,7 +465,7 @@ mod providers {
         1 => Intrinsic(value0),
     });
 
-    record_fields!(effects::InstallationReachResolution {
+    record_fields!(selected_provider_plans::InstallationReachResolution {
         requirement_identity,
         provider_plan_report_identity,
         upper_bound,
@@ -520,14 +520,14 @@ mod providers {
         binding
     });
 
-    record_fields!(effects::SelectedExternalRequirementApplication {
+    record_fields!(selected_provider_plans::SelectedExternalRequirementApplication {
         provider_plan_report_identity,
         provider_plan_digest,
         selected_requirement_identity,
         requirement_identity
     });
 
-    record_fields!(effects::SelectedRequirementSpecialization {
+    record_fields!(selected_provider_plans::SelectedRequirementSpecialization {
         provider_plan_report_identity,
         selected_requirement_identity,
         selected_machine_identity,
@@ -705,7 +705,7 @@ mod providers {
         13 => ProcessInput,
     });
 
-    record_fields!(backend_plan::TerminalTargetProviderProposal {
+    record_fields!(target_provider_admission::TerminalTargetProviderProposal {
         target,
         terminal_psi,
         optimization_selection,
@@ -714,7 +714,7 @@ mod providers {
         selection
     });
 
-    record_fields!(backend_plan::TerminalTargetProviderSelection {
+    record_fields!(target_provider_admission::TerminalTargetProviderSelection {
         plans,
         assumed_bindings,
         checked_candidates

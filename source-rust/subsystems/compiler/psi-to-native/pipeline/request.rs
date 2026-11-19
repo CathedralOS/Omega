@@ -24,7 +24,7 @@ pub(crate) struct NativeRealizationRequest<'request> {
     pub image_request: ExecutableImageEmissionRequest,
     pub elf_interpreter: Option<&'request target::NormalizedElfInterpreterPlan>,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
-    pub target_provider_proposals: &'request [backend_plan::TerminalTargetProviderProposal],
+    pub target_provider_proposals: &'request [target_provider_admission::TerminalTargetProviderProposal],
 }
 
 impl NativeRealizationRequest<'_> {

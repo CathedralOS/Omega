@@ -24,7 +24,7 @@ pub enum ProgramStorageEntryRootRole {
 pub struct SelectedProgramStorageEntryPlan {
     target_slot: target::ProgramEntrySlotDeclaration,
     requirement_identity: terminal_psi::TerminalIdentityIndex,
-    schema: effects::provider_plan::ServiceSchema,
+    schema: provider_plans::ServiceSchema,
     physical_contract: Option<ProgramEntryPhysicalContractPlan>,
     identities: terminal_psi::TerminalIdentityTable,
 }
@@ -32,7 +32,7 @@ pub struct SelectedProgramStorageEntryPlan {
 impl SelectedProgramStorageEntryPlan {
     pub fn from_target_slot(
         slot: target::ProgramEntrySlotDeclaration,
-        schema: effects::provider_plan::ServiceSchema,
+        schema: provider_plans::ServiceSchema,
         requirement_identity: String,
     ) -> Result<Self, ProgramStorageEntryDiagnostic> {
         let declares_exact_continuation = match slot.schema {
@@ -136,7 +136,7 @@ impl SelectedProgramStorageEntryPlan {
         self.target_slot
     }
 
-    pub const fn schema(&self) -> &effects::provider_plan::ServiceSchema {
+    pub const fn schema(&self) -> &provider_plans::ServiceSchema {
         &self.schema
     }
 
@@ -152,7 +152,7 @@ impl SelectedProgramStorageEntryPlan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use effects::provider_plan::{ServiceMethod, ServiceSchema};
+    use provider_plans::{ServiceMethod, ServiceSchema};
 
     #[test]
     fn storage_entry_interns_the_selected_requirement_and_refuses_a_missing_method() {

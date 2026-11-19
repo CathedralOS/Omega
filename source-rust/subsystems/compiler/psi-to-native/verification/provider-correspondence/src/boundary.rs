@@ -31,7 +31,7 @@ pub struct CompilerIntrinsicPlanProvenance<'a> {
 
 pub fn select_boundary_applications(
     provenance: &[CompilerIntrinsicPlanProvenance<'_>],
-    selected: &effects::SelectedProviderPlanFacts,
+    selected: &selected_provider_plans::SelectedProviderPlanFacts,
     module: &terminal_psi::TerminalModule,
     demands: &terminal_psi::TerminalBoundaryApplicationDemands,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {
@@ -157,7 +157,7 @@ pub struct BoundaryProviderAdmission<'facts> {
 impl BoundaryProviderAdmission<'_> {
     pub fn admit(
         &self,
-        selected: &effects::SelectedProviderPlanFacts,
+        selected: &selected_provider_plans::SelectedProviderPlanFacts,
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
         for plan in selected.plans() {
@@ -210,7 +210,7 @@ impl BoundaryProviderAdmission<'_> {
         &self,
         usage: &declaration_contracts::boundary_provider_review::BoundaryRequirementUse<'_>,
         candidates: &[ProviderPlan],
-        selected: &effects::SelectedProviderPlanFacts,
+        selected: &selected_provider_plans::SelectedProviderPlanFacts,
     ) -> Result<(), Diagnostic> {
         let Some((plan, row)) = selected_plan(
             usage.requirement,
@@ -240,7 +240,7 @@ impl BoundaryProviderAdmission<'_> {
         requirement: BoundaryRequirementReview<'_>,
         evidence: OperatorEvidence<'_>,
         candidates: &[ProviderPlan],
-        selected: &effects::SelectedProviderPlanFacts,
+        selected: &selected_provider_plans::SelectedProviderPlanFacts,
     ) -> Result<(), Diagnostic> {
         let Some((plan, row)) =
             selected_plan(requirement, candidates, selected, BoundaryUse::Operator)?
@@ -311,7 +311,7 @@ enum BoundaryUse<'facts> {
 fn selected_plan<'plans>(
     requirement: BoundaryRequirementReview<'_>,
     candidates: &[ProviderPlan],
-    selected: &'plans effects::SelectedProviderPlanFacts,
+    selected: &'plans selected_provider_plans::SelectedProviderPlanFacts,
     usage: BoundaryUse<'_>,
 ) -> Result<Option<(&'plans ProviderPlan, &'plans ProviderPlanRow)>, Diagnostic> {
     if !candidates

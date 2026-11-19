@@ -77,6 +77,7 @@ struct Entry {
 }
 type Index = BTreeMap<(String, String), Vec<usize>>;
 struct Local {
+    node: usize,
     kind: NodeKind,
     span: SourceSpan,
     owner: usize,
@@ -413,7 +414,6 @@ pub fn resolve_stage_with_exports<'text>(
         };
         catalog.carriers.insert(slot, key);
     }
-    let mut file_uses = Vec::with_capacity(files.len());
     for (file_number, file) in files.iter().enumerate() {
         let context = &contexts[file_number];
         for import in &uses[import_ranges[file_number].clone()] {
@@ -429,18 +429,11 @@ pub fn resolve_stage_with_exports<'text>(
         let first_use = uses.len();
         catalog.bind(file, file_number, context, &mut uses, &mut applications)?;
         catalog.collect_operators(file, file_number, context, &uses[first_use..], &mut operators, &mut operator_declarations)?;
-        file_uses.push(
-            import_ranges[file_number]
-                .clone()
-                .chain(first_use..uses.len())
-                .map(|i| (uses[i].span, i))
-                .collect(),
-        );
     }
-    let mut definitions = vec![HashMap::new(); files.len()];
+    let mut definitions = vec![Vec::new(); files.len()];
     for (slot, entry) in entries.iter().enumerate() {
         if let Some((file, node)) = entry.source {
-            definitions[file].insert(files[file].span(node), slot);
+            definitions[file].push((node, slot));
         }
     }
     let resolution = ResolvedStage {
@@ -463,7 +456,7 @@ pub fn resolve_stage_with_exports<'text>(
         operators,
         operator_declarations,
     };
-    Ok(crate::SymbolResolvedTrees::new(files, file_uses, definitions, resolution))
+    Ok(crate::SymbolResolvedTrees::new(files, definitions, resolution))
 }
 struct Catalog<'a> {
     entries: &'a [Entry],
@@ -484,10 +477,14 @@ enum Carrier {
 }
 fn usage(
     file: &File<'_>,
+    node: usize,
+    role: NameRole,
     span: SourceSpan,
     target: Symbol,
 ) -> NameUse {
     NameUse {
+        node: file.node_id(node),
+        role,
         package: file.package.into(),
         file: file.path.into(),
         span,

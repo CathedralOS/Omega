@@ -1,15 +1,14 @@
-//! L2 identifies declarations and uses by source span. This file's tables connect those identities to its indexed syntax while L3 checks it.
+//! L3 borrows L2's resolved tree and keeps parameter types and logical hypotheses for this file.
 
 use crate::{Access, Site, TypeError, ValueType};
 use omega_lexer::SourceSpan;
-use omega_resolver::{DeclarationId, Symbol, SymbolResolvedTree};
+use omega_resolver::{DeclarationId, SymbolResolvedTree};
 use std::collections::HashMap;
 
 pub(crate) struct ResolvedSourceFile<'a> {
     pub(crate) tree: SymbolResolvedTree<'a>,
     pub(crate) parameters: HashMap<SourceSpan, ValueType>,
     pub(crate) hypotheses: HashMap<SourceSpan, Site>,
-    pub(crate) binding_annotations: HashMap<SourceSpan, usize>,
 }
 impl<'a> std::ops::Deref for ResolvedSourceFile<'a> {
     type Target = SymbolResolvedTree<'a>;
@@ -23,7 +22,7 @@ impl<'a> ResolvedSourceFile<'a> {
         &self,
         node_index: usize,
     ) -> Result<&'a DeclarationId, TypeError> {
-        self.declaration_at(self.file.span(node_index))
+        self.declaration_at(node_index)
             .ok_or_else(|| TypeError::at(self.file, node_index, "missing L2 definition"))
     }
     pub(crate) fn single_child(
@@ -38,24 +37,30 @@ impl<'a> ResolvedSourceFile<'a> {
 }
 
 impl<'a> ResolvedSourceFile<'a> {
-    pub fn symbol(
+    pub(crate) fn parameter_annotation(
         &self,
-        node_index: usize,
-    ) -> Option<&'a Symbol> {
-        let mut words = self.file.nodes[node_index].words();
-        let first = words.next()?;
-        let last = words.next_back().unwrap_or(first);
-        self.symbol_at(SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset()))
+        binder_node: usize,
+    ) -> Option<usize> {
+        let binder = &self.file.nodes[binder_node];
+        if binder.kind != omega_parser::NodeKind::Param {
+            return None;
+        }
+        binder.children.first().copied()
     }
-    pub fn qualifier(
+    pub(crate) fn operator_token(
         &self,
         node: usize,
-    ) -> Option<&'a Symbol> {
-        let mut words = self.file.nodes[node].words();
-        words.next_back()?;
-        let first = words.next()?;
-        let last = words.next_back().unwrap_or(first);
-        self.symbol_at(SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset()))
+    ) -> Result<&'a str, TypeError> {
+        self.operator(node)
+            .map(|op| op.token.as_str())
+            .ok_or_else(|| TypeError::at(self.file, node, "missing resolved operator"))
+    }
+    pub(crate) fn member_name(
+        &self,
+        node: usize,
+    ) -> Result<&'a str, TypeError> {
+        self.member(node)
+            .ok_or_else(|| TypeError::at(self.file, node, "missing resolved member"))
     }
     pub fn access(
         &self,

@@ -18,7 +18,7 @@ pub(crate) fn check_static_argument(
         .file
         .enclosing_contexts(node_index)
         .find_map(|p| {
-            unit.declaration_at(unit.file.span(p))
+            unit.declaration_at(p)
                 .filter(|d| matches!(d.kind, NodeKind::Machine | NodeKind::AsmMachine))
         })
         .cloned();

@@ -50,7 +50,7 @@ pub struct RealizedTargetSupply(SelectedProviderRealization);
 pub struct SelectedProviderRealization {
     program: terminal_psi::TerminalPsiIdentity,
     target: Option<String>,
-    plans: Arc<effects::SelectedProviderPlanFacts>,
+    plans: Arc<selected_provider_plans::SelectedProviderPlanFacts>,
     realizations: Vec<PlanRealization>,
     direct_boundary_leaves: Vec<DirectBoundaryLeaf>,
     calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
@@ -116,7 +116,7 @@ impl RealizedTargetSupply {
                 format!("provider realization lost its canonical program: {error:?}")
             })?,
             target: target.map(str::to_owned),
-            plans: Arc::new(effects::SelectedProviderPlanFacts::from_selected_plans(
+            plans: Arc::new(selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
                 Vec::new(),
             )?),
             realizations: Vec::new(),
@@ -200,7 +200,7 @@ impl RealizedTargetSupply {
                     .as_deref()
                     .filter(|owner| !owner.is_empty())
                     .ok_or("selected checked provider has no exact choosing declaration")?;
-                let candidates = backend_plan::selected_provider_candidate_rows(plan, module)?;
+                let candidates = target_provider_admission::selected_provider_candidate_rows(plan, module)?;
                 if candidates
                     .iter()
                     .any(|row| row.candidate_positions.is_empty())
@@ -407,7 +407,7 @@ impl RealizedTargetSupply {
                 executions: selected.row_executions,
             });
         }
-        let plans = effects::SelectedProviderPlanFacts::from_selected_plans(plans)?;
+        let plans = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(plans)?;
         Ok(Self(SelectedProviderRealization {
             program: terminal_codec::terminal_psi_identity(module).map_err(|error| {
                 format!("provider realization lost its canonical program: {error:?}")
@@ -530,10 +530,10 @@ impl SelectedProviderRealization {
     pub fn target(&self) -> Option<&str> {
         self.target.as_deref()
     }
-    pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
+    pub fn plans(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
         &self.plans
     }
-    pub fn shared_plans(&self) -> &Arc<effects::SelectedProviderPlanFacts> {
+    pub fn shared_plans(&self) -> &Arc<selected_provider_plans::SelectedProviderPlanFacts> {
         &self.plans
     }
     pub fn provider_declarations(&self) -> &[ProviderPlan] {

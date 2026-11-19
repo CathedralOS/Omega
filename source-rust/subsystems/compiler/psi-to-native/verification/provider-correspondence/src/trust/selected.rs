@@ -4,7 +4,7 @@ use diagnostics::Diagnostic;
 pub struct SelectedTrustEvidence<'a> {
     pub program: terminal_psi::TerminalPsiIdentity,
     pub target: Option<&'a str>,
-    pub plans: &'a effects::SelectedProviderPlanFacts,
+    pub plans: &'a selected_provider_plans::SelectedProviderPlanFacts,
     pub leaves: &'a [backend_plan::DirectBoundaryLeaf],
     pub bindings: &'a [provider_plans::EvaluatedNativeBinding],
     pub identities: &'a terminal_psi::TerminalIdentityTable,

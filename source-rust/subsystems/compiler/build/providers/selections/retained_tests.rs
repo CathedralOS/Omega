@@ -1,5 +1,5 @@
 use component_description::retained_plan::ProviderPlanInput;
-use crate::provider_plan::{
+use provider_plans::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceReceiverApplication,
 };
 
@@ -51,6 +51,21 @@ fn selected_plan() -> ProviderPlan {
 }
 
 #[test]
+fn selection_identity_matches_the_published_v5_digest() {
+    let empty = crate::SelectedProviderPlanFacts::default();
+    let selected =
+        crate::SelectedProviderPlanFacts::from_selected_plans(vec![selected_plan()]).unwrap();
+    assert_eq!(
+        wire::digest_encoder::hex(empty.identity_digest().as_bytes()),
+        "5fd283d75ebc3288b6e892e67dc77b6ae97be22b545e9e9f3938dbf0b4afabad"
+    );
+    assert_eq!(
+        wire::digest_encoder::hex(selected.identity_digest().as_bytes()),
+        "c66b6ff7585159796739c513cc37c20702349603aa1e032ccc6e00bff02d7591"
+    );
+}
+
+#[test]
 fn selected_custody_binds_numeric_declarations_in_canonical_row_order() {
     let mut plan = selected_plan();
     plan.provider_declaration = Some("SelectedMap".into());
@@ -90,8 +105,7 @@ fn selected_custody_binds_numeric_declarations_in_canonical_row_order() {
             .collect::<Vec<_>>(),
         ["Boundary::consume(opaque)", "Boundary::produce(opaque)"],
     );
-    let facts =
-        |plan| crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
+    let facts = |plan| crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
     let selected = facts(plan.clone());
     let mut reordered = plan.clone();
     reordered.rows.reverse();
@@ -119,8 +133,7 @@ fn selected_custody_binds_numeric_declarations_in_canonical_row_order() {
 fn exact_local_rows_share_a_schema_without_sharing_bindings() {
     let mut plan = selected_plan();
     let declared = plan.rows[0].requirement_identity;
-    plan.rows[0].requirement_identity =
-        plan.identities.intern("Boundary::consume<First>(opaque)");
+    plan.rows[0].requirement_identity = plan.identities.intern("Boundary::consume<First>(opaque)");
     plan.rows[0].calling_signature = semantic_vocabulary::CallingSignatureId::new(11);
     plan.rows[0].binding = ProviderBinding::Syscall { number: 1 };
     let mut second = plan.rows[0].clone();
@@ -129,8 +142,7 @@ fn exact_local_rows_share_a_schema_without_sharing_bindings() {
     second.binding = ProviderBinding::Syscall { number: 2 };
     plan.rows.push(second);
     assert!(plan.validate_against_schema().is_empty());
-    let facts =
-        crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan.clone()]).unwrap();
+    let facts = crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan.clone()]).unwrap();
     for (identity, number) in [
         ("Boundary::consume<First>(opaque)", 1),
         ("Boundary::consume<Second>(opaque)", 2),
@@ -152,9 +164,10 @@ fn exact_local_rows_share_a_schema_without_sharing_bindings() {
     let bytes = plan.identity_preimage();
     let input = ProviderPlanInput::read(&bytes, plan.identity_digest().as_bytes()).unwrap();
     assert_eq!(input.rows.len(), 2);
-    assert!(input.rows.iter().all(|row| row.declared_requirement
-        == "Boundary::consume(opaque)"
-        && row.calling_signature.is_some()));
+    assert!(input.rows.iter().all(
+        |row| row.declared_requirement == "Boundary::consume(opaque)"
+            && row.calling_signature.is_some()
+    ));
     for binding in [
         ProviderBinding::CompilerIntrinsic {
             machine: "Unrelated::operation".into(),
