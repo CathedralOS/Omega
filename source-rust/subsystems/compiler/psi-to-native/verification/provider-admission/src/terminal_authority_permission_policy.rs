@@ -219,6 +219,18 @@ pub fn validate_retained_package_terminal_authority_permissions(
     }
 }
 
+/// Check the package's permission coordinates before issuing the receiving policy.
+pub fn admit_package_terminal_authority_permissions(
+    permissions: Vec<ServiceTerminalAuthorityPermission>,
+    identities: terminal_psi::TerminalIdentityTable,
+    invalid_policy_context: &'static str,
+) -> Result<TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
+    validate_package_terminal_authority_permission_custody(permissions.iter(), &identities)?;
+    terminal_authority_permission_policy_with_rows(permissions, identities).map_err(|error| {
+        vec![Diagnostic::error(format!("{invalid_policy_context}: {error:?}"))]
+    })
+}
+
 pub fn validate_package_terminal_authority_permission_custody<'a>(
     permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
     identities: &terminal_psi::TerminalIdentityTable,

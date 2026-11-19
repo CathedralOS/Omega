@@ -1985,18 +1985,11 @@ pub fn recover_native_derivation_inputs(
         .transpose()
         .map_err(|reason| error(format!("recovered operation evidence: {reason}")))?
         .map(Arc::new);
-    provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permission_custody(
-        accepted_permissions.iter(), &accepted_identities)?;
-    let accepted =
-        provider_admission::terminal_authority_permission_policy_with_rows(
-            accepted_permissions,
-            accepted_identities,
-        )
-        .map_err(|reason| {
-            error(format!(
-                "recovered accepted package permission candidates: {reason:?}"
-            ))
-        })?;
+    let accepted = provider_admission::terminal_authority_permissions::admit_package_terminal_authority_permissions(
+        accepted_permissions,
+        accepted_identities,
+        "recovered accepted package permission candidates",
+    )?;
     let target_profile = saved_target(profile, native)?;
     let entry = entry.as_ref().ok_or_else(|| {
         vec![Diagnostic::error(
