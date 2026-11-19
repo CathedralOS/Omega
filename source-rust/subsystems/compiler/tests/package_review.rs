@@ -3580,7 +3580,7 @@ machine main() {}
     // Build invocation, and dropping Build custody cannot publish its rows.
     let source = std::sync::Arc::clone(checked.source_inspection().program());
     let roster = checked.terminal_publication().roster().unwrap().clone();
-    let other_judgment = roster.judge(std::sync::Arc::clone(&source)).unwrap();
+    let other_judgment = source_compiler::judge_source_roster(roster.clone(), std::sync::Arc::clone(&source)).unwrap();
     let publication = std::sync::Arc::new(
         source_compiler::SourcePublication::judge(
             source,

@@ -85,7 +85,7 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
         .unwrap()
         .symbol;
     let frozen: source_compiler::source_state::FrozenTypedTrees = typed.into();
-    let accepted = source_compiler::AcceptedTerminalSource::judge(
+    let accepted = source_compiler::judge_terminal_source(
         Arc::new(frozen),
         source_compiler::TerminalSourceCompilation {
             declaration_metadata: &[],

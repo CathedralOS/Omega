@@ -117,7 +117,7 @@ fn prepare(
 }
 
 fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTerminalSource {
-    AcceptedTerminalSource::judge(
+    source_compiler::judge_terminal_source(
         Arc::clone(&fixture.source),
         TerminalSourceCompilation {
             declaration_metadata: &[],

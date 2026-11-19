@@ -53,6 +53,8 @@ mod callables;
 mod calling_publication;
 mod claim_publication;
 mod compilation;
+pub mod source_roster;
+pub use compilation::LoweredSourcePublication;
 mod publication;
 use publication::PreparedProgram;
 pub use publication::{

@@ -4,8 +4,6 @@
 mod package_review;
 #[path = "src/source_publication.rs"]
 mod source_publication;
-#[path = "src/source_roster.rs"]
-pub mod source_roster;
 pub use source_publication::SourcePublication;
 #[path = "src/provider_choice_inputs.rs"]
 pub mod provider_choice_inputs;
@@ -20,7 +18,7 @@ use source_declarations::declaration_selection;
 use source_lexer as lexing;
 #[cfg(test)]
 use source_parser as parsing;
-pub use source_roster::SourceCompilationRoster;
+use typed_trees_to_lowered_program::lowering::source_roster::SourceCompilationRoster;
 use source_symbol_table::{source_inputs, source_symbols};
 #[cfg(test)]
 use symbol_resolved_trees_to_typed_trees::typing;
@@ -35,3 +33,13 @@ use typed_trees_to_typed_trees::preparation;
 mod frontend_fixture;
 #[path = "src/lib.rs"]
 pub mod production;
+
+#[cfg(test)]
+fn judge_fixture(
+    source: std::sync::Arc<source_state::FrozenTypedTrees>,
+    compilation: lowering::Compilation<'_>,
+    publication: terminal_codec::TerminalPublication,
+) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+    let lowered = lowering::LoweredSourcePublication::prepare(source, compilation, publication)?;
+    AcceptedTerminalSource::from_judgment(checking::judge_publication(lowered)?)
+}

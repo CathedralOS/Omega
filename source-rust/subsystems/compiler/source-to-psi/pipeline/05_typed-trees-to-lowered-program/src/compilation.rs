@@ -21,6 +21,54 @@ pub struct PreparedSource {
     pub source: crate::lowering::SourceCorrespondence,
 }
 
+/// Only this stage can bind a frozen source and its publication mode to the
+/// exact terminal compilation and correspondence it derived from them.
+pub struct LoweredSourcePublication {
+    program: TerminalCompilation,
+    source: PublicationSource,
+}
+
+pub struct PublicationSource {
+    pub owner: std::sync::Arc<crate::source_state::FrozenTypedTrees>,
+    pub publication: terminal_codec::TerminalPublication,
+    pub correspondence: crate::lowering::SourceCorrespondence,
+    pub roster: Option<crate::lowering::source_roster::SourceCompilationRoster>,
+}
+
+impl terminal_check_tables::compilation::CompilationForPublication for LoweredSourcePublication {
+    type Source = PublicationSource;
+
+    fn into_program_and_source(self) -> (TerminalCompilation, Self::Source) {
+        (self.program, self.source)
+    }
+}
+
+impl LoweredSourcePublication {
+    pub fn prepare(
+        owner: std::sync::Arc<crate::source_state::FrozenTypedTrees>,
+        compilation: crate::lowering::Compilation<'_>,
+        publication: terminal_codec::TerminalPublication,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        let prepared = prepare_compilation(&owner, compilation, publication)?;
+        Ok(Self {
+            program: prepared.program,
+            source: PublicationSource {
+                owner,
+                publication,
+                correspondence: prepared.source,
+                roster: None,
+            },
+        })
+    }
+
+    pub(super) fn retain_roster(
+        &mut self,
+        roster: crate::lowering::source_roster::SourceCompilationRoster,
+    ) {
+        self.source.roster = Some(roster);
+    }
+}
+
 pub fn prepare_compilation(
     typed: &TypedTrees,
     compilation: crate::lowering::Compilation<'_>,

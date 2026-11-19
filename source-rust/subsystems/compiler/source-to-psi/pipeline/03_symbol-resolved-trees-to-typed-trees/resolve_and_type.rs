@@ -1679,7 +1679,7 @@ mod resolution_handoff_tests {
             &crate::preparation::PreparationRequest::settled(),
         )
         .unwrap();
-        let refused = crate::AcceptedTerminalSource::judge(
+        let refused = crate::judge_terminal_source(
             Arc::new(program),
             crate::TerminalSourceCompilation {
                 calling: None,

@@ -10,7 +10,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Default)]
 pub struct SourceNormalizationInputs {
     pub calling: SourceCallingInputs,
-    pub providers: Vec<crate::TerminalProviderSelectionInput>,
+    pub providers: Vec<crate::lowering::provider_selections::ProviderSelectionInput>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -30,7 +30,7 @@ pub struct SourceProgramEntryInput {
 pub struct SourceCallingContext<'source> {
     source: &'source crate::source_state::TypedTrees,
     applications: &'source [crate::source_state::trait_definition::TraitApplicationEnvironment],
-    entries: Vec<crate::TerminalProgramEntryContractSelection<'source>>,
+    entries: Vec<crate::lowering::ProgramEntryContractSelection<'source>>,
 }
 
 impl SourceCallingInputs {
@@ -44,7 +44,7 @@ impl SourceCallingInputs {
             entries: self
                 .entries
                 .iter()
-                .map(|entry| crate::TerminalProgramEntryContractSelection {
+                .map(|entry| crate::lowering::ProgramEntryContractSelection {
                     target: &entry.target,
                     application: &entry.application,
                     physical_source_digest: entry.physical_source_digest,
@@ -56,9 +56,9 @@ impl SourceCallingInputs {
 }
 
 impl SourceCallingContext<'_> {
-    pub fn selection(&self) -> Option<crate::TerminalCallingPolicySelections<'_>> {
+    pub fn selection(&self) -> Option<crate::lowering::CallingPolicySelections<'_>> {
         (!self.entries.is_empty() || !self.applications.is_empty()).then_some(
-            crate::TerminalCallingPolicySelections {
+            crate::lowering::CallingPolicySelections {
                 source: self.source,
                 applications: self.applications,
                 entries: &self.entries,
@@ -71,11 +71,13 @@ impl SourceNormalizationInputs {
     pub fn providers<'source>(
         &'source self,
         source: &'source crate::source_state::TypedTrees,
-    ) -> Option<crate::TerminalProviderSelections<'source>> {
-        (!self.providers.is_empty()).then_some(crate::TerminalProviderSelections {
-            source,
-            choices: &self.providers,
-        })
+    ) -> Option<crate::lowering::provider_selections::ProviderSelections<'source>> {
+        (!self.providers.is_empty()).then_some(
+            crate::lowering::provider_selections::ProviderSelections {
+                source,
+                choices: &self.providers,
+            },
+        )
     }
     fn is_empty(&self) -> bool {
         self.providers.is_empty()
@@ -85,7 +87,7 @@ impl SourceNormalizationInputs {
 }
 
 /// What a Product compilation asks the lowered-form checker to judge: the
-/// roots the evaluated Build states (`crate::TerminalSourceCompilation`
+/// roots the evaluated Build states (`crate::lowering::Compilation`
 /// holds the same fields by reference). It is kept beside the judgment it
 /// produced because provider settlement extends it: the supply chosen for a
 /// requirement the accepted module reaches is a further root of the same
@@ -109,7 +111,7 @@ pub struct SourceCompilationRoster {
     pub bindings: Vec<crate::source_state::callable_signature_shapes::BoundCallableShape>,
     /// The providers chosen to supply boundary slots: the Build's own
     /// selections first, then what settlement chose for reached requirements.
-    pub supplies: Vec<crate::TerminalSourceSupply>,
+    pub supplies: Vec<crate::lowering::Supply>,
     pub normalization: Arc<SourceNormalizationInputs>,
 }
 
@@ -117,13 +119,13 @@ impl SourceCompilationRoster {
     /// Borrow the full roster for source preparation and judgment alike.
     pub fn preparation_compilation(
         &self,
-    ) -> Result<crate::TerminalSourceCompilation<'_>, Vec<Diagnostic>> {
+    ) -> Result<crate::lowering::Compilation<'_>, Vec<Diagnostic>> {
         if !self.normalization.is_empty() {
             return Err(vec![Diagnostic::error(
                 "source choices must bind to the actual prepared owner before judgment",
             )]);
         }
-        Ok(crate::TerminalSourceCompilation {
+        Ok(crate::lowering::Compilation {
             declaration_metadata: &self.declaration_metadata,
             entries: self
                 .inspection_root
@@ -139,21 +141,16 @@ impl SourceCompilationRoster {
         })
     }
 
-    /// The lowered-form checker's judgment of this roster over `typed`: the
-    /// closure of the roots, the check form of each generic machine the
-    /// subject declares, and the refinement witness of each implementation
-    /// row and chosen supply. Its verdict is the only verdict of a product
-    /// compilation: it accepts only when every part does, a roster it does
-    /// not accept produces no module, and a missing publication never
-    /// selects another stage's module.
-    pub fn judge(
-        &self,
+    /// Lower the exact roots and their normalizations over the frozen owner.
+    /// Retain this roster so a later publication cannot substitute different roots.
+    pub fn lower_for_publication(
+        self,
         typed: Arc<crate::source_state::FrozenTypedTrees>,
-    ) -> Result<Arc<crate::AcceptedTerminalSource>, Vec<Diagnostic>> {
+    ) -> Result<crate::lowering::LoweredSourcePublication, Vec<Diagnostic>> {
         let calling = self.normalization.calling.borrow(&typed);
-        let accepted = crate::AcceptedTerminalSource::judge(
+        let mut prepared = crate::lowering::LoweredSourcePublication::prepare(
             Arc::clone(&typed),
-            crate::TerminalSourceCompilation {
+            crate::lowering::Compilation {
                 declaration_metadata: &self.declaration_metadata,
                 entries: &self.entries,
                 subjects: std::slice::from_ref(&self.subject),
@@ -166,6 +163,7 @@ impl SourceCompilationRoster {
             },
             terminal_codec::TerminalPublication::Portable,
         )?;
-        Ok(Arc::new(accepted))
+        prepared.retain_roster(self);
+        Ok(prepared)
     }
 }
