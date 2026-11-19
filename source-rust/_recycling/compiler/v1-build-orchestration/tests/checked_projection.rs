@@ -31,6 +31,8 @@ fn accepted_fixture() -> compiler::CheckedCompilation {
     })
 }
 
+use products::BuildConfigExt as _;
+
 #[test]
 fn the_product_publishes_its_accepted_module_and_selected_entry() {
     let checked = accepted_fixture();

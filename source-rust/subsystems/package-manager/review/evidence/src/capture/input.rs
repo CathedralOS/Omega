@@ -16,7 +16,7 @@ pub(super) struct PolicySource<'a> {
     candidate: &'a TypedTrees,
     accepted: &'a source_compiler::AcceptedTerminalSource,
     pub(super) publication: &'a source_compiler::SourcePublication,
-    build: &'a products::ComputedBuildConfig,
+    build: &'a build_evaluation_result::ComputedBuildConfig,
     pub(super) admission: &'a products::BuildAdmission,
     sources: &'a package_compilation::CheckedSourceCustody,
 }
@@ -26,7 +26,7 @@ impl<'a> PolicySource<'a> {
         program: &'a std::sync::Arc<source_compiler::source_state::FrozenTypedTrees>,
         candidate: &'a TypedTrees,
         publication: &'a source_compiler::SourcePublication,
-        build: &'a products::ComputedBuildConfig,
+        build: &'a build_evaluation_result::ComputedBuildConfig,
         admission: &'a products::BuildAdmission,
         sources: &'a package_compilation::CheckedSourceCustody,
     ) -> Result<Self, Vec<Diagnostic>> {
@@ -90,7 +90,7 @@ impl<'a> PolicySource<'a> {
     pub(super) fn sources(&self) -> &'a package_compilation::CheckedSourceCustody {
         self.sources
     }
-    pub(super) fn build(&self) -> &'a products::ComputedBuildConfig {
+    pub(super) fn build(&self) -> &'a build_evaluation_result::ComputedBuildConfig {
         self.build
     }
 }

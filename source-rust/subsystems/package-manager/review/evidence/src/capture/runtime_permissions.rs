@@ -12,7 +12,7 @@ pub struct PreparedRuntimePolicy {
     owner: Result<ProductSourceIdentity, Diagnostic>,
     sources: Arc<package_compilation::CheckedSourceCustody>,
     publication: Weak<source_compiler::SourcePublication>,
-    build: Weak<products::ComputedBuildConfig>,
+    build: Weak<build_evaluation_result::ComputedBuildConfig>,
     admission: products::BuildAdmission,
     target: Option<target::TargetProfile>,
     prepared: Result<

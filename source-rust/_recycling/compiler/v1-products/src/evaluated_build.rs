@@ -1,81 +1,22 @@
-// Checked Build evaluation result, normalized BuildConfig, and per-continuation
-// BuildAdmission facts. `ComputedBuildConfig` retains the complete source-issued
-// configuration and execution observations without depending on the evaluator's
-// orchestration; `with_execution_observation` updates only the consuming
-// occurrence's fresh invocation observations while preserving dependency
-// native-binding evaluations and completed source requirements.
-
-use declaration_contracts::selection::RootBinding;
-use effects::AuthoredBehaviorExclusion;
+// Additional operations for the retired V1 compilation coordinator.
+pub use build_evaluation_result::{
+    BuildConfig, BuildConstants, BuildSubjectValidation, ComputedBuildConfig, EvaluatedBuild,
+};
+pub use source_declarations::source_selections::ServiceAuditRegistration;
 use package_compilation::build_execution::build_value::EvaluatedBuildSettings;
-use source_compiler::evaluation::WireCompatibilityDemand;
 use source_compiler::provider_choice_inputs::ProviderSelection;
-use source_compiler::source_state::opaque_representations::OpaqueRepresentationSelection;
-
-#[derive(Clone)]
-pub struct EvaluatedBuild {
-    pub configuration: std::sync::Arc<ComputedBuildConfig>,
-    pub restricted_build_requests:
-        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
-    pub base_source_consumption_commitment:
-        Option<package_compilation::PackageSourceConsumptionCommitment>,
-    pub constants: BuildConstants,
-    pub subject_validation: BuildSubjectValidation,
-    /// Costs of this Build context, not materialization evidence for Product.
-    pub source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BuildSubjectValidation {
-    EntryOnly,
-    Checked,
-    AwaitingOwner,
-}
-
-/// What the Build admission's constants owe a Product frontier typed after
-/// Build ran. That frontier holds the Build source again with its constants
-/// unsettled, so whatever the admission evaluated has to be settled there
-/// too. Both fields are read from the admission itself: the fold from what
-/// it did, the names from the module it accepted.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct BuildConstants {
-    /// The admission folded a constant under Build's own provider plans.
-    pub folded_under_providers: bool,
-    /// The constants the accepted Build module names
-    /// (`AcceptedTerminalSource::constants_read`), each with its declaration
-    /// and the value the judged source recorded for it.
-    pub read: Vec<source_compiler::ConstantRead>,
-}
-
-pub use source_compiler::evaluation::product_declarations::ServiceAuditRegistration;
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BuildConfig {
-    pub settings: EvaluatedBuildSettings,
-    pub grants: Vec<effects::provider_grants::AuthoredRootGrant>,
-    pub provider_selections: Vec<ProviderSelection>,
-    pub default_provider_selections: Vec<ProviderSelection>,
-    pub native_bindings: Vec<provider_choices::NativeBuildSupply>,
-    pub native_binding_evaluation:
-        Option<std::sync::Arc<evaluation_receipts::NativeBuildEvaluation>>,
-    pub assumed_bindings:
-        Vec<source_compiler::evaluation::assumed_bindings::AssumedBindingContract>,
-    pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
-    pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
-    pub root_bindings: Vec<RootBinding>,
-    pub behavior_exclusions: Vec<AuthoredBehaviorExclusion>,
-    pub service_audits: Vec<ServiceAuditRegistration>,
-    // Registered test groups (wiki/spec/build/testing.md). They select test
-    // roots beside the application; they never become application roots.
-    pub test_groups: Vec<source_compiler::evaluation::test_groups::TestGroupRegistration>,
-}
 
 pub struct ProviderDeployment {
     pub roots: Option<Vec<(String, symbols::SymbolHandle)>>, // None = reusable Source checking; Some(empty) = provider-only deployment
 }
 
-impl BuildConfig {
-    pub(crate) fn same_source_choices(&self, other: &Self) -> bool {
+pub trait BuildConfigExt: Sized {
+    fn same_source_choices(&self, other: &Self) -> bool;
+    fn program_roots(&self) -> Vec<symbols::SymbolHandle>;
+}
+
+impl BuildConfigExt for BuildConfig {
+    fn same_source_choices(&self, other: &Self) -> bool {
         let Self {
             settings,
             grants,
@@ -119,7 +60,7 @@ impl BuildConfig {
             && test_groups == &other.test_groups
     }
 
-    pub fn program_roots(&self) -> Vec<symbols::SymbolHandle> {
+    fn program_roots(&self) -> Vec<symbols::SymbolHandle> {
         let mut roots: Vec<_> = self
             .root_bindings
             .iter()
@@ -128,107 +69,6 @@ impl BuildConfig {
         roots.sort_unstable_by_key(|root| (root.arena_index(), root.generation()));
         roots.dedup();
         roots
-    }
-}
-
-#[derive(Clone)]
-pub struct ComputedBuildConfig {
-    /// The Build judgment whose produced invocation returned this configuration.
-    /// Settings and observation digests cannot reconstruct its checked contracts.
-    pub accepted_build: Option<std::sync::Arc<source_compiler::AcceptedTerminalSource>>,
-    pub config: BuildConfig,
-    pub root_binding_requests: Vec<source_compiler::declaration_selection::ExecutedRootBinding>,
-    pub declared_product_selections:
-        Vec<std::sync::Arc<source_compiler::declaration_selection::ProductDeclarationRequest>>,
-    pub product_selection_requests:
-        Vec<source_compiler::declaration_selection::ExecutedProductSelection>,
-    pub native_formations: Vec<source_compiler::declaration_selection::NativeBindingFormation>,
-    pub native_binding_requests: Vec<source_compiler::declaration_selection::ExecutedNativeBinding>,
-    pub behavior_exclusion_requests:
-        Vec<source_compiler::declaration_selection::ExecutedEnumExclusion>,
-    pub project_declaration: Option<build_declarations::BuildDeclaration>,
-    pub optimization_report_request: optimization_requests::OptimizationReportRequest,
-    pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
-    pub observation_summary: Option<package_compilation::BuildObservationSummary>,
-    pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
-    pub generated_sources: Vec<build_output::PackageGeneratedSource>,
-}
-
-// Retaining a judgment changes custody, not the meaning of Build's output.
-// Fresh equivalent executions already compare by their values and observations;
-// an Arc address must not become another output/cache identity.
-impl PartialEq for ComputedBuildConfig {
-    fn eq(&self, other: &Self) -> bool {
-        let Self {
-            accepted_build: _,
-            config,
-            root_binding_requests,
-            declared_product_selections,
-            product_selection_requests,
-            native_formations,
-            native_binding_requests,
-            behavior_exclusion_requests,
-            project_declaration,
-            optimization_report_request,
-            evaluation_usage,
-            observation_summary,
-            selected_build_machine_symbol,
-            generated_sources,
-        } = self;
-        config == &other.config
-            && root_binding_requests == &other.root_binding_requests
-            && declared_product_selections == &other.declared_product_selections
-            && product_selection_requests == &other.product_selection_requests
-            && native_formations == &other.native_formations
-            && native_binding_requests == &other.native_binding_requests
-            && behavior_exclusion_requests == &other.behavior_exclusion_requests
-            && project_declaration == &other.project_declaration
-            && optimization_report_request == &other.optimization_report_request
-            && evaluation_usage == &other.evaluation_usage
-            && observation_summary == &other.observation_summary
-            && selected_build_machine_symbol == &other.selected_build_machine_symbol
-            && generated_sources == &other.generated_sources
-    }
-}
-
-impl Eq for ComputedBuildConfig {}
-
-impl std::fmt::Debug for ComputedBuildConfig {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // A diagnostic describes the configuration, not every table and body
-        // in the retained source judgment.
-        formatter
-            .debug_struct("ComputedBuildConfig")
-            .field("accepted_build", &self.accepted_build.is_some())
-            .field("config", &self.config)
-            .field("root_binding_requests", &self.root_binding_requests)
-            .field(
-                "declared_product_selections",
-                &self.declared_product_selections,
-            )
-            .field(
-                "product_selection_requests",
-                &self.product_selection_requests,
-            )
-            .field("native_formations", &self.native_formations)
-            .field("native_binding_requests", &self.native_binding_requests)
-            .field(
-                "behavior_exclusion_requests",
-                &self.behavior_exclusion_requests,
-            )
-            .field("project_declaration", &self.project_declaration)
-            .field(
-                "optimization_report_request",
-                &self.optimization_report_request,
-            )
-            .field("evaluation_usage", &self.evaluation_usage)
-            .field("observation_summary", &self.observation_summary)
-            .field(
-                "selected_build_machine_symbol",
-                &self.selected_build_machine_symbol,
-            )
-            .field("generated_sources", &self.generated_sources)
-            .finish()
     }
 }
 
@@ -289,8 +129,17 @@ pub struct IndependentComponentDiscovery {
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
 }
 
-impl ComputedBuildConfig {
-    pub fn with_execution_observation(&self, execution: &Self) -> Result<Self, String> {
+pub trait ComputedBuildConfigExt: Sized {
+    fn with_execution_observation(&self, execution: &Self) -> Result<Self, String>;
+    fn observation_identity(&self) -> Option<package_compilation::BuildObservationIdentity>;
+    fn completed_outputs(
+        &self,
+    ) -> Result<Option<crate::RetainedBuildOutputs>, Vec<diagnostics::Diagnostic>>;
+    fn independent_components(&self) -> IndependentComponentDiscovery;
+}
+
+impl ComputedBuildConfigExt for ComputedBuildConfig {
+    fn with_execution_observation(&self, execution: &Self) -> Result<Self, String> {
         if self.accepted_build.is_some() && execution.accepted_build.is_none() {
             return Err("source cohort execution lost its accepted Build judgment".into());
         }
@@ -331,13 +180,13 @@ impl ComputedBuildConfig {
         Ok(application)
     }
 
-    pub fn observation_identity(&self) -> Option<package_compilation::BuildObservationIdentity> {
+    fn observation_identity(&self) -> Option<package_compilation::BuildObservationIdentity> {
         self.observation_summary
             .as_ref()
             .map(package_compilation::BuildObservationSummary::identity)
     }
 
-    pub fn completed_outputs(
+    fn completed_outputs(
         &self,
     ) -> Result<Option<crate::RetainedBuildOutputs>, Vec<diagnostics::Diagnostic>> {
         self.observation_summary
@@ -348,7 +197,7 @@ impl ComputedBuildConfig {
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])
     }
 
-    pub fn independent_components(&self) -> IndependentComponentDiscovery {
+    fn independent_components(&self) -> IndependentComponentDiscovery {
         IndependentComponentDiscovery {
             evaluation_usage: self.evaluation_usage,
             selections: self
@@ -365,27 +214,5 @@ impl ComputedBuildConfig {
                 })
                 .collect(),
         }
-    }
-
-    pub fn selected_machine_identity(
-        &self,
-        typed: &source_compiler::source_state::TypedTrees,
-    ) -> Result<Option<String>, Vec<diagnostics::Diagnostic>> {
-        self.selected_build_machine_symbol
-            .map(|selected| {
-                let machine = typed.machine(selected).ok_or_else(|| {
-                    vec![diagnostics::Diagnostic::error(
-                        "selected build machine disappeared before final checking",
-                    )]
-                })?;
-                typed
-                    .machine_callable_identity_text(machine)
-                    .ok_or_else(|| {
-                        vec![diagnostics::Diagnostic::error(
-                            "selected build machine has no canonical callable identity",
-                        )]
-                    })
-            })
-            .transpose()
     }
 }

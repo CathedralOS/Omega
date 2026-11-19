@@ -4,6 +4,7 @@
 // Build executes once for an invocation and Product completion consumes its
 // pending bodies and generated sources once before target settlement starts.
 
+use crate::BuildConfigExt as _;
 use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
 use package_compilation::BuildSourceCustody;

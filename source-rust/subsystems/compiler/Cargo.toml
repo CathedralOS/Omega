@@ -25,6 +25,7 @@ psi-authorization = { path = "psi/authorization" }
 wire = { path = "../../foundation/wire" }
 
 [dev-dependencies]
+build-evaluation-result = { path = "build/build-settings/result" }
 provider-acceptance = { path = "build/providers/acceptance" }
 direct-boundary-bindings = { path = "psi-to-native/verification/provider-correspondence/direct-boundaries" }
 project-build = { path = "build" }

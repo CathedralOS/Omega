@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+build-evaluation-result = { path = "result" }
 normalized-build-settings = { path = "normalized" }
 behavior-exclusion-requests = { path = "../behavior-exclusions" }
 numeric-intrinsic-admission = { path = "../../psi-to-native/verification/numeric-intrinsics" }
@@ -30,7 +31,6 @@ source-compiler = { path = "../../source-to-psi" }
 evaluation-accounting = { path = "../evaluation/accounting" }
 filesystem-authority = { path = "../evaluation/filesystem" }
 artifacts = { path = "../../foundation/measurements" }
-products = { path = "../../compilation/products" }
 build-output = { path = "../build-output" }
 package-compilation = { path = "../package-compilation" }
 provider-admission = { path = "../../psi-to-native/verification/provider-admission" }

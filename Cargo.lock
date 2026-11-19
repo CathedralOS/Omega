@@ -261,6 +261,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-evaluation-result"
+version = "0.1.0"
+dependencies = [
+ "behavior-exclusion-requests",
+ "build-consent",
+ "build-declarations",
+ "build-output",
+ "checked-program-to-psi",
+ "diagnostics",
+ "evaluation-contracts",
+ "evaluation-receipts",
+ "normalized-build-settings",
+ "optimization-requests",
+ "package-compilation",
+ "source-completion-accounting",
+ "source-declarations",
+ "source-provenance",
+ "symbols",
+ "typed-trees",
+]
+
+[[package]]
 name = "build-invocation"
 version = "0.1.0"
 dependencies = [
@@ -295,6 +317,7 @@ dependencies = [
  "artifacts",
  "behavior-exclusion-requests",
  "build-declarations",
+ "build-evaluation-result",
  "build-output",
  "build-time-values",
  "declaration-scope",
@@ -309,7 +332,6 @@ dependencies = [
  "numeric-intrinsic-admission",
  "optimization-requests",
  "package-compilation",
- "products",
  "provider-admission",
  "psi-authorization",
  "psi-provider-selections",
@@ -702,6 +724,7 @@ dependencies = [
  "boundary-applications",
  "bounded-process",
  "build-declarations",
+ "build-evaluation-result",
  "build-output",
  "build-settings",
  "calling-conventions",
@@ -2927,6 +2950,7 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
+ "build-evaluation-result",
  "calling-conventions",
  "diagnostics",
  "direct-boundary-bindings",

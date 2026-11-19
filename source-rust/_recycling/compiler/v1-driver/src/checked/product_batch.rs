@@ -4,6 +4,7 @@
 // every target's declarations before publishing any shared code. Selection then
 // consumes those prepared values sequentially and restores caller order.
 
+use products::ComputedBuildConfigExt as _;
 use super::CompilationSession;
 use super::PreparedProductTarget;
 use super::checking::{check_product_source, complete_prepared_build};

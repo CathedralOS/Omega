@@ -110,7 +110,9 @@ pub use package_compilation::build_execution::{
     BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
-pub use products::{BuildConfig, ComputedBuildConfig};
+pub use build_evaluation_result::{
+    BuildConfig, BuildConstants, BuildSubjectValidation, CompileFailure, ComputedBuildConfig,
+};
 pub use source_compiler::WireCompatibilityDemand;
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
