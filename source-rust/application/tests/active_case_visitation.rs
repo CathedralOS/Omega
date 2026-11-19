@@ -43,8 +43,11 @@ fn run_visitation(name: &str) {
     }
     let fixture = fixture("run", name);
     let source = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
-    let (status, diagnostics) = invoke(&fixture, &source, &["run", "--engine", "native"]);
+    let (status, diagnostics) = invoke(&fixture, &source, &["run", "--both"]);
     assert!(status.success(), "{diagnostics}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(diagnostics.lines().any(|line| line == receipt), "{diagnostics}");
+    }
 }
 
 fn rejects_visitation(name: &str) {
