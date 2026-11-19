@@ -1,5 +1,6 @@
 //! Run the admitted Build entry and retain its original activation through source settlement.
 
+mod registered_tests;
 mod product;
 pub use product::ProductStage;
 mod source;

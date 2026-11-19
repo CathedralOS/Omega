@@ -42,6 +42,10 @@ pub enum Program<'a> {
         source: StageSource<'a>,
         target: SourceNativeTarget<'a>,
     },
+    CheckedSource {
+        publication: source_compiler::PublishedTargetProgram,
+        target: SourceNativeTarget<'a>,
+    },
     Psi {
         program: AuthorizedTerminalArtifact,
         target: NativeTarget<'a>,
@@ -138,14 +142,14 @@ impl Program<'_> {
     fn profile(&self) -> target::TargetProfile {
         match self {
             Self::Psi { target, .. } => target.profile,
-            Self::Source { target, .. } => target.profile,
+            Self::Source { target, .. } | Self::CheckedSource { target, .. } => target.profile,
         }
     }
 
     fn application(&self) -> &target::NativeApplicationMetadata {
         match self {
             Self::Psi { target, .. } => &target.application,
-            Self::Source { target, .. } => &target.settings.application,
+            Self::Source { target, .. } | Self::CheckedSource { target, .. } => &target.settings.application,
         }
     }
 
@@ -157,6 +161,9 @@ impl Program<'_> {
             Self::Source { source, target } => {
                 let publication =
                     source_to_psi::compile_for_target_reporting(source, target.profile.target_name(), advisories)?;
+                Self::CheckedSource { publication, target }.prepare(None)
+            }
+            Self::CheckedSource { publication, target } => {
                 let (artifact, providers, exclusions) = publication.into_parts();
                 let producer = HostProducerTrust::accept("current compiler invocation");
                 let authorized = authorize_terminal_artifact(artifact, Some(&producer))

@@ -13,6 +13,9 @@ pub use authored_build::{BuildInvocationJudgment, BuildStageSource, CheckedBuild
 mod stages;
 pub use stages::*;
 
+#[path = "pipeline/registered_tests.rs"]
+pub mod registered_tests;
+
 use product_source::{ProductSourceInputs, prepare_lower_and_check};
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::SourceScopedTopLevelBinding;
@@ -81,6 +84,14 @@ pub fn compile_for_target_reporting(
         ))]);
     }
     let (artifact, checked) = publish_stage(source, None, advisories)?;
+    published_target(artifact, checked, target)
+}
+
+fn published_target(
+    artifact: PublishedPsi,
+    checked: product_source::CompletedProductSource,
+    target: &str,
+) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
     let demand = checked
         .prepare_provider_demand(target)?
         .receive(checked.terminal_publication(), Some(target))?;
@@ -113,6 +124,7 @@ fn publish_stage(
         source.selections,
         source.build_accounting.unwrap_or(&standalone),
         inspection,
+        None,
         None,
         &mut observer,
     )?;

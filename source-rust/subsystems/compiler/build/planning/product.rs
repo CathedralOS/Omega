@@ -19,7 +19,7 @@ use target::TargetProfile;
 
 /// The receiving declarations and deployment choices for one completed project Build.
 pub struct ProductStage<'a> {
-    product: &'a PlannedProduct,
+    pub(super) product: &'a PlannedProduct,
     rollback: Option<OptimizationRollbackReceipt>,
     targets: Vec<SourceTarget>,
     deployments: Vec<&'static str>,
@@ -136,6 +136,17 @@ impl ProductStage<'_> {
         profile: TargetProfile,
         installation_assumptions: Vec<InstallationEnvironmentAssumption>,
     ) -> Result<Program<'_>, Vec<Diagnostic>> {
+        Ok(Program::Source {
+            source: self.source(),
+            target: self.native_target(profile, installation_assumptions)?,
+        })
+    }
+
+    pub(super) fn native_target(
+        &self,
+        profile: TargetProfile,
+        installation_assumptions: Vec<InstallationEnvironmentAssumption>,
+    ) -> Result<SourceNativeTarget<'_>, Vec<Diagnostic>> {
         let build = &self.product.evaluated().configuration;
         let settings = &build.config.settings;
         let name = match build.project_declaration.as_ref() {
@@ -144,7 +155,7 @@ impl ProductStage<'_> {
             }
             _ => None,
         };
-        let target = SourceNativeTarget {
+        Ok(SourceNativeTarget {
             profile,
             settings: NativeApplicationSettings {
                 application: target::NativeApplicationMetadata {
@@ -174,10 +185,6 @@ impl ProductStage<'_> {
                 .flat_map(|inputs| inputs.accepted_semantic_bindings().cloned())
                 .collect(),
             installation_assumptions,
-        };
-        Ok(Program::Source {
-            source: self.source(),
-            target,
         })
     }
 }

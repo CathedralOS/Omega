@@ -13,7 +13,7 @@ mod native_bindings;
 pub use native_bindings::{NativeBindingInputs, PackageNativeBindings};
 
 /// The source descriptions and events returned by the selected Build execution.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct ProductPolicyInputs<'a> {
     pub activation: Option<&'a source_admission::RetainedDeclaration>,
     pub declared: &'a [Arc<crate::declaration_selection::ProductDeclarationRequest>],
@@ -22,6 +22,7 @@ pub struct ProductPolicyInputs<'a> {
     pub exclusions: &'a [crate::declaration_selection::ExecutedEnumExclusion],
 }
 
+#[derive(Clone)]
 pub struct ProductSourceInputs<'a> {
     pub targets: &'a [crate::source_targets::SourceTarget],
     pub calling_targets: &'a [&'a str],
@@ -80,6 +81,7 @@ pub(crate) fn prepare_lower_and_check(
     inputs: ProductSourceInputs<'_>,
     build_accounting: &crate::evaluation::SourceCompletionAccounting,
     inspection: Option<&str>,
+    test_root: Option<(&crate::registered_tests::TestRoot, &str)>,
     frontier: Option<&mut Option<crate::TypedFrontier>>,
     observer: &mut impl crate::PsiCompilationObserver,
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
@@ -110,11 +112,13 @@ pub(crate) fn prepare_lower_and_check(
             machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
         });
     let unprepared = has_defaults.then(|| typed.clone());
-    let root_bindings =
-        symbol_resolved_trees_to_typed_trees::product_declarations::collect_root_bindings(
+    let root_bindings = match test_root {
+        Some((test, target)) => vec![test.bind(&typed, &admitted.declarations.test_groups, target)?],
+        None => symbol_resolved_trees_to_typed_trees::product_declarations::collect_root_bindings(
             &typed,
             inputs.root_binding_requests,
-        )?;
+        )?,
+    };
     let mut pass = ProductSourcePass {
         inputs,
         activation,

@@ -16,7 +16,7 @@ pub struct PackageNativeBindings<'a> {
 }
 
 /// Evaluation of the local Build and source-admitted handoffs from Product dependencies.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct NativeBindingInputs<'a> {
     pub evaluation: Option<&'a Arc<NativeBuildEvaluation>>,
     pub packages: &'a [PackageNativeBindings<'a>],
