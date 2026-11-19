@@ -1,0 +1,68 @@
+name: Check std with the filesystem run's compiler
+
+on:
+  push:
+    branches: [work/codex/check-std-reused-producer]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PRODUCER_RUN: '44438657931'
+      REVIEWED_SOURCE: 'a89695997d67291c436a20a362710adae22c0083'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify the compiler built for the filesystem run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          retained="$RUNNER_TEMP/std-producer"
+          gh run download "$PRODUCER_RUN" --repo "$GITHUB_REPOSITORY" --name fs-cut-qualified-producer --dir "$retained"
+          receipt="$retained/producer.json"
+          revision=$(jq -er '.revision' "$receipt")
+          digest=$(jq -er '.executables[] | select(.cargo_artifact.target.name == "omega" and .cargo_artifact.profile.opt_level == "1") | .sha256' "$receipt")
+          printf '%s  %s\n' "$digest" "$retained/retained-omega" | sha256sum --check
+          chmod +x "$retained/retained-omega"
+          git fetch --no-tags origin "$revision" "$REVIEWED_SOURCE"
+          git switch --detach "$revision"
+          git diff --exit-code "$REVIEWED_SOURCE" HEAD -- omega-rust source/library .cargo Cargo.toml Cargo.lock rust-toolchain.toml
+          mkdir -p "$RUNNER_TEMP/std-qualification"
+          cp "$receipt" "$RUNNER_TEMP/std-qualification/producer.json"
+      - name: Check the original std package for each hosted target
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler="$RUNNER_TEMP/std-producer/retained-omega"
+          records="$RUNNER_TEMP/std-qualification"
+          test -z "$(git status --porcelain)"
+          git rev-parse HEAD HEAD:source/library/std HEAD:source/library/core > "$records/source-trees.txt"
+          sha256sum "$compiler" > "$records/compiler.sha256"
+          for target in linux_x86_64 macos_arm64 linux_arm64 windows_x86_64; do
+            started=$SECONDS
+            status=0
+            RAYON_NUM_THREADS=1 timeout --signal=TERM --kill-after=10s 300s "$compiler" \
+              --check --target "$target" source/library/std/main.omg </dev/null \
+              > "$records/$target.stdout" 2> "$records/$target.stderr" || status=$?
+            printf '%s\t%s\t%s\n' "$target" "$status" "$((SECONDS - started))" | tee -a "$records/target-results.tsv"
+            test -z "$(git status --porcelain)"
+            if [ "$status" -ne 0 ]; then
+              tail -40 "$records/$target.stderr" >&2
+              exit "$status"
+            fi
+          done
+      - name: Retain the package check results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: std-qualification-results
+          path: ${{ runner.temp }}/std-qualification
+          retention-days: 14
