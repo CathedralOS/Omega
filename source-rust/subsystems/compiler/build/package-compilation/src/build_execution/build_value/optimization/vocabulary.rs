@@ -5,8 +5,8 @@
 // bound to the exact toolchain prelude `Optimizations` data declaration on the
 // toolchain `Build` struct.
 
+use super::super::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
-use source_compiler::evaluation::is_exact_toolchain_build_prelude_data;
 use source_compiler::source_state::TypedTrees;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

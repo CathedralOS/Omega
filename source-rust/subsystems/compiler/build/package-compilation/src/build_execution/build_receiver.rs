@@ -54,8 +54,7 @@ fn source_receiver(typed: &TypedTrees, machine: &Machine) -> Result<symbols::Sym
     else {
         return Err("Build entry receiver must name the exact toolchain Build type".into());
     };
-    if !source_compiler::evaluation::is_exact_toolchain_build_prelude_data(typed, *symbol, "Build")
-    {
+    if !super::build_value::is_exact_toolchain_build_prelude_data(typed, *symbol, "Build") {
         return Err("Build entry receiver must name the exact toolchain Build type".into());
     }
     Ok(*symbol)

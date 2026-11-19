@@ -7,6 +7,7 @@ version.workspace = true
 
 [dependencies]
 psi-provider-selections = { path = "../../psi/providers" }
+build-time-values = { path = "../evaluation/values" }
 psi-target-layouts = { path = "../../psi/layout/admission" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }

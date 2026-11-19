@@ -4,8 +4,10 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[lib]
+path = "value.rs"
+
 [dependencies]
-numeric-literals = { path = "../../language/numeric-literals" }
 record-storage = { path = "../../../../../foundation/record-storage" }
-numerics = { path = "../../language/scalar-values" }
-layout-plans = { path = "../../../../psi/layout" }
+numerics = { path = "../../../psi/semantics/numeric" }
+layout-plans = { path = "../../../psi/layout" }

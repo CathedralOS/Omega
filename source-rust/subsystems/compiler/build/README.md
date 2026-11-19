@@ -4,6 +4,8 @@
 
 The host admits each plan against the current grants and binds its reflected declarations in the next stage. The driver compiles that stage to Psi and gives it to the interpreter with the admitted services. The next plan can include newly discovered or generated source. When a plan requests an artifact, the driver returns the compiler's result directly.
 
+The [evaluated value](evaluation/values/value.rs) carries the fields, case payloads and arrays consumed by Build settings and native calling policies.
+
 Build records the [resource grant and usage](evaluation/usage/usage.rs) for each evaluated program. A [native binding receipt](evaluation/receipts/native_binding.rs) ties that usage and the observed inputs to the identity of the Psi program that ran.
 
 Build [issues filesystem grants and accounts for private staging](evaluation/filesystem/filesystem_authority.rs). Source acquisition and Build apply the same [selected-member rules](../../package-manager/source-acquisition/capture/selection/selection.rs) when constructing immutable input inventories.

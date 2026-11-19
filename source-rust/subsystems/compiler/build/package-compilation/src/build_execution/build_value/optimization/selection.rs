@@ -6,7 +6,7 @@
 // or malformed enablement in `build.omg` fails closed.
 
 use optimization_selections::{Optimization, OptimizationSelections};
-use source_compiler::evaluation::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 
 use super::vocabulary::OptimizationBuildVocabulary;
 

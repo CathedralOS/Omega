@@ -27,6 +27,18 @@ pub(crate) fn is_build_machine(
         .is_some_and(|span| span.source_id == build_source_id)
 }
 
+pub(crate) fn is_exact_toolchain_build_prelude_data(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    expected_name: &str,
+) -> bool {
+    typed.data_definitions().iter().any(|definition| {
+        definition.symbol == symbol
+            && definition.name.as_str() == expected_name
+            && typed.symbols.is_build_prelude_symbol(symbol)
+    })
+}
+
 pub(super) fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {
     typed.data_definitions().iter().any(|definition| {
         definition.name.as_str() == name && typed.symbols.is_build_prelude_symbol(definition.symbol)

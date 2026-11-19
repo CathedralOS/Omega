@@ -263,6 +263,7 @@ dependencies = [
  "artifacts",
  "build-declarations",
  "build-output",
+ "build-time-values",
  "declaration-contracts",
  "declaration-scope",
  "diagnostics",
@@ -300,7 +301,6 @@ version = "0.1.0"
 dependencies = [
  "record-storage",
  "layout-plans",
- "numeric-literals",
  "numerics",
 ]
 
@@ -1951,6 +1951,7 @@ dependencies = [
  "artifacts",
  "build-declarations",
  "build-output",
+ "build-time-values",
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
@@ -2940,7 +2941,6 @@ dependencies = [
  "arena",
  "artifact-evaluation",
  "bignum",
- "build-time-values",
  "checked-terminal-psi-to-published-psi",
  "declaration-contracts",
  "declaration-scope",
