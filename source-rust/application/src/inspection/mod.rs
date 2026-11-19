@@ -48,8 +48,6 @@ pub fn inspect_terminal(
     let stage = product
         .product_stage(&[profile])
         .map_err(InspectTerminalError::Diagnostics)?;
-    let artifact = compiler::inspect(stage.source(), &request.machine)
-        .map_err(InspectTerminalError::Diagnostics)?;
     let artifact = compiler::inspect(stage.source(), &request.machine).map_err(|mut rows| {
         product.attribute_diagnostics(&mut rows);
         InspectTerminalError::Diagnostics(rows)
