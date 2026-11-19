@@ -61,19 +61,19 @@ flow-effects = { path = "language/source-effects" }
 language-core = { path = "../foundation/language-core" }
 layout-plans = { path = "../psi/layout" }
 numerics = { path = "../psi/semantics/numeric" }
-optimization = { path = "../representations/psi/optimization-selections" }
+optimization = { path = "../psi/optimization-selections" }
 proof-admission = { path = "proof-admission" }
 rayon = "1.11"
 semantic-vocabulary = { path = "language/semantic-vocabulary" }
 symbols = { path = "language/declaration-identity" }
 syntax-trees = { path = "pipeline/representations/syntax-trees" }
 terminal-check-tables = { path = "pipeline/representations/lowered-program" }
-terminal-codec = { path = "../representations/psi/codec" }
+terminal-codec = { path = "../psi/codec" }
 terminal-installation = { path = "../psi-admission" }
 terminal-interpreter = { path = "../../interpreter" }
-terminal-psi = { path = "../representations/psi" }
-terminal-semantics = { path = "../representations/psi/semantics" }
-terminal-work = { path = "../representations/psi/work" }
+terminal-psi = { path = "../psi" }
+terminal-semantics = { path = "../psi/semantics" }
+terminal-work = { path = "../psi/work" }
 tokens = { path = "pipeline/representations/tokens" }
 
 [dev-dependencies]

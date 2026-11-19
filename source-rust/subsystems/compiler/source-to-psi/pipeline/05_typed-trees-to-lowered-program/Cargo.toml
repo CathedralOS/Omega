@@ -31,7 +31,7 @@ numerics = { path = "../../../psi/semantics/numeric" }
 semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
 symbols = { path = "../../language/declaration-identity" }
 terminal-check-tables = { path = "../representations/lowered-program" }
-terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-codec = { path = "../../../psi/codec" }
 terminal-installation = { path = "../../../psi-admission" }
-terminal-psi = { path = "../../../representations/psi" }
-terminal-semantics = { path = "../../../representations/psi/semantics" }
+terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi/semantics" }

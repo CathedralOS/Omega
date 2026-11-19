@@ -9,8 +9,8 @@ publish = false
 path = "lib.rs"
 
 [dependencies]
-source-lexer = { path = "../../../../00_source-files-to-tokens" }
-source-parser = { path = "../../../../01_tokens-to-syntax-trees" }
+source-lexer = { path = "../../00_source-files-to-tokens" }
+source-parser = { path = ".." }
 source-text = { path = "../../../../../../foundation/source-text" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 tokens = { path = "../../representations/tokens" }

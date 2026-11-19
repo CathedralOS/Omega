@@ -31,22 +31,38 @@
     boundary.
 */
 
+#[path = "embedding/boundary_effects.rs"]
 mod boundary_effects;
+#[path = "embedding/boundary_inputs.rs"]
 mod boundary_inputs;
+#[path = "embedding/boundary_storage_inputs.rs"]
 mod boundary_storage_inputs;
+#[path = "embedding/boundary_values.rs"]
 mod boundary_values;
+#[path = "embedding/call_observations.rs"]
 mod call_observations;
 pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
+#[path = "embedding/program.rs"]
 mod embedding;
+#[path = "instructions/calls.rs"]
 mod engine_calls;
+#[path = "memory/custody.rs"]
 mod engine_custody;
+#[path = "instructions/execution.rs"]
 mod engine_execution;
+#[path = "instructions/structural.rs"]
 mod engine_structural;
+#[path = "instructions/terminators.rs"]
 mod engine_terminators;
+#[path = "memory/bytes_and_views.rs"]
 mod storage_bytes_and_views;
+#[path = "memory/primitives.rs"]
 mod storage_primitives;
+#[path = "memory/providers.rs"]
 mod storage_providers;
+#[path = "memory/records_and_arrays.rs"]
 mod storage_records_and_arrays;
+#[path = "memory/references.rs"]
 mod storage_references;
 
 pub(crate) mod boundary {
@@ -173,4 +189,5 @@ impl TerminalExecution<'_> {
 }
 
 #[cfg(test)]
+#[path = "embedding/reference_completion_tests.rs"]
 mod reference_completion_tests;

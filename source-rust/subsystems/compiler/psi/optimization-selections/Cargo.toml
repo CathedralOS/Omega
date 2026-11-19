@@ -9,4 +9,4 @@ name = "optimization"
 path = "src/lib.rs"
 
 [dependencies]
-wire = { path = "../../../../../foundation/wire" }
+wire = { path = "../../../../foundation/wire" }

@@ -18,4 +18,4 @@ semantic-vocabulary = { path = "../../../language/semantic-vocabulary" }
 language-core = { path = "../../../../foundation/language-core" }
 symbols = { path = "../../../language/declaration-identity" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-terminal-psi = { path = "../../../../representations/psi" }
+terminal-psi = { path = "../../../../psi" }

@@ -9,5 +9,5 @@ version.workspace = true
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
 record-storage = { path = "../../../../foundation/record-storage" }
 optimization-core = { path = "../../psi-to-native/optimization-contracts" }
-source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
+source-compiler = { path = "../../source-to-psi" }
 syntax-trees = { path = "../../source-to-psi/pipeline/representations/syntax-trees" }
