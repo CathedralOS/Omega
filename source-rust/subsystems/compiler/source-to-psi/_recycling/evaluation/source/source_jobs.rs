@@ -23,15 +23,7 @@ pub use constant_jobs::{
 };
 pub use domain_access_plans::evaluate as evaluate_domain_access_plans;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FixedLayoutTargetScope {
-    pub target: String,
-    pub facts: Option<layout_plans::LayoutTargetFacts>,
-    /// Exact computation roots. An empty list never requests library-wide geometry.
-    pub entry_declarations: Vec<symbols::SymbolHandle>,
-    pub provider_declarations:
-        Vec<crate::evaluation::product::provider_declarations::ProviderSelection>,
-}
+pub use crate::source_targets::FixedLayoutTargetScope;
 /// Evaluate the layout policies needed by the requested entry declarations.
 /// Unused applications remain deferred at their owning declarations.
 pub fn evaluate_fixed_layout_applications(

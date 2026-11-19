@@ -535,9 +535,7 @@ mod product_policy {
                 request.executed,
                 &declaration_formations,
             )?;
-            let exclusions = crate::evaluation::product_policy::collect_behavior_exclusions(
-                typed,
-                request.activation,
+            crate::evaluation::product_declarations::require_supported_exclusions(
                 request.declared,
                 request.executed,
                 request.exclusions,
@@ -548,7 +546,7 @@ mod product_policy {
                 native_bindings,
                 grants,
                 declarations,
-                exclusions,
+                exclusions: Vec::new(),
             })
         }
 
