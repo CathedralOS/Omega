@@ -17,6 +17,6 @@ installation-evidence = { path = "../../installation/installation-evidence" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
 
 [dev-dependencies]
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 terminal-psi = { path = "../../../psi" }
-runtime-abi = { path = "../../target-description/runtime-abi" }
+runtime-abi = { path = "../../targets/runtime-abi" }

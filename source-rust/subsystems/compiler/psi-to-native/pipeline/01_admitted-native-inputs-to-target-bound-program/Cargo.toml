@@ -13,7 +13,7 @@ arena = { path = "../../../../../foundation/arena" }
 artifact-evaluation = { path = "../../../../psi/evaluation/artifact-evaluation" }
 backend-plan = { path = "../../installation/provider-plans" }
 build-time-values = { path = "../../../../psi/evaluation/build-time-values" }
-calling-conventions = { path = "../../target-description/calling-conventions" }
+calling-conventions = { path = "../../targets/calling-conventions" }
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 effects = { path = "../../installation/native-effects" }
@@ -21,15 +21,15 @@ evaluation-accounting = { path = "../../../../psi/evaluation/evaluation-accounti
 evaluation-contracts = { path = "../../../../psi/evaluation/evaluation-contracts" }
 evaluation-receipts = { path = "../../../../psi/evaluation/evaluation-receipts" }
 language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
-layout = { path = "../../target-description/layout" }
+layout = { path = "../../targets/layout" }
 optimization = { path = "../../../psi/optimization-selections" }
 optimization-core = { path = "../../optimization-contracts" }
 program-entry-plan = { path = "../../installation/program-entry" }
 provider-admission = { path = "../../verification/provider-admission" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
-runtime-abi = { path = "../../target-description/runtime-abi" }
+runtime-abi = { path = "../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-installation = { path = "../../../psi-admission" }
 terminal-interpreter = { path = "../../../../interpreter" }

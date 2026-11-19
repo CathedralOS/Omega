@@ -12,7 +12,7 @@ installation-evidence = { path = "../../installation/installation-evidence" }
 optimization-core = { path = "../../optimization-contracts" }
 optimization-requests = { path = "../../../build/optimization-policy/requests" }
 provider-admission = { path = "../../verification/provider-admission" }
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 terminal-installation = { path = "../../../psi-admission" }
 
 [dev-dependencies]

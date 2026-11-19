@@ -17,7 +17,7 @@ target = { path = "../target" }
 wire = { path = "../../../../../foundation/wire" }
 
 [dev-dependencies]
-isa-conformance = { path = "../../../../test-support/isa-conformance" }
+isa-conformance = { path = "../../tests/isa-conformance" }
 isa-x86_64 = { path = "../../pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
 register-model = { path = "../register-model", features = ["test-support"] }
 selected-instructions = { path = "../../pipeline/representations/selected-instructions", features = ["test-support"] }

@@ -9,7 +9,7 @@ compiler-check-site = { path = "../../../foundation/check-site" }
 abstract-operations = { path = "../representations/abstract-operations" }
 application-identity = { path = "../../../source-to-psi/language/application-identity" }
 arena = { path = "../../../../../foundation/arena" }
-calling-conventions = { path = "../../target-description/calling-conventions" }
+calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 function-identity = { path = "../../native-vocabulary/function-identity" }
 installation-evidence = { path = "../../installation/installation-evidence" }
@@ -20,9 +20,9 @@ optimization-core = { path = "../../optimization-contracts" }
 optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
 optimization-unit-semantics = { path = "../representations/abstract-operations/optimization-unit-semantics" }
 provider-admission = { path = "../../verification/provider-admission" }
-runtime-abi = { path = "../../target-description/runtime-abi" }
+runtime-abi = { path = "../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 target-operations = { path = "../representations/target-operations" }
 target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
 terminal-codec = { path = "../../../psi/codec" }
@@ -32,5 +32,5 @@ verified-optimization-input = { path = "../representations/abstract-operations/v
 
 [dev-dependencies]
 instruction-selection = { package = "target-operations-to-selected-instructions", path = "../05_target-operations-to-selected-instructions", features = ["test-support"] }
-register-environment = { path = "../../target-description/register-environment" }
+register-environment = { path = "../../targets/register-environment" }
 selected-instructions = { path = "../representations/selected-instructions" }

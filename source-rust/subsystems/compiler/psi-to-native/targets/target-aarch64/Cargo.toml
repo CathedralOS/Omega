@@ -15,7 +15,7 @@ selected-instructions = { path = "../../pipeline/representations/selected-instru
 target = { path = "../target" }
 
 [dev-dependencies]
-isa-conformance = { path = "../../../../test-support/isa-conformance" }
+isa-conformance = { path = "../../tests/isa-conformance" }
 isa-aarch64 = { path = "../../pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 register-model = { path = "../register-model", features = ["test-support"] }
 selected-instructions = { path = "../../pipeline/representations/selected-instructions", features = ["test-support"] }

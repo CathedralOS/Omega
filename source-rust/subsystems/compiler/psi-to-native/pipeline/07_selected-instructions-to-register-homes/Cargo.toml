@@ -8,11 +8,11 @@ version.workspace = true
 physical-program = { path = "../representations/post-allocation-machine/body-facts" }
 selected-rewrites = { package = "selected-instructions-to-selected-instructions", path = "../06_selected-instructions-to-selected-instructions" }
 optimization-core = { path = "../../optimization-contracts" }
-register-environment = { path = "../../target-description/register-environment" }
+register-environment = { path = "../../targets/register-environment" }
 register-homes = { path = "../representations/register-homes" }
-register-model = { path = "../../target-description/register-model" }
+register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi" }
 native-vocabulary = { path = "../../native-vocabulary" }
