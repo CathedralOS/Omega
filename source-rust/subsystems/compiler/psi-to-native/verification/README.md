@@ -15,6 +15,10 @@ install a handler. Their callers need the checked records during compilation.
   Later stages retain these records through publication.
   [Task activation checks](provider-admission/src/task_activations/mod.rs) match the selected
   runtime, stack geometry and suspension obligations to the published demand.
+- [Native Build bindings](native-bindings/bindings.rs) rejoin the evaluated
+  receipt and service declaration to the canonical Psi boundary, target layout
+  and exact calling application. Provider settlement, runtime capture and
+  retained-image replay all use those checks.
 - [Installation admission](installation-admission/src/lib.rs) checks handler
   requirements against the selected program. Instruction selection obtains
   the planned resources, frame binding checks the measured handlers, and

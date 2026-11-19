@@ -58,7 +58,7 @@ pub(crate) fn derive_normalized_foreign_child(
     projection: NativeOptimizationProjectionIdentity,
     requirement_identity: &str,
     selected_plan: Option<&NativeSelectedProviderPlan>,
-    native_bindings: &provider_admission::RetainedNativeBindings,
+    native_bindings: &native_binding_admission::RetainedNativeBindings,
     native_calling: &[calling_conventions::BoundaryCallingApplication],
     provider_executions: &[NativeProviderExecution],
     target: NativeTarget,

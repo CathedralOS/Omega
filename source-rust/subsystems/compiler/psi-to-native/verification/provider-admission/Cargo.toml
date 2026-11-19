@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+native-binding-admission = { path = "../native-bindings" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 target-provider-admission = { path = "../target-providers" }
 selected-provider-plans = { path = "../../../build/providers/selections" }

@@ -2,6 +2,8 @@
 //! provider. Keep its evaluated receipt and full requirement schema together;
 //! the locator alone establishes neither behavior nor execution authority.
 
+#![forbid(unsafe_code)]
+
 use std::sync::Arc;
 
 use provider_plans::{EvaluatedBindingReceipt, EvaluatedNativeBinding, ServiceSchema};
@@ -44,7 +46,7 @@ impl RetainedNativeBindings {
 
     pub fn identity_digest(&self) -> [u8; 32] {
         let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-build-bindings.v1\0");
+            wire::digest_encoder::DomainDigestEncoder::new(b"omega.native-build-bindings.v1\0");
         digest.u64(self.rows.len() as u64);
         for row in &self.rows {
             digest.u64(row.boundary.get());
@@ -151,166 +153,6 @@ pub fn validate_receipt(
     Ok(())
 }
 
-pub(crate) fn settle<'execution>(
-    input: &crate::AdmissionSource<'_>,
-    request: &crate::provider_admission::ProviderAdmissionRequest<'_, 'execution>,
-) -> Result<
-    (
-        Vec<crate::AdmittedBoundarySettlement<'execution>>,
-        Vec<crate::provider_admission::AdmittedTerminalMechanism>,
-    ),
-    Vec<diagnostics::Diagnostic>,
-> {
-    use crate::AdmittedBoundaryExecution;
-    use target_operations::{
-        BoundarySettlementRealization, NormalizedForeignCallBinding,
-        NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedSystemCallBinding,
-    };
-    let retained = request.native_bindings;
-    let refuse = |reason: String| {
-        vec![diagnostics::Diagnostic::error(format!(
-            "native Build binding admission: {reason}"
-        ))]
-    };
-    let mut settlements = Vec::new();
-    let mut mechanisms = Vec::new();
-    let mut boundaries = retained
-        .rows
-        .iter()
-        .map(|row| row.boundary)
-        .collect::<Vec<_>>();
-    boundaries.sort_unstable();
-    if boundaries.windows(2).any(|rows| rows[0] == rows[1]) {
-        return Err(refuse("duplicate exact boundary supply".into()));
-    }
-    for row in &retained.rows {
-        let module = input.module();
-        let boundary = validate_native_contract(row, &retained.identities, module, request.profile)
-            .map_err(refuse)?;
-        let requirement = module
-            .identities
-            .text(boundary.identity)
-            .ok_or_else(|| refuse("boundary has no terminal identity".into()))?;
-        if request
-            .selected_provider_plans
-            .selected_requirement_row(requirement)
-            .is_some()
-            || request
-                .compiler_builtins
-                .iter()
-                .any(|builtin| builtin.boundary == row.boundary)
-        {
-            return Err(refuse(
-                "boundary has competing native and provider executions".into(),
-            ));
-        }
-        // The module may retain choices for other roots. Only the actual
-        // admitted execution scope produces a physical settlement here.
-        if input.plan().boundary_machine(row.boundary).is_none() {
-            continue;
-        }
-        let abi = module.calling_abi_identity(row.boundary).map_err(refuse)?;
-        let mut applications = request
-            .installed_calling
-            .iter()
-            .filter(|application| application.abi == abi);
-        let application = applications
-            .next()
-            .filter(|_| applications.next().is_none())
-            .ok_or_else(|| refuse("binding has no unique exact calling application".into()))?;
-        let execution =
-            validate_native_calling(row, module, request.profile, boundary, application)
-                .map_err(refuse)?;
-        let receipt = row.binding.receipt().identity_digest();
-        let entry = application.plan.plan().clone();
-        let (mechanism, physical) = match &row.binding {
-            EvaluatedNativeBinding::Import(import) => {
-                if entry.call.policy
-                    != calling_conventions::CallingPolicy::native_for_target(request.target())
-                {
-                    return Err(refuse("import has another target calling policy".into()));
-                }
-                if request.profile.program_entry_slot().schema
-                    != target::ProgramEntrySchema::HostedApplication
-                {
-                    return Err(refuse(
-                        "foreign import needs admitted demand on a fixed or freestanding stack"
-                            .into(),
-                    ));
-                }
-                let physical = crate::provider_admission::normalized_foreign_terminal_mechanism(
-                    import.locator(),
-                    &entry,
-                )
-                .map_err(refuse)?;
-                (
-                    NormalizedForeignCallMechanism::HostedImport {
-                        locator: import.locator().clone(),
-                        receipt,
-                        requirement_identity: requirement.to_owned(),
-                    },
-                    physical,
-                )
-            }
-            EvaluatedNativeBinding::Syscall(syscall) => {
-                let policy =
-                    calling_conventions::CallingPolicy::native_syscall_for_target(request.target())
-                        .ok_or_else(|| refuse("syscall target is unsupported".into()))?;
-                let signature = calling_conventions::CallSignature::of_placements(
-                    &entry.call.parameters,
-                    entry.call.result.as_ref(),
-                );
-                if calling_conventions::evaluate_call_plan(policy, &signature).as_ref()
-                    != Ok(&entry.call)
-                {
-                    return Err(refuse(
-                        "syscall has another exact kernel calling policy".into(),
-                    ));
-                }
-                let physical = crate::provider_admission::conservative_syscall_terminal_mechanism(
-                    request.profile,
-                    syscall.number(),
-                    input.plan(),
-                    row.boundary,
-                    input.closed_module(),
-                )
-                .map_err(refuse)?;
-                (
-                    NormalizedForeignCallMechanism::SystemCall(NormalizedSystemCallBinding {
-                        target: request.profile,
-                        number: syscall.number(),
-                        requirement_identity: requirement.to_owned(),
-                        execution: NormalizedForeignExecution::NativeBinding(receipt),
-                    }),
-                    physical,
-                )
-            }
-        };
-        let foreign = NormalizedForeignCallBinding {
-            boundary_entry_plan: entry,
-            mechanism,
-        };
-        if !foreign.has_valid_entry_mechanism() {
-            return Err(refuse(
-                "binding has an invalid physical entry mechanism".into(),
-            ));
-        }
-        settlements.push(crate::AdmittedBoundarySettlement {
-            boundary: row.boundary,
-            execution: AdmittedBoundaryExecution::NativeBinding {
-                execution,
-                schema: row.schema.identity_digest(),
-            },
-            realization: BoundarySettlementRealization::NormalizedForeignCall(foreign),
-        });
-        mechanisms.push(crate::provider_admission::AdmittedTerminalMechanism {
-            boundary: row.boundary,
-            mechanism: physical,
-        });
-    }
-    Ok((settlements, mechanisms))
-}
-
 fn validate_schema_declaration(schema: &ServiceSchema, checked: [u8; 32]) -> Result<(), String> {
     schema
         .declaration
@@ -322,70 +164,102 @@ fn validate_schema_declaration(schema: &ServiceSchema, checked: [u8; 32]) -> Res
     Ok(())
 }
 
-fn validate_native_contract<'module>(
-    row: &RetainedNativeBinding,
-    identities: &TerminalIdentityTable,
-    module: &'module terminal_psi::TerminalModule,
+/// A retained Build binding joined to the exact declaration in the canonical Psi module.
+pub struct CheckedNativeBinding<'input> {
+    row: &'input RetainedNativeBinding,
+    module: &'input terminal_psi::TerminalModule,
     profile: target::TargetProfile,
-) -> Result<&'module terminal_psi::BoundaryMachineDeclaration, String> {
-    validate_receipt(&row.binding, identities)?;
-    if row.binding.target() != profile {
-        return Err("binding belongs to another target".into());
+    boundary: &'input terminal_psi::BoundaryMachineDeclaration,
+}
+
+impl<'input> CheckedNativeBinding<'input> {
+    pub fn boundary(&self) -> &terminal_psi::BoundaryMachineDeclaration {
+        self.boundary
     }
-    let boundary = module
-        .boundary_machine(row.boundary)
-        .ok_or_else(|| "binding has no canonical boundary declaration".to_owned())?;
-    let declaration = boundary
-        .declaration
-        .as_ref()
-        .ok_or_else(|| "binding has no checked requirement contract".to_owned())?;
-    validate_schema_declaration(&row.schema, declaration.service_declaration)?;
-    let callable = module
-        .identities
-        .text(declaration.source.callable)
-        .filter(|text| !text.is_empty())
-        .ok_or_else(|| "binding requirement lost its exact callable identity".to_owned())?;
-    let origin = row
-        .binding
-        .receipt()
-        .build_origin()
-        .ok_or_else(|| "binding lost its Build occurrence".to_owned())?;
-    if identities.text(origin.requirement_identity) != Some(callable) {
-        return Err("receipt designates another exact requirement".into());
+
+    pub fn execution(
+        &self,
+        application: &calling_conventions::BoundaryCallingApplication,
+    ) -> Result<target_vocabulary::NativeBindingExecution, String> {
+        validate_native_calling(
+            self.row,
+            self.module,
+            self.profile,
+            self.boundary,
+            application,
+        )
     }
-    let mut methods = row
-        .schema
-        .declaration
-        .methods
-        .iter()
-        .filter(|method| row.schema.identity_text(method.requirement_identity) == callable);
-    let method = methods
-        .next()
-        .filter(|_| methods.next().is_none())
-        .ok_or_else(|| "full service schema has no unique exact requirement".to_owned())?;
-    terminal_semantics::validate_boundary_normal_memberships(module, boundary, method)?;
-    if method.completion != boundary.completion {
-        return Err("native requirement changes its declared completion".into());
+
+    pub fn admit(
+        row: &'input RetainedNativeBinding,
+        identities: &TerminalIdentityTable,
+        module: &'input terminal_psi::TerminalModule,
+        profile: target::TargetProfile,
+    ) -> Result<Self, String> {
+        validate_receipt(&row.binding, identities)?;
+        if row.binding.target() != profile {
+            return Err("binding belongs to another target".into());
+        }
+        let boundary = module
+            .boundary_machine(row.boundary)
+            .ok_or_else(|| "binding has no canonical boundary declaration".to_owned())?;
+        let declaration = boundary
+            .declaration
+            .as_ref()
+            .ok_or_else(|| "binding has no checked requirement contract".to_owned())?;
+        validate_schema_declaration(&row.schema, declaration.service_declaration)?;
+        let callable = module
+            .identities
+            .text(declaration.source.callable)
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| "binding requirement lost its exact callable identity".to_owned())?;
+        let origin = row
+            .binding
+            .receipt()
+            .build_origin()
+            .ok_or_else(|| "binding lost its Build occurrence".to_owned())?;
+        if identities.text(origin.requirement_identity) != Some(callable) {
+            return Err("receipt designates another exact requirement".into());
+        }
+        let mut methods = row
+            .schema
+            .declaration
+            .methods
+            .iter()
+            .filter(|method| row.schema.identity_text(method.requirement_identity) == callable);
+        let method = methods
+            .next()
+            .filter(|_| methods.next().is_none())
+            .ok_or_else(|| "full service schema has no unique exact requirement".to_owned())?;
+        terminal_semantics::validate_boundary_normal_memberships(module, boundary, method)?;
+        if method.completion != boundary.completion {
+            return Err("native requirement changes its declared completion".into());
+        }
+        if boundary.unconditional_termination
+            != (method.terminates_guarantee && method.termination_premises.is_empty())
+        {
+            return Err("native requirement changes its declared termination guarantee".into());
+        }
+        if method.may_suspend != declaration.source.published_may_suspend {
+            return Err("native requirement changes its declared suspension behavior".into());
+        }
+        if method.may_block != declaration.source.published_may_block {
+            return Err("native requirement changes its declared blocking behavior".into());
+        }
+        validate_native_declared_types(
+            method,
+            &declaration.source.parameter_types,
+            declaration.source.result_type,
+            &boundary.result,
+            &module.identities,
+        )?;
+        Ok(Self {
+            row,
+            module,
+            profile,
+            boundary,
+        })
     }
-    if boundary.unconditional_termination
-        != (method.terminates_guarantee && method.termination_premises.is_empty())
-    {
-        return Err("native requirement changes its declared termination guarantee".into());
-    }
-    if method.may_suspend != declaration.source.published_may_suspend {
-        return Err("native requirement changes its declared suspension behavior".into());
-    }
-    if method.may_block != declaration.source.published_may_block {
-        return Err("native requirement changes its declared blocking behavior".into());
-    }
-    validate_native_declared_types(
-        method,
-        &declaration.source.parameter_types,
-        declaration.source.result_type,
-        &boundary.result,
-        &module.identities,
-    )?;
-    Ok(boundary)
 }
 
 fn validate_native_declared_types(
@@ -417,10 +291,7 @@ fn validate_native_declared_types(
         .text(result_type)
         .filter(|identity| !identity.is_empty())
         .ok_or("native result lost its exact declared type")?;
-    let signature = service_surface::declared_type_signature(
-        parameters.iter().copied(),
-        result,
-    )?;
+    let signature = service_surface::declared_type_signature(parameters.iter().copied(), result)?;
     if method.declared_type_signature == [0; 32] || method.declared_type_signature != signature {
         return Err(format!(
             "native declared types differ from their authenticated service signature (parameters {parameters:?}, result `{result}`)"
@@ -435,9 +306,8 @@ pub fn validate_native_binding_execution(
     module: &terminal_psi::TerminalModule,
     profile: target::TargetProfile,
     application: &calling_conventions::BoundaryCallingApplication,
-) -> Result<target_operations::NativeBindingExecution, String> {
-    let boundary = validate_native_contract(row, identities, module, profile)?;
-    validate_native_calling(row, module, profile, boundary, application)
+) -> Result<target_vocabulary::NativeBindingExecution, String> {
+    CheckedNativeBinding::admit(row, identities, module, profile)?.execution(application)
 }
 
 fn validate_native_calling(
@@ -446,7 +316,7 @@ fn validate_native_calling(
     profile: target::TargetProfile,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
     application: &calling_conventions::BoundaryCallingApplication,
-) -> Result<target_operations::NativeBindingExecution, String> {
+) -> Result<target_vocabulary::NativeBindingExecution, String> {
     let abi = module.calling_abi_identity(row.boundary)?;
     if application.abi != abi
         || application.target != profile.native_target()
@@ -492,7 +362,7 @@ fn validate_native_calling(
         .declaration
         .as_ref()
         .ok_or("native binding lost its checked requirement")?;
-    target_operations::NativeBindingExecution::from_commitments(
+    target_vocabulary::NativeBindingExecution::from_commitments(
         row.binding.receipt().identity_digest(),
         declaration.source.contract,
         application.commitment,
@@ -531,8 +401,8 @@ pub fn validate_native_binding_realization(
     module: &terminal_psi::TerminalModule,
     profile: target::TargetProfile,
     application: &calling_conventions::BoundaryCallingApplication,
-    binding: &target_operations::NormalizedForeignCallBinding,
-) -> Result<target_operations::NativeBindingExecution, String> {
+    binding: &target_vocabulary::NormalizedForeignCallBinding,
+) -> Result<target_vocabulary::NativeBindingExecution, String> {
     let execution =
         validate_native_binding_execution(row, identities, module, profile, application)?;
     if binding.boundary_entry_plan != *application.plan.plan()
@@ -543,7 +413,7 @@ pub fn validate_native_binding_realization(
     let mechanism_matches = match (&row.binding, &binding.mechanism) {
         (
             EvaluatedNativeBinding::Import(evaluated),
-            target_operations::NormalizedForeignCallMechanism::HostedImport {
+            target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
                 locator,
                 receipt,
                 requirement_identity,
@@ -558,7 +428,7 @@ pub fn validate_native_binding_realization(
         }
         (
             EvaluatedNativeBinding::Syscall(evaluated),
-            target_operations::NormalizedForeignCallMechanism::SystemCall(syscall),
+            target_vocabulary::NormalizedForeignCallMechanism::SystemCall(syscall),
         ) => {
             evaluated.target() == syscall.target
                 && evaluated.number() == syscall.number
@@ -570,7 +440,7 @@ pub fn validate_native_binding_realization(
         _ => false,
     };
     if !mechanism_matches
-        || !binding.matches_execution(target_operations::ExternalExecutionBinding::NativeBinding(
+        || !binding.matches_execution(target_vocabulary::ExternalExecutionBinding::NativeBinding(
             execution,
         ))
     {
@@ -752,12 +622,11 @@ mod tests {
             parameter_type_identities: vec![i32_surface],
             has_result: true,
             result_type_identity: i32_surface,
-            declared_type_signature:
-                service_surface::declared_type_signature(
-                    ["compiler-type(atom(i32))"].into_iter(),
-                    "compiler-type(atom(i32))",
-                )
-                .unwrap(),
+            declared_type_signature: service_surface::declared_type_signature(
+                ["compiler-type(atom(i32))"].into_iter(),
+                "compiler-type(atom(i32))",
+            )
+            .unwrap(),
             ..Default::default()
         };
         let result = terminal_psi::BoundaryMachineResult::Scalar(
@@ -804,12 +673,11 @@ mod tests {
         let method = ServiceMethod {
             parameter_count: 2,
             parameter_type_identities: vec![left_surface, right_surface],
-            declared_type_signature:
-                service_surface::declared_type_signature(
-                    [left, right].into_iter(),
-                    "unit",
-                )
-                .unwrap(),
+            declared_type_signature: service_surface::declared_type_signature(
+                [left, right].into_iter(),
+                "unit",
+            )
+            .unwrap(),
             ..Default::default()
         };
         let result = terminal_psi::BoundaryMachineResult::Unit;
@@ -840,12 +708,11 @@ mod tests {
         let unit = identities.intern("unit");
         let scalar = identities.intern("compiler-type(atom(i32))");
         let method = ServiceMethod {
-            declared_type_signature:
-                service_surface::declared_type_signature(
-                    std::iter::empty::<&str>(),
-                    "unit",
-                )
-                .unwrap(),
+            declared_type_signature: service_surface::declared_type_signature(
+                std::iter::empty::<&str>(),
+                "unit",
+            )
+            .unwrap(),
             ..Default::default()
         };
         validate_native_declared_types(
@@ -1051,9 +918,7 @@ mod tests {
             match change {
                 0 => method.service_reach.push("ProcessExit".into()),
                 1 => method.synchronous_invocations.push(
-                    service_surface::ServiceSynchronousInvocation::Service(
-                        "Raw::callback".into(),
-                    ),
+                    service_surface::ServiceSynchronousInvocation::Service("Raw::callback".into()),
                 ),
                 2 => method.result_claims.push(ServiceResultClaim {
                     domain: "Granted".into(),

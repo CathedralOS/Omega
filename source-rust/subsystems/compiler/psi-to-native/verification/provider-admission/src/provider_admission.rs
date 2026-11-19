@@ -43,10 +43,6 @@ mod terminal_authority_policy;
 mod terminal_authority_review;
 
 pub use crate::AdmittedInstalledInterruptCohort;
-pub use crate::native_bindings::{
-    NativeBindingInput, RetainedNativeBinding, RetainedNativeBindings,
-    validate_native_binding_execution, validate_native_binding_realization,
-};
 pub use adapters::{
     AdmittedProgramProviderContext, retain_selected_provider_adapters,
     selected_synchronous_call_graph,
@@ -147,7 +143,7 @@ impl AdmittedNativeCallableAuthority {
 }
 
 pub struct AdmittedNativeProviders<'execution> {
-    native_bindings: crate::RetainedNativeBindings,
+    native_bindings: native_binding_admission::RetainedNativeBindings,
     native_calling: Vec<calling_conventions::BoundaryCallingApplication>,
     pub settlements: Vec<AdmittedBoundarySettlement<'execution>>,
     pub(crate) native_callbacks: crate::AdmittedNativeCallbackCohort, // Scoped to this executable occurrence scope, never the full retained catalog.
@@ -162,7 +158,7 @@ pub struct AdmittedNativeProviders<'execution> {
 }
 
 impl AdmittedNativeProviders<'_> {
-    pub fn native_bindings(&self) -> &crate::RetainedNativeBindings {
+    pub fn native_bindings(&self) -> &native_binding_admission::RetainedNativeBindings {
         &self.native_bindings
     }
     pub fn native_calling(&self) -> &[calling_conventions::BoundaryCallingApplication] {
@@ -245,7 +241,7 @@ pub fn admit_native_providers<'request>(
         &installed_interrupts,
         request.terminal_authority_policy,
     )?;
-    let (native_settlements, native_mechanisms) = crate::native_bindings::settle(input, request)?;
+    let (native_settlements, native_mechanisms) = crate::native_binding_settlements::settle(input, request)?;
     require_reached_providers(
         input,
         request.profile,

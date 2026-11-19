@@ -1,0 +1,20 @@
+[package]
+name = "native-binding-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "bindings.rs"
+
+[dependencies]
+calling-conventions = { path = "../../targets/calling-conventions" }
+layout = { path = "../../targets/layout" }
+provider-plans = { path = "../../../build/providers/plans" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+service-surface = { path = "../../../psi/service-surface" }
+target = { path = "../../targets/target" }
+target-vocabulary = { path = "../../pipeline/representations/target-operations/target-vocabulary" }
+terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi/semantics" }
+wire = { path = "../../../../../foundation/wire" }

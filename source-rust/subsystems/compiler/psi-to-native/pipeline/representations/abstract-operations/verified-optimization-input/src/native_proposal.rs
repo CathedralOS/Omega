@@ -8,7 +8,7 @@ use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
-    pub native_bindings: provider_admission::RetainedNativeBindings,
+    pub native_bindings: native_binding_admission::RetainedNativeBindings,
     pub selection: selected_provider_plans::SelectedProviderPlanFacts,
     pub checked_adapters: Vec<provider_admission::SelectedProviderAdapter>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
@@ -172,7 +172,7 @@ mod proposal {
 
     pub struct TerminalNativeProposalRequest<'input> {
         pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
-        pub native_bindings: &'input [provider_admission::NativeBindingInput<'input>],
+        pub native_bindings: &'input [native_binding_admission::NativeBindingInput<'input>],
         pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
         pub target_profile: Option<target::TargetProfile>,
         pub boundaries: crate::BoundaryApplicationSettlement<'input>,
@@ -370,7 +370,7 @@ mod proposal {
             .map_err(|message| vec![Diagnostic::error(message)])?;
         Ok(TerminalNativeBodyProposal {
             providers: TerminalNativeProviders {
-                native_bindings: provider_admission::RetainedNativeBindings::retain(
+                native_bindings: native_binding_admission::RetainedNativeBindings::retain(
                     request.native_bindings,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?,

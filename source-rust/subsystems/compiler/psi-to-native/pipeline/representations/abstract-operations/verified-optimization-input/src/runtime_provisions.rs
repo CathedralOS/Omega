@@ -112,7 +112,7 @@ struct RuntimeHostRequirement<A> {
 /// an adapter; no nominal provider report is invented for a Build binding.
 #[derive(Clone, Copy)]
 pub struct NativeBindingRuntimeInputs<'a> {
-    pub bindings: &'a provider_admission::provider_admission::RetainedNativeBindings,
+    pub bindings: &'a native_binding_admission::RetainedNativeBindings,
     pub calling: &'a [BoundaryCallingApplication],
 }
 
@@ -211,7 +211,7 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
                     .filter(|_| applications.next().is_none())
                     .ok_or("runtime native binding lost its unique calling application")?;
                 let execution =
-                    provider_admission::provider_admission::validate_native_binding_execution(
+                    native_binding_admission::validate_native_binding_execution(
                         row,
                         &native.bindings.identities,
                         module,

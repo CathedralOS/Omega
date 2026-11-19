@@ -109,6 +109,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission",
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/bound-installations",
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/conditions",
+    "source-rust/subsystems/compiler/psi-to-native/verification/native-bindings",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/same-stack",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence",

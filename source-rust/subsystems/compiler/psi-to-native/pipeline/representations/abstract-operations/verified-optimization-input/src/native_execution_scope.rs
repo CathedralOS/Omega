@@ -661,7 +661,7 @@ impl NativeExecutionScope {
 
     pub(crate) fn bind_native_supply(
         &mut self,
-        native: &provider_admission::RetainedNativeBindings,
+        native: &native_binding_admission::RetainedNativeBindings,
     ) {
         self.source_native_bindings = Some(native.identity_digest());
     }
