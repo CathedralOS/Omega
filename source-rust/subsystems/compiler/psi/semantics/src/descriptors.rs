@@ -17668,27 +17668,22 @@ pub mod descriptor_results {
                                     .ok()?
                             };
                             let implemented = operation.required_contract.is_some();
-                            let public_call = match &public {
-                                Some(public) => Some((
-                                    public_invocation(
-                                        operation.id,
-                                        &module.structural_types,
-                                        slot_kind,
-                                        public,
-                                        if implemented {
-                                            vec![callee]
-                                        } else {
-                                            Vec::new()
-                                        },
-                                        structural_arguments,
-                                        result,
-                                        &graph.place_types,
-                                    )?,
-                                    implemented,
-                                )),
-                                None => None,
-                            };
-                            if let Some((mut call, implemented)) = public_call {
+                            if let Some(public) = public {
+                                let mut call = public_invocation(
+                                    operation.id,
+                                    &module.structural_types,
+                                    slot_kind,
+                                    &public,
+                                    if implemented {
+                                        vec![callee]
+                                    } else {
+                                        Vec::new()
+                                    },
+                                    structural_arguments,
+                                    result,
+                                    &graph.place_types,
+                                )?;
+                                call.retain_whole_scalar_result_address(module, &public);
                                 let complete = call.arguments.iter().all(Option::is_some)
                                     && call.argument_contents.iter().all(Option::is_some);
                                 if !complete {
@@ -17731,7 +17726,6 @@ pub mod descriptor_results {
                                         let mut lifetime_dependencies = Vec::new();
                                         if !inventory.unknown_contents.is_empty() {
                                             for (position, formal) in public
-                                                .as_ref()?
                                                 .contract()
                                                 .structural_parameters
                                                 .iter()
@@ -19454,6 +19448,68 @@ pub mod descriptor_results {
     }
 
     impl DescriptorInvocation {
+        /// A mutable reference into a single integer cell of the identical
+        /// type occupies that whole cell. Its public lifetime still names the region.
+        fn retain_whole_scalar_result_address(
+            &mut self,
+            module: &terminal_psi::TerminalModule,
+            public: &crate::references::DeclaredReferenceResult<'_>,
+        ) {
+            let contract = public.contract();
+            let DescriptorInvocationTarget::Public {
+                results, extent, ..
+            } = &mut self.target
+            else {
+                return;
+            };
+            let [slot] = results.as_mut_slice() else {
+                return;
+            };
+            let [
+                DescriptorStoredOrigin::Parameter {
+                    position,
+                    projection,
+                },
+            ] = slot.origins.as_mut_slice()
+            else {
+                return;
+            };
+            let Some(formal) = contract.structural_parameters.get(*position) else {
+                return;
+            };
+            let result_shape = contract
+                .result
+                .structural()
+                .and_then(|result| module.structural_type(result.structural_type))
+                .map(|ty| &ty.shape);
+            let Some(StructuralTypeShape::Reference {
+                referent,
+                access: StructuralAccess::MutableBorrow,
+            }) = result_shape
+            else {
+                return;
+            };
+            if !slot.path.is_empty()
+                || formal.access != StructuralAccess::MutableBorrow
+                || formal.structural_type != *referent
+            {
+                return;
+            }
+            let Some(StructuralTypeShape::PrimitiveScalar(
+                semantic_vocabulary::ScalarType::Integer(integer),
+            )) = module.structural_type(*referent).map(|ty| &ty.shape)
+            else {
+                return;
+            };
+            if integer.bits().is_some_and(|bits| bits > 0) {
+                // Keep the supplied address during storage replay, and preserve
+                // the public region when the result is forwarded or published.
+                *projection = Projection::new(&[]);
+                projection.exact = false;
+                *extent = semantic_vocabulary::ReferenceOriginExtent::Projected;
+            }
+        }
+
         pub fn actual_inputs(&self) -> DescriptorActualInputs<'_> {
             DescriptorActualInputs {
                 scalar_arguments: &self.scalar_arguments,
