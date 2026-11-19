@@ -10,10 +10,10 @@ declaration-scope = { path = "../../foundation/declaration-scope" }
 native-scalar-inputs = { path = "../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
 optimization-requests = { path = "../optimization-policy/requests" }
-evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }
+evaluation-contracts = { path = "../evaluation/usage" }
 source-admission = { path = "../../source-to-psi/inputs/source-admission" }
 source-text = { path = "../../../../foundation/source-text" }
-evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
+evaluation-receipts = { path = "../evaluation/receipts" }
 artifact-evaluation = { path = "../../../psi/evaluation/artifact-evaluation" }
 backend-plan = { path = "../../psi-to-native/installation/provider-plans" }
 calling-conventions = { path = "../../compilation/target-description/calling-conventions" }

@@ -47,7 +47,7 @@ The other modules under [sections.rs](src/sections.rs) encode manifest, debug an
 Do not infer one section's identity from another section's current version.
 
 Current markers live with their users: semantic format in [semantic_module.rs](src/semantic_module.rs),
-vocabulary in [VocabularyMarker](../src/identity.rs),
+vocabulary in [VocabularyMarker](../program-identity/identity.rs),
 [canonical_artifact.rs](../codec/src/canonical_artifact.rs), and manifest in
 [sections.rs](src/sections.rs). Installation section commitments are separate from
 semantic identity and grant a receiver no installation rights.

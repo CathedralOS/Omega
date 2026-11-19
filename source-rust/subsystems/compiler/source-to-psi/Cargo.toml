@@ -37,8 +37,8 @@ declaration-contracts = { path = "language/declaration-contracts" }
 application-identity = { path = "../psi/application-identity" }
 layout-planning = { path = "../psi/layout/integer-defaults" }
 numeric-literals = { path = "../foundation/numeric-literals" }
-evaluation-contracts = { path = "evaluation/evaluation-contracts" }
-evaluation-receipts = { path = "evaluation/evaluation-receipts" }
+evaluation-contracts = { path = "../build/evaluation/usage" }
+evaluation-receipts = { path = "../build/evaluation/receipts" }
 source-capture = { path = "../../../../host-support/source-capture" }
 source-admission = { path = "inputs/source-admission" }
 source-text = { path = "../../../foundation/source-text" }

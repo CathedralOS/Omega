@@ -14,7 +14,7 @@ storage-access = { path = "memory/storage-access" }
 storage-materialization = { path = "memory/materialization" }
 resource-bounds = { path = "../compiler/psi/storage-bounds" }
 extent-contracts = { path = "../compiler/psi/extent-contracts" }
-evaluation-contracts = { path = "../evaluation/evaluation-contracts" }
+evaluation-contracts = { path = "../compiler/build/evaluation/usage" }
 language-core = { path = "../compiler/foundation/language-core" }
 record-storage = { path = "../../foundation/record-storage" }
 access-admission = { path = "../compilation/access-admission" }

@@ -455,6 +455,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-program-identity"
+version = "0.1.0"
+dependencies = [
+ "record-storage",
+]
+
+[[package]]
 name = "psi-authorization"
 version = "0.1.0"
 dependencies = [
@@ -803,7 +810,7 @@ dependencies = [
  "record-storage",
  "evaluation-contracts",
  "semantic-vocabulary",
- "terminal-psi",
+ "psi-program-identity",
  "wire",
 ]
 
@@ -3344,6 +3351,7 @@ dependencies = [
  "numerics",
  "optimization",
  "proof-applications",
+ "psi-program-identity",
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
