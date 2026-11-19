@@ -16,7 +16,7 @@ path = "lib.rs"
 [dependencies]
 typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program" }
 source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
+source-symbol-table = { path = "../representations/symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../representations/typed-trees" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }

@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-language-core = { path = "../../../../foundation/language-core" }
+language-core = { path = "../../../../../foundation/language-core" }
 
 [dev-dependencies]
-source-provenance = { path = "../../../../foundation/source-provenance" }
+source-provenance = { path = "../../../../../foundation/source-provenance" }

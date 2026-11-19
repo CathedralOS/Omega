@@ -22,4 +22,4 @@ language-core = { path = "../../../../foundation/language-core" }
 numerics = { path = "../../../../psi/semantics/numeric" }
 symbols = { path = "../../../../foundation/declaration-identity" }
 source-declarations = { path = "declarations" }
-source-symbol-table = { path = "../../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
+source-symbol-table = { path = "symbol-table" }

@@ -11,7 +11,7 @@ shows which records its operations produce and what the next operation reads.
 | --- | --- | --- |
 | [Tokens](tokens/token_stream.rs) | [Lexer](../00_source-files-to-tokens/lexer.rs) | [Parser](../01_tokens-to-syntax-trees/parser.rs) |
 | [Syntax trees](syntax-trees/syntax_trees.rs) | [Parser](../01_tokens-to-syntax-trees/parser.rs) | [Name resolution](../02_syntax-trees-to-symbol-resolved-trees/resolver.rs) |
-| [Resolved source](symbol-resolved-trees/src/lib.rs) | Name resolution | [Typing](../03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) |
+| [Resolved source](symbol-resolved-trees/lib.rs) and its [symbol table](symbol-resolved-trees/symbol-table/symbol_table.rs) | Name resolution | [Typing](../03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) |
 | [Typed source](typed-trees/src/lib.rs) | Typing | [Source preparation](../04_typed-trees-to-typed-trees/README.md) and [structural lowering](../05_typed-trees-to-lowered-program/src/lib.rs) |
 | [Terminal Psi](../../language/terminal-psi/src/lib.rs) | Structural lowering and the [lowered-form checker](../06_lowered-program-to-checked-program/src/verdict.rs) | The [accepted-source factory](../07_checked-program-to-psi/src/accepted.rs) passes its judgment to [stage 02 publication](../../../../omega/compilation/products/source-publication/src/lib.rs). |
 
