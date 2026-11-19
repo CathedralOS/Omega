@@ -8,8 +8,7 @@ interpreter. Replenishing work resumes the same instance.
 
 The portable `execute` and `execute_sliced` entrances run without a native
 image. A program that observes a machine's linked code layout uses Build's
-`execute_published_terminal` or `execute_published_terminal_sliced`. Their
-image argument is the retained native artifact. Build checks its target and
+[published program execution](../../compiler/build/published_terminal.rs). Full and sliced execution both take the retained native artifact. Build checks its target and
 canonical Terminal identity, replays the final image against its object, and
 reads root machine descriptors from the linked sections. A failed inspection
 is an execution error. The CLI reports it when running `--both`.

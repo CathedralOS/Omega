@@ -49,7 +49,7 @@ pub struct ProductSupplySource<'a> {
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [crate::evaluation::provider_declarations::ProviderSelection],
-    pub native_bindings: &'a [provider_choices::NativeBuildSupply],
+    pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
     pub defaults: &'a [crate::evaluation::provider_declarations::TargetProviderDefaults],
     /// Defaults whose layouts the source lays out only for a target that
     /// chooses them: the provider selections of the Build's dependencies.
@@ -140,7 +140,7 @@ impl ModuleDemand {
         &self,
         accepted: &crate::AcceptedTerminalSource,
         build: &[crate::evaluation::provider_declarations::ProviderSelection],
-        native_bindings: &[provider_choices::NativeBuildSupply],
+        native_bindings: &[crate::provider_choice_inputs::NativeBuildSupply],
         defaults: &[crate::evaluation::provider_declarations::TargetProviderDefaults],
         target: Option<&str>,
         numeric_support: Option<&language_core::float_operations::NumericTargetCapabilities>,
@@ -261,7 +261,7 @@ pub struct TargetSupplySource<'a> {
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [crate::evaluation::provider_declarations::ProviderSelection],
-    pub native_bindings: &'a [provider_choices::NativeBuildSupply],
+    pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
     pub defaults: &'a [crate::evaluation::provider_declarations::TargetProviderDefaults],
     /// The selected deployment, or no deployment for targetless checking.
     pub target: Option<&'a str>,

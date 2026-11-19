@@ -210,7 +210,7 @@ impl TerminalNativeRealizationProposal {
         Vec<provider_admission::provider_admission::CompilerIntrinsicPlanProvenance<'a>>,
         Vec<Diagnostic>,
     > {
-        static NON_INTRINSIC_EXECUTION: [Option<effects::CompilerIntrinsicExecutionIdentity>; 1] =
+        static NON_INTRINSIC_EXECUTION: [Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>; 1] =
             [None];
         selection
             .plans()
@@ -250,7 +250,7 @@ impl TerminalNativeRealizationProposal {
                             "native execution has an unowned direct plan",
                         )]
                     })?;
-                let row_executions: &[Option<effects::CompilerIntrinsicExecutionIdentity>] =
+                let row_executions: &[Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>] =
                     match &leaf.execution {
                         backend_plan::DirectBoundaryExecution::Intrinsic(identity) => {
                             std::slice::from_ref(identity)

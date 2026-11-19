@@ -41,7 +41,7 @@ use crate::provider_admission::AdmittedTerminalMechanism;
 use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use diagnostics::Diagnostic;
-use effects::CompilerAccessorScalarOperation;
+use native_intrinsics::CompilerAccessorScalarOperation;
 use provider_plans::{ProviderPlan, ServiceSchema};
 use semantic_vocabulary::{
     BoundaryCompletion, ClosedScalarType, ExternalCompletionKind, IeeeFloatFormat, IntegerSign,
@@ -259,7 +259,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     || demand.access_slot != access_slot
                     || demand.operation != operation
                     || operation == TerminalAccessorKind::Take
-                    || effects::compiler_accessor_scalar_contract_identity(
+                    || native_intrinsics::compiler_accessor_scalar_contract_identity(
                         proposal.semantic_schema.identity_digest(),
                         placement_commitment,
                         access_slot,

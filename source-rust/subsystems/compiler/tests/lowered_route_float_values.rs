@@ -1883,7 +1883,7 @@ use numerics::intrinsics::NumericType;
                     .unwrap()
                     .id;
                 let observation =
-                    orchestration::execute_published_terminal(terminal_runtime::TerminalRuntimeRequest {
+                    project_build::published_terminal::execute_published_terminal(terminal_runtime::TerminalRuntimeRequest {
                         entry: None,
                         filesystem: Default::default(),
                         native_services: Default::default(),

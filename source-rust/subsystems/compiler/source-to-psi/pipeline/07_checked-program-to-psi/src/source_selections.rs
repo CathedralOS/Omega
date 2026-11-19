@@ -119,7 +119,7 @@ mod tests {
                         source_admission::SourceOrigin::Toolchain
                     },
                     source_admission::SourceResolutionStratum::Base,
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 )
                 .source_id;
             let tokens = crate::production::frontend_fixture::Lexer::new(text)
@@ -156,7 +156,7 @@ mod tests {
                     declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[None],
-                    purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                    purpose: source_provenance::DependencyScope::Product,
                     selected: &[],
                     calling: None,
                     providers: None,
@@ -211,10 +211,10 @@ mod tests {
                 sources: &Arc<crate::source_inputs::SourceMap>,
                 requester: source_text::SourceSpan,
                 declaration: source_text::SourceSpan,
-                purpose: declaration_contracts::source_identity::DependencyScope,
+                purpose: source_provenance::DependencyScope,
             ) -> bool {
                 Arc::ptr_eq(&self.0, sources)
-                    && purpose == declaration_contracts::source_identity::DependencyScope::Build
+                    && purpose == source_provenance::DependencyScope::Build
                     && [requester, declaration].into_iter().all(|span| {
                         sources.get(span.source_id).is_some_and(|file| {
                             file.dependency_scope == purpose
@@ -236,7 +236,7 @@ mod tests {
                 None,
                 source_admission::SourceOrigin::User,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             )
             .source_id;
         let sources = Arc::new(sources);
@@ -261,7 +261,7 @@ mod tests {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
-                purpose: declaration_contracts::source_identity::DependencyScope::Build,
+                purpose: source_provenance::DependencyScope::Build,
                 selected: &[],
                 calling: None,
                 providers: None,

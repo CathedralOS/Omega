@@ -23,11 +23,10 @@ typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program"
 source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../representations/typed-trees" }
-declaration-contracts = { path = "../../language/declaration-contracts" }
+source-provenance = { path = "../../../foundation/source-provenance" }
 evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 source-admission = { path = "../representations/source-files/custody" }
 source-text = { path = "../../../../../foundation/source-text" }
-provider-choices = { path = "../../language/provider-choices" }
 wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
 record-storage = { path = "../../../../../foundation/record-storage" }

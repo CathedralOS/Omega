@@ -367,10 +367,10 @@ impl NumericMethod {
 }
 
 fn numeric_execution(
-    execution: effects::CompilerIntrinsicExecutionIdentity,
+    execution: native_intrinsics::CompilerIntrinsicExecutionIdentity,
 ) -> Result<PackageReviewCompilerIntrinsicExecution, Vec<Diagnostic>> {
     use PackageReviewCompilerIntrinsicExecution as Policy;
-    use effects::CompilerIntrinsicExecutionIdentity as Source;
+    use native_intrinsics::CompilerIntrinsicExecutionIdentity as Source;
     Ok(match execution {
         Source::PrimitiveFloatBinary { operation, format } => {
             Policy::PrimitiveFloatBinary { operation, format }

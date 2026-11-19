@@ -207,7 +207,7 @@ pub fn direct_compiler_primitive_leaves(
             } => {
                 let execution = match operation {
                     language_core::sealed_intrinsics::HostedOperation::ProcessExit => {
-                        effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+                        native_intrinsics::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                     }
                     _ => return Err(fail("hosted primitive has no native catalog projection")),
                 };
@@ -225,7 +225,7 @@ pub fn direct_compiler_primitive_leaves(
                 let entry = canonical_numeric_realization(module, boundary, target)?;
                 (
                     boundary,
-                    effects::CompilerIntrinsicExecutionIdentity::from(meaning),
+                    native_intrinsics::CompilerIntrinsicExecutionIdentity::from(meaning),
                     Some(entry),
                 )
             }
@@ -380,7 +380,7 @@ mod tests {
             .finish(
                 &original,
                 backend_plan::DirectBoundaryExecution::Intrinsic(Some(
-                    effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
+                    native_intrinsics::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
                 )),
             )
             .unwrap();

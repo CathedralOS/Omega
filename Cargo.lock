@@ -403,25 +403,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "checked-terminal-psi-to-published-psi"
+name = "checked-program-to-psi"
 version = "0.1.0"
 dependencies = [
  "arena",
  "bundled-declarations",
- "lowered-program-to-checked-program",
- "record-storage",
- "declaration-contracts",
+ "declaration-scope",
  "diagnostics",
+ "evaluation-admission",
  "evaluation-receipts",
  "language-core",
+ "lowered-program-to-checked-program",
+ "numeric-literals",
  "numerics",
  "optimization",
- "provider-choices",
+ "psi-authorization",
+ "psi-provider-selections",
+ "record-storage",
  "semantic-vocabulary",
+ "service-surface",
  "source-admission",
  "source-declarations",
  "source-lexer",
  "source-parser",
+ "source-provenance",
+ "source-symbol-table",
  "source-text",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
@@ -476,6 +482,17 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+]
+
+[[package]]
+name = "native-intrinsics"
+version = "0.1.0"
+dependencies = [
+ "language-core",
+ "numerics",
+ "semantic-vocabulary",
+ "sha2",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -591,6 +608,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "project-build",
  "provider-demand",
  "host-provider-inputs",
  "abstract-operations",
@@ -631,6 +649,7 @@ dependencies = [
  "mimalloc",
  "native-artifact",
  "native-compiler",
+ "native-intrinsics",
  "native-encoding",
  "native-scalar-inputs",
  "numerics",
@@ -649,7 +668,6 @@ dependencies = [
  "program-entry-contracts",
  "proof-admission",
  "provider-admission",
- "provider-choices",
  "provider-correspondence",
  "provider-plans",
  "psi-authorization",
@@ -670,6 +688,7 @@ dependencies = [
  "source-admission",
  "source-capture",
  "source-compiler",
+ "source-provenance",
  "source-text",
  "symbols",
  "syntax-trees",
@@ -1627,6 +1646,7 @@ dependencies = [
  "installation-conditions",
  "legalized-operations",
  "machine-code",
+ "native-intrinsics",
  "object-file",
  "operation-evidence",
  "optimization-core",
@@ -2208,9 +2228,9 @@ dependencies = [
 name = "portable-publication"
 version = "0.1.0"
 dependencies = [
+ "checked-program-to-psi",
  "provider-demand",
  "host-provider-inputs",
- "checked-terminal-psi-to-published-psi",
  "declaration-scope",
  "diagnostics",
  "effects",
@@ -2326,7 +2346,6 @@ dependencies = [
  "product-publication",
  "program-entry-plan",
  "provider-admission",
- "provider-choices",
  "provider-correspondence",
  "published-program",
  "published-runtime-input",
@@ -2384,6 +2403,11 @@ dependencies = [
  "compiler",
  "diagnostics",
  "platform-custody",
+ "product-publication",
+ "target",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -2431,6 +2455,7 @@ dependencies = [
  "language-core",
  "layout",
  "layout-plans",
+ "native-intrinsics",
  "numeric-literals",
  "numerics",
  "operation-evidence",
@@ -2456,17 +2481,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "provider-choices"
-version = "0.1.0"
-dependencies = [
- "declaration-contracts",
- "evaluation-receipts",
- "semantic-vocabulary",
- "source-text",
- "symbols",
-]
-
-[[package]]
 name = "provider-correspondence"
 version = "0.1.0"
 dependencies = [
@@ -2479,6 +2493,7 @@ dependencies = [
  "effects",
  "function-identity",
  "graphs",
+ "native-intrinsics",
  "provider-plans",
  "selected-provider-plans",
  "semantic-vocabulary",
@@ -2504,6 +2519,7 @@ version = "0.1.0"
 dependencies = [
  "evaluation-admission",
  "build-scalar-evaluation",
+ "native-intrinsics",
  "provider-demand",
  "host-provider-inputs",
  "application-identity",
@@ -2750,6 +2766,7 @@ dependencies = [
  "evaluation-receipts",
  "language-core",
  "layout-plans",
+ "native-intrinsics",
  "numeric-literals",
  "numerics",
  "package-compilation",
@@ -3103,7 +3120,7 @@ dependencies = [
  "application-identity",
  "arena",
  "bignum",
- "checked-terminal-psi-to-published-psi",
+ "checked-program-to-psi",
  "declaration-contracts",
  "declaration-scope",
  "diagnostics",
@@ -3117,7 +3134,6 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "optimization",
- "provider-choices",
  "rayon",
  "record-storage",
  "semantic-vocabulary",
@@ -3700,6 +3716,7 @@ dependencies = [
  "numerics",
  "orchestration",
  "platform-custody",
+ "project-build",
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-target-layouts",
@@ -3936,24 +3953,10 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
- "component-description",
- "diagnostics",
- "effects",
- "function-identity",
  "installation-conditions",
- "language-core",
- "layout-plans",
- "legalized-operations",
  "native-intrinsics",
- "numeric-literals",
- "numerics",
  "operation-evidence",
  "operation-operands",
- "optimization-selections",
- "optimization-unit",
- "program-entry-contracts",
- "provider-admission",
- "provider-correspondence",
  "provider-plans",
  "psi-authorization",
  "psi-entry-memory",
@@ -3961,6 +3964,20 @@ dependencies = [
  "psi-scalar-applications",
  "psi-target-layouts",
  "record-storage",
+ "component-description",
+ "diagnostics",
+ "effects",
+ "function-identity",
+ "language-core",
+ "layout-plans",
+ "legalized-operations",
+ "numeric-literals",
+ "numerics",
+ "optimization-selections",
+ "optimization-unit",
+ "program-entry-contracts",
+ "provider-admission",
+ "provider-correspondence",
  "runtime-abi",
  "selected-provider-plans",
  "semantic-vocabulary",

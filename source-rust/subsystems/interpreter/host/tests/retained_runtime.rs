@@ -90,7 +90,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     other_image.artifact = &other;
     other_image.provisions = None;
     assert!(matches!(
-        orchestration::execute_published_terminal(other_image, report.retained_native_artifact()),
+        project_build::published_terminal::execute_published_terminal(other_image, report.retained_native_artifact()),
         Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection names another artifact or target"
         ))
@@ -110,7 +110,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     let mut wrong_image_target = request(wrong_target);
     wrong_image_target.provisions = None;
     assert!(matches!(
-        orchestration::execute_published_terminal(wrong_image_target, Some(native)),
+        project_build::published_terminal::execute_published_terminal(wrong_image_target, Some(native)),
         Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection names another artifact or target"
         ))
@@ -122,9 +122,9 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     )
     .unwrap();
     let published =
-        orchestration::execute_published_terminal(request(profile.target_name()), Some(native))
+        project_build::published_terminal::execute_published_terminal(request(profile.target_name()), Some(native))
             .unwrap();
-    let published_sliced = orchestration::execute_published_terminal_sliced(
+    let published_sliced = project_build::published_terminal::execute_published_terminal_sliced(
         request(profile.target_name()),
         Some(native),
         std::num::NonZeroU64::new(1).unwrap(),

@@ -15,7 +15,7 @@ impl AcceptedTerminalSource {
     pub fn source_package_review_requirements(
         &self,
         target: &str,
-        supplies: &[provider_choices::NativeBuildSupply],
+        supplies: &[crate::provider_choice_inputs::NativeBuildSupply],
         declared: &[DeclaredBoundaryRequirement],
         provider_bodies: impl IntoIterator<Item = MachineId>,
     ) -> SourcePackageReviewRequirements {

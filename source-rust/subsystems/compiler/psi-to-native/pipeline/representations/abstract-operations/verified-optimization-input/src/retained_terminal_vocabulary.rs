@@ -331,7 +331,7 @@ mod providers {
         2 => Service { identity, name },
     });
 
-    record_variants!(effects::CompilerIntrinsicExecutionIdentity {
+    record_variants!(native_intrinsics::CompilerIntrinsicExecutionIdentity {
         0 => HostedExitProcessI32,
         1 => HostedWriteByteI32,
         2 => HostedReadByte,
@@ -357,13 +357,13 @@ mod providers {
         use crate::retained_terminal_codec::value::{
             RecordLimits, RecordReader, RecordValue, RecordWriter,
         };
-        use effects::CompilerIntrinsicExecutionIdentity as Execution;
         use language_core::static_interrupts::StaticInterruptOperation as Interrupt;
+        use native_intrinsics::CompilerIntrinsicExecutionIdentity as Execution;
         use std::collections::BTreeSet;
 
         #[test]
         fn integer_width_records_retain_exact_carriers_and_reject_invalid_metadata() {
-            use effects::CompilerNumericType as Numeric;
+            use native_intrinsics::CompilerNumericType as Numeric;
             use numerics::integer_carrier::FixedInteger;
             for width in [1, 13, 257, u64::MAX] {
                 for carrier in [FixedInteger::signed(width), FixedInteger::unsigned(width)] {
@@ -420,7 +420,7 @@ mod providers {
         }
     }
 
-    impl super::value::RecordValue for effects::CompilerNumericType {
+    impl super::value::RecordValue for native_intrinsics::CompilerNumericType {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             super::value::RecordValue::write(&self.canonical_encoding(), output)
         }
@@ -432,13 +432,13 @@ mod providers {
         }
     }
 
-    record_variants!(effects::CompilerAccessorScalarOperation {
+    record_variants!(native_intrinsics::CompilerAccessorScalarOperation {
         0 => Read,
         1 => Take,
         2 => Write,
     });
 
-    record_variants!(effects::CompilerPrimitiveFloatBinaryOperation {
+    record_variants!(native_intrinsics::CompilerPrimitiveFloatBinaryOperation {
         0 => Add,
         1 => Subtract,
         2 => Multiply,
@@ -451,7 +451,7 @@ mod providers {
         9 => GreaterOrEqual,
     });
 
-    record_variants!(effects::CompilerPrimitiveIntegerComparisonOperation {
+    record_variants!(native_intrinsics::CompilerPrimitiveIntegerComparisonOperation {
         0 => Equal,
         1 => NotEqual,
         2 => Less,

@@ -22,8 +22,8 @@ pub use callback_roots::{
 pub use declaration_contracts::CheckedBodyCandidate;
 
 use diagnostics::Diagnostic;
-use effects::CompilerIntrinsicExecutionIdentity;
 use effects::external_providers::reconcile_numeric_meaning;
+use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use provider_plans::{ProviderBinding, ProviderPlan};
 
 pub fn select_checked_body<'candidate, Body>(

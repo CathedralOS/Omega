@@ -86,9 +86,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
             encoder.u32_field("access_slot", *access_slot)?;
             encoder.field("operation", |encoder| {
                 match operation {
-                    effects::CompilerAccessorScalarOperation::Read => encoder.tag("read", 0),
-                    effects::CompilerAccessorScalarOperation::Take => encoder.tag("take", 1),
-                    effects::CompilerAccessorScalarOperation::Write => encoder.tag("write", 2),
+                    native_intrinsics::CompilerAccessorScalarOperation::Read => encoder.tag("read", 0),
+                    native_intrinsics::CompilerAccessorScalarOperation::Take => encoder.tag("take", 1),
+                    native_intrinsics::CompilerAccessorScalarOperation::Write => encoder.tag("write", 2),
                 }
                 Ok(())
             })?;
@@ -140,9 +140,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
 
 fn encode_primitive_float_binary_operation(
     encoder: &mut Encoder,
-    operation: effects::CompilerPrimitiveFloatBinaryOperation,
+    operation: native_intrinsics::CompilerPrimitiveFloatBinaryOperation,
 ) {
-    use effects::CompilerPrimitiveFloatBinaryOperation;
+    use native_intrinsics::CompilerPrimitiveFloatBinaryOperation;
 
     match operation {
         CompilerPrimitiveFloatBinaryOperation::Add => encoder.tag("add", 0),
@@ -160,9 +160,9 @@ fn encode_primitive_float_binary_operation(
 
 fn encode_primitive_integer_comparison_operation(
     encoder: &mut Encoder,
-    operation: effects::CompilerPrimitiveIntegerComparisonOperation,
+    operation: native_intrinsics::CompilerPrimitiveIntegerComparisonOperation,
 ) {
-    use effects::CompilerPrimitiveIntegerComparisonOperation;
+    use native_intrinsics::CompilerPrimitiveIntegerComparisonOperation;
 
     match operation {
         CompilerPrimitiveIntegerComparisonOperation::Equal => encoder.tag("equal", 0),
@@ -183,7 +183,10 @@ fn encode_float_format(encoder: &mut Encoder, format: numeric_literals::FloatFor
     };
 }
 
-fn encode_compiler_numeric_type(encoder: &mut Encoder, numeric_type: effects::CompilerNumericType) {
+fn encode_compiler_numeric_type(
+    encoder: &mut Encoder,
+    numeric_type: native_intrinsics::CompilerNumericType,
+) {
     encoder.fixed_bytes(&numeric_type.canonical_encoding());
 }
 

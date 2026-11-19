@@ -38,11 +38,11 @@ use classification::{
     committed_policy_mechanisms,
 };
 use effects::{
-    CheckedPhysicalOperationIdentity, CompilerAccessorScalarOperation,
-    CompilerIntrinsicExecutionIdentity, NormalizedForeignArgumentContract, TerminalAuthorityClass,
+    CheckedPhysicalOperationIdentity, NormalizedForeignArgumentContract, TerminalAuthorityClass,
     TerminalAuthorityDisposition, TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
     terminal_mechanism_identity_bytes,
 };
+use native_intrinsics::{CompilerAccessorScalarOperation, CompilerIntrinsicExecutionIdentity};
 use provider_plans::{ServiceMethod, ServiceSchema};
 
 pub(crate) use external_mechanisms::{
@@ -402,7 +402,7 @@ fn encode_mechanism(hasher: &mut DomainDigestEncoder, mechanism: TerminalMechani
 #[cfg(test)]
 mod integer_width_tests {
     use super::*;
-    use effects::{
+    use native_intrinsics::{
         CompilerNumericType as Numeric, CompilerPrimitiveIntegerComparisonOperation as Comparison,
     };
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};

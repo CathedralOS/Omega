@@ -196,7 +196,9 @@ pub mod comparison_settlement {
     };
     use boundary_applications::{BoundaryApplicationRealization, TerminalBoundaryApplicationCoverage};
     use diagnostics::Diagnostic;
-    use native_intrinsics::{CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation};
+    use native_intrinsics::{
+        CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
+    };
     use semantic_vocabulary::{IeeeFloatComparisonOperation, IeeeFloatFormat};
 
     pub struct SelectedComparisonOccurrences {

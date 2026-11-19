@@ -83,7 +83,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
         .into_report()
         .expect("a completed native report");
     let artifact = report.retained_native_artifact().expect("a native product");
-    let observed = orchestration::execute_published_terminal(
+    let observed = project_build::published_terminal::execute_published_terminal(
         terminal_runtime::TerminalRuntimeRequest {
             entry: None,
             filesystem: Default::default(),

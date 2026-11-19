@@ -153,7 +153,7 @@ pub(super) fn interpret_product(
         .ok_or(TerminalRuntimeError::InvalidProvision(
             "report lost its produced Terminal artifact before execution",
         ))?;
-    orchestration::execute_published_terminal(
+    project_build::published_terminal::execute_published_terminal(
         TerminalRuntimeRequest {
             entry: None,
             filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,

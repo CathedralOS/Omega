@@ -3,7 +3,7 @@
 //! source through the ordinary lexer, parser, resolver and typer, has the
 //! lowered-form checker judge it, and reads what production publishes.
 
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use source_compiler::declaration_selection::BuildSelectionRequest;
 use source_compiler::declaration_selection::RootBindingOperand;
 use source_compiler::production::{
