@@ -14,7 +14,7 @@ pub(crate) struct BuildProviderPlans {
 }
 
 pub(crate) struct BuildProviderInstallation {
-    pub(crate) checked: terminal_installation::AdmittedProviderSelections,
+    pub(crate) checked: psi_provider_selections::AdmittedProviderSelections,
     pub(crate) intrinsics: provider_admission::provider_admission::AdmittedTerminalIntrinsics,
 }
 

@@ -1,4 +1,5 @@
-use super::{SynchronousCallGraph, scalar_conditions};
+use super::{SynchronousCallGraph, scalar_conditions::ScalarConditionDemand};
+use crate::scalar_conditions::{invocation_declarations, proof_provider_edges};
 use semantic_vocabulary::MachineId;
 use terminal_psi::{ScalarApplication, TargetMachineCallable};
 
@@ -21,11 +22,11 @@ impl SynchronousCallGraph<'_> {
         }
         let scope = &module.scalar_applications.proof_scope;
         let conditions = &module.scalar_applications.conditions;
-        let mut condition_demand = scalar_conditions::ScalarConditionDemand::new(conditions)?;
+        let mut condition_demand = ScalarConditionDemand::new(conditions)?;
         let mut proof_entries = Vec::new();
         let mut proof_providers = Vec::new();
         if condition_demand.has_invocation_conditions() {
-            proof_providers = scalar_conditions::proof_provider_edges(scope, selected)?;
+            proof_providers = proof_provider_edges(scope, selected.iter().copied())?;
             for &root in roots {
                 proof_entries.push(
                     scope
@@ -61,8 +62,7 @@ impl SynchronousCallGraph<'_> {
         loop {
             if !proof_entries.is_empty() {
                 let machines = proof_walk(&proof_entries);
-                let declarations =
-                    scalar_conditions::invocation_declarations(scope, &proof_entries, &machines);
+                let declarations = invocation_declarations(scope, &proof_entries, &machines);
                 proof_entries.clear();
                 condition_demand.include_invocation(&machines, &declarations, |application| {
                     enqueue(&mut pending, &mut discovered, application);

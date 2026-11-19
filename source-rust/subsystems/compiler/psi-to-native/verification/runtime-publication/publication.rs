@@ -166,12 +166,12 @@ impl RuntimeExecutionProvisions {
     pub fn target_slot(&self) -> target::ProgramEntrySlotDeclaration {
         self.plan.target_slot()
     }
-    pub fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
+    pub fn installation(&self) -> Option<&psi_provider_selections::AdmittedProviderSelections> {
         self.plan.installation()
     }
     pub fn scalar_applications(
         &self,
-    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+    ) -> Option<&psi_scalar_applications::AdmittedScalarApplications> {
         self.plan.scalar_applications()
     }
     pub fn host_provisions(&self) -> &RuntimeHostProvisions {

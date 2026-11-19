@@ -151,7 +151,7 @@ impl<'source> Program<'source> {
             let projected = projection::from_typed_application(
                 ProviderPlanningContext::new(
                     typed,
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 ),
                 scope.clone(),
             )

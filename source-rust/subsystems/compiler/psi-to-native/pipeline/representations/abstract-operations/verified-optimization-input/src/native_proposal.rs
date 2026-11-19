@@ -3,8 +3,8 @@
   program entry. Publish this proposal only after their canonical joins pass;
   scope preparation then borrows the complete immutable result.
 */
-use backend_plan::TerminalCallbackOccurrenceProposal;
 use diagnostics::Diagnostic;
+use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
@@ -365,7 +365,7 @@ mod proposal {
             });
             callback_occurrences.push(occurrence);
         }
-        backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
+        provider_correspondence::callbacks::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         Ok(TerminalNativeBodyProposal {
             providers: TerminalNativeProviders {
@@ -417,7 +417,7 @@ mod proposal {
     }
 
     fn project_callback_occurrences(
-        callback_placements: &[backend_plan::NativeCallbackPlacement],
+        callback_placements: &[provider_correspondence::callbacks::NativeCallbackPlacement],
         artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
         selected: &effects::SelectedProviderPlanFacts,
         checked_adapters: &[crate::SelectedProviderAdapter],
@@ -533,7 +533,7 @@ mod proposal {
 
     fn callback_occurrence(
         placement_index: usize,
-        placement: &backend_plan::NativeCallbackPlacement,
+        placement: &provider_correspondence::callbacks::NativeCallbackPlacement,
         artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     ) -> Result<crate::TerminalCallbackOccurrenceProposal, Vec<Diagnostic>> {
         let caller = artifact.view();

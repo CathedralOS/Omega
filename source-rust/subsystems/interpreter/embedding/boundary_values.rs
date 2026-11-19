@@ -49,7 +49,7 @@ pub(crate) mod entry_results {
     impl TerminalExecution<'_> {
         pub(crate) fn request_scalar_entry_checks(
             &mut self,
-            checks: terminal_installation::ScalarEntryChecks,
+            checks: psi_scalar_applications::ScalarEntryChecks,
             explicit: Option<TerminalEntryResultRequest<'_>>,
         ) -> Result<(), TerminalInterpretError> {
             if self.scalar_entry_checks.is_some() {
@@ -698,7 +698,7 @@ pub(crate) mod errors {
         },
     }
 
-    pub use terminal_installation::{AssumedBindingRejection, ProviderInstallationError};
+    pub use psi_provider_selections::{AssumedBindingRejection, ProviderInstallationError};
 
     #[derive(Debug)]
     pub enum TerminalArtifactInterpretError {

@@ -4,6 +4,7 @@
 mod binding;
 mod bodies;
 mod boundary;
+pub mod callbacks;
 mod declarations;
 
 pub use declarations::{

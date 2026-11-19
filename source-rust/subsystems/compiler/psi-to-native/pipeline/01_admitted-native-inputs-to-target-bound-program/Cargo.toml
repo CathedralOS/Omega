@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+psi-provider-selections = { path = "../../../psi/providers" }
 psi-target-layouts = { path = "../../../psi/layout/admission" }
 provider-demand = { path = "../00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "../00_psi-to-admitted-native-inputs/host-providers" }
@@ -17,7 +18,7 @@ application-identity = { path = "../../../psi/application-identity" }
 arena = { path = "../../../../../foundation/arena" }
 artifact-evaluation = { path = "../../../../psi/evaluation/artifact-evaluation" }
 backend-plan = { path = "../../installation/provider-plans" }
-build-time-values = { path = "../../../../psi/evaluation/build-time-values" }
+build-time-values = { path = "../../../build/evaluation/values" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 effects = { path = "../../installation/native-effects" }

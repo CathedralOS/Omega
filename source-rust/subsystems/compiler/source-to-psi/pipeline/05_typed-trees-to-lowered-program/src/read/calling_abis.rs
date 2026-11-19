@@ -1072,7 +1072,7 @@ mod tests {
         PreparedAbiSource, PreparedAbiStorage, PreparedBoundaryAbiSignature,
     };
     use crate::source_symbols::SymbolTableBuilder;
-    use declaration_contracts::source_identity::DependencyScope;
+    use source_provenance::DependencyScope;
     use source_admission::SourceOrigin;
     use source_admission::SourceResolutionStratum;
     use source_text::{SourceSpan, Span};

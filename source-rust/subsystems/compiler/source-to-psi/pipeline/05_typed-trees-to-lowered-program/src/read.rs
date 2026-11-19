@@ -177,7 +177,7 @@ pub(crate) struct Program<'t> {
         Vec<crate::source_state::trait_definition::TraitApplicationEnvironment>,
     /// Choices made by this reader, prepared once before source admission.
     pub(crate) completed_operators: crate::lowering::selection_questions::CompletedOperators,
-    pub purpose: declaration_contracts::source_identity::DependencyScope,
+    pub purpose: source_provenance::DependencyScope,
     /// One output slot per source mathematical declaration, not per call.
     /// Publication assigns portable identities to the prepared definitions.
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
@@ -464,7 +464,7 @@ impl<'t> Program<'t> {
         Self::with_captures(
             typed,
             rigid,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
             crate::lowering::shared_reading(typed),
         )
     }
@@ -480,7 +480,7 @@ impl<'t> Program<'t> {
     pub fn with_captures(
         typed: &'t TypedTrees,
         rigid: bool,
-        purpose: declaration_contracts::source_identity::DependencyScope,
+        purpose: source_provenance::DependencyScope,
         shared: crate::lowering::SharedReading,
     ) -> Self {
         Self {
@@ -905,7 +905,7 @@ mod tests {
         use crate::source_inputs::SourceMap;
         use crate::source_state::domain::{DomainDefinition, ProofFact};
         use language_core::DomainPredicatePresence;
-        use declaration_contracts::source_identity::DependencyScope;
+        use source_provenance::DependencyScope;
         use semantic_vocabulary::Proposition;
         use source_admission::SourceOrigin;
         use source_admission::SourceResolutionStratum;
@@ -967,6 +967,11 @@ mod tests {
             symbol: point,
             name: "Point".into(),
         });
+        typed.push_data_definition(crate::source_state::data::DataDefinition {
+            symbol: point,
+            name: "Point".into(),
+            ..Default::default()
+        });
         for (((&symbol, name), predicate), subject_symbol) in domains
             .iter()
             .zip(["Never", "Always", "Bare"])
@@ -1003,7 +1008,7 @@ mod tests {
             identity: typed.semantic_domains.intern("unprepared instance"),
         };
         let mut program = Program::new(&typed, false);
-        let carrier = program.records.push(plain_record());
+        let carrier = program.record(machine(), point).unwrap();
         program
             .declared_domains
             .extend(domains.iter().map(|&symbol| DeclaredDomain {
@@ -1011,7 +1016,7 @@ mod tests {
                     declaration: symbol,
                     identity: typed.domain_definition(symbol).unwrap().semantic_id,
                 },
-                carrier: ValueType::record(carrier),
+                carrier,
                 predicate: None,
                 complete_predicate_theory: false,
             }));
@@ -1079,10 +1084,10 @@ mod tests {
         // The same declaration cannot lend its predicate to another instance
         // whose applied theory was never prepared.
         let mut unprepared = Program::new(&typed, false);
-        let carrier = unprepared.records.push(plain_record());
+        let carrier = unprepared.record(machine(), point).unwrap();
         unprepared.declared_domains.push(DeclaredDomain {
             instance: unprepared_instance,
-            carrier: ValueType::record(carrier),
+            carrier,
             predicate: None,
             complete_predicate_theory: false,
         });

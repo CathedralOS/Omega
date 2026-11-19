@@ -13,7 +13,7 @@
 use abstract_operations::AbstractOperationPlan;
 use operation_evidence::provider_calls::InstalledAssumedBindingEvidence;
 use psi_target_layouts::{AdmittedTargetLayouts, TerminalTargetContext};
-use terminal_installation::AdmittedScalarApplications;
+use psi_scalar_applications::AdmittedScalarApplications;
 
 mod emission_admission;
 pub mod hosted_receiver;
@@ -35,7 +35,6 @@ pub use component_inputs::{
 mod native_execution;
 mod runtime_input;
 pub mod runtime_provisions;
-pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,
     settle_native_callback_placements,
@@ -50,6 +49,9 @@ pub use native_proposal::{
 };
 pub use provider_admission::{
     InstalledInterruptNativeEntryProposal, NativeCallbackArgumentProposal, SelectedProviderAdapter,
+};
+pub use provider_correspondence::callbacks::{
+    TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
 };
 pub use runtime_input::AdmittedRuntimeInput;
 pub use settlement::boundary_application_settlement::BoundaryApplicationSettlement;

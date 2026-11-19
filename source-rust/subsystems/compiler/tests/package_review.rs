@@ -1181,7 +1181,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         "folding must retain the selected extent provider"
     );
     let admit = |target, inputs: &[Vec<u8>]| {
-        terminal_installation::admit_provider_installation(view, &[], &[])
+        psi_provider_selections::admit_provider_installation(view, &[], &[])
             .expect("historical-only provider catalog")
             .admit_folded_constant_closure(view, target, inputs)
     };

@@ -4,7 +4,7 @@ use psi_entry_memory::CheckedPrivateEntryRamRecipe;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::sync::Arc;
 use target::NormalizedImportLocator;
-use terminal_installation::AdmittedScalarApplications;
+use psi_scalar_applications::AdmittedScalarApplications;
 use terminal_psi::TerminalPsiIdentity;
 
 pub use verified_optimization_input::runtime_provisions::TerminalRuntimeHostProvision;
@@ -114,7 +114,9 @@ impl<A> TerminalRuntimeProvisions<A> {
         self.plan.selection_identities()
     }
 
-    pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
+    pub const fn installation(
+        &self,
+    ) -> Option<&psi_provider_selections::AdmittedProviderSelections> {
         self.plan.installation()
     }
 

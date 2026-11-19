@@ -614,7 +614,7 @@ mod machine {
                 machine: &TerminalMachine,
                 module: &terminal_psi::TerminalModule,
                 structural_types: &[terminal_psi::StructuralTypeDeclaration],
-                scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
+                scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
                 access_view_plans: &[terminal_psi::TerminalAccessViewPlan],
                 value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
                 byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -1391,7 +1391,7 @@ mod machine {
             machine: &TerminalMachine,
             module: &terminal_psi::TerminalModule,
             structural_types: &[terminal_psi::StructuralTypeDeclaration],
-            scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
+            scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
             access_view_plans: &[terminal_psi::TerminalAccessViewPlan],
             value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
             byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -1733,7 +1733,7 @@ mod machine {
         module: &terminal_psi::TerminalModule,
         machine: &TerminalMachine,
         structural_types: &[StructuralTypeDeclaration],
-        scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
+        scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
     ) -> Result<AbstractFunction, LoweringError> {
         let result = machine.result.scalar();
         let blocks = machine
@@ -1868,7 +1868,7 @@ pub(crate) fn lower_selected_module(
     entry: semantic_vocabulary::MachineId,
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
     scope: Option<&crate::artifact_lowering::NativeExecutionScope>,
-    scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
+    scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
     layouts: Option<&psi_target_layouts::AdmittedTargetLayouts>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
     if !module.scalar_applications.conditions.is_empty() && scalar_applications.is_none() {

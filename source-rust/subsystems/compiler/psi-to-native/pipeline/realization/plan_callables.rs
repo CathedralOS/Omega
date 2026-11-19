@@ -1,15 +1,15 @@
 //! Plan every reachable private native body before physical resource planning begins.
 use super::lower_body::NativeBodyPlanningError;
 use artifact_lowering::admit_prepared_native_realization;
-use backend_plan::TerminalCallbackOccurrenceProposal;
 use diagnostics::Diagnostic;
 use provider_admission::provider_admission::realization_error;
+use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 use std::sync::Arc;
 
 pub struct NativeProgramPlanningRequest<'request, 'contract> {
     pub proposal: &'contract artifact_lowering::TerminalNativeRealizationProposal,
     pub execution: &'contract artifact_lowering::PreparedNativeExecution,
-    pub scalar_applications: Option<&'contract terminal_installation::AdmittedScalarApplications>,
+    pub scalar_applications: Option<&'contract psi_scalar_applications::AdmittedScalarApplications>,
     pub admission: &'request artifact_lowering::NativeAdmissionRequest<'contract, 'contract>,
     pub optimization_selections: &'contract optimization_core::PostTerminalOptimizationSelections,
     pub budget: optimization_core::OptimizationWorkBudget,
@@ -133,7 +133,7 @@ pub struct PrivateEntryContract<'a> {
     pub entry: semantic_vocabulary::MachineId,
     pub boundary_entry_plan: &'a calling_conventions::BoundaryEntryPlan,
     pub parameter_formals: &'a [u32],
-    pub entry_parameters: &'a [backend_plan::NativeCallbackEntryParameter],
+    pub entry_parameters: &'a [provider_correspondence::callbacks::NativeCallbackEntryParameter],
 }
 impl<'a> From<&'a TerminalCallbackOccurrenceProposal> for PrivateEntryContract<'a> {
     fn from(row: &'a TerminalCallbackOccurrenceProposal) -> Self {

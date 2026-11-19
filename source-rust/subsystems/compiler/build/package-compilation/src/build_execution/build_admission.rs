@@ -6,7 +6,7 @@ use super::{BuildMachineExecutionMode, BuildMachineFilesystemScope};
 use super::build_value::{BuildValueAdmission, is_build_machine};
 use diagnostics::Diagnostic;
 use filesystem_authority::FilesystemMetadataLayout;
-use source_compiler::evaluation::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {

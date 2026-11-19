@@ -106,7 +106,7 @@ pub fn proved_empty_sum_cases(
     let mut program = read::Program::with_captures(
         typed,
         false,
-        declaration_contracts::source_identity::DependencyScope::Product,
+        source_provenance::DependencyScope::Product,
         shared_reading(typed),
     );
     program.proved_empty_sum_cases(reference, owner)
@@ -147,11 +147,11 @@ impl SharedProgram {
     pub(crate) fn calling_catalog(
         &self,
         typed: &TypedTrees,
-        purpose: declaration_contracts::source_identity::DependencyScope,
+        purpose: source_provenance::DependencyScope,
     ) -> &CallingCatalog {
         let slot = match purpose {
-            declaration_contracts::source_identity::DependencyScope::Product => 0,
-            declaration_contracts::source_identity::DependencyScope::Build => 1,
+            source_provenance::DependencyScope::Product => 0,
+            source_provenance::DependencyScope::Build => 1,
         };
         self.calling_catalogs[slot].get_or_init(|| {
             let context = crate::source_state::service_declarations::provider_declarations::ProviderPlanningContext::new(
@@ -250,7 +250,7 @@ pub struct Compilation<'a> {
     /// package's Build sources and Product sources are separate programs: a
     /// Build activation's subject declarations are the ones read under the
     /// Build dependency scope, and its entry must come from that context.
-    pub purpose: declaration_contracts::source_identity::DependencyScope,
+    pub purpose: source_provenance::DependencyScope,
     /// The declarations the Build's selections name (selected providers and
     /// what each provides, layout-scope entries, chosen representations),
     /// whichever package declares them. The check claims each with its
@@ -570,13 +570,13 @@ pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Ela
 fn declaration_context(
     typed: &TypedTrees,
     declaration: SymbolHandle,
-) -> declaration_contracts::source_identity::DependencyScope {
+) -> source_provenance::DependencyScope {
     typed
         .symbols
         .symbol_provenance_source_span(declaration)
         .and_then(|span| typed.symbols.source_file(span))
         .map(|source| source.dependency_scope)
-        .unwrap_or(declaration_contracts::source_identity::DependencyScope::Product)
+        .unwrap_or(source_provenance::DependencyScope::Product)
 }
 
 /// Elaborates the generic check form of `template`, a machine whose generic
@@ -634,7 +634,7 @@ pub fn elaborate_alternatives(
 
 fn prepare_alternatives<'source>(
     typed: &'source TypedTrees,
-    purpose: declaration_contracts::source_identity::DependencyScope,
+    purpose: source_provenance::DependencyScope,
     template: SymbolHandle,
     captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
@@ -689,7 +689,7 @@ pub fn elaborate_generic_forms(
 
 fn prepare_generic_forms<'source>(
     typed: &'source TypedTrees,
-    purpose: declaration_contracts::source_identity::DependencyScope,
+    purpose: source_provenance::DependencyScope,
     templates: &[SymbolHandle],
     captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
@@ -787,7 +787,7 @@ pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHa
 
 struct WitnessInputs<'scope> {
     captures: SharedReading,
-    purpose: declaration_contracts::source_identity::DependencyScope,
+    purpose: source_provenance::DependencyScope,
     outcome_subjects: Option<&'scope [Option<PackageKeyIdentity>]>,
 }
 
@@ -1082,7 +1082,7 @@ fn capture_source_questions(
 #[cfg(any(test, feature = "test-support"))]
 fn elaborate_form(
     typed: &TypedTrees,
-    purpose: declaration_contracts::source_identity::DependencyScope,
+    purpose: source_provenance::DependencyScope,
     entry: SymbolHandle,
     rigid: bool,
     captures: SharedReading,
@@ -1094,7 +1094,7 @@ fn elaborate_form(
 
 fn prepare_form<'source>(
     typed: &'source TypedTrees,
-    purpose: declaration_contracts::source_identity::DependencyScope,
+    purpose: source_provenance::DependencyScope,
     entry: SymbolHandle,
     rigid: bool,
     captures: SharedReading,

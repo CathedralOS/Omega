@@ -10,7 +10,7 @@ use crate::source_state::state::State;
 use crate::source_state::trait_definition::TraitDefinition;
 use crate::source_state::types::TypeReferenceNode;
 use crate::source_symbols::SymbolTableBuilder;
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use semantic_vocabulary::PackageKeyIdentity;
 use source_admission::SourceOrigin;
 use source_text::{SourceSpan, Span};
@@ -27,7 +27,11 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn static_callback(&mut self, forwarded: bool) -> (SymbolHandle, SymbolHandle) {
+    fn static_callback(
+        &mut self,
+        forwarded: bool,
+        final_selection: Option<crate::source_state::AuthoredDeclarationSelectionOccurrenceId>,
+    ) -> (SymbolHandle, SymbolHandle) {
         use crate::source_state::data::{
             MachineParameterContract, TypeParameter, TypeParameterKind,
         };
@@ -62,17 +66,21 @@ impl Fixture {
                 self.app,
             )
             .unwrap();
-        let argument = StaticMachineArgument {
-            symbol: self.app,
-            authored_selection: Some(occurrence),
-            ..Default::default()
-        };
         let template_state = self
             .typed
             .machine_states(self.typed.machine_by_symbol(self.helper).unwrap())[0]
             .clone();
         let mut supplier = self.app;
-        for _ in 0..if forwarded { 2 } else { 1 } {
+        let selections = forwarded
+            .then_some(occurrence)
+            .into_iter()
+            .chain([final_selection.unwrap_or(occurrence)]);
+        for selection in selections {
+            let argument = StaticMachineArgument {
+                symbol: self.app,
+                authored_selection: Some(selection),
+                ..Default::default()
+            };
             let instance = self.typed.symbols.insert_generated_root_from(
                 self.helper,
                 SymbolKind::Machine,
@@ -106,9 +114,12 @@ impl Fixture {
                     application,
                     &[StaticMachineBinding {
                         parameter: binder,
-                        value: StaticMachineBindingValue::Machine(argument.clone()),
+                        value: StaticMachineBindingValue::Machine(argument),
                     }],
                 );
+            self.typed
+                .prepare_static_callback_requirements(application)
+                .unwrap();
             let states = self.typed.machine_states.insert_many([State {
                 symbol: state,
                 ..template_state.clone()
@@ -321,7 +332,7 @@ impl Fixture {
 fn forwarded_private_callbacks_keep_the_original_selection_visibility() {
     for forwarded in [false, true] {
         let mut fixture = Fixture::new(true);
-        let (instance, binder) = fixture.static_callback(forwarded);
+        let (instance, binder) = fixture.static_callback(forwarded, None);
         let mut program = Program::new(&fixture.typed, false);
         let caller = program.machine(instance).unwrap();
         let (authored, selected) = program
@@ -383,7 +394,6 @@ fn forwarded_private_callbacks_keep_the_original_selection_visibility() {
 
 #[test]
 fn a_callback_receipt_cannot_retarget_its_authored_selection() {
-    use crate::source_state::static_applications::StaticMachineBindingValue;
     use crate::source_state::{
         AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
     };
@@ -393,7 +403,6 @@ fn a_callback_receipt_cannot_retarget_its_authored_selection() {
         (Kind::StaticArgument, Exposure::PrivateImplementation, true),
     ] {
         let mut fixture = Fixture::new(true);
-        let (instance, binder) = fixture.static_callback(true);
         let occurrence = fixture
             .typed
             .record_resolved_authored_declaration_selection_once(
@@ -411,35 +420,23 @@ fn a_callback_receipt_cannot_retarget_its_authored_selection() {
                 },
             )
             .unwrap();
-        let application = fixture
-            .typed
-            .machine_specialization(instance)
-            .unwrap()
-            .binding_application;
-        let StaticMachineBindingValue::Machine(argument) = &mut fixture
-            .typed
-            .expression_table
-            .static_machine_application_bindings_mut(application)[0]
-            .value
-        else {
-            unreachable!()
-        };
-        argument.authored_selection = Some(occurrence);
+        let (instance, _) = fixture.static_callback(true, Some(occurrence));
         let mut program = Program::new(&fixture.typed, false);
-        let caller = program.machine(instance).unwrap();
-        assert!(
-            program
-                .static_machine_target(caller, fixture.app, binder)
-                .is_err()
+        let refused = program.machine(instance).unwrap_err();
+        assert_eq!(
+            refused.detail,
+            if exposure == Exposure::PublicInterface {
+                "call private machine in a public interface"
+            } else {
+                "call static call argument changed its authored selection"
+            }
         );
     }
 }
 
 #[test]
 fn a_callback_selection_in_another_package_does_not_grant_private_visibility() {
-    use crate::source_state::static_applications::StaticMachineBindingValue;
     let mut fixture = Fixture::new(true);
-    let (instance, binder) = fixture.static_callback(true);
     let occurrence = fixture
         .typed
         .record_resolved_authored_declaration_selection_once(
@@ -453,33 +450,15 @@ fn a_callback_selection_in_another_package_does_not_grant_private_visibility() {
             fixture.app,
         )
         .unwrap();
-    let application = fixture
-        .typed
-        .machine_specialization(instance)
-        .unwrap()
-        .binding_application;
-    let StaticMachineBindingValue::Machine(argument) = &mut fixture
-        .typed
-        .expression_table
-        .static_machine_application_bindings_mut(application)[0]
-        .value
-    else {
-        unreachable!()
-    };
-    argument.authored_selection = Some(occurrence);
+    let (instance, _) = fixture.static_callback(true, Some(occurrence));
     let mut program = Program::new(&fixture.typed, false);
-    let caller = program.machine(instance).unwrap();
-    let refused = program
-        .static_machine_target(caller, fixture.app, binder)
-        .unwrap_err();
+    let refused = program.machine(instance).unwrap_err();
     assert_eq!(refused.detail, "call private machine of another package");
 }
 
 #[test]
 fn a_public_interface_can_select_a_public_callback() {
-    use crate::source_state::static_applications::StaticMachineBindingValue;
     let mut fixture = Fixture::new(true);
-    let (instance, binder) = fixture.static_callback(true);
     fixture.typed.machine_mut(0).is_public = true;
     let occurrence = fixture
         .typed
@@ -494,20 +473,7 @@ fn a_public_interface_can_select_a_public_callback() {
             fixture.app,
         )
         .unwrap();
-    let application = fixture
-        .typed
-        .machine_specialization(instance)
-        .unwrap()
-        .binding_application;
-    let StaticMachineBindingValue::Machine(argument) = &mut fixture
-        .typed
-        .expression_table
-        .static_machine_application_bindings_mut(application)[0]
-        .value
-    else {
-        unreachable!()
-    };
-    argument.authored_selection = Some(occurrence);
+    let (instance, binder) = fixture.static_callback(true, Some(occurrence));
     let mut program = Program::new(&fixture.typed, false);
     let caller = program.machine(instance).unwrap();
     let (_, selected) = program
@@ -530,7 +496,7 @@ fn a_public_interface_can_select_a_public_callback() {
 fn reusing_a_specialization_checks_each_callers_static_selection() {
     use crate::source_state::expression::StaticMachineArgument;
     let mut fixture = Fixture::new(true);
-    let (instance, _) = fixture.static_callback(false);
+    let (instance, _) = fixture.static_callback(false, None);
     let original = fixture
         .typed
         .machine_specialization(instance)

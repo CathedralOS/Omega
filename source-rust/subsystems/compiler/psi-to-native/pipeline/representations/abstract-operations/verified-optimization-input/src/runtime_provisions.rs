@@ -6,7 +6,7 @@ use calling_conventions::BoundaryCallingApplication;
 use psi_entry_memory::CheckedPrivateEntryRamRecipe;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarType};
 use std::sync::Arc;
-use terminal_installation::AdmittedScalarApplications;
+use psi_scalar_applications::AdmittedScalarApplications;
 use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind, TerminalPsiIdentity};
 
 /// Canonical scalar formals for one admitted call. Runtime admission keeps
@@ -64,7 +64,7 @@ fn capture_scalar_applications(
     input: AdmittedRuntimeInput<'_>,
     identity: TerminalPsiIdentity,
     target: target::TargetProfile,
-    installation: Option<&terminal_installation::AdmittedProviderSelections>,
+    installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
 ) -> Result<Option<AdmittedScalarApplications>, &'static str> {
     if input.identity() != identity
         || input.target_context().is_none_or(|selected| {
@@ -119,7 +119,7 @@ pub struct NativeBindingRuntimeInputs<'a> {
 #[derive(Debug, Clone)]
 pub struct TerminalRuntimeHostProvisions<A> {
     selection_identities: terminal_psi::TerminalIdentityTable,
-    installation: Option<terminal_installation::AdmittedProviderSelections>,
+    installation: Option<psi_provider_selections::AdmittedProviderSelections>,
     host: Vec<TerminalRuntimeHostProvision>,
     host_requirements: Vec<RuntimeHostRequirement<A>>,
     borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
@@ -127,7 +127,7 @@ pub struct TerminalRuntimeHostProvisions<A> {
 
 impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
     pub fn admit(
-        installation: Option<&terminal_installation::AdmittedProviderSelections>,
+        installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
         mut host: Vec<TerminalRuntimeHostProvision>,
         input: AdmittedRuntimeInput<'_>,
         selected: &effects::SelectedProviderPlanFacts,
@@ -374,7 +374,9 @@ impl<A> TerminalRuntimeHostProvisions<A> {
             .as_ref()
     }
 
-    pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
+    pub const fn installation(
+        &self,
+    ) -> Option<&psi_provider_selections::AdmittedProviderSelections> {
         self.installation.as_ref()
     }
     pub const fn selection_identities(&self) -> &terminal_psi::TerminalIdentityTable {
@@ -652,7 +654,9 @@ impl<A> NativeRuntimePlan<A> {
         self.host_provisions.selection_identities()
     }
 
-    pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
+    pub const fn installation(
+        &self,
+    ) -> Option<&psi_provider_selections::AdmittedProviderSelections> {
         self.host_provisions.installation()
     }
 
@@ -665,7 +669,7 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
     pub fn admit(
         program_entry: NativeProgramEntrySettlement<'_>,
         input: AdmittedRuntimeInput<'_>,
-        installation: Option<&terminal_installation::AdmittedProviderSelections>,
+        installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
         execution: &crate::PreparedNativeExecution,
         external_bindings: &[calling_conventions::ExternalBindingRow],

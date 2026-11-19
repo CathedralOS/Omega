@@ -7,7 +7,6 @@ boundary/structural replay checks.
 */
 
 mod carriers {
-    use crate::HostedReceiverBinding;
     use machine_code::{
         BoundarySettlementRecord, PortEffectRecord, ScalarControlAffineCleanupRecord,
         SemanticCodeAttribution, StructuralReturnRecord,
@@ -17,6 +16,7 @@ mod carriers {
     use target::NativeTarget;
     use target_operations::{CallSiteOwner, TerminalPsiProvenance};
     use terminal_psi::TerminalPsiIdentity;
+    use verified_optimization_input::hosted_receiver::AdmittedHostedReceiver;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectArtifact {
@@ -241,7 +241,7 @@ mod carriers {
             self.byte_literal_pool.as_ref()
         }
 
-        pub const fn hosted_receiver_binding(&self) -> Option<&HostedReceiverBinding> {
+        pub const fn hosted_receiver_binding(&self) -> Option<&AdmittedHostedReceiver> {
             match &self.hosted_entry {
                 Some(entry) => entry.context().receiver(),
                 None => None,

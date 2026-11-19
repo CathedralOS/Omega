@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+psi-provider-selections = { path = "../../compiler/psi/providers" }
 psi-entry-memory = { path = "../../compiler/psi/access/entry-memory" }
 psi-target-layouts = { path = "../../compiler/psi/layout/admission" }
 published-runtime-input = { path = "../../compiler/psi-to-native/verification/runtime-publication" }
@@ -14,7 +15,6 @@ extent-contracts = { path = "../../compiler/psi/extent-contracts" }
 bignum = { path = "../../../foundation/bignum" }
 extents = { path = "../memory/extents" }
 native-provider-runtime = { path = "native-worker" }
-terminal-installation = { path = "../../compiler/psi-admission" }
 runtime-abi = { path = "../../compiler/psi-to-native/targets/runtime-abi" }
 numerics = { path = "../../compiler/psi/semantics/numeric" }
 semantic-vocabulary = { path = "../../compiler/foundation/semantic-records" }
@@ -27,7 +27,6 @@ terminal-work = { path = "../../compiler/psi/work" }
 terminal-interpreter = { path = ".." }
 target-vocabulary = { path = "../../compiler/psi-to-native/pipeline/representations/target-operations/target-vocabulary" }
 calling-conventions = { path = "../../compiler/psi-to-native/targets/calling-conventions" }
-provider-admission = { path = "../../compiler/psi-to-native/verification/provider-admission" }
 
 [dev-dependencies]
 service-surface = { path = "../../compiler/psi/service-surface" }

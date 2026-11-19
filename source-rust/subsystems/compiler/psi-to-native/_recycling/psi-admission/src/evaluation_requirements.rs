@@ -26,12 +26,3 @@ pub fn require_compiler_evaluation_floor(
         violations.join("; ")
     ))
 }
-
-pub fn require_compiler_evaluation_failures(
-    machine: &str,
-    failures: Result<(), &str>,
-) -> Result<(), String> {
-    failures.map_err(|reason| format!(
-        "machine `{machine}` is not build-time admissible: {reason}; constant evaluation requires proof that no crash route can occur before execution"
-    ))
-}

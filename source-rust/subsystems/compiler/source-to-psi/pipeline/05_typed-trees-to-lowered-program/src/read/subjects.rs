@@ -38,7 +38,7 @@ its symbol was declared in, never from a path or a name:
 - A declaration with no source file cannot be placed, so it is refused.
 */
 
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};

@@ -22,7 +22,7 @@ use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue, StructuralTypeId};
-use source_compiler::evaluation::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use terminal_interpreter::{
     TerminalInstance, TerminalScalarValue, TerminalStorageContents, TerminalStorageObservationValue,
 };

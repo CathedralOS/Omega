@@ -6,6 +6,8 @@ install a handler. Their callers need the checked records during compilation.
 - [Provider correspondence](provider-correspondence/src/lib.rs) matches candidate
   bodies and plans to declarations. Provider selection and admission both use
   those matches.
+  [Callback placements](provider-correspondence/src/callbacks.rs) match the private function,
+  its inbound ABI and the registrar operation to the same published Psi program.
 - [Provider admission](provider-admission/src/lib.rs) checks the program's
   bindings and permissions and issues the corresponding admitted executions,
   installations and callbacks. Its [same-stack evidence](provider-admission/same-stack/src/lib.rs)

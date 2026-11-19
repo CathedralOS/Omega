@@ -24,13 +24,13 @@ pub struct ComponentCompilation<'input> {
     pub receiving_identities: &'input TerminalIdentityTable,
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
     /// Completed scalar values read by the exports.
-    pub scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
+    pub scalars: Option<&'input psi_scalar_applications::AdmittedScalarApplications>,
 }
 
 pub(crate) struct PreparedComponent<'input> {
     compilation: &'input ComponentCompilation<'input>,
     pub(crate) calls: Vec<AdmittedNativeComponentCall<'input>>,
-    pub(crate) scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
+    pub(crate) scalars: Option<&'input psi_scalar_applications::AdmittedScalarApplications>,
     exports: Vec<artifact_lowering::PreparedNativeExecution>,
 }
 

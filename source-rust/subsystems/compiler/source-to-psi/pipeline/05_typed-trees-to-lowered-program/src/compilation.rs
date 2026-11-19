@@ -566,7 +566,7 @@ pub(crate) fn prepare_selected_signatures<'source>(
 
 fn prepare_generic_forms(
     typed: &TypedTrees,
-    purpose: declaration_contracts::source_identity::DependencyScope,
+    purpose: source_provenance::DependencyScope,
     mut templates: Vec<SymbolHandle>,
     captures: &crate::lowering::SharedReading,
     publication: terminal_codec::TerminalPublication,

@@ -32,7 +32,7 @@ pub enum BuildTimeValue {
     Int(i64),
     Bool(bool),
     Float(f64),
-    UndeterminedNaN(numeric_literals::FloatFormat), // Evaluation may transport this meaning, but cannot publish its bits.
+    UndeterminedNaN(numerics::intrinsics::FloatFormat), // Evaluation may transport this meaning, but cannot publish its bits.
     Text(Vec<u8>), // Text/byte content (Omega text is bytes that are only UTF-8 at domain boundaries).
     Struct {
         type_name: String,
@@ -87,5 +87,38 @@ impl BuildTimeValue {
             | Self::Float(_)
             | Self::UndeterminedNaN(_) => Some(0),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BuildTimeValue;
+    use record_storage::{RecordLimits, decode, encode};
+
+    #[test]
+    fn structured_values_keep_their_cells_and_payload_bytes_through_storage() {
+        let value = BuildTimeValue::Case {
+            variant: "Settings".into(),
+            payload: vec![(
+                "rows".into(),
+                BuildTimeValue::Array(vec![
+                    BuildTimeValue::Text(vec![0, 0xff]),
+                    BuildTimeValue::UndeterminedNaN(numerics::intrinsics::FloatFormat::F32),
+                    BuildTimeValue::LayoutTarget(layout_plans::LayoutTargetFacts {
+                        profile: "example".into(),
+                        pointer_size: 8,
+                        pointer_alignment: 8,
+                        case_tag_size: 1,
+                        case_tag_alignment: 1,
+                        little_endian: true,
+                    }),
+                ]),
+            )],
+        };
+        let encoded = encode(&value, RecordLimits::default()).unwrap();
+        let restored: BuildTimeValue = decode(&encoded, RecordLimits::default()).unwrap();
+        assert_eq!(restored, value);
+        assert_eq!(restored.retained_cell_count(), Some(5));
+        assert_eq!(restored.retained_text_byte_count(), Some(9));
     }
 }

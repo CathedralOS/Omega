@@ -25,8 +25,7 @@ use semantic_vocabulary::{InvocationSite, MachineId, OperationId};
 use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};
 
 #[derive(Debug)]
-pub enum ProviderInstallationError {
-    PlanReplayMismatch,
+pub enum ProviderInstallationError {    PlanReplayMismatch,
     InvalidLoweredCatalog,
     MissingSelectedProvider {
         boundary: semantic_vocabulary::BoundaryMachineId,
@@ -37,7 +36,7 @@ pub enum ProviderInstallationError {
     AmbiguousSelectedProvider {
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
-    PsiAdmission(terminal_installation::ProviderInstallationError),
+    PsiAdmission(psi_provider_selections::ProviderInstallationError),
     TerminalIdentityMismatch,
     InstalledContentClaimMismatch {
         caller: MachineId,
@@ -75,7 +74,7 @@ pub struct AdmittedInstalledProviderCall {
     pub(crate) invocation_site: InvocationSite,
     pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
     pub(crate) provider: ProviderCandidateConformance, // Supplied requirement's real checked conformance, never relabelled.
-    pub(crate) assumption: Option<terminal_installation::AdmittedAssumedBinding>,
+    pub(crate) assumption: Option<psi_provider_selections::AdmittedAssumedBinding>,
     pub(crate) result: terminal_psi::OperationResult,
     pub(crate) scalar_arguments: Vec<semantic_vocabulary::ValueId>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
@@ -123,7 +122,7 @@ impl AdmittedInstalledProviderCall {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedProviderInstallation {
-    pub(crate) terminal_selection: terminal_installation::AdmittedProviderSelections,
+    pub(crate) terminal_selection: psi_provider_selections::AdmittedProviderSelections,
     pub(crate) psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) installed_candidates: Vec<ProviderCandidateConformance>,
     pub(crate) installed_calls: Vec<AdmittedInstalledProviderCall>,
@@ -134,7 +133,7 @@ impl AdmittedProviderInstallation {
         self.psi
     }
 
-    pub const fn terminal_selection(&self) -> &terminal_installation::AdmittedProviderSelections {
+    pub const fn terminal_selection(&self) -> &psi_provider_selections::AdmittedProviderSelections {
         &self.terminal_selection
     }
 
@@ -177,7 +176,7 @@ pub(crate) fn admit_provider_installation_with_projection(
     plan: &AbstractOperationPlan,
     artifact: terminal_codec::TerminalArtifactView<'_>,
     selected: &[SelectedProviderAdapter],
-    assumptions: &[terminal_installation::AssumedBindingSelection],
+    assumptions: &[psi_provider_selections::AssumedBindingSelection],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     if artifact.identity() != plan.psi {
         return Err(ProviderInstallationError::TerminalIdentityMismatch);
@@ -186,7 +185,7 @@ pub(crate) fn admit_provider_installation_with_projection(
     let (selections, installed_candidates) =
         select_provider_candidates(&plan.provider_candidates, &plan.identities, selected)?;
     let installation =
-        terminal_installation::admit_provider_installation(artifact, &selections, assumptions)
+        psi_provider_selections::admit_provider_installation(artifact, &selections, assumptions)
             .map_err(ProviderInstallationError::PsiAdmission)?;
     let installed_calls = replay_installed_provider_calls(
         plan,
@@ -205,7 +204,7 @@ pub(crate) fn admit_provider_installation_with_projection(
 pub fn admit_terminal_provider_installation(
     artifact: terminal_codec::TerminalExecutionView<'_>,
     selected: &[SelectedProviderAdapter],
-) -> Result<terminal_installation::AdmittedProviderSelections, ProviderInstallationError> {
+) -> Result<psi_provider_selections::AdmittedProviderSelections, ProviderInstallationError> {
     let module = artifact.module();
     let candidates = module
         .provider_candidates
@@ -219,7 +218,7 @@ pub fn admit_terminal_provider_installation(
         .cloned()
         .collect::<Vec<_>>();
     let (selections, _) = select_provider_candidates(&candidates, &module.identities, selected)?;
-    terminal_installation::admit_provider_execution_installation(artifact, &selections, &[])
+    psi_provider_selections::admit_provider_execution_installation(artifact, &selections, &[])
         .map_err(ProviderInstallationError::PsiAdmission)
 }
 
@@ -229,7 +228,7 @@ fn select_provider_candidates(
     selected: &[SelectedProviderAdapter],
 ) -> Result<
     (
-        Vec<terminal_installation::ProviderInstallationSelection>,
+        Vec<psi_provider_selections::ProviderInstallationSelection>,
         Vec<terminal_psi::ProviderCandidateConformance>,
     ),
     ProviderInstallationError,
@@ -290,7 +289,7 @@ fn select_provider_candidates(
                 ProviderInstallationError::AmbiguousSelectedProvider { boundary }
             });
         };
-        selections.push(terminal_installation::ProviderInstallationSelection {
+        selections.push(psi_provider_selections::ProviderInstallationSelection {
             boundary,
             provider_identity: identities
                 .text(candidate.provider_identity)

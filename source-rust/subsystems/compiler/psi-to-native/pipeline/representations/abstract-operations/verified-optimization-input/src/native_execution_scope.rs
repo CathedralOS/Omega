@@ -240,7 +240,7 @@ pub struct NativeExecutionScope {
     source_checked_entry: Option<terminal_psi::CheckedProgramEntryTerminalReceipt>,
     local_adapters: Vec<SelectedProviderAdapter>,
     entry_call: Option<crate::SelectedProgramEntryCall>,
-    callbacks: Vec<backend_plan::TerminalCallbackOccurrenceProposal>,
+    callbacks: Vec<provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal>,
     demands: boundary_applications::TerminalBoundaryApplicationDemands,
     pub(super) emitted: std::sync::Arc<EmittedExecutionScope>,
     owned_sequence_bounds: Vec<(semantic_vocabulary::StructuralTypeId, u64)>,
@@ -269,7 +269,7 @@ impl NativeExecutionScope {
             &effects::SelectedProviderPlanFacts,
         ),
         assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
-        callbacks: &[backend_plan::TerminalCallbackOccurrenceProposal],
+        callbacks: &[provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
     ) -> Result<Self, NativeExecutionScopeError> {
         let module = artifact.module();
         if targets.terminal_psi() != artifact.identity() {
@@ -600,7 +600,9 @@ impl NativeExecutionScope {
         Ok(())
     }
 
-    pub fn callbacks(&self) -> &[backend_plan::TerminalCallbackOccurrenceProposal] {
+    pub fn callbacks(
+        &self,
+    ) -> &[provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal] {
         &self.callbacks
     }
 
@@ -1116,8 +1118,11 @@ mod scope_tests {
             terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None).unwrap(),
         );
         let thunk =
-            backend_plan::TerminalCallbackThunkArtifact::for_application(artifact.clone(), 0)
-                .unwrap();
+            provider_correspondence::callbacks::TerminalCallbackThunkArtifact::for_application(
+                artifact.clone(),
+                0,
+            )
+            .unwrap();
         let identity = function_identity::MachineFunctionIdentity::callback_thunk(
             artifact.view().identity(),
             0,
@@ -1131,7 +1136,7 @@ mod scope_tests {
             },
         )
         .unwrap();
-        let occurrences = [backend_plan::TerminalCallbackOccurrenceProposal::new(
+        let occurrences = [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal::new(
             0,
             0,
             registrar,

@@ -123,7 +123,6 @@ pub struct HostedEntryContract {
     pub mode: HostedEntryMode,
     pub imports: Vec<target::NormalizedForeignLocator>,
     pub effects: StateEffectsEvidence,
-    pub call_overhead: u64,
 }
 impl<Origin> HostedEntryProgram<Origin> {
     pub fn into_parts(self) -> (HostedEntryContract, Vec<Operation>) {
@@ -133,7 +132,6 @@ impl<Origin> HostedEntryProgram<Origin> {
                 mode: self.instructions.mode,
                 imports: self.instructions.imports,
                 effects: self.instructions.effects,
-                call_overhead: self.instructions.call_overhead,
             },
             self.instructions.operations,
         )

@@ -13,17 +13,17 @@ use super::{
     ProviderAdmissionRequest,
 };
 use arena::IdTable;
-use backend_plan::TerminalCallbackOccurrenceProposal;
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
+use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::collections::BTreeMap;
 use terminal_psi::{TerminalCallbackApplication, TerminalMachine};
 
 pub fn project_native_callback_arguments(
     module: &terminal_psi::TerminalModule,
-    placements: &[backend_plan::NativeCallbackPlacement],
-    occurrences: &[backend_plan::TerminalCallbackOccurrenceProposal],
+    placements: &[provider_correspondence::callbacks::NativeCallbackPlacement],
+    occurrences: &[provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
 ) -> Result<Option<Vec<crate::NativeCallbackArgumentProposal>>, Vec<Diagnostic>> {
     let mut admitted = Vec::with_capacity(occurrences.len());
     let mut admitted_placements = std::collections::BTreeSet::new();

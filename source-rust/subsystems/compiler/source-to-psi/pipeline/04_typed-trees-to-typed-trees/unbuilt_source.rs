@@ -43,7 +43,7 @@ pub fn prepare_unbuilt_frontier(
             for file in sources.files().filter(|file| {
                 file.origin == source_admission::SourceOrigin::User
                     && file.dependency_scope
-                        == declaration_contracts::source_identity::DependencyScope::Product
+                        == source_provenance::DependencyScope::Product
             }) {
                 match (subject, file.package_identity) {
                     (None, identity) => subject = identity,
@@ -79,7 +79,7 @@ pub fn prepare_unbuilt_frontier(
             declaration_metadata: &[],
             entries: &entries,
             subjects: &[subject],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &bindings,
             supplies: &[],

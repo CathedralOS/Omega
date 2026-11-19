@@ -11,7 +11,7 @@
 
 use super::optimization;
 use optimization_selections::OptimizationSelections;
-use source_compiler::evaluation::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

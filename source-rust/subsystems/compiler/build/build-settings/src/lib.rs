@@ -111,7 +111,7 @@ pub use package_compilation::build_execution::{
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
 pub use products::{BuildConfig, ComputedBuildConfig};
-pub use source_compiler::evaluation::WireCompatibilityDemand;
+pub use source_compiler::WireCompatibilityDemand;
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 mod program_entry_selection;

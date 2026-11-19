@@ -1107,9 +1107,7 @@ impl Program<'_> {
         let signature = meaning
             .signature()
             .ok_or_else(|| unavailable("numeric predicate has no complete scalar signature"))?;
-        let operand = signature
-            .operand
-            .scalar_type()
+        let operand = ScalarType::from_numeric_type(signature.operand)
             .filter(|operand| matches!(operand, ScalarType::IeeeFloat(_)))
             .ok_or_else(|| unavailable("numeric predicate has no permanent float format"))?;
         let arguments = self

@@ -8,7 +8,15 @@ version.workspace = true
 path = "scalar_applications.rs"
 
 [dependencies]
+arena = { path = "../../../../foundation/arena" }
+bignum = { path = "../../../../foundation/bignum" }
+numerics = { path = "../semantics/numeric" }
+psi-provider-selections = { path = "../providers" }
+psi-target-layouts = { path = "../layout/admission" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-codec = { path = "../codec" }
 terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }
+
+[dev-dependencies]
+proof-applications = { path = "../proof-applications" }
