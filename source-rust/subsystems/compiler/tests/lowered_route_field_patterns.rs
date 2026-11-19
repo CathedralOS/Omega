@@ -42,15 +42,15 @@ fn judge_frontier(name: &str, frontier: &compiler::TypedFrontier) -> RouteVerdic
 fn a_payload_read_requires_all_other_cases_to_be_excluded() {
     let positive = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../tests/fixtures/run/contracts/case_refutation/main.omg"
+        "/../../../tests/fixtures/run/contracts/case_refutation/main.omg"
     ));
     let negative = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../tests/fixtures/fail/contracts/case_refutation/main.omg"
+        "/../../../tests/fixtures/fail/contracts/case_refutation/main.omg"
     ));
     let expected = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../tests/fixtures/fail/contracts/case_refutation/expected.txt"
+        "/../../../tests/fixtures/fail/contracts/case_refutation/expected.txt"
     ));
 
     let found = verdict("case_refutation", positive);

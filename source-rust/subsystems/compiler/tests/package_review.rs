@@ -3322,11 +3322,11 @@ fn review_keeps_the_target_selected_fixed_layout_delivery_contract() {
 
     let main = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../samples/cli/facts/fixed_layout_storage/target_body/main.omg"
+        "/../../../samples/cli/facts/fixed_layout_storage/target_body/main.omg"
     ));
     let build = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../samples/cli/facts/fixed_layout_storage/target_body/build.omg"
+        "/../../../samples/cli/facts/fixed_layout_storage/target_body/build.omg"
     ));
     let (_workspace, _session, checked) = captured_review_compilation(main, build);
     let checked = checked.expect("the original Product reaches checked target supply");
@@ -3828,5 +3828,5 @@ machine main() {}
     session.close().unwrap();
 }
 
-#[path = "../../../../../tests/support/frontend.rs"]
+#[path = "../../../../tests/support/frontend.rs"]
 mod frontend_fixture;

@@ -7,6 +7,9 @@
 //! One program pins the accounted forms from source, and five twins each
 //! break one rule and are rejected with a diagnostic that names the domain.
 
+#[path = "support/fixture_repository.rs"]
+mod fixture_repository;
+
 use source_compiler::source_state::deferred_refusals::DeferredRequest;
 use source_compiler::source_state::expression::ExpressionNode;
 
@@ -20,8 +23,7 @@ fn typed_frontier(
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let main = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../tests/fixtures")
+    let main = fixture_repository::root().join("tests/fixtures")
         .join(name)
         .join("main.omg");
     compiler::CompilationSession::default()

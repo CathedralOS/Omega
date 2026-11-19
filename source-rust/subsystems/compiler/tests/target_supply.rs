@@ -1971,5 +1971,5 @@ machine build(builder: @mut Build) {{
     std::fs::remove_dir_all(workspace).unwrap();
 }
 
-#[path = "../../../../../tests/support/frontend.rs"]
+#[path = "../../../../tests/support/frontend.rs"]
 mod frontend_fixture;
