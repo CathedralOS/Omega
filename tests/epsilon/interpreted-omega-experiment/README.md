@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 12,100
-lines / 617,419 bytes, authored in 96 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 12,096
+lines / 616,982 bytes, authored in 96 explicitly manifested members.
 The complete gate checks 150 ordinary fixtures, six D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
@@ -72,8 +72,8 @@ This removes no language observation and does not close the resource profile.
 The gate compiles the exact evaluator plus the 45-line / 2,150-byte
 `execution_driver.delta` (SHA-256
 `ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa`) through the
-selected Delta route and pins the measured 720,476-byte receipt, SHA-256
-`c51a0a8a7d5425edc769d5e3684b587d9b05f280850c795ca2919d11a809d460`.
+selected Delta route and pins the measured 719,068-byte receipt, SHA-256
+`a682c628b7255ffb358d00bdf536369acf2078ff4510d621c20b2ab0468197b2`.
 `tools/bootstrap/epsilon/evaluator_env.sh` binds both identities and
 `tests/bootstrap/epsilon-identity.sh` covers the refusals and every consuming
 gate's record.

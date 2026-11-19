@@ -83,7 +83,7 @@
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
         ((EpsilonRuntimeAggregate typeValue children)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
-        ((EpsilonRuntimeSumValue owner caseValue payload)
+        ((EpsilonRuntimeSumValue caseValue payload)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))))))
 
 (def epsilon_compiled_finish_call ((floor Int)

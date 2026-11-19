@@ -27,8 +27,8 @@ def write_json(path, value):
 
 def frame(directory, source, stdin):
     receipt = (directory / 'canonical-receipt.gamma').read_bytes()
-    assert identity(receipt) == {'bytes': 728066, 'sha256':
-        '92962050ff52d6dc6cdda1ae0dcd4002389da61c0979a2353db41b4b52a4afb7'}
+    assert identity(receipt) == {'bytes': 726667, 'sha256':
+        'a2c85b9ea741d9957e1ea2f19a82b8ccace7637d40c4368ac838dfb501b16b87'}
     closure = (directory / 'epsilon_compiler.delta').read_bytes()
     sealed = (b'EEREQ\x01\x00\x00' + struct.pack('<III', 1, len(source), len(stdin))
               + hashlib.sha256(closure).digest() + source + stdin)
@@ -261,8 +261,8 @@ def main():
         request += source + (directory / 'support.bin').read_bytes()
         compiler = (directory / 'delta_compiler.gamma').read_bytes()
         receipt = observe(directory, 'receipt', struct.pack('<I', len(compiler)) + compiler + request, 1800)
-        assert identity(receipt) == {'bytes': 728066, 'sha256':
-            '92962050ff52d6dc6cdda1ae0dcd4002389da61c0979a2353db41b4b52a4afb7'}
+        assert identity(receipt) == {'bytes': 726667, 'sha256':
+            'a2c85b9ea741d9957e1ea2f19a82b8ccace7637d40c4368ac838dfb501b16b87'}
         (directory / 'canonical-receipt.gamma').write_bytes(receipt)
     elif command == 'selfcheck':
         selfcheck(directory)

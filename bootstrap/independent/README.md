@@ -428,7 +428,7 @@ On the 825,064-byte bootstrap compiler and construction entry at
 the native compiler previously stopped at the diagnostic parameter of
 `OmegaLexScan::reject`, byte 64,899. It now reaches byte 66,755, where
 `set_keyword` passes the constructed `OmegaTokenKind::Keyword` to `emit`.
-Constructing a sum value for a receiver argument still needs lowering.
+At this checkpoint, the compiler stopped before constructing that receiver argument.
 
 `python3 bootstrap/independent/successor_test.py --reuse-constructed --compile-epsilon`
 uses the verified native predecessors to exercise argument passing. The storage
@@ -436,3 +436,24 @@ fixture passes a record as its first argument, mutates that same record in a
 later argument, and checks the original value after a state transfer. The unchanged
 lexer methods also run both valid and invalid diagnostic spans. The wrong-owner
 twin substitutes the scanner's token kind for its diagnostic code.
+
+### Constructing a lexer token kind
+
+The native Epsilon compiler now constructs the lexer's `OmegaTokenKind::Keyword`
+in a receiver call. A runtime sum carries its resolved case and payload. The
+case's exact source span identifies its declaration within the checked source.
+A transition checks that the case belongs to its expected owner before it reads
+the payload. This removes the separate owner declaration from every stored sum.
+
+The lexer fixture runs the production `set_keyword` and `emit` methods. Its
+compiled method returns the stored token kind, and the target driver checks the
+start and end of the authored `Keyword` case. Substituting another owner's
+`As` constructor produces the same type error in the native compiler and the
+source-built evaluator. A receiver can also return an array snapshot after its
+parameter homes are released. Constructing a case with payload arguments in a
+compiled receiver still reports the source coordinate.
+
+The 825,064-byte compiler at `b95769558667` now reaches byte 67,414. The
+834,350-byte compiler at `720b1a10712f` reaches byte 67,681. Both stop at the
+same string literal, `"as"`, passed to `span_equals`. The shared evaluator
+packs to 616,982 bytes, down from 617,419.

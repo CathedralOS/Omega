@@ -13,6 +13,9 @@ machine Counter::increment(&mut self) -> i32 {
 machine Counter::pair(&mut self, first: i32, second: i32) -> i32 {
     return first * 10 + second;
 }
+machine Counter::copied_bytes(&mut self, bytes: [u8; 8]) -> [u8; 8] {
+    return bytes;
+}
 machine Counter::carried(&mut self, value: i32, bytes: &[u8]) -> i32 {
     value = value + 1;
     transition true { true -> finish(2) }
@@ -47,6 +50,9 @@ machine Main::main(&mut self) {
     self.counter.left = 5;
     assert snapshot.left == 4;
     self.bytes[2] = 7;
+    let returned: [u8; 8] = self.counter.copied_bytes(self.bytes);
+    returned[2] = 10;
+    assert self.bytes[2] == 7;
     let local: [u8; 8] = self.bytes;
     let view: &[u8] = local.as_slice;
     local[2] = 8;

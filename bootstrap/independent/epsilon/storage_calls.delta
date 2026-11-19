@@ -202,6 +202,24 @@
     ((EpsilonNegateExpression start end operand) (EpsilonDeltaInternal start))
     ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right) (EpsilonDeltaInternal start))))
 
+; A resolved case span identifies one member of one checked sum. Construct
+; nullary values directly; a payload needs its individual storage checks.
+(def epsilon_delta_stored_case ((member EpsilonDataMember) (coordinate Int)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match member
+    ((EpsilonFieldMember start end name fieldType) (EpsilonDeltaInternal coordinate))
+    ((EpsilonCaseMember start end name payload)
+      (match (epsilon_optional_payload_parameters payload)
+        ((MoreEpsilonParameters parameter rest) (EpsilonDeltaUnsupported coordinate))
+        (NoEpsilonParameters
+          (let resolved Bytes (epsilon_emit_call "EpsilonResolvedSumCaseSyntax"
+            (epsilon_emit_spaced (epsilon_delta_span start end)
+              (epsilon_emit_spaced (epsilon_delta_name_descriptor name) "NoEpsilonParameters")))
+            (let value Bytes (epsilon_emit_call "EpsilonRuntimeSumValue"
+              (epsilon_emit_spaced resolved "NoEpsilonRuntimePayloads"))
+              (EpsilonDeltaCompiled (epsilon_emit_call "EpsilonEvaluatorValue"
+                (epsilon_emit_stored_fields value "NoEpsilonRuntimePlace" store output))))))))))
+
 (def epsilon_delta_stored_resolved_call ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (base EpsilonExpression) (arguments EpsilonExpressionList)
   (store Bytes) (output Bytes)) EpsilonDeltaCompilation
@@ -224,7 +242,7 @@
             ((EpsilonResolvedBoundaryMachineCallable owner member)
               (epsilon_delta_stored_boundary_call context member base arguments store output))
             ((EpsilonResolvedConstructorCallable owner member)
-              (EpsilonDeltaUnsupported (epsilon_expression_start expression)))))))))
+              (epsilon_delta_stored_case member (epsilon_expression_start expression) store output))))))))
 
 (def epsilon_delta_stored_call ((context EpsilonDeltaContext)
   (expression EpsilonExpression) (base EpsilonExpression) (arguments EpsilonExpressionList)

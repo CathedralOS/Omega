@@ -18,7 +18,7 @@ Both routes require `python3`, Git's Unix tools on Windows, and the
 corresponding checked-in Alpha seed. macOS also requires `codesign`. The gate
 materializes the bound packed evaluator closure, the bound canonical entry,
 the bound Delta compiler and support section, and the bound Gamma evaluator;
-reconstructs the canonical 728,066-byte receipt (`DCREQ`, profile 1,
+reconstructs the canonical 726,667-byte receipt (`DCREQ`, profile 1,
 `ConformanceBytesV1`); then frames each fixture in a version-1 EREQ envelope
 (ExactConsoleV1 profile, exact source section, empty stdin, bound closure
 digest). The host only frames bytes and compares status/stdout/stderr; it does

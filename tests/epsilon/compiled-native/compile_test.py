@@ -55,13 +55,13 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     boundary = CONSOLE[:CONSOLE.index(b'data Main')]
     driver = b'(def main ((input Bytes)) Bytes (epsilon_compiled_entry input))\n'
 
-    def program(source, name):
+    def program(source, name, entry=driver):
         (work / f'{name}.epsilon').write_bytes(source)
         observation = observe(compiler, source)
         (work / f'{name}.observation').write_bytes(observation)
         generated, runtime = composition.decode_module(observation)
         assert runtime == 'storage', observation[:80]
-        target = composition.program_source(generated, driver, runtime)
+        target = composition.program_source(generated, entry, runtime)
         executable = compile_delta(target, name)
         return executable, {'source': identity(source), 'generated': identity(generated),
                             'target': identity(target), 'image': identity(executable.read_bytes())}
@@ -92,14 +92,23 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
             assert fields[12] == 0 and fields[13] == 0, fields
         request_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
 
-    # Keep the complete production reset, fail_stage and reject machines.
+    # Keep the complete production lexer through its keyword emission.
     lexer = (base / 'lexer.epsilon').read_bytes()
     source = ((base / 'representations.epsilon').read_bytes()
-              + lexer[:lexer.index(b'machine OmegaLexScan::emit(')] + boundary
+              + lexer[:lexer.index(b'machine OmegaLexScan::classify_keyword(')] + boundary
               + (FIXTURES / 'lexer_diagnostic_main.epsilon').read_bytes())
-    executable, diagnostic_report = program(source, 'lexer-diagnostic')
+    main_start = source.index(b'Main::main(')
+    span = f'{main_start} {main_start + len("Main")}'
+    main_type = f'(EpsilonNamedType {span} (EpsilonNameSpan {span}))'
+    entry = ((FIXTURES / 'lexer_case_driver.delta').read_bytes()
+             + f'(def main ((input Bytes)) Bytes (test_lexer_entry {main_type} input))\n'.encode())
+    executable, diagnostic_report = program(source, 'lexer-diagnostic', entry)
     output = observe(executable)
-    assert output == reference(source, b'', 'lexer-diagnostic-reference') == b'\0' + struct.pack('<i', 42)
+    expected = reference(source, b'', 'lexer-diagnostic-reference')
+    assert expected == b'\0' + struct.pack('<i', 42)
+    case = b'case Keyword;'
+    start = source.index(case)
+    assert output == expected + struct.pack('<II', start, start + len(case)), (output, start)
     diagnostic_report['output'] = identity(output)
 
     # Substitute a different sum owner at the same call and check its exact diagnostic.
@@ -107,6 +116,17 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     invalid = source.replace(b'reject(self.diagnostic,', b'reject(self.scanner.token_kind,', 1)
     assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
     assert reference(invalid, b'', 'lexer-diagnostic-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
+
+    offset = source.index(b'self.scanner.set_keyword(OmegaKeywordKind::As)')
+    invalid = source.replace(b'set_keyword(OmegaKeywordKind::As)', b'set_keyword(OtherKeyword::As)', 1)
+    assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
+    assert reference(invalid, b'', 'stored-case-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
+
+    payload = source + (b'\ndata Number { case Box(value: i32); }\n'
+                        b'machine Main::save_number(&mut self) { let number: Number = Number::Box(7); }\n')
+    offset = payload.index(b'Number::Box(7)')
+    assert observe(compiler, payload) == b'unsupported ' + str(offset).encode()
+    assert reference(payload, b'', 'stored-case-payload') == expected
 
     source = boundary + (FIXTURES / 'storage_main.epsilon').read_bytes()
     executable, storage_report = program(source, 'storage-target')
