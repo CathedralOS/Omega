@@ -5,7 +5,6 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-image-emission = { path = "../../../psi-to-native/pipeline/16_objects-to-image/image-emission" }
 native-artifact = { path = "../../../psi-to-native/pipeline/16_objects-to-image/native-artifact" }
 optimization-requests = { path = "../../optimization-policy/requests" }
 platform-custody = { path = "../../../../../foundation/filesystem" }
