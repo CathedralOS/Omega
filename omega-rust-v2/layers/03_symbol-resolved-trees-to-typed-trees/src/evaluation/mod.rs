@@ -1,12 +1,9 @@
 pub(crate) mod check_static_indices;
-pub(crate) mod evaluated_integer_call;
 pub(crate) mod integer_arithmetic;
 pub(crate) mod integer_index;
-pub(crate) mod integer_program;
-pub(crate) mod integer_routine;
 pub(crate) mod numeric_literals;
+pub(crate) mod primitive_indices;
 pub(crate) mod specialized_index_value;
 pub(crate) mod specialized_indices;
-pub(crate) mod static_integer_evaluator;
 pub(crate) mod static_integer_request;
 pub(crate) mod static_template;

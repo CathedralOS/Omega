@@ -1,6 +1,12 @@
 # L1 Parser grammar
 
-Status: **gate passed and signed off 2026-11-18.** All twelve decisions are
+Named and structural machine signatures expose their ordered parameter names and annotations, plus the result annotation when present. A mathematical `let` exposes its parameter list, result annotation and optional defining expression as separate nodes.
+
+The indexed tree supplies declaration names, generic binders in source order, and a parent link for each nested node. Following these links visits every enclosing node, nearest first. The resolver selects the constructs that govern lexical scope. The indexed tree exposes the spelling and source span of each written operator. A right shift spans its adjacent tokens. An index exposes `[]` and the span between its opening and closing brackets.
+
+**L1 is locked.** The original grammar passed its gate on 2026-11-18. The revised positional rest handoff was signed off on 2026-11-19. L1 records the final `..` and its span in a tuple pattern. L3 checks the components against the subject type. [Pattern tests](tests/indexed_syntax.rs)
+
+All twelve decisions are
 made. The parser in `src/` follows
 this grammar, every rule below has fixtures (see [Rules and their
 fixtures](#rules-and-their-fixtures)), and all 132 spec examples parse.
@@ -81,8 +87,9 @@ A type argument may be qualified, as a type annotation may:
 
 `Buffer<N>` therefore holds a type-shaped `N` that may turn out to name a
 value, and `Check<N in D>` holds a qualified type that may turn out to be the
-membership test `N in D`. The resolver reads each argument by the role of the
-binder it fills. Three shapes land on the wrong side and are written with
+membership test `N in D`. L2 binds the visible names and identifies the declaration
+that owns the argument list. L3 selects the type or value binding once it knows
+the parameter's bound. Three shapes land on the wrong side and are written with
 parentheses: a value that begins with a generic type,
 `Buffer<(Other::<T>::SIZE + 1)>`, a value that begins with a membership test
 of a name, `Check<(x in D && ready)>`, and an array literal of one bare name,
@@ -310,6 +317,10 @@ mathematical declarations and in machine parameters
 - The bound of `terminates by ... in` may be a range, `in 0..=limit`
   (language/termination.md:35). A range is not an expression anywhere else
   except inside index brackets.
+- The indexed tree distinguishes bare `terminates` from a clause with a measure.
+  It exposes the measure, optional order and optional bound as separate expression nodes.
+  For `blocks` and `suspends`, it reports whether the author wrote `true`, wrote
+  `false`, or omitted the flag. L3 interprets omission for each declaration.
 
 - **Nothing separates a clause from what follows** (decision 4). A clause
   ends at the next clause word or at the `{`. A `;` or `,` between a clause
@@ -391,7 +402,7 @@ mathematical declarations and in machine parameters
 ## Patterns
 
     pattern = '_'
-            | '(' ( pattern % ',' )? ')'
+            | '(' ( pattern ',' )* ( pattern | '..' )? ')'
             | path '{' ( field_pattern % ',' )? '..'? '}'
             | expression
     field_pattern = word ( 'as' ( word | '_' ) | ':' expression )?
@@ -404,9 +415,10 @@ and `field: value` is ordinary projected equality" (language/patterns.md,
   condition, and with one it may be a literal, a constant or a computed
   value. An expression pattern cannot hold a record literal at its top level,
   since `Name {` there begins a record pattern.
-- **A pattern that is one bare word** is recorded as a binding. Whether the
-  word binds a new name or names a constant or a case is a question about
-  what it refers to, which the resolver answers.
+- **A pattern that is one bare word** is recorded as a `BindingPattern`.
+  In a subject arm an ordinary name introduces a binding. Boolean literals
+  test their values, and subjectless arms read their conditions. A qualified
+  constant is an expression inside a `ValuePattern`.
 - **Tuple pattern or parenthesized condition?** Both start with `(`. The
   parser finds the matching `)` and looks at the one token after it: `->`,
   `,`, `)`, `=`, `:` or `;` ends a pattern, so the parentheses were a pattern;
@@ -414,8 +426,9 @@ and `field: value` is ordinary projected equality" (language/patterns.md,
   `(a, b) -> ...` is a tuple pattern and `(a + b) > c -> ...` is a condition.
 - One pattern in parentheses with no comma is that pattern, grouped. `()`,
   `(a,)` and `(a, b)` are tuples.
-- `..` stands for every field not written, so it comes last, in a record
-  pattern and in a record literal.
+- A final `..` in a positional pattern waives the remaining components,
+  as in `(first, ..)`. The parser records a `RestPattern` child in both
+  positional and named patterns. A record literal also takes `..` last.
 
 ## Expressions
 
@@ -692,8 +705,8 @@ said `type`, which excludes qualification, so `AccessReturn<Extent in Granted, C
 `Wrapper<[u8; 4] in D>` was refused at `in`. The typer already inferred such
 arguments (`let v: u8 in P = pick(x); id(v)` gives `id` the argument
 `u8 in P`), so only the explicit spelling was missing. A generic argument is
-now `type_in`, a name followed by `in` begins one, and the resolver reads it
-as a membership test under a value binder. No decision above is changed.
+now `type_in`, and a name followed by `in` begins one. L3 interprets that form
+as a membership test when the parameter takes a value.
 
 ## Decisions
 

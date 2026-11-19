@@ -101,3 +101,12 @@ fn every_operator_pair_has_the_specified_grouping() {
         }
     }
 }
+
+#[test]
+fn a_call_named_if_preserves_its_argument_diagnostic() {
+    let source = b"machine m() { if(a < b < c); }";
+    let tokens = lex(source).unwrap();
+    let error = parse_file(source, &tokens).unwrap_err();
+    assert_eq!(error.get_kind(), ParseErrorKind::ChainedComparison);
+    assert_eq!(error.get_span().get_start_offset(), source.iter().rposition(|&byte| byte == b'<').unwrap());
+}

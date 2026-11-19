@@ -12,9 +12,9 @@ use omega_lexer::Token;
 use omega_parser::SyntaxTree;
 
 pub use stage::{
-    Application, ArgumentAlternative, AssemblyVocabulary, DeclarationId, DefinitionSite, Dependency, EnclosingMachine, InterfaceExport, NameError, NameRole,
-    NameUse, OperatorDeclaration, OperatorRole, OperatorUse, ResolvedStage, StageSource, Symbol, resolve_stage, resolve_stage_for_target,
-    resolve_stage_with_exports,
+    AssemblyVocabulary, CarrierVisibility, CompiledInterface, DeclarationId, DeclarationName, Dependency, DomainCandidate, DomainCarrier, InterfaceExport,
+    NameContext, NameError, NameRole, NameUse, OperatorDeclaration, ResolvedStage, StageSource, Symbol, builtin as is_builtin_type_name, resolve_stage,
+    resolve_stage_for_target, resolve_stage_with_exports,
 };
 pub use syntax::{File as IndexedSource, TreeNodeId};
 

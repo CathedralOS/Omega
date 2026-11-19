@@ -7,20 +7,30 @@ use crate::parsing::syntax_parser::SyntaxParser;
 use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
 
-/// The clause a word introduces, if it is a clause word.
-fn get_clause_kind(word: &[u8]) -> Option<NodeKind> {
+/// The suffix grammar and resulting syntax node for a header keyword.
+enum Clause {
+    Predicate(NodeKind),
+    Type(NodeKind),
+    Flag(NodeKind),
+    Crashes,
+    Terminates,
+    Registers,
+    Clobbers,
+}
+
+fn clause(word: &[u8]) -> Option<Clause> {
     Some(match word {
-        b"requires" => NodeKind::Requires,
-        b"ensures" => NodeKind::Ensures,
-        b"reaches" => NodeKind::Reaches,
-        b"crashes" => NodeKind::Crashes,
-        b"blocks" => NodeKind::Blocks,
-        b"suspends" => NodeKind::Suspends,
-        b"terminates" => NodeKind::Terminates,
-        b"invokes" => NodeKind::Invokes,
-        b"satisfies" => NodeKind::Satisfies,
-        b"registers" => NodeKind::Registers,
-        b"clobbers" => NodeKind::Clobbers,
+        b"requires" => Clause::Predicate(NodeKind::Requires),
+        b"ensures" => Clause::Predicate(NodeKind::Ensures),
+        b"reaches" => Clause::Type(NodeKind::Reaches),
+        b"crashes" => Clause::Crashes,
+        b"blocks" => Clause::Flag(NodeKind::Blocks),
+        b"suspends" => Clause::Flag(NodeKind::Suspends),
+        b"terminates" => Clause::Terminates,
+        b"invokes" => Clause::Type(NodeKind::Invokes),
+        b"satisfies" => Clause::Type(NodeKind::Satisfies),
+        b"registers" => Clause::Registers,
+        b"clobbers" => Clause::Clobbers,
         _ => return None,
     })
 }
@@ -30,7 +40,7 @@ impl SyntaxParser<'_> {
         &self,
         ahead: usize,
     ) -> bool {
-        self.nth_word(ahead).and_then(get_clause_kind).is_some()
+        self.nth_word(ahead).and_then(clause).is_some()
     }
 
     /*
@@ -54,21 +64,28 @@ impl SyntaxParser<'_> {
         &mut self,
         type_position: TypePosition,
     ) -> Parsed {
-        while let Some(kind) = self.nth_word(0).and_then(get_clause_kind) {
-            if kind == NodeKind::Requires && self.nth_at_keyword(1, "machine") && self.nth_at_word(2) {
+        while let Some(clause) = self.nth_word(0).and_then(clause) {
+            if matches!(clause, Clause::Predicate(NodeKind::Requires)) && self.nth_at_keyword(1, "machine") && self.nth_at_word(2) {
                 self.parse_hypothesis(type_position)?;
             } else {
-                self.parse_clause(kind, type_position)?;
+                self.parse_clause(clause, type_position)?;
             }
         }
 
         Ok(())
     }
 
+    pub(super) fn parse_data_requirements(&mut self) -> Parsed {
+        while self.at_keyword("requires") {
+            self.parse_clause(Clause::Predicate(NodeKind::Requires), TypePosition::Plain)?;
+        }
+        Ok(())
+    }
+
     /// One clause. The cursor is on its clause word.
-    pub(crate) fn parse_clause(
+    fn parse_clause(
         &mut self,
-        kind: NodeKind,
+        header: Clause,
         type_position: TypePosition,
     ) -> Parsed {
         let stops_at_greater = type_position == TypePosition::InsideAngles;
@@ -78,11 +95,12 @@ impl SyntaxParser<'_> {
 
         self.bump();
 
-        match kind {
-            NodeKind::Requires | NodeKind::Ensures => {
+        let kind = match header {
+            Clause::Predicate(kind) => {
                 self.parse_expression(predicate_context)?;
+                kind
             }
-            NodeKind::Crashes => {
+            Clause::Crashes => {
                 // The cause names `Trap`, `Abort` or `none`, so it is a path type and not a full
                 // type: a `(` after it opens the guard, as in `crashes Trap (value == 0)`, instead
                 // of making the cause a family application that swallows the guard.
@@ -104,17 +122,20 @@ impl SyntaxParser<'_> {
                 if !at_boundary {
                     self.parse_expression(predicate_context)?;
                 }
+                NodeKind::Crashes
             }
-            NodeKind::Reaches | NodeKind::Invokes | NodeKind::Satisfies => {
+            Clause::Type(kind) => {
                 // `none` is an ordinary name here; what it means is not this layer's question.
                 self.parse_type(type_position)?;
+                kind
             }
-            NodeKind::Blocks | NodeKind::Suspends => {
+            Clause::Flag(kind) => {
                 if self.at_keyword("true") || self.at_keyword("false") {
                     self.bump();
                 }
+                kind
             }
-            NodeKind::Terminates => {
+            Clause::Terminates => {
                 // `terminates ( 'by' measure ( '->' order )? ( 'in' bound )? )?`
                 if self.eat_keyword("by") {
                     self.parse_expression(measure_context)?;
@@ -127,13 +148,15 @@ impl SyntaxParser<'_> {
                         self.parse_bound(predicate_context)?;
                     }
                 }
+                NodeKind::Terminates
             }
-            NodeKind::Registers => {
+            Clause::Registers => {
                 self.expect_word("a register name")?;
                 self.expect(Punctuation::Equal, "`=`")?;
                 self.parse_expression(predicate_context)?;
+                NodeKind::Registers
             }
-            NodeKind::Clobbers => {
+            Clause::Clobbers => {
                 self.expect_word("`none` or a register name")?;
 
                 // A comma continues the list only if a name follows; a comma before `{` is caught by the caller.
@@ -141,9 +164,9 @@ impl SyntaxParser<'_> {
                     self.bump();
                     self.bump();
                 }
+                NodeKind::Clobbers
             }
-            _ => {}
-        }
+        };
 
         self.close(clause, kind);
 
@@ -177,6 +200,7 @@ impl SyntaxParser<'_> {
         &mut self,
         type_position: TypePosition,
     ) -> Parsed {
+        self.enter_nesting()?;
         let hypothesis = self.open();
 
         self.bump();
@@ -191,6 +215,7 @@ impl SyntaxParser<'_> {
         self.parse_clauses(type_position)?;
         self.expect(Punctuation::Semicolon, "a clause or `;`")?;
         self.close(hypothesis, NodeKind::Hypothesis);
+        self.leave_nesting();
 
         Ok(())
     }

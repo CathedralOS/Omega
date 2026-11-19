@@ -1,4 +1,4 @@
-use crate::{CallUse, CallableType, InvocationTarget, Site, ValueType};
+use crate::{CallUse, CallableType, InvocationTarget, Site};
 use omega_resolver::DeclarationId;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -11,6 +11,4 @@ pub struct IndirectCall {
     pub callee: Site,
     pub caller: Option<DeclarationId>,
     pub contract: CallableType,
-    pub binder: Option<ValueType>,
-    pub guarantee: bool,
 }

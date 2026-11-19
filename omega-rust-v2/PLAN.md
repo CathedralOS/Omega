@@ -1,7 +1,7 @@
 # Omega-V2 plan
 
 Living document. Jarod edits it freely; Claude keeps the layer statuses, spec
-gaps and decision log current as work lands. Last updated 2026-11-18.
+gaps and decision log current as work lands. Last updated 2026-11-19.
 
 For the same content as pictures, open [ARCHITECTURE.html](ARCHITECTURE.html):
 ten diagrams and no prose beyond captions.
@@ -31,8 +31,8 @@ enough to run on every change. **Decided.**
 A layer carries each decision the next layer needs in its output. When changing
 a handoff, name the layer that owns the decision and the field that carries it.
 Remove any consumer code that reconstructs the decision. Test the field at the
-producer and its effect at the consumer. For example, L2 classifies equality
-as a type or value operation, and L3 types the operands using that classification.
+producer and its effect at the consumer. For equality, L2 supplies the operand bindings. L3 uses those bindings and any
+normalized parameter bounds to select type or value equality.
 **Decided.**
 
 ## What is authoritative
@@ -70,10 +70,12 @@ tokens, tokens to a tree, and so on. The same loop runs for every layer:
    example that leave the choice open. Link to the question from the affected
    layer's contract. When Jarod answers, record the ruling in the governing
    spec and remove the queue entry.
-2. **Fixtures first.** For every rule, at least one input the layer must
-   accept and one it must reject, written before the code.
-3. **Implement** the layer as a library that depends only on the layers
-   before it.
+2. **Settle ownership.** Trace the decision through a concrete program. Identify
+   the information it requires, the layer that owns it and what the next layer
+   must receive. Implement the layer as a library depending only on earlier
+   layers. Make the architectural changes before running tests.
+3. **Test the handoff.** Check the producer's output and the consumer's
+   decision using the [handoff review](#handoff-review).
 4. **Gate.** The layer passes the checks under [What solid means](#what-solid-means).
 5. **Sign-off.** Jarod reviews and marks the layer done here. Only then does
    the next layer start.
@@ -88,6 +90,9 @@ A layer is done when all of these are true:
   the spec) without crashing, and every result is either accepted or a
   refusal the contract predicts.
 - Its independent invariant holds (see the test system below).
+- Each disputed responsibility has a regression that checks the fact handed
+  forward and what the consumer does with it. The sign-off names those
+  tests and any behavior the review could not verify.
 - The suite's wall-clock time is measured and written in the layer table.
 - Spec gaps it uncovered are logged, each with a decision.
 - Jarod has signed it off.
@@ -121,9 +126,24 @@ rewrite expected files with `OMEGA_BLESS=1` set.
   the layer's own logic. For the lexer: the tokens and skipped bytes, laid end
   to end, reproduce the source file exactly. For the parser: printing the tree
   and lexing the result gives the same tokens.
-- **V1 as a cross-check, where it helps.** V1's compiler can be run on the
-  same inputs to compare accept/reject verdicts. Not yet verified that V1
-  exposes per-layer output; treat as optional.
+
+### Handoff review
+
+After the responsibility moves and before sign-off, review the handoff in
+parallel with three GPT-6.2 Sol reviewers. Give each the same V2 contract
+and a different question. Ask for the smallest concrete case that would
+expose an incorrect decision.
+
+| Review | What to verify |
+| --- | --- |
+| Producer | Assert the exact fact at the public output. For positional `..`, L1 emits a final rest node with the span of those two bytes. |
+| Consumer | Change one deciding input. Run the same field selection with and without the direct dependency. Keep a carrying-only control to catch a refusal that happens too early. |
+| Equivalent inputs | Change something the contract says cannot affect the answer. Resolving a client against source or compiled exports, or reversing those exports, must preserve the bound identities or the specified refusal and its site. Choose an equivalence that applies to the layer under review. |
+
+Reproduce the reviewers' cases using the V2 stage entry points. Keep a
+regression for each distinct failure. For sign-off, identify the deciding
+input, the producer assertion, the consumer assertion and any unresolved
+language decision. [Parser handoff tests](layers/01_tokens-to-syntax-trees/tests/indexed_syntax.rs) · [Resolver handoff tests](layers/02_syntax-trees-to-symbol-resolved-trees/tests/stage.rs) · [Package authority tests](layers/03_symbol-resolved-trees-to-typed-trees/tests/calls/package_authority.rs)
 
 ## Layers
 
@@ -134,14 +154,28 @@ Psi to native code) are not planned yet.
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
-| L1 Parser | tokens → syntax trees | done, signed off 2026-11-18 | 1.12 s |
-| L2 Resolver | syntax trees → symbol-resolved trees | done, signed off 2026-11-18 | 0.17 s (warm median, five runs of `cargo test -p omega-resolver --tests --quiet`) |
-| L3 Typer | symbol-resolved trees → typed trees | typing and downstream proof obligations tested. Awaiting owner sign-off | 0.46 s (warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
-| L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
+| L1 Parser | tokens → syntax trees | locked, positional rest handoff signed off 2026-11-19 | 1.12 s (previous revision) |
+| L2 Resolver | syntax trees → symbol-resolved trees | locked, revised handoff signed off 2026-11-19 | 0.17 s (2026-11-18 warm median, five runs) |
+| L3 Typer | symbol-resolved trees → typed trees | locked, revised static integer handoff signed off 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
+| L4 Preparation | typed tree → evaluated, frozen typed tree | open, preparing local signed and unsigned integer constants and closed indices, 1–128 bits | — |
 | L5 Lowering | typed tree → Terminal Psi | not started | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |
 | Driver | compile a stage, run it, read its plan; repeat until a plan asks for an artifact | not started; needs L5 and an interpreter | — |
+
+The 2026-11-19 audit changed the L1–L3 handoffs after the sign-offs above.
+The owner reopened L1 after the parser refused `let (first, ..) = pair;` while it accepted the same rest in a named pattern. L1 now records the final `..` and its source span. L3 uses the subject type to check the written components and their access. [Pattern specification](wiki/spec/language/patterns.md#irrefutable-data-bindings)
+L1 exposes declaration names, ordered binders, the full chain of syntax parents, operators and range endpoints.
+L2 binds those names to shared declaration identities and supplies the visible candidates, operator visibility and trait ancestry.
+L3 interprets the binders, selects operations from normalized types, and records whether each call belongs to execution, a fact or a static argument.
+Its effect checks follow the execution calls. Preparation supplies evaluated values for expressions that typing cannot close itself. The toolchain supplies standard records and machines as Omega declarations. Named calls and bracket reads use the same typed signature and precondition. The last measured front-end readiness result before this sweep was 11 of 12 examples. The conformance example
+selects both codec machines across package boundaries and refuses each swapped
+selection at its binding expression. The existential package example infers one
+`File` witness for the stored reference and callback and rejects a callback over
+`Socket`. The bundled reflection module lacks the `field` and `callable` query declarations,
+so those examples stop at name lookup. With query declarations supplied, L2 binds all four
+published selector operands and retains the type argument in `Buffer::<u32>::used`.
+[L2 contract](layers/02_syntax-trees-to-symbol-resolved-trees/CONTRACT.md) · [L3 contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md)
 
 ### The `omega` application
 
@@ -193,6 +227,10 @@ stage budget and lockfile details with the existing driver questions below.
 
 ### L0 Lexer
 
+**L0 is locked.** Implementation changes must preserve the signed lexer contract.
+A change to tokenization, lexical errors, or the information handed to L1 requires
+an explicit decision to reopen that contract.
+
 - **Spec owners:** [Lexical profile](wiki/spec/language/data_and_literals.md#lexical-profile),
   [Integer radix spellings](wiki/spec/language/data_and_literals.md#integer-radix-spellings),
   [Quoted bytes](wiki/spec/language/data_and_literals.md#quoted-bytes).
@@ -240,6 +278,11 @@ stage budget and lockfile details with the existing driver questions below.
 
 ### L1 Parser
 
+**L1 is locked.** Jarod signed off the positional rest handoff on 2026-11-19. The parser owns grammatical structure and exposes the written
+parts of each construct with their source spans. L2 resolves names and L3
+interprets types and contracts. Changes to the accepted grammar or to what L1
+hands downstream require an explicit decision to reopen the parser contract.
+
 - **Spec owners:** none as a single document. The spec has no grammar; syntax
   is carried by examples spread across `wiki/spec/language/`.
 - **Contract:** [layers/01_tokens-to-syntax-trees/GRAMMAR.md](layers/01_tokens-to-syntax-trees/GRAMMAR.md),
@@ -283,15 +326,34 @@ stage budget and lockfile details with the existing driver questions below.
 
 ### L2 to L4
 
+**L2 is locked.** Jarod signed off the revised resolver handoff on 2026-11-19.
+L2 publishes names, visible candidates and direct package authority. A change
+that requires a new fact from L2 must identify the consumer, the missing fact
+and the program that demonstrates the gap before reopening this contract.
+
 The [L2 resolver contract](layers/02_syntax-trees-to-symbol-resolved-trees/CONTRACT.md) covers the admitted
 stage, lexical and package scope, visibility, domains, operators, requirements,
 generic applications and target names. The suite checks source provenance,
 input-order independence and the outcome of every spec fragment.
-L2 binds the visible overload candidates at a call. L3 selects the machine
-using the typed operands. L3 and L4 establish closed application identities
+L2 binds the visible overload candidates at a call and any explicitly named operator home. L3 infers an unqualified operator’s home from its normalized operands, checks package ownership for explicit and inferred homes, checks duplicate signatures, and selects the machine at a call. At a generic argument, L2 supplies the visible bindings and the declaration that owns the argument list. L3 selects the type or value binding after applying the enclosing and preceding arguments to the parameter’s bound. L3 and L4 establish closed application identities
 after argument values are known. Jarod signed off L2 on 2026-11-18.
 
-The [L3 typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) covers calls, operators, generic applications, evidence, storage and effects. `omega source type <file> [<file> ...]` checks one package. Its corpus gate accounts for all 132 fragments, including 38 that reach L3. L3 selects typed operations and publishes the exact premises, conclusions, effects and static arguments that L4 and the proof checker consume. The contract distinguishes the tested typing paths from the outstanding cross-layer execution checks.
+The revised resolver carries a public trait's direct parents and a domain's
+resolved carrier through the compiled package interface. Clients can bind an
+inherited requirement to its original declaration and must have authority to
+name the carrier of an imported domain. L3 checks the applied requirement
+signature and the qualified value type. [Resolver contract](layers/02_syntax-trees-to-symbol-resolved-trees/CONTRACT.md#handoff-to-typing-and-preparation)
+
+The Build admits direct dependencies. L2 carries that authority forward.
+When L3 selects a field or operator on a value returned through another
+package, it checks the requesting package's authority to select the owner.
+L3 also checks the visibility of the overload selected in a public contract.
+Private ranking witnesses stay in the implementation. In a subject arm an
+ordinary bare name binds the matched value. A qualified constant tests its
+value. L2 publishes the binding or declaration, and L3 checks coverage.
+[Package boundaries](wiki/spec/packages/boundaries.md#selection-versus-carrying-a-type)
+
+**L3 is locked.** The first signoff was at `4baf1e5f5e9`. The computed-width case reopened the handoff because typing stopped before L4 could receive the selected call. The revised handoff passed review on 2026-11-19. L3 selects the declaration, types the operands, and identifies the source occurrence, integer carrier and any specialization arguments. L4 evaluates the admitted call. L3 uses the returned value to finish checks that depend on a closed type identity. [Typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) · [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md)
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.
@@ -630,7 +692,7 @@ decided by Jarod. V2’s spec incorporates the reference spelling in row 11.
 | 6 | The Build has special standing: a toolchain-supplied default environment and a `Build` context only it receives. | `build.omg` is an ordinary program. What it can do is exactly what the previous stage selected and the invocation granted. | 2026-11-18 |
 | 7 | Generic arguments in expressions are written with a bare `<`, as in `apply<set_time>(x)`, in every spec example. | They are written `apply::<set_time>(x)`. A bare `<` after a name in an expression is always less-than, so the parser never has to look ahead. Declarations and types keep plain `<`. Decided by Zac and relayed by Jarod. | 2026-11-18 |
 | 8 | `match` and `transition` arms are written one per line with no separator, in every spec example. | Arms are separated by commas, with an optional comma after the last. Newlines never matter. An arm has nothing to mark where the next begins, which a clause gets from the next clause word. | 2026-11-18 |
-| 9 | `match` and `transition` are described separately, and V1 gives only `transition` tuple subjects. | One grammar for both. `transition` is the form in tail position. | 2026-11-18 |
+| 9 | `match` and `transition` are described separately, and V1 gives only `transition` tuple subjects. | One grammar for boTesth. `transition` is the form in tail position. | 2026-11-18 |
 | 10 | Every binary operator groups to the left, comparisons included (V1's operator table, adopted as grammar decision 6). | The six comparison operators do not take a comparison as an operand without parentheses: `a < b < c`, `a == b == c` and `a < b == c` are refused. Every other operator still groups to the left. | 2026-11-18 |
 | 11 | V1 uses `&` for references, borrows and bitwise AND. | V2 uses `@` for references and borrows. `&` remains bitwise AND or domain intersection and `&&` remains Boolean AND. | 2026-11-18 |
 

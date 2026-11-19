@@ -5,3 +5,4 @@ pub(crate) mod ranking_view;
 pub(crate) mod slot_direction;
 pub(crate) mod type_stage;
 pub(crate) mod typing_environment;
+pub(crate) mod typing_progress;

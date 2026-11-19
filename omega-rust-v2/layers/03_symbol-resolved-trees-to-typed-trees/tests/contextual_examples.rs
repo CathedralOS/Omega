@@ -2,7 +2,7 @@
 //! A block with several deliberate errors runs each bad statement separately.
 mod support;
 
-use omega_typer::{CollectionSelectors, ObligationKind, ValueType};
+use omega_typer::{ObligationKind, ValueType};
 use support::check;
 
 const DOMAINS: &str = include_str!("../../../wiki/spec/language/domains.md");
@@ -49,6 +49,16 @@ fn published_cleanup_clauses_select_owned_hooks() {
         assert_eq!(error.span.slice(example.as_bytes()), Some(clause.as_bytes()));
         assert!(error.message.contains("must consume exactly one owned carrier"), "{error:?}");
     }
+}
+
+#[test]
+fn cleanup_selection_checks_bounds_even_when_the_parameter_is_absent_from_the_hook_signature() {
+    let src = "data R dropped by dispose<u8> {} machine dispose<T [copy]>(r:R) {}";
+    let stage = check(&[("cleanup.omg", src)]).unwrap();
+    assert_eq!(stage.cleanups[0].arguments[0].to_string(), "u8");
+    let wrong = src.replace("dispose<u8>", "dispose<R>");
+    let error = check(&[("cleanup.omg", &wrong)]).unwrap_err();
+    assert!(error.message.contains("does not satisfy Copy"), "{error:?}");
 }
 
 #[test]
@@ -169,22 +179,38 @@ fn published_range_views_preserve_bounds_and_authority() {
         (*exclusive, "indexing::range_mut", "@mut [u8]"),
     ] {
         let source = format!("machine read(view:@mut [u8]) {{ {line} }}");
-        let stage = check(&[("published.omg", &source)]).unwrap();
+        let resolved = support::resolve_packages(&[("game", "published.omg", &source)], &[]);
+        let stage = omega_typer::type_stage(&resolved).unwrap();
+        let tree = stage.trees().next().unwrap();
+        let syntax = tree.resolved().file;
         let [access] = stage.collection_accesses.as_slice() else {
             panic!("expected one selected range")
         };
         assert_eq!(access.machine.path, expected);
         assert_eq!(access.result.to_string(), result);
-        let CollectionSelectors::Range {
+        assert!(
+            tree.semantics_at(access.node.node)
+                .any(|fact| matches!(fact, omega_typer::NodeSemantics::CollectionAccess(a) if a == access))
+        );
+        let [_, selector] = *syntax.nodes[access.node.node].children.as_slice() else {
+            panic!("expected receiver and selector")
+        };
+        let Some(omega_parser::RangeBounds {
             start: Some(start),
             end: Some(end),
             inclusive: false,
-        } = &access.selectors
+        }) = syntax.range_bounds(selector)
         else {
             panic!("expected a half-open range")
         };
-        assert_eq!(start.span.slice(source.as_bytes()), Some(b"2".as_slice()));
-        assert_eq!(end.span.slice(source.as_bytes()), Some(b"4".as_slice()));
+        for endpoint in [start, end] {
+            assert!(
+                tree.semantics_at(endpoint)
+                    .any(|fact| matches!(fact, omega_typer::NodeSemantics::Landing(e) if e.ty.to_string() == "u64"))
+            );
+        }
+        assert_eq!(syntax.span(start).slice(source.as_bytes()), Some(b"2".as_slice()));
+        assert_eq!(syntax.span(end).slice(source.as_bytes()), Some(b"4".as_slice()));
     }
     let bad = commented.strip_prefix("// Rejected: ").unwrap();
     let source = format!("machine read(view:@mut [u8]) {{ {bad} }}");
@@ -233,7 +259,7 @@ fn published_scoped_constants_keep_qualified_identity_and_carrier() {
     let mut constants: Vec<_> = stage
         .constants
         .iter()
-        .map(|(id, ty)| (id.path.as_str(), ty.to_string()))
+        .map(|constant| (constant.declaration.path.as_str(), constant.initializer.carrier.to_string()))
         .collect();
     constants.sort();
     assert_eq!(
@@ -653,6 +679,10 @@ fn published_static_type_disjunction_reaches_typing() {
         .filter(|e| matches!(e.site.span.slice(source.as_bytes()), Some(b"T == u16" | b"T == u32" | b"T == u64")) && e.ty == ValueType::Bool)
         .count();
     assert_eq!(comparisons, 3);
+    let shadow = source.replace("restrict<T>()", "restrict<T>(u32:u16)");
+    let error = check(&[("clause.omg", &shadow)]).unwrap_err();
+    assert_eq!(error.message, "type equality mixes a type and a value");
+    assert_eq!(error.span.slice(shadow.as_bytes()), Some(b"T == u32".as_slice()));
 }
 
 #[test]
@@ -679,4 +709,273 @@ fn explicit_quantity_carrier_matches_the_subject_in_every_domain_position() {
         .unwrap_err();
         assert_eq!(error.message, "domain qualifier names u16, found u8");
     }
+}
+
+#[test]
+fn domain_qualification_keeps_the_bound_carrier_and_indices_separate() {
+    let definitions = "domain<T, const N:u8> T::Level<N>; data Packet<V>{field:V;}";
+    for source in [
+        "machine f<U>(x:U in U::Level<2>) {}",
+        "machine f<U>(x:U)->bool {x in U::Level::<2>}",
+        "machine f(x:Packet<u32> in Packet<u32>::Level<2>) {}",
+    ] {
+        check(&[("definitions.omg", definitions), ("use.omg", source)]).unwrap();
+    }
+    for binder in ["U", "const U:u8"] {
+        let code = format!("data U {{}} machine f<{binder}>(x:U in U::Level<2>) {{}}");
+        let typed = check(&[("domains.omg", definitions), ("shadow.omg", &code)]).unwrap();
+        let arg = &typed
+            .signatures
+            .iter()
+            .find(|s| s.machine.path == "f")
+            .unwrap()
+            .parameters[0]
+            .1;
+        if binder == "U" {
+            assert!(matches!(arg.carrier(), ValueType::Parameter{owner,..} if owner.path=="f"));
+        } else {
+            assert!(matches!(arg.carrier(), ValueType::Nominal(id) if id.path=="U"));
+        }
+    }
+    let fixed = "data Packet<T>{field:T;} domain<const N:u8> Packet<u32>::Length<N>;";
+    let good = "machine f(x:Packet<u32> in Length<2>) {}";
+    check(&[("defs.omg", fixed), ("use.omg", good)]).unwrap();
+    let wrong_qualifier = "machine f(x:Packet<u32> in Packet<u16>::Length<2>) {}";
+    assert!(
+        check(&[("defs.omg", fixed), ("use.omg", wrong_qualifier)])
+            .unwrap_err()
+            .message
+            .contains("domain qualifier names")
+    );
+    let wrong_carrier = good.replace("Packet<u32>", "Packet<u16>");
+    assert!(
+        check(&[("defs.omg", fixed), ("use.omg", &wrong_carrier)])
+            .unwrap_err()
+            .message
+            .contains("belongs to")
+    );
+    let wrong = "machine f<U,V>(x:V in U::Level<2>) {}";
+    let err = check(&[("definitions.omg", definitions), ("wrong.omg", wrong)]).unwrap_err();
+    assert!(err.message.contains("domain qualifier names"), "{err:?}");
+}
+
+#[test]
+fn an_annotated_domain_carrier_takes_its_role_from_its_bound() {
+    let aliases = ("aliases.omg", "data Sort=core::Type<0>; data Byte=u8;");
+    for binder in ["T:core::Type<0>", "T:Sort", "const T:Sort"] {
+        let domain = format!("domain<{binder}, const N:u8> T::Level<N>;");
+        let caller = "machine f(x:u16 in u16::Level<2>) {}";
+        for shadow in ["", "data T {}"] {
+            let stage = check(&[
+                aliases,
+                ("domain.omg", &domain),
+                ("shadow.omg", shadow),
+                ("main.omg", caller),
+            ])
+            .unwrap();
+            let parameter = &stage
+                .signatures
+                .iter()
+                .find(|s| s.machine.path == "f")
+                .unwrap()
+                .parameters[0]
+                .1;
+            assert_eq!(
+                parameter.carrier(),
+                &ValueType::Integer {
+                    width: Some(16),
+                    signed: false
+                }
+            );
+            assert_eq!(parameter.domains()[0].declaration.path, "T::Level");
+        }
+    }
+    let domain = ("domain.omg", "domain<const T:Byte> T::Level<T>;");
+    let invalid = check(&[aliases, domain]).unwrap_err();
+    assert!(invalid.message.contains("type"), "{invalid:?}");
+    let shadow = ("shadow.omg", "data T {}");
+    let caller = ("main.omg", "machine f(x:T in T::Level<2>) {}");
+    let typed = check(&[aliases, domain, shadow, caller]).unwrap();
+    assert!(matches!(typed.signatures[0].parameters[0].1.carrier(), ValueType::Nominal(id) if id.path == "T"));
+}
+
+#[test]
+fn a_bound_decides_which_visible_domain_applies_to_the_written_carrier() {
+    let defs = "data T {} data Byte=u8; domain<const T:Byte> T::Tag<T>; domain<const N:u8> u16::Tag<N>;";
+    for source in [
+        "data Applied=u16::Tag<2>; machine f(x:Applied) {}",
+        "machine f(x:u16)->bool {x in u16::Tag::<2>}",
+        "machine f(x:u16) {let tagged=x as +u16::Tag<2>;}",
+        "machine f() {let tagged=1 as +u16::Tag<2>;}",
+    ] {
+        let stage = check(&[("first.omg", source), ("last.omg", defs)]).unwrap();
+        assert!(
+            stage
+                .memberships
+                .iter()
+                .all(|m| m.domain.declaration.path == "u16::Tag")
+        );
+    }
+    let both = "data T{} domain<T:core::Type<0>,const N:u8> T::Tag<N>; domain<const N:u8> u16::Tag<N>;";
+    let ambiguous = check(&[
+        ("domains.omg", both),
+        ("use.omg", "machine f(x:u16 in u16::Tag<1>) {}"),
+    ])
+    .unwrap_err();
+    for owner in ["game::u16::Tag", "game::T::Tag"] {
+        assert!(ambiguous.message.contains(owner), "{ambiguous:?}");
+    }
+    let machine = "machine u16::Tag::inspect(x:u16) {}";
+    check(&[("domain.omg", defs), ("machine.omg", machine)]).unwrap();
+    let operator = "machine + u16::Tag::add(x:u16 in u16::Tag<2>, y:u16 in u16::Tag<2>)->u16 { 0 } machine sum(x:u16 in u16::Tag<2>)->u16 {x+x}";
+    let typed = check(&[("domain.omg", defs), ("machine.omg", operator)]).unwrap();
+    assert!(typed.calls.iter().any(|c| c.machine.path == "u16::Tag::add"));
+    let names = "data Key=u8; const Key:u8=2; data Applied=u16::Tag<Key>; machine f(x:Applied) {}";
+    check(&[("aliases.omg", names), ("domains.omg", defs)]).unwrap();
+    let indirect = defs.replace("data T {}", "data Box<X>{} data T=Box<Applied>;");
+    check(&[
+        ("aliases.omg", "data Applied=u16::Tag<2>;"),
+        ("domains.omg", &indirect),
+    ])
+    .unwrap();
+    for (x, domain) in [("T", "T::Tag"), ("u16", "u16::Tag")] {
+        for name in [format!("{x}::Tag"), "Tag".into()] {
+            let caller = format!("machine f(x:{x} in {name}<2>) {{}}");
+            let stage = check(&[("defs.omg", defs), ("caller.omg", &caller)]).unwrap();
+            assert_eq!(
+                stage.signatures[0].parameters[0].1.domains()[0]
+                    .declaration
+                    .path,
+                domain
+            );
+        }
+    }
+}
+
+#[test]
+fn a_foreign_domain_selection_checks_access_to_the_selected_carrier() {
+    let edges = [
+        omega_resolver::Dependency {
+            requester: "policy",
+            alias: "geom",
+            package: "geometry",
+        },
+        omega_resolver::Dependency {
+            requester: "app",
+            alias: "lib",
+            package: "policy",
+        },
+        omega_resolver::Dependency {
+            requester: "app",
+            alias: "geom",
+            package: "geometry",
+        },
+    ];
+    for (binder, index, generic) in [
+        ("const T:core::Type<0>, const N:u8", "N", true),
+        ("const T:u8", "T", false),
+    ] {
+        let policy = format!("use geom::T; public domain<{binder}> T::Mark<{index}>;");
+        let caller = "use lib::T::Mark;";
+        let files = [
+            ("geometry", "types.omg", "public data T {}"),
+            ("policy", "domains.omg", &policy),
+            ("app", "main.omg", caller),
+        ];
+        let resolved = support::resolve_packages(&files, &edges[..2]);
+        let [check] = resolved.carrier_visibility.as_slice() else {
+            panic!("expected one conditional carrier access")
+        };
+        assert_eq!(check.domain.path, "T::Mark");
+        assert_eq!(check.error.span.slice(caller.as_bytes()), Some(b"lib::T::Mark".as_slice()));
+        let typed = omega_typer::type_stage(&resolved);
+        if generic {
+            typed.unwrap();
+        } else {
+            assert_eq!(typed.unwrap_err().message, "no authority to name carrier geometry::T");
+        }
+        if !generic {
+            let local = "use lib; domain<const N:u8> u16::Mark<N>; machine f(x:u16 in Mark<2>) {}";
+            let different = [files[0], files[1], ("app", "main.omg", local)];
+            let selected = support::resolve_packages(&different, &edges[..2]);
+            let typed = omega_typer::type_stage(&selected).unwrap();
+            assert_eq!(
+                typed.signatures[0].parameters[0].1.domains()[0]
+                    .declaration
+                    .package,
+                "app"
+            );
+        }
+        let allowed = support::resolve_packages(&files, &edges);
+        assert!(allowed.carrier_visibility.is_empty());
+        omega_typer::type_stage(&allowed).unwrap();
+    }
+}
+
+#[test]
+fn an_imported_parent_domain_travels_with_its_child() {
+    let parent = ("units/p.omg", "public domain u8::Positive;");
+    let source = "use units::u8::Positive; domain Positive::Small; machine f(x:u8 in Positive::Small) {}";
+    let stage = check(&[parent, ("use.omg", source)]).unwrap();
+    let sig = stage.signatures.iter().find(|s| s.machine.path == "f").unwrap();
+    let mut atoms: Vec<_> = sig.parameters[0]
+        .1
+        .domains()
+        .iter()
+        .map(|a| a.declaration.path.as_str())
+        .collect();
+    atoms.sort();
+    assert_eq!(atoms, ["Positive::Small", "units::u8::Positive"]);
+}
+
+#[test]
+fn a_child_preserves_the_exact_parent_application() {
+    let defs = "domain<const K:u8> u8::Limit<K>; use u8::Limit; domain Limit<2>::Pair; domain<const N:u8> Limit<N>::Nested<N>;";
+    for (child, index) in [
+        ("Limit::Pair", "2"),
+        ("Limit::Nested<3>", "3"),
+        ("Limit<1+1>::Pair", "2"),
+        ("Limit<3>::Nested<3>", "3"),
+    ] {
+        let source = format!("use u8::Limit; machine f(x:u8 in {child}) {{}}");
+        let stage = check(&[("use.omg", &source), ("domains.omg", defs)]).unwrap();
+        let sig = stage.signatures.iter().find(|s| s.machine.path == "f").unwrap();
+        let parent = sig.parameters[0]
+            .1
+            .domains()
+            .iter()
+            .find(|d| d.declaration.path == "u8::Limit")
+            .unwrap();
+        assert_eq!(parent.arguments.len(), 1);
+        assert_eq!(parent.arguments[0].to_string(), index);
+        assert!(matches!(&parent.arguments[0], ValueType::StaticInteger {carrier,..} if carrier.to_string()=="u8"));
+    }
+    for annotation in ["u8 in Limit<7>::Pair", "Limit<7>::Nested<3>"] {
+        let wrong = format!("use u8::Limit; machine f(x:{annotation}) {{}}");
+        let error = check(&[("use.omg", &wrong), ("domains.omg", defs)]).unwrap_err();
+        assert!(error.message.contains("parent domain"), "{error:?}");
+    }
+}
+
+#[test]
+fn aliases_share_their_targets_ownership_properties_across_files() {
+    let owner = "data Item [linear,carry(suspension:allowed,cpu:same,thread:any,address:movable,)] {}";
+    let alias = "data Resource [linear]=Item; data Again=Resource;";
+    let stage = check(&[("alias.omg", alias), ("owner.omg", owner)]).unwrap();
+    let [(id, properties)] = stage.data_properties.as_slice() else {
+        panic!("expected only the nominal declaration")
+    };
+    assert_eq!(id.path, "Item");
+    assert_eq!(properties.multiplicity, omega_typer::Multiplicity::Linear);
+    let carry = properties.carry.as_ref().unwrap();
+    assert!(carry.allows_suspension && carry.requires_same_cpu && !carry.requires_same_thread && !carry.requires_stable_address);
+    let wrong = alias.replace("[linear]", "[copy]");
+    let error = check(&[("alias.omg", &wrong), ("owner.omg", owner)]).unwrap_err();
+    assert_eq!(error.file, "alias.omg");
+    assert!(
+        error
+            .message
+            .contains("cannot change its target's multiplicity"),
+        "{error:?}"
+    );
 }

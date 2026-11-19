@@ -1,8 +1,6 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
-use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::{BoundarySlot, CallUse, InvocationTarget, RequirementSlot, Site, SlotDirection, TypeError, TypedCall, TypedStage, ValueType};
-use omega_parser::NodeKind;
-use omega_resolver::{DeclarationId, Symbol};
+use crate::{BoundarySlot, InvocationTarget, RequirementSlot, Site, SlotDirection, TypeError, TypedCall, TypedStage, ValueType};
+use omega_resolver::DeclarationId;
 use std::collections::{HashMap, HashSet};
 
 fn declared(id: &DeclarationId) -> InvocationTarget {
@@ -14,60 +12,58 @@ fn declared(id: &DeclarationId) -> InvocationTarget {
 pub(crate) fn through(
     call: &TypedCall,
     entry: &InvocationTarget,
-    units: &[ResolvedSourceFile<'_>],
-    catalog: &DeclarationCatalog<'_>,
 ) -> InvocationTarget {
     match entry {
         InvocationTarget::RuntimeParameter { owner, index } if owner == &call.machine => {
-            let operand = call.operands[*index];
-            let unit = &units[operand.file];
-            match unit.symbol(operand.node) {
-                Some(Symbol::Binding { span, .. })
-                    if let Some(caller) = &call.caller
-                        && let Some(i) = catalog.signatures[caller]
-                            .params
-                            .iter()
-                            .position(|(s, _)| s == span) =>
-                {
-                    InvocationTarget::RuntimeParameter {
-                        owner: caller.clone(),
-                        index: i,
-                    }
-                }
-                Some(Symbol::Declaration(id)) if id.kind == NodeKind::Machine => declared(id),
-                _ => InvocationTarget::StoredCallable(Site::at(unit.file, operand.node)),
-            }
+            let operand = &call.operands[*index];
+            operand
+                .callable
+                .clone()
+                .unwrap_or_else(|| InvocationTarget::StoredCallable(operand.site.clone()))
         }
         InvocationTarget::StaticParameter { owner, index } if owner == &call.machine => match &call.type_arguments[*index] {
-            ValueType::MachineSelection(id) => declared(id),
+            ValueType::MachineSelection(id, arguments) if arguments.is_empty() => declared(id),
+            ValueType::MachineSelection(id, arguments) => InvocationTarget::AppliedMachine {
+                declaration: id.as_ref().clone(),
+                arguments: arguments.clone(),
+            },
             ValueType::Parameter { owner, index } => InvocationTarget::StaticParameter {
                 owner: *owner.clone(),
                 index: *index,
             },
             _ => entry.clone(),
         },
+        InvocationTarget::AppliedMachine { declaration, arguments } => InvocationTarget::AppliedMachine {
+            declaration: declaration.clone(),
+            arguments: arguments.iter().map(|t| call.instantiate(t)).collect(),
+        },
         InvocationTarget::Declaration(slot) => InvocationTarget::Declaration(RequirementSlot {
             declaration: slot.declaration.clone(),
             trait_arguments: slot
                 .trait_arguments
                 .iter()
-                .map(|t| t.substitute(&call.machine, &call.type_arguments))
+                .map(|t| call.instantiate(t))
                 .collect(),
         }),
         _ => entry.clone(),
     }
 }
-pub(crate) fn compose_callback_invocations(
-    units: &[ResolvedSourceFile<'_>],
-    catalog: &DeclarationCatalog<'_>,
+pub(crate) fn compose_callback_invocations<'a>(
+    catalog: &DeclarationCatalog<'a>,
+    graph: &super::effect_propagation::ExecutionCalls,
     boundary_slots: &[BoundarySlot],
     out: &mut TypedStage,
-) -> Result<(), TypeError> {
+) -> Result<HashMap<&'a DeclarationId, HashSet<InvocationTarget>>, TypeError> {
     let mut rows: HashMap<_, HashSet<_>> = catalog
         .signatures
         .keys()
         .map(|&id| (id, HashSet::new()))
         .collect();
+    for imported in &out.machine_effects {
+        rows.get_mut(&imported.machine)
+            .unwrap()
+            .extend(imported.invokes.iter().cloned());
+    }
     let mut ceilings: HashMap<&DeclarationId, Vec<&InvocationTarget>> = HashMap::new();
     for (owner, _, entry) in &out.invocation_ceilings {
         ceilings.entry(owner).or_default().push(entry);
@@ -94,13 +90,9 @@ pub(crate) fn compose_callback_invocations(
         };
         allowed.iter().any(|a|matches!(a,InvocationTarget::Declaration(slot) if slot==req || catalog.requirements.get(&slot.declaration).is_some_and(|r|r.contains(&&req.declaration)) && slot.trait_arguments==req.trait_arguments))
     };
-    let error = |site: &Site| TypeError {
-        package: site.package.clone(),
-        file: site.file.clone(),
-        span: site.span,
-        message: "call exceeds the declared synchronous invocation ceiling".into(),
-    };
-    for call in out.calls.iter().filter(|c| c.use_site == CallUse::Execution) {
+    let error = |site: &Site| TypeError::for_site(site, "call exceeds the declared synchronous invocation ceiling");
+    for &index in &graph.direct {
+        let call = &out.calls[index];
         let slots = boundary_slots.iter().filter(|s| {
             s.requirement.declaration == call.machine
                 && s.arguments == call.type_arguments
@@ -119,12 +111,7 @@ pub(crate) fn compose_callback_invocations(
         let mut slots = slots.peekable();
         if let Some(slot) = slots.next() {
             if slots.peek().is_some() {
-                return Err(TypeError {
-                    package: call.site.package.clone(),
-                    file: call.site.file.clone(),
-                    span: call.site.span,
-                    message: "competing directions for an applied boundary slot".into(),
-                });
+                return Err(TypeError::for_site(&call.site, "competing directions for an applied boundary slot"));
             }
             out.boundary_calls.push((call.site.clone(), slot.clone()));
             if slot.direction == SlotDirection::EnvironmentToProgram
@@ -138,54 +125,26 @@ pub(crate) fn compose_callback_invocations(
             }
         }
     }
-    for call in out
-        .indirect_calls
-        .iter()
-        .filter(|c| c.use_site == CallUse::Execution)
-    {
-        if let Some(owner) = &call.caller
-            && !call.guarantee
-        {
+    for &index in &graph.indirect {
+        let call = &out.indirect_calls[index];
+        if let Some(owner) = &call.caller {
             if !admits(owner, &call.entry) {
                 return Err(error(&call.site));
             }
             rows.get_mut(owner).unwrap().insert(call.entry.clone());
         }
     }
-    loop {
-        let mut changed = false;
-        for call in out.calls.iter().filter(|c| c.use_site == CallUse::Execution) {
-            let Some(caller) = &call.caller else {
-                continue;
-            };
-            let mut incoming: Vec<_> = rows[&call.machine]
-                .iter()
-                .map(|entry| through(call, entry, units, catalog))
-                .collect();
-            incoming.sort_by_cached_key(|entry| format!("{entry:?}"));
-            for e in incoming {
-                if !admits(caller, &e) {
-                    return Err(error(&call.site));
-                }
-                let row = rows.get_mut(caller).unwrap();
-                if row.len() >= 4096 && !row.contains(&e) {
-                    return Err(TypeError {
-                        package: call.site.package.clone(),
-                        file: call.site.file.clone(),
-                        span: call.site.span,
-                        message: "invocation inference exceeds implementation capacity".into(),
-                    });
-                }
-                changed |= row.insert(e);
+    graph.propagate(
+        &out.calls,
+        &mut rows,
+        "invocation inference exceeds implementation capacity",
+        |call, caller, entry| {
+            let supplied = through(call, entry);
+            if !admits(caller, &supplied) {
+                return Err(error(&call.site));
             }
-        }
-        if !changed {
-            break;
-        }
-    }
-    for effect in &mut out.machine_effects {
-        effect.invokes = rows.remove(&effect.machine).unwrap().into_iter().collect();
-        effect.invokes.sort_by_cached_key(|e| format!("{e:?}"));
-    }
-    Ok(())
+            Ok(Some(supplied))
+        },
+    )?;
+    Ok(rows)
 }

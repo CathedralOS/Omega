@@ -1,6 +1,8 @@
+#[path = "support/evaluation.rs"]
+mod evaluation;
 mod support;
 use omega_lexer::{LineIndex, SourceSpan};
-use omega_typer::ValueType;
+use omega_typer::{Site, SpecializedIndexValue, TypingEnvironment, ValueType};
 use std::path::Path;
 
 fn types(values: &[ValueType]) -> String {
@@ -13,12 +15,46 @@ fn types(values: &[ValueType]) -> String {
 #[test]
 fn typed_fixtures_match_handwritten_expectations() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
-    for (directory, accepts) in [("accept", true), ("reject", false)] {
+    for (directory, accepts, evaluation) in [
+        ("accept", true, None),
+        ("reject", false, None),
+        ("prepared/accept", true, Some((7u8, 8u16))),
+        ("prepared/reject", false, Some((255, 256))),
+    ] {
         let report = golden::check_directory(&root.join(directory), "omg", |bytes| {
             let source = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
             let authored = |s: SourceSpan| std::str::from_utf8(s.slice(source.as_bytes()).unwrap()).unwrap();
             let mut lines = Vec::new();
-            match support::check(&[("fixture.omg", source)]) {
+            let files = [("fixture.omg", source)];
+            let checked = if let Some((input, result)) = evaluation {
+                let offset = source.find("width(N)").expect("prepared fixture calls width");
+                let receipt = SpecializedIndexValue {
+                    request: omega_typer::StaticIntegerRequest {
+                        node: evaluation::node(source, offset, "width(N)", omega_parser::NodeKind::Call),
+                        expression: Site {
+                            package: "game".into(),
+                            file: "fixture.omg".into(),
+                            span: SourceSpan::new(offset, offset + "width(N)".len()),
+                        },
+                        carrier: omega_typer::ValueType::Integer { signed: false, width: Some(8) },
+                    },
+                    arguments: vec![ValueType::StaticInteger {
+                        carrier: Box::new(ValueType::Integer { signed: false, width: Some(8) }),
+                        value: input.into(),
+                    }],
+                    value: result.into(),
+                };
+                support::check_in(
+                    &files,
+                    &TypingEnvironment {
+                        specialized_indices: &[receipt],
+                        ..Default::default()
+                    },
+                )
+            } else {
+                support::check(&files)
+            };
+            match checked {
                 Err(e) if accepts => return Err(format!("unexpected refusal at {}: {}", authored(e.span), e.message)),
                 Ok(_) if !accepts => return Err("expected a typing refusal".into()),
                 Err(e) => {
@@ -59,9 +95,11 @@ fn typed_fixtures_match_handwritten_expectations() {
                     for row in stage.conformance_rows {
                         lines.push(format!(
                             "row | {} | {}<{}> | {}",
-                            row.conformance.path,
-                            row.requirement.path,
-                            types(&row.trait_arguments),
+                            row.conformance
+                                .as_ref()
+                                .map_or_else(|| authored(row.site.span).to_owned(), |c| c.path.clone()),
+                            row.requirement.declaration.path,
+                            types(&row.requirement.trait_arguments),
                             row.implementation.path
                         ));
                     }
@@ -73,8 +111,8 @@ fn typed_fixtures_match_handwritten_expectations() {
                             access.result
                         ));
                     }
-                    for (id, ty) in stage.constants {
-                        lines.push(format!("const | {} | {}", id.path, ty));
+                    for constant in stage.constants {
+                        lines.push(format!("const | {} | {}", constant.declaration.path, constant.initializer.carrier));
                     }
                     for route in stage.crash_routes {
                         if let Some(guard) = route.guard {

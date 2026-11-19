@@ -1,11 +1,28 @@
 use crate::evaluation::numeric_literals;
 use crate::expressions::body_typer::BodyTyper;
 use crate::expressions::storage_origin::Origin;
-use crate::{ObligationKind, Site, TypeError, TypedExpression, ValueType};
+use crate::{ObligationKind, Site, TypeError, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
 
 impl BodyTyper<'_, '_> {
+    pub(super) fn constant_reference(
+        &mut self,
+        node: usize,
+        declaration: &omega_resolver::DeclarationId,
+    ) -> Result<ValueType, TypeError> {
+        let source = self.unit.file;
+        let ty = self
+            .catalog
+            .constants
+            .get(declaration)
+            .ok_or_else(|| TypeError::unsupported(source, node))?;
+        self.output
+            .constant_references
+            .push((source.node_id(node), declaration.clone()));
+        Ok(ty.clone())
+    }
+
     pub(super) fn type_expression(
         &mut self,
         node_index: usize,
@@ -22,7 +39,7 @@ impl BodyTyper<'_, '_> {
         let node = &source_file.nodes[node_index];
         let value = match node.kind {
             PathExpression => {
-                let symbol = self.unit.symbol(node_index);
+                let symbol = self.unit.name_in_role(node_index, false);
                 if !node.children.is_empty()
                     && !matches!(symbol, Some(Symbol::Declaration(id)) if id.kind == MathLet)
                     && !matches!(symbol,Some(Symbol::Builtin(name)) if name=="core::Squash")
@@ -47,7 +64,7 @@ impl BodyTyper<'_, '_> {
                             .get(span)
                             .cloned()
                             .ok_or_else(|| TypeError::at(source_file, node_index, "missing type of resolved binding"))?;
-                        if let Some(access) = self.borrowed_binding(span) {
+                        if let Some(access) = self.borrowed_binding(node_index, span) {
                             self.read_borrowed(node_index, &access, &ty)?;
                         }
                         ty
@@ -88,7 +105,7 @@ impl BodyTyper<'_, '_> {
                     }
                     Some(Symbol::Declaration(id)) if id.kind == Machine && matches!(expected, Some(ValueType::Callable(_))) => {
                         let Some(ValueType::Callable(c)) = expected else { unreachable!() };
-                        self.refine_callable(node_index, c, id)?;
+                        self.refine_callable(node_index, c, id, &[])?;
                         ValueType::Callable(c.clone())
                     }
                     Some(Symbol::Declaration(id)) if id.kind == MathLet => {
@@ -105,17 +122,13 @@ impl BodyTyper<'_, '_> {
                             .fields
                             .get(owner)
                             .and_then(|fs| fs.get(field))
-                            .map(|t| self.catalog.types.field_type(t, owner, args))
-                            .ok_or_else(|| TypeError::unsupported(source_file, node_index))?
+                            .filter(|(_, field)| &field.declaration == id)
+                            .map(|(_, field)| self.catalog.types.apply_type_arguments(&field.ty, owner, args))
+                            .ok_or_else(|| TypeError::at(source_file, node_index, "field declaration does not belong to this subject"))?
                     }
-                    Some(Symbol::Declaration(id)) if id.kind == Const => self
-                        .catalog
-                        .constants
-                        .get(id)
-                        .cloned()
-                        .ok_or_else(|| TypeError::unsupported(source_file, node_index))?,
+                    Some(Symbol::Declaration(id)) if id.kind == Const => self.constant_reference(node_index, id)?,
                     Some(Symbol::Declaration(id)) if id.kind == Case => {
-                        if !self.catalog.fields[id].is_empty() {
+                        if !self.catalog.fields[id].ordered.is_empty() {
                             return Err(TypeError::at(source_file, node_index, "case requires its payload fields"));
                         }
                         self.case_type(node_index, id, expected)?
@@ -135,11 +148,14 @@ impl BodyTyper<'_, '_> {
             }
             Binary => return self.binary_chain(node_index),
             Unary => {
-                let arg = self.type_expression(self.unit.single_child(node_index)?)?;
+                let operand = self.unit.single_child(node_index)?;
+                let value = self.type_expression(operand)?;
+                let operand = self.call_operand(operand, value);
                 let token = self.unit.operator_token(node_index)?;
-                if let Some(ty) = self.declared_operator(node_index, token, &[(self.unit.single_child(node_index)?, &arg)])? {
+                if let Some(ty) = self.declared_operator(node_index, token, std::slice::from_ref(&operand))? {
                     ty
                 } else {
+                    let arg = operand.value;
                     let ty = match (token, &arg) {
                         ("!", ValueType::Bool) | ("~", ValueType::Integer { width: Some(_), .. } | ValueType::IndexedInteger { .. }) => arg.clone(),
                         (
@@ -187,6 +203,7 @@ impl BodyTyper<'_, '_> {
                 self.type_expression_with_expected_type(child, expected)?
             }
             Call => self.type_call(node_index, expected)?,
+            Selection => crate::contracts::conformance::bind_expression(self.unit, self.catalog, node_index, self.output)?,
             RecordLiteral => self.record(node_index, expected)?,
             Match => self.dispatch(node_index, expected)?,
             Body => self.check_block(node_index, expected)?,
@@ -233,6 +250,7 @@ impl BodyTyper<'_, '_> {
         let origin = match node.kind {
             PathExpression => match self.unit.symbol(node_index) {
                 Some(Symbol::Binding { span, .. }) => Some(self.binding_origin(span)),
+                Some(Symbol::Declaration(id)) if id.kind == Case => Some(Origin::Case(Box::new(id.clone()), Box::new(Origin::Caller))),
                 _ => Some(Origin::Caller),
             },
             Paren | CallMarker | Cast | Move => Some(self.origin(node.children[0])),
@@ -242,7 +260,7 @@ impl BodyTyper<'_, '_> {
                     .iter()
                     .fold(Origin::Caller, |all, &c| all.join(&self.origin(c).whole())),
             ),
-            Borrow => Some(self.backing(node.children[0])),
+            Borrow => Some(self.storage_place(node.children[0]).backing),
             Match | Body | RecordLiteral | Index => None,
             _ => Some(Origin::Caller),
         };
@@ -252,11 +270,8 @@ impl BodyTyper<'_, '_> {
         value
             .validate_closed_indices()
             .map_err(|reason| TypeError::at(source_file, node_index, reason))?;
-        self.output.expressions.push(TypedExpression {
-            node: source_file.node_id(node_index),
-            site: Site::at(source_file, node_index),
-            ty: value.clone(),
-        });
+        self.catalog.types.indices.retain_demands(&value);
+        self.record_expression(node_index, value.clone());
         Ok(value)
     }
 }

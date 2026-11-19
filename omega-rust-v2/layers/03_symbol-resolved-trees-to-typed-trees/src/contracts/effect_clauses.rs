@@ -2,49 +2,36 @@
 
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_system::type_catalog::TypeCatalog;
-use crate::{PauseEffects, ServiceApplication, TypeError};
-use omega_parser::NodeKind;
+use crate::{DeclaredPauseBounds, PauseEffects, ServiceApplication, TypeError};
+use omega_parser::{NodeKind, PauseFlag};
 use omega_resolver::Symbol;
 
-#[derive(Clone, Copy)]
-pub(crate) struct DeclaredPauseBounds {
-    pub(super) suspend: Option<bool>,
-    pub(super) block: Option<bool>,
+fn has_published_bounds(
+    unit: &ResolvedSourceFile<'_>,
+    n: usize,
+) -> bool {
+    let nodes = &unit.file.nodes;
+    nodes[n].has_public_modifier()
+        || nodes[n]
+            .parent
+            .is_some_and(|p| nodes[p].kind == NodeKind::Trait && nodes[p].has_boundary_modifier())
 }
+
 impl DeclaredPauseBounds {
-    pub(crate) fn interface(published: bool) -> Self {
-        Self {
-            block: published.then_some(false),
-            suspend: published.then_some(false),
-        }
-    }
-    pub fn declared(self) -> PauseEffects {
-        PauseEffects {
-            suspend: self.suspend == Some(true),
-            block: self.block == Some(true),
-        }
-    }
     pub(crate) fn read(
         unit: &ResolvedSourceFile<'_>,
         n: usize,
     ) -> Result<Self, TypeError> {
         let f = unit.file;
-        let published = f.nodes[n].words().any(|w| w.text == "public")
-            || f.nodes[n]
-                .parent
-                .is_some_and(|p| f.nodes[p].kind == NodeKind::Trait && f.nodes[p].words().any(|w| w.text == "boundary"));
+        let published = has_published_bounds(unit, n);
         let flag = |kind| -> Result<Option<bool>, TypeError> {
             let Some(c) = f.child(n, kind) else {
                 return Ok(published.then_some(false));
             };
-            if !f.nodes[c].children.is_empty() {
-                return Err(TypeError::unsupported(f, c));
-            }
-            match f.nodes[c].words().nth(1).map(|w| w.text) {
-                Some("false") => Ok(Some(false)),
-                None | Some("true") => Ok(Some(true)),
-                _ => Err(TypeError::unsupported(f, c)),
-            }
+            let written = f.nodes[c]
+                .pause_flag()
+                .ok_or_else(|| TypeError::unsupported(f, c))?;
+            Ok(Some(written != PauseFlag::Explicit(false)))
         };
         Ok(Self {
             suspend: flag(NodeKind::Suspends)?,
@@ -84,12 +71,7 @@ pub(crate) fn crashes(
     }
     causes.sort_by_key(|cause| matches!(cause, crate::CrashCause::Abort));
     causes.dedup();
-    Ok((specified
-        || f.nodes[n].words().any(|w| w.text == "public")
-        || f.nodes[n]
-            .parent
-            .is_some_and(|p| f.nodes[p].kind == NodeKind::Trait && f.nodes[p].words().any(|w| w.text == "boundary")))
-    .then_some(causes))
+    Ok((specified || has_published_bounds(unit, n)).then_some(causes))
 }
 pub(crate) fn empty_clause(
     unit: &ResolvedSourceFile<'_>,
@@ -114,22 +96,13 @@ pub(crate) fn reach(
         let Some(Symbol::Declaration(id)) = unit.symbol(entry) else {
             return Err(TypeError::unsupported(f, entry));
         };
-        if id.kind != NodeKind::Trait {
-            return Err(TypeError::at(f, entry, "reach requires a service trait"));
+        if !types.service_traits.contains(id) {
+            return Err(TypeError::at(f, entry, "reach requires a boundary trait"));
         }
-        let args = f
-            .child(entry, NodeKind::TypeArgs)
-            .into_iter()
-            .flat_map(|section| &f.nodes[section].children)
-            .enumerate()
-            .map(|(index, &arg)| unit.argument(arg, types, id, index))
-            .collect::<Result<Vec<_>, _>>()?;
-        if args.len() != types.arities[id] {
-            return Err(TypeError::at(f, entry, "incomplete service application"));
-        }
+        let application = unit.trait_application(entry, id, types)?;
         let service = ServiceApplication {
-            service: id.clone(),
-            arguments: args,
+            service: application.declaration,
+            arguments: application.trait_arguments,
         };
         if !row.contains(&service) {
             row.push(service);

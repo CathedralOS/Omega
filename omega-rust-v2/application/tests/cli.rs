@@ -36,9 +36,21 @@ fn resolves_only_the_named_package_files_and_locates_missing_callees() {
     let root = application_directory().join("../layers/02_syntax-trees-to-symbol-resolved-trees/fixtures");
     let pass = invoke(
         &root.join("accept/sibling_machine"),
-        &["source", "resolve", "combat/main.omg", "combat/scoring.omg"],
+        &[
+            "source",
+            "resolve",
+            "--",
+            "./combat/main.omg",
+            "combat/scoring.omg",
+        ],
     );
     assert!(pass.status.success(), "{}", String::from_utf8_lossy(&pass.stderr));
+    let outside_package = invoke(
+        &root.join("accept/sibling_machine"),
+        &["source", "resolve", "../sibling_machine/combat/main.omg"],
+    );
+    assert_eq!(outside_package.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&outside_package.stderr).contains("expected a path within the current package"));
     let fail = invoke(
         &root.join("reject/child_machine"),
         &["source", "resolve", "combat/main.omg", "combat/ai/scoring.omg"],
@@ -66,15 +78,39 @@ fn types_overloaded_calls_and_reports_the_wrong_result_at_its_use() {
 }
 
 #[test]
+fn prepares_a_signed_index_and_reports_exact_intermediate_overflow() {
+    let root = application_directory().join("../layers/04_typed-trees-to-prepared-trees/tests/fixtures");
+    let pass = invoke(&root, &["source", "prepare", "signed_wrap.omg"]);
+    assert!(pass.status.success(), "{}", String::from_utf8_lossy(&pass.stderr));
+    assert!(pass.stdout.is_empty() && pass.stderr.is_empty());
+    let fail = invoke(&root, &["source", "prepare", "signed_overflow.omg"]);
+    assert_eq!(fail.status.code(), Some(1));
+    let diagnostic = String::from_utf8_lossy(&fail.stderr);
+    assert!(diagnostic.contains("signed_overflow.omg:3:19:"), "{diagnostic}");
+    assert!(diagnostic.contains("exact addition exceeds its selected integer carrier"), "{diagnostic}");
+}
+
+#[test]
 fn types_a_computed_width_and_reports_the_overflowing_specialization() {
     let fixtures = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/fixtures");
     let ok = invoke(&fixtures.join("accept"), &["source", "type", "computed_width.omg"]);
     let error = invoke(&fixtures.join("reject"), &["source", "type", "computed_width.omg"]);
     assert!(ok.status.success() && ok.stdout.is_empty() && ok.stderr.is_empty());
+    for directory in ["prepared/accept", "prepared/reject"] {
+        let missing = invoke(&fixtures.join(directory), &["source", "type", "computed_width.omg"]);
+        assert_eq!(missing.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&missing.stderr).contains("needs an admitted evaluation result"));
+    }
+    let prepared = invoke(&fixtures.join("prepared/accept"), &["source", "prepare", "computed_width.omg"]);
+    assert!(prepared.status.success(), "{}", String::from_utf8_lossy(&prepared.stderr));
+    assert!(prepared.stdout.is_empty() && prepared.stderr.is_empty());
+    let refused = invoke(&fixtures.join("prepared/reject"), &["source", "prepare", "computed_width.omg"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("exact addition exceeds its selected integer carrier"));
     assert_eq!(error.status.code(), Some(1));
     assert_eq!(
         String::from_utf8_lossy(&error.stderr).trim(),
-        "computed_width.omg:4:22: typer: static index 256 exceeds u8"
+        "computed_width.omg:3:22: typer: static index 256 exceeds u8"
     );
 }
 
@@ -129,6 +165,9 @@ fn help_and_usage_errors_have_distinct_statuses_and_streams() {
         &["--help"][..],
         &["source", "-h"],
         &["source", "parse", "--help"],
+        &["source", "resolve", "--help"],
+        &["source", "type", "-h"],
+        &["source", "prepare", "--help"],
     ] {
         let output = invoke(application_directory(), arguments);
         assert!(output.status.success());
@@ -142,6 +181,9 @@ fn help_and_usage_errors_have_distinct_statuses_and_streams() {
         &["source", "parse", "--"],
         &["source", "parse", "a", "b"],
         &["source", "parse", "--typo"],
+        &["source", "resolve", "--unknown"],
+        &["source", "type", "--"],
+        &["source", "resolve"],
         &["source", "parze", "a"],
         &["run", "main.omg"],
     ] {
@@ -164,4 +206,34 @@ fn source_type_checks_inherited_rows_and_locates_ambiguous_evidence() {
         String::from_utf8_lossy(&refused.stderr).trim_end(),
         "evidence_ambiguity.omg:3:5: typer: ambiguous operator +"
     );
+}
+
+#[test]
+fn help_reports_an_unwritable_output_stream() {
+    let read_only = fs::File::open(application_directory().join("Cargo.toml")).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(application_directory())
+        .arg("--help")
+        .stdout(read_only)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("omega: could not write help:"));
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn resolve_refuses_a_filename_that_cannot_identify_a_source_module() {
+    #[cfg(windows)]
+    let path = <std::ffi::OsString as std::os::windows::ffi::OsStringExt>::from_wide(&[0xd800]);
+    #[cfg(unix)]
+    let path = <std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(vec![0xff]);
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(application_directory())
+        .args(["source", "resolve", "--"])
+        .arg(path)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("logical paths must be UTF-8"));
 }

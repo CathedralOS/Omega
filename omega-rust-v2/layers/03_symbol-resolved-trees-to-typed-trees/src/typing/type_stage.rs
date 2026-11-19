@@ -1,87 +1,102 @@
 //! Every file contributes its declarations before L3 checks bodies. The order here also determines which source error a package reports first.
 
-use crate::contracts::guarded_calls;
-use crate::contracts::{access_policies, callback_bounds, callback_invocations, cleanup, logical_hypotheses, machine_effects, trait_refinements};
-use crate::declarations::constants;
+use crate::contracts::{access_policies, callback_bounds, cleanup, logical_hypotheses, machine_effects, trait_refinements};
+use crate::contracts::{effect_propagation::ExecutionCalls, guarded_calls};
 use crate::declarations::declaration_catalog::DeclarationCatalog;
-use crate::declarations::operator_declarations::index_operator_declarations;
-use crate::declarations::resolved_sources::index_resolved_sources;
-use crate::evaluation::check_static_indices::check_static_indices;
-use crate::evaluation::{integer_program, specialized_indices};
+use crate::declarations::operator_declarations::{index_operator_declarations, trait_operator_tokens};
+use crate::declarations::resolved_sources::{check_domain_visibility, check_static_qualifiers, index_resolved_sources};
+use crate::declarations::{constants, mathematical_signatures};
+use crate::evaluation::check_static_indices::{IndexEvaluations, check_static_indices};
 use crate::expressions::check_bodies::check_bodies;
-use crate::toolchain_declarations::core_interface::core_interface;
+use crate::toolchain_declarations::core_interface::{CheckedLibrary, configure_roles};
 use crate::type_system::definition_order::index_type_definitions;
-use crate::{TypeError, TypedStage, TypingEnvironment};
-use omega_parser::NodeKind;
+use crate::{StaticIntegerDemand, TypeError, TypedStage, TypedTrees, TypingEnvironment};
 use omega_resolver::SymbolResolvedTrees;
+use omega_toolchain::CoreInterface;
 
 pub(crate) fn type_admitted_stage<'text>(
     resolved: &SymbolResolvedTrees<'text>,
-    admits_toolchain_declarations: bool,
+    library: Option<&'static CheckedLibrary>,
     environment: &TypingEnvironment<'_>,
 ) -> Result<crate::TypedTrees<'text>, TypeError> {
-    let mut units = index_resolved_sources(resolved)?;
-    let mut catalog = DeclarationCatalog {
-        assembly: environment.target,
-        ranking_views: environment.ranking_views,
-        ..Default::default()
-    };
-    catalog.types.specializations = specialized_indices::IndexSpecializations::build(&units, environment.specialized_indices)?;
-    catalog.types.operator_tokens = resolved
-        .operator_declarations
-        .iter()
-        .map(|o| o.token.as_str())
-        .collect();
-    catalog.types.evaluator = environment.integer_evaluator;
-    if units.iter().any(|unit| {
-        unit.file
-            .nodes
-            .iter()
-            .any(|n| matches!(n.kind, NodeKind::TypeArgs | NodeKind::ExpressionArgs | NodeKind::ArrayType))
-    }) {
-        catalog.types.integer_program = integer_program::IntegerProgram::build(&units, environment.evaluated_integer_calls)?;
-    }
-    for unit in &mut units {
-        unit.index_generic_parameters(&mut catalog.types)?;
-    }
-    for unit in &units {
-        unit.index_enclosing_scopes(&mut catalog.types)?;
-    }
+    type_stage_inner(resolved, library, environment, false).map(|(trees, _)| trees)
+}
+
+pub(crate) fn type_stage_inner<'text>(
+    resolved: &SymbolResolvedTrees<'text>,
+    library: Option<&'static CheckedLibrary>,
+    environment: &TypingEnvironment<'_>,
+    allow_pending: bool,
+) -> Result<(TypedTrees<'text>, Vec<StaticIntegerDemand>), TypeError> {
     let mut output = TypedStage::default();
-    if admits_toolchain_declarations {
-        core_interface().install(&mut catalog, &mut output);
+    let mut catalog = library.map_or_else(DeclarationCatalog::default, |lib| lib.import(&mut output));
+    let first_local_obligation = output.obligations.len();
+    catalog.assembly = environment.target;
+    if library.is_none() {
+        catalog.ranking_views = environment.ranking_views.into();
+        catalog.access_plan_requirement = environment.access_plan_requirement;
     }
-    index_type_definitions(&units, &mut catalog.types, &mut output)?;
+    check_stage(
+        resolved,
+        environment,
+        &mut catalog,
+        &mut output,
+        None,
+        library.map(|lib| &lib.execution),
+        allow_pending,
+    )?;
+    if library.is_none() && !output.collection_accesses.is_empty() {
+        output.library = Some(crate::standard_library());
+    }
+    catalog.publish_declarations(&mut output);
+    let demands = catalog.types.indices.take_demands();
+    Ok((crate::TypedTrees::new(resolved.clone(), output, first_local_obligation), demands))
+}
+
+pub(crate) fn check_stage<'a>(
+    resolved: &'a SymbolResolvedTrees<'_>,
+    environment: &TypingEnvironment<'a>,
+    catalog: &mut DeclarationCatalog<'a>,
+    output: &mut TypedStage,
+    definition: Option<&'a CoreInterface>,
+    library_execution: Option<&ExecutionCalls>,
+    allow_pending: bool,
+) -> Result<ExecutionCalls, TypeError> {
+    let mut units = index_resolved_sources(resolved);
+    catalog.types.indices = IndexEvaluations::admit(&units, environment, allow_pending)?;
+    let trait_tokens = trait_operator_tokens(resolved, &catalog.types.trait_operator_tokens);
+    catalog.types.trait_operator_tokens.extend(trait_tokens);
+    catalog.types.literal_constants.collect(&units);
+    index_type_definitions(&mut units, &mut catalog.types)?;
+    check_domain_visibility(resolved, &units, &catalog.types)?;
     for unit in &units {
         unit.index_static_equations(&mut catalog.types)?;
     }
-    logical_hypotheses::index_mathematical_interfaces(&units, &mut catalog.types)?;
+    mathematical_signatures::index_interfaces(&units, &mut catalog.types)?;
     for unit in &mut units {
-        logical_hypotheses::index_logical_hypotheses(unit, &mut catalog, &mut output)?;
+        logical_hypotheses::index_logical_hypotheses(unit, catalog, output)?;
     }
     for unit in &units {
-        unit.index_declarations(&mut catalog)?;
+        unit.index_declarations(catalog, definition)?;
     }
-    logical_hypotheses::record_assumption_dependencies(&units, &mut catalog, &mut output)?;
-    callback_bounds::resolve_callback_bounds(&units, &mut catalog)?;
-    index_operator_declarations(resolved, &mut catalog)?;
-    constants::infer(&units, &mut catalog, &mut output)?;
-    check_bodies(&units, &catalog, &mut output)?;
-    if !output.collection_accesses.is_empty() {
-        output.interface_contracts.extend(
-            crate::collection_contracts()
-                .interface_contracts
-                .iter()
-                .cloned(),
-        );
+    if let Some(core) = definition {
+        configure_roles(core, catalog, output);
     }
-    check_static_indices(&units, &catalog, &mut output)?;
-    machine_effects::check_machine_effects(&catalog, &mut output)?;
-    callback_invocations::compose_callback_invocations(&units, &catalog, environment.boundary_slots, &mut output)?;
-    guarded_calls::record_guarded_calls(&units, &catalog, &mut output)?;
-    cleanup::check_cleanup_selections(&units, &catalog, &mut output)?;
-    trait_refinements::check_trait_refinements(&catalog, &mut output)?;
-    access_policies::check_access_policies(&units, &catalog, environment, &mut output)?;
-    catalog.types.record_type_universe_memberships(&mut output);
-    Ok(crate::TypedTrees::new(resolved.clone(), output))
+    logical_hypotheses::record_assumption_dependencies(&units, catalog, output);
+    catalog.index_requirement_fields();
+    callback_bounds::resolve_callback_bounds(&units, catalog)?;
+    check_static_qualifiers(resolved, &units, &catalog.types)?;
+    crate::contracts::conformance::index_satisfaction_edges(&units, catalog, output)?;
+    index_operator_declarations(resolved, catalog, definition)?;
+    constants::infer(&units, catalog, output)?;
+    check_bodies(&units, catalog, output)?;
+    check_static_indices(&units, catalog, environment, output)?;
+    let execution = ExecutionCalls::collect(output);
+    machine_effects::check_machine_effects(catalog, &execution, environment.boundary_slots, output)?;
+    guarded_calls::record_guarded_calls(&execution, library_execution, catalog, output);
+    cleanup::check_cleanup_selections(&units, catalog, output)?;
+    trait_refinements::check_trait_refinements(catalog, output)?;
+    access_policies::check_access_policies(&units, catalog, output)?;
+    catalog.types.formations.check(&catalog.types, output)?;
+    Ok(execution)
 }

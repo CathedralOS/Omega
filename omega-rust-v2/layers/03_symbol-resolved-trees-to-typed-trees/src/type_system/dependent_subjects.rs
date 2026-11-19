@@ -1,7 +1,7 @@
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::evaluation::{integer_arithmetic, numeric_literals};
+use crate::evaluation::numeric_literals;
 use crate::type_system::type_catalog::TypeCatalog;
-use crate::{DomainApplication, Site, TypeError, ValueType};
+use crate::{Site, TypeError, ValueType};
 use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
@@ -37,7 +37,7 @@ impl ResolvedSourceFile<'_> {
             let annotation = self
                 .parameter_annotation(*binder_node)
                 .ok_or_else(|| TypeError::unsupported(f, n))?;
-            if self.raw_type(annotation, None, types)? != *expected {
+            if self.raw_type(annotation, types)? != *expected {
                 return Err(TypeError::at(f, n, "type-family subject has the wrong type"));
             }
         } else if f.nodes[n].kind == NodeKind::Literal {
@@ -103,7 +103,7 @@ impl ResolvedSourceFile<'_> {
                 _,
             )) = numeric_literals::literal(self.file, n)
             && value.is_integer()
-            && integer_arithmetic::fits(value.numer(), ty)
+            && ty.contains_integer(value.numer())
         {
             return ValueType::StaticInteger {
                 carrier: Box::new(ty.clone()),
@@ -119,73 +119,35 @@ impl ResolvedSourceFile<'_> {
 impl ValueType {
     pub(crate) fn instantiate_subjects(
         &self,
-        signature: &crate::declarations::machine_signature::MachineSignature,
+        signature: &crate::TypedSignature,
         operands: &[ValueType],
     ) -> Self {
-        self.map_subjects(0, &|ty, _| {
-            let Self::Subject { declaration, version: None } = ty else { return None };
+        self.replace_subjects(|declaration| {
             if declaration.package != signature.site.package || declaration.file != signature.site.file {
                 return None;
             }
             signature
-                .params
+                .parameters
                 .iter()
                 .zip(operands)
                 .find(|((span, _), _)| span == &declaration.span)
-                .map(|(_, v)| v.clone())
+                .map(|(_, v)| v)
         })
     }
-    fn map_subjects(
+    pub(crate) fn replace_subjects<'a>(
         &self,
-        depth: usize,
-        replace: &impl Fn(&Self, usize) -> Option<Self>,
+        resolve: impl Fn(&Site) -> Option<&'a ValueType>,
     ) -> Self {
-        use ValueType::*;
-        if let Some(result) = replace(self, depth) {
-            return result;
-        }
-        let part = |ty: &Self| ty.map_subjects(depth, replace);
-        match self {
-            Function(input, out) => Function(Box::new(part(input)), Box::new(out.map_subjects(depth + 1, replace))),
-            MathematicalValue { definition, subjects } => MathematicalValue {
-                definition: definition.clone(),
-                subjects: subjects.iter().map(part).collect(),
-            },
-            FamilyApplication { family, subjects } => FamilyApplication {
-                family: Box::new(part(family)),
-                subjects: subjects.iter().map(part).collect(),
-            },
-            Applied(id, args) => Applied(id.clone(), args.iter().map(part).collect()),
-            Qualified(t, domains) => crate::type_system::domains::qualified(
-                part(t),
-                domains
-                    .iter()
-                    .map(|d| DomainApplication {
-                        declaration: d.declaration.clone(),
-                        arguments: d.arguments.iter().map(part).collect(),
-                    })
-                    .collect(),
-            ),
-            Tuple(ts) => Tuple(ts.iter().map(part).collect()),
-            Reference(a, t) => Reference(a.clone(), Box::new(part(t))),
-            Array(t, n) => Array(Box::new(part(t)), *n),
-            IndexedArray(t, n) => IndexedArray(Box::new(part(t)), Box::new(part(n))),
-            IndexedInteger { signed, width } => IndexedInteger {
-                signed: *signed,
-                width: Box::new(part(width)),
-            },
-            Squash(t) => Squash(Box::new(part(t))),
-            LevelOf(t) => LevelOf(Box::new(part(t))),
-            Slice(t) => Slice(Box::new(part(t))),
-            AtLifetime(t, l) => AtLifetime(Box::new(part(t)), Box::new(part(l))),
-            other => other.clone(),
-        }
+        self.rewrite(0, &|ty, _| match ty {
+            Self::Subject { declaration, version: None } => resolve(declaration).cloned(),
+            _ => None,
+        })
     }
     pub(crate) fn bind_subject(
         &self,
         site: &Site,
     ) -> Self {
-        self.map_subjects(0, &|t, d| match t {
+        self.rewrite(0, &|t, d| match t {
             Self::Subject { declaration, version: None } if declaration == site => Some(Self::BoundSubject(d)),
             _ => None,
         })
@@ -194,8 +156,8 @@ impl ValueType {
         &self,
         subject: &Self,
     ) -> Self {
-        self.map_subjects(0, &|t, d| match t {
-            Self::BoundSubject(i) if *i == d => Some(subject.map_subjects(0, &|s, under| match s {
+        self.rewrite(0, &|t, d| match t {
+            Self::BoundSubject(i) if *i == d => Some(subject.rewrite(0, &|s, under| match s {
                 Self::BoundSubject(j) if *j >= under => Some(Self::BoundSubject(j + d)),
                 _ => None,
             })),

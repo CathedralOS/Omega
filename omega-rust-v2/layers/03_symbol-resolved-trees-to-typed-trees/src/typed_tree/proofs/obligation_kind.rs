@@ -1,10 +1,10 @@
 use crate::{Access, CallableType, CrashCause, DomainApplication, RequirementSlot, Site, ValueType};
 use omega_resolver::DeclarationId;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ObligationKind {
     RefineRequirement {
-        requirement: DeclarationId,
+        requirement: RequirementSlot,
         implementation: DeclarationId,
     },
     EstablishDomain(DomainApplication),
@@ -19,8 +19,14 @@ pub enum ObligationKind {
     RefineCallable {
         contract: Box<CallableType>,
         machine: DeclarationId,
+        arguments: Vec<ValueType>,
     },
     PositiveWidth(ValueType),
+    /// A recursive type edge changes the arguments of a declaration with static formation requirements.
+    FormRecursiveApplication {
+        declaration: DeclarationId,
+        arguments: Vec<ValueType>,
+    },
     Termination(DeclarationId),
     TotalCrashGuard,
     AdmitMathematicalAssumption(DeclarationId),
@@ -45,6 +51,11 @@ pub enum ObligationKind {
         requirement: Site,
         evidence: ValueType,
         substitutions: Vec<ValueType>,
+    },
+    ApplyCallbackGuarantee {
+        binder: ValueType,
+        contract: Site,
+        operands: Vec<Site>,
     },
     ApplyHypothesis {
         requirement: Site,
@@ -74,6 +85,11 @@ pub enum ObligationKind {
     EstablishData(DeclarationId),
     ZeroValue(ValueType),
     CopyRead(ValueType),
+    /// Re-establish this exact place before its exclusive loan is released.
+    RestoreBorrowed {
+        place: omega_resolver::TreeNodeId,
+        ty: ValueType,
+    },
     Move {
         place: Site,
         ty: ValueType,
@@ -99,5 +115,8 @@ pub enum ObligationKind {
         destination: ValueType,
     },
     CallPrecondition(DeclarationId),
-    ZeroField(DeclarationId, String),
+    ZeroField {
+        field: DeclarationId,
+        ty: ValueType,
+    },
 }

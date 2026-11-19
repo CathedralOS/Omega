@@ -127,9 +127,10 @@ impl SyntaxParser<'_> {
         };
 
         let is_if_statement = match &statement_result {
-            Err(_) => self
-                .get_recorded_error()
-                .is_some_and(|parse_error| matches!(parse_error.get_kind(), ParseErrorKind::UnexpectedToken | ParseErrorKind::UnexpectedEnd)),
+            Err(failure) => matches!(
+                self.get_error(*failure).get_kind(),
+                ParseErrorKind::UnexpectedToken | ParseErrorKind::UnexpectedEnd
+            ),
             Ok(StatementShape::Tail) => tail_rule == TailRule::Anywhere && !self.at_end(),
             Ok(_) => false,
         };

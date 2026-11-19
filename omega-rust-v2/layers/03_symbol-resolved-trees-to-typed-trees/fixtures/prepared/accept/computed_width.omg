@@ -1,0 +1,4 @@
+data Buffer<const N: u8> {}
+machine width(n: u8) -> u8 { n + 1 }
+machine make<const N: u8>() -> Buffer<width(N)> { Buffer::<width(N)>{} }
+machine main() { _ = make::<7>(); }

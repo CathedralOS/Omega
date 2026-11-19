@@ -1,0 +1,2 @@
+public machine Descending(value: u64) -> u64;
+public machine BoundedDistance(lower: u64, upper: u64) -> u64;

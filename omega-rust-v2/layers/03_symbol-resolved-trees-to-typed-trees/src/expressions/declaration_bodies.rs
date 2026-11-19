@@ -1,7 +1,7 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::expressions::body_typer::BodyTyper;
-use crate::{ObligationKind, Site, TypeError, TypedStage, ValueType};
+use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
+use crate::{ObligationKind, TypeError, TypedStage, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
 
@@ -9,14 +9,16 @@ pub(crate) fn check_static_argument(
     unit: &ResolvedSourceFile<'_>,
     catalog: &DeclarationCatalog<'_>,
     node_index: usize,
-    expected: &ValueType,
+    request: &crate::StaticIntegerRequest,
+    evaluation: &crate::evaluation::check_static_indices::IndexEvaluation,
     output: &mut TypedStage,
 ) -> Result<(), TypeError> {
     let mut body = BodyTyper::new(unit, catalog, output);
-    body.static_argument = true;
+    body.context = ExpressionContext::StaticArgument;
+    let expected = &request.carrier;
     body.caller = unit
         .file
-        .enclosing_contexts(node_index)
+        .ancestors(node_index)
         .find_map(|p| {
             unit.declaration_at(p)
                 .filter(|d| matches!(d.kind, NodeKind::Machine | NodeKind::AsmMachine))
@@ -24,20 +26,21 @@ pub(crate) fn check_static_argument(
         .cloned();
     let start = body.output.calls.len();
     let value = if unit.file.nodes[node_index].kind == NodeKind::PathType
-        && let Some(Symbol::Declaration(id)) = unit.symbol(node_index)
+        && let Some(Symbol::Declaration(id)) = unit.name_in_role(node_index, false)
         && id.kind == NodeKind::Const
     {
-        catalog.constants[id].clone()
+        let value = body.constant_reference(node_index, id)?;
+        body.record_expression(node_index, value.clone());
+        value
     } else {
         body.type_expression_with_expected_type(node_index, Some(expected))?
     };
     if body.output.calls[start..].iter().any(|c| c.evidence.is_some())
-        && !catalog
-            .types
-            .deferred_sites
-            .borrow()
-            .contains(&Site::at(unit.file, node_index))
-        && catalog.types.evaluator.is_none()
+        && !matches!(
+            evaluation,
+            crate::evaluation::check_static_indices::IndexEvaluation::Specialized(_) | crate::evaluation::check_static_indices::IndexEvaluation::Pending
+        )
+        && !catalog.types.indices.has_supplied_value(request)
     {
         return Err(TypeError::at(
             unit.file,
@@ -54,6 +57,7 @@ pub(crate) fn infer_constant(
     output: &mut TypedStage,
 ) -> Result<ValueType, TypeError> {
     let mut body = BodyTyper::new(unit, catalog, output);
+    body.context = ExpressionContext::StaticArgument;
     let value = body.type_expression(expr)?;
     if value.holds_anonymous_number() || value == ValueType::NoResult {
         return Err(TypeError::at(unit.file, expr, "constant requires a concrete value type"));
@@ -75,38 +79,20 @@ pub(crate) fn check_callable(
     output: &mut TypedStage,
 ) -> Result<(), TypeError> {
     let source = unit.file;
-    let ValueType::Callable(c) = unit.raw_type(node_index, None, &catalog.types)? else {
+    let ValueType::Callable(c) = unit.annotation(node_index, &catalog.types)? else {
         return Err(TypeError::unsupported(source, node_index));
     };
-    let params = source
-        .child(node_index, NodeKind::Params)
-        .ok_or_else(|| TypeError::unsupported(source, node_index))?;
-    let locals = source.nodes[params]
-        .children
-        .iter()
-        .zip(&c.parameters)
-        .map(|(&p, t)| {
-            source.nodes[p]
-                .words()
-                .next()
-                .map(|name| (name.span, t.clone()))
-                .ok_or_else(|| TypeError::unsupported(source, p))
-        })
-        .collect::<Result<_, _>>()?;
     let mut body = BodyTyper {
-        locals,
-        subject: Some(c.result.clone()),
+        locals: source
+            .parameters(node_index)
+            .map(|(name, _)| name.span)
+            .zip(c.parameters)
+            .collect(),
+        subject: Some(c.result),
         ..BodyTyper::new(unit, catalog, output)
     };
     for &clause in &source.nodes[node_index].children {
-        if source.nodes[clause].kind == NodeKind::Crashes {
-            body.crash_route(clause, node_index)?;
-        }
-        if matches!(source.nodes[clause].kind, NodeKind::Requires | NodeKind::Ensures) {
-            let expr = unit.single_child(clause)?;
-            let ty = body.type_expression_with_expected_type(expr, Some(&ValueType::Bool))?;
-            body.check_destination(expr, &ty, &ValueType::Bool)?;
-        }
+        body.check_contract_clause(clause, node_index)?;
     }
     Ok(())
 }
@@ -128,32 +114,26 @@ pub(crate) fn check_declaration(
     let mut body = BodyTyper {
         locals: signature
             .into_iter()
-            .flat_map(|s| s.params.iter().cloned())
+            .flat_map(|s| s.parameters.iter().cloned())
             .collect(),
         caller: matches!(id.kind, NodeKind::Machine | NodeKind::AsmMachine).then(|| id.clone()),
         subject,
         ..BodyTyper::new(unit, catalog, output)
     };
-    if source.nodes[node_index].kind == NodeKind::MathLet {
+    if let Some(binding) = source.math_binding(node_index) {
+        body.context = ExpressionContext::Proof;
         let mut result = catalog.types.mathematical[id].clone();
-        if let Some(params) = source.child(node_index, NodeKind::Params) {
-            for &p in &source.nodes[params].children {
-                let ValueType::Function(input, out) = result else {
-                    return Err(TypeError::unsupported(source, p));
-                };
-                let name = source.nodes[p]
-                    .words()
-                    .next()
-                    .ok_or_else(|| TypeError::unsupported(source, p))?;
-                body.locals.insert(name.span, *input);
-                result = out.apply_subject(&ValueType::Subject {
-                    declaration: unit.binder_site(name.span),
-                    version: None,
-                });
-            }
+        for (name, annotation) in source.parameters(node_index) {
+            let ValueType::Function(input, out) = result else {
+                return Err(TypeError::unsupported(source, annotation));
+            };
+            body.locals.insert(name.span, *input);
+            result = out.apply_subject(&ValueType::Subject {
+                declaration: unit.binder_site(name.span),
+                version: None,
+            });
         }
-        if source.nodes[node_index].leaves.iter().any(|l| l.text == "=") {
-            let term = *source.nodes[node_index].children.last().unwrap();
+        if let Some(term) = binding.body {
             let value = body.type_expression_with_expected_type(term, Some(&result))?;
             if matches!(result, ValueType::Universe { strict: true, .. }) && value == ValueType::Bool {
                 body.record_obligation(term, ObligationKind::MathematicalFact { sort: result });
@@ -172,29 +152,20 @@ pub(crate) fn check_declaration(
             .last()
             .ok_or_else(|| TypeError::unsupported(source, node_index))?;
         let ty = &catalog.constants[id];
+        body.context = ExpressionContext::StaticArgument;
         let value = body.type_expression_with_expected_type(expr, Some(ty))?;
         return body.check_destination(expr, &value, ty);
     }
     for &part in &source.nodes[node_index].children {
         match source.nodes[part].kind {
-            NodeKind::Requires | NodeKind::Ensures => {
-                let expr = unit.single_child(part)?;
-                body.check_fact(expr)?;
-                if source.nodes[part].kind == NodeKind::Ensures && signature.is_some() {
-                    body.record_obligation(
-                        expr,
-                        ObligationKind::ProveGuarantee {
-                            machine: id.clone(),
-                            predicate: Site::at(source, expr),
-                        },
-                    );
-                }
+            NodeKind::Requires | NodeKind::Ensures | NodeKind::Crashes | NodeKind::Hypothesis => body.check_contract_clause(part, node_index)?,
+            NodeKind::Terminates => {
+                body.context = ExpressionContext::ContractValue;
+                body.ranking(part, id)?;
             }
-            NodeKind::Hypothesis => body.check_hypothesis(part)?,
-            NodeKind::Crashes => body.crash_route(part, node_index)?,
-            NodeKind::Terminates => body.ranking(part, id)?,
             NodeKind::Invokes => body.invocation(part, id)?,
             NodeKind::Body => {
+                body.context = ExpressionContext::Execution;
                 let result = &signature
                     .ok_or_else(|| TypeError::unsupported(source, node_index))?
                     .result;

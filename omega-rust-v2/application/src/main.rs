@@ -9,8 +9,8 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--] <package-relative file>...\n       omega source type [--] <package-relative file>...";
-const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. For resolve and type, list the source files of one package rooted at the current directory. Success produces no output.";
+const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--] <package-relative file>...\n       omega source type [--] <package-relative file>...\n       omega source prepare [--] <package-relative file>...";
+const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. Prepare evaluates supported integer constants and static indices and checks the resulting types. For resolve, type and prepare, list the source files of one package rooted at the current directory. Success produces no output.";
 
 enum Command<'a> {
     Help,
@@ -30,7 +30,7 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
             [flag] if flag != "--" => Err(format!("unknown option '{}'", flag.to_string_lossy())),
             _ => Err("source parse requires exactly one file".into()),
         },
-        [group, action, rest @ ..] if group == "source" && (action == "resolve" || action == "type") => {
+        [group, action, rest @ ..] if group == "source" && (action == "resolve" || action == "type" || action == "prepare") => {
             if let [flag] = rest
                 && is_help(flag)
             {
@@ -49,7 +49,13 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
             }
             Ok(Command::Stage(
                 files,
-                if action == "type" { source::Stage::Type } else { source::Stage::Resolve },
+                if action == "prepare" {
+                    source::Stage::Prepare
+                } else if action == "type" {
+                    source::Stage::Type
+                } else {
+                    source::Stage::Resolve
+                },
             ))
         }
         [group, action, ..] if group == "source" => Err(format!("unknown source command '{}'", action.to_string_lossy())),
@@ -59,33 +65,36 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
     }
 }
 
+fn write_help() -> io::Result<()> {
+    // Rust's Unix stdout treats EBADF as a successful write. Use the actual
+    // descriptor so redirecting help to a read-only stream reports the error.
+    #[cfg(unix)]
+    let mut output = {
+        use std::os::fd::AsFd;
+        std::fs::File::from(io::stdout().as_fd().try_clone_to_owned()?)
+    };
+    #[cfg(not(unix))]
+    let mut output = io::stdout().lock();
+    writeln!(output, "{USAGE}\n\n{HELP}")?;
+    output.flush()
+}
+
 fn main() -> ExitCode {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
-    match command(&arguments) {
-        Ok(Command::Help) => match writeln!(io::stdout().lock(), "{USAGE}\n\n{HELP}") {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(error) => {
-                eprintln!("omega: could not write help: {error}");
-                ExitCode::FAILURE
-            }
-        },
-        Ok(Command::Parse(path)) => match source::parse_file(path) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(error) => {
-                eprintln!("{error}");
-                ExitCode::FAILURE
-            }
-        },
-        Ok(Command::Stage(paths, stage)) => match source::check_files(paths, stage) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(error) => {
-                eprintln!("{error}");
-                ExitCode::FAILURE
-            }
-        },
+    let result = match command(&arguments) {
+        Ok(Command::Help) => write_help().map_err(|e| format!("omega: could not write help: {e}")),
+        Ok(Command::Parse(path)) => source::parse_file(path),
+        Ok(Command::Stage(paths, stage)) => source::check_files(paths, stage),
         Err(message) => {
             eprintln!("omega: {message}\n{USAGE}");
-            ExitCode::from(2)
+            return ExitCode::from(2);
+        }
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
         }
     }
 }

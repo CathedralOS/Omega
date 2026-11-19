@@ -1,13 +1,12 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::{AccessPolicySelection, ObligationKind, Site, TypeError, TypedStage, TypingEnvironment, TypingObligation};
+use crate::{AccessPolicySelection, ObligationKind, Site, TypeError, TypedStage, TypingObligation};
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
 
 pub(crate) fn check_access_policies(
     units: &[ResolvedSourceFile<'_>],
     catalog: &DeclarationCatalog<'_>,
-    env: &TypingEnvironment<'_>,
     out: &mut TypedStage,
 ) -> Result<(), TypeError> {
     for unit in units {
@@ -23,25 +22,16 @@ pub(crate) fn check_access_policies(
             let Some(Symbol::Declaration(policy)) = unit.symbol(head) else {
                 return Err(TypeError::at(f, head, "access requires an exact policy implementation"));
             };
-            let requirement = env
+            let requirement = catalog
                 .access_plan_requirement
                 .ok_or_else(|| TypeError::at(f, head, "access policy requires the admitted AccessPolicy plan requirement"))?;
             let row = out
                 .conformance_rows
                 .iter()
-                .find(|r| r.conformance == *policy && &r.requirement == requirement)
+                .find(|r| r.conformance.as_ref() == Some(policy) && &r.requirement.declaration == requirement)
                 .ok_or_else(|| TypeError::at(f, head, "selected policy does not supply the admitted plan requirement"))?;
             let machine = &row.implementation;
-            let args = f
-                .child(head, NodeKind::TypeArgs)
-                .into_iter()
-                .flat_map(|section| &f.nodes[section].children)
-                .enumerate()
-                .map(|(index, &a)| unit.argument(a, &catalog.types, policy, index))
-                .collect::<Result<Vec<_>, _>>()?;
-            if args.len() != catalog.types.arities[policy] {
-                return Err(TypeError::at(f, head, "incomplete access policy application"));
-            }
+            let args = unit.application_arguments(head, policy, &catalog.types)?;
             let effects = out
                 .machine_effects
                 .iter()
@@ -66,6 +56,7 @@ pub(crate) fn check_access_policies(
                 plan_machine: machine.clone(),
             });
             out.obligations.push(TypingObligation {
+                node: f.node_id(n),
                 site: Site::at(f, n),
                 kind: ObligationKind::EvaluateAccessPlan {
                     domain: domain.clone(),

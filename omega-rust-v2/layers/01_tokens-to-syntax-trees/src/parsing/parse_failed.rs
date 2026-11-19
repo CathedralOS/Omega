@@ -14,6 +14,16 @@
     results are one byte or a number, and travel in registers. Experiment 5.
 */
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct ParseFailed;
+pub(crate) struct ParseFailed(());
+
+impl ParseFailed {
+    pub(super) fn record(
+        slot: &mut Option<crate::ParseError>,
+        diagnostic: crate::ParseError,
+    ) -> Self {
+        *slot = Some(diagnostic);
+        Self(())
+    }
+}
 
 pub(crate) type Parsed<T = ()> = Result<T, ParseFailed>;

@@ -1,5 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::{Access, ObligationKind, Site, TypeError, TypedExpression, ValueType};
+use crate::{Access, ObligationKind, Site, TypeError, TypedNumericLanding, ValueType};
 
 impl BodyTyper<'_, '_> {
     pub(super) fn check_destination(
@@ -35,7 +35,17 @@ impl BodyTyper<'_, '_> {
                 self.record_obligation(node_index, ObligationKind::CopyRead(ty.clone()));
                 Ok(())
             }
-            Access::Mut => Ok(()),
+            Access::Mut => {
+                let file = self.unit.file;
+                self.record_obligation(
+                    node_index,
+                    ObligationKind::RestoreBorrowed {
+                        place: file.node_id(file.ungroup(node_index)),
+                        ty: ty.clone(),
+                    },
+                );
+                Ok(())
+            }
             Access::Shared => Err(TypeError::at(
                 self.unit.file,
                 node_index,
@@ -62,8 +72,9 @@ impl BodyTyper<'_, '_> {
                 },
             );
         }
-        if let ValueType::AtLifetime(inner, _) = expected
-            && value == inner.as_ref()
+        if let ValueType::AtLifetime(inner, region) = expected
+            && (value == inner.as_ref()
+                || matches!((region.as_ref(),value),(ValueType::InferredLifetime {..},ValueType::AtLifetime(actual,_)) if actual==inner && value!=expected))
         {
             self.record_obligation(
                 node_index,
@@ -76,18 +87,22 @@ impl BodyTyper<'_, '_> {
         }
         // The lifetime belongs to the loan. Reading its pointee preserves that
         // loan and uses the same access check as an unannotated reference.
-        let reference = match value {
-            ValueType::AtLifetime(reference, _) => reference.as_ref(),
-            other => other,
-        };
-        if let ValueType::Reference(Access::Shared | Access::Mut, inner) = reference
-            && inner.as_ref() == expected
+        if let Some((Access::Shared | Access::Mut, inner)) = value.reference_parts()
+            && inner == expected
             && self.copy_eligible(expected)
         {
             self.record_obligation(node_index, ObligationKind::CopyRead(expected.clone()));
             return Ok(());
         }
         if !value.fits(expected) {
+            if self
+                .catalog
+                .types
+                .indices
+                .defer_indexed_landing(value, expected)
+            {
+                return Ok(());
+            }
             return Err(TypeError::at(self.unit.file, node_index, format!("expected {expected}, found {value}")));
         }
         if let ValueType::Exact {
@@ -116,10 +131,11 @@ impl BodyTyper<'_, '_> {
                 },
             );
         }
-        if matches!(value, ValueType::Exact { .. }) {
-            self.output.landings.push(TypedExpression {
+        if let ValueType::Exact { value, .. } = value {
+            self.output.landings.push(TypedNumericLanding {
                 node: self.unit.file.node_id(node_index),
                 site: Site::at(self.unit.file, node_index),
+                value: value.clone(),
                 ty: expected.clone(),
             });
         }

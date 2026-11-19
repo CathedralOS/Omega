@@ -1,0 +1,4 @@
+data Indexed<const N:i8> {}
+machine adjust(n:i8) -> i8 { (n + 1) -| 1 }
+const OFFSET:i8 = adjust(127);
+machine carry(x:Indexed<OFFSET>) -> Indexed<-128> { x }

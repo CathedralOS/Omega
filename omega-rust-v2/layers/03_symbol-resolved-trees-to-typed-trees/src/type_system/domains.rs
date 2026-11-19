@@ -5,162 +5,201 @@ use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
 use std::collections::{HashMap, HashSet};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Domains<'a> {
     entries: HashMap<&'a DeclarationId, Domain>,
-    paths: HashMap<(&'a str, &'a str), &'a DeclarationId>,
 }
+#[derive(Clone)]
 struct Domain {
+    parent: Option<DomainApplication>,
     carrier: ValueType,
     indices: Vec<usize>,
     alias: Vec<DomainApplication>,
 }
 
+impl TypeCatalog<'_> {
+    pub(crate) fn binder_names_type(
+        &self,
+        binder: &(DeclarationId, usize),
+    ) -> bool {
+        matches!(self.bound(&binder.0, binder.1), Some(ValueType::Universe { .. }))
+    }
+
+    pub(crate) fn selected_declaration<'a>(
+        &self,
+        name: &'a Symbol,
+    ) -> Result<&'a DeclarationId, &'a str> {
+        match name {
+            Symbol::Declaration(id) => Ok(id),
+            Symbol::DomainCandidates { candidates, ambiguity } => {
+                let mut names = candidates.iter().filter(|c| {
+                    c.type_binder
+                        .as_ref()
+                        .is_none_or(|binder| self.binder_names_type(binder))
+                });
+                match (names.next(), names.next()) {
+                    (Some(candidate), None) => Ok(&candidate.declaration),
+                    (None, _) => Err("no visible domain on the written carrier"),
+                    _ => Err(ambiguity),
+                }
+            }
+            _ => Err("expected an exact declaration"),
+        }
+    }
+}
+
 impl<'a> ResolvedSourceFile<'a> {
-    pub fn domain(
+    pub(crate) fn domain_name(
         &self,
-        n: usize,
+        node: usize,
+        types: &TypeCatalog<'_>,
     ) -> Result<&'a DeclarationId, TypeError> {
-        match self.symbol(n) {
-            Some(Symbol::Declaration(id)) if id.kind == NodeKind::Domain => Ok(id),
-            _ => Err(TypeError::at(self.file, n, "expected a domain declaration")),
-        }
+        let name = self
+            .name_in_role(node, true)
+            .filter(|name| name.names_domain())
+            .ok_or_else(|| TypeError::at(self.file, node, "expected a domain declaration"))?;
+        types
+            .selected_declaration(name)
+            .map_err(|message| TypeError::at(self.file, node, message))
     }
-    pub(crate) fn explicit_domain_carrier(
+    pub(crate) fn domain_reference(
         &self,
         n: usize,
-        declared: &ValueType,
+        subject: Option<&ValueType>,
         types: &TypeCatalog<'_>,
-        candidate: Option<&DeclarationId>,
-    ) -> Result<ValueType, TypeError> {
-        if !matches!(declared, ValueType::Parameter { .. }) {
-            return Ok(declared.clone());
-        }
-        if self.file.nodes[n].words().count() < 2 {
-            return Ok(declared.clone());
-        }
-        match self.qualifier(n) {
-            Some(Symbol::Declaration(id)) if id.kind == NodeKind::Data => self.data_application(n, id, types, candidate),
-            Some(Symbol::Binding { span, .. }) => self
-                .parameters
-                .get(span)
-                .cloned()
-                .ok_or_else(|| TypeError::unsupported(self.file, n)),
-            Some(Symbol::Builtin(name)) => match name.as_str() {
-                "bool" => Ok(ValueType::Bool),
-                "addr" => Ok(ValueType::Address),
-                "f32" => Ok(ValueType::Float32),
-                "f64" => Ok(ValueType::Float64),
-                _ => ValueType::integer(name).ok_or_else(|| TypeError::unsupported(self.file, n)),
-            },
-            _ => Err(TypeError::at(self.file, n, "qualified generic domain requires a resolved carrier")),
-        }
-    }
-    fn check_explicit_domain_carrier(
-        &self,
-        n: usize,
-        subject: &ValueType,
-        types: &TypeCatalog<'_>,
-    ) -> Result<(), TypeError> {
-        let id = self.domain(n)?;
-        let Some(declared) = types.domains.known_carrier(id) else { return Ok(()) };
-        if !matches!(declared,ValueType::Parameter { owner,.. } if owner.as_ref()==id) || self.qualifier(n).is_none() {
-            return Ok(());
-        }
-        let explicit = self.explicit_domain_carrier(n, declared, types, None)?;
-        let normalized = |ty| {
-            types
-                .normalize_at(ty, self.file, n)
-                .map_err(|msg| TypeError::at(self.file, n, msg))
+    ) -> Result<(&'a DeclarationId, Option<ValueType>), TypeError> {
+        let written = match self
+            .qualifier(n)
+            .map(|q| self.select_name(q.visible_names(), true))
+        {
+            Some(Some(Symbol::Declaration(id))) if id.kind == NodeKind::Data => Some(self.data_application(n, id, types)?),
+            Some(Some(Symbol::Declaration(id))) if id.kind == NodeKind::Domain => None,
+            Some(Some(Symbol::Binding { span, .. })) => Some(
+                self.parameters
+                    .get(span)
+                    .cloned()
+                    .ok_or_else(|| TypeError::unsupported(self.file, n))?,
+            ),
+            Some(Some(Symbol::Builtin(name))) => Some(ValueType::builtin_scalar(name).ok_or_else(|| TypeError::unsupported(self.file, n))?),
+            None => None,
+            _ => return Err(TypeError::at(self.file, n, "qualified generic domain requires a resolved carrier")),
         };
-        let required = normalized(explicit)?;
-        let actual = normalized(subject.clone())?;
-        if required.carrier() != actual.carrier() {
-            return Err(TypeError::at(self.file, n, format!("domain qualifier names {required}, found {actual}")));
+        let normalize = |ty: &ValueType| {
+            types
+                .normalize_at(ty.clone(), self, n)
+                .map_err(|m| TypeError::at(self.file, n, m))
+        };
+        let written = written.as_ref().map(normalize).transpose()?;
+        if let (Some(required), Some(actual)) = (&written, subject) {
+            let actual = normalize(actual)?;
+            if required.carrier() != actual.carrier() {
+                return Err(TypeError::at(self.file, n, format!("domain qualifier names {required}, found {actual}")));
+            }
         }
-        Ok(())
+        let id = self.domain_name(n, types)?;
+        Ok((id, written))
     }
+
     pub fn domain_application(
         &self,
         n: usize,
         carrier: &ValueType,
         types: &TypeCatalog<'_>,
     ) -> Result<DomainApplication, TypeError> {
-        self.check_explicit_domain_carrier(n, carrier, types)?;
-        let id = self.domain(n)?;
+        let (id, _) = self.domain_reference(n, Some(carrier), types)?;
+        self.indexed_domain(n, id, carrier, types)
+    }
+
+    pub(super) fn indexed_domain(
+        &self,
+        n: usize,
+        id: &DeclarationId,
+        carrier: &ValueType,
+        types: &TypeCatalog<'_>,
+    ) -> Result<DomainApplication, TypeError> {
         let mut arguments = Vec::new();
-        let last = self.file.nodes[n]
-            .words()
-            .next_back()
-            .unwrap()
-            .span
-            .get_end_offset();
-        for &section in self.file.nodes[n]
-            .children
-            .iter()
-            .filter(|&&s| self.file.span(s).get_start_offset() >= last)
-        {
-            for (index, &arg) in self.file.nodes[section].children.iter().enumerate() {
-                arguments.push(self.argument(arg, types, id, types.domains.index_binder(id, index))?);
-            }
+        for (index, &arg) in self.arguments_for(n, id).iter().enumerate() {
+            let binder = types.domains.index_binder(id, index);
+            arguments.push(self.argument(arg, types, id, binder, types.bound(id, binder))?);
         }
         if types.domains.known_carrier(id).is_some() && arguments.len() != types.domains.index_arity(id) {
             return Err(TypeError::at(self.file, n, "incorrect indexed domain arity"));
         }
-        Ok(DomainApplication {
+        let application = DomainApplication {
             declaration: id.clone(),
             arguments,
-        })
+        };
+        let mut ancestor = std::borrow::Cow::Borrowed(&application);
+        for &section in self.file.reference_sections(n).iter().rev() {
+            let Some(Symbol::Declaration(owner)) = self.application_name(section).map(|name| &name.target) else {
+                continue;
+            };
+            if owner.kind != NodeKind::Domain || owner == id {
+                continue;
+            }
+            loop {
+                let Some(parent) = types.domains.applied_parent(&ancestor, carrier) else {
+                    return Err(TypeError::at(self.file, section, "qualifier does not name a parent domain"));
+                };
+                ancestor = std::borrow::Cow::Owned(parent);
+                if &ancestor.declaration == owner {
+                    break;
+                }
+            }
+            let supplied = &self.file.nodes[section].children;
+            if supplied.len() != ancestor.arguments.len() {
+                return Err(TypeError::at(self.file, section, "incorrect parent domain arity"));
+            }
+            for (i, (&arg, expected)) in supplied.iter().zip(&ancestor.arguments).enumerate() {
+                let binder = types.domains.index_binder(owner, i);
+                let actual = self.argument(arg, types, owner, binder, types.bound(owner, binder))?;
+                let expected = types
+                    .normalize_at(expected.clone(), self, arg)
+                    .map_err(|msg| TypeError::at(self.file, arg, msg))?;
+                if actual != expected {
+                    return Err(TypeError::at(
+                        self.file,
+                        arg,
+                        format!("parent domain {} expects {expected}, found {actual}", owner.path),
+                    ));
+                }
+            }
+        }
+        Ok(application)
     }
     pub(super) fn index_domain(
         &self,
         n: usize,
+        head: usize,
         types: &mut TypeCatalog<'a>,
     ) -> Result<(), TypeError> {
         let f = self.file;
         let node = &f.nodes[n];
         let id = self.declaration(n)?;
-        let head = f
-            .child(n, NodeKind::PathType)
-            .ok_or_else(|| TypeError::unsupported(f, n))?;
         let mut indices = Vec::new();
-        if let Some(section) = f.child(head, NodeKind::TypeArgs) {
-            for &arg in &f.nodes[section].children {
-                let Some(Symbol::Binding { span, .. }) = self.symbol(arg) else {
-                    return Err(TypeError::at(f, arg, "domain head index must name its binder"));
-                };
-                let Some(ValueType::Parameter { owner, index }) = self.parameters.get(span) else {
-                    return Err(TypeError::at(f, arg, "domain head index must name its binder"));
-                };
-                if owner.as_ref() != id || indices.contains(index) {
-                    return Err(TypeError::at(f, arg, "domain head index must name a distinct binder"));
-                }
-                indices.push(*index);
+        for &arg in self.arguments_for(head, id) {
+            let Some(Symbol::Binding { span, .. }) = self.symbol(arg) else {
+                return Err(TypeError::at(f, arg, "domain head index must name its binder"));
+            };
+            let Some(ValueType::Parameter { owner, index }) = self.parameters.get(span) else {
+                return Err(TypeError::at(f, arg, "domain head index must name its binder"));
+            };
+            if owner.as_ref() != id || indices.contains(index) {
+                return Err(TypeError::at(f, arg, "domain head index must name a distinct binder"));
             }
+            indices.push(*index);
         }
-        let carrier = if indices.is_empty() {
-            self.annotation(head, types)?
-        } else {
-            match self.symbol(head) {
-                Some(Symbol::Builtin(s)) => ValueType::integer(s).ok_or_else(|| TypeError::unsupported(f, head))?,
-                Some(Symbol::Declaration(owner)) if owner.kind == NodeKind::Data => types.open_data(owner),
-                Some(Symbol::Binding {
-                    span,
-                    kind: NodeKind::TypeParam,
-                    ..
-                }) => self
-                    .parameters
-                    .get(span)
-                    .cloned()
-                    .ok_or_else(|| TypeError::unsupported(f, head))?,
-                _ => return Err(TypeError::unsupported(f, head)),
-            }
-        };
+        let raw_carrier = self.raw_type(head, types)?;
+        // A domain head names its parent before aliases and ancestors expand.
+        let parent = raw_carrier.domains().first().cloned();
+        let carrier = types
+            .normalize_at(raw_carrier, self, head)
+            .map_err(|message| TypeError::at(f, head, message))?;
         let carrier_binder = match &carrier {
             ValueType::Parameter { owner, index } if owner.as_ref() == id => Some(*index),
             _ => None,
         };
-        let complete = types.arities[id] == indices.len() + usize::from(carrier_binder.is_some()) && !carrier_binder.is_some_and(|i| indices.contains(&i));
+        let complete = types.arity(id) == indices.len() + usize::from(carrier_binder.is_some()) && !carrier_binder.is_some_and(|i| indices.contains(&i));
         if !indices.is_empty() && !complete {
             return Err(TypeError::at(f, head, "indexed domain requires its complete binder tuple"));
         }
@@ -178,11 +217,15 @@ impl<'a> ResolvedSourceFile<'a> {
         if !alias.is_empty() && !complete {
             return Err(TypeError::at(f, head, "indexed domain alias requires its complete binder tuple"));
         }
-        types
-            .domains
-            .entries
-            .insert(id, Domain { carrier, indices, alias });
-        types.domains.paths.insert((&id.package, &id.path), id);
+        types.domains.entries.insert(
+            id,
+            Domain {
+                parent,
+                carrier,
+                indices,
+                alias,
+            },
+        );
         Ok(())
     }
 }
@@ -210,17 +253,23 @@ impl Domains<'_> {
         carrier: &ValueType,
     ) -> std::borrow::Cow<'b, [ValueType]> {
         let domain = &self.entries[&app.declaration];
-        if !matches!(&domain.carrier, ValueType::Parameter { owner, .. } if owner.as_ref() == &app.declaration)
-            && domain.indices.iter().copied().eq(0..app.arguments.len())
-        {
+        let generic_carrier = matches!(&domain.carrier, ValueType::Parameter { owner, .. } if owner.as_ref() == &app.declaration);
+        if !generic_carrier && domain.indices.iter().copied().eq(0..app.arguments.len()) {
             return std::borrow::Cow::Borrowed(&app.arguments);
         }
-        let generic_carrier = matches!(&domain.carrier, ValueType::Parameter { owner, .. } if owner.as_ref() == &app.declaration);
         let mut args = vec![carrier.clone(); app.arguments.len() + usize::from(generic_carrier)];
         for (&binder, value) in domain.indices.iter().zip(&app.arguments) {
             args[binder] = value.clone();
         }
         std::borrow::Cow::Owned(args)
+    }
+    fn applied_parent(
+        &self,
+        child: &DomainApplication,
+        carrier: &ValueType,
+    ) -> Option<DomainApplication> {
+        let parent = self.entries.get(&child.declaration)?.parent.as_ref()?;
+        Some(parent.substitute(&child.declaration, &self.bind_arguments(child, carrier)))
     }
     pub fn known_carrier(
         &self,
@@ -245,12 +294,22 @@ impl Domains<'_> {
             || (self.parent_domain(id).is_some() && declared.carrier() == carrier.carrier())
             || matches!(declared,ValueType::Parameter{owner,..} if owner.as_ref()==id)
     }
+    pub(crate) fn is_ancestor(
+        &self,
+        ancestor: &DeclarationId,
+        child: &DeclarationId,
+    ) -> bool {
+        std::iter::successors(self.parent_domain(child), |id| self.parent_domain(id)).any(|id| id == ancestor)
+    }
     fn parent_domain(
         &self,
         id: &DeclarationId,
     ) -> Option<&DeclarationId> {
-        let (parent, _) = id.path.rsplit_once("::")?;
-        self.paths.get(&(id.package.as_str(), parent)).copied()
+        self.entries
+            .get(id)?
+            .parent
+            .as_ref()
+            .map(|app| &app.declaration)
     }
     pub fn expanded(
         &self,
@@ -290,14 +349,8 @@ impl Domains<'_> {
                 return Err(format!("domain {} belongs to {}, found {carrier}", id.path, info.carrier));
             }
             pending.push((app.clone(), true));
-            if ancestors && let Some(parent) = self.parent_domain(id) {
-                pending.push((
-                    DomainApplication {
-                        declaration: parent.clone(),
-                        arguments: Vec::new(),
-                    },
-                    false,
-                ));
+            if ancestors && let Some(parent) = self.applied_parent(&app, carrier) {
+                pending.push((parent, false));
             }
             if info.alias.is_empty() {
                 atoms.push(app);

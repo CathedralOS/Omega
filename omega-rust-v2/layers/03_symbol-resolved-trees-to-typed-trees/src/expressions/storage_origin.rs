@@ -25,13 +25,15 @@
 //! returned call result to the lifetime checker with its selected signature.
 
 use crate::expressions::body_typer::BodyTyper;
-use crate::{Access, Site, TypeError, TypedExpression, ValueType};
+use crate::{Access, TypeError, ValueType};
 use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
 use omega_resolver::Symbol;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub(super) enum Origin {
+    /// Payload fields are numbered within their active sum case.
+    Case(Box<omega_resolver::DeclarationId>, Box<Origin>),
     /// Holds no loan of invocation-local storage.
     #[default]
     Caller,
@@ -54,6 +56,7 @@ impl Origin {
     }
     pub(super) fn is_local(&self) -> bool {
         match self {
+            Self::Case(_, payload) => payload.is_local(),
             Self::Caller => false,
             Self::Local => true,
             Self::Parts(parts) => parts.iter().any(Self::is_local),
@@ -69,6 +72,7 @@ impl Origin {
         index: usize,
     ) -> Self {
         match self {
+            Self::Case(_, payload) => payload.component(index),
             Self::Parts(parts) => parts.get(index).cloned().unwrap_or(Self::Local),
             other => other.clone(),
         }
@@ -78,6 +82,8 @@ impl Origin {
         other: &Self,
     ) -> Self {
         match (self, other) {
+            (Self::Case(a, x), Self::Case(b, y)) if a == b => Self::Case(a.clone(), Box::new(x.join(y))),
+            (Self::Case(..), _) | (_, Self::Case(..)) => self.whole().join(&other.whole()),
             (Self::Caller, x) | (x, Self::Caller) => x.clone(),
             (Self::Parts(a), Self::Parts(b)) if a.len() == b.len() => Self::parts(a.iter().zip(b).map(|(a, b)| a.join(b)).collect()),
             _ => Self::Local,
@@ -85,9 +91,9 @@ impl Origin {
     }
 }
 
-/// A binding that names a field of borrowed storage in place.
+/// The access and backing storage of a selected place or a pattern alias.
 #[derive(Clone, Debug)]
-pub(super) struct BorrowedPlace {
+pub(super) struct StoragePlace {
     /// The weakest access along the references that reach the field.
     pub(super) access: Access,
     /// Whose storage the field lives in: the borrowed subject's origin.
@@ -101,7 +107,7 @@ pub(super) struct BorrowedPlace {
 #[derive(Clone, Debug, Default)]
 pub(super) struct PatternSource {
     pub(super) value: Origin,
-    pub(super) place: Option<BorrowedPlace>,
+    pub(super) place: Option<StoragePlace>,
     pub(super) parts: Vec<PatternSource>,
 }
 
@@ -119,22 +125,15 @@ impl PatternSource {
         &self,
         subject: &crate::ValueType,
         index: usize,
-    ) -> Self {
+    ) -> Result<Self, &'static str> {
         if let Some(part) = self.parts.get(index) {
-            return part.clone();
+            return Ok(part.clone());
         }
-        let reference = match subject {
-            crate::ValueType::AtLifetime(reference, _) => reference.as_ref(),
-            other => other,
-        };
-        match reference {
-            crate::ValueType::Reference(access, _) => Self {
+        Ok(match subject.reference_parts() {
+            Some((access, _)) => Self {
                 value: self.value.whole(),
-                place: Some(BorrowedPlace {
-                    access: self
-                        .place
-                        .as_ref()
-                        .map_or(access.clone(), |outer| weaker(&outer.access, access)),
+                place: Some(StoragePlace {
+                    access: access.through(self.place.as_ref().map(|p| &p.access))?,
                     backing: self.value.whole(),
                 }),
                 parts: Vec::new(),
@@ -144,24 +143,80 @@ impl PatternSource {
                 place: self.place.clone(),
                 parts: Vec::new(),
             },
-        }
-    }
-}
-
-/// The access a place keeps when it is reached through two references in turn:
-/// a `@mut` reached through `@` only reads, and nothing reads through `@write`.
-pub(super) fn weaker(
-    outer: &Access,
-    inner: &Access,
-) -> Access {
-    match (outer, inner) {
-        (Access::Write, _) | (_, Access::Write) => Access::Write,
-        (Access::Shared, _) | (_, Access::Shared) => Access::Shared,
-        _ => Access::Mut,
+        })
     }
 }
 
 impl BodyTyper<'_, '_> {
+    /// Return the origin of the loans in a result. Lifetimes on a data
+    /// application are arguments; the stored fields determine which are carried.
+    pub(super) fn carried_loans(
+        &self,
+        ty: &ValueType,
+        origin: Origin,
+    ) -> Option<Origin> {
+        use ValueType::*;
+        enum Work {
+            Value(ValueType, Origin),
+            Leave,
+        }
+        let mut work = vec![Work::Value(ty.clone(), origin)];
+        let mut active: Vec<ValueType> = Vec::new();
+        let mut visited = std::collections::HashSet::new();
+        let mut carried = None;
+        while let Some(item) = work.pop() {
+            let Work::Value(ty, origin) = item else {
+                active.pop();
+                continue;
+            };
+            match &ty {
+                Reference(..) | AtLifetime(..) | Parameter { .. } | Witness { .. } => {
+                    if origin.is_local() {
+                        return Some(Origin::Local);
+                    }
+                    carried = Some(Origin::Caller);
+                }
+                Tuple(parts) => work.extend(
+                    parts
+                        .iter()
+                        .enumerate()
+                        .map(|(i, t)| Work::Value(t.clone(), origin.component(i))),
+                ),
+                Array(_, 0) => {}
+                Slice(t) | Array(t, _) | IndexedArray(t, _) | Qualified(t, _) => work.push(Work::Value(*t.clone(), origin)),
+                Nominal(_) | Applied(..) => {
+                    let (owner, args) = ty.nominal_parts().unwrap();
+                    if let Some(enclosing) = active
+                        .iter()
+                        .rev()
+                        .find(|t| t.nominal_parts().is_some_and(|(id, _)| id == owner))
+                        && !enclosing.components().skip(1).any(|t| t == &ty)
+                    {
+                        // An unresolved recursive layout still needs a verifier judgment.
+                        carried = Some(Origin::Caller);
+                        continue;
+                    }
+                    if !visited.insert((ty.clone(), origin.clone())) {
+                        continue;
+                    }
+                    work.push(Work::Leave);
+                    let active_case = match &origin {
+                        Origin::Case(case, _) => Some(case.as_ref()),
+                        _ => None,
+                    };
+                    work.extend(
+                        self.catalog
+                            .stored_fields(owner, active_case)
+                            .map(|(i, field)| Work::Value(self.catalog.types.apply_type_arguments(&field.ty, owner, args), origin.component(i))),
+                    );
+                    active.push(ty);
+                }
+                _ => {}
+            }
+        }
+        carried
+    }
+
     /// Type an operand that names a place without reading it. A binding of a
     /// field of borrowed storage names that field in place, and so does a
     /// field selection, so a borrow, assignment, field selection or index
@@ -176,11 +231,7 @@ impl BodyTyper<'_, '_> {
         if source.nodes[node_index].kind == NodeKind::Paren {
             let (ty, borrowed) = self.place_operand(self.unit.single_child(node_index)?)?;
             self.set_origin(node_index, self.origin(self.unit.single_child(node_index)?));
-            self.output.expressions.push(TypedExpression {
-                node: source.node_id(node_index),
-                site: Site::at(source, node_index),
-                ty: ty.clone(),
-            });
+            self.record_expression(node_index, ty.clone());
             return Ok((ty, borrowed));
         }
         if source.nodes[node_index].kind == NodeKind::FieldAccess {
@@ -188,20 +239,15 @@ impl BodyTyper<'_, '_> {
         }
         if source.nodes[node_index].kind == NodeKind::PathExpression
             && let Some(Symbol::Binding { span, .. }) = self.unit.symbol(node_index)
-            && let Some(place) = self.borrowed_places.get(span)
+            && let Some(access) = self.borrowed_binding(node_index, span)
         {
-            let access = place.access.clone();
             let ty = self
                 .locals
                 .get(span)
                 .cloned()
                 .ok_or_else(|| TypeError::at(source, node_index, "missing type of resolved binding"))?;
             self.set_origin(node_index, self.binding_origin(span));
-            self.output.expressions.push(TypedExpression {
-                node: source.node_id(node_index),
-                site: Site::at(source, node_index),
-                ty: ty.clone(),
-            });
+            self.record_expression(node_index, ty.clone());
             return Ok((ty, Some(access)));
         }
         Ok((self.type_expression(node_index)?, None))
@@ -216,6 +262,12 @@ impl BodyTyper<'_, '_> {
         node_index: usize,
     ) -> Result<(ValueType, PatternSource), TypeError> {
         let source = self.unit.file;
+        if source.nodes[node_index].kind == NodeKind::Paren {
+            let (ty, part) = self.pattern_subject(self.unit.single_child(node_index)?)?;
+            self.set_origin(node_index, part.value.clone());
+            self.record_expression(node_index, ty.clone());
+            return Ok((ty, part));
+        }
         if source.nodes[node_index].kind == NodeKind::Tuple {
             let mut types = Vec::new();
             let mut parts = Vec::new();
@@ -227,17 +279,13 @@ impl BodyTyper<'_, '_> {
             let ty = ValueType::Tuple(types);
             let value = Origin::parts(parts.iter().map(|p| p.value.clone()).collect());
             self.set_origin(node_index, value.clone());
-            self.output.expressions.push(TypedExpression {
-                node: source.node_id(node_index),
-                site: Site::at(source, node_index),
-                ty: ty.clone(),
-            });
+            self.record_expression(node_index, ty.clone());
             return Ok((ty, PatternSource { value, place: None, parts }));
         }
         let (ty, borrowed) = self.place_operand(node_index)?;
-        let place = borrowed.map(|access| BorrowedPlace {
+        let place = borrowed.map(|access| StoragePlace {
             access,
-            backing: self.backing(node_index),
+            backing: self.storage_place(node_index).backing,
         });
         Ok((
             ty,
@@ -250,10 +298,14 @@ impl BodyTyper<'_, '_> {
     }
     /// The access of the borrowed storage a binding names in place, if any.
     pub(super) fn borrowed_binding(
-        &self,
+        &mut self,
+        node: usize,
         span: &SourceSpan,
     ) -> Option<Access> {
-        self.borrowed_places.get(span).map(|place| place.access.clone())
+        let (binder, place) = self.borrowed_places.get(span)?;
+        let access = place.access.clone();
+        self.record_place(node, *binder, None, None);
+        Some(access)
     }
     /// The origin of a typed expression.
     pub(super) fn origin(
@@ -294,48 +346,90 @@ impl BodyTyper<'_, '_> {
     pub(super) fn bind_source(
         &mut self,
         span: SourceSpan,
+        binder: usize,
+        ty: ValueType,
         source: &PatternSource,
     ) {
+        self.locals.insert(span, ty);
         self.set_binding_origin(span, source.value.clone());
         match &source.place {
-            Some(place) => self.borrowed_places.insert(span, place.clone()),
+            Some(place) => self.borrowed_places.insert(span, (binder, place.clone())),
             None => self.borrowed_places.remove(&span),
         };
     }
-    /// Whose storage a typed place denotes. Field selection and indexing
-    /// record their backing when they type the place.
-    pub(super) fn backing(
-        &self,
-        node_index: usize,
-    ) -> Origin {
-        let source = self.unit.file;
-        match source.nodes[node_index].kind {
-            NodeKind::Paren => self
-                .unit
-                .single_child(node_index)
-                .map_or(Origin::Local, |child| self.backing(child)),
-            NodeKind::FieldAccess | NodeKind::Index => self.backings.get(&node_index).cloned().unwrap_or_default(),
-            NodeKind::PathExpression => match self.unit.symbol(node_index) {
-                Some(Symbol::Binding { span, .. }) => self
-                    .borrowed_places
-                    .get(span)
-                    .map_or(Origin::Local, |place| place.backing.clone()),
-                // Declarations name storage this invocation does not own.
-                _ => Origin::Caller,
-            },
-            // Every other operand is a temporary of this invocation.
-            _ => Origin::Local,
+    /// Assign through the selected storage, including pattern names for that storage.
+    pub(super) fn store_origin(
+        &mut self,
+        place: usize,
+        stored: Origin,
+    ) {
+        let file = self.unit.file;
+        let (root, path) = self.output.place_path(file.node_id(place));
+        let binding = |node: omega_resolver::TreeNodeId| match self.unit.symbol(node.node) {
+            Some(Symbol::Binding { binder_node, .. }) => file.node_id(*binder_node),
+            _ => node,
+        };
+        // A direct binding assignment replaces the binding. An alias captured
+        // from its old referent continues to denote that evaluated place.
+        let mut updates = Vec::new();
+        if !path.is_empty() {
+            for (&span, (binder, _)) in &self.borrowed_places {
+                let (base, alias) = self.output.place_path(file.node_id(*binder));
+                if binding(base) != binding(root)
+                    || !path
+                        .iter()
+                        .zip(&alias)
+                        .all(|(a, b)| a.projection == b.projection)
+                {
+                    continue;
+                }
+                // Separate evaluations can observe different referents of a mutable binding.
+                let value = if root == base && path.len() == alias.len() {
+                    stored.clone()
+                } else {
+                    self.binding_origin(&span).join(&stored.whole())
+                };
+                updates.push((span, value));
+            }
+        }
+        if let Some(Symbol::Binding { span, .. }) = self.unit.symbol(root.node) {
+            let origin = if path.is_empty() {
+                stored
+            } else {
+                self.binding_origin(span).join(&stored.whole())
+            };
+            updates.push((*span, origin));
+        }
+        for (span, value) in updates {
+            self.set_binding_origin(span, value);
         }
     }
-    pub(super) fn set_backing(
-        &mut self,
-        node_index: usize,
-        backing: Origin,
-    ) {
-        if backing == Origin::Caller {
-            self.backings.remove(&node_index);
-        } else {
-            self.backings.insert(node_index, backing);
+    pub(super) fn storage_place(
+        &self,
+        node: usize,
+    ) -> StoragePlace {
+        let source = self.unit.file;
+        let node = source.ungroup(node);
+        if let Some(place) = self.places.get(&node) {
+            return place.clone();
+        }
+        if let Some(Symbol::Binding { span, .. }) = self.unit.symbol(node) {
+            return self
+                .borrowed_places
+                .get(span)
+                .map(|(_, place)| place.clone())
+                .unwrap_or_else(|| StoragePlace {
+                    access: if self.writable.contains(span) { Access::Mut } else { Access::Shared },
+                    backing: Origin::Local,
+                });
+        }
+        let backing = match source.nodes[node].kind {
+            NodeKind::PathExpression | NodeKind::Index => Origin::Caller,
+            _ => Origin::Local,
+        };
+        StoragePlace {
+            access: Access::Shared,
+            backing,
         }
     }
 }

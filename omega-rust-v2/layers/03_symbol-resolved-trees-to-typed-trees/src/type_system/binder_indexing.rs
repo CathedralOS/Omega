@@ -6,38 +6,66 @@ use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
 use std::collections::HashMap;
 
+fn has_generic_arguments(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::Machine | NodeKind::AsmMachine | NodeKind::MathLet | NodeKind::Data | NodeKind::Trait | NodeKind::Conformance | NodeKind::Domain
+    )
+}
+
 impl<'a> ResolvedSourceFile<'a> {
-    pub fn index_generic_parameters(
+    /// Fields and cases share the enclosing declaration's specialization.
+    pub(crate) fn specialization_owner(
+        &self,
+        node: usize,
+    ) -> Option<&'a DeclarationId> {
+        self.file
+            .ancestors(node)
+            .filter_map(|n| self.declaration_at(n))
+            .find(|id| has_generic_arguments(id.kind))
+    }
+
+    pub fn index_declaration_headers(
         &mut self,
         types: &mut TypeCatalog<'a>,
     ) -> Result<(), TypeError> {
         let source = self.file;
-        for (_, id) in self.definitions() {
-            if matches!(
-                id.kind,
-                NodeKind::Machine | NodeKind::AsmMachine | NodeKind::MathLet | NodeKind::Data | NodeKind::Trait | NodeKind::Conformance | NodeKind::Domain
-            ) {
-                types.arities.insert(id, 0);
+        for (node, id) in self.tree.declaration_nodes() {
+            if id.kind == NodeKind::Trait && source.nodes[node].has_boundary_modifier() {
+                types.service_traits.insert(id);
+            }
+            if has_generic_arguments(id.kind) {
+                types.generics.entry(id).or_default();
+            }
+            if matches!(id.kind, NodeKind::Data | NodeKind::Trait) {
+                let mut scopes = source
+                    .ancestors(node)
+                    .find(|&parent| source.nodes[parent].kind == NodeKind::Data)
+                    .and_then(|parent| self.declaration_at(parent))
+                    .map(|parent| types.scopes[parent].clone())
+                    .unwrap_or_default();
+                scopes.push(id);
+                types.scopes.insert(id, scopes);
+                if let Some(attr) = source.child(node, NodeKind::Attributes) {
+                    types
+                        .data_properties
+                        .insert(id, data_properties::read(self, attr)?);
+                }
             }
         }
-        for (_, node) in source
+        for node in source
             .nodes
             .iter()
-            .enumerate()
-            .filter(|(_, node)| node.kind == NodeKind::GenericParams)
+            .filter(|node| node.kind == NodeKind::GenericParams)
         {
             let owner = self.declaration(node.parent.unwrap())?;
-            let mut index = 0;
-            for &p in &node.children {
+            let generic = types.generics.entry(owner).or_default();
+            for (name, p, _) in source.generic_parameters(node.parent.unwrap()) {
                 if source.nodes[p].kind == NodeKind::SomeParam {
                     if owner.kind != NodeKind::Data {
                         return Err(TypeError::unsupported(source, p));
                     }
-                    let name = source.nodes[p]
-                        .words()
-                        .nth(1)
-                        .ok_or_else(|| TypeError::unsupported(source, p))?;
-                    let witness = types.witnesses.entry(owner).or_default();
+                    let witness = &mut generic.witness_count;
                     self.parameters.insert(
                         name.span,
                         ValueType::Witness {
@@ -49,26 +77,26 @@ impl<'a> ResolvedSourceFile<'a> {
                     *witness += 1;
                     continue;
                 }
-                let name = match source.nodes[p].kind {
+                let mut multiplicity = None;
+                match source.nodes[p].kind {
                     NodeKind::TypeParam => {
                         for &attr in &source.nodes[p].children {
                             let prop = data_properties::read(self, attr)?;
                             if prop.carry.is_some() {
                                 return Err(TypeError::unsupported(source, attr));
                             }
-                            types.bounds.insert((owner, index), prop.multiplicity);
+                            multiplicity = Some(prop.multiplicity);
                         }
-                        source.nodes[p].words().next()
                     }
-                    NodeKind::KindedParam => source.nodes[p].words().next(),
-                    NodeKind::ConstParam | NodeKind::MachineParam => source.nodes[p].words().nth(1),
-                    NodeKind::LifetimeParam => {
-                        types.lifetimes.insert((owner, index));
-                        source.nodes[p].words().next()
-                    }
+                    NodeKind::KindedParam | NodeKind::ConstParam | NodeKind::MachineParam | NodeKind::LifetimeParam => {}
                     _ => return Err(TypeError::unsupported(source, p)),
                 }
-                .ok_or_else(|| TypeError::unsupported(source, p))?;
+                let index = generic.parameters.len();
+                generic.parameters.push(super::type_catalog::GenericParameter {
+                    kind: source.nodes[p].kind,
+                    multiplicity,
+                    carrier: None,
+                });
                 self.parameters.insert(
                     name.span,
                     ValueType::Parameter {
@@ -76,36 +104,6 @@ impl<'a> ResolvedSourceFile<'a> {
                         index,
                     },
                 );
-                index += 1;
-            }
-            types.arities.insert(owner, index);
-        }
-        Ok(())
-    }
-    pub fn index_enclosing_scopes(
-        &self,
-        types: &mut TypeCatalog<'a>,
-    ) -> Result<(), TypeError> {
-        let source = self.file;
-        for (node_index, _) in source
-            .nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, d)| d.kind == NodeKind::Data)
-        {
-            let id = self.declaration(node_index)?;
-            let mut chain = source
-                .enclosing_contexts(node_index)
-                .filter(|&a| source.nodes[a].kind == NodeKind::Data)
-                .map(|a| self.declaration(a))
-                .collect::<Result<Vec<_>, _>>()?;
-            chain.reverse();
-            chain.push(id);
-            types.scopes.insert(id, chain);
-            if let Some(attr) = source.child(node_index, NodeKind::Attributes) {
-                types
-                    .multiplicities
-                    .insert(id, data_properties::read(self, attr)?.multiplicity);
             }
         }
         Ok(())
@@ -115,43 +113,44 @@ impl<'a> ResolvedSourceFile<'a> {
         node_index: usize,
         id: &DeclarationId,
         types: &TypeCatalog<'_>,
-        candidate: Option<&DeclarationId>,
     ) -> Result<ValueType, TypeError> {
         let source = self.file;
-        let node = &source.nodes[node_index];
         let mut groups = HashMap::new();
-        for &section in &node.children {
+        for &section in self.file.reference_sections(node_index) {
             if !matches!(source.nodes[section].kind, NodeKind::TypeArgs | NodeKind::ExpressionArgs) {
                 return Err(TypeError::unsupported(source, section));
             }
-            let Some(Symbol::Declaration(owner)) = self.application_name(section).map(|name| &name.target) else {
-                return Err(TypeError::at(source, section, "unresolved type application owner"));
-            };
-            if owner.kind == NodeKind::Domain && matches!(self.symbol(node_index),Some(Symbol::Declaration(id)) if id==owner) {
-                // A qualified carrier and its attached domain have separate argument lists.
+            let application = self.application_name(section).map(|name| &name.target);
+            if application.is_some_and(Symbol::names_domain)
+                && self
+                    .name_in_role(node_index, true)
+                    .is_some_and(Symbol::names_domain)
+            {
+                // Domain indices belong to the domain application, including on an ancestor segment.
                 continue;
             }
-            let mut substitutions = types.formals(owner);
-            let mut values = Vec::with_capacity(source.nodes[section].children.len());
-            for (index, &arg) in source.nodes[section].children.iter().enumerate() {
-                if index >= substitutions.len() {
-                    return Err(TypeError::at(source, section, "excess generic arguments"));
-                }
-                let bound = types
-                    .bound(owner, index)
-                    .map(|t| t.substitute(owner, &substitutions));
-                let value = self.raw_bound_argument(arg, types, owner, index, candidate, bound.as_ref())?;
-                substitutions[index] = value.clone();
-                values.push(value);
-            }
-            let values = types
-                .solve_arguments(owner, values)
-                .map_err(|m| TypeError::at(source, section, m))?;
-            groups.insert(owner, values);
+            let Some(Symbol::Declaration(owner)) = application else {
+                return Err(TypeError::at(source, section, "unresolved type application owner"));
+            };
+            groups.insert(owner, section);
         }
         let mut args = Vec::new();
-        for &owner in &types.scopes[id] {
-            if let Some(selected) = groups.remove(owner) {
+        for (depth, &owner) in types.scopes[id].iter().enumerate() {
+            if let Some(section) = groups.remove(owner) {
+                let arguments = &source.nodes[section].children;
+                let capture = |ty: &ValueType| {
+                    types
+                        .scoped_arguments(id, &args)
+                        .take(depth)
+                        .fold(ty.clone(), |bound, (outer, selected)| bound.substitute(outer, selected))
+                };
+                let mut selected = self.bind_formals(section, owner, arguments, types, capture, |index, arg, bound| {
+                    self.raw_bound_argument(arg, types, owner, index, bound)
+                })?;
+                selected.truncate(arguments.len());
+                let selected = types
+                    .solve_arguments(owner, selected)
+                    .map_err(|m| TypeError::at(source, section, m))?;
                 for (index, arg) in selected.iter().enumerate() {
                     types
                         .validate_bound(owner, index, arg)
@@ -160,16 +159,16 @@ impl<'a> ResolvedSourceFile<'a> {
                 args.extend(selected);
             } else if owner != id
                 && source
-                    .enclosing_contexts(node_index)
+                    .ancestors(node_index)
                     .filter_map(|i| self.declaration_at(i))
                     .any(|d| d == owner)
             {
                 args.extend(types.formals(owner));
-            } else if types.arities[owner] != 0 {
+            } else if types.arity(owner) != 0 {
                 return Err(TypeError::at(
                     source,
                     node_index,
-                    format!("{} expects {} type arguments, found 0", owner.path, types.arities[owner]),
+                    format!("{} expects {} type arguments, found 0", owner.path, types.arity(owner)),
                 ));
             }
         }
@@ -182,56 +181,43 @@ impl<'a> ResolvedSourceFile<'a> {
             ValueType::Applied(Box::new(id.clone()), args)
         })
     }
-    pub(super) fn index_binder_carrier(
+    pub(super) fn parameter_slot(
         &self,
+        span: omega_lexer::SourceSpan,
+        types: &TypeCatalog<'a>,
+    ) -> Option<(&'a DeclarationId, usize)> {
+        let ValueType::Parameter { owner, index } = self.parameters.get(&span)? else {
+            return None;
+        };
+        let (&declaration, _) = types.generics.get_key_value(owner.as_ref())?;
+        Some((declaration, *index))
+    }
+
+    pub(super) fn index_binder_carrier(
+        &mut self,
         node_index: usize,
+        annotation: usize,
         types: &mut TypeCatalog<'a>,
     ) -> Result<(), TypeError> {
         let node = &self.file.nodes[node_index];
-        let telescope = node
-            .parent
+        let name = node
+            .binder_name()
+            .expect("a binder annotation belongs to a named parameter");
+        let (owner, index) = self
+            .parameter_slot(name.span, types)
             .ok_or_else(|| TypeError::unsupported(self.file, node_index))?;
-        let owner = self.declaration(
-            self.file.nodes[telescope]
-                .parent
-                .ok_or_else(|| TypeError::unsupported(self.file, node_index))?,
-        )?;
-        let index = self.file.nodes[telescope]
-            .children
-            .iter()
-            .take_while(|&&i| i != node_index)
-            .filter(|&&i| self.file.nodes[i].kind != NodeKind::SomeParam)
-            .count();
-        let annotation = self.single_child(node_index)?;
-        if matches!(self.symbol(annotation),Some(Symbol::Declaration(id)) if id.kind==NodeKind::Machine)
-            || self.file.nodes[annotation].kind == NodeKind::PathType && self.file.nodes[annotation].path() == "machine"
-        {
-            return Ok(());
-        }
-        let carrier = if let Some(Symbol::Declaration(schema)) = self.symbol(annotation)
-            && schema.kind == NodeKind::Trait
-        {
-            let args = self
-                .file
-                .child(annotation, NodeKind::TypeArgs)
-                .into_iter()
-                .flat_map(|a| self.file.nodes[a].children.iter().copied())
-                .enumerate()
-                .map(|(i, arg)| self.argument(arg, types, schema, i))
-                .collect::<Result<Vec<_>, _>>()?;
-            if args.len() != types.arities[schema] {
-                return Err(TypeError::at(self.file, annotation, "incorrect evidence application arity"));
+        match self.symbol(annotation) {
+            Some(Symbol::Builtin(name)) if name == "machine" => {
+                self.inferred_callbacks.insert(node_index, (owner, index));
+                return Ok(());
             }
-            ValueType::Evidence(Box::new(crate::RequirementSlot {
-                declaration: schema.clone(),
-                trait_arguments: args,
-            }))
-        } else {
-            let raw = self.raw_type(annotation, None, types)?;
-            types
-                .normalize_at(raw, self.file, annotation)
-                .map_err(|reason| TypeError::at(self.file, annotation, reason))?
-        };
+            Some(Symbol::Declaration(id)) if id.kind == NodeKind::Machine => {
+                self.nominal_callbacks.push((annotation, (owner, index)));
+                return Ok(());
+            }
+            _ => {}
+        }
+        let carrier = self.annotation(annotation, types)?;
         if !matches!(
             carrier,
             ValueType::Integer { .. }
@@ -243,10 +229,16 @@ impl<'a> ResolvedSourceFile<'a> {
         ) {
             return Err(TypeError::unsupported(self.file, node_index));
         }
-        if node.kind == NodeKind::KindedParam && matches!(carrier, ValueType::Integer { .. }) {
-            types.runtime_indices.insert((owner, index));
+        if matches!(carrier, ValueType::Universe { .. }) {
+            self.universe_binders.insert(node_index);
+            if omega_resolver::is_builtin_type_name(name.text) {
+                return Err(TypeError {
+                    span: name.span,
+                    ..TypeError::at(self.file, node_index, format!("builtin type {} cannot be redeclared", name.text))
+                });
+            }
         }
-        types.const_carriers.insert((owner, index), carrier);
+        types.set_carrier(owner, index, carrier);
         Ok(())
     }
     pub fn index_static_equations(
@@ -266,7 +258,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     continue;
                 }
                 let term = self.single_child(clause)?;
-                let Some(omega_resolver::OperatorRole::TypeEquality { left: l, right: r }) = self.operator(term).map(|operator| operator.role) else {
+                let Some((l, r)) = self.equality_operands(term)? else {
                     continue;
                 };
                 let binding = |node_index| match self.symbol(node_index) {
@@ -285,26 +277,15 @@ impl<'a> ResolvedSourceFile<'a> {
                     .or_else(|| binding(r).map(|i| (i, l)))
                 {
                     let pattern = self.annotation(pattern, types)?;
-                    types.equations.entry(owner).or_default().push((i, pattern));
+                    types
+                        .generics
+                        .get_mut(owner)
+                        .expect("indexed data")
+                        .equations
+                        .push((i, pattern));
                 }
             }
         }
-        Ok(())
-    }
-    pub(super) fn index_alias(
-        &self,
-        node_index: usize,
-        types: &mut TypeCatalog<'a>,
-    ) -> Result<(), TypeError> {
-        let source = self.file;
-        let node = &source.nodes[node_index];
-        let ty = *node
-            .children
-            .last()
-            .ok_or_else(|| TypeError::unsupported(source, node_index))?;
-        types
-            .aliases
-            .insert(self.declaration(node_index)?, self.raw_type(ty, None, types)?);
         Ok(())
     }
 }

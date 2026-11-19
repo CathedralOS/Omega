@@ -382,7 +382,7 @@ impl SyntaxParser<'_> {
         Err(self.error("a clause, `{` or `;`"))
     }
 
-    pub(crate) fn refuse_separator_before_body(&self) -> Parsed {
+    pub(crate) fn refuse_separator_before_body(&mut self) -> Parsed {
         let is_separator = self.at(Punctuation::Semicolon) || self.at(Punctuation::Comma);
 
         if is_separator && self.nth_at(1, Punctuation::LeftBrace) {

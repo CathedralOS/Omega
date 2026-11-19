@@ -27,13 +27,7 @@ pub(crate) fn check_cleanup_selections(
                 .signatures
                 .get(machine)
                 .ok_or_else(|| TypeError::at(f, head, "cleanup must select one exact machine"))?;
-            let args = f
-                .child(head, NodeKind::TypeArgs)
-                .into_iter()
-                .flat_map(|section| f.nodes[section].children.iter().copied())
-                .enumerate()
-                .map(|(i, a)| unit.argument(a, &catalog.types, machine, i))
-                .collect::<Result<Vec<_>, _>>()?;
+            let args = unit.application_arguments(head, machine, &catalog.types)?;
             let carrier = if owner.kind == NodeKind::Domain {
                 catalog.types.domains.carrier(owner).clone()
             } else {
@@ -45,11 +39,7 @@ pub(crate) fn check_cleanup_selections(
             {
                 return Err(TypeError::at(f, n, "cleanup selection requires the carrier's owning package"));
             }
-            if args.len() != catalog.types.arities[machine]
-                || sig.result != ValueType::NoResult
-                || sig.params.len() != 1
-                || sig.params[0].1.substitute(machine, &args) != carrier
-            {
+            if sig.result != ValueType::NoResult || sig.parameters.len() != 1 || sig.parameters[0].1.substitute(machine, &args) != carrier {
                 return Err(TypeError::at(f, n, "cleanup must consume exactly one owned carrier and return no value"));
             }
             if sig
@@ -74,6 +64,7 @@ pub(crate) fn check_cleanup_selections(
                 arguments: args,
             });
             stage.obligations.push(TypingObligation {
+                node: f.node_id(n),
                 site: Site::at(f, n),
                 kind: ObligationKind::CleanupContract(machine.clone()),
             });
@@ -92,12 +83,7 @@ pub(crate) fn check_cleanup_selections(
         }
     }
     for expression in &stage.expressions {
-        compatible(&expression.ty, &plans, catalog).map_err(|m| TypeError {
-            package: expression.site.package.clone(),
-            file: expression.site.file.clone(),
-            span: expression.site.span,
-            message: m.into(),
-        })?;
+        compatible(&expression.ty, &plans, catalog).map_err(|m| TypeError::for_site(&expression.site, m))?;
     }
     Ok(())
 }
@@ -115,18 +101,18 @@ fn compatible(
             &plan.machine,
             plan.arguments
                 .iter()
-                .map(|t| catalog.types.field_type(t, id, args))
+                .map(|t| catalog.types.apply_type_arguments(t, id, args))
                 .collect::<Vec<_>>(),
         ));
     }
     for d in ty.domains() {
         if let Some(plan) = plans.get(&d.declaration) {
-            let args = if d.arguments.is_empty() && catalog.types.arities[&d.declaration] == 1 {
+            let args = if d.arguments.is_empty() && catalog.types.arity(&d.declaration) == 1 {
                 std::slice::from_ref(ty.carrier())
             } else {
                 d.arguments.as_slice()
             };
-            if args.len() != catalog.types.arities[&d.declaration] {
+            if args.len() != catalog.types.arity(&d.declaration) {
                 return Err("incomplete cleanup domain application");
             }
             let candidate = (

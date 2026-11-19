@@ -68,7 +68,9 @@ version = "0.0.0"
 dependencies = [
  "omega-lexer",
  "omega-parser",
+ "omega-preparation",
  "omega-resolver",
+ "omega-toolchain",
  "omega-typer",
 ]
 
@@ -92,12 +94,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-preparation"
+version = "0.0.0"
+dependencies = [
+ "num-bigint",
+ "omega-lexer",
+ "omega-parser",
+ "omega-resolver",
+ "omega-typer",
+]
+
+[[package]]
 name = "omega-resolver"
 version = "0.0.0"
 dependencies = [
  "omega-lexer",
  "omega-parser",
  "spec-corpus",
+]
+
+[[package]]
+name = "omega-toolchain"
+version = "0.0.0"
+dependencies = [
+ "omega-lexer",
+ "omega-parser",
+ "omega-resolver",
 ]
 
 [[package]]
@@ -111,6 +133,7 @@ dependencies = [
  "omega-lexer",
  "omega-parser",
  "omega-resolver",
+ "omega-toolchain",
  "spec-corpus",
 ]
 

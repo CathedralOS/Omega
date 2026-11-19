@@ -80,6 +80,15 @@ fn a_named_family_checks_nested_mathematical_subjects_in_declaration_order() {
 }
 
 #[test]
+fn mathematical_signature_cycles_report_the_first_waiting_declaration() {
+    let first = "let left(x:u8):right(x);";
+    let source = format!("{first} let right(x:u8):left(x);");
+    let error = check(&[("cycle.omg", &source)]).unwrap_err();
+    assert_eq!(error.message, "cyclic mathematical family signatures");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(first.as_bytes()));
+}
+
+#[test]
 fn dependent_arrows_apply_to_exact_subjects_and_ignore_binder_spelling() {
     let source = "let apply<A,F:A->core::Type<0>>(f:(x:A)->F(x),y:A):F(y)=f(y); let rename<A,F:A->core::Type<0>>(f:(x:A)->F(x)):(z:A)->F(z)=f;";
     check(&[("dependent.omg", source)]).unwrap();
@@ -376,4 +385,134 @@ fn generated_alias_compositions_select_the_expected_binding() {
             assert!(correct, "{bound}\nexpected type role = {takes_type}, selected {argument:?}");
         }
     }
+}
+
+#[test]
+fn each_overload_uses_its_own_normalized_bound_to_select_the_argument_name() {
+    let caller = "data X{} machine f<X:u8>() { pick::<X>(true); pick::<X>(0u8); }";
+    let files = [
+        ("type/kind.omg", "public data Sort=core::Type<0>;"),
+        ("value/kind.omg", "public data Sort=u8;"),
+        ("a.omg", "use type::Sort; machine pick<A:Sort>(x:u8){}"),
+        ("b.omg", "use value::Sort; machine pick<N:Sort>(x:bool){}"),
+        ("caller.omg", caller),
+    ];
+    let stage = check(&files).unwrap();
+    let calls: Vec<_> = stage
+        .calls
+        .iter()
+        .filter(|c| c.machine.path == "pick")
+        .collect();
+    assert_eq!(calls.len(), 2);
+    assert!(matches!(&calls[0].type_arguments[..], [ValueType::Parameter { owner, index: 0 }] if owner.path == "f"));
+    assert!(matches!(&calls[1].type_arguments[..], [ValueType::Nominal(id)] if id.path == "X"));
+    for (source, message) in [
+        ("data Sort=core::Type<0>; machine f<u8:Sort>(){}", "builtin type u8 cannot be redeclared"),
+        (
+            "data Sort=core::Type<0>; machine f<A:Sort,N:u8>() requires (A) == N {}",
+            "type equality mixes a type and a value",
+        ),
+    ] {
+        assert_eq!(check(&[("f.omg", source)]).unwrap_err().message, message);
+    }
+    assert!(check(&[("f.omg", "data Byte=u8; machine f<N:Byte>(){} machine g(){f::<u8>()}")]).is_err());
+    let equal = "data Sort=core::Type<0>; machine f<A:Sort>() requires (A) == u8 {}";
+    assert!(
+        check(&[("f.omg", equal)])
+            .unwrap()
+            .operations
+            .iter()
+            .any(|op| op.token == "type ==")
+    );
+}
+
+#[test]
+fn a_generic_argument_depends_only_on_the_name_its_bound_selects() {
+    let source = "data Buffer<N:u8>{} const X:u8=3; data X=Buffer<X>; machine f(x:X)->Buffer<3>{x}";
+    check(&[("aliases.omg", source)]).unwrap();
+    let real_cycle = "data Box<T>{} data X=Box<X>; const X:u8=3;";
+    assert!(
+        check(&[("aliases.omg", real_cycle)])
+            .unwrap_err()
+            .message
+            .contains("cyclic")
+    );
+    let shadow = "data Sort=core::Type<0>; const X:u8=7; machine f<X:Sort>()->u8{X}";
+    check(&[("shadow.omg", shadow)]).unwrap();
+}
+
+#[test]
+fn mixed_equality_is_a_typing_error_at_the_whole_expression() {
+    for (parameters, predicate) in [
+        ("x:u32", "(T) == x"),
+        ("x:u32", "x == (T)"),
+        ("u32:u16", "T == u32"),
+    ] {
+        let source = format!("machine f<T>({parameters}) requires {predicate} {{}}");
+        let refusal = check(&[("equality.omg", &source)]).unwrap_err();
+        assert_eq!(refusal.message, "type equality mixes a type and a value");
+        assert_eq!(refusal.span.slice(source.as_bytes()), Some(predicate.as_bytes()));
+    }
+    let source = "data Sort=core::Type<0>; machine f<T:Sort>()->u8{T}";
+    assert!(check(&[("role.omg", source)]).is_err());
+}
+
+#[test]
+fn explicit_function_arguments_use_the_applied_carrier() {
+    let declarations = "machine take<A,F:A->A>(){} let project<A,F:A->A>(x:A):A=x; trait Host<A>{machine take<F:A->A>();}";
+    for (application, result) in [
+        ("take::<u8,f>()", ""),
+        ("Host::<u8>::take::<f>()", ""),
+        ("project::<u8,f>(x)", "->u8"),
+    ] {
+        let code = format!("{declarations} machine caller(f:u8->u8,x:u8){result}{{{application}}}");
+        let stage = check(&[("application.omg", &code)]).unwrap();
+        let selected = if application.starts_with("project") {
+            stage
+                .obligations
+                .iter()
+                .find_map(|o| match &o.kind {
+                    omega_typer::ObligationKind::MathematicalApplication { generic_arguments, .. } => Some(generic_arguments),
+                    _ => None,
+                })
+                .unwrap()
+        } else {
+            &stage
+                .calls
+                .iter()
+                .find(|c| c.site.file == "application.omg")
+                .unwrap()
+                .type_arguments
+        };
+        assert!(matches!(selected.last(), Some(ValueType::Subject { declaration, .. }) if declaration.span.slice(code.as_bytes()) == Some(b"f")));
+        let wrong = code.replace("f:u8->u8", "f:u8->bool");
+        assert!(
+            check(&[("application.omg", &wrong)])
+                .unwrap_err()
+                .message
+                .contains("wrong carrier")
+        );
+    }
+}
+
+#[test]
+fn nested_data_arguments_use_the_enclosing_type_in_the_function_bound() {
+    let code = "data Byte=u8; data Outer<A>{data Inner<F:A->A>{}} machine use_it(f:Byte->Byte, x:Outer<u8>::Inner<f>) {}";
+    let stage = check(&[("nested.omg", code)]).unwrap();
+    let use_it = stage
+        .signatures
+        .iter()
+        .find(|s| s.machine.path == "use_it")
+        .unwrap();
+    assert!(
+        matches!(&use_it.parameters[1].1, ValueType::Applied(id, args) if id.path=="Outer::Inner" && matches!(args.as_slice(),
+        [ty, ValueType::Subject{declaration,..}] if ty.to_string()=="u8" && declaration.span.get_start_offset()==code.find("f:Byte").unwrap()))
+    );
+    let wrong = code.replace("Byte->Byte", "Byte->bool");
+    assert!(
+        check(&[("nested.omg", &wrong)])
+            .unwrap_err()
+            .message
+            .contains("wrong carrier")
+    );
 }

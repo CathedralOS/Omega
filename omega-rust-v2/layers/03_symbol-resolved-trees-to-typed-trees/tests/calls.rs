@@ -1,4 +1,6 @@
 mod support;
+#[path = "support/evaluation.rs"]
+mod evaluation;
 use omega_typer::ValueType;
 use support::check;
 
@@ -12,6 +14,7 @@ include!("calls/generic_applications.rs");
 include!("calls/mathematical_evidence.rs");
 include!("calls/numbers_and_operators.rs");
 include!("calls/operator_signatures.rs");
+include!("calls/package_authority.rs");
 include!("calls/result_domain_selection.rs");
 include!("calls/returned_views.rs");
 
@@ -82,5 +85,49 @@ fn permuting_files_preserves_the_whole_typed_stage() {
     let expected = check(&[a, b, c]).unwrap();
     for input in [[a, c, b], [b, a, c], [b, c, a], [c, b, a], [c, a, b]] {
         assert_eq!(check(&input).unwrap(), expected);
+    }
+}
+
+#[test]
+fn imported_operand_types_distinguish_overloads_shadowed_by_value_binders() {
+    let stage = check(&[
+        ("red/point.omg", "public data Point {}"),
+        ("blue/point.omg", "public data Point {}"),
+        ("a.omg", "use red::Point; machine visit<const Point:u8>(p:Point) {}"),
+        ("b.omg", "use blue::Point; machine visit<const Point:u8>(p:Point) {}"),
+        (
+            "caller.omg",
+            "machine f(red:red::Point,blue:blue::Point) { visit::<1>(red); visit::<2>(blue); }",
+        ),
+    ])
+    .unwrap();
+    let owners: Vec<_> = stage
+        .calls
+        .iter()
+        .map(|call| call.machine.signature_owners[0].1.as_str())
+        .collect();
+    assert_eq!(owners, ["red::Point", "blue::Point"]);
+}
+
+#[test]
+fn an_explicit_type_argument_can_name_a_domain_on_its_written_carrier() {
+    let source = "domain<T> T::Flag; machine take<const A:core::Type<0>>(){} machine test(){take::<u8::Flag>();}";
+    let stage = check(&[("main.omg", source)]).unwrap();
+    let call = stage.calls.iter().find(|c| c.machine.path == "take").unwrap();
+    assert_eq!(call.type_arguments.len(), 1);
+    assert_eq!(call.type_arguments[0].carrier().to_string(), "u8");
+    assert!(matches!(call.type_arguments[0].domains(),[domain] if domain.declaration.path=="T::Flag"));
+    for (bound, ambiguous) in [("u8", false), ("core::Type<0>", true)] {
+        let definitions = format!("data T {{}} data Bound={bound}; domain<const T:Bound> T::Flag; domain u8::Flag;");
+        let program = source.replace("domain<T> T::Flag;", &definitions);
+        let result = check(&[("main.omg", &program)]);
+        if ambiguous {
+            let error = result.unwrap_err();
+            assert!(error.message.contains("competing declarations"), "{error:?}");
+        } else {
+            let stage = result.unwrap();
+            let argument = &stage.calls[0].type_arguments[0];
+            assert!(matches!(argument.domains(),[domain] if domain.declaration.path=="u8::Flag"));
+        }
     }
 }

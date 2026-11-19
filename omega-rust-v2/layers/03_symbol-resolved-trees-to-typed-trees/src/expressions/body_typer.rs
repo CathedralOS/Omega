@@ -3,15 +3,23 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::expressions::place_facts;
-use crate::expressions::storage_origin::{BorrowedPlace, Origin};
+use crate::expressions::storage_origin::{Origin, StoragePlace};
 use crate::{ObligationKind, Site, TypedStage, TypingObligation, ValueType};
 use omega_lexer::SourceSpan;
-use omega_parser::NodeKind;
 use std::collections::{HashMap, HashSet};
 
+/// The enclosing construct decides how its expressions may be used. Crash guards and
+/// ranking expressions check values without granting access to erased evidence.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ExpressionContext {
+    Execution,
+    Proof,
+    ContractValue,
+    StaticArgument,
+}
+
 pub(super) struct BodyTyper<'a, 'stage> {
-    pub(super) static_argument: bool,
-    pub(super) logical_argument: bool,
+    pub(super) context: ExpressionContext,
     pub(super) unit: &'a ResolvedSourceFile<'stage>,
     pub(super) catalog: &'a DeclarationCatalog<'stage>,
     pub(super) locals: HashMap<SourceSpan, ValueType>,
@@ -22,11 +30,11 @@ pub(super) struct BodyTyper<'a, 'stage> {
     /// Origins of the values bindings hold; absent means `Origin::Caller`.
     pub(super) binding_origins: HashMap<SourceSpan, Origin>,
     /// Bindings that name a field of borrowed storage in place.
-    pub(super) borrowed_places: HashMap<SourceSpan, BorrowedPlace>,
+    pub(super) borrowed_places: HashMap<SourceSpan, (usize, StoragePlace)>,
     /// Origins of typed expressions, by node index; absent means `Origin::Caller`.
     pub(super) origins: HashMap<usize, Origin>,
-    /// Backings of typed field selections and index places, by node index.
-    pub(super) backings: HashMap<usize, Origin>,
+    /// Backing storage and access established when selecting each place.
+    pub(super) places: HashMap<usize, StoragePlace>,
     pub(super) version: Option<Site>,
     pub(super) cases: HashMap<place_facts::Subject, omega_resolver::DeclarationId>,
 }
@@ -38,8 +46,7 @@ impl<'a, 'stage> BodyTyper<'a, 'stage> {
         output: &'a mut TypedStage,
     ) -> Self {
         Self {
-            static_argument: false,
-            logical_argument: false,
+            context: ExpressionContext::Execution,
             unit,
             catalog,
             output,
@@ -48,7 +55,7 @@ impl<'a, 'stage> BodyTyper<'a, 'stage> {
             binding_origins: HashMap::new(),
             borrowed_places: HashMap::new(),
             origins: HashMap::new(),
-            backings: HashMap::new(),
+            places: HashMap::new(),
             cases: HashMap::new(),
             version: None,
             caller: None,
@@ -57,31 +64,37 @@ impl<'a, 'stage> BodyTyper<'a, 'stage> {
     }
 }
 impl BodyTyper<'_, '_> {
-    pub(super) fn call_use(
-        &self,
+    pub(super) fn record_call_use(
+        &mut self,
         node_index: usize,
     ) -> crate::CallUse {
-        if self.logical_argument {
-            crate::CallUse::Fact
-        } else if self.static_argument {
-            crate::CallUse::StaticArgument
-        } else if self.unit.file.enclosing_contexts(node_index).any(|p| {
-            matches!(
-                self.unit.file.nodes[p].kind,
-                NodeKind::Crashes | NodeKind::Requires | NodeKind::Ensures | NodeKind::Hypothesis | NodeKind::MathLet | NodeKind::Terminates
-            )
-        }) {
-            crate::CallUse::Fact
-        } else {
-            crate::CallUse::Execution
+        match self.context {
+            ExpressionContext::Proof | ExpressionContext::ContractValue => crate::CallUse::Fact,
+            ExpressionContext::StaticArgument => crate::CallUse::StaticArgument,
+            ExpressionContext::Execution => {
+                self.version = Some(Site::at(self.unit.file, node_index));
+                self.cases.clear();
+                crate::CallUse::Execution
+            }
         }
     }
+    pub(super) fn record_expression(
+        &mut self,
+        node: usize,
+        ty: ValueType,
+    ) {
+        self.output
+            .expressions
+            .push(crate::TypedExpression::at(self.unit.file, node, ty));
+    }
+
     pub(super) fn record_obligation(
         &mut self,
         node_index: usize,
         kind: ObligationKind,
     ) {
         self.output.obligations.push(TypingObligation {
+            node: self.unit.file.node_id(node_index),
             site: Site::at(self.unit.file, node_index),
             kind,
         });

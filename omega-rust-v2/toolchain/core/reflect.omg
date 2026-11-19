@@ -1,0 +1,22 @@
+public data TypeSchema<'t> [copy] {
+    storage: @'t [u8];
+}
+
+public data CallableInfo<'t> [copy] {
+    case Machine(declaration_identity: @'t [u8], callable_identity: @'t [u8], source_revision: @'t [u8]);
+    case Requirement(declaration_identity: @'t [u8], callable_identity: @'t [u8], source_revision: @'t [u8]);
+}
+
+public data FieldInfo<'t> {
+    member_identity: @'t [u8];
+    case_identity: @'t [u8];
+    owner_identity: @'t [u8];
+    owner_application: @'t [u8];
+    name: @'t [u8];
+    qualified_type: @'t [u8];
+    declaration_position: u64;
+    has_stable_number: bool;
+    is_erased: bool;
+    stable_number: u64;
+    source_revision: @'t [u8];
+}

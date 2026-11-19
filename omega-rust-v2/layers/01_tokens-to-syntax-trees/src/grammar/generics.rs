@@ -148,9 +148,10 @@ impl SyntaxParser<'_> {
 
         So `Buffer<N>` holds the type-shaped argument `N`, which may turn out to
         name a value, and `Check<N in D>` holds the qualified type `N in D`,
-        which may turn out to be a membership test. Telling which is the
-        resolver's job: it reads the argument by the role of the binder it
-        fills. Three shapes land on the wrong side and must be written with
+        which may turn out to be a membership test. L2 binds the visible names
+        and identifies the declaration that owns the argument list. L3 selects
+        the type or value binding once it knows the parameter's bound.
+        Three shapes land on the wrong side and must be written with
         parentheses: a value that begins with a generic type,
         `Buffer<(Other::<T>::SIZE + 1)>`, a value that begins with a membership
         test of a name, `Check<(x in D && ready)>`, and an array literal of one

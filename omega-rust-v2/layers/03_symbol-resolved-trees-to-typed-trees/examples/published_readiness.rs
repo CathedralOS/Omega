@@ -2,8 +2,9 @@
 //! Each example runs its positive and negative inputs, even if the first one fails.
 use omega_lexer::{SourceSpan, lex};
 use omega_parser::parse_file;
-use omega_resolver::{Dependency, ParsedSource, ResolvedStage, StageSource, Symbol, resolve_stage};
-use omega_typer::{TypedStage, TypedTrees, ValueType, resolve_source_package, type_source_package};
+use omega_resolver::{Dependency, ParsedSource, StageSource, Symbol, SymbolResolvedTrees, resolve_stage};
+use omega_toolchain::resolve_source_package;
+use omega_typer::{TypedStage, TypedTrees, ValueType, type_source_package};
 
 type Source<'a> = (&'a str, &'a str, &'a str);
 struct Failure {
@@ -41,21 +42,16 @@ fn compile<'text>(
             },
         })
         .collect();
-    let resolved = if edges.is_empty() {
-        resolve_source_package(&sources)
-    } else {
-        resolve_stage(&sources, edges)
-    }
-    .map_err(|e| Failure {
+    let name_failure = |e: omega_resolver::NameError| Failure {
         stage: "L2",
         file: e.file,
         span: Some(e.span),
         message: e.message,
-    })?;
+    };
     let typed = if edges.is_empty() {
-        type_source_package(&resolved)
+        type_source_package(&resolve_source_package(&sources).map_err(name_failure)?)
     } else {
-        omega_typer::type_stage(&resolved)
+        omega_typer::type_stage(&resolve_stage(&sources, edges).map_err(name_failure)?)
     }
     .map_err(|e| Failure {
         stage: "L3",
@@ -105,7 +101,7 @@ fn describe(
 fn accept(
     edges: &[Dependency<'_>],
     files: &[Source<'_>],
-    verify: impl FnOnce(&ResolvedStage, &TypedStage) -> bool,
+    verify: impl FnOnce(&SymbolResolvedTrees<'_>, &TypedStage) -> bool,
 ) -> Result<(), String> {
     let typed = compile(files, edges).map_err(|e| describe(&e, files))?;
     if verify(typed.resolved(), &typed) {
@@ -196,11 +192,12 @@ fn codec() -> bool {
                 .all(|(req, package, body)| {
                     s.conformance_rows.iter().any(|r| {
                         r.site.file == "codec.omg"
-                            && r.requirement.package == "messages"
+                            && r.requirement.declaration.package == "messages"
                             && r.implementation.package == *package
-                            && r.requirement.path == *req
+                            && r.requirement.declaration.path == *req
                             && r.implementation.path == *body
-                            && r.trait_arguments
+                            && r.requirement
+                                .trait_arguments
                                 .iter()
                                 .map(ToString::to_string)
                                 .eq(["messages::Message"])
@@ -295,18 +292,22 @@ fn reflection() -> bool {
             selector,
             accept(&[], &files(&source), |n, s| {
                 let selected = n
-                    .uses
-                    .iter()
-                    .any(|u| u.file == "selector.omg" && matches!(&u.target,Symbol::Declaration(id) if id.path==path));
+                    .trees()
+                    .filter(|tree| tree.file.path == "selector.omg")
+                    .flat_map(|tree| tree.occurrences())
+                    .any(|u| matches!(&u.target,Symbol::Declaration(id) if id.path==path));
                 let applied = path != "Buffer::used"
-                    || n.applications.iter().any(|a| {
-                        let name = &n.uses[a.name_use];
-                        name.file == "selector.omg"
-                            && matches!(&name.target,Symbol::Declaration(id) if id.path=="Buffer")
-                            && a.arguments
-                                .iter()
-                                .any(|span| span.slice(source.as_bytes()) == Some(b"u32"))
-                    });
+                    || n.trees()
+                        .filter(|tree| tree.file.path == "selector.omg")
+                        .any(|tree| {
+                            tree.applications().any(|(section, name)| {
+                                matches!(&name.target,Symbol::Declaration(id) if id.path=="Buffer")
+                                    && tree.file.nodes[section]
+                                        .children
+                                        .iter()
+                                        .any(|&arg| tree.file.span(arg).slice(source.as_bytes()) == Some(b"u32"))
+                            })
+                        });
                 let typed=s.expressions.iter().any(|e|e.site.file=="selector.omg" && e.site.span.slice(source.as_bytes())==Some(selector.as_bytes()) && matches!(&e.ty,ValueType::Nominal(id)|ValueType::Applied(id,_) if id.package=="@omega/toolchain" && id.path==format!("language::core::reflect::{kind}")));
                 selected && applied && typed
             }),

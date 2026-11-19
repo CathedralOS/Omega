@@ -4,6 +4,7 @@ pub(crate) mod callback_invocations;
 pub(crate) mod cleanup;
 pub(crate) mod conformance;
 pub(crate) mod effect_clauses;
+pub(crate) mod effect_propagation;
 pub(crate) mod guarded_calls;
 pub(crate) mod logical_hypotheses;
 pub(crate) mod machine_effects;

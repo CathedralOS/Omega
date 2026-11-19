@@ -1,26 +1,8 @@
 //! Computational integer primitives used when forming a static index.
 use crate::ValueType;
-use num_bigint::{BigInt, Sign};
+use num_bigint::BigInt;
 use num_traits::{One, ToPrimitive, Zero};
 
-pub(crate) fn fits(
-    value: &BigInt,
-    carrier: &ValueType,
-) -> bool {
-    let ValueType::Integer { signed, width } = carrier else { return false };
-    if !signed && value.sign() == Sign::Minus {
-        return false;
-    }
-    width.is_none_or(|w| {
-        if *signed && value.sign() == Sign::Minus {
-            (value + 1u8).bits() < w
-        } else if *signed {
-            value.bits() < w
-        } else {
-            value.bits() <= w
-        }
-    })
-}
 pub(crate) fn compute(
     token: &str,
     operands: &[BigInt],
@@ -46,7 +28,7 @@ pub(crate) fn compute(
         "/" | "%" if right.is_zero() => return Err("integer division or remainder by zero".into()),
         "/" | "%" => {
             let quotient = left / right;
-            if op == "%" && !fits(&quotient, carrier) && !matches!(policy, "%" | "|") {
+            if op == "%" && !carrier.contains_integer(&quotient) && !matches!(policy, "%" | "|") {
                 return Err(format!("static integer quotient exceeds {carrier}"));
             }
             if op == "/" { quotient } else { left % right }
@@ -72,7 +54,7 @@ pub(crate) fn compute(
         "^" => left ^ right,
         _ => return Err(format!("unsupported static integer operation {token}")),
     };
-    if fits(&raw, carrier) {
+    if carrier.contains_integer(&raw) {
         return Ok(raw);
     }
     if !matches!(policy, "%" | "|") {

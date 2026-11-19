@@ -9,7 +9,6 @@ use crate::tree::node_kind::NodeKind;
 use crate::tree::syntax_tree::SyntaxTree;
 use crate::tree::tree_event::TreeEvent;
 use omega_lexer::{Punctuation, SourceSpan, Token, TokenKind};
-use std::cell::Cell;
 
 /*
     :NestingLimit
@@ -57,7 +56,7 @@ pub(crate) struct SyntaxParser<'source> {
     token_position: usize,              // Index into `meaningful_token_indices` of the next token to consume.
     events: Vec<TreeEvent>,
     nesting_depth: u32,
-    recorded_error: Cell<Option<ParseError>>, // The error behind the most recent `ParseFailed`. See :SmallFailure.
+    recorded_error: Option<ParseError>, // The error behind the most recent `ParseFailed`. See :SmallFailure.
 }
 
 impl<'source> SyntaxParser<'source> {
@@ -76,11 +75,7 @@ impl<'source> SyntaxParser<'source> {
                 continue;
             }
 
-            let Ok(narrow_token_index) = u32::try_from(token_index) else {
-                return Err(ParseError::new(ParseErrorKind::SourceTooLarge, "fewer tokens", token.get_span()));
-            };
-
-            meaningful_token_indices.push(narrow_token_index);
+            meaningful_token_indices.push(Self::compact_token_index(token_index, token.get_span())?);
         }
 
         // A tree holds a little under three events per meaningful token on the fixtures.
@@ -93,8 +88,15 @@ impl<'source> SyntaxParser<'source> {
             token_position: 0,
             events: Vec::with_capacity(event_capacity),
             nesting_depth: 0,
-            recorded_error: Cell::new(None),
+            recorded_error: None,
         })
+    }
+
+    fn compact_token_index(
+        index: usize,
+        span: SourceSpan,
+    ) -> Result<u32, ParseError> {
+        u32::try_from(index).map_err(|_| ParseError::new(ParseErrorKind::SourceTooLarge, "fewer tokens", span))
     }
 
     /// Hands over the finished tree. Every token must have been consumed.
@@ -302,16 +304,18 @@ impl<'source> SyntaxParser<'source> {
 
     /// Records an error at the next token (unexpected token, or unexpected end if there is none)
     /// and returns the marker to fail with. See :SmallFailure.
+    #[cold]
     pub(crate) fn error(
-        &self,
+        &mut self,
         expected: &'static str,
     ) -> ParseFailed {
         self.fail_with(self.build_error(expected))
     }
 
     /// Records an error of a specific kind at the next token.
+    #[cold]
     pub(crate) fn error_of_kind(
-        &self,
+        &mut self,
         kind: ParseErrorKind,
         expected: &'static str,
     ) -> ParseFailed {
@@ -324,25 +328,20 @@ impl<'source> SyntaxParser<'source> {
     /// caller is told about. The one place that records twice is :IfStatement, which replaces a
     /// plain error with a more useful one.
     pub(crate) fn fail_with(
-        &self,
+        &mut self,
         parse_error: ParseError,
     ) -> ParseFailed {
-        self.recorded_error.set(Some(parse_error));
-
-        ParseFailed
+        ParseFailed::record(&mut self.recorded_error, parse_error)
     }
 
-    /// The error behind the most recent failure, if there has been one.
-    pub(crate) fn get_recorded_error(&self) -> Option<ParseError> {
-        self.recorded_error.get()
-    }
-
-    /// The error to report after a grammar function has returned `ParseFailed`.
-    pub(crate) fn get_error(&self) -> ParseError {
-        // Every `ParseFailed` is made by `fail_with`, so one is always recorded; the fallback is
-        // here so that a mistake in that reasoning reports an odd error and does not panic.
-        self.get_recorded_error()
-            .unwrap_or_else(|| self.build_error("valid source"))
+    /// A failure marker is only issued after recording a diagnostic.
+    #[cold]
+    pub(crate) fn get_error(
+        &self,
+        _failure: ParseFailed,
+    ) -> ParseError {
+        self.recorded_error
+            .expect("a failed grammar rule recorded its diagnostic")
     }
 
     fn build_error(
@@ -384,9 +383,7 @@ impl<'source> SyntaxParser<'source> {
         open_node: OpenNode,
         kind: NodeKind,
     ) -> ClosedNode {
-        if let Some(open_event) = self.events.get_mut(open_node.get_event_index()) {
-            *open_event = TreeEvent::Open(kind);
-        }
+        self.events[open_node.get_event_index()] = TreeEvent::Open(kind);
 
         self.events.push(TreeEvent::Close);
 
@@ -404,14 +401,12 @@ impl<'source> SyntaxParser<'source> {
         OpenNode::new(closed_node.get_event_index())
     }
 
-    pub(crate) fn get_kind(
+    pub(crate) fn has_kind(
         &self,
-        closed_node: ClosedNode,
-    ) -> Option<NodeKind> {
-        match self.events.get(closed_node.get_event_index()) {
-            Some(TreeEvent::Open(kind)) => Some(*kind),
-            _ => None,
-        }
+        node: ClosedNode,
+        kind: NodeKind,
+    ) -> bool {
+        self.events[node.get_event_index()] == TreeEvent::Open(kind)
     }
 
     /// Renames a finished node. Used where a rule learns late that a node was something else.
@@ -420,9 +415,7 @@ impl<'source> SyntaxParser<'source> {
         closed_node: ClosedNode,
         kind: NodeKind,
     ) {
-        if let Some(open_event) = self.events.get_mut(closed_node.get_event_index()) {
-            *open_event = TreeEvent::Open(kind);
-        }
+        self.events[closed_node.get_event_index()] = TreeEvent::Open(kind);
     }
 
     /// True if `closed_node` is the most recent node and holds exactly one token and nothing else.
@@ -454,6 +447,31 @@ impl<'source> SyntaxParser<'source> {
 mod tests {
     use super::SyntaxParser;
     use omega_lexer::lex;
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn token_indices_report_the_first_unrepresentable_position() {
+        let last = u32::MAX as usize;
+        let span = omega_lexer::SourceSpan::new(last + 1, last + 2);
+        assert_eq!(SyntaxParser::compact_token_index(last, span), Ok(u32::MAX));
+        let error = SyntaxParser::compact_token_index(last + 1, span).unwrap_err();
+        assert_eq!(error.get_kind(), crate::ParseErrorKind::SourceTooLarge);
+        assert_eq!(error.get_span(), span);
+        assert!(error.to_string().contains("more tokens than one file may hold"));
+    }
+
+    #[test]
+    fn consuming_at_end_preserves_the_token_stream_and_the_eof_span() {
+        let text = b"> ";
+        let tokens = lex(text).unwrap();
+        let mut parser = SyntaxParser::new(text, &tokens).unwrap();
+        assert!(!parser.nth_touches_next(0));
+        parser.bump();
+        let expected = parser.events.clone();
+        parser.bump();
+        assert_eq!(parser.events, expected);
+        assert_eq!(parser.get_span(0), omega_lexer::SourceSpan::new(text.len(), text.len()));
+    }
 
     #[test]
     fn index_capacity_is_bounded_on_small_and_trivia_heavy_inputs() {

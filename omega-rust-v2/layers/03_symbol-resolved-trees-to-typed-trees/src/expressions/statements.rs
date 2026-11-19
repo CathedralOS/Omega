@@ -1,6 +1,6 @@
 use crate::expressions::body_typer::BodyTyper;
 use crate::expressions::storage_origin::PatternSource;
-use crate::{ObligationKind, Site, TypeError, TypedExpression, ValueType};
+use crate::{ObligationKind, TypeError, ValueType};
 use omega_parser::NodeKind;
 
 impl BodyTyper<'_, '_> {
@@ -21,12 +21,8 @@ impl BodyTyper<'_, '_> {
                 ConstParam if source.nodes[node_index].kind == Fragment => {
                     let ty = self
                         .unit
-                        .raw_type(self.unit.single_child(statement)?, None, &self.catalog.types)?;
-                    self.output.expressions.push(TypedExpression {
-                        node: source.node_id(statement),
-                        site: Site::at(source, statement),
-                        ty,
-                    });
+                        .raw_type(self.unit.single_child(statement)?, &self.catalog.types)?;
+                    self.record_expression(statement, ty);
                 }
                 Use | Data | Const | Trait | Domain | Conformance | MathLet if source.nodes[node_index].kind == Fragment => {}
                 Transition => {
@@ -69,12 +65,12 @@ impl BodyTyper<'_, '_> {
         result: &ValueType,
     ) -> Result<(), TypeError> {
         let source = self.unit.file;
-        if matches!(result, ValueType::Reference(..) | ValueType::AtLifetime(..))
-            && let Some(machine) = source.nodes[body]
-                .parent
-                .filter(|&p| source.nodes[p].kind == NodeKind::Machine)
+        if let Some(machine) = source.nodes[body]
+            .parent
+            .filter(|&p| source.nodes[p].kind == NodeKind::Machine)
+            && let Some(origin) = self.carried_loans(result, self.origin(expr))
         {
-            if self.origin(expr).is_local() {
+            if origin.is_local() {
                 return Err(TypeError::at(source, expr, "returned reference borrows invocation-local storage"));
             }
             self.record_obligation(
@@ -130,7 +126,7 @@ impl BodyTyper<'_, '_> {
             _ => return Err(TypeError::unsupported(source, node_index)),
         };
         let declared = annotation
-            .map(|t| self.unit.annotation(t, &self.catalog.types))
+            .map(|t| self.unit.initialized_annotation(t, &self.catalog.types, None))
             .transpose()?;
         // A destructuring `let` decomposes its initializer in place, as a
         // dispatch does; a plain binding reads its value.
@@ -142,6 +138,7 @@ impl BodyTyper<'_, '_> {
             (value, PatternSource::of(self.origin(expr)))
         };
         let local_type = if let Some(expected) = declared {
+            let expected = crate::type_system::local_lifetimes::FieldLifetimes::from_value(expected, &value);
             self.check_destination(expr, &value, &expected)?;
             expected
         } else {

@@ -1,20 +1,21 @@
 //! L2 retains its indexed syntax and binds each file's occurrences to its
 //! declarations or candidates. Only text and file identities borrow from the caller.
-use crate::{DeclarationId, IndexedSource, NameRole, NameUse, OperatorUse, ResolvedStage, Symbol};
-use omega_lexer::SourceSpan;
-use std::{ops::Deref, sync::Arc};
+use crate::{DeclarationId, IndexedSource, NameRole, NameUse, ResolvedStage, Symbol};
+use std::{collections::BTreeMap, ops::Deref, sync::Arc};
 
-#[derive(Debug, Eq, PartialEq)]
-struct BoundFile<'text> {
-    syntax: IndexedSource<'text>,
-    names: Vec<usize>,
-    definitions: Vec<(usize, usize)>,
-    applications: Vec<usize>,
+#[derive(Debug, Default, Eq, PartialEq)]
+pub(crate) struct TreeBindings {
+    pub(crate) uses: Vec<NameUse>,
+    pub(crate) exports: Vec<usize>,
+    pub(crate) definitions: BTreeMap<usize, usize>,
+    pub(crate) applications: BTreeMap<usize, usize>,
+    pub(crate) patterns: BTreeMap<usize, omega_lexer::SourceSpan>,
+    pub(crate) private_signature_candidates: BTreeMap<usize, Vec<DeclarationId>>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 struct Forest<'text> {
-    files: Vec<BoundFile<'text>>,
+    files: Vec<(IndexedSource<'text>, TreeBindings)>,
     resolution: ResolvedStage,
 }
 
@@ -23,43 +24,33 @@ struct Forest<'text> {
 pub struct SymbolResolvedTrees<'text>(Arc<Forest<'text>>);
 
 impl<'text> SymbolResolvedTrees<'text> {
+    pub fn compiled_interface(&self) -> crate::CompiledInterface {
+        let mut interface = crate::CompiledInterface::default();
+        for tree in self.trees() {
+            interface
+                .modules
+                .insert((tree.file.package.into(), tree.file.namespace.clone()));
+            interface.declarations.extend(tree.exports());
+        }
+        interface
+    }
     pub(crate) fn new(
         files: Vec<IndexedSource<'text>>,
-        definitions: Vec<Vec<(usize, usize)>>,
+        bindings: Vec<TreeBindings>,
         resolution: ResolvedStage,
     ) -> Self {
-        let mut files: Vec<_> = files
-            .into_iter()
-            .zip(definitions)
-            .map(|(syntax, mut definitions)| {
-                definitions.sort_unstable_by_key(|&(node, _)| node);
-                BoundFile {
-                    syntax,
-                    definitions,
-                    names: Vec::new(),
-                    applications: Vec::new(),
-                }
-            })
-            .collect();
-        for (index, name) in resolution.uses.iter().enumerate() {
-            let file = &mut files[name.node.file];
-            file.names.push(index);
-        }
-        for (index, application) in resolution.applications.iter().enumerate() {
-            files[application.section.file].applications.push(index);
-        }
-        for file in &mut files {
-            file.names.sort_by_key(|&i| resolution.uses[i].node.node);
-            file.applications
-                .sort_unstable_by_key(|&i| resolution.applications[i].section.node);
-        }
+        let files = files.into_iter().zip(bindings).collect();
         Self(Arc::new(Forest { files, resolution }))
     }
 
+    pub fn uses(&self) -> impl Iterator<Item = &NameUse> {
+        self.trees().flat_map(|tree| tree.occurrences())
+    }
+
     pub fn trees(&self) -> impl ExactSizeIterator<Item = SymbolResolvedTree<'_>> {
-        self.0.files.iter().map(|file| SymbolResolvedTree {
-            file: &file.syntax,
-            bindings: file,
+        self.0.files.iter().map(|(file, bindings)| SymbolResolvedTree {
+            file,
+            bindings,
             resolution: &self.0.resolution,
         })
     }
@@ -76,22 +67,37 @@ impl Deref for SymbolResolvedTrees<'_> {
 #[derive(Clone, Copy)]
 pub struct SymbolResolvedTree<'a> {
     pub file: &'a IndexedSource<'a>,
-    bindings: &'a BoundFile<'a>,
+    bindings: &'a TreeBindings,
     resolution: &'a ResolvedStage,
 }
 
 impl<'a> SymbolResolvedTree<'a> {
+    /// Selecting a declaration after typing still requires authority in the author's package.
+    pub fn can_select_from(
+        &self,
+        package: &str,
+    ) -> bool {
+        self.file.package == package
+            || self
+                .resolution
+                .direct_dependencies
+                .get(self.file.package)
+                .is_some_and(|dependencies| dependencies.contains(package))
+    }
+
+    /// Resolved occurrences in this file, in syntax order.
+    pub fn occurrences(self) -> impl ExactSizeIterator<Item = &'a NameUse> + 'a {
+        self.bindings.uses.iter()
+    }
     /// A field shorthand has both a member occurrence and a value reference.
     pub fn names(
         &self,
         node: usize,
     ) -> impl Iterator<Item = &'a NameUse> {
-        let uses = &self.resolution.uses;
-        let indices = &self.bindings.names;
-        let start = indices.partition_point(|&i| uses[i].node.node < node);
-        indices[start..]
+        let uses = &self.bindings.uses;
+        let first = uses.partition_point(|name| name.node.node < node);
+        uses[first..]
             .iter()
-            .map(|&i| &uses[i])
             .take_while(move |name| name.node.node == node)
     }
     pub fn symbol(
@@ -101,6 +107,22 @@ impl<'a> SymbolResolvedTree<'a> {
         self.names(node)
             .find(|name| name.role == NameRole::Reference)
             .map(|name| &name.target)
+    }
+    /// Private overloads retained for selection at a public signature occurrence.
+    pub fn private_signature_candidates(
+        &self,
+        node: usize,
+    ) -> &'a [DeclarationId] {
+        self.bindings
+            .private_signature_candidates
+            .get(&node)
+            .map_or(&[], Vec::as_slice)
+    }
+    pub fn pattern_binding(
+        &self,
+        node: usize,
+    ) -> Option<omega_lexer::SourceSpan> {
+        self.bindings.patterns.get(&node).copied()
     }
     pub fn qualifier(
         &self,
@@ -124,36 +146,75 @@ impl<'a> SymbolResolvedTree<'a> {
         &self,
         node: usize,
     ) -> Option<&'a DeclarationId> {
-        let defs = &self.bindings.definitions;
-        let i = defs.binary_search_by_key(&node, |&(n, _)| n).ok()?;
-        Some(&self.resolution.declarations[defs[i].1])
+        self.bindings
+            .definitions
+            .get(&node)
+            .map(|&slot| &self.resolution.declarations[slot])
     }
-    pub fn definitions(&self) -> impl Iterator<Item = (SourceSpan, &'a DeclarationId)> + '_ {
+    pub fn declaration_nodes(self) -> impl Iterator<Item = (usize, &'a DeclarationId)> + 'a {
         self.bindings
             .definitions
             .iter()
-            .map(|&(node, i)| (self.file.span(node), &self.resolution.declarations[i]))
+            .map(move |(&node, &i)| (node, &self.resolution.declarations[i]))
     }
-    pub fn operator(
+    /// Names introduced by this file that another package may import.
+    pub fn exports(self) -> impl Iterator<Item = crate::InterfaceExport> + 'a {
+        self.bindings
+            .exports
+            .iter()
+            .map(move |slot| crate::InterfaceExport {
+                id: self.resolution.declarations[*slot].clone(),
+                module: self.file.namespace.clone(),
+                domain_carrier: self.resolution.domain_carriers.get(slot).cloned(),
+                trait_parents: self
+                    .resolution
+                    .direct_trait_parents
+                    .get(slot)
+                    .into_iter()
+                    .flatten()
+                    .map(|&parent| self.resolution.declarations[parent].clone())
+                    .collect(),
+            })
+    }
+    pub fn definitions(self) -> impl Iterator<Item = (omega_lexer::SourceSpan, &'a DeclarationId)> + 'a {
+        self.declaration_nodes()
+            .map(move |(node, id)| (self.file.span(node), id))
+    }
+    /// The arguments bound to this declaration on a path with one or more applied segments.
+    pub fn arguments_for(
         &self,
-        node: usize,
-    ) -> Option<&'a OperatorUse> {
-        // The resolver emits operators in sorted file order and tree preorder.
-        let id = self.file.node_id(node);
-        let ops = &self.resolution.operators;
-        ops.binary_search_by_key(&id, |op| op.node)
-            .ok()
-            .map(|i| &ops[i])
+        path: usize,
+        declaration: &DeclarationId,
+    ) -> &'a [usize] {
+        self.file.nodes[path]
+            .children
+            .iter()
+            .find_map(|&section| {
+                let name = self.application_name(section)?;
+                let selected = name.target.visible_names().iter().any(|symbol| match symbol {
+                    Symbol::DomainCandidates { candidates, .. } => candidates.iter().any(|c| &c.declaration == declaration),
+                    _ => symbol.declaration_candidates().contains(declaration),
+                });
+                selected.then_some(self.file.nodes[section].children.as_slice())
+            })
+            .unwrap_or(&[])
     }
+
+    /// Each written argument list and the name it applies to, in syntax order.
+    pub fn applications(self) -> impl ExactSizeIterator<Item = (usize, &'a NameUse)> + 'a {
+        self.bindings
+            .applications
+            .iter()
+            .map(|(&section, &name)| (section, &self.bindings.uses[name]))
+    }
+
     pub fn application_name(
         &self,
         section: usize,
     ) -> Option<&'a NameUse> {
-        let indices = &self.bindings.applications;
-        let apps = &self.resolution.applications;
-        let i = indices
-            .binary_search_by_key(&section, |&i| apps[i].section.node)
-            .ok()?;
-        Some(&self.resolution.uses[apps[indices[i]].name_use])
+        self.bindings
+            .applications
+            .get(&section)
+            .map(|&slot| &self.bindings.uses[slot])
     }
 }

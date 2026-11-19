@@ -1,7 +1,7 @@
 use omega_lexer::SourceSpan;
 use omega_resolver::IndexedSource;
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Site {
     pub package: String,
     pub file: String,

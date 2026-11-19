@@ -40,9 +40,9 @@ pub fn parse_file(
 ) -> Result<SyntaxTree, ParseError> {
     let mut syntax_parser = SyntaxParser::new(source_bytes, tokens)?;
 
-    if syntax_parser.parse_file_root().is_err() {
-        return Err(syntax_parser.get_error());
-    }
+    syntax_parser
+        .parse_file_root()
+        .map_err(|failure| syntax_parser.get_error(failure))?;
 
     syntax_parser.finish("a declaration")
 }
@@ -66,9 +66,9 @@ pub fn parse_fragment(
 ) -> Result<SyntaxTree, ParseError> {
     let mut syntax_parser = SyntaxParser::new(source_bytes, tokens)?;
 
-    if syntax_parser.parse_fragment_root(fragment_kind).is_err() {
-        return Err(syntax_parser.get_error());
-    }
+    syntax_parser
+        .parse_fragment_root(fragment_kind)
+        .map_err(|failure| syntax_parser.get_error(failure))?;
 
     syntax_parser.finish("the end of the fragment")
 }

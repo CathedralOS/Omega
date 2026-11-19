@@ -234,7 +234,7 @@ fn shorthand_and_operators_retain_their_roles_on_the_exact_nodes() {
         let parameter = node(NodeKind::Param);
         assert_eq!(*binder_node, parameter);
         assert_eq!(*span, tree.file.nodes[parameter].words().next().unwrap().span);
-        let op = tree.operator(node(NodeKind::Binary)).unwrap();
+        let op = tree.file.operator(node(NodeKind::Binary)).unwrap();
         assert_eq!(op.token, "+%");
         assert_eq!(op.span.slice(text.as_bytes()), Some(&b"+%"[..]));
     });

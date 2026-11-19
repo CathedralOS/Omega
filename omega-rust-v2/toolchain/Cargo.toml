@@ -1,0 +1,11 @@
+[package]
+name = "omega-toolchain"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+omega-lexer = { path = "../layers/00_bytes-to-tokens" }
+omega-parser = { path = "../layers/01_tokens-to-syntax-trees" }
+omega-resolver = { path = "../layers/02_syntax-trees-to-symbol-resolved-trees" }

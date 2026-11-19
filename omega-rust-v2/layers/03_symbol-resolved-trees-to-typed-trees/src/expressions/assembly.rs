@@ -17,23 +17,17 @@ impl BodyTyper<'_, '_> {
         for &part in &source.nodes[node_index].children {
             let node = &source.nodes[part];
             match node.kind {
-                Registers => {
-                    let register = node
-                        .words()
-                        .nth(1)
-                        .ok_or_else(|| TypeError::unsupported(source, part))?;
-                    let expected = target
-                        .registers
-                        .get(register.text)
-                        .ok_or_else(|| TypeError::at(source, part, format!("missing register type for {}", register.text)))?;
-                    let expr = self.unit.single_child(part)?;
-                    let value = self.type_expression_with_expected_type(expr, Some(expected))?;
-                    self.check_destination(expr, &value, expected)?;
-                }
-                Clobbers => {
-                    for reg in node.words().skip(1).filter(|w| w.text != "none") {
-                        if !target.registers.contains_key(reg.text) {
-                            return Err(TypeError::at(source, part, format!("missing register type for {}", reg.text)));
+                Registers | Clobbers => {
+                    for occurrence in self.unit.names(part) {
+                        let Symbol::TargetRegister(register) = &occurrence.target else { continue };
+                        let expected = target
+                            .registers
+                            .get(register)
+                            .ok_or_else(|| TypeError::at(source, part, format!("missing register type for {register}")))?;
+                        if node.kind == Registers {
+                            let expr = self.unit.single_child(part)?;
+                            let value = self.type_expression_with_expected_type(expr, Some(expected))?;
+                            self.check_destination(expr, &value, expected)?;
                         }
                     }
                 }
@@ -62,14 +56,12 @@ impl BodyTyper<'_, '_> {
                         self.check_destination(operand, &value, expected)?;
                     }
                     self.output.instructions.push(crate::TypedInstruction {
+                        node: source.node_id(part),
                         site: Site::at(source, part),
                         target: target.target.clone(),
                         mnemonic: mnemonic.clone(),
                         operands: params.clone(),
                     });
-                }
-                AsmTransition if !matches!(self.unit.symbol(part),Some(Symbol::Declaration(id)) if id.kind==AsmMachine) => {
-                    return Err(TypeError::at(source, part, "assembly transition needs an exact target"));
                 }
                 _ => {}
             }

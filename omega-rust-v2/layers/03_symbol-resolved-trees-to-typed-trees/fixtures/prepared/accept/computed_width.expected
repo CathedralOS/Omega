@@ -1,0 +1,5 @@
+operator | n + 1 | + | u8, u8 | u8
+call | make::<7>() | game::make<7> | game::Buffer<8>
+call | width(N) | game::width | u8
+call | width(N) | game::width | u8
+landing | 1 | u8

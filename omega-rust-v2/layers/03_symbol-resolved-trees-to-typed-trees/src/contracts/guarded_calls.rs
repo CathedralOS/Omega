@@ -1,70 +1,90 @@
 //! Follow a guarded callback through forwarding calls and retain the guard, its operands and the call that supplies the implementation.
 
-use crate::contracts::callback_invocations;
+use crate::contracts::{callback_invocations, effect_propagation::ExecutionCalls};
 use crate::declarations::declaration_catalog::DeclarationCatalog;
-use crate::declarations::resolved_source_file::ResolvedSourceFile;
-use crate::{CallUse, GuardedCall, InvocationTarget, TypeError, TypedStage, ValueType};
-use omega_resolver::DeclarationId;
-use std::collections::{HashMap, HashSet};
+use crate::{CrashRouteRef, GuardedCall, GuardedInvocationRef, InvocationTarget, TypedStage};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 pub(crate) fn record_guarded_calls(
-    units: &[ResolvedSourceFile<'_>],
+    graph: &ExecutionCalls,
+    library_graph: Option<&ExecutionCalls>,
     catalog: &DeclarationCatalog<'_>,
     out: &mut TypedStage,
-) -> Result<(), TypeError> {
-    let mut routes = HashMap::<&crate::Site, Vec<&crate::CrashRoute>>::new();
-    for route in &out.crash_routes {
-        routes.entry(&route.contract).or_default().push(route);
+) {
+    let library = out.library;
+    let mut routes = HashMap::<&crate::Site, Vec<CrashRouteRef>>::new();
+    for (index, route) in out.crash_routes.iter().enumerate() {
+        routes
+            .entry(&route.contract)
+            .or_default()
+            .push(CrashRouteRef::Local(index));
     }
-    let effects: HashMap<_, _> = out.machine_effects.iter().map(|e| (&e.machine, e)).collect();
+    if let Some(library) = library {
+        for (index, route) in library.crash_routes.iter().enumerate() {
+            routes
+                .entry(&route.contract)
+                .or_default()
+                .push(CrashRouteRef::Library(index));
+        }
+    }
+    if routes.is_empty() {
+        return;
+    }
 
-    let mut callers = HashMap::<&DeclarationId, Vec<&crate::TypedCall>>::new();
-    for call in &out.calls {
-        if call.use_site == CallUse::Execution && call.caller.is_some() {
-            callers.entry(&call.machine).or_default().push(call);
-        }
-    }
-    for edge in &out.indirect_calls {
+    let imported = library.zip(library_graph);
+    let invocations = graph
+        .indirect
+        .iter()
+        .copied()
+        .map(GuardedInvocationRef::Local)
+        .chain(
+            library_graph
+                .into_iter()
+                .flat_map(|graph| graph.indirect.iter().copied())
+                .map(GuardedInvocationRef::Library),
+        );
+    for invocation in invocations {
+        let edge = match invocation {
+            GuardedInvocationRef::Local(index) => &out.indirect_calls[index],
+            GuardedInvocationRef::Library(index) => &library.unwrap().indirect_calls[index],
+        };
         let Some(caller) = edge.caller.as_ref() else { continue };
-        if edge.guarantee {
-            continue;
-        }
-        if edge.use_site != CallUse::Execution {
-            if edge.contract.pause.suspend || edge.contract.pause.block || edge.contract.reach.as_ref().is_none_or(|r| !r.is_empty()) {
-                return Err(TypeError {
-                    package: edge.site.package.clone(),
-                    file: edge.site.file.clone(),
-                    span: edge.site.span,
-                    message: "fact requires an admitted effect-free callable".into(),
-                });
-            }
-            continue;
-        }
-        let mut queue = std::collections::VecDeque::from([(caller, edge.entry.clone())]);
+        let mut queue = VecDeque::from([(caller, edge.entry.clone())]);
         let mut visited = HashSet::new();
         while let Some((owner, entry)) = queue.pop_front() {
             if !matches!(entry, InvocationTarget::StaticParameter { .. } | InvocationTarget::RuntimeParameter { .. }) || !visited.insert((owner, entry.clone()))
             {
                 continue;
             }
-            for call in callers.get(owner).into_iter().flatten() {
+            let local_callers = graph
+                .callers_of(owner)
+                .iter()
+                .map(|&index| (Some(index), &out.calls[index]));
+            // Library-to-library specializations already live in the checked library.
+            // Still follow its forwarding edges to reach specializations in this forest.
+            let library_callers = imported.into_iter().flat_map(|(library, graph)| {
+                graph
+                    .callers_of(owner)
+                    .iter()
+                    .map(move |&index| (None, &library.calls[index]))
+            });
+            for (specialization, call) in local_callers.chain(library_callers) {
                 let Some(parent) = call.caller.as_ref() else { continue };
-                let supplied = callback_invocations::through(call, &entry, units, catalog);
-                if let InvocationTarget::Declaration(slot) = &supplied {
-                    let Some(signature) = catalog.signatures.get(&slot.declaration) else {
+                let supplied = callback_invocations::through(call, &entry);
+                let declaration = match &supplied {
+                    InvocationTarget::Declaration(slot) => Some(&slot.declaration),
+                    InvocationTarget::AppliedMachine { declaration, .. } => Some(declaration),
+                    _ => None,
+                };
+                if let Some(declaration) = declaration {
+                    let (Some(specialization), Some(signature)) = (specialization, catalog.signatures.get(declaration)) else {
                         continue;
                     };
-                    for route in routes.get(&signature.site).into_iter().flatten() {
-                        out.guarded_calls.push(GuardedCall {
-                            call: edge.site.clone(),
-                            specialization: Some(call.site.clone()),
-                            caller: parent.clone(),
-                            guard_contract: route.contract.clone(),
-                            guard: route.guard.clone(),
-                            cause: route.cause,
-                            operands: edge.operands.clone(),
-                            generic_arguments: call.type_arguments.clone(),
-                            entry: Some(edge.entry.clone()),
+                    for &route in routes.get(&signature.site).into_iter().flatten() {
+                        out.guarded_calls.push(GuardedCall::Indirect {
+                            call: invocation,
+                            route,
+                            specialization: Some(specialization),
                         });
                     }
                 } else {
@@ -72,81 +92,28 @@ pub(crate) fn record_guarded_calls(
                 }
             }
         }
-        for route in routes.get(&edge.contract.contract).into_iter().flatten() {
-            out.guarded_calls.push(GuardedCall {
-                call: edge.site.clone(),
-                specialization: None,
-                caller: caller.clone(),
-                guard_contract: route.contract.clone(),
-                guard: route.guard.clone(),
-                cause: route.cause,
-                operands: edge.operands.clone(),
-                generic_arguments: vec![],
-                entry: Some(edge.entry.clone()),
-            });
-        }
-    }
-    for call in &out.calls {
-        if call.use_site != CallUse::Execution {
-            let e = effects[&call.machine];
-            if e.pause.suspend || e.pause.block || !e.reach.is_empty() {
-                return Err(TypeError {
-                    package: call.site.package.clone(),
-                    file: call.site.file.clone(),
-                    span: call.site.span,
-                    message: "fact or static argument requires an effect-free computation".into(),
+        if matches!(invocation, GuardedInvocationRef::Local(_)) {
+            for &route in routes.get(&edge.contract.contract).into_iter().flatten() {
+                out.guarded_calls.push(GuardedCall::Indirect {
+                    call: invocation,
+                    route,
+                    specialization: None,
                 });
             }
+        }
+    }
+    for &index in &graph.direct {
+        let call = &out.calls[index];
+        if call.caller.is_none() {
             continue;
         }
-        let Some(caller) = &call.caller else { continue };
-        for route in routes
+        for &route in routes
             .get(&catalog.signatures[&call.machine].site)
             .into_iter()
             .flatten()
         {
-            out.guarded_calls.push(GuardedCall {
-                call: call.site.clone(),
-                specialization: None,
-                caller: caller.clone(),
-                guard_contract: route.contract.clone(),
-                guard: route.guard.clone(),
-                cause: route.cause,
-                operands: call
-                    .operands
-                    .iter()
-                    .map(|id| crate::Site::at(units[id.file].file, id.node))
-                    .collect(),
-                generic_arguments: call.type_arguments.clone(),
-                entry: None,
-            });
+            out.guarded_calls
+                .push(GuardedCall::Direct { call: index, route });
         }
     }
-    for obligation in &out.obligations {
-        let candidate = match &obligation.kind {
-            crate::ObligationKind::SupplyHypothesis {
-                evidence: ValueType::ProofCitation(machine),
-                ..
-            } => machine.as_ref(),
-            crate::ObligationKind::RefineMathematicalCitation { machine, .. } => machine,
-            _ => continue,
-        };
-        {
-            let effect = effects[candidate];
-            if effect.pause.suspend
-                || effect.pause.block
-                || !effect.reach.is_empty()
-                || effect.crash_ceiling.as_ref().is_some_and(|c| !c.is_empty())
-                || !effect.invokes.is_empty()
-            {
-                return Err(TypeError {
-                    package: obligation.site.package.clone(),
-                    file: obligation.site.file.clone(),
-                    span: obligation.site.span,
-                    message: "logical evidence cannot supply operational behavior".into(),
-                });
-            }
-        }
-    }
-    Ok(())
 }

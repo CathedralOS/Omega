@@ -9,7 +9,16 @@ impl BodyTyper<'_, '_> {
         &self,
         node_index: usize,
     ) -> crate::InvocationTarget {
-        let site = Site::at(self.unit.file, node_index);
+        let source = self.unit.file;
+        let node_index = source.ungroup(node_index);
+        if let Some(omega_resolver::Symbol::Declaration(id)) = self.unit.symbol(node_index)
+            && matches!(id.kind, omega_parser::NodeKind::Machine | omega_parser::NodeKind::AsmMachine)
+        {
+            return crate::InvocationTarget::Declaration(crate::RequirementSlot {
+                declaration: id.clone(),
+                trait_arguments: Vec::new(),
+            });
+        }
         if let Some(omega_resolver::Symbol::Binding { span, .. }) = self.unit.symbol(node_index) {
             if let Some(ValueType::Parameter { owner, index }) = self.unit.parameters.get(span) {
                 return crate::InvocationTarget::StaticParameter {
@@ -19,14 +28,14 @@ impl BodyTyper<'_, '_> {
             }
             if let Some(owner) = &self.caller
                 && let Some(index) = self.catalog.signatures[owner]
-                    .params
+                    .parameters
                     .iter()
                     .position(|(bind, _)| bind == span)
             {
                 return crate::InvocationTarget::RuntimeParameter { owner: owner.clone(), index };
             }
         }
-        crate::InvocationTarget::StoredCallable(site)
+        crate::InvocationTarget::StoredCallable(Site::at(source, node_index))
     }
 
     pub(super) fn static_callable(
@@ -49,21 +58,37 @@ impl BodyTyper<'_, '_> {
         node_index: usize,
         c: &CallableType,
         machine: &DeclarationId,
+        arguments: &[ValueType],
     ) -> Result<(), TypeError> {
         let signature = self
             .catalog
             .signatures
             .get(machine)
             .ok_or_else(|| TypeError::unsupported(self.unit.file, node_index))?;
-        if !signature.params.iter().map(|(_, t)| t).eq(&c.parameters) || signature.result != c.result || self.catalog.types.arities[machine] != 0 {
+        let instantiate = |ty: &ValueType| ty.substitute(machine, arguments);
+        if self.catalog.types.arity(machine) != arguments.len()
+            || !signature
+                .parameters
+                .iter()
+                .map(|(_, t)| instantiate(t))
+                .eq(c.parameters.iter().cloned())
+            || instantiate(&signature.result) != c.result
+        {
             return Err(TypeError::at(
                 self.unit.file,
                 node_index,
                 "selected machine has incompatible callable signature",
             ));
         }
-        if let Some(slot) = &c.requirement
-            && !signature.satisfies.contains(slot)
+        if let Some(required) = &c.requirement
+            && signature.satisfies.as_ref().is_none_or(|selected| {
+                selected.declaration != required.declaration
+                    || !selected
+                        .trait_arguments
+                        .iter()
+                        .map(instantiate)
+                        .eq(required.trait_arguments.iter().cloned())
+            })
         {
             return Err(TypeError::at(self.unit.file, node_index, "selected machine lacks the exact satisfaction edge"));
         }
@@ -76,65 +101,100 @@ impl BodyTyper<'_, '_> {
             ObligationKind::RefineCallable {
                 contract: Box::new(c.clone()),
                 machine: machine.clone(),
+                arguments: arguments.to_vec(),
             },
         );
         Ok(())
     }
+    pub(super) fn project_guarantee(
+        &mut self,
+        node: usize,
+        callee: usize,
+        args: usize,
+        binder: SourceSpan,
+    ) -> Result<ValueType, TypeError> {
+        let source = self.unit.file;
+        if self.context != super::body_typer::ExpressionContext::Proof {
+            return Err(TypeError::at(source, callee, "logical evidence cannot be executed"));
+        }
+        let subjects = &source.nodes[args].children;
+        let operands = subjects.iter().map(|&s| Site::at(source, s)).collect();
+        let (mut parameters, result, obligation) = if let Some(site) = self.unit.hypotheses.get(&binder) {
+            let hypothesis = &self.catalog.hypotheses[site];
+            if hypothesis.conclusions.is_empty() {
+                return Err(TypeError::at(source, node, "logical guarantee needs its declared subjects and conclusion"));
+            }
+            let parameters = hypothesis.parameters.iter().map(|(_, ty)| ty.clone()).collect();
+            (
+                parameters,
+                hypothesis.result.clone(),
+                ObligationKind::ApplyHypothesis {
+                    requirement: site.clone(),
+                    operands,
+                },
+            )
+        } else {
+            let callable = self.static_callable(binder, callee)?;
+            if !callable.has_guarantee {
+                return Err(TypeError::at(source, callee, "callback has no declared guarantee"));
+            }
+            let projection = ObligationKind::ApplyCallbackGuarantee {
+                binder: self.unit.parameters[&binder].clone(),
+                contract: callable.contract,
+                operands,
+            };
+            (callable.parameters, callable.result, projection)
+        };
+        if result != ValueType::NoResult {
+            parameters.push(result);
+        }
+        if parameters.len() != subjects.len() {
+            return Err(TypeError::at(source, node, "logical guarantee needs its declared subjects and conclusion"));
+        }
+        for (&subject, ty) in subjects.iter().zip(&parameters) {
+            let value = self.type_expression_with_expected_type(subject, Some(ty))?;
+            self.check_destination(subject, &value, ty)?;
+        }
+        self.record_obligation(node, obligation);
+        Ok(ValueType::Bool)
+    }
+
     pub(super) fn indirect(
         &mut self,
         node_index: usize,
         callee: usize,
         args: usize,
         c: &CallableType,
-        guarantee: bool,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
-        let mut params = c.parameters.clone();
-        let result = if guarantee {
-            if !c.has_guarantee {
-                return Err(TypeError::at(source, callee, "callback has no declared guarantee"));
-            }
-            if c.result != ValueType::NoResult {
-                params.push(c.result.clone());
-            }
-            ValueType::Bool
-        } else {
-            let ack = effect_clauses::markers(self.unit, node_index)?;
-            if c.pause.suspend && !ack.suspend || c.pause.block && !ack.block {
-                return Err(TypeError::at(source, node_index, "callback requires its declared pause acknowledgement"));
-            }
-            c.result.clone()
-        };
+        let ack = effect_clauses::markers(self.unit, node_index)?;
+        if c.pause.suspend && !ack.suspend || c.pause.block && !ack.block {
+            return Err(TypeError::at(source, node_index, "callback requires its declared pause acknowledgement"));
+        }
+        let params = &c.parameters;
         if params.len() != source.nodes[args].children.len() {
             return Err(TypeError::at(source, node_index, "incorrect callback arity"));
         }
-        for (&arg, p) in source.nodes[args].children.iter().zip(&params) {
-            let ty = self.type_expression_with_expected_type(arg, Some(p))?;
-            self.admit_argument(arg, &ty, p)?;
+        for (position, (&arg, p)) in source.nodes[args].children.iter().zip(params).enumerate() {
+            let operand = self.argument_operand(arg, Some(p))?;
+            self.admit_argument(node_index, position, &operand, p)?;
         }
+        let entry = self.invocation_target(callee);
+        let use_site = self.record_call_use(node_index);
         self.output.indirect_calls.push(IndirectCall {
             node: source.node_id(node_index),
-            use_site: self.call_use(node_index),
+            use_site,
             operands: source.nodes[args]
                 .children
                 .iter()
                 .map(|&a| Site::at(source, a))
                 .collect(),
-            entry: self.invocation_target(callee),
+            entry,
             site: Site::at(source, node_index),
             callee: Site::at(source, callee),
             caller: self.caller.clone(),
             contract: c.clone(),
-            binder: match self.unit.symbol(callee) {
-                Some(omega_resolver::Symbol::Binding { span, .. }) => self.unit.parameters.get(span).cloned(),
-                _ => None,
-            },
-            guarantee,
         });
-        if !guarantee && self.call_use(node_index) == crate::CallUse::Execution {
-            self.version = Some(Site::at(source, node_index));
-            self.cases.clear();
-        }
-        Ok(result)
+        Ok(c.result.clone())
     }
 }
