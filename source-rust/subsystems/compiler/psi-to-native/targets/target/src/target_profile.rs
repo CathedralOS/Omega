@@ -447,8 +447,8 @@ impl TargetProfile {
             Self::MacosArm64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
-                Some("MacosApplication"),
-                Some("MacosArm64PhysicalEntry::enter"),
+                Some("targets::macos_arm64::MacosApplication"),
+                Some("targets::macos_arm64::MacosArm64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::MacosArm64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
@@ -456,8 +456,8 @@ impl TargetProfile {
             Self::LinuxX64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
-                Some("LinuxX86_64Application"),
-                Some("LinuxX86_64PhysicalEntry::enter"),
+                Some("targets::linux_x86_64::LinuxX86_64Application"),
+                Some("targets::linux_x86_64::LinuxX86_64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::LinuxX86_64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
@@ -465,8 +465,8 @@ impl TargetProfile {
             Self::LinuxArm64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
-                Some("LinuxArm64Application"),
-                Some("LinuxArm64PhysicalEntry::enter"),
+                Some("targets::linux_arm64::LinuxArm64Application"),
+                Some("targets::linux_arm64::LinuxArm64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::LinuxArm64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
@@ -474,8 +474,8 @@ impl TargetProfile {
             Self::MacosX64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
-                Some("MacosX64Application"),
-                Some("MacosX64PhysicalEntry::enter"),
+                Some("targets::macos_x86_64::MacosX64Application"),
+                Some("targets::macos_x86_64::MacosX64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::MacosX64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
@@ -483,8 +483,8 @@ impl TargetProfile {
             Self::WindowsX64 => (
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
-                Some("WindowsX86_64Application"),
-                Some("WindowsProcessEntry::enter"),
+                Some("targets::windows_x86_64::WindowsX86_64Application"),
+                Some("targets::windows_x86_64::WindowsProcessEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::WindowsX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
@@ -769,8 +769,8 @@ mod tests {
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
         eq!(slot.semantic_arrival_requirement => "ProgramStorageEntry::enter");
-        assert_eq!(slot.boundary_schema, Some("WindowsX86_64Application"));
-        eq!(slot.physical_arrival_requirement => Some("WindowsProcessEntry::enter"));
+        assert_eq!(slot.boundary_schema, Some("targets::windows_x86_64::WindowsX86_64Application"));
+        eq!(slot.physical_arrival_requirement => Some("targets::windows_x86_64::WindowsProcessEntry::enter"));
         assert_eq!(
             slot.physical_contract_package,
             Some(ProgramEntryPhysicalContractPackage::WindowsX64)
@@ -962,8 +962,8 @@ mod tests {
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
-        assert_eq!(slot.boundary_schema, Some("MacosX64Application"));
-        eq!(slot.physical_arrival_requirement => Some("MacosX64PhysicalEntry::enter"));
+        assert_eq!(slot.boundary_schema, Some("targets::macos_x86_64::MacosX64Application"));
+        eq!(slot.physical_arrival_requirement => Some("targets::macos_x86_64::MacosX64PhysicalEntry::enter"));
         eq!(slot.physical_contract_package => Some(ProgramEntryPhysicalContractPackage::MacosX64));
         let physical_package = slot
             .physical_contract_package

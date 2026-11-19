@@ -97,11 +97,12 @@ pub fn select_program_entry_contract(
         {
             return false;
         }
+        let path = typed.trait_declaration_path(declaration);
         if let Some(binding) = binding {
-            typed.trait_declaration_path(declaration) == binding
+            path == binding
         } else {
             let parent = typed.symbols.get(declaration.symbol).parent;
-            declaration.name.as_str() == default_schema
+            path == default_schema
                 && parent.is_valid()
                 && matches!(
                     typed.symbols.get(parent).kind,
@@ -169,8 +170,8 @@ pub fn selected_program_entry_boundary(
             .iter()
             .find(|row| row.symbol == symbol)
             .ok_or_else(|| failure("catalog boundary has no actual typed declaration"))?;
-        // Slot schema is an unqualified name inside the authenticated contract source.
-        if definition.name.as_str() != schema {
+        // The slot names the package-relative declaration in its authenticated source.
+        if typed.trait_declaration_path(definition) != schema {
             continue;
         }
         let owns = match selected_owner {
